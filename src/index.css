@@ -1,0 +1,300 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  [data-theme="night"] {
+    /* Background layers — night mode */
+    --color-navy: #131E34;
+    --color-navy-2: #1A2840;
+    --color-navy-3: #213154;
+    --color-navy-4: #2A3D6B;
+
+    --color-royal: #3D52E8;
+
+    --color-peri: #DDE3FF;
+    --color-peri-2: #BFC9FF;
+    --color-peri-dim: #8896CC;
+    --color-peri-soft: rgba(221, 227, 255, 0.10);
+    --color-peri-medium: rgba(221, 227, 255, 0.20);
+
+    --color-gold: #E8B958;
+    --color-gold-soft: rgba(232, 185, 88, 0.13);
+    --color-sage: #6FBF92;
+    --color-sage-soft: rgba(111, 191, 146, 0.13);
+    --color-coral: #DC6A6A;
+    --color-coral-soft: rgba(220, 106, 106, 0.13);
+
+    --color-border: rgba(221, 227, 255, 0.10);
+    --color-border-bright: rgba(221, 227, 255, 0.22);
+    --color-stone-dim: rgba(136, 150, 204, 0.55);
+  }
+
+  [data-theme="day"] {
+    /* Pale blue day mode — bright surfaces, dark navy text */
+    --color-navy: #F6F9FD;
+    --color-navy-2: #EEF5FB;
+    --color-navy-3: #E2EDF7;
+    --color-navy-4: #D2E2F0;
+
+    --color-royal: #2B4A9A;
+
+    --color-peri: #0D2137;
+    --color-peri-2: #1B3656;
+    --color-peri-dim: #2E4B69;
+    --color-peri-soft: rgba(13, 33, 55, 0.08);
+    --color-peri-medium: rgba(13, 33, 55, 0.15);
+
+    --color-gold: #7A5A10;
+    --color-gold-soft: rgba(122, 90, 16, 0.14);
+    --color-sage: #1E5532;
+    --color-sage-soft: rgba(30, 85, 50, 0.14);
+    --color-coral: #882020;
+    --color-coral-soft: rgba(136, 32, 32, 0.14);
+
+    --color-border: rgba(13, 33, 55, 0.18);
+    --color-border-bright: rgba(13, 33, 55, 0.34);
+    --color-stone-dim: rgba(46, 75, 105, 0.78);
+  }
+
+  html {
+    font-family: 'Nunito', system-ui, sans-serif;
+    color: var(--color-peri);
+    background-color: var(--color-navy);
+    font-size: 16px;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--color-navy);
+  }
+
+  .font-display, h1, h2, h3 {
+    font-family: 'Baloo 2', system-ui, sans-serif;
+  }
+
+  select option {
+    background: var(--color-navy-3);
+    color: var(--color-peri);
+  }
+}
+
+@layer components {
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl font-semibold transition-all duration-200 active:scale-[0.97] cursor-pointer;
+    background: var(--color-peri);
+    color: var(--color-navy-3);
+    font-family: 'Nunito', sans-serif;
+  }
+  .btn-primary:hover {
+    opacity: 0.88;
+    box-shadow: 0 0 20px rgba(43, 62, 230, 0.18);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl font-semibold transition-all duration-200 active:scale-[0.97] cursor-pointer;
+    color: var(--color-peri);
+    border: 1.5px solid var(--color-peri-2);
+    background: var(--color-peri-soft);
+    font-family: 'Nunito', sans-serif;
+  }
+  .btn-secondary:hover {
+    background: var(--color-peri-medium);
+    border-color: var(--color-peri);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-[0.97] cursor-pointer;
+    color: var(--color-peri-dim);
+    background: transparent;
+    border: 1.5px solid var(--color-border);
+    font-family: 'Nunito', sans-serif;
+  }
+  .btn-ghost:hover {
+    color: var(--color-peri);
+    background: var(--color-peri-soft);
+    border-color: var(--color-border-bright);
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-medium text-sm transition-all duration-200 active:scale-[0.97] cursor-pointer;
+    color: var(--color-coral);
+    background: var(--color-coral-soft);
+    border: 1px solid rgba(224, 82, 82, 0.2);
+  }
+  .btn-danger:hover {
+    background: rgba(224, 82, 82, 0.25);
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply rounded-2xl border;
+    background: var(--color-navy-2);
+    border-color: var(--color-border);
+  }
+  .card-hover:hover {
+    border-color: var(--color-border-bright);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(43, 62, 230, 0.12);
+    transition: all 0.2s;
+  }
+  .card-peri {
+    @apply rounded-2xl;
+    background: var(--color-peri);
+    color: var(--color-navy);
+  }
+
+  /* ── Pill chip (nav badge style) ── */
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-semibold text-sm;
+    background: var(--color-peri-soft);
+    color: var(--color-peri);
+    border: 1px solid var(--color-border-bright);
+  }
+  .pill-active {
+    background: var(--color-peri);
+    color: var(--color-navy);
+    border-color: transparent;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide;
+  }
+  .badge-peri {
+    background: var(--color-peri-soft);
+    color: var(--color-peri);
+  }
+  .badge-gold {
+    background: var(--color-gold-soft);
+    color: var(--color-gold);
+  }
+  .badge-sage {
+    background: var(--color-sage-soft);
+    color: var(--color-sage);
+  }
+  .badge-coral {
+    background: var(--color-coral-soft);
+    color: var(--color-coral);
+  }
+  .badge-neutral {
+    background: var(--color-peri-soft);
+    color: var(--color-peri-dim);
+  }
+  /* Backwards compat aliases */
+  .badge-brass { background: var(--color-gold-soft); color: var(--color-gold); }
+  .badge-moss { background: var(--color-sage-soft); color: var(--color-sage); }
+  .badge-roman { background: var(--color-coral-soft); color: var(--color-coral); }
+
+  /* ── Form inputs ── */
+  .input-field {
+    @apply w-full rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors duration-150 outline-none;
+    border-color: var(--color-border);
+    background: var(--color-navy-3);
+    color: var(--color-peri);
+    font-family: 'Nunito', sans-serif;
+  }
+  .input-field::placeholder { color: var(--color-stone-dim); }
+  .input-field:focus {
+    border-color: var(--color-peri-2);
+    box-shadow: 0 0 0 3px rgba(221, 227, 255, 0.08);
+  }
+
+  /* ── Eyebrow ── */
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-widest;
+    color: var(--color-peri-dim);
+    letter-spacing: 0.14em;
+  }
+
+  /* ── Left-border journey states ── */
+  .left-border-active { border-left: 3px solid var(--color-peri); }
+  .left-border-next { border-left: 3px solid var(--color-peri-dim); }
+  .left-border-future { border-left: 3px solid transparent; }
+}
+
+@layer utilities {
+  /* Color utilities */
+  .text-peri { color: var(--color-peri); }
+  .text-peri-2 { color: var(--color-peri-2); }
+  .text-peri-dim { color: var(--color-peri-dim); }
+  .text-gold { color: var(--color-gold); }
+  .text-sage { color: var(--color-sage); }
+  .text-coral { color: var(--color-coral); }
+  .text-stone { color: var(--color-peri-dim); }
+  .text-stone-dim { color: var(--color-stone-dim); }
+  .text-ink { color: var(--color-peri); }
+  .text-navy { color: var(--color-navy); }
+  .text-navy-2 { color: var(--color-navy-2); }
+  .text-navy-3 { color: var(--color-navy-3); }
+  .text-navy-4 { color: var(--color-navy-4); }
+
+  .bg-navy { background-color: var(--color-navy); }
+  .bg-navy-2 { background-color: var(--color-navy-2); }
+  .bg-navy-3 { background-color: var(--color-navy-3); }
+  .bg-navy-4 { background-color: var(--color-navy-4); }
+  .bg-royal { background-color: var(--color-royal); }
+  .bg-peri { background-color: var(--color-peri); }
+  .bg-peri-soft { background-color: var(--color-peri-soft); }
+  .bg-gold-soft { background-color: var(--color-gold-soft); }
+  .bg-sage-soft { background-color: var(--color-sage-soft); }
+  .bg-coral-soft { background-color: var(--color-coral-soft); }
+
+  /* Legacy aliases */
+  .bg-bg { background-color: var(--color-navy); }
+  .bg-surface { background-color: var(--color-navy-2); }
+  .bg-surface-2 { background-color: var(--color-navy-3); }
+  .bg-surface-3 { background-color: var(--color-navy-4); }
+  .bg-brass-soft { background-color: var(--color-gold-soft); }
+  .bg-moss-soft { background-color: var(--color-sage-soft); }
+  .bg-roman-soft { background-color: var(--color-coral-soft); }
+  .text-brass { color: var(--color-gold); }
+  .text-moss { color: var(--color-sage); }
+  .text-roman { color: var(--color-coral); }
+  .border-border { border-color: var(--color-border); }
+  .border-border-bright { border-color: var(--color-border-bright); }
+  .border-brass { border-color: var(--color-gold); }
+  .border-moss { border-color: var(--color-sage); }
+
+  /* Animations */
+  .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+  .animate-slide-up { animation: slideUp 0.4s ease-out; }
+  .animate-scale-in { animation: scaleIn 0.25s ease-out; }
+  .animate-float { animation: float 4s ease-in-out infinite; }
+  .animate-drift { animation: drift 8s ease-in-out infinite; }
+  .animate-flicker { animation: flicker 3s ease-in-out infinite; }
+  .animate-dove-walk { animation: doveWalk 0.6s ease-in-out infinite alternate; }
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(6px, -10px); }
+  66% { transform: translate(-4px, 6px); }
+}
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+@keyframes doveWalk {
+  0% { transform: rotate(-3deg) translateY(0); }
+  100% { transform: rotate(3deg) translateY(-3px); }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-navy); }
+::-webkit-scrollbar-thumb { background: var(--color-navy-4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-peri-dim); }

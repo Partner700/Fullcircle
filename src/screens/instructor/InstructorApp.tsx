@@ -1,0 +1,3331 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
+import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { TentHouseBadge } from '../../components/TentHouseSymbol';
+import { supabase } from '../../lib/supabase';
+import {
+  fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
+  fetchAllNarratives, fetchAwards, insertAward,
+  fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
+  fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
+} from '../../lib/queries';
+import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf, computeStreak } from '../../lib/utils';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement } from '../../lib/types';
+import { NarrativeEditor } from '../../components/NarrativeEditor';
+import { generateQuizQuestions } from '../../lib/questionGenerator';
+import {
+  Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
+  Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
+  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
+  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
+} from 'lucide-react';
+import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
+import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
+import {
+  fetchAllChallengeSubmissions, reviewChallengeSubmission, promoteCadetToSentry, promoteSentryToInstructor,
+  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, updateCustomQuestion, deleteCustomQuestion,
+  fetchCustomGameQuestions, fetchQuizTaggedGameQuestions,
+  fetchMobileMoneySettings, saveMobileMoneySettings, fetchInstructorMobileMoneyPayments,
+  fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
+  deleteQuestionsForSession, updateGeneratedQuestion,
+  fetchQuizAnswerSheets,
+} from '../../lib/queries';
+
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
+
+type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
+type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
+
+const DEFAULT_PASSAGE_DISPLAY_SECONDS = 30;
+
+function isRepublishSelection(selection: NarrativeSelection): selection is { mode: 'republish'; narrative: DailyNarrative } {
+  return typeof selection === 'object' && selection !== null && 'mode' in selection && selection.mode === 'republish';
+}
+
+function isSentryAward(a: { title: string; forSentry?: boolean }) {
+  return !!a.forSentry || a.title === 'Century Badge (Centurion)' || a.title === 'Right Hand Badge';
+}
+
+function awardVisibleForTarget(a: { title: string; forTent?: boolean; forSentry?: boolean }, target: AwardCatalogTarget) {
+  if (target === 'tent') return !!a.forTent;
+  if (target === 'sentry') return isSentryAward(a);
+  return !a.forTent && !isSentryAward(a);
+}
+
+function AwardCheckboxList({ selected, onToggle, target = 'cadet' }: { selected: Set<string>; onToggle: (title: string) => void; target?: AwardCatalogTarget }) {
+  const visible = AWARD_CATALOG.map((g) => ({
+    ...g,
+    awards: g.awards.filter((a) => awardVisibleForTarget(a, target)),
+  })).filter((g) => g.awards.length > 0);
+  const cadenceColors: Record<string, string> = {
+    weekly: 'bg-moss/10 text-moss border-moss/20',
+    monthly: 'bg-gold/10 text-gold border-gold/20',
+    annual: 'bg-coral/10 text-coral border-coral/20',
+  };
+  return (
+    <div className="space-y-3">
+      {visible.map((group) => (
+        <div key={group.group}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border', cadenceColors[group.cadence])}>
+              {group.group}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {group.awards.map((award) => {
+              const checked = selected.has(award.title);
+              return (
+                <label key={award.title}
+                  className={cn('flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all',
+                    checked ? 'border-peri bg-peri/5' : 'border-border-bright bg-surface-2 hover:border-stone/30')}>
+                  <input type="checkbox" checked={checked} onChange={() => onToggle(award.title)}
+                    className="mt-0.5 accent-peri flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-ink leading-tight">{award.title}</p>
+                    <p className="text-[11px] text-stone mt-0.5">{award.description}</p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MultiSelectDropdown({ options, selected, onToggle, placeholder, label }: {
+  options: { id: string; label: string }[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  placeholder: string;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <label className="text-xs text-stone block mb-1">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="input-field text-sm flex items-center justify-between w-full"
+      >
+        <span className={selected.size === 0 ? 'text-stone' : 'text-ink'}>
+          {selected.size === 0 ? placeholder : `${selected.size} selected`}
+        </span>
+        <ChevronDown size={16} className="text-stone flex-shrink-0" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
+            {options.map((opt) => {
+              const checked = selected.has(opt.id);
+              return (
+                <label key={opt.id}
+                  className={cn('flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors hover:bg-surface-2',
+                    checked && 'bg-peri/5')}
+                  onClick={(e) => { e.preventDefault(); onToggle(opt.id); }}
+                >
+                  <div className={cn('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0',
+                    checked ? 'bg-peri border-peri' : 'border-border-bright')}>
+                    {checked && <Check size={12} className="text-navy" />}
+                  </div>
+                  <span className="text-sm text-ink">{opt.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const NAV_ITEMS = [
+  { key: 'dashboard', label: 'Dashboard', icon: Home },
+  { key: 'narratives', label: 'Narratives', icon: BookOpen },
+  { key: 'announcements', label: 'Announcements', icon: Megaphone },
+  { key: 'quiz', label: 'Quiz Builder', icon: FileQuestion },
+  { key: 'game_questions', label: 'Game Questions', icon: Gamepad2 },
+  { key: 'tents', label: 'Tents', icon: TentIcon },
+  { key: 'cadets', label: 'Cadets', icon: Users },
+  { key: 'sentries', label: 'Sentries', icon: Shield },
+  { key: 'unassigned', label: 'Unassigned', icon: UserPlus },
+  { key: 'challenges', label: 'Challenges', icon: Target },
+  { key: 'mobile_money', label: 'Mobile Money', icon: Smartphone },
+  { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
+  { key: 'awards', label: 'Awards', icon: AwardIcon },
+  { key: 'settings', label: 'Settings', icon: Shield },
+];
+
+export function InstructorApp() {
+  const { profile } = useAuth();
+  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tents, setTents] = useState<(Tent & { tent_houses: any })[]>([]);
+  const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [roles, setRoles] = useState<RoleAssignment[]>([]);
+  const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
+  const [awards, setAwards] = useState<(Award & { profiles: { display_name: string } })[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [t, m, p, r, n, a] = await Promise.allSettled([
+      fetchTents(), fetchTentMembers(), fetchAllProfiles(),
+      fetchAllRoleAssignments(), fetchAllNarratives(), fetchAwards(),
+    ]);
+    setTents(t.status === 'fulfilled' ? t.value : []);
+    setMembers(m.status === 'fulfilled' ? m.value : []);
+    setProfiles(p.status === 'fulfilled' ? p.value : []);
+    setRoles(r.status === 'fulfilled' ? r.value : []);
+    setNarratives(n.status === 'fulfilled' ? n.value : []);
+    setAwards(a.status === 'fulfilled' ? a.value : []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const tabLabels: Record<Tab, string> = {
+    dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', quiz: 'Quiz Builder',
+    game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management',
+    leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
+    challenges: 'Challenges', mobile_money: 'Mobile Money', settings: 'Settings',
+    unassigned: 'Unassigned Users',
+  };
+
+  const [editingNarrative, setEditingNarrative] = useState<NarrativeSelection>('new');
+
+  return (
+    <AppShell
+      navItems={NAV_ITEMS}
+      activeKey={tab}
+      onNavigate={(k) => { setTab(k as Tab); if (k === 'narratives') setEditingNarrative('new'); }}
+      headerTitle={tabLabels[tab]}
+      headerSubtitle="Instructor"
+    >
+      {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} onNavigate={setTab as (k: string) => void} />}
+      {tab === 'narratives' && (
+        <NarrativesTab
+          narratives={narratives}
+          editingNarrative={editingNarrative}
+          onSelectNarrative={setEditingNarrative}
+          onDone={() => { loadAll(); setEditingNarrative(null); }}
+        />
+      )}
+      {tab === 'announcements' && <AnnouncementManager />}
+      {tab === 'tents' && <TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} />}
+      {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
+      {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
+      {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
+      {tab === 'leaderboard' && <InstructorLeaderboard />}
+      {tab === 'matricules' && <MatriculesManagement />}
+      {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}
+      {tab === 'quiz' && <QuizBuilder />}
+      {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} />}
+      {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
+      {tab === 'mobile_money' && <MobileMoneyManager />}
+      {tab === 'settings' && <InstructorSettings profile={profile} tents={tents} members={members} />}
+    </AppShell>
+  );
+}
+
+function toDateTimeLocal(value: string) {
+  const date = value ? new Date(value) : new Date();
+  const offsetMs = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function AnnouncementManager() {
+  const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [announcementType, setAnnouncementType] = useState('general');
+  const [audience, setAudience] = useState('all');
+  const [publishAt, setPublishAt] = useState(toDateTimeLocal(new Date().toISOString()));
+  const [content, setContent] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setAnnouncements(await fetchAllAnnouncements());
+    } catch (e) {
+      console.error('Announcement load error:', e);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setAnnouncementType('general');
+    setAudience('all');
+    setPublishAt(toDateTimeLocal(new Date().toISOString()));
+    setContent('');
+    setIsActive(true);
+  };
+
+  const edit = (announcement: ScheduledAnnouncement) => {
+    setEditingId(announcement.id);
+    setAnnouncementType(announcement.announcement_type || 'general');
+    setAudience(announcement.audience || 'all');
+    setPublishAt(toDateTimeLocal(announcement.publish_at));
+    setContent(announcement.content || '');
+    setIsActive(announcement.is_active !== false);
+  };
+
+  const save = async () => {
+    if (!content.trim()) return;
+    setSaving(true);
+    const payload = {
+      announcement_type: announcementType,
+      audience,
+      publish_at: new Date(publishAt).toISOString(),
+      content: content.trim(),
+      is_active: isActive,
+    };
+    try {
+      if (editingId) await updateAnnouncement(editingId, payload);
+      else await createAnnouncement(payload);
+      resetForm();
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to save announcement');
+    }
+    setSaving(false);
+  };
+
+  const uploadWeeklyBackground = async (file: File) => {
+    setUploadingBackground(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const version = Date.now();
+      const path = `weekly-backgrounds/${version}.${ext}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      setAnnouncementType('weekly_background');
+      setAudience('cadets');
+      setContent(`${data.publicUrl}?v=${version}`);
+      setIsActive(true);
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload weekly background image');
+    }
+    setUploadingBackground(false);
+  };
+
+  const uploadPanelImage = async (file: File, panelType: string) => {
+    setUploadingBackground(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const version = Date.now();
+      const path = `panel-images/${panelType}-${version}.${ext}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      setAnnouncementType(`panel_image_${panelType}`);
+      setAudience('all');
+      setContent(`${data.publicUrl}?v=${version}`);
+      setIsActive(true);
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload panel image');
+    }
+    setUploadingBackground(false);
+  };
+
+  const toggleActive = async (announcement: ScheduledAnnouncement) => {
+    try {
+      await updateAnnouncement(announcement.id, { is_active: !announcement.is_active });
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to update announcement');
+    }
+  };
+
+  const remove = async (announcement: ScheduledAnnouncement) => {
+    if (!window.confirm('Delete this announcement?')) return;
+    try {
+      await deleteAnnouncement(announcement.id);
+      await load();
+      if (editingId === announcement.id) resetForm();
+    } catch (e: any) {
+      alert(e.message || 'Failed to delete announcement');
+    }
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Announcements" subtitle="Schedule dashboard slideshow notices for cadets, sentries, or everyone." />
+
+      <div className="card p-5 space-y-4">
+        <div className="grid md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs text-stone block mb-1">Type</label>
+            <select className="input-field" value={announcementType} onChange={(e) => setAnnouncementType(e.target.value)}>
+              <option value="general">General</option>
+              <option value="morning_call">Morning Call</option>
+              <option value="midday_reminder">Midday Reminder</option>
+              <option value="evening_reminder">Evening Reminder</option>
+              <option value="quote_of_day">Quote of the Day</option>
+              <option value="streakboard_release">Streakboard Release</option>
+              <option value="weekly_background">Weekly Background Image</option>
+              <option value="panel_image_welcome">Panel Image: Welcome</option>
+              <option value="panel_image_verse">Panel Image: Verse</option>
+              <option value="panel_image_announcement">Panel Image: Announcement</option>
+              <option value="panel_image_quote">Panel Image: Quote</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Audience</label>
+            <select className="input-field" value={audience} onChange={(e) => setAudience(e.target.value)}>
+              <option value="all">Everyone</option>
+              <option value="cadets">Cadets</option>
+              <option value="sentries">Sentries</option>
+              <option value="instructors">Instructors</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Publish time</label>
+            <input type="datetime-local" className="input-field" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-stone block mb-1">Announcement text</label>
+          <textarea
+            className="input-field min-h-[110px]"
+            placeholder={announcementType === 'weekly_background' ? 'Upload an image below; the image URL will appear here.' : 'Write the notice that should appear in the dashboard slideshow...'}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface-2 p-3">
+          <label className="text-xs text-stone block mb-2">Panel Images</label>
+          <div className="grid sm:grid-cols-2 gap-2 mb-3">
+            {[
+              ['welcome', 'Welcome panel'],
+              ['verse', 'Verse panel'],
+              ['announcement', 'Announcement panel'],
+              ['quote', 'Quote panel'],
+            ].map(([value, label]) => (
+              <label key={value} className="rounded-lg border border-border bg-surface p-2 text-xs text-stone">
+                <span className="block font-semibold text-ink mb-1">{label}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingBackground}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void uploadPanelImage(file, value);
+                  }}
+                  className="block w-full text-[10px] text-stone"
+                />
+              </label>
+            ))}
+          </div>
+          <label className="text-xs text-stone block mb-2">Upload fallback weekly background image</label>
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploadingBackground}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadWeeklyBackground(file);
+            }}
+            className="block w-full text-xs text-stone"
+          />
+          <p className="text-[10px] text-stone mt-2">
+            Images appear almost translucent behind text. Uploading a new image creates an editable active image setting you can update any time.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-sm text-stone">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-peri" />
+            Active
+          </label>
+          <div className="flex gap-2">
+            {editingId && <button onClick={resetForm} className="btn-secondary text-sm">Cancel Edit</button>}
+            <button onClick={save} disabled={saving || !content.trim()} className="btn-primary text-sm">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {editingId ? 'Save Changes' : 'Schedule Announcement'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <h4 className="font-display font-semibold text-ink mb-3">Scheduled & Published</h4>
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
+        ) : announcements.length === 0 ? (
+          <EmptyState icon={Megaphone} title="No announcements yet" message="Create one above to place it in the dashboard slideshow." />
+        ) : (
+          <div className="space-y-2">
+            {announcements.map((announcement) => {
+              const published = new Date(announcement.publish_at).getTime() <= Date.now();
+              return (
+                <div key={announcement.id} className="rounded-lg border border-border-bright bg-surface-2 p-3 flex items-start gap-3">
+                  <Megaphone size={18} className={cn('mt-0.5 flex-shrink-0', announcement.is_active ? 'text-brass' : 'text-stone')} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-1.5 mb-1">
+                      <span className="badge badge-neutral text-[10px]">{announcement.announcement_type.replace(/_/g, ' ')}</span>
+                      <span className="badge badge-peri text-[10px]">{announcement.audience}</span>
+                      <span className={cn('badge text-[10px]', announcement.is_active ? 'badge-moss' : 'badge-neutral')}>
+                        {announcement.is_active ? 'Active' : 'Paused'}
+                      </span>
+                      <span className={cn('badge text-[10px]', published ? 'badge-gold' : 'badge-neutral')}>
+                        {published ? 'Published' : 'Scheduled'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-ink whitespace-pre-wrap">{announcement.content}</p>
+                    <p className="text-xs text-stone mt-1">{new Date(announcement.publish_at).toLocaleString()}</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    <button onClick={() => edit(announcement)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>
+                    <button onClick={() => toggleActive(announcement)} className="btn-ghost text-[10px] px-2 py-1">
+                      {announcement.is_active ? 'Pause' : 'Activate'}
+                    </button>
+                    <button onClick={() => remove(announcement)} className="text-stone hover:text-coral transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NarrativesTab({ narratives, editingNarrative, onSelectNarrative, onDone }: {
+  narratives: DailyNarrative[];
+  editingNarrative: NarrativeSelection;
+  onSelectNarrative: (n: NarrativeSelection) => void;
+  onDone: () => void;
+}) {
+  if (editingNarrative !== null) {
+    const republish = isRepublishSelection(editingNarrative);
+    return (
+      <NarrativeEditor
+        narrative={editingNarrative === 'new' ? null : republish ? editingNarrative.narrative : editingNarrative}
+        republishMode={republish}
+        onDone={onDone}
+      />
+    );
+  }
+  const today = getTodayISODate();
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Narratives" subtitle="Daily scripture readings and game content" />
+        <button onClick={() => onSelectNarrative('new')} className="btn-primary text-sm">
+          <Plus size={16} /> New Narrative
+        </button>
+      </div>
+      {narratives.length === 0 ? (
+        <EmptyState icon={BookOpen} title="No narratives yet" message="Create the first daily narrative to unlock games and readings for cadets." />
+      ) : (
+        <div className="space-y-2">
+          {narratives.map((n) => {
+            const isScheduled = n.narrative_date > today;
+            const isToday = n.narrative_date === today;
+            return (
+              <div key={n.id} className="card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-ink truncate">{n.title}</p>
+                    <span className={cn('badge text-[10px]', isScheduled ? 'badge-gold' : 'badge-moss')}>
+                      {isScheduled ? 'Scheduled' : isToday ? 'Today' : 'Published'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone">{n.narrative_date} · {n.scripture_reference} · {n.translation}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!isToday && (
+                    <button onClick={() => onSelectNarrative({ mode: 'republish', narrative: n })} className="btn-primary text-xs">
+                      <RotateCcw size={12} /> Republish Today
+                    </button>
+                  )}
+                  <button onClick={() => onSelectNarrative(n)} className="btn-secondary text-xs">
+                    {isScheduled ? 'Edit Schedule' : 'Edit'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function InstructorDashboard({ tents, members, roles, narratives, onNavigate }: {
+  tents: any[]; members: any[]; roles: RoleAssignment[]; narratives: DailyNarrative[];
+  onNavigate: (k: string) => void;
+}) {
+  const cadetCount = roles.filter((r) => r.role === 'cadet' && r.status === 'active').length;
+  const sentryCount = roles.filter((r) => r.role === 'sentry' && r.status === 'active').length;
+  const todayNarrative = narratives.find((n) => n.narrative_date === new Date().toISOString().slice(0, 10));
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatBox icon={Users} label="Cadets" value={cadetCount} tint="text-peri-2" />
+        <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />
+        <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
+        <StatBox icon={BookOpen} label="Narratives" value={narratives.length} tint="text-roman" />
+      </div>
+
+      <div className="card p-4">
+        <h3 className="font-display font-semibold text-ink mb-3">Today's Narrative</h3>
+        {todayNarrative ? (
+          <div className="space-y-1">
+            <p className="text-sm text-ink">{todayNarrative.title}</p>
+            <p className="text-xs text-stone">{todayNarrative.scripture_reference}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-stone">No narrative set for today.</p>
+        )}
+        <button onClick={() => onNavigate('narratives')} className="btn-ghost text-xs mt-3">
+          <BookOpen size={14} /> Manage narratives
+        </button>
+      </div>
+
+      <SectionHeader title="Tents Overview" subtitle="Quick view of tent membership" />
+      <div className="grid sm:grid-cols-2 gap-3">
+        {tents.map((t) => {
+          const tentMembers = members.filter((m) => m.tent_id === t.id);
+          const cadets = tentMembers.filter((m) => m.role === 'cadet');
+          return (
+            <div key={t.id} className="card p-4">
+              <div className="flex items-center gap-2 mb-2">
+                {t.tent_houses && <TentHouseBadge houseId={t.tent_houses.id} size="sm" />}
+                <h4 className="font-display font-semibold text-ink text-sm flex-1">{t.name}</h4>
+              </div>
+              <p className="text-xs text-stone">{cadets.length}/5 cadets</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StatBox({ icon: Icon, label, value, tint }: { icon: any; label: string; value: number; tint: string }) {
+  return (
+    <div className="card p-4">
+      <Icon size={20} className={tint} />
+      <p className="text-2xl font-display font-bold text-ink mt-2">{value}</p>
+      <p className="text-xs text-stone">{label}</p>
+    </div>
+  );
+}
+
+function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {
+  tents: (Tent & { tent_houses: any })[];
+  members: (TentMember & { profiles: Profile })[];
+  profiles: Profile[];
+  roles: RoleAssignment[];
+  onRefresh: () => void;
+  loading: boolean;
+}) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newHouse, setNewHouse] = useState('squares');
+  const [newSentry, setNewSentry] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const availableSentries = roles
+    .filter((r) => r.role === 'sentry' && r.status === 'active')
+    .filter((r) => !members.some((m) => m.user_id === r.user_id && m.role === 'sentry'));
+
+  const createTent = async () => {
+    if (!newName || !newSentry) return;
+    setCreating(true);
+    const { data, error } = await supabase
+      .from('tents')
+      .insert({ name: newName, tent_house_id: newHouse, sentry_id: newSentry })
+      .select()
+      .maybeSingle();
+    if (error) { alert(error.message); setCreating(false); return; }
+    await supabase.from('tent_members').insert({ tent_id: data.id, user_id: newSentry, role: 'sentry' });
+    setNewName(''); setNewSentry(''); setShowCreate(false); setCreating(false);
+    onRefresh();
+  };
+
+  const deleteTent = async (tentId: string, tentName: string) => {
+    if (!confirm(`Delete "${tentName}"? This will remove all cadet/sentry assignments. This cannot be undone.`)) return;
+    setDeletingId(tentId);
+    const { error } = await supabase.rpc('delete_tent', { p_tent_id: tentId });
+    if (error) { alert(error.message); setDeletingId(null); return; }
+    setDeletingId(null);
+    onRefresh();
+  };
+
+  if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading tents…</div>;
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Tent Management" subtitle="Create tents, assign sentries, add cadets" />
+        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm">
+          <Plus size={16} /> New Tent
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="card p-4 space-y-3 animate-scale-in">
+          <h4 className="font-display font-semibold text-ink">Create New Tent</h4>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <input className="input-field" placeholder="Tent name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            <select className="input-field" value={newHouse} onChange={(e) => setNewHouse(e.target.value)}>
+              <option value="squares">The Squares</option>
+              <option value="spades">The Spades</option>
+              <option value="darics">The Darics</option>
+              <option value="rudes">The Rudes</option>
+              <option value="laureats">The Laureats</option>
+            </select>
+            <select className="input-field" value={newSentry} onChange={(e) => setNewSentry(e.target.value)}>
+              <option value="">Select sentry…</option>
+              {availableSentries.map((r) => {
+                const p = profiles.find((p) => p.id === r.user_id);
+                return <option key={r.user_id} value={r.user_id}>{p?.display_name}</option>;
+              })}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={createTent} disabled={creating || !newName || !newSentry} className="btn-primary text-sm">
+              {creating ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Create
+            </button>
+            <button onClick={() => setShowCreate(false)} className="btn-ghost text-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {tents.length === 0 ? (
+        <EmptyState icon={TentIcon} title="No tents yet" message="Create a tent and assign a sentry to get started." />
+      ) : (
+        <div className="space-y-4">
+          {tents.map((t) => {
+            const tentMembers = members.filter((m) => m.tent_id === t.id);
+            const sentry = tentMembers.find((m) => m.role === 'sentry');
+            const cadets = tentMembers.filter((m) => m.role === 'cadet');
+            const availableCadets = roles
+              .filter((r) => r.role === 'cadet' && r.status === 'active')
+              .filter((r) => !members.some((m) => m.user_id === r.user_id && m.role === 'cadet'));
+
+            return (
+              <div key={t.id} className="card p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    {t.tent_houses && <TentHouseBadge houseId={t.tent_houses.id} size="md" />}
+                    <div>
+                      <h4 className="font-display font-semibold text-ink">{t.name}</h4>
+                      <p className="text-xs text-stone">{cadets.length}/5 cadets · {sentry ? 'sentry assigned' : 'no sentry'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteTent(t.id, t.name)}
+                    disabled={deletingId === t.id}
+                    className="btn-danger text-xs"
+                  >
+                    {deletingId === t.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete
+                  </button>
+                </div>
+
+                {sentry && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-surface-2 mb-3">
+                    <Shield size={14} className="text-sage" />
+                    <span className="text-sm text-ink flex-1">{sentry.profiles.display_name} (sentry)</span>
+                    {whatsappUrl(sentry.profiles.whatsapp_number) && (
+                      <a href={whatsappUrl(sentry.profiles.whatsapp_number)!} target="_blank" rel="noopener noreferrer"
+                         className="inline-flex items-center justify-center w-7 h-7 rounded-lg"
+                         style={{ background: 'rgba(37, 211, 102, 0.12)', color: '#25D366' }}
+                         title="WhatsApp sentry">
+                        <MessageCircle size={14} />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {cadets.map((m) => (
+                    <div key={m.user_id} className="flex items-center gap-2 p-2 rounded-lg bg-surface-2">
+                      <span className="text-sm text-ink flex-1">{m.profiles.display_name}</span>
+                      {whatsappUrl(m.profiles.whatsapp_number) && (
+                        <a href={whatsappUrl(m.profiles.whatsapp_number)!} target="_blank" rel="noopener noreferrer"
+                           className="inline-flex items-center justify-center w-7 h-7 rounded-lg"
+                           style={{ background: 'rgba(37, 211, 102, 0.12)', color: '#25D366' }}
+                           title="WhatsApp cadet">
+                          <MessageCircle size={14} />
+                        </a>
+                      )}
+                      <button
+                        onClick={async () => {
+                          await supabase.from('tent_members').delete().eq('user_id', m.user_id).eq('tent_id', t.id);
+                          onRefresh();
+                        }}
+                        className="btn-danger text-xs"
+                      >
+                        <UserMinus size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {cadets.length < 5 && availableCadets.length > 0 && (
+                  <AddCadetRow tentId={t.id} availableCadets={availableCadets} profiles={profiles} onRefresh={onRefresh} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddCadetRow({ tentId, availableCadets, profiles, onRefresh }: {
+  tentId: string; availableCadets: RoleAssignment[]; profiles: Profile[]; onRefresh: () => void;
+}) {
+  const [selected, setSelected] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const addCadet = async () => {
+    if (!selected) return;
+    setAdding(true);
+    try {
+      await assignCadetToTent(tentId, selected);
+      setSelected('');
+      onRefresh();
+    } catch (e: any) {
+      alert(e.message || 'Failed to add cadet');
+    }
+    setAdding(false);
+  };
+
+  return (
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+      <select className="input-field text-sm flex-1" value={selected} onChange={(e) => setSelected(e.target.value)}>
+        <option value="">Add cadet…</option>
+        {availableCadets.map((r) => {
+          const p = profiles.find((p) => p.id === r.user_id);
+          return <option key={r.user_id} value={r.user_id}>{p?.display_name}</option>;
+        })}
+      </select>
+      <button onClick={addCadet} disabled={adding || !selected} className="btn-primary text-xs">
+        {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
+      </button>
+    </div>
+  );
+}
+
+function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, instructorId }: {
+  profiles: Profile[]; roles: RoleAssignment[]; members: any[]; tents: any[];
+  awards: (Award & { profiles: { display_name: string } })[]; onRefresh: () => void; instructorId: string;
+}) {
+  const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
+  const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [awardingId, setAwardingId] = useState<string | null>(null);
+  const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [streaks, setStreaks] = useState<Record<string, { current: number; longest: number }>>({});
+  const [denarii, setDenarii] = useState<Record<string, number>>({});
+  const [selectedAwards, setSelectedAwards] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    (async () => {
+      const sMap: Record<string, { current: number; longest: number }> = {};
+      const dMap: Record<string, number> = {};
+      await Promise.all(cadets.map(async (c) => {
+        try {
+          const { data: recs } = await supabase.from('daily_records').select('*').eq('user_id', c.user_id);
+          const st = computeStreak(recs || []);
+          sMap[c.user_id] = { current: st.current_streak, longest: st.longest_streak };
+        } catch { sMap[c.user_id] = { current: 0, longest: 0 }; }
+        try {
+          const { data: d } = await supabase.rpc('get_user_denarii_total', { p_user_id: c.user_id });
+          dMap[c.user_id] = Number(d) || 0;
+        } catch { dMap[c.user_id] = 0; }
+      }));
+      setStreaks(sMap);
+      setDenarii(dMap);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles.length, roles.length]);
+
+  const toggleAward = (title: string) => {
+    setSelectedAwards((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title); else next.add(title);
+      return next;
+    });
+  };
+
+  const giveAwards = async (userId: string) => {
+    if (selectedAwards.size === 0) return;
+    try {
+      for (const title of selectedAwards) {
+        const def = AWARD_CATALOG.flatMap((g) => g.awards).find((a) => a.title === title);
+        if (!def || !isSentryAward(def)) continue;
+        await giveAwardRPC(userId, title, def.description || null, 'leadership', awardMonth, 'sentry', userId);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Failed to give sentry award');
+      return;
+    }
+    setSelectedAwards(new Set()); setAwardingId(null); onRefresh();
+  };
+
+  const filtered = cadets.filter((r) => {
+    const p = profiles.find((p) => p.id === r.user_id);
+    return p?.display_name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const deleteCadet = async (userId: string, name: string) => {
+    if (!confirm(`Remove ${name} from the system? They will be removed from their tent and deactivated. They can sign up again as a cadet later.`)) return;
+    setDeletingId(userId);
+    const { error } = await supabase.rpc('delete_cadet', { p_user_id: userId });
+    if (error) { alert(error.message); setDeletingId(null); return; }
+    setDeletingId(null);
+    onRefresh();
+  };
+
+  const promoteCadet = async (userId: string, name: string) => {
+    if (!confirm(`Promote ${name} to Sentry? They will gain sentry privileges and lose their cadet role.`)) return;
+    setPromotingId(userId);
+    try {
+      await promoteCadetToSentry(userId, instructorId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to promote');
+    }
+    setPromotingId(null);
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Cadet Management" subtitle="View, promote, award, and remove cadets" />
+      <input className="input-field" placeholder="Search cadets…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="space-y-2">
+        {filtered.map((r) => {
+          const p = profiles.find((p) => p.id === r.user_id);
+          if (!p) return null;
+          const member = members.find((m) => m.user_id === r.user_id);
+          const tent = member ? tents.find((t) => t.id === member.tent_id) : null;
+          const st = streaks[r.user_id] || { current: 0, longest: 0 };
+          const dn = denarii[r.user_id] || 0;
+          const cadetAwards = awards.filter((a) => a.user_id === r.user_id);
+
+          return (
+            <div key={r.user_id} className="card p-4 card-hover">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="w-10 h-10 rounded-full bg-navy-3 overflow-hidden flex items-center justify-center font-display font-bold text-peri-dim flex-shrink-0">
+                  {p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
+                  <p className="text-xs text-stone">
+                    {tent ? tent.name : 'No tent'} · {tent?.tent_houses?.name || ''}
+                  </p>
+                </div>
+                {/* Streak + Denarii icons */}
+                <div className="flex items-center gap-2 text-xs flex-shrink-0">
+                  <span className="inline-flex items-center gap-1 text-brass font-display font-semibold" title="Current streak">
+                    <Flame size={14} /> {st.current}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-gold font-display font-semibold" title="Denarii">
+                    <Coins size={14} /> {dn}
+                  </span>
+                  {cadetAwards.length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-royal font-display font-semibold" title={`${cadetAwards.length} award(s)`}>
+                      <Crown size={14} /> {cadetAwards.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                {whatsappUrl(p.whatsapp_number) && (
+                  <a href={whatsappUrl(p.whatsapp_number)!} target="_blank" rel="noopener noreferrer"
+                     className="btn-secondary text-xs" style={{ background: 'rgba(37, 211, 102, 0.10)', borderColor: 'rgba(37, 211, 102, 0.3)', color: '#25D366' }}>
+                    <MessageCircle size={12} /> WhatsApp
+                  </a>
+                )}
+                <button
+                  onClick={() => setAwardingId(awardingId === r.user_id ? null : r.user_id)}
+                  className="btn-secondary text-xs"
+                  title="Award cadet"
+                >
+                  <Crown size={12} /> Award
+                </button>
+                <button
+                  onClick={() => promoteCadet(r.user_id, p.display_name)}
+                  disabled={promotingId === r.user_id}
+                  className="btn-secondary text-xs"
+                  style={{ color: 'var(--color-sage)', borderColor: 'var(--color-sage-soft)' }}
+                  title="Promote to sentry"
+                >
+                  {promotingId === r.user_id ? <Loader2 size={12} className="animate-spin" /> : <ArrowUpCircle size={12} />} Promote
+                </button>
+                <button
+                  onClick={() => deleteCadet(r.user_id, p.display_name)}
+                  disabled={deletingId === r.user_id}
+                  className="btn-danger text-xs"
+                  title="Remove cadet"
+                >
+                  {deletingId === r.user_id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete
+                </button>
+              </div>
+
+              {/* Award panel */}
+              {awardingId === r.user_id && (
+                <div className="mt-3 pt-3 border-t border-border space-y-3 animate-slide-up">
+                  <AwardCheckboxList selected={selectedAwards} onToggle={toggleAward} target="sentry" />
+                  <div className="flex gap-2">
+                    <input type="month" className="input-field text-sm flex-1" value={awardMonth} onChange={(e) => setAwardMonth(e.target.value)} />
+                    <button onClick={() => giveAwards(r.user_id)} disabled={selectedAwards.size === 0} className="btn-primary text-sm">
+                      <Save size={14} /> Give {selectedAwards.size > 0 ? `${selectedAwards.size} Award${selectedAwards.size > 1 ? 's' : ''}` : 'Award'}
+                    </button>
+                  </div>
+                  {cadetAwards.length > 0 && (
+                    <div className="text-xs text-stone">
+                      Current awards: {cadetAwards.map((a) => a.title).join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <EmptyState icon={Users} title="No cadets found" message="No active cadets match your search." />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, instructorId }: {
+  profiles: Profile[]; roles: RoleAssignment[]; members: any[]; tents: any[];
+  awards: (Award & { profiles: { display_name: string } })[]; onRefresh: () => void; instructorId: string;
+}) {
+  const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
+  const [search, setSearch] = useState('');
+  const [actionSentryId, setActionSentryId] = useState<string | null>(null);
+  const [replacementId, setReplacementId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [awardingId, setAwardingId] = useState<string | null>(null);
+  const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [streaks, setStreaks] = useState<Record<string, { current: number; longest: number }>>({});
+  const [denarii, setDenarii] = useState<Record<string, number>>({});
+  const [selectedAwards, setSelectedAwards] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    (async () => {
+      const sMap: Record<string, { current: number; longest: number }> = {};
+      const dMap: Record<string, number> = {};
+      await Promise.all(sentries.map(async (s) => {
+        try {
+          const { data: recs } = await supabase.from('daily_records').select('*').eq('user_id', s.user_id);
+          const st = computeStreak(recs || []);
+          sMap[s.user_id] = { current: st.current_streak, longest: st.longest_streak };
+        } catch { sMap[s.user_id] = { current: 0, longest: 0 }; }
+        try {
+          const { data: d } = await supabase.rpc('get_user_denarii_total', { p_user_id: s.user_id });
+          dMap[s.user_id] = Number(d) || 0;
+        } catch { dMap[s.user_id] = 0; }
+      }));
+      setStreaks(sMap);
+      setDenarii(dMap);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles.length, roles.length]);
+
+  const toggleAward = (title: string) => {
+    setSelectedAwards((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title); else next.add(title);
+      return next;
+    });
+  };
+
+  const giveAwards = async (userId: string) => {
+    if (selectedAwards.size === 0) return;
+    for (const title of selectedAwards) {
+      const def = AWARD_CATALOG.flatMap((g) => g.awards).find((a) => a.title === title);
+      await insertAward({ user_id: userId, title, description: def?.description || null, award_month: awardMonth });
+    }
+    setSelectedAwards(new Set()); setAwardingId(null); onRefresh();
+  };
+
+  const filtered = sentries.filter((r) => {
+    const p = profiles.find((p) => p.id === r.user_id);
+    return p?.display_name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const availableSentries = sentries.filter((r) =>
+    !members.some((m) => m.user_id === r.user_id && m.role === 'sentry')
+  );
+
+  const confirmReplace = async (sentryUserId: string) => {
+    if (!replacementId) return;
+    setBusy(true);
+    const { error } = await supabase.rpc('delete_sentry', {
+      p_sentry_user_id: sentryUserId,
+      p_replacement_user_id: replacementId,
+    });
+    if (error) { alert(error.message); setBusy(false); return; }
+    setActionSentryId(null); setReplacementId(''); setBusy(false);
+    onRefresh();
+  };
+
+  const confirmDeleteTent = async (sentryUserId: string, sentryName: string, tentName: string) => {
+    if (!confirm(`Delete "${tentName}" and remove ${sentryName} as sentry? All cadets in this tent will be unassigned.`)) return;
+    setBusy(true);
+    const { error } = await supabase.rpc('delete_sentry', { p_sentry_user_id: sentryUserId, p_replacement_user_id: null });
+    if (error) { alert(error.message); setBusy(false); return; }
+    setActionSentryId(null); setBusy(false); onRefresh();
+  };
+
+  const promoteSentry = async (userId: string, name: string) => {
+    if (!confirm(`Promote ${name} to Instructor? You will be demoted and they will become the new instructor. This hands over full administrative access.`)) return;
+    setPromotingId(userId);
+    try {
+      await promoteSentryToInstructor(userId, instructorId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to promote');
+    }
+    setPromotingId(null);
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Sentry Management" subtitle="View, promote, award, replace, or remove sentries" />
+      <input className="input-field" placeholder="Search sentries…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="space-y-3">
+        {filtered.map((r) => {
+          const p = profiles.find((p) => p.id === r.user_id);
+          if (!p) return null;
+          const member = members.find((m) => m.user_id === r.user_id && m.role === 'sentry');
+          const tent = member ? tents.find((t) => t.id === member.tent_id) : null;
+          const tentCadets = member ? members.filter((m) => m.tent_id === member.tent_id && m.role === 'cadet') : [];
+          const showActions = actionSentryId === r.user_id;
+          const st = streaks[r.user_id] || { current: 0, longest: 0 };
+          const dn = denarii[r.user_id] || 0;
+          const sentryAwards = awards.filter((a) => a.user_id === r.user_id);
+
+          return (
+            <div key={r.user_id} className="card p-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="w-10 h-10 rounded-full bg-sage-soft overflow-hidden flex items-center justify-center font-display font-bold text-sage flex-shrink-0">
+                  {p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
+                  <p className="text-xs text-stone">
+                    {tent ? `${tent.name} · ${tentCadets.length} cadets` : 'No tent assigned'}
+                    {tent?.tent_houses?.name && ` · ${tent.tent_houses.name}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs flex-shrink-0">
+                  <span className="inline-flex items-center gap-1 text-brass font-display font-semibold" title="Current streak">
+                    <Flame size={14} /> {st.current}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-gold font-display font-semibold" title="Denarii">
+                    <Coins size={14} /> {dn}
+                  </span>
+                  {sentryAwards.length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-royal font-display font-semibold" title={`${sentryAwards.length} award(s)`}>
+                      <Crown size={14} /> {sentryAwards.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                {whatsappUrl(p.whatsapp_number) && (
+                  <a href={whatsappUrl(p.whatsapp_number)!} target="_blank" rel="noopener noreferrer"
+                     className="btn-secondary text-xs" style={{ background: 'rgba(37, 211, 102, 0.10)', borderColor: 'rgba(37, 211, 102, 0.3)', color: '#25D366' }}>
+                    <MessageCircle size={12} /> WhatsApp
+                  </a>
+                )}
+                <button onClick={() => setAwardingId(awardingId === r.user_id ? null : r.user_id)} className="btn-secondary text-xs" title="Award sentry">
+                  <Crown size={12} /> Award
+                </button>
+                <button onClick={() => promoteSentry(r.user_id, p.display_name)} disabled={promotingId === r.user_id}
+                  className="btn-secondary text-xs" style={{ color: 'var(--color-royal)', borderColor: 'rgba(61, 82, 200, 0.3)' }} title="Promote to instructor">
+                  {promotingId === r.user_id ? <Loader2 size={12} className="animate-spin" /> : <ArrowUpCircle size={12} />} Promote
+                </button>
+                <button onClick={() => setActionSentryId(showActions ? null : r.user_id)} className="btn-danger text-xs" title="Remove or replace sentry">
+                  <UserMinus size={12} /> Remove
+                </button>
+              </div>
+
+              {awardingId === r.user_id && (
+                <div className="mt-3 pt-3 border-t border-border space-y-3 animate-slide-up">
+                  <AwardCheckboxList selected={selectedAwards} onToggle={toggleAward} />
+                  <div className="flex gap-2">
+                    <input type="month" className="input-field text-sm flex-1" value={awardMonth} onChange={(e) => setAwardMonth(e.target.value)} />
+                    <button onClick={() => giveAwards(r.user_id)} disabled={selectedAwards.size === 0} className="btn-primary text-sm">
+                      <Save size={14} /> Give {selectedAwards.size > 0 ? `${selectedAwards.size} Award${selectedAwards.size > 1 ? 's' : ''}` : 'Award'}
+                    </button>
+                  </div>
+                  {sentryAwards.length > 0 && (
+                    <div className="text-xs text-stone">Current awards: {sentryAwards.map((a) => a.title).join(', ')}</div>
+                  )}
+                </div>
+              )}
+
+              {showActions && (
+                <div className="mt-4 pt-4 border-t border-border space-y-3 animate-slide-up">
+                  {tent ? (
+                    <>
+                      <div>
+                        <label className="text-xs font-bold text-peri block mb-1.5">Replace with another sentry</label>
+                        <p className="text-[10px] text-stone mb-2">The tent and its cadets stay intact. The new sentry takes over immediately.</p>
+                        <div className="flex gap-2">
+                          <select className="input-field text-sm flex-1" value={replacementId} onChange={(e) => setReplacementId(e.target.value)}>
+                            <option value="">Select a replacement…</option>
+                            {availableSentries.filter((ar) => ar.user_id !== r.user_id).map((ar) => {
+                              const ap = profiles.find((p) => p.id === ar.user_id);
+                              return <option key={ar.user_id} value={ar.user_id}>{ap?.display_name}</option>;
+                            })}
+                          </select>
+                          <button onClick={() => confirmReplace(r.user_id)} disabled={busy || !replacementId} className="btn-primary text-sm">
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : <UserMinus size={14} />} Replace
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 pt-2">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-[10px] text-stone uppercase tracking-wide">or</span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-coral block mb-1.5">Delete tent entirely</label>
+                        <p className="text-[10px] text-stone mb-2">Removes the tent and unassigns all {tentCadets.length} cadet(s).</p>
+                        <button onClick={() => confirmDeleteTent(r.user_id, p.display_name, tent.name)} disabled={busy} className="btn-danger text-sm">
+                          {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete "{tent.name}"
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-stone mb-2">This sentry has no tent. Deactivating their role only.</p>
+                      <button
+                        onClick={async () => {
+                          setBusy(true);
+                          const { error } = await supabase.rpc('delete_sentry', { p_sentry_user_id: r.user_id, p_replacement_user_id: null });
+                          if (error) { alert(error.message); setBusy(false); return; }
+                          setActionSentryId(null); setBusy(false); onRefresh();
+                        }}
+                        disabled={busy} className="btn-danger text-sm"
+                      >
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Deactivate sentry
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tent && tentCadets.length > 0 && !showActions && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <p className="text-xs text-stone mb-2">Cadets in this tent:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tentCadets.map((cm) => {
+                      const cp = profiles.find((p) => p.id === cm.user_id);
+                      if (!cp) return null;
+                      return <span key={cm.user_id} className="badge badge-neutral text-[10px]">{cp.display_name}</span>;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <EmptyState icon={Shield} title="No sentries found" message="No active sentries match your search." />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InstructorLeaderboard() {
+  const [boardTab, setBoardTab] = useState<'denarii' | 'streak' | 'houses'>('denarii');
+  const [liveData, setLiveData] = useState<any[]>([]);
+  const [houseData, setHouseData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const [ld, hd] = await Promise.allSettled([
+        supabase.rpc('get_leaderboard_live'),
+        supabase.rpc('get_house_standings'),
+      ]);
+      setLiveData(ld.status === 'fulfilled' && ld.value.data ? ld.value.data : []);
+      setHouseData(hd.status === 'fulfilled' && hd.value.data ? hd.value.data : []);
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <SectionHeader title="Challenge Boards" subtitle="Live denarii rankings for active cadets, streak snapshots, and house competition" />
+
+      <div className="flex gap-1 p-1 bg-navy-3 rounded-xl">
+        {([['denarii', 'Denarii Board'], ['streak', 'Streak Board'], ['houses', 'House Competition']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setBoardTab(key)}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${boardTab === key ? 'bg-peri text-navy' : 'text-peri-dim'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {boardTab === 'denarii' && (
+        <div className="space-y-2">
+          {liveData.length === 0 ? (
+            <EmptyState icon={Trophy} title="No data yet" message="Denarii rankings will appear here once cadets start earning." />
+          ) : (
+            liveData.map((row: any, i: number) => (
+	              <div key={row.user_id || i} className="card p-3 flex items-center gap-3">
+	                <span className="font-display text-lg font-bold text-brass w-8 text-center">{i + 1}</span>
+	                <div className="flex-1 min-w-0">
+	                  <p className="text-sm font-semibold text-ink truncate">{row.display_name || 'Unknown'}</p>
+	                  <p className="text-xs text-stone">{row.tent_name || 'No tent assigned'}</p>
+	                </div>
+                <span className="text-sm font-display font-bold text-gold flex items-center gap-1">
+                  <Coins size={14} /> {row.total_denarii || 0}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {boardTab === 'streak' && (
+        <EmptyState icon={Flame} title="Streak Board" message="Streak snapshots update daily at 9 PM. Check back for the latest rankings." />
+      )}
+
+      {boardTab === 'houses' && (
+        <div className="space-y-3">
+          {houseData.length === 0 ? (
+            <EmptyState icon={Home} title="No house data yet" message="House competition standings will appear once cadets join tents and start participating." />
+          ) : (
+	            houseData.map((house: any) => {
+	              const sentryNames = Array.isArray(house.sentry_names) ? house.sentry_names : [];
+	              return (
+	                <div key={house.tent_house_id} className="card p-4 card-hover">
+	                  <div className="flex items-center justify-between mb-3">
+	                    <div className="flex items-center gap-3 min-w-0">
+	                      <TentHouseBadge houseId={house.tent_house_id} size="sm" />
+	                      <div className="min-w-0">
+	                        <p className="font-display font-bold text-ink truncate">{house.house_name}</p>
+	                        <p className="text-xs text-stone">{house.member_count} cadets</p>
+	                        {sentryNames.length > 0 && (
+	                          <p className="text-[11px] text-stone truncate">
+	                            Sentr{sentryNames.length === 1 ? 'y' : 'ies'}: {sentryNames.join(', ')}
+	                          </p>
+	                        )}
+	                      </div>
+	                    </div>
+	                    <span className="font-display text-2xl font-bold text-brass">#{house.rank}</span>
+	                  </div>
+	                  <div className="grid grid-cols-2 gap-3">
+	                    <div className="text-center p-2 rounded-lg bg-navy-3">
+	                      <p className="font-display text-lg font-bold text-brass">{Number(house.avg_streak).toFixed(1)}</p>
+	                      <p className="text-xs text-stone">Avg Streak</p>
+	                    </div>
+	                    <div className="text-center p-2 rounded-lg bg-navy-3">
+	                      <p className="font-display text-lg font-bold text-gold">{Number(house.avg_denarii).toFixed(0)}</p>
+	                      <p className="text-xs text-stone">Avg Denarii</p>
+	                    </div>
+	                  </div>
+	                </div>
+	              );
+	            })
+	          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MatriculesManagement() {
+  const [matricules, setMatricules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [count, setCount] = useState(5);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('sentry_matricules').select('*').order('created_at', { ascending: false });
+    if (!error) setMatricules(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const generate = async () => {
+    setGenerating(true);
+    const { data, error } = await supabase.rpc('generate_matricules', { p_count: count });
+    if (error) { alert(error.message); setGenerating(false); return; }
+    setGenerating(false);
+    load();
+  };
+
+  const deleteMatricule = async (id: string) => {
+    if (!confirm('Delete this matricule?')) return;
+    await supabase.from('sentry_matricules').delete().eq('id', id);
+    load();
+  };
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <SectionHeader title="Sentry Matricules" subtitle="Generate entry codes for new sentries" />
+
+      <div className="card p-4 space-y-3 bg-surface-2">
+        <p className="text-sm text-stone">Generate unique matricule codes that new sentries must enter during signup. Each code can only be used once.</p>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-stone">Count:</label>
+          <input type="number" min={1} max={50} value={count} onChange={(e) => setCount(parseInt(e.target.value) || 1)} className="input-field w-20 text-sm" />
+          <button onClick={generate} disabled={generating} className="btn-primary text-sm">
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />} Generate
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-brass" /></div>
+      ) : matricules.length === 0 ? (
+        <EmptyState icon={KeyRound} title="No matricules yet" message="Generate codes above to enable sentry signup." />
+      ) : (
+        <div className="space-y-2">
+          {matricules.map((m) => (
+            <div key={m.id} className="card p-3 flex items-center gap-3">
+              <KeyRound size={18} className={m.used ? 'text-stone' : 'text-brass'} />
+              <div className="flex-1">
+                <p className="font-display font-bold text-ink tracking-wider">{m.matricule}</p>
+                <p className="text-xs text-stone">
+                  {m.used ? 'Used' : 'Available'} · {formatShortDate(m.created_at?.slice(0, 10) || '')}
+                </p>
+              </div>
+              {!m.used && (
+                <button onClick={() => deleteMatricule(m.id)} className="btn-danger text-xs">
+                  <Trash2 size={12} /> Delete
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type AwardDef = { title: string; description: string; forTent?: boolean; forSentry?: boolean };
+
+const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = [
+  {
+    group: 'Weekly Individual',
+    cadence: 'weekly',
+    awards: [
+      { title: 'Rhetoric Award (Orator)', description: 'Best Quote of the Week' },
+      { title: 'Messenger Award (Nuncio)', description: 'Best Meditation of the Week' },
+    ],
+  },
+  {
+    group: 'Weekly House',
+    cadence: 'weekly',
+    awards: [
+      { title: "The Lord's Secret", description: 'House of Job – Best Performing House', forTent: true },
+    ],
+  },
+  {
+    group: 'Monthly Individual',
+    cadence: 'monthly',
+    awards: [
+      { title: 'Most Consistent Cadet', description: 'Faithfulness & Consistency' },
+      { title: 'Most Improved Cadet', description: 'Greatest growth this month' },
+      { title: 'Rudis Award (Muralis)', description: 'Best Challenger Cadet – Challenge & Courage' },
+      { title: 'The Valediction Crown (Vallum)', description: 'Overall Best Cadet – Overall Excellence' },
+      { title: 'Century Badge (Centurion)', description: "Centurion's Award – Faithfulness & Consistency", forSentry: true },
+    ],
+  },
+  {
+    group: 'Monthly House',
+    cadence: 'monthly',
+    awards: [
+      { title: 'Portion of the Priests', description: 'House of Aaron – Overall Best House', forTent: true },
+    ],
+  },
+  {
+    group: 'Annual Individual',
+    cadence: 'annual',
+    awards: [
+      { title: 'Grand Orator', description: 'Most Rhetoric Awards during the year' },
+      { title: 'Grand Nuncio', description: 'Most Messenger Awards during the year' },
+      { title: 'The Great Muralis Crown', description: 'Grand Muralis / Grand Challenger' },
+      { title: 'Right Hand Badge', description: 'Grand Centurion – for Sentries', forSentry: true },
+      { title: 'The Parting Valediction Crown', description: "Heaven's Kiss / Grand Vallum" },
+    ],
+  },
+  {
+    group: 'Annual House',
+    cadence: 'annual',
+    awards: [
+      { title: 'Bethel Stone', description: 'House of God – Overall Best House', forTent: true },
+    ],
+  },
+];
+
+function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
+  awards: (Award & { profiles: { display_name: string } })[];
+  profiles: Profile[];
+  roles: RoleAssignment[];
+  tents: any[];
+  members: any[];
+  onRefresh: () => void;
+}) {
+  const [targetType, setTargetType] = useState<'cadet' | 'sentry' | 'tent'>('cadet');
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [selectedTentId, setSelectedTentId] = useState('');
+  const [selectedAwards, setSelectedAwards] = useState<Set<string>>(new Set());
+  const [awardDescription, setAwardDescription] = useState('');
+  const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [saving, setSaving] = useState(false);
+
+  const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
+  const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
+
+  const visibleCatalog = AWARD_CATALOG.map((group) => ({
+    ...group,
+    awards: group.awards.filter((a) => awardVisibleForTarget(a, targetType)),
+  })).filter((g) => g.awards.length > 0);
+
+  const toggleAward = (title: string) => {
+    setSelectedAwards((prev) => {
+      const next = new Set(prev);
+      next.has(title) ? next.delete(title) : next.add(title);
+      return next;
+    });
+  };
+
+  const toggleUserId = (id: string) => {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const giveAward = async () => {
+    if (selectedAwards.size === 0) return;
+    setSaving(true);
+    try {
+      for (const title of selectedAwards) {
+        const def = AWARD_CATALOG.flatMap((g) => g.awards).find((a) => a.title === title);
+        const desc = awardDescription.trim() || def?.description || null;
+        if (targetType === 'tent') {
+          if (!selectedTentId) continue;
+          await awardTent(selectedTentId, title, desc, awardMonth);
+        } else {
+          for (const userId of selectedUserIds) {
+            await giveAwardRPC(userId, title, desc, targetType === 'sentry' ? 'leadership' : targetType, awardMonth, targetType, userId);
+          }
+        }
+      }
+      setSelectedAwards(new Set());
+      setAwardDescription('');
+      setSelectedUserIds(new Set());
+      setSelectedTentId('');
+      onRefresh();
+    } catch (e: any) { alert(e.message || 'Failed to give award'); }
+    setSaving(false);
+  };
+
+  const cadenceColors: Record<string, string> = {
+    weekly: 'bg-moss/10 text-moss border-moss/20',
+    monthly: 'bg-gold/10 text-gold border-gold/20',
+    annual: 'bg-coral/10 text-coral border-coral/20',
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Awards Hub" subtitle="Recognize outstanding cadets, sentries, and tents" />
+
+      <div className="card p-5 space-y-5">
+        <h4 className="font-display font-semibold text-ink">Give an Award</h4>
+
+        {/* Target type */}
+        <div>
+          <label className="text-xs text-stone block mb-1.5">Award Target</label>
+          <div className="flex gap-2">
+            {(['cadet', 'sentry', 'tent'] as const).map((t) => (
+              <button key={t} onClick={() => { setTargetType(t); setSelectedUserIds(new Set()); setSelectedTentId(''); setSelectedAwards(new Set()); }}
+                className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize',
+                  targetType === t ? 'bg-peri text-navy' : 'bg-surface-2 text-stone hover:text-ink')}>
+                {t === 'cadet' ? 'Cadet' : t === 'sentry' ? 'Sentry' : 'Tent House'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Recipient */}
+        {targetType === 'tent' ? (
+          <div>
+            <label className="text-xs text-stone block mb-1">Select Tent</label>
+            <select className="input-field" value={selectedTentId} onChange={(e) => setSelectedTentId(e.target.value)}>
+              <option value="">Choose a tent…</option>
+              {tents.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} · {t.tent_houses?.name || ''}</option>
+              ))}
+            </select>
+            {selectedTentId && (
+              <p className="text-xs text-stone mt-1">
+                Awarding all {members.filter((m) => m.tent_id === selectedTentId && m.role === 'cadet').length} cadet(s) in this tent.
+              </p>
+            )}
+          </div>
+        ) : (
+          <MultiSelectDropdown
+            label={`Select ${targetType === 'cadet' ? 'Cadet(s)' : 'Sentry(s)'}`}
+            placeholder={`Choose ${targetType}s…`}
+            options={(targetType === 'cadet' ? cadets : sentries).map((r) => {
+              const p = profiles.find((p) => p.id === r.user_id);
+              return { id: r.user_id, label: p?.display_name || 'Unknown' };
+            })}
+            selected={selectedUserIds}
+            onToggle={toggleUserId}
+          />
+        )}
+
+        {/* Award catalog checkboxes */}
+        <div>
+          <label className="text-xs text-stone block mb-2">Select Awards <span className="text-stone/60">(choose one or more)</span></label>
+          <div className="space-y-4">
+            {visibleCatalog.map((group) => (
+              <div key={group.group}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border', cadenceColors[group.cadence])}>
+                    {group.group}
+                  </span>
+                </div>
+                <div className="space-y-1.5 pl-1">
+                  {group.awards.map((award) => {
+                    const checked = selectedAwards.has(award.title);
+                    return (
+                      <label key={award.title}
+                        className={cn('flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all',
+                          checked ? 'border-peri bg-peri/5' : 'border-border-bright bg-surface-2 hover:border-stone/30')}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleAward(award.title)}
+                          className="mt-0.5 accent-peri flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold text-ink leading-tight">{award.title}</p>
+                          <p className="text-xs text-stone mt-0.5">{award.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-stone block mb-1">Notes (optional)</label>
+          <textarea className="input-field" placeholder="Why are they receiving this award?" value={awardDescription} onChange={(e) => setAwardDescription(e.target.value)} rows={2} />
+        </div>
+
+        <div>
+          <label className="text-xs text-stone block mb-1">Award Month</label>
+          <input type="month" className="input-field" value={awardMonth} onChange={(e) => setAwardMonth(e.target.value)} />
+        </div>
+
+        <button onClick={giveAward}
+          disabled={saving || selectedAwards.size === 0 || (targetType === 'tent' ? !selectedTentId : selectedUserIds.size === 0)}
+          className="btn-primary text-sm">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <AwardIcon size={14} />}
+          Give {selectedAwards.size > 1 ? `${selectedAwards.size} Awards` : 'Award'}{selectedUserIds.size > 1 ? ` to ${selectedUserIds.size} ${targetType}s` : ''}
+        </button>
+      </div>
+
+      {/* Recent awards */}
+      <div className="space-y-2">
+        <h4 className="font-display font-semibold text-ink text-sm">Recent Awards</h4>
+        {awards.length === 0 ? (
+          <EmptyState icon={AwardIcon} title="No awards yet" message="Recognize your first cadet, sentry, or tent above." />
+        ) : (
+          awards.slice(0, 20).map((a) => (
+            <div key={a.id} className="card p-3 flex items-center gap-3">
+              <AwardIcon size={20} className="text-gold flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-ink truncate">{a.title}</p>
+                <p className="text-xs text-stone">
+                  {a.profiles.display_name}
+                  {a.award_target_type === 'tent' && ' · Tent Award'}
+                  {' · '}{a.award_month}
+                </p>
+                {a.description && <p className="text-xs text-stone mt-0.5 line-clamp-1">{a.description}</p>}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuizBuilder() {
+  const [sessions, setSessions] = useState<QuizSession[]>([]);
+  const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDate, setNewDate] = useState(getTodayISODate());
+  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune'>('saturday');
+  const [waitTime, setWaitTime] = useState(15);
+  const [quizDuration, setQuizDuration] = useState(30);
+  const [selectedSession, setSelectedSession] = useState<QuizSession | null>(null);
+  const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [satScheduled, setSatScheduled] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [s, n, satSch] = await Promise.allSettled([
+      fetchQuizSessions(),
+      fetchNarratives(30),
+      isSaturdayQuizScheduled(),
+    ]);
+    setSessions(s.status === 'fulfilled' ? s.value : []);
+    setNarratives(n.status === 'fulfilled' ? n.value : []);
+    setSatScheduled(satSch.status === 'fulfilled' ? satSch.value : false);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const createSession = async () => {
+    if (!newTitle.trim()) return;
+    const sessionDate = new Date(newDate);
+    const startTime = new Date(sessionDate);
+    startTime.setHours(9, 0, 0, 0);
+    const liveOpens = startTime.toISOString();
+    const countdownOpens = new Date(startTime.getTime() - waitTime * 60 * 1000).toISOString();
+    const liveCloses = new Date(startTime.getTime() + quizDuration * 60 * 1000).toISOString();
+    const { data, error } = await createQuizSession({
+      session_date: newDate,
+      title: newTitle,
+      scheduled_start_time: liveOpens,
+      countdown_opens_at: countdownOpens,
+      live_opens_at: liveOpens,
+      live_closes_at: liveCloses,
+      status: 'scheduled',
+      quiz_type: newQuizType,
+      reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
+      reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
+    } as any);
+    if (error) { alert(error.message); return; }
+    setNewTitle(''); setShowCreate(false); setNewQuizType('saturday');
+    load();
+  };
+
+  const launchQuiz = async (session: QuizSession) => {
+    const now = new Date();
+    const countdownOpens = now.toISOString();
+    const liveOpens = new Date(now.getTime() + waitTime * 60 * 1000).toISOString();
+    const liveCloses = new Date(now.getTime() + (waitTime + quizDuration) * 60 * 1000).toISOString();
+    const { error } = await supabase.from('quiz_sessions').update({
+      status: 'countdown',
+      countdown_opens_at: countdownOpens,
+      live_opens_at: liveOpens,
+      live_closes_at: liveCloses,
+    }).eq('id', session.id);
+    if (error) { alert(error.message); return; }
+    load();
+  };
+
+  const relaunchQuiz = async (session: QuizSession) => {
+    const now = new Date();
+    const countdownOpens = now.toISOString();
+    const liveOpens = new Date(now.getTime() + waitTime * 60 * 1000).toISOString();
+    const liveCloses = new Date(now.getTime() + (waitTime + quizDuration) * 60 * 1000).toISOString();
+    const { error } = await supabase.from('quiz_sessions').update({
+      status: 'countdown',
+      countdown_opens_at: countdownOpens,
+      live_opens_at: liveOpens,
+      live_closes_at: liveCloses,
+    }).eq('id', session.id);
+    if (error) { alert(error.message); return; }
+    load();
+  };
+
+  const generateQuestions = async (session: QuizSession) => {
+    setGenerating(true);
+    try {
+      const sessionDate = new Date(`${session.session_date}T12:00:00`);
+      const day = sessionDate.getDay();
+      const saturday = new Date(sessionDate);
+      saturday.setDate(sessionDate.getDate() - ((day - 6 + 7) % 7));
+      const weekEnd = new Date(saturday);
+      weekEnd.setDate(saturday.getDate() + 6);
+      const weekNarratives = narratives.filter((narrative) => {
+        const date = new Date(`${narrative.narrative_date}T12:00:00`);
+        return date >= saturday && date <= weekEnd;
+      });
+      const generated = generateQuizQuestions(weekNarratives);
+      if (generated.length === 0) throw new Error('No narrative scripture content found for this quiz week.');
+      await deleteQuestionsForSession(session.id);
+      const questionsToInsert = generated.slice(0, 10).map((q, i) => ({
+        quiz_session_id: session.id,
+        question_index: i + 1,
+        source_narrative_date: q.source_date,
+        difficulty_tag: q.difficulty,
+        mechanic_type: q.mechanic,
+        recycled_from_game: q.recycled,
+        question_payload: q.payload,
+      }));
+      await insertQuestions(questionsToInsert);
+      const qs = await fetchQuestionsForSession(session.id);
+      setGeneratedQuestions(qs);
+    } catch (e: any) {
+      alert(`Failed to generate: ${e.message}`);
+    }
+    setGenerating(false);
+  };
+
+  const syncTaggedQuestions = async (session: QuizSession) => {
+    setGenerating(true);
+    try {
+      const tagged = await fetchQuizTaggedGameQuestions(50);
+      const existingKeys = new Set(generatedQuestions.map((q) => `${q.source_narrative_date || ''}:${q.question_payload.question}`));
+      const additions = tagged
+        .map((q) => ({
+          source_date: q.narrative_date || null,
+          difficulty: (q.difficulty_tag || 'moderate') as 'easy' | 'moderate' | 'hard',
+          mechanic: `tagged_${q.question_type}`,
+          payload: customQuestionToPayload(q),
+          recycled: true,
+        }))
+        .filter((q) => !existingKeys.has(`${q.source_date || ''}:${q.payload.question}`));
+
+      if (additions.length === 0) {
+        alert('No new tagged questions to sync.');
+        setGenerating(false);
+        return;
+      }
+
+      const current = await fetchQuestionsForSession(session.id);
+      const startIndex = Math.max(0, ...current.map((q) => q.question_index)) + 1;
+      await insertQuestions(additions.map((q, index) => ({
+        quiz_session_id: session.id,
+        question_index: startIndex + index,
+        source_narrative_date: q.source_date,
+        difficulty_tag: q.difficulty,
+        mechanic_type: q.mechanic,
+        recycled_from_game: q.recycled,
+        question_payload: q.payload,
+      })));
+      const qs = await fetchQuestionsForSession(session.id);
+      setGeneratedQuestions(qs);
+    } catch (e: any) {
+      alert(`Failed to sync tagged questions: ${e.message}`);
+    }
+    setGenerating(false);
+  };
+
+  const openSession = async (session: QuizSession) => {
+    setSelectedSession(session);
+    const qs = await fetchQuestionsForSession(session.id);
+    setGeneratedQuestions(qs);
+  };
+
+  const editGeneratedQuestion = async (question: GeneratedQuestion) => {
+    const nextQuestion = window.prompt('Question', String(question.question_payload.question || ''));
+    if (nextQuestion === null) return;
+    const nextAnswer = window.prompt('Correct answer', String(question.question_payload.correct_answer || ''));
+    if (nextAnswer === null) return;
+    const optionsText = window.prompt('Options, one per line', (question.question_payload.options || []).join('\n'));
+    if (optionsText === null) return;
+    const options = optionsText.split('\n').map((item) => item.trim()).filter(Boolean);
+    await updateGeneratedQuestion(question.id, {
+      question_payload: {
+        ...question.question_payload,
+        question: nextQuestion.trim(),
+        correct_answer: nextAnswer.trim(),
+        options: options.length > 0 ? options : undefined,
+      },
+    } as any);
+    setGeneratedQuestions(await fetchQuestionsForSession(question.quiz_session_id));
+  };
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+
+  if (selectedSession) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <SectionHeader title={selectedSession.title} subtitle={`${formatShortDate(selectedSession.session_date)} · ${selectedSession.status}`} />
+          </div>
+          <button onClick={() => setSelectedSession(null)} className="btn-secondary text-sm">Back</button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => generateQuestions(selectedSession)} disabled={generating} className="btn-primary text-sm">
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            {generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
+          </button>
+          <button onClick={() => syncTaggedQuestions(selectedSession)} disabled={generating} className="btn-secondary text-sm">
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Sync Tagged Questions
+          </button>
+          <span className="text-xs text-stone">{generatedQuestions.length} questions</span>
+        </div>
+
+        {generatedQuestions.length > 0 && (
+          <div className="space-y-2">
+            {generatedQuestions.map((q, i) => (
+              <div key={q.id} className="card p-3 bg-surface-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-bold text-brass font-display flex-shrink-0">Q{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="badge badge-brass text-xs">{q.difficulty_tag}</span>
+                      <span className="text-xs text-stone">{q.mechanic_type}</span>
+                    </div>
+                    <p className="text-sm text-ink font-medium">{q.question_payload.question}</p>
+                    {q.question_payload.options && (
+                      <div className="mt-1.5 space-y-0.5">
+                        {q.question_payload.options.map((opt: string, idx: number) => (
+                          <p key={idx} className={`text-xs ${opt === q.question_payload.correct_answer ? 'text-moss font-bold' : 'text-stone'}`}>
+                            {String.fromCharCode(65 + idx)}. {opt}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {!q.question_payload.options && (
+                      <p className="text-xs text-moss mt-1">Answer: {q.question_payload.correct_answer}</p>
+                    )}
+                    <button onClick={() => editGeneratedQuestion(q)} className="btn-secondary text-xs mt-3">
+                      Edit Question
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <CustomQuestionsEditor sessionId={selectedSession.id} />
+        <QuizAnswerSheets session={selectedSession} questions={generatedQuestions} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Quiz Builder" subtitle="Create weekly Saturday quizzes from narrative content" />
+        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm">
+          <Plus size={16} /> New Quiz
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="card p-4 space-y-3 bg-surface-2">
+          <div>
+            <label className="text-xs text-stone block mb-1">Quiz Type</label>
+            <select className="input-field text-sm" value={newQuizType} onChange={(e) => setNewQuizType(e.target.value as 'saturday' | 'fortune')}>
+              <option value="saturday">Saturday Quiz (scheduled, streak-critical)</option>
+              <option value="fortune">Fortune Quiz (random, bonus rewards)</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Quiz Title</label>
+            <input className="input-field" placeholder="e.g. Week 3 Saturday Quiz" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Session Date</label>
+            <input type="date" className="input-field" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-stone block mb-1">Wait Time (min before quiz opens)</label>
+              <input type="number" min={1} max={180} className="input-field" value={waitTime} onChange={(e) => setWaitTime(Number(e.target.value) || 60)} />
+            </div>
+            <div>
+              <label className="text-xs text-stone block mb-1">Quiz Duration (min live)</label>
+              <input type="number" min={5} max={300} className="input-field" value={quizDuration} onChange={(e) => setQuizDuration(Number(e.target.value) || 90)} />
+            </div>
+          </div>
+          <p className="text-xs text-stone">
+            {newQuizType === 'saturday'
+              ? `Saturday quiz: 9:00–9:30 AM with ${waitTime}-min buffer. Sole streak validation for that Saturday — annuls Simon's Purse and freezers.`
+              : `Fortune quiz: 1 talent (6,000 Ð) for perfect score, 1,000 Ð for anything less. ${!satScheduled ? '⚠ You must schedule a Saturday quiz first!' : 'Ready to launch — Saturday quiz is scheduled.'}`}
+          </p>
+          <button onClick={createSession} disabled={newQuizType === 'fortune' && !satScheduled} className="btn-primary text-sm">
+            <Save size={14} /> Create Session
+          </button>
+          {newQuizType === 'fortune' && !satScheduled && (
+            <p className="text-xs text-roman">You cannot create a Fortune Quiz until a Saturday Quiz is scheduled.</p>
+          )}
+        </div>
+      )}
+
+      {sessions.length === 0 ? (
+        <EmptyState icon={FileQuestion} title="No quiz sessions yet" message="Create a new quiz session and generate questions from your narratives." />
+      ) : (
+        <div className="space-y-2">
+          {sessions.map((s) => (
+            <div key={s.id} className="card p-4 flex items-center justify-between card-hover bg-surface">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-ink truncate">{s.title}</p>
+                <p className="text-xs text-stone">
+                  {formatShortDate(s.session_date)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {s.status === 'scheduled' && (
+                  <button onClick={() => launchQuiz(s)} className="btn-primary text-xs">
+                    <Rocket size={12} /> Launch
+                  </button>
+                )}
+                {(s.status === 'completed' || s.status === 'closed') && (
+                  <button onClick={() => relaunchQuiz(s)} className="btn-primary text-xs">
+                    <RotateCcw size={12} /> Republish
+                  </button>
+                )}
+                <button onClick={() => openSession(s)} className="btn-secondary text-xs">Open</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InstructorSettings({ profile, tents, members }: {
+  profile: Profile | null; tents: any[]; members: any[];
+}) {
+  const { signOut } = useAuth();
+  const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [saving, setSaving] = useState(false);
+  const [mmSettings, setMmSettings] = useState<MobileMoneySettings | null>(null);
+  const [mmForm, setMmForm] = useState<Partial<MobileMoneySettings>>({
+    provider_name: 'MTN MoMo',
+    phone_number: '',
+    account_name: '',
+    instructions: '',
+    payout_enabled: true,
+    payout_provider_name: 'MTN MoMo',
+    payout_phone_number: '',
+    payout_account_name: '',
+    payout_max_amount_xaf: null,
+  });
+  const [mmSaving, setMmSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordPage, setPasswordPage] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await fetchMobileMoneySettings();
+        if (s) {
+          setMmSettings(s);
+          setMmForm({
+            provider_name: s.provider_name,
+            phone_number: s.phone_number,
+            account_name: s.account_name,
+            instructions: s.instructions || '',
+            payout_enabled: s.payout_enabled ?? true,
+            payout_provider_name: s.payout_provider_name || s.provider_name,
+            payout_phone_number: s.payout_phone_number || s.phone_number,
+            payout_account_name: s.payout_account_name || s.account_name,
+            payout_max_amount_xaf: s.payout_max_amount_xaf ?? null,
+          });
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const save = async () => {
+    if (!profile) return;
+    setSaving(true);
+    await supabase.from('profiles').update({ whatsapp_number: whatsapp }).eq('id', profile.id);
+    setSaving(false);
+  };
+
+  const saveMmSettings = async () => {
+    setMmSaving(true);
+    try {
+      await saveMobileMoneySettings(mmForm);
+      const saved = await fetchMobileMoneySettings();
+      if (saved) setMmSettings(saved);
+      alert('Mobile Money settings saved.');
+    } catch (e: any) { alert(e.message); }
+    setMmSaving(false);
+  };
+
+  const changePassword = async () => {
+    setPasswordError(null);
+    setPasswordMessage(null);
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    setChangingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setChangingPassword(false);
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordMessage('Password changed successfully.');
+  };
+
+  return (
+    passwordPage && profile?.email ? (
+      <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />
+    ) : (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Settings" subtitle="Manage your account and preferences" />
+
+      <div className="card p-4 space-y-3">
+        <h4 className="font-display font-semibold text-ink">Your Profile</h4>
+        <p className="text-sm text-stone">{profile?.display_name}</p>
+        <p className="text-sm text-stone">{profile?.email}</p>
+        <div>
+          <label className="text-xs text-stone block mb-1">WhatsApp Number (for cadets/sentries to contact you)</label>
+          <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+        </div>
+        <button onClick={save} disabled={saving} className="btn-primary text-sm">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+        </button>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <h4 className="font-display font-semibold text-ink">Account</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="rounded-xl bg-surface-2 p-3">
+            <p className="text-xs text-stone font-bold uppercase tracking-wide">Tents</p>
+            <p className="font-display text-xl text-ink font-bold">{tents.length}</p>
+          </div>
+          <div className="rounded-xl bg-surface-2 p-3">
+            <p className="text-xs text-stone font-bold uppercase tracking-wide">Members</p>
+            <p className="font-display text-xl text-ink font-bold">{members.length}</p>
+          </div>
+        </div>
+        <button
+          onClick={signOut}
+          className="w-full btn-danger justify-center"
+        >
+          <LogOut size={16} /> Sign Out
+        </button>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <KeyRound size={18} className="text-royal" />
+          <h4 className="font-display font-semibold text-ink">Change Password</h4>
+        </div>
+        <p className="text-xs text-stone">Confirm your old password first, then set the new one.</p>
+        <button onClick={() => setPasswordPage(true)} className="btn-primary text-sm">
+          <KeyRound size={14} /> Update Password
+        </button>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Smartphone size={18} className="text-moss" />
+          <h4 className="font-display font-semibold text-ink">Mobile Money Settings</h4>
+        </div>
+        <p className="text-xs text-stone">Cadets can request MTN MoMo or Orange Money payments in the platform. Confirmed funds can be paid out to the number you save here.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-stone block mb-1">Receiving Provider</label>
+            <select className="input-field text-sm" value={mmForm.provider_name || 'MTN MoMo'} onChange={(e) => setMmForm({ ...mmForm, provider_name: e.target.value })}>
+              <option value="MTN MoMo">MTN MoMo</option>
+              <option value="Orange Money">Orange Money</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Receiving Number</label>
+            <input className="input-field text-sm" placeholder="2376XXXXXXXX" value={mmForm.phone_number || ''} onChange={(e) => setMmForm({ ...mmForm, phone_number: e.target.value })} />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-stone block mb-1">Receiving Account Name</label>
+          <input className="input-field text-sm" placeholder="John Doe" value={mmForm.account_name || ''} onChange={(e) => setMmForm({ ...mmForm, account_name: e.target.value })} />
+        </div>
+        <div>
+          <label className="text-xs text-stone block mb-1">Extra Instructions (optional)</label>
+          <textarea className="input-field text-sm" rows={2} placeholder="e.g. Use this account for support follow-up" value={mmForm.instructions || ''} onChange={(e) => setMmForm({ ...mmForm, instructions: e.target.value })} />
+        </div>
+        <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
+          <label className="flex items-center justify-between gap-3 text-sm text-ink">
+            <span className="font-medium">Auto-withdraw confirmed CamPay payments</span>
+            <input
+              type="checkbox"
+              checked={mmForm.payout_enabled ?? true}
+              onChange={(e) => setMmForm({ ...mmForm, payout_enabled: e.target.checked })}
+              className="accent-peri"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-stone block mb-1">Payout Provider</label>
+              <select className="input-field text-sm" value={mmForm.payout_provider_name || mmForm.provider_name || 'MTN MoMo'} onChange={(e) => setMmForm({ ...mmForm, payout_provider_name: e.target.value })}>
+                <option value="MTN MoMo">MTN MoMo</option>
+                <option value="Orange Money">Orange Money</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-stone block mb-1">Payout Number</label>
+              <input className="input-field text-sm" placeholder="2376XXXXXXXX" value={mmForm.payout_phone_number || ''} onChange={(e) => setMmForm({ ...mmForm, payout_phone_number: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-stone block mb-1">Payout Account Name</label>
+              <input className="input-field text-sm" placeholder="John Doe" value={mmForm.payout_account_name || ''} onChange={(e) => setMmForm({ ...mmForm, payout_account_name: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-xs text-stone block mb-1">Max Per Withdrawal (FCFA)</label>
+              <input
+                type="number"
+                min={1}
+                className="input-field text-sm"
+                placeholder="Leave blank for full payment"
+                value={mmForm.payout_max_amount_xaf ?? ''}
+                onChange={(e) => setMmForm({ ...mmForm, payout_max_amount_xaf: e.target.value ? Number(e.target.value) : null })}
+              />
+            </div>
+          </div>
+          {mmSettings?.updated_at && <p className="text-[10px] text-stone">Last saved {new Date(mmSettings.updated_at).toLocaleString()}</p>}
+        </div>
+        <button onClick={saveMmSettings} disabled={mmSaving} className="btn-primary text-sm">
+          {mmSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Mobile Money Settings
+        </button>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <CreditCard size={18} className="text-peri" />
+          <h4 className="font-display font-semibold text-ink">CamPay Payments</h4>
+        </div>
+        <p className="text-xs text-stone">
+          Real-money relic purchases are processed through CamPay in the backend. Cadets stay in the platform
+          while MTN MoMo and Orange Money prompts are initiated.
+          Configure your CamPay credentials and webhook key in your project secrets.
+        </p>
+        <div className="p-3 rounded-lg bg-surface-2 text-xs text-stone space-y-1">
+          <p><strong>Required secrets:</strong></p>
+          <p>· CAMPAY_APP_USERNAME — your CamPay app username</p>
+          <p>· CAMPAY_APP_PASSWORD — your CamPay app password</p>
+          <p>· CAMPAY_WEBHOOK_KEY — your CamPay webhook key</p>
+          <p><strong>Webhook URL:</strong> https://kckzqsafzemeijxfohuy.supabase.co/functions/v1/campay-webhook</p>
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-2 border-coral/20">
+        <h4 className="font-display font-semibold text-coral">Hand Over Instructor Role</h4>
+        <p className="text-xs text-stone">There can only be one instructor at a time. When you promote a sentry to instructor, you are automatically demoted. Use with care.</p>
+        <p className="text-xs text-stone">Visit Sentry Management to promote a sentry to instructor.</p>
+      </div>
+    </div>
+    )
+  );
+}
+
+function InstructorPasswordField({
+  label, value, visible, onToggle, onChange,
+}: {
+  label: string;
+  value: string;
+  visible: boolean;
+  onToggle: () => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-stone block mb-1">{label}</label>
+      <div className="relative">
+        <input
+          className="input-field text-sm pr-10"
+          type={visible ? 'text' : 'password'}
+          value={value}
+          minLength={6}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; onRefresh: () => void }) {
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllChallengeSubmissions();
+      setSubmissions(data || []);
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const approve = async (id: string) => {
+    setReviewingId(id);
+    try {
+      await reviewChallengeSubmission(id, 'approved', null, instructorId);
+      await load();
+      onRefresh();
+    } catch (e: any) { alert(e.message); }
+    setReviewingId(null);
+  };
+
+  const reject = async (id: string) => {
+    if (!rejectionReason.trim()) return;
+    setReviewingId(id);
+    try {
+      await reviewChallengeSubmission(id, 'rejected', rejectionReason.trim(), instructorId);
+      setRejectingId(null);
+      setRejectionReason('');
+      await load();
+      onRefresh();
+    } catch (e: any) { alert(e.message); }
+    setReviewingId(null);
+  };
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+
+  const pending = submissions.filter((s) => s.status === 'pending');
+  const reviewed = submissions.filter((s) => s.status !== 'pending');
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Challenge Review" subtitle="Approve or reject cadet challenge submissions" />
+
+      {pending.length === 0 && reviewed.length === 0 ? (
+        <EmptyState icon={Target} title="No submissions yet" message="Cadet challenge submissions will appear here for your review." />
+      ) : (
+        <>
+          {pending.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-display font-semibold text-ink text-sm">Pending ({pending.length})</h3>
+              {pending.map((s) => (
+                <div key={s.id} className="card p-4 border-gold/30">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-sm font-semibold text-ink">{s.profiles?.display_name || 'Unknown cadet'}</p>
+                      <p className="text-xs text-stone">{s.narrative_date} · {s.proof_type}</p>
+                    </div>
+                    <span className="badge badge-gold text-[10px]">Pending</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-surface-2 text-sm text-ink mb-3">
+                    {s.proof_text}
+                  </div>
+                  {rejectingId === s.id ? (
+                    <div className="space-y-2 animate-slide-up">
+                      <textarea
+                        className="input-field text-sm"
+                        placeholder="Why are you rejecting this? (The cadet will see this reason)"
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => reject(s.id)} disabled={!rejectionReason.trim() || reviewingId === s.id} className="btn-danger text-xs">
+                          {reviewingId === s.id ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Confirm Reject
+                        </button>
+                        <button onClick={() => { setRejectingId(null); setRejectionReason(''); }} className="btn-ghost text-xs">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={() => approve(s.id)} disabled={reviewingId === s.id} className="btn-primary text-xs" style={{ color: 'var(--color-moss)', borderColor: 'var(--color-moss-soft)' }}>
+                        {reviewingId === s.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Approve
+                      </button>
+                      <button onClick={() => setRejectingId(s.id)} className="btn-danger text-xs">
+                        <XCircle size={12} /> Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {reviewed.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-display font-semibold text-ink text-sm">Reviewed ({reviewed.length})</h3>
+              {reviewed.slice(0, 10).map((s) => (
+                <div key={s.id} className="card p-3 opacity-70">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-ink">{s.profiles?.display_name || 'Unknown'}</p>
+                      <p className="text-xs text-stone">{s.narrative_date} · {s.proof_type}</p>
+                    </div>
+                    <span className={`badge text-[10px] ${s.status === 'approved' ? 'badge-moss' : 'badge-coral'}`}>
+                      {s.status === 'approved' ? <CheckCircle2 size={10} className="mr-1" /> : <XCircle size={10} className="mr-1" />}
+                      {s.status}
+                    </span>
+                  </div>
+                  {s.rejection_reason && (
+                    <p className="text-xs text-coral mt-2 pl-3 border-l-2 border-coral/30">{s.rejection_reason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CustomQuestionsEditor({ sessionId }: { sessionId: string }) {
+  const { profile } = useAuth();
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [qText, setQText] = useState('');
+  const [qType, setQType] = useState('multiple_choice');
+  const [options, setOptions] = useState(['', '', '', '']);
+  const [correctAnswer, setCorrectAnswer] = useState('');
+  const [explanation, setExplanation] = useState('');
+  const [passage, setPassage] = useState('');
+  const [difficulty, setDifficulty] = useState('moderate');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchCustomQuestions(sessionId);
+      setQuestions(data || []);
+    } catch {}
+    setLoading(false);
+  }, [sessionId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const addQuestion = async () => {
+    if (!qText.trim() || !correctAnswer.trim() || !profile) return;
+    setSaving(true);
+    try {
+      const opts = ['multiple_choice', 'comprehension', 'order_sequence'].includes(qType)
+        ? options.filter((o) => o.trim())
+        : qType === 'true_false'
+          ? ['True', 'False']
+          : null;
+      await insertCustomQuestion({
+        instructor_id: profile.id,
+        quiz_session_id: sessionId,
+        question_text: qText,
+        question_type: qType,
+        options: opts,
+        correct_answer: correctAnswer,
+        explanation: explanation || null,
+        passage: passage || null,
+        difficulty_tag: difficulty,
+        question_index: questions.length,
+      });
+      setQText(''); setOptions(['', '', '', '']); setCorrectAnswer(''); setExplanation(''); setPassage('');
+      setShowForm(false);
+      await load();
+    } catch (e: any) { alert(e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-3 mt-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="font-display font-semibold text-ink text-sm">Custom Questions</h4>
+          <p className="text-xs text-stone">Write your own questions instead of auto-generating</p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary text-xs">
+          <Plus size={12} /> Add Question
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="card p-4 space-y-3 bg-surface-2 animate-slide-up">
+          <div>
+            <label className="text-xs text-stone block mb-1">Question Text</label>
+            <textarea className="input-field text-sm" placeholder="Enter your question…" value={qText} onChange={(e) => setQText(e.target.value)} rows={2} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-stone block mb-1">Type</label>
+            <select className="input-field text-sm" value={qType} onChange={(e) => setQType(e.target.value)}>
+              <option value="multiple_choice">Multiple Choice</option>
+              <option value="true_false">True / False</option>
+              <option value="order_sequence">Order / Sequence</option>
+              <option value="scriptorium">Scriptorium (Verse ID)</option>
+              <option value="comprehension">Comprehension</option>
+            </select>
+            </div>
+            <div>
+              <label className="text-xs text-stone block mb-1">Difficulty</label>
+              <select className="input-field text-sm" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+                <option value="easy">Easy</option>
+                <option value="moderate">Moderate</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+          </div>
+          {(qType === 'multiple_choice' || qType === 'comprehension' || qType === 'order_sequence') && (
+            <div>
+              <label className="text-xs text-stone block mb-1">
+                {qType === 'order_sequence' ? 'Items to Order' : 'Options'}
+              </label>
+              {options.map((opt, i) => (
+                <input key={i} className="input-field text-sm mb-1" placeholder={qType === 'order_sequence' ? `Item ${i + 1}` : `Option ${String.fromCharCode(65 + i)}`}
+                  value={opt} onChange={(e) => { const o = [...options]; o[i] = e.target.value; setOptions(o); }} />
+              ))}
+            </div>
+          )}
+          <div>
+            <label className="text-xs text-stone block mb-1">
+              {qType === 'order_sequence' ? 'Correct Order' : `Correct Answer ${qType === 'true_false' ? '(True or False)' : ''}`}
+            </label>
+            <input className="input-field text-sm" placeholder={qType === 'true_false' ? 'True' : qType === 'order_sequence' ? 'Use | between items' : 'Enter correct answer…'}
+              value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} />
+          </div>
+          {(qType === 'comprehension' || qType === 'scriptorium') && (
+            <div>
+              <label className="text-xs text-stone block mb-1">{qType === 'scriptorium' ? 'First-letter Hint (optional)' : 'Passage (optional)'}</label>
+              <textarea className="input-field text-sm" rows={2}
+                placeholder={qType === 'scriptorium' ? 'Leave blank to generate from the answer' : 'Passage shown before answering'}
+                value={passage} onChange={(e) => setPassage(e.target.value)} />
+            </div>
+          )}
+          <div>
+            <label className="text-xs text-stone block mb-1">Explanation (optional)</label>
+            <input className="input-field text-sm" placeholder="Why is this correct?" value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+          </div>
+          <button onClick={addQuestion} disabled={saving || !qText.trim() || !correctAnswer.trim()} className="btn-primary text-sm">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Question
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-brass" /></div>
+      ) : questions.length === 0 ? (
+        <p className="text-xs text-stone text-center py-3">No custom questions yet. Click "Add Question" to create your own.</p>
+      ) : (
+        <div className="space-y-2">
+          {questions.map((q, i) => (
+            <div key={q.id} className="card p-3 bg-surface-2">
+              <div className="flex items-start gap-2">
+                <span className="text-xs font-bold text-peri font-display flex-shrink-0">CQ{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="badge badge-peri text-[10px]">{q.question_type.replace(/_/g, ' ')}</span>
+                    <span className="badge badge-neutral text-[10px]">{q.difficulty_tag}</span>
+                  </div>
+                  <p className="text-sm text-ink font-medium">{q.question_text}</p>
+                  <p className="text-xs text-moss mt-1">Answer: {q.correct_answer}</p>
+                  {q.options && <p className="text-xs text-stone mt-0.5">Options: {q.options.join(' · ')}</p>}
+                </div>
+                <button onClick={async () => { await deleteCustomQuestion(q.id); await load(); }}
+                  className="text-stone hover:text-coral transition-colors flex-shrink-0">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Game Questions Editor ──
+function GameQuestionsEditor({ profile }: { profile: Profile }) {
+  const [selectedLevel, setSelectedLevel] = useState(1);
+  const [selectedRound, setSelectedRound] = useState<number | 'all'>(1);
+  const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
+  const [selectedNarrativeDate, setSelectedNarrativeDate] = useState('');
+  const [questions, setQuestions] = useState<CustomQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [levelQuestionType, setLevelQuestionType] = useState('true_false');
+  const [roundQuestionTypes, setRoundQuestionTypes] = useState<Record<number, string>>({ 1: 'comprehension', 2: 'multiple_choice', 3: 'standard_text' });
+  const [roundTimers, setRoundTimers] = useState<Record<number, number>>({
+    1: LEVEL_TIMERS[0] || 60,
+    2: Math.max((LEVEL_TIMERS[0] || 60) - 5, 20),
+    3: Math.max((LEVEL_TIMERS[0] || 60) - 10, 20),
+  });
+  const [roundPassageDurations, setRoundPassageDurations] = useState<Record<number, number>>({
+    1: DEFAULT_PASSAGE_DISPLAY_SECONDS,
+    2: DEFAULT_PASSAGE_DISPLAY_SECONDS,
+    3: DEFAULT_PASSAGE_DISPLAY_SECONDS,
+  });
+  const [roundPassages, setRoundPassages] = useState<Record<number, string>>({ 1: '', 2: '', 3: '' });
+  const [newQ, setNewQ] = useState({
+    text: '',
+    type: 'true_false',
+    answer: '',
+    options: '',
+    explanation: '',
+    passage: '',
+    round: 1,
+    difficulty: 'easy',
+    isBonus: false,
+    useForQuiz: false,
+  });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [narrs, data] = await Promise.all([
+        fetchNarratives(60, true),
+        selectedNarrativeDate ? fetchCustomGameQuestions(selectedLevel, selectedNarrativeDate) : Promise.resolve([]),
+      ]);
+      setNarratives(narrs || []);
+      if (!selectedNarrativeDate && narrs.length > 0) setSelectedNarrativeDate(narrs[0].narrative_date);
+      setQuestions(data || []);
+    } catch {}
+    setLoading(false);
+  }, [selectedLevel, selectedNarrativeDate]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const gameType = LEVEL_GAME_TYPES[selectedLevel - 1];
+  const selectedNarrative = narratives.find((n) => n.narrative_date === selectedNarrativeDate) || null;
+  const isFinalLevel = selectedLevel === DAILY_GAME_LEVELS;
+  const questionTypeOptions = [
+    { value: 'true_false', label: 'True / False' },
+    { value: 'comprehension', label: 'Comprehension' },
+    { value: 'standard_text', label: 'Standard Written Answer' },
+    { value: 'cloze', label: 'Fill in the Blanks' },
+    { value: 'matching', label: 'Word to Meaning' },
+    { value: 'scriptorium', label: 'First Letter' },
+    { value: 'order_sequence', label: 'Build Verse' },
+    { value: 'category_sort', label: 'Category Sort' },
+    { value: 'multiple_choice', label: 'Multiple Choice' },
+  ];
+  const gameTypeToQuestionType = (type: string) => {
+    if (type === 'fill_blank') return 'cloze';
+    if (type === 'word_to_meaning') return 'matching';
+    if (type === 'first_letter') return 'scriptorium';
+    if (type === 'build_verse') return 'order_sequence';
+    if (type === 'final_mixed') return newQ.type;
+    return type || 'true_false';
+  };
+  const isComprehensionLevel = gameType === 'comprehension';
+  const effectiveQuestionType = isComprehensionLevel
+    ? roundQuestionTypes[newQ.round] || 'comprehension'
+    : isFinalLevel
+      ? newQ.type
+      : levelQuestionType;
+
+  useEffect(() => {
+    const defaultType = gameTypeToQuestionType(LEVEL_GAME_TYPES[selectedLevel - 1]);
+    setLevelQuestionType(defaultType);
+    setRoundTimers({
+      1: LEVEL_TIMERS[selectedLevel - 1] || 60,
+      2: Math.max((LEVEL_TIMERS[selectedLevel - 1] || 60) - 5, 20),
+      3: Math.max((LEVEL_TIMERS[selectedLevel - 1] || 60) - 10, 20),
+    });
+    setRoundPassageDurations({
+      1: DEFAULT_PASSAGE_DISPLAY_SECONDS,
+      2: DEFAULT_PASSAGE_DISPLAY_SECONDS,
+      3: DEFAULT_PASSAGE_DISPLAY_SECONDS,
+    });
+    setNewQ((q) => ({ ...q, type: isFinalLevel ? q.type : defaultType, round: 1, difficulty: 'easy' }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLevel, isFinalLevel]);
+
+  useEffect(() => {
+    if (selectedNarrative) {
+      setRoundPassages({
+        1: selectedNarrative.main_text,
+        2: selectedNarrative.main_text,
+        3: selectedNarrative.main_text,
+      });
+    }
+  }, [selectedNarrativeDate]);
+
+  useEffect(() => {
+    if (questions.length === 0) return;
+
+    setRoundTimers((prev) => {
+      const next = { ...prev };
+      questions.forEach((q) => {
+        const round = q.game_round || 1;
+        if (q.round_timer_seconds) next[round] = q.round_timer_seconds;
+      });
+      return next;
+    });
+
+    setRoundPassageDurations((prev) => {
+      const next = { ...prev };
+      questions.forEach((q) => {
+        const round = q.game_round || 1;
+        if (q.passage_display_seconds) next[round] = q.passage_display_seconds;
+      });
+      return next;
+    });
+
+    setRoundQuestionTypes((prev) => {
+      const next = { ...prev };
+      questions.forEach((q) => {
+        const round = q.game_round || 1;
+        if (q.question_type) next[round] = q.question_type;
+      });
+      return next;
+    });
+
+    setRoundPassages((prev) => {
+      const next = { ...prev };
+      questions.forEach((q) => {
+        const round = q.game_round || 1;
+        if (q.passage) next[round] = q.passage;
+      });
+      return next;
+    });
+  }, [questions]);
+
+  const rows = questions.filter((q) => selectedRound === 'all' || (q.game_round || 1) === selectedRound);
+
+  const syncFromPacket = async () => {
+    if (!selectedNarrative || !profile) return;
+    setSyncing(true);
+    try {
+      await Promise.all(
+        questions
+          .filter((q) => q.generated_from_packet)
+          .map((q) => deleteCustomQuestion(q.id)),
+      );
+      resetUsedQuestions();
+      const generated = generateLevelQuestions(selectedNarrative.game_seed_data, selectedLevel, []);
+      for (const [i, payload] of generated.entries()) {
+        const round = Math.min(Math.floor(i / GAME_QUESTIONS_PER_ROUND) + 1, GAME_ROUNDS_PER_LEVEL);
+        const rowOptions = payload.type === 'category_sort' && payload.sort_items
+          ? payload.sort_items.map((item) => `${item.text} | ${item.bucket}`)
+          : payload.type === 'matching' && payload.pairs
+            ? payload.pairs.map((pair) => `${pair.left} | ${pair.right}`)
+            : payload.options || payload.items || null;
+        const questionType = isComprehensionLevel
+          ? roundQuestionTypes[round] || payload.type
+          : levelQuestionType || payload.type;
+        await insertCustomQuestion({
+          instructor_id: profile.id,
+          quiz_session_id: null,
+          game_level: selectedLevel,
+          narrative_date: selectedNarrative.narrative_date,
+          narrative_title: selectedNarrative.title,
+          narrative_theme: selectedNarrative.theme,
+          game_round: round,
+          round_timer_seconds: roundTimers[round] || LEVEL_TIMERS[selectedLevel - 1] || 60,
+          passage_display_seconds: roundPassageDurations[round] || DEFAULT_PASSAGE_DISPLAY_SECONDS,
+          is_bonus: false,
+          use_for_quiz: false,
+          generated_from_packet: true,
+          packet_section: payload.engine || GAME_TYPE_LABELS[gameType] || payload.type,
+          question_text: payload.question,
+          question_type: questionType,
+          options: rowOptions,
+          correct_answer: String(payload.correct_answer),
+          explanation: payload.explanation || null,
+          passage: roundPassages[round] || payload.passage || null,
+          difficulty_tag: round === 1 ? 'easy' : round === 2 ? 'moderate' : 'hard',
+          question_index: i,
+        });
+      }
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to sync questions from packet');
+    }
+    setSyncing(false);
+  };
+
+  const addQuestion = async () => {
+    if (!newQ.text.trim() || !newQ.answer.trim() || !selectedNarrative) return;
+    setSaving(true);
+    try {
+      const options = newQ.options ? newQ.options.split('\n').map((s) => s.trim()).filter(Boolean) : null;
+      await insertCustomQuestion({
+        instructor_id: profile.id,
+        quiz_session_id: null,
+        game_level: selectedLevel,
+        narrative_date: selectedNarrative.narrative_date,
+        narrative_title: selectedNarrative.title,
+        narrative_theme: selectedNarrative.theme,
+        game_round: newQ.round,
+        round_timer_seconds: roundTimers[newQ.round] || LEVEL_TIMERS[selectedLevel - 1] || 60,
+        passage_display_seconds: roundPassageDurations[newQ.round] || DEFAULT_PASSAGE_DISPLAY_SECONDS,
+        is_bonus: newQ.isBonus,
+        use_for_quiz: newQ.useForQuiz,
+        generated_from_packet: false,
+        packet_section: 'manual',
+        question_text: newQ.text.trim(),
+        question_type: effectiveQuestionType,
+        options,
+        correct_answer: newQ.answer.trim(),
+        explanation: newQ.explanation.trim() || null,
+        passage: newQ.passage.trim() || roundPassages[newQ.round] || null,
+        difficulty_tag: newQ.difficulty,
+        question_index: questions.length,
+      });
+      setNewQ({ text: '', type: isFinalLevel ? newQ.type : effectiveQuestionType, answer: '', options: '', explanation: '', passage: '', round: newQ.round, difficulty: newQ.difficulty, isBonus: false, useForQuiz: false });
+      await load();
+    } catch (e: any) { alert(e.message || 'Failed to save question'); }
+    setSaving(false);
+  };
+
+  const editQuestion = async (question: CustomQuestion) => {
+    const text = window.prompt('Question text', question.question_text);
+    if (text === null) return;
+    const answer = window.prompt('Correct answer', question.correct_answer);
+    if (answer === null) return;
+    const optionText = window.prompt('Options, one per line', (question.options || []).join('\n'));
+    if (optionText === null) return;
+    try {
+      await updateCustomQuestion(question.id, {
+        question_text: text.trim(),
+        correct_answer: answer.trim(),
+        options: optionText.split('\n').map((item) => item.trim()).filter(Boolean),
+      });
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to edit question');
+    }
+  };
+
+  const removeQuestion = async (id: string) => {
+    try { await deleteCustomQuestion(id); await load(); } catch (e: any) { alert(e.message || 'Failed to delete'); }
+  };
+
+  const toggleQuizTag = async (question: CustomQuestion) => {
+    try {
+      await updateCustomQuestion(question.id, { use_for_quiz: !question.use_for_quiz });
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to update quiz tag');
+    }
+  };
+
+  const updateRoundTimer = async (round: number, seconds: number) => {
+    setRoundTimers((prev) => ({ ...prev, [round]: seconds }));
+    const impacted = questions.filter((q) => (q.game_round || 1) === round);
+    await Promise.all(impacted.map((q) => updateCustomQuestion(q.id, { round_timer_seconds: seconds }).catch(() => null)));
+    await load();
+  };
+
+  const updateRoundPassageDuration = async (round: number, seconds: number) => {
+    const normalized = Math.min(Math.max(seconds, 5), 600);
+    setRoundPassageDurations((prev) => ({ ...prev, [round]: normalized }));
+    const impacted = questions.filter((q) => (q.game_round || 1) === round);
+    await Promise.all(impacted.map((q) => updateCustomQuestion(q.id, { passage_display_seconds: normalized }).catch(() => null)));
+    await load();
+  };
+
+  const applyRoundComprehensionSettings = async (round: number) => {
+    const impacted = questions.filter((q) => (q.game_round || 1) === round);
+    await Promise.all(impacted.map((q) => updateCustomQuestion(q.id, {
+      question_type: roundQuestionTypes[round] || q.question_type,
+      passage: roundPassages[round] || null,
+      passage_display_seconds: roundPassageDurations[round] || DEFAULT_PASSAGE_DISPLAY_SECONDS,
+    }).catch(() => null)));
+    await load();
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Game Questions" subtitle="Generate editable questions from each narrative's Game Content Packet, then add, edit, delete, or tag them for quiz." />
+
+      <div className="card p-4 grid md:grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs text-stone block mb-1">Narrative Day</label>
+          <select className="input-field" value={selectedNarrativeDate} onChange={(e) => setSelectedNarrativeDate(e.target.value)}>
+            {narratives.map((n) => (
+              <option key={n.id} value={n.narrative_date}>{n.narrative_date} · {n.title}</option>
+            ))}
+          </select>
+          {selectedNarrative && <p className="text-[10px] text-stone mt-1">{selectedNarrative.title} · {selectedNarrative.theme}</p>}
+        </div>
+        <div>
+          <label className="text-xs text-stone block mb-1">Level Question Type</label>
+          <select className="input-field" value={levelQuestionType} onChange={(e) => setLevelQuestionType(e.target.value)}>
+            {questionTypeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <button onClick={syncFromPacket} disabled={syncing || !selectedNarrative} className="btn-primary w-full text-sm">
+            {syncing ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Generate Editable Packet Questions
+          </button>
+        </div>
+      </div>
+
+      {/* Level selector */}
+      <div className="card p-4">
+        <label className="text-xs text-stone block mb-2">Select Game Level</label>
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: DAILY_GAME_LEVELS }, (_, i) => i + 1).map((lvl) => (
+            <button key={lvl} onClick={() => setSelectedLevel(lvl)}
+              className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                selectedLevel === lvl ? 'bg-peri text-navy' : 'bg-surface-2 text-stone hover:text-ink')}>
+              Level {lvl}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-stone mt-3 flex items-center gap-1.5">
+          <Gamepad2 size={14} /> Question mode: <strong className="text-ink">{GAME_TYPE_LABELS[gameType] || questionTypeOptions.find((opt) => opt.value === effectiveQuestionType)?.label || gameType}</strong>
+        </p>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h4 className="font-display font-semibold text-ink">Rounds</h4>
+            <p className="text-xs text-stone">Each level has 3 rounds of 5 questions. Timers are seconds per round, not per question.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setSelectedRound('all')} className={cn('px-3 py-1.5 rounded-lg text-xs font-bold', selectedRound === 'all' ? 'bg-peri text-navy' : 'bg-surface-2 text-stone')}>All</button>
+            {[1, 2, 3].map((round) => (
+              <button key={round} onClick={() => setSelectedRound(round)} className={cn('px-3 py-1.5 rounded-lg text-xs font-bold', selectedRound === round ? 'bg-peri text-navy' : 'bg-surface-2 text-stone')}>
+                Round {round}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid md:grid-cols-3 gap-3">
+          {[1, 2, 3].map((round) => (
+            <div key={round} className="rounded-lg border border-border-bright bg-surface-2 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-bold text-ink">Round {round}</span>
+                <label className="flex items-center gap-1 text-[10px] text-stone">
+                  <input
+                    type="number"
+                    min={10}
+                    max={180}
+                    value={roundTimers[round] || 60}
+                    onChange={(e) => updateRoundTimer(round, Number(e.target.value) || 60)}
+                    className="input-field w-20 text-xs py-1"
+                  />
+                  s/round
+                </label>
+              </div>
+              {isComprehensionLevel && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-brass mb-1">Part 1 · Passage</p>
+                    <textarea
+                      className="input-field text-xs min-h-[96px]"
+                      placeholder="Comprehension passage for this round"
+                      value={roundPassages[round] || ''}
+                      onChange={(e) => setRoundPassages((prev) => ({ ...prev, [round]: e.target.value }))}
+                    />
+                    <label className="mt-2 flex items-center justify-between gap-2 text-[10px] text-stone">
+                      <span>Passage display duration</span>
+                      <span className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={5}
+                          max={600}
+                          value={roundPassageDurations[round] || DEFAULT_PASSAGE_DISPLAY_SECONDS}
+                          onChange={(e) => updateRoundPassageDuration(round, Number(e.target.value) || DEFAULT_PASSAGE_DISPLAY_SECONDS)}
+                          className="input-field w-20 text-xs py-1"
+                        />
+                        s
+                      </span>
+                    </label>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-brass mb-1">Part 2 · Questions</p>
+                    <select className="input-field text-xs" value={roundQuestionTypes[round] || 'comprehension'} onChange={(e) => setRoundQuestionTypes((prev) => ({ ...prev, [round]: e.target.value }))}>
+                      {questionTypeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => applyRoundComprehensionSettings(round)}
+                    disabled={questions.filter((q) => (q.game_round || 1) === round).length === 0}
+                    className="btn-secondary text-[11px] w-full py-1.5"
+                  >
+                    Apply to saved round
+                  </button>
+                </div>
+              )}
+              {selectedLevel >= 5 && (
+                <p className="text-[10px] text-stone mt-2">Bonus-round questions can be added below.</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Add new question */}
+      <div className="card p-5 space-y-3">
+        <h4 className="font-display font-semibold text-ink">Add Question for Level {selectedLevel}</h4>
+        <div>
+          <label className="text-xs text-stone block mb-1">Question Text</label>
+          <textarea className="input-field" rows={2} placeholder="e.g. Who built the ark?" value={newQ.text} onChange={(e) => setNewQ({ ...newQ, text: e.target.value })} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-stone block mb-1">{isFinalLevel ? 'Question Type' : 'Level Question Type'}</label>
+            <select className="input-field" value={effectiveQuestionType} onChange={(e) => isComprehensionLevel ? setRoundQuestionTypes((prev) => ({ ...prev, [newQ.round]: e.target.value })) : setLevelQuestionType(e.target.value)}>
+              {questionTypeOptions
+                .map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">
+              {effectiveQuestionType === 'order_sequence' ? 'Correct Order' : effectiveQuestionType === 'cloze' ? 'Blank Answers' : 'Correct Answer'}
+            </label>
+            <input className="input-field"
+              placeholder={effectiveQuestionType === 'true_false' ? 'True' : effectiveQuestionType === 'order_sequence' || effectiveQuestionType === 'cloze' ? 'Use | between answers' : 'e.g. Noah'}
+              value={newQ.answer} onChange={(e) => setNewQ({ ...newQ, answer: e.target.value })} />
+          </div>
+        </div>
+        {(effectiveQuestionType === 'multiple_choice' || effectiveQuestionType === 'cloze' || effectiveQuestionType === 'comprehension' || effectiveQuestionType === 'matching' || effectiveQuestionType === 'category_sort' || effectiveQuestionType === 'order_sequence') && (
+          <div>
+            <label className="text-xs text-stone block mb-1">
+              {effectiveQuestionType === 'cloze' ? 'Word Bank (one per line)'
+                : effectiveQuestionType === 'comprehension' ? 'Options (one per line)'
+                : effectiveQuestionType === 'matching' ? 'Pairs (term | meaning, one per line)'
+                : effectiveQuestionType === 'category_sort' ? 'Sort items & buckets (item | bucket, one per line)'
+                : effectiveQuestionType === 'order_sequence' ? 'Items to arrange (one per line)'
+                : 'Options (one per line)'}
+            </label>
+            <textarea className="input-field" rows={3} 
+              placeholder={effectiveQuestionType === 'cloze' ? "faith\nhope\nlove"
+                : effectiveQuestionType === 'matching' ? "Abraham | Father of many nations\nIsaac | Son of promise"
+                : effectiveQuestionType === 'category_sort' ? "Abraham | Things Abraham did\nIsaac | Things Isaac did\nAngel | Things the angel did"
+                : effectiveQuestionType === 'order_sequence' ? "In the beginning\nGod created\nthe heavens and the earth"
+                : "Option A\nOption B\nOption C\nOption D"}
+              value={newQ.options} onChange={(e) => setNewQ({ ...newQ, options: e.target.value })} />
+          </div>
+        )
+        }
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-xs text-stone block mb-1">Round</label>
+            <select className="input-field" value={newQ.round} onChange={(e) => setNewQ({ ...newQ, round: Number(e.target.value), difficulty: Number(e.target.value) === 1 ? 'easy' : Number(e.target.value) === 2 ? 'moderate' : 'hard' })}>
+              <option value={1}>Round 1</option>
+              <option value={2}>Round 2</option>
+              <option value={3}>Round 3</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Difficulty</label>
+            <select className="input-field" value={newQ.difficulty} onChange={(e) => setNewQ({ ...newQ, difficulty: e.target.value })}>
+              <option value="easy">Easy</option>
+              <option value="moderate">Moderate</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-stone pt-6">
+            <input type="checkbox" checked={newQ.useForQuiz} onChange={(e) => setNewQ({ ...newQ, useForQuiz: e.target.checked })} className="accent-peri" />
+            Use for quiz
+          </label>
+          {selectedLevel >= 5 && (
+            <label className="flex items-center gap-2 text-xs text-stone pt-6">
+              <input type="checkbox" checked={newQ.isBonus} onChange={(e) => setNewQ({ ...newQ, isBonus: e.target.checked })} className="accent-peri" />
+              Bonus round
+            </label>
+          )}
+        </div>
+        {(effectiveQuestionType === 'comprehension' || effectiveQuestionType === 'cloze' || effectiveQuestionType === 'scriptorium' || effectiveQuestionType === 'standard_text') && (
+          <div>
+            <label className="text-xs text-stone block mb-1">
+              {effectiveQuestionType === 'scriptorium' ? 'First-letter Hint (optional)' : 'Passage / Verse (optional)'}
+            </label>
+            <textarea className="input-field" rows={2} placeholder={effectiveQuestionType === 'scriptorium' ? "I_ t__ b________ G__ c______..." : "The scripture passage or verse text..."}
+              value={newQ.passage} 
+              onChange={(e) => setNewQ({ ...newQ, passage: e.target.value })} />
+          </div>
+        )}
+        <div>
+          <label className="text-xs text-stone block mb-1">Explanation (optional)</label>
+          <input className="input-field" placeholder="Why is this the answer?" value={newQ.explanation} onChange={(e) => setNewQ({ ...newQ, explanation: e.target.value })} />
+        </div>
+        <button onClick={addQuestion} disabled={saving || !newQ.text.trim() || !newQ.answer.trim()} className="btn-primary text-sm">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add Question
+        </button>
+      </div>
+
+      {/* Existing questions */}
+      <div className="card p-5">
+        <h4 className="font-display font-semibold text-ink mb-3">
+          {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
+        </h4>
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-brass" /></div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-stone text-center py-6">No questions yet. Sync from the packet or add questions manually.</p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((q, i) => (
+              <div key={q.id} className="p-3 rounded-lg border border-border-bright bg-surface-2 flex items-start gap-3">
+                <span className="badge badge-neutral text-[10px] flex-shrink-0 mt-0.5">R{q.game_round || 1} Q{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    <span className="badge badge-peri text-[10px]">{q.question_type.replace(/_/g, ' ')}</span>
+                    <span className="badge badge-neutral text-[10px]">{q.difficulty_tag}</span>
+                    {q.round_timer_seconds && <span className="badge badge-gold text-[10px]">{q.round_timer_seconds}s/round</span>}
+                    {q.passage_display_seconds && <span className="badge badge-neutral text-[10px]">{q.passage_display_seconds}s passage</span>}
+                    {q.is_bonus && <span className="badge badge-roman text-[10px]">Bonus</span>}
+                    {q.use_for_quiz && <span className="badge badge-moss text-[10px]">Quiz tagged</span>}
+                  </div>
+                  <p className="text-sm text-ink font-medium">{q.question_text}</p>
+                  <p className="text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
+                  {q.options && q.options.length > 0 && <p className="text-xs text-stone mt-0.5">Options: {q.options.join(' · ')}</p>}
+                  {q.explanation && <p className="text-xs text-stone mt-0.5">{q.explanation}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  <button onClick={() => editQuestion(q)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>
+                  <button onClick={() => toggleQuizTag(q)} className="btn-ghost text-[10px] px-2 py-1">{q.use_for_quiz ? 'Untag' : 'Use quiz'}</button>
+                  <button onClick={() => removeQuestion(q.id)} className="text-stone hover:text-coral transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Unassigned Users Panel ──
+function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
+  const [users, setUsers] = useState<{ user_id: string; display_name: string; email: string; avatar_url: string | null; created_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const [assignRole, setAssignRole] = useState<{ [key: string]: string }>({});
+  const [assignTent, setAssignTent] = useState<{ [key: string]: string }>({});
+  const [tents, setTents] = useState<any[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [data, tentData] = await Promise.all([
+        fetchUnassignedUsers(),
+        supabase.from('tents').select('id, name, tent_house_id').order('name'),
+      ]);
+      setUsers(data || []);
+      setTents(tentData.data || []);
+    } catch (e) { console.error('Unassigned load error:', e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const assign = async (userId: string) => {
+    setAssigning(userId);
+    try {
+      const role = assignRole[userId] || 'cadet';
+      const tentId = assignTent[userId];
+      const { error: roleError } = await supabase.from('role_assignments').insert({
+        user_id: userId,
+        role,
+        status: 'active',
+        start_date: new Date().toISOString().split('T')[0],
+      });
+      if (roleError) throw roleError;
+      if (tentId) {
+        if (role === 'cadet') {
+          await assignCadetToTent(tentId, userId);
+        } else {
+          const { error: memberError } = await supabase.from('tent_members').insert({
+            user_id: userId,
+            tent_id: tentId,
+            role,
+          });
+          if (memberError) throw memberError;
+          await supabase.from('tents').update({ sentry_id: userId }).eq('id', tentId);
+        }
+      }
+      await load();
+      onRefresh();
+    } catch (e: any) { alert(e.message || 'Failed to assign user'); }
+    setAssigning(null);
+  };
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Unassigned Users" subtitle="New accounts that haven't been assigned a role yet. Assign them as cadet or sentry and optionally place them in a tent." />
+
+      {users.length === 0 ? (
+        <EmptyState icon={UserPlus} title="Everyone is assigned" message="All users have active role assignments. New signups will appear here." />
+      ) : (
+        <div className="space-y-3">
+          {users.map((u) => (
+            <div key={u.user_id} className="card p-4 bg-surface">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass flex-shrink-0">
+                  {u.avatar_url ? <img src={u.avatar_url} alt={u.display_name} className="w-full h-full object-cover" /> : u.display_name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink">{u.display_name}</p>
+                  <p className="text-xs text-stone">{u.email}</p>
+                  <p className="text-xs text-stone/60">Joined {new Date(u.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 items-end">
+                <div>
+                  <label className="text-xs text-stone block mb-1">Role</label>
+                  <select className="input-field text-sm" value={assignRole[u.user_id] || 'cadet'} onChange={(e) => setAssignRole({ ...assignRole, [u.user_id]: e.target.value })}>
+                    <option value="cadet">Cadet</option>
+                    <option value="sentry">Sentry</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-stone block mb-1">Tent (optional)</label>
+                  <select className="input-field text-sm" value={assignTent[u.user_id] || ''} onChange={(e) => setAssignTent({ ...assignTent, [u.user_id]: e.target.value })}>
+                    <option value="">No tent</option>
+                    {tents.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <button onClick={() => assign(u.user_id)} disabled={assigning === u.user_id} className="btn-primary text-sm">
+                  {assigning === u.user_id ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Assign
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Mobile Money Manager ──
+function MobileMoneyManager() {
+  const [payments, setPayments] = useState<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchInstructorMobileMoneyPayments();
+      setPayments((data || []).filter((payment) => ['confirmed', 'rejected'].includes(payment.status)));
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Mobile Money Payments" subtitle="Review payments the app has confirmed or rejected. Confirmation is automatic through CamPay." />
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>
+      ) : payments.length === 0 ? (
+        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="When the app confirms or rejects a payment through CamPay, it will appear here." />
+      ) : (
+        <div className="space-y-3">
+          {payments.map((pay) => {
+            const statusClass = pay.status === 'confirmed'
+              ? 'badge-moss'
+              : pay.status === 'rejected'
+                ? 'badge-coral'
+                : 'badge-gold';
+            return (
+            <div key={pay.id} className="card p-4">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
+                  <Smartphone size={20} className="text-gold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h4 className="font-display font-semibold text-ink">{pay.relic_name}</h4>
+                    <span className="badge badge-brass text-[10px]">{pay.provider}</span>
+                    <span className={cn('badge text-[10px]', statusClass)}>{pay.status}</span>
+                  </div>
+                  <p className="text-sm text-stone">
+                    From: <strong className="text-ink">{pay.profiles?.display_name || 'Unknown'}</strong>
+                    {pay.profiles?.email && <span className="text-stone/60"> ({pay.profiles.email})</span>}
+                  </p>
+                  <div className="flex items-center gap-3 text-xs text-stone mt-1">
+                    <span>Phone: {pay.sender_phone}</span>
+                    <span>Amount: {pay.currency_code === 'XAF' ? formatXaf(pay.amount_local) : `${Number(pay.amount_local).toLocaleString('en-US')} ${pay.currency_code}`}</span>
+                    <span>{new Date(pay.created_at).toLocaleString()}</span>
+                  </div>
+                  {(pay.payment_details || pay.provider_reference || pay.ussd_code || pay.operator) && (
+                    <div className="mt-2 rounded-lg bg-surface-2 border border-border p-2 text-xs text-stone space-y-1">
+                      {pay.payment_details && <p>Details: <span className="text-ink">{pay.payment_details}</span></p>}
+                      {pay.provider_reference && <p>Provider ref: <span className="font-mono text-ink">{pay.provider_reference}</span></p>}
+                      {pay.operator && <p>Operator: <span className="text-ink">{pay.operator}</span></p>}
+                      {pay.ussd_code && <p>USSD: <span className="font-mono text-ink">{pay.ussd_code}</span></p>}
+                    </div>
+                  )}
+                  {(pay.reference || pay.external_reference || pay.payout_status) && (
+                    <div className="mt-2 rounded-lg bg-surface-2 border border-border p-2 text-xs text-stone space-y-1">
+                      {pay.reference && <p>App ref: <span className="font-mono text-ink">{pay.reference}</span></p>}
+                      {pay.external_reference && pay.external_reference !== pay.reference && <p>External ref: <span className="font-mono text-ink">{pay.external_reference}</span></p>}
+                      {pay.payout_status && <p>Payout: <span className="text-ink">{pay.payout_status}</span>{pay.payout_amount_xaf ? ` · ${formatXaf(pay.payout_amount_xaf)}` : ''}</p>}
+                      {pay.payout_reference && <p>Payout ref: <span className="font-mono text-ink">{pay.payout_reference}</span></p>}
+                      {pay.payout_error && <p className="text-coral">Payout error: {pay.payout_error}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

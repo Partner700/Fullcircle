@@ -1,0 +1,1018 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { SectionHeader, EmptyState } from '../../components/AppShell';
+import { Dove } from '../../components/Dove';
+import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
+import {
+  fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
+  fetchNarratives, fetchFortuneQuizSession, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
+} from '../../lib/queries';
+import { supabase } from '../../lib/supabase';
+import { QUIZ_LIVE_DURATION_MINUTES, FULL_QUIZ_TALENTS, TALENTS_TO_DENARII, RELIC_SLUGS } from '../../lib/constants';
+import { formatCountdown, formatDenarii, cn, quizScoreToTalents, talentsToDenarii } from '../../lib/utils';
+import { generateQuizQuestions } from '../../lib/questionGenerator';
+import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative } from '../../lib/types';
+import {
+  FileQuestion, Clock, CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
+  Trophy, Zap, Lock, Ban, Timer, BookOpen, Swords, RefreshCw,
+} from 'lucide-react';
+
+type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
+
+// Rotating scripture facts shown on the Dove waiting/countdown screen.
+const SCRIPTURE_FACTS = [
+  'The word "talent" comes from the Greek talanton — a scale of weight, not a coin.',
+  'A denarius was one day\'s wage for a laborer in first-century Judea.',
+  'Paul wrote "I have fought the good fight, I have finished the race" from a Roman prison.',
+  'The Septuagint translated Hebrew scripture into Greek in Alexandria, ~250 BC.',
+  'Roman legions marched 20 miles a day — cadets were expected to keep pace.',
+];
+
+function localQuizDeadline(sessionDate: string) {
+  const [year, month, day] = sessionDate.split('-').map(Number);
+  return new Date(year, month - 1, day, 14, 45, 0, 0).getTime();
+}
+
+function localQuizDayStart(sessionDate: string) {
+  const [year, month, day] = sessionDate.split('-').map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+}
+
+function hasUsedLazarus(attempt: QuizAttempt | null) {
+  const used = attempt?.relics_used;
+  return Array.isArray(used) && used.some((entry: any) => entry?.slug === RELIC_SLUGS.LAZARUS_COIN);
+}
+
+export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) {
+  const { profile } = useAuth();
+  const [session, setSession] = useState<QuizSession | null>(null);
+  const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
+  const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
+  const [responses, setResponses] = useState<QuestionResponse[]>([]);
+  const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
+  const [inQuiz, setInQuiz] = useState(false);
+  const [lazarusCount, setLazarusCount] = useState(0);
+  const [usingLazarus, setUsingLazarus] = useState(false);
+  const [lazarusMode, setLazarusMode] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile) { setLoading(false); return; }
+    setLoading(true);
+    try {
+    const sess = await fetchLatestQuizSession();
+    setSession(sess);
+    if (sess) {
+      const [qs, att, relics] = await Promise.allSettled([
+        fetchQuestionsForSession(sess.id),
+        fetchQuizAttempt(profile.id, sess.id),
+        fetchRelicInventory(profile.id),
+      ]);
+      setQuestions(qs.status === 'fulfilled' ? qs.value : []);
+      setAttempt(att.status === 'fulfilled' ? att.value : null);
+      if (relics.status === 'fulfilled') {
+        const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
+        setLazarusCount(lazarus?.quantity || 0);
+      }
+      if (att.status === 'fulfilled' && att.value) {
+        try {
+          const resps = await fetchResponsesForAttempt(att.value.id);
+          setResponses(resps);
+        } catch { setResponses([]); }
+      }
+    }
+    try {
+      const narrs = await fetchNarratives(7);
+      setNarratives(narrs);
+    } catch { setNarratives([]); }
+    } catch (e) { console.error('Quiz load error:', e); }
+    setLoading(false);
+  }, [profile]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Tick every second
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Generate questions if session is live and has none
+  const ensureQuestions = useCallback(async () => {
+    if (!session) return [];
+    if (questions.length > 0) return questions;
+    const generated = generateQuizQuestions(narratives);
+    if (generated.length === 0) return [];
+    const rows = generated.map((g, i) => ({
+      quiz_session_id: session.id,
+      question_index: i + 1,
+      source_narrative_date: g.source_date === 'recycled' ? null : g.source_date,
+      difficulty_tag: g.difficulty,
+      mechanic_type: g.mechanic,
+      recycled_from_game: g.recycled,
+      question_payload: g.payload,
+    }));
+    const { error } = await supabase.from('generated_questions').insert(rows);
+    if (!error) {
+      const qs = await fetchQuestionsForSession(session.id);
+      setQuestions(qs);
+      return qs;
+    }
+    const existing = await fetchQuestionsForSession(session.id).catch(() => []);
+    if (existing.length > 0) {
+      setQuestions(existing);
+      return existing;
+    }
+    return [];
+  }, [session, questions, narratives]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
+        <Dove size={56} className="text-brass mb-4" />
+        <p className="eyebrow text-stone">Loading</p>
+        <p className="text-sm text-stone mt-1">Preparing the quiz chamber…</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <EmptyState
+        icon={FileQuestion}
+        title="No quiz scheduled"
+        message="Your instructor hasn't scheduled a quiz session yet. Quizzes run on Saturdays."
+      />
+    );
+  }
+
+  const countdownOpens = new Date(session.countdown_opens_at).getTime();
+  const liveOpens = new Date(session.live_opens_at).getTime();
+  const liveCloses = new Date(session.live_closes_at).getTime();
+  const lazarusDeadline = localQuizDeadline(session.session_date);
+  const lazarusWindowOpen = session.quiz_type === 'saturday'
+    && now >= localQuizDayStart(session.session_date)
+    && now < lazarusDeadline;
+  const canUseLazarus = lazarusWindowOpen && lazarusCount > 0;
+  const attemptLazarusActive = hasUsedLazarus(attempt) && lazarusWindowOpen;
+
+  let phase: Phase;
+  if (now < countdownOpens) phase = 'scheduled';
+  else if (now < liveOpens) phase = 'countdown';
+  else if (now < liveCloses) phase = 'live';
+  else phase = 'closed';
+
+  const startStandardAttempt = async () => {
+    await ensureQuestions();
+    setLazarusMode(false);
+    if (!attempt) {
+      const { data: newAttempt } = await supabase
+        .from('quiz_attempts')
+        .insert({
+          user_id: profile!.id,
+          quiz_session_id: session.id,
+          status: 'in_progress',
+          highest_question_reached: 1,
+        })
+        .select()
+        .maybeSingle();
+      setAttempt(newAttempt as QuizAttempt);
+    } else if (attempt.status === 'not_started') {
+      await supabase.from('quiz_attempts').update({ status: 'in_progress' }).eq('id', attempt.id);
+      setAttempt({ ...attempt, status: 'in_progress' });
+    }
+    setInQuiz(true);
+  };
+
+  const startWithLazarus = async () => {
+    if (!profile || !session || usingLazarus) return;
+    setUsingLazarus(true);
+    try {
+      await ensureQuestions();
+      const reopened = await resetQuizAttemptWithLazarus(profile.id, session.id);
+      setAttempt(reopened);
+      setResponses([]);
+      setLazarusCount((count) => Math.max(0, count - 1));
+      setLazarusMode(true);
+      setInQuiz(true);
+    } catch (e: any) {
+      alert(e.message || 'The Lazarus Coin could not reopen this quiz.');
+    }
+    setUsingLazarus(false);
+  };
+
+  // If attempt is forfeited or submitted, show result
+  if (attempt?.status === 'forfeited') {
+    return <ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+  }
+  if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
+    return <ResultsView attempt={attempt} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+  }
+
+  // In quiz
+  if (inQuiz && (phase === 'live' || lazarusMode || attemptLazarusActive) && attempt?.status === 'in_progress') {
+    return (
+      <QuizPlay
+        questions={questions}
+        attempt={attempt}
+        userId={profile!.id}
+        liveCloses={phase === 'live' && !lazarusMode ? liveCloses : lazarusDeadline}
+        onSubmit={() => { setInQuiz(false); load(); onQuizSubmitted(); }}
+        onForfeit={() => { setInQuiz(false); load(); }}
+      />
+    );
+  }
+
+  // Pre-quiz views
+  const timeToCountdown = countdownOpens - now;
+  const timeToLive = liveOpens - now;
+  const timeToClose = liveCloses - now;
+
+  return (
+    <div className="space-y-5 animate-fade-in max-w-2xl mx-auto">
+      {/* Quiz card — session header */}
+      <div className="card p-6 animate-slide-up">
+        <div className="text-center">
+          <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
+            <FileQuestion size={28} className="text-brass" />
+          </div>
+          <h2 className="font-display text-xl font-semibold text-ink">{session.title}</h2>
+          <p className="text-sm text-stone mt-1">
+            {new Date(session.session_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+      </div>
+
+      {/* Phase-specific content */}
+      {phase === 'scheduled' && (
+        <WaitingRoom
+          eyebrow="Not Yet Open"
+          icon={Clock}
+          title="Quiz Not Yet Open"
+          description="The waiting room opens in:"
+          countdownMs={timeToCountdown}
+          footnote={`Waiting room opens at ${new Date(session.countdown_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Live at ${new Date(session.live_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+          progressLabel="Time to waiting room"
+        />
+      )}
+
+      {phase === 'countdown' && (
+        <WaitingRoom
+          eyebrow="Waiting Room"
+          icon={Timer}
+          title="Waiting Room"
+          description="Quiz starts in:"
+          countdownMs={timeToLive}
+          footnote="Get ready — 10 questions, 15 minutes, no skips forward."
+          progressLabel="Countdown to live"
+          pulse
+        />
+      )}
+
+      {phase === 'live' && (
+        <div className="card p-6 text-center animate-scale-in border-moss/40">
+          <div className="eyebrow text-moss mb-3">Live Now</div>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-moss/10 border border-moss/30">
+            <Zap size={28} className="text-moss" />
+          </div>
+          <h3 className="font-display font-medium text-ink mb-1">Quiz is LIVE</h3>
+          <p className="text-sm text-stone mb-4">Time remaining to start:</p>
+          <div className={cn(
+            'font-display text-3xl font-semibold',
+            timeToClose <= 60_000 ? 'text-roman animate-pulse' : 'text-brass',
+          )}>
+            {formatCountdown(timeToClose)}
+          </div>
+          <button
+            onClick={startStandardAttempt}
+            className="btn-primary mt-4 w-full"
+          >
+            <Zap size={18} /> Enter Quiz
+          </button>
+          <p className="text-xs text-roman mt-3 flex items-center justify-center gap-1">
+            <AlertTriangle size={12} /> Exiting the app during the quiz = instant forfeiture
+          </p>
+        </div>
+      )}
+
+      {phase === 'closed' && !attempt && (
+        <div className="card p-6 text-center animate-fade-in">
+          <div className="eyebrow text-stone mb-3">Closed</div>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
+            <Lock size={28} className="text-stone" />
+          </div>
+          <h3 className="font-display font-medium text-ink mb-1">Quiz Closed</h3>
+          <p className="text-sm text-stone">This quiz session has ended. You did not attempt it.</p>
+          <p className="text-xs text-roman mt-2">Missing the Saturday quiz breaks your streak.</p>
+          {lazarusWindowOpen && (
+            <button
+              onClick={startWithLazarus}
+              disabled={!canUseLazarus || usingLazarus}
+              className="btn-primary mt-4 w-full"
+            >
+              {usingLazarus ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+              Use Lazarus Coin Before 2:45 PM {lazarusCount > 0 ? `(${lazarusCount})` : ''}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Rules */}
+      <div className="card p-5 animate-slide-up">
+        <SectionHeader title="Quiz Rules" />
+        <div className="space-y-2 text-sm text-stone">
+          <RuleItem icon={Clock} text={`${QUIZ_LIVE_DURATION_MINUTES}-minute live window — no late submissions`} />
+          <RuleItem icon={ChevronRight} text="Forward-gated: can't skip ahead without answering" />
+          <RuleItem icon={ChevronLeft} text="Can navigate back to review/change earlier answers" />
+          <RuleItem icon={AlertTriangle} text="App-exit = instant forfeiture, zero talents, broken streak" />
+          <RuleItem icon={RefreshCw} text="Lazarus Coin can reopen or retake the Saturday quiz before 2:45 PM" />
+          <RuleItem
+            icon={Trophy}
+            text={session.quiz_type === 'fortune'
+              ? `Perfect = 6,000 Ð (1 talent). Less than perfect = 1,000 Ð.`
+              : `10/10 = ${FULL_QUIZ_TALENTS} talents = ${formatDenarii(FULL_QUIZ_TALENTS * TALENTS_TO_DENARII)} denarii. 2 correct = 1 talent.`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Waiting / countdown room — Dove + rotating scripture + thin progress bar ──
+function WaitingRoom({
+  eyebrow, icon: Icon, title, description, countdownMs, footnote, progressLabel, pulse,
+}: {
+  eyebrow: string;
+  icon: typeof Clock;
+  title: string;
+  description: string;
+  countdownMs: number;
+  footnote: string;
+  progressLabel: string;
+  pulse?: boolean;
+}) {
+  const [factIdx, setFactIdx] = useState(0);
+  const totalSec = Math.max(1, Math.floor(countdownMs / 1000));
+
+  // Rotate scripture facts every 6 seconds
+  useEffect(() => {
+    const id = setInterval(() => setFactIdx((i) => (i + 1) % SCRIPTURE_FACTS.length), 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className={cn('card p-6 text-center animate-fade-in', pulse && 'animate-pulse')}>
+      <div className="eyebrow text-brass mb-4">{eyebrow}</div>
+
+      {/* Centered Dove */}
+      <div className="flex justify-center mb-4">
+        <Dove size={56} className="text-brass" />
+      </div>
+
+      <h3 className="font-display font-medium text-ink mb-1">{title}</h3>
+      <p className="text-sm text-stone mb-4">{description}</p>
+
+      <div className={cn(
+        'font-display text-4xl font-semibold',
+        countdownMs <= 60_000 ? 'text-roman' : 'text-brass',
+      )}>
+        {formatCountdown(countdownMs)}
+      </div>
+
+      {/* Thin progress bar */}
+      <div className="mt-4 mb-3">
+        <div className="h-1 bg-surface-2 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-brass rounded-full transition-all duration-1000"
+            style={{ width: `${Math.min(100, (totalSec > 0 ? 100 : 0))}%` }}
+          />
+        </div>
+        <p className="text-[10px] text-stone uppercase tracking-wider mt-1.5">{progressLabel}</p>
+      </div>
+
+      {/* Rotating scripture fact */}
+      <p className="text-xs text-stone italic mt-4 min-h-[2.5rem] flex items-center justify-center px-2 animate-fade-in" key={factIdx}>
+        {SCRIPTURE_FACTS[factIdx]}
+      </p>
+
+      <p className="text-xs text-stone mt-3">{footnote}</p>
+    </div>
+  );
+}
+
+function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
+  return (
+    <div className="flex gap-2.5 items-start">
+      <Icon size={16} className="text-brass flex-shrink-0 mt-0.5" />
+      <p>{text}</p>
+    </div>
+  );
+}
+
+function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit }: {
+  questions: GeneratedQuestion[];
+  attempt: QuizAttempt;
+  userId: string;
+  liveCloses: number;
+  onSubmit: () => void;
+  onForfeit: () => void;
+}) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [localResponses, setLocalResponses] = useState<Map<string, any>>(new Map());
+  const [selectedAnswer, setSelectedAnswer] = useState<any>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor((liveCloses - Date.now()) / 1000)));
+  const [submitting, setSubmitting] = useState(false);
+  const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
+  const [usingGoliath, setUsingGoliath] = useState(false);
+  const forfeitedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('relic_inventory')
+      .select('quantity, relic_types(slug)')
+      .eq('user_id', userId)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const map: Record<string, number> = {};
+        data.forEach((r: any) => {
+          const relic = Array.isArray(r.relic_types) ? r.relic_types[0] : r.relic_types;
+          if (relic?.slug) map[relic.slug] = r.quantity;
+        });
+        setRelicInventory(map);
+      });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // Timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = Math.floor((liveCloses - Date.now()) / 1000);
+      setTimeLeft(Math.max(0, remaining));
+      if (remaining <= 0) {
+        handleSubmit('timed_out');
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [liveCloses]);
+
+  // App-exit forfeiture detection (visibility change + blur)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.hidden && !forfeitedRef.current) {
+        forfeitedRef.current = true;
+        await supabase.from('quiz_attempts').update({
+          status: 'forfeited',
+          forfeited_at: new Date().toISOString(),
+        }).eq('id', attempt.id);
+        onForfeit();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleVisibilityChange);
+    };
+  }, [attempt.id, onForfeit]);
+
+  if (questions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
+        <Dove size={48} className="text-brass mb-4" />
+        <p className="text-sm text-stone">Loading questions…</p>
+      </div>
+    );
+  }
+
+  const q = questions[currentIdx];
+  const payload = q.question_payload;
+  const hasResponse = localResponses.has(q.id);
+  const isLastQuestion = currentIdx === questions.length - 1;
+
+  const saveResponse = async (answer: any) => {
+    const existing = localResponses.get(q.id);
+    const now = new Date().toISOString();
+
+    if (existing) {
+      await supabase.from('question_responses').update({
+        answer,
+        last_edited_at: now,
+      }).eq('quiz_attempt_id', attempt.id).eq('question_id', q.id);
+    } else {
+      await supabase.from('question_responses').insert({
+        quiz_attempt_id: attempt.id,
+        question_id: q.id,
+        answer,
+        submitted_at: now,
+        last_edited_at: now,
+      });
+    }
+    setLocalResponses((prev) => new Map(prev).set(q.id, answer));
+
+    if (currentIdx + 1 > attempt.highest_question_reached) {
+      await supabase.from('quiz_attempts').update({
+        highest_question_reached: currentIdx + 1,
+      }).eq('id', attempt.id);
+    }
+  };
+
+  const handleAnswer = (answer: any) => {
+    if (showFeedback) return;
+    setSelectedAnswer(answer);
+    setShowFeedback(true);
+    saveResponse(answer);
+  };
+
+  const goNext = () => {
+    if (currentIdx < questions.length - 1) {
+      setCurrentIdx(currentIdx + 1);
+      setSelectedAnswer(localResponses.get(questions[currentIdx + 1].id) ?? null);
+      setShowFeedback(localResponses.has(questions[currentIdx + 1].id));
+    }
+  };
+
+  const goBack = () => {
+    if (currentIdx > 0) {
+      setCurrentIdx(currentIdx - 1);
+      setSelectedAnswer(localResponses.get(questions[currentIdx - 1].id) ?? null);
+      setShowFeedback(true);
+    }
+  };
+
+  const handleSubmit = async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
+    setSubmitting(true);
+    let correctCount = 0;
+    if (forcePerfect) {
+      correctCount = questions.length;
+      const now = new Date().toISOString();
+      const perfectResponses = questions.map((question) => ({
+        quiz_attempt_id: attempt.id,
+        question_id: question.id,
+        answer: question.question_payload.correct_answer,
+        submitted_at: now,
+        last_edited_at: now,
+      }));
+      await supabase
+        .from('question_responses')
+        .upsert(perfectResponses, { onConflict: 'quiz_attempt_id,question_id' });
+      setLocalResponses(new Map(questions.map((question) => [question.id, question.question_payload.correct_answer])));
+    } else {
+      for (const [qId, ans] of localResponses) {
+        const question = questions.find((q) => q.id === qId);
+        if (question && ans === question.question_payload.correct_answer) correctCount++;
+      }
+    }
+    const talents = quizScoreToTalents(correctCount);
+    const denarii = talentsToDenarii(talents);
+
+    await supabase.from('quiz_attempts').update({
+      status,
+      talents_scored: talents,
+      submitted_at: new Date().toISOString(),
+    }).eq('id', attempt.id);
+
+    if (denarii > 0) {
+      await supabase.from('denarii_ledger_entries').insert({
+        user_id: userId,
+        amount: denarii,
+        source_type: 'quiz_reward',
+        source_reference: attempt.id,
+        description: forcePerfect
+          ? `Quiz: perfect score by Sword of Goliath · ${talents} talents`
+          : `Quiz: ${correctCount}/${questions.length} correct · ${talents} talents`,
+      });
+    }
+
+    // Link the daily record for today's Saturday
+    const today = new Date().toISOString().split('T')[0];
+    const { data: record } = await supabase
+      .from('daily_records')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('record_date', today)
+      .maybeSingle();
+    if (record) {
+      await supabase.from('daily_records').update({ quiz_attempt_id: attempt.id }).eq('id', record.id);
+    } else {
+      await supabase.from('daily_records').insert({
+        user_id: userId,
+        record_date: today,
+        day_type: 'saturday',
+        quiz_attempt_id: attempt.id,
+      });
+    }
+
+    setSubmitting(false);
+    onSubmit();
+  };
+
+  const useGoliathSword = async () => {
+    if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
+    setUsingGoliath(true);
+    try {
+      await useRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
+      setRelicInventory((prev) => ({
+        ...prev,
+        [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),
+      }));
+      await handleSubmit('submitted', true);
+    } catch (e: any) {
+      alert(e.message || 'Failed to use Sword of Goliath');
+      setSubmitting(false);
+    }
+    setUsingGoliath(false);
+  };
+
+  const correct = selectedAnswer === payload.correct_answer;
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  const lowTime = timeLeft <= 60;
+  const goliathCount = relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0;
+
+  return (
+    <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
+      {/* Header with timer */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="badge badge-roman">
+            <Zap size={10} /> LIVE
+          </span>
+          <span className="text-sm text-stone">Q {currentIdx + 1}/{questions.length}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {goliathCount > 0 && (
+            <button
+              onClick={useGoliathSword}
+              disabled={submitting || usingGoliath}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-roman/30 bg-roman/10 text-roman hover:bg-roman/15 transition-colors disabled:opacity-40"
+              title="Use Sword of Goliath for a perfect quiz score"
+            >
+              {usingGoliath ? <Loader2 size={12} className="animate-spin" /> : <Swords size={12} />}
+              Perfect ({goliathCount})
+            </button>
+          )}
+          <div className={cn(
+            'px-3 py-1.5 rounded-lg font-display font-semibold',
+            lowTime ? 'bg-roman/15 text-roman animate-pulse' : 'bg-surface-2 text-brass border border-border',
+          )}>
+            {minutes}:{String(seconds).padStart(2, '0')}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+        <div
+          className={cn('h-full rounded-full transition-all', lowTime ? 'bg-roman' : 'bg-brass')}
+          style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
+        />
+      </div>
+
+      {/* Question card with scroll-edge motif */}
+      <div className="card p-5 relative animate-slide-up">
+        <ScrollEdge position="top" className="text-stone mb-2" />
+
+        {/* Badges */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {q.recycled_from_game && (
+            <span className="badge badge-brass text-[10px]">Recycled from game (harder)</span>
+          )}
+          {q.difficulty_tag === 'hard' && (
+            <span className="badge badge-roman text-[10px]">Hard</span>
+          )}
+          {payload.type === 'scriptorium' && (
+            <span className="badge badge-neutral text-[10px]"><BookOpen size={10} /> The Scriptorium</span>
+          )}
+        </div>
+
+        <h3 className="font-display font-medium text-ink text-lg mb-4 mt-1">{payload.question}</h3>
+
+        {/* Scriptorium */}
+        {payload.type === 'scriptorium' && payload.blanked_text && (
+          <div className="mb-4">
+            <div className="p-4 rounded-lg bg-surface-2 font-serif text-ink text-center text-lg tracking-wider mb-3 border border-border">
+              {payload.blanked_text}
+            </div>
+            {!showFeedback ? (
+              <div>
+                <textarea
+                  className="w-full min-h-[80px] p-3 rounded-lg bg-surface-2 border border-border text-ink font-serif focus:outline-none focus:border-brass transition-colors"
+                  placeholder="Type the verse from memory..."
+                  autoFocus
+                  value={selectedAnswer || ''}
+                  onChange={(e) => setSelectedAnswer(e.target.value)}
+                />
+                <button
+                  onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
+                  disabled={!selectedAnswer?.trim()}
+                  className="btn-primary mt-2 w-full disabled:opacity-50"
+                >
+                  Save Answer
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Standard written answer — exact/case-sensitive */}
+        {payload.type === 'standard_text' && (
+          <div className="mb-4">
+            {payload.passage && (
+              <div className="p-4 rounded-lg bg-surface-2 font-serif text-ink text-sm leading-relaxed border border-border mb-3 max-h-40 overflow-y-auto">
+                <p className="text-xs text-stone mb-2 font-sans not-italic">Passage:</p>
+                {payload.passage}
+              </div>
+            )}
+            {!showFeedback ? (
+              <div>
+                <textarea
+                  className="w-full min-h-[80px] p-3 rounded-lg bg-surface-2 border border-border text-ink font-serif focus:outline-none focus:border-brass transition-colors"
+                  placeholder="Type the exact answer..."
+                  autoFocus
+                  value={selectedAnswer || ''}
+                  onChange={(e) => setSelectedAnswer(e.target.value)}
+                />
+                <button
+                  onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
+                  disabled={!selectedAnswer?.trim()}
+                  className="btn-primary mt-2 w-full disabled:opacity-50"
+                >
+                  Save Answer
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Multiple choice / True-false */}
+        {payload.type !== 'scriptorium' && payload.type !== 'standard_text' && payload.options && (
+          <div className="space-y-2">
+            {payload.options.map((opt, i) => {
+              const isSelected = selectedAnswer === opt;
+              return (
+                <button
+                  key={i}
+                  onClick={() => !showFeedback && handleAnswer(opt)}
+                  disabled={showFeedback}
+                  className={cn(
+                    'btn-ghost w-full text-left justify-start',
+                    !showFeedback && 'hover:border-brass hover:bg-brass/5',
+                    showFeedback && isSelected && 'border-brass bg-brass/10 text-ink',
+                    showFeedback && !isSelected && 'opacity-50',
+                  )}
+                >
+                  <span className="flex-1">{opt}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Order sequence */}
+        {payload.type === 'order_sequence' && payload.items && (
+          <div className="space-y-2">
+            <p className="text-xs text-stone">Click items in the correct order:</p>
+            {payload.items.map((item) => {
+              const order = Array.from(localResponses.entries()).find(([qid]) => qid === q.id);
+              const userOrder = order ? (order[1] as string).split('|') : [];
+              const idx = userOrder.indexOf(item);
+              return (
+                <button
+                  key={item}
+                  onClick={() => {
+                    if (showFeedback) return;
+                    const newOrder = userOrder.includes(item)
+                      ? userOrder.filter((x) => x !== item)
+                      : [...userOrder, item];
+                    handleAnswer(newOrder.join('|'));
+                  }}
+                  className={cn(
+                    'btn-ghost w-full text-left justify-between',
+                    !showFeedback && userOrder.includes(item) && 'border-brass bg-brass/5',
+                    !showFeedback && !userOrder.includes(item) && 'hover:border-brass',
+                  )}
+                >
+                  <span>{item}</span>
+                  {userOrder.includes(item) && <span className="font-display font-semibold text-brass">{idx + 1}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Feedback + navigation */}
+        {showFeedback && (
+          <div className="mt-4 animate-slide-up">
+            <div className="p-3 rounded-lg flex items-center gap-2 bg-surface-2 text-stone border border-border">
+              <CheckCircle2 size={18} />
+              <span className="text-sm font-medium">Answer saved.</span>
+            </div>
+            {payload.reference && <p className="text-xs text-brass mt-2">Reference: {payload.reference}</p>}
+
+            <div className="flex gap-2 mt-3">
+              {currentIdx > 0 && (
+                <button onClick={goBack} className="btn-ghost flex-1">
+                  <ChevronLeft size={16} /> Back
+                </button>
+              )}
+              {!isLastQuestion ? (
+                <button onClick={goNext} className="btn-primary flex-1">
+                  Next <ChevronRight size={16} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSubmit('submitted')}
+                  disabled={submitting}
+                  className="btn-primary flex-1"
+                >
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  Submit Quiz
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* If already answered (navigating back), allow forward without re-answering */}
+        {hasResponse && !showFeedback && (
+          <div className="mt-4 flex gap-2">
+            {currentIdx > 0 && (
+              <button onClick={goBack} className="btn-ghost flex-1">
+                <ChevronLeft size={16} /> Back
+              </button>
+            )}
+            <button onClick={goNext} className="btn-primary flex-1">
+              Next <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        <ScrollEdge position="bottom" className="text-stone mt-3" />
+      </div>
+
+      {/* Warning */}
+      <div className="text-center text-xs text-roman flex items-center justify-center gap-1">
+        <AlertTriangle size={12} /> Do not leave this page — exiting = forfeiture
+      </div>
+    </div>
+  );
+}
+
+function LazarusQuizButton({
+  canUseLazarus, lazarusCount, usingLazarus, onUseLazarus, className = '',
+}: {
+  canUseLazarus: boolean;
+  lazarusCount: number;
+  usingLazarus: boolean;
+  onUseLazarus: () => void;
+  className?: string;
+}) {
+  if (!canUseLazarus) return null;
+  return (
+    <button onClick={onUseLazarus} disabled={usingLazarus} className={cn('btn-primary w-full', className)}>
+      {usingLazarus ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+      Use Lazarus Coin Before 2:45 PM ({lazarusCount})
+    </button>
+  );
+}
+
+function ForfeitedView({ attempt, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+  attempt: QuizAttempt;
+  canUseLazarus: boolean;
+  lazarusCount: number;
+  usingLazarus: boolean;
+  onUseLazarus: () => void;
+}) {
+  return (
+    <div className="max-w-md mx-auto animate-scale-in">
+      <div className="card p-8 text-center border-roman/30">
+        <div className="eyebrow text-roman mb-3">Forfeited</div>
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-roman/10 border border-roman/30">
+          <Ban size={32} className="text-roman" />
+        </div>
+        <h2 className="font-display text-xl font-semibold text-roman mb-2">Quiz Forfeited</h2>
+        <p className="text-sm text-stone mb-4">
+          You left the quiz screen while it was live. The forfeiture is irreversible.
+        </p>
+        <div className="bg-roman/5 rounded-lg p-3 text-sm text-left space-y-2 border border-roman/20">
+          <p className="text-roman font-medium">Consequences:</p>
+          <div className="space-y-1.5 text-stone">
+            <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Zero talents, zero denarii from this quiz</p>
+            <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Does not count toward Quiz Champion</p>
+            <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Breaks this Saturday's streak (quizzes are obligatory)</p>
+          </div>
+        </div>
+        {attempt.forfeited_at && (
+          <p className="text-xs text-stone mt-3">
+            Forfeited at {new Date(attempt.forfeited_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </p>
+        )}
+        <LazarusQuizButton
+          canUseLazarus={canUseLazarus}
+          lazarusCount={lazarusCount}
+          usingLazarus={usingLazarus}
+          onUseLazarus={onUseLazarus}
+          className="mt-4"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ResultsView({ attempt, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+  attempt: QuizAttempt;
+  questions: GeneratedQuestion[];
+  responses: QuestionResponse[];
+  canUseLazarus: boolean;
+  lazarusCount: number;
+  usingLazarus: boolean;
+  onUseLazarus: () => void;
+}) {
+  const correctCount = questions.filter((q) => {
+    const resp = responses.find((r) => r.question_id === q.id);
+    return resp && resp.answer === q.question_payload.correct_answer;
+  }).length;
+
+  const talents = attempt.talents_scored || quizScoreToTalents(correctCount);
+  const denarii = talentsToDenarii(talents);
+
+  return (
+    <div className="max-w-2xl mx-auto animate-fade-in space-y-4">
+      <div className="card p-8 text-center animate-scale-in">
+        <div className="eyebrow text-brass mb-3">Complete</div>
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-brass/10 border border-brass/30">
+          <Trophy size={32} className="text-brass" />
+        </div>
+        <h2 className="font-display text-2xl font-semibold text-ink mb-1">Quiz Complete</h2>
+        <p className="text-sm text-stone mb-4">
+          {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {correctCount}/{questions.length} correct
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="card p-3 bg-surface-2">
+            <p className="text-xs text-stone uppercase tracking-wider">Talents</p>
+            <p className="font-display text-xl font-semibold text-brass">{talents}/5</p>
+          </div>
+          <div className="card p-3 bg-surface-2">
+            <p className="text-xs text-stone uppercase tracking-wider">Denarii</p>
+            <p className="font-display text-xl font-semibold text-brass">{formatDenarii(denarii)}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center gap-1">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className={cn(
+              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold',
+              i < talents ? 'bg-brass text-bg' : 'bg-surface-2 text-stone/40 border border-border',
+            )}>
+              {i + 1}
+            </div>
+          ))}
+        </div>
+        <LazarusQuizButton
+          canUseLazarus={canUseLazarus}
+          lazarusCount={lazarusCount}
+          usingLazarus={usingLazarus}
+          onUseLazarus={onUseLazarus}
+          className="mt-5"
+        />
+      </div>
+
+      {/* Answer review with seal bullets */}
+      <div className="card p-5 animate-slide-up">
+        <SectionHeader title="Answer Review" />
+        <div className="space-y-3">
+          {questions.map((q, i) => {
+            const resp = responses.find((r) => r.question_id === q.id);
+            const correct = resp && resp.answer === q.question_payload.correct_answer;
+            return (
+              <div key={q.id} className={cn(
+                'p-3 rounded-lg border',
+                correct ? 'border-moss/30 bg-moss/5' : resp ? 'border-roman/30 bg-roman/5' : 'border-border bg-surface-2',
+              )}>
+                <div className="flex items-start gap-2">
+                  {correct
+                    ? <CheckCircle2 size={16} className="text-moss flex-shrink-0 mt-0.5" />
+                    : <XCircle size={16} className="text-roman flex-shrink-0 mt-0.5" />}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-ink font-medium">Q{i + 1}: {q.question_payload.question}</p>
+                    {resp && !correct && (
+                      <p className="text-xs text-roman mt-0.5 flex items-center gap-1.5">
+                        <SealBullet className="text-roman" /> Your answer: {String(resp.answer)}
+                      </p>
+                    )}
+                    {!resp && <p className="text-xs text-stone mt-0.5">Not answered</p>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
