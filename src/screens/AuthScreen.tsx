@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import type { Role } from '../lib/types';
 import { Dove, FullCircleWordmark } from '../components/Dove';
 import { Loader2, Mail, Lock, User as UserIcon, Info, Eye, EyeOff } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 
 const VERSE_FRAGMENTS = [
   { text: 'In the beginning…', top: '8%', left: '12%', delay: '0s' },

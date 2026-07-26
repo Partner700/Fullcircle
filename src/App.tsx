@@ -17,7 +17,7 @@ const SCRIPTURE_FACTS = [
 ];
 
 export default function App() {
-  const { session, profile, role, loading } = useAuth();
+  const { session, profile, role, configError, loading } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
 
   useEffect(() => {
@@ -39,6 +39,22 @@ export default function App() {
         </div>
         <div className="w-48 h-1 bg-navy-3 rounded-full overflow-hidden">
           <div className="h-full bg-peri rounded-full animate-pulse" style={{ width: '40%' }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (configError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-navy px-4">
+        <div className="card max-w-lg p-6 text-center space-y-3">
+          <Dove size={64} className="mx-auto" />
+          <h1 className="font-display text-2xl font-bold text-peri">Full Circle needs Supabase config</h1>
+          <p className="text-sm text-peri-dim">
+            Set <span className="font-bold text-peri">VITE_SUPABASE_URL</span> and{' '}
+            <span className="font-bold text-peri">VITE_SUPABASE_ANON_KEY</span>, then rebuild and redeploy the contents of the{' '}
+            <span className="font-bold text-peri">dist</span> folder.
+          </p>
         </div>
       </div>
     );
