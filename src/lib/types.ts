@@ -76,6 +76,15 @@ export interface TentMessage {
   created_at: string;
 }
 
+export interface DirectMessage {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface DailyRecord {
   id: string;
   user_id: string;

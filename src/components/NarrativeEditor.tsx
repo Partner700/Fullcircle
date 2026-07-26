@@ -243,6 +243,8 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
     : isScheduledDate
       ? 'Schedule Narrative'
       : 'Publish Narrative';
+  const selectedDayType = getDayType(new Date(`${form.narrative_date}T12:00:00`));
+  const isSundayRest = selectedDayType === 'sunday';
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -442,6 +444,22 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
                   </button>
                 );
               })}
+              {(() => {
+                const date = new Date();
+                const daysUntilSunday = (7 - date.getDay()) % 7 || 7;
+                date.setDate(date.getDate() + daysUntilSunday);
+                const iso = date.toISOString().split('T')[0];
+                return (
+                  <button
+                    type="button"
+                    onClick={() => update('narrative_date', iso)}
+                    className={cn('rounded-full border px-2 py-1 text-[10px] font-bold transition-colors',
+                      form.narrative_date === iso ? 'border-gold bg-gold-soft text-gold' : 'border-border-bright text-stone hover:text-ink')}
+                  >
+                    Next Sunday
+                  </button>
+                );
+              })()}
             </div>
             <p className="text-[10px] text-peri-dim mt-1">
               Future dates stay scheduled and become visible to cadets on that day.
@@ -502,8 +520,14 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
         )}
       </div>
 
+      {isSundayRest && (
+        <div className="rounded-lg border border-sage/25 bg-sage-soft px-4 py-3 text-sm text-sage">
+          Sunday is a day of rest. Set only the Verse of the Day; no daily challenge, meditation marking, or game packet is required.
+        </div>
+      )}
+
       {/* Narrative details */}
-      <div className="card p-5 space-y-4">
+      {!isSundayRest && <div className="card p-5 space-y-4">
         <h3 className="font-display font-semibold text-peri">Narrative Details</h3>
 
         <div>
@@ -542,7 +566,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
             Auto-populated from the API. Edit freely to trim or reformat the passage.
           </p>
         </div>
-      </div>
+      </div>}
 
       {/* Verses — selectable cards */}
       {fetchedVerses && (
@@ -646,7 +670,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
       </div>
 
       {/* Daily challenge */}
-      <div className="card p-5 space-y-4">
+      {!isSundayRest && <div className="card p-5 space-y-4">
         <h3 className="font-display font-semibold text-peri">Daily Challenge</h3>
 
         <div>
@@ -719,10 +743,10 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
             />
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Game seed data — structured content packet editor */}
-      <div className="card p-5 space-y-4">
+      {!isSundayRest && <div className="card p-5 space-y-4">
         <h3 className="font-display font-semibold text-peri">Game Content Packet</h3>
         <p className="text-xs text-peri-dim">
           These fields power the 8 game engines. Each field is genre-neutral — fill what
@@ -739,7 +763,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
             verseOfDay: form.verse_of_day,
           }}
         />
-      </div>
+      </div>}
 
       {/* Save */}
       {saveError && (

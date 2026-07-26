@@ -52,9 +52,10 @@ interface ShellProps {
   headerSubtitle?: string;
   rightHeader?: ReactNode;
   navBadges?: Record<string, number>;
+  showTopSignOut?: boolean;
 }
 
-export function AppShell({ children, navItems, activeKey, onNavigate, headerTitle, headerSubtitle, rightHeader, navBadges = {} }: ShellProps) {
+export function AppShell({ children, navItems, activeKey, onNavigate, headerTitle, headerSubtitle, rightHeader, navBadges = {}, showTopSignOut = true }: ShellProps) {
   const { profile, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -136,13 +137,15 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <ThemeToggle />
-              <button
-                onClick={signOut}
-                className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-border bg-navy-3 text-peri-dim hover:text-coral hover:border-border-bright hover:bg-coral-soft transition-all"
-                title="Sign out"
-              >
-                <LogOut size={16} />
-              </button>
+              {showTopSignOut && (
+                <button
+                  onClick={signOut}
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-border bg-navy-3 text-peri-dim hover:text-coral hover:border-border-bright hover:bg-coral-soft transition-all"
+                  title="Sign out"
+                >
+                  <LogOut size={16} />
+                </button>
+              )}
               {rightHeader}
             </div>
           </div>

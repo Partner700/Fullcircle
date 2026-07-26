@@ -4,7 +4,7 @@ import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement } from '../../lib/types';
 import {
@@ -41,8 +41,11 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
+  const [verseReactions, setVerseReactions] = useState<Record<string, QuoteReactionState>>({});
   const [reactingQuote, setReactingQuote] = useState<string | null>(null);
+  const [reactingVerse, setReactingVerse] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const today = getTodayISODate();
@@ -64,6 +67,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         fetchAnnouncements(),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
+      const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
       setRecords(recs.status === 'fulfilled' ? recs.value : []);
       setLedger(led.status === 'fulfilled' ? led.value : []);
       setGames(gms.status === 'fulfilled' ? gms.value : []);
@@ -76,6 +80,12 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         setQuoteReactions(reactions as Record<string, QuoteReactionState>);
       } else {
         setQuoteReactions({});
+      }
+      if (activeNarrative?.verse_of_day) {
+        const reactions = await fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id).catch(() => ({}));
+        setVerseReactions(reactions as Record<string, QuoteReactionState>);
+      } else {
+        setVerseReactions({});
       }
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setHeroIndex(0);
@@ -109,12 +119,12 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const weeklyBackgroundUrl = announcements.find((announcement) => announcement.announcement_type === 'weekly_background')?.content || null;
 
   useEffect(() => {
-    if (heroSlideCount <= 1) return;
+    if (heroSlideCount <= 1 || heroPaused) return;
     const interval = window.setInterval(() => {
       setHeroIndex((index) => (index + 1) % heroSlideCount);
     }, 6000);
     return () => window.clearInterval(interval);
-  }, [heroSlideCount]);
+  }, [heroPaused, heroSlideCount]);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -164,7 +174,9 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         backgroundUrl={weeklyBackgroundUrl}
         panelImages={panelImages}
         quoteReactions={quoteReactions}
+        verseReactions={verseReactions}
         reactingQuote={reactingQuote}
+        reactingVerse={reactingVerse}
         onReactQuote={async (quote, reactionType) => {
           if (!profile) return;
           const key = `${quote.user_id}:${quote.record_date}`;
@@ -178,8 +190,21 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
           }
           setReactingQuote(null);
         }}
+        onReactVerse={async (narrativeDate, reactionType) => {
+          if (!profile) return;
+          setReactingVerse(`${narrativeDate}:${reactionType}`);
+          try {
+            await reactToDailyVerse(narrativeDate, profile.id, reactionType);
+            const reactions = await fetchDailyVerseReactions([narrativeDate], profile.id).catch(() => verseReactions);
+            setVerseReactions(reactions as Record<string, QuoteReactionState>);
+          } catch (e: any) {
+            alert(e.message || 'Could not react to verse.');
+          }
+          setReactingVerse(null);
+        }}
         onPrev={() => setHeroIndex((idx) => (idx - 1 + heroSlideCount) % heroSlideCount)}
         onNext={() => setHeroIndex((idx) => (idx + 1) % heroSlideCount)}
+        onCommentOpenChange={setHeroPaused}
       />
 
       {/* Stats grid */}
@@ -295,7 +320,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   );
 }
 
-function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, backgroundUrl, panelImages, quoteReactions, reactingQuote, onReactQuote, onPrev, onNext }: {
+function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, backgroundUrl, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -307,10 +332,14 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   backgroundUrl: string | null;
   panelImages: Record<string, string>;
   quoteReactions: Record<string, QuoteReactionState>;
+  verseReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
+  reactingVerse: string | null;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
+  onReactVerse: (narrativeDate: string, reactionType: string) => void;
   onPrev: () => void;
   onNext: () => void;
+  onCommentOpenChange: (open: boolean) => void;
 }) {
   const dateLabel = todayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const dayLabel = dayType === 'saturday' ? 'Quiz Day' : dayType === 'sunday' ? 'Day of Rest' : 'Reading Day';
@@ -339,9 +368,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <img
                   src={panelImages[slide.kind] || backgroundUrl || ''}
                   alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-[0.07] pointer-events-none"
+                  className="absolute inset-0 h-full w-full object-cover opacity-[0.16] pointer-events-none"
                 />
               )}
+              <div className="absolute inset-0 bg-surface/70 pointer-events-none" />
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   {slide.kind === 'welcome' && (
@@ -359,6 +389,19 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><BookOpen size={14} /> Verse of the Day</p>
                       <p className="font-display text-2xl text-ink leading-snug">"{slide.narrative.verse_of_day}"</p>
                       <p className="text-sm text-stone mt-3">{slide.narrative.scripture_reference || slide.narrative.title}</p>
+                      <QuoteReactions
+                        state={verseReactions[slide.narrative.narrative_date]}
+                        disabled={!!reactingVerse?.startsWith(`${slide.narrative.narrative_date}:`)}
+                        onReact={(reactionType) => onReactVerse(slide.narrative.narrative_date, reactionType)}
+                        quoteUserId={currentUserId || undefined}
+                        quoteRecordDate={slide.narrative.narrative_date}
+                        currentUserId={currentUserId || undefined}
+                        fetchComments={(_quoteUserId, quoteRecordDate) => fetchDailyVerseComments(quoteRecordDate)}
+                        onComment={(body) => currentUserId
+                          ? commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body)
+                          : Promise.reject(new Error('Sign in to comment.'))}
+                        onCommentOpenChange={onCommentOpenChange}
+                      />
                     </>
                   )}
 
@@ -389,6 +432,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         onComment={(body) => currentUserId
                           ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
                           : Promise.reject(new Error('Sign in to comment.'))}
+                        onCommentOpenChange={onCommentOpenChange}
                       />
                     </>
                   )}

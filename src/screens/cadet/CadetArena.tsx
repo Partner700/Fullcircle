@@ -15,7 +15,7 @@ import {
   fetchNarratives,
   fetchActiveCadets,
 } from '../../lib/queries';
-import { generateLevelQuestions } from '../../lib/gameEngines';
+import { generateLevelQuestionsWithCustom } from '../../lib/gameEngines';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment } from '../../lib/types';
@@ -26,6 +26,7 @@ import {
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
 type InviteCadet = RoleAssignment & { profiles: Profile };
 const activeArenaRoomKey = (userId: string) => `full-circle-active-arena-room-${userId}`;
+const dismissedArenaRoomsKey = (userId: string) => `full-circle-dismissed-arena-rooms-${userId}`;
 
 interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
@@ -58,13 +59,41 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   useEffect(() => {
     if (!profile) return;
     const savedRoomId = window.localStorage.getItem(activeArenaRoomKey(profile.id));
-    if (savedRoomId) setActiveRoomId(savedRoomId);
+    const dismissed = new Set(JSON.parse(window.localStorage.getItem(dismissedArenaRoomsKey(profile.id)) || '[]'));
+    if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
+    if (savedRoomId && dismissed.has(savedRoomId)) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
   }, [profile?.id]);
 
   useEffect(() => {
     if (!profile || !activeRoomId) return;
     window.localStorage.setItem(activeArenaRoomKey(profile.id), activeRoomId);
   }, [profile?.id, activeRoomId]);
+
+  const clearActiveRoom = useCallback((dismiss = false) => {
+    if (profile && activeRoomId) {
+      window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+      if (dismiss) {
+        const key = dismissedArenaRoomsKey(profile.id);
+        const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem(key) || '[]'));
+        dismissed.add(activeRoomId);
+        window.localStorage.setItem(key, JSON.stringify(Array.from(dismissed).slice(-20)));
+      }
+    }
+    setActiveRoomId(null);
+    setPhase('lobby');
+  }, [activeRoomId, profile]);
+
+  const activateRoom = useCallback((roomId: string, nextPhase: ArenaPhase = 'waiting') => {
+    if (profile) {
+      const dismissedKey = dismissedArenaRoomsKey(profile.id);
+      const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem(dismissedKey) || '[]'));
+      dismissed.delete(roomId);
+      window.localStorage.setItem(dismissedKey, JSON.stringify(Array.from(dismissed)));
+      window.localStorage.setItem(activeArenaRoomKey(profile.id), roomId);
+    }
+    setActiveRoomId(roomId);
+    setPhase(nextPhase);
+  }, [profile]);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -121,9 +150,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
     if (['cancelled', 'expired'].includes(room.status) && phase === 'waiting') {
       setError(room.status === 'expired' ? 'That arena room expired.' : 'That arena room was closed by the host.');
-      setPhase('lobby');
-      setActiveRoomId(null);
-      if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+      clearActiveRoom(false);
     }
     if (room.status === 'completed' && phase !== 'finished') {
       setPhase('finished');
@@ -140,8 +167,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         ? ''
         : ` [${arenaTopicType}: ${arenaTopic.trim()}]`;
       const roomId = await createArenaRoom(profile.id, `${roomName}${topicSuffix}`, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
-      setActiveRoomId(roomId);
-      setPhase('waiting');
+      activateRoom(roomId, 'waiting');
       setShowCreate(false);
       setTaggedIds(new Set());
       setCadetSearch('');
@@ -155,8 +181,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     if (!profile) return;
     try {
       await joinArenaRoom(roomId, profile.id);
-      setActiveRoomId(roomId);
-      setPhase('waiting');
+      activateRoom(roomId, 'waiting');
       await load();
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to join room'); }
@@ -182,9 +207,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     setError(null);
     try {
       await closeArenaRoom(activeRoomId, profile.id);
-      setPhase('lobby');
-      setActiveRoomId(null);
-      window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+      clearActiveRoom(true);
       await load();
       await onBalanceChanged?.();
     } catch (e: any) {
@@ -227,7 +250,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           await load();
           await onBalanceChanged?.();
         }}
-        onExit={() => { setPhase('lobby'); setActiveRoomId(null); }}
+        onExit={() => clearActiveRoom(true)}
       />
     );
   }
@@ -248,7 +271,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           <p className="text-stone text-sm mb-4">
             {winner ? `You won the pot of ${formatDenarii((room?.stake_amount || 0) * (room?.arena_participants?.length || 1))} Ð` : 'Better luck next time!'}
           </p>
-          <button onClick={() => { setPhase('lobby'); setActiveRoomId(null); }} className="btn-primary w-full">
+          <button onClick={() => clearActiveRoom(true)} className="btn-primary w-full">
             Back to Arena
           </button>
         </div>
@@ -261,7 +284,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     if (!room) {
       return (
         <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
-          <button onClick={() => { setPhase('lobby'); setActiveRoomId(null); }} className="btn-ghost text-sm">← Back</button>
+          <button onClick={() => clearActiveRoom(true)} className="btn-ghost text-sm">← Back</button>
           <div className="card p-8 text-center">
             <Loader2 size={24} className="animate-spin text-brass mx-auto mb-3" />
             <p className="text-sm text-stone">Loading arena room...</p>
@@ -280,7 +303,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     return (
       <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
         <div className="flex items-center justify-between">
-          <button onClick={() => { setPhase('lobby'); setActiveRoomId(null); }} className="btn-ghost text-sm">← Back</button>
+          <button onClick={() => clearActiveRoom(true)} className="btn-ghost text-sm">← Back</button>
           <span className="badge badge-gold"><Clock size={12} /> Waiting Room</span>
         </div>
 
@@ -531,7 +554,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                   </div>
                 </div>
                 {isParticipant ? (
-                  <button onClick={() => { setActiveRoomId(room.id); setPhase('waiting'); }} className="btn-secondary text-xs">
+                  <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary text-xs">
                     Enter Room
                   </button>
                 ) : (
@@ -614,7 +637,14 @@ function getArenaRoundForIndex(questionIndex: number) {
 }
 
 function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
-  const cleaned = sourceQuestions.filter((q) => q.question && q.correct_answer);
+  const seen = new Set<string>();
+  const cleaned = sourceQuestions.filter((q) => {
+    if (!q.question || !q.correct_answer) return false;
+    const key = q.question.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const fallback: QuestionPayload = {
     type: 'standard_text',
     question: 'Write the focus of this arena battle.',
@@ -649,26 +679,27 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
   const localStartRef = useRef(Date.now());
 
   useEffect(() => {
+    let cancelled = false;
     const topicQuestions = generateArenaTopicQuestions(roomName);
     if (topicQuestions.length > 0) {
       setQuestions(buildArenaQuestionSet(topicQuestions));
       setReady(true);
-      return;
+      return () => { cancelled = true; };
     }
-    // Get questions from narrative content
-    const narrative = narrativeDate
-      ? narratives.find((n) => n.narrative_date === narrativeDate)
-      : narratives[0];
-    if (narrative) {
-      const seed = narrative.game_seed_data as GameSeedData;
-      const qs = generateLevelQuestions(seed, 5); // level 5 difficulty for arena
-      setQuestions(buildArenaQuestionSet(qs));
-      setReady(true);
-    } else {
-      // No narrative — use fallback
-      setQuestions([]);
-      setReady(true);
-    }
+    (async () => {
+      const narrative = narrativeDate
+        ? narratives.find((n) => n.narrative_date === narrativeDate)
+        : narratives[0];
+      if (narrative) {
+        const seed = narrative.game_seed_data as GameSeedData;
+        const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
+        if (!cancelled) setQuestions(buildArenaQuestionSet(qs));
+      } else if (!cancelled) {
+        setQuestions([]);
+      }
+      if (!cancelled) setReady(true);
+    })();
+    return () => { cancelled = true; };
   }, [narrativeDate, narratives, roomName]);
 
   const handleAnswer = useCallback((answer: string | null) => {
@@ -718,6 +749,17 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
   }, [ready, startedAt, onComplete, score, correctCount]);
 
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
+  const moveToNextRound = () => {
+    const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
+      .slice(0, activeRoundIndex + 1)
+      .reduce((sum, length) => sum + length, 0);
+    if (nextRoundQuestionIndex < questions.length) {
+      setCurrentQ(nextRoundQuestionIndex);
+      setTypedAnswer('');
+    } else {
+      onComplete(score, correctCount);
+    }
+  };
 
   useEffect(() => {
     if (!ready || questions.length === 0) return;
@@ -837,7 +879,10 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
         )}
         {waitingForNextRound && (
           <div className="mt-4 rounded-lg border border-brass/30 bg-brass/10 p-3 text-sm text-stone">
-            Round complete. The next round opens when this round timer ends.
+            <p className="mb-3">Round complete. You can move into the next round immediately.</p>
+            <button type="button" onClick={moveToNextRound} className="btn-primary text-xs">
+              Move to Next Round
+            </button>
           </div>
         )}
       </div>

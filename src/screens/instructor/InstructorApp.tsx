@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
+import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
@@ -10,8 +11,8 @@ import {
   fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
 } from '../../lib/queries';
-import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf, computeStreak } from '../../lib/utils';
-import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement } from '../../lib/types';
+import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf } from '../../lib/utils';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
 import {
@@ -29,7 +30,8 @@ import {
   fetchMobileMoneySettings, saveMobileMoneySettings, fetchInstructorMobileMoneyPayments,
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
-  fetchQuizAnswerSheets,
+  fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
+  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
@@ -206,7 +208,7 @@ export function InstructorApp() {
       headerTitle={tabLabels[tab]}
       headerSubtitle="Instructor"
     >
-      {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} onNavigate={setTab as (k: string) => void} />}
+      {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} instructorId={profile?.id || null} onNavigate={setTab as (k: string) => void} />}
       {tab === 'narratives' && (
         <NarrativesTab
           narratives={narratives}
@@ -301,6 +303,59 @@ function AnnouncementManager() {
     setSaving(false);
   };
 
+  const publishImageSetting = async (type: string, imageUrl: string, targetAudience = 'all') => {
+    const payload = {
+      announcement_type: type,
+      audience: targetAudience,
+      publish_at: new Date().toISOString(),
+      content: imageUrl,
+      is_active: true,
+    };
+    const existing = announcements.find((announcement) =>
+      announcement.announcement_type === type && announcement.audience === targetAudience && announcement.is_active !== false
+    );
+    if (existing) await updateAnnouncement(existing.id, payload);
+    else await createAnnouncement(payload);
+    setAnnouncementType(type);
+    setAudience(targetAudience);
+    setPublishAt(toDateTimeLocal(payload.publish_at));
+    setContent(imageUrl);
+    setIsActive(true);
+    await load();
+  };
+
+  const deleteImageSetting = async (type: string, targetAudience = 'all') => {
+    const matches = announcements.filter((announcement) =>
+      announcement.announcement_type === type && announcement.audience === targetAudience
+    );
+    if (matches.length === 0) return;
+    if (!window.confirm('Delete this saved image from the app?')) return;
+    try {
+      await Promise.all(matches.map((announcement) => deleteAnnouncement(announcement.id)));
+      if (announcementType === type && audience === targetAudience) resetForm();
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to delete image setting');
+    }
+  };
+
+  const activeImageSettings = [
+    { type: 'weekly_background', label: 'Weekly Background', audience: 'all' },
+    { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
+    { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
+    { type: 'panel_image_announcement', label: 'Announcement Panel', audience: 'all' },
+    { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
+    { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
+  ].map((slot) => ({
+    ...slot,
+    item: announcements.find((announcement) =>
+      announcement.announcement_type === slot.type
+      && announcement.audience === slot.audience
+      && announcement.is_active !== false
+      && /^https?:\/\//i.test(announcement.content || '')
+    ),
+  }));
+
   const uploadWeeklyBackground = async (file: File) => {
     setUploadingBackground(true);
     try {
@@ -310,10 +365,7 @@ function AnnouncementManager() {
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      setAnnouncementType('weekly_background');
-      setAudience('cadets');
-      setContent(`${data.publicUrl}?v=${version}`);
-      setIsActive(true);
+      await publishImageSetting('weekly_background', `${data.publicUrl}?v=${version}`, 'all');
     } catch (e: any) {
       alert(e.message || 'Failed to upload weekly background image');
     }
@@ -329,10 +381,7 @@ function AnnouncementManager() {
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      setAnnouncementType(`panel_image_${panelType}`);
-      setAudience('all');
-      setContent(`${data.publicUrl}?v=${version}`);
-      setIsActive(true);
+      await publishImageSetting(`panel_image_${panelType}`, `${data.publicUrl}?v=${version}`, 'all');
     } catch (e: any) {
       alert(e.message || 'Failed to upload panel image');
     }
@@ -379,6 +428,7 @@ function AnnouncementManager() {
               <option value="panel_image_verse">Panel Image: Verse</option>
               <option value="panel_image_announcement">Panel Image: Announcement</option>
               <option value="panel_image_quote">Panel Image: Quote</option>
+              <option value="panel_image_market">Panel Image: Market</option>
             </select>
           </div>
           <div>
@@ -408,12 +458,38 @@ function AnnouncementManager() {
 
         <div className="rounded-lg border border-border bg-surface-2 p-3">
           <label className="text-xs text-stone block mb-2">Panel Images</label>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+            {activeImageSettings.map((setting) => (
+              <div key={`${setting.type}:${setting.audience}`} className="rounded-lg border border-border bg-surface p-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-semibold text-ink">{setting.label}</span>
+                  {setting.item && (
+                    <button
+                      type="button"
+                      onClick={() => deleteImageSetting(setting.type, setting.audience)}
+                      className="text-[10px] font-bold text-coral hover:text-coral/80"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+                {setting.item ? (
+                  <img src={setting.item.content} alt="" className="h-20 w-full rounded-md object-cover opacity-80" />
+                ) : (
+                  <div className="h-20 rounded-md border border-dashed border-border bg-surface-2 flex items-center justify-center text-[10px] text-stone">
+                    No image saved
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
           <div className="grid sm:grid-cols-2 gap-2 mb-3">
             {[
               ['welcome', 'Welcome panel'],
               ['verse', 'Verse panel'],
               ['announcement', 'Announcement panel'],
               ['quote', 'Quote panel'],
+              ['market', 'Market panel'],
             ].map(([value, label]) => (
               <label key={value} className="rounded-lg border border-border bg-surface p-2 text-xs text-stone">
                 <span className="block font-semibold text-ink mb-1">{label}</span>
@@ -570,13 +646,44 @@ function NarrativesTab({ narratives, editingNarrative, onSelectNarrative, onDone
 }
 
 
-function InstructorDashboard({ tents, members, roles, narratives, onNavigate }: {
+function InstructorDashboard({ tents, members, roles, narratives, instructorId, onNavigate }: {
   tents: any[]; members: any[]; roles: RoleAssignment[]; narratives: DailyNarrative[];
+  instructorId: string | null;
   onNavigate: (k: string) => void;
 }) {
   const cadetCount = roles.filter((r) => r.role === 'cadet' && r.status === 'active').length;
   const sentryCount = roles.filter((r) => r.role === 'sentry' && r.status === 'active').length;
   const todayNarrative = narratives.find((n) => n.narrative_date === new Date().toISOString().slice(0, 10));
+  const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
+  const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [quotePaused, setQuotePaused] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchDailyQuoteFeed(6)
+      .then(async (items) => {
+        if (cancelled) return;
+        setQuotes(items);
+        setQuoteIndex(0);
+        if (instructorId) {
+          const reactions = await fetchDailyQuoteReactions(items, instructorId).catch(() => ({}));
+          if (!cancelled) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
+        }
+      })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [instructorId]);
+
+  useEffect(() => {
+    if (quotes.length <= 1 || quotePaused) return;
+    const interval = window.setInterval(() => {
+      setQuoteIndex((index) => (index + 1) % quotes.length);
+    }, 6000);
+    return () => window.clearInterval(interval);
+  }, [quotePaused, quotes.length]);
+
+  const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -601,6 +708,49 @@ function InstructorDashboard({ tents, members, roles, narratives, onNavigate }: 
           <BookOpen size={14} /> Manage narratives
         </button>
       </div>
+
+      {featuredQuote && (
+        <div className="card p-4">
+          <div className="flex items-start gap-3">
+            <div className="h-11 w-11 rounded-full overflow-hidden bg-surface-2 border border-border flex-shrink-0 flex items-center justify-center">
+              {featuredQuote.avatar_url ? (
+                <img src={featuredQuote.avatar_url} alt={featuredQuote.display_name} className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-display font-bold text-brass">{featuredQuote.display_name?.charAt(0) || '?'}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-1">Quote Feed</p>
+              <p className="text-base text-ink font-display leading-snug">"{featuredQuote.daily_quote}"</p>
+              <p className="text-xs text-stone mt-1">{featuredQuote.display_name}</p>
+              {quotes.length > 1 && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <button onClick={() => setQuoteIndex((idx) => (idx - 1 + quotes.length) % quotes.length)} className="btn-ghost text-xs px-2 py-1">Prev</button>
+                  <span className="text-[10px] text-stone">{quoteIndex + 1}/{quotes.length}</span>
+                  <button onClick={() => setQuoteIndex((idx) => (idx + 1) % quotes.length)} className="btn-ghost text-xs px-2 py-1">Next</button>
+                </div>
+              )}
+              <QuoteReactions
+                state={quoteReactions[`${featuredQuote.user_id}:${featuredQuote.record_date}`]}
+                disabled={!instructorId}
+                onReact={async (reactionType) => {
+                  if (!instructorId) return;
+                  await reactToDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, reactionType);
+                  setQuoteReactions(await fetchDailyQuoteReactions(quotes, instructorId).catch(() => quoteReactions) as Record<string, QuoteReactionState>);
+                }}
+                quoteUserId={featuredQuote.user_id}
+                quoteRecordDate={featuredQuote.record_date}
+                currentUserId={instructorId || undefined}
+                fetchComments={fetchDailyQuoteComments}
+                onComment={(body) => instructorId
+                  ? commentOnDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, body)
+                  : Promise.resolve()}
+                onCommentOpenChange={setQuotePaused}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <SectionHeader title="Tents Overview" subtitle="Quick view of tent membership" />
       <div className="grid sm:grid-cols-2 gap-3">
@@ -852,8 +1002,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
       const dMap: Record<string, number> = {};
       await Promise.all(cadets.map(async (c) => {
         try {
-          const { data: recs } = await supabase.from('daily_records').select('*').eq('user_id', c.user_id);
-          const st = computeStreak(recs || []);
+          const st = await fetchStrictStreak(c.user_id);
           sMap[c.user_id] = { current: st.current_streak, longest: st.longest_streak };
         } catch { sMap[c.user_id] = { current: 0, longest: 0 }; }
         try {
@@ -1042,8 +1191,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
       const dMap: Record<string, number> = {};
       await Promise.all(sentries.map(async (s) => {
         try {
-          const { data: recs } = await supabase.from('daily_records').select('*').eq('user_id', s.user_id);
-          const st = computeStreak(recs || []);
+          const st = await fetchStrictStreak(s.user_id);
           sMap[s.user_id] = { current: st.current_streak, longest: st.longest_streak };
         } catch { sMap[s.user_id] = { current: 0, longest: 0 }; }
         try {
@@ -1735,19 +1883,23 @@ function QuizBuilder() {
     const liveOpens = startTime.toISOString();
     const countdownOpens = new Date(startTime.getTime() - waitTime * 60 * 1000).toISOString();
     const liveCloses = new Date(startTime.getTime() + quizDuration * 60 * 1000).toISOString();
-    const { data, error } = await createQuizSession({
-      session_date: newDate,
-      title: newTitle,
-      scheduled_start_time: liveOpens,
-      countdown_opens_at: countdownOpens,
-      live_opens_at: liveOpens,
-      live_closes_at: liveCloses,
-      status: 'scheduled',
-      quiz_type: newQuizType,
-      reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
-      reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
-    } as any);
-    if (error) { alert(error.message); return; }
+    try {
+      await createQuizSession({
+        session_date: newDate,
+        title: newTitle,
+        scheduled_start_time: liveOpens,
+        countdown_opens_at: countdownOpens,
+        live_opens_at: liveOpens,
+        live_closes_at: liveCloses,
+        status: 'scheduled',
+        quiz_type: newQuizType,
+        reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
+        reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
+      } as any);
+    } catch (e: any) {
+      alert(e.message || 'Failed to create quiz session');
+      return;
+    }
     setNewTitle(''); setShowCreate(false); setNewQuizType('saturday');
     load();
   };
@@ -2429,6 +2581,81 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+function QuizAnswerSheets({ session, questions }: { session: QuizSession; questions: GeneratedQuestion[] }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sheets, setSheets] = useState<any[]>([]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setSheets(await fetchQuizAnswerSheets(session.id));
+    } catch (e: any) {
+      alert(e.message || 'Could not load quiz answer sheets.');
+    }
+    setLoading(false);
+  };
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && sheets.length === 0) await load();
+  };
+
+  const questionById = new Map(questions.map((question) => [question.id, question]));
+
+  return (
+    <div className="card p-4 bg-surface">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display font-semibold text-ink text-sm">Participant Answer Sheets</h3>
+          <p className="text-xs text-stone">Instructor-only score and response review.</p>
+        </div>
+        <button onClick={toggle} className="btn-secondary text-xs">
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+          {open ? 'Hide Sheets' : 'View Sheets'}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          {loading ? (
+            <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading...</p>
+          ) : sheets.length === 0 ? (
+            <p className="text-xs text-stone">No submitted attempts yet.</p>
+          ) : (
+            sheets.map((attempt) => (
+              <div key={attempt.id} className="rounded-lg border border-border bg-surface-2 p-3">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{attempt.profiles?.display_name || 'Unknown participant'}</p>
+                    <p className="text-xs text-stone">{attempt.profiles?.email || ''}</p>
+                  </div>
+                  <span className="badge badge-gold text-[10px]">{attempt.talents_scored || 0} figs</span>
+                </div>
+                <div className="space-y-2">
+                  {(attempt.question_responses || []).map((response: any, index: number) => {
+                    const question = questionById.get(response.question_id);
+                    return (
+                      <div key={response.id || index} className="rounded-md border border-border bg-surface p-2">
+                        <p className="text-xs font-semibold text-ink">{question?.question_payload?.question || `Question ${index + 1}`}</p>
+                        <p className="text-xs text-stone mt-1">Answer: <span className="text-ink">{String(response.answer_given ?? 'No answer')}</span></p>
+                        <p className={cn('text-[10px] mt-1', response.is_correct ? 'text-sage' : 'text-coral')}>
+                          {response.is_correct ? 'Correct' : `Incorrect · Correct answer: ${question?.question_payload?.correct_answer || 'Not available'}`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
     </div>
   );

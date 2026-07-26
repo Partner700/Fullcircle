@@ -305,7 +305,7 @@ export function CadetLeaderboard() {
                 {quizRows.map((row) => {
                   const isPodium = row.rank >= 1 && row.rank <= 3;
                   const tint = RANK_HONOR_TINT[row.rank];
-                  const subtext = `Game ${row.daily_game_score} figs · Arena ${row.arena_figs || 0} figs · Random ${row.random_quiz_score} figs · Saturday ${row.saturday_quiz_score} figs`;
+                  const subtext = `Game ${row.daily_game_score} figs · Arena ${row.arena_figs || 0} figs · Fortune ${row.random_quiz_score} figs · Saturday ${row.saturday_quiz_score} figs`;
 
                   if (isPodium && tint) {
                     return (

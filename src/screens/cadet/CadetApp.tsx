@@ -735,6 +735,7 @@ export function CadetApp() {
       onNavigate={handleNavigate}
       headerTitle={tabLabels[tab]}
       headerSubtitle={houseName ? `${tentName} · ${houseName}` : 'Cadet'}
+      showTopSignOut={false}
       rightHeader={
         <div className="flex items-center gap-2">
           {isExpired && (

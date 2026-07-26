@@ -402,6 +402,20 @@ export function generateQuizQuestions(
   existingGameQuestions?: { mechanic: string; payload: QuestionPayload }[],
 ): { source_date: string; difficulty: Difficulty; mechanic: string; payload: QuestionPayload; recycled: boolean }[] {
   const questions: { source_date: string; difficulty: Difficulty; mechanic: string; payload: QuestionPayload; recycled: boolean }[] = [];
+  const fingerprint = (payload: QuestionPayload) => {
+    const question = String(payload.question || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const answer = String(payload.correct_answer || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return `${payload.type}:${question}:${answer}`;
+  };
+  const unique = (items: typeof questions) => {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const key = fingerprint(item.payload);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
 
   const allSeeds = narratives.map((n) => ({ date: n.narrative_date, seed: n.game_seed_data }));
 
@@ -504,9 +518,10 @@ export function generateQuizQuestions(
     });
   }
 
-  const easy = shuffle(questions.filter((q) => q.difficulty === 'easy'));
-  const moderate = shuffle(questions.filter((q) => q.difficulty === 'moderate'));
-  const hard = shuffle(questions.filter((q) => q.difficulty === 'hard'));
+  const uniqueQuestions = unique(questions);
+  const easy = shuffle(uniqueQuestions.filter((q) => q.difficulty === 'easy'));
+  const moderate = shuffle(uniqueQuestions.filter((q) => q.difficulty === 'moderate'));
+  const hard = shuffle(uniqueQuestions.filter((q) => q.difficulty === 'hard'));
 
   const interleaved: typeof questions = [];
   let ei = 0, mi = 0, hi = 0;
@@ -519,7 +534,7 @@ export function generateQuizQuestions(
     else if (hi < hard.length) interleaved.push(hard[hi++]);
   }
 
-  const scriptoriumQ = questions.find((q) => q.mechanic === 'scriptorium');
+  const scriptoriumQ = uniqueQuestions.find((q) => q.mechanic === 'scriptorium');
   let final = interleaved.slice(0, 9);
   if (scriptoriumQ) {
     final = final.filter((q) => q.mechanic !== 'scriptorium');

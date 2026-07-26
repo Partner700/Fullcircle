@@ -4,7 +4,7 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { fetchNarrative, fetchChallengeSubmission, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
-import { getTodayISODate, cn } from '../../lib/utils';
+import { getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
 import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat } from '../../lib/types';
 import {
@@ -34,6 +34,8 @@ export function CadetNarrative({
   const [saving, setSaving] = useState(false);
 
   const today = getTodayISODate();
+  const dayType = getDayType(new Date());
+  const isSundayRest = dayType === 'sunday';
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -251,7 +253,7 @@ export function CadetNarrative({
       )}
 
       {/* ── Meditation submission — three sections ── */}
-      <div className="card p-5 animate-slide-up bg-surface border-border">
+      {!isSundayRest && <div className="card p-5 animate-slide-up bg-surface border-border">
         <div className="flex items-center justify-between gap-3 mb-1">
           <span className="eyebrow text-stone">Daily Meditation</span>
           <span className="badge badge-moss text-[10px]">
@@ -331,10 +333,22 @@ export function CadetNarrative({
             <Save size={16} strokeWidth={1.5} /> {saving ? 'Saving…' : 'Submit Meditation'}
           </button>
         </div>
-      </div>
+      </div>}
+
+      {isSundayRest && (
+        <div className="card p-5 animate-slide-up bg-surface border-border">
+          <div className="flex items-center gap-2">
+            <Sun size={18} className="text-brass" strokeWidth={1.5} />
+            <span className="eyebrow text-stone">Day of Rest</span>
+          </div>
+          <p className="mt-3 text-sm text-stone">
+            No daily meditation is required on Sunday. Receive the Verse of the Day, rest, and return tomorrow.
+          </p>
+        </div>
+      )}
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}
-      {narrative.challenge_active && narrative.challenge_title && (
+      {!isSundayRest && narrative.challenge_active && narrative.challenge_title && (
         <div className="card p-5 animate-slide-up bg-surface-2 border-border">
           <div className="flex items-center justify-between gap-3 mb-1">
             <span className="eyebrow text-stone">Daily Challenge</span>

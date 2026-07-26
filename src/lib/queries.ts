@@ -756,6 +756,63 @@ export async function commentOnDailyQuote(quoteUserId: string, quoteRecordDate: 
   return data;
 }
 
+export async function fetchDailyVerseReactions(narrativeDates: string[], reactorId?: string) {
+  if (narrativeDates.length === 0) return {};
+  const { data, error } = await supabase
+    .from('daily_verse_reactions')
+    .select('narrative_date, reactor_user_id, reaction_type')
+    .in('narrative_date', narrativeDates);
+  if (error) throw error;
+
+  const map: Record<string, Record<string, { count: number; reacted: boolean }>> = {};
+  (data || []).forEach((row: any) => {
+    const key = row.narrative_date;
+    if (!map[key]) map[key] = {};
+    if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false };
+    map[key][row.reaction_type].count += 1;
+    if (reactorId && row.reactor_user_id === reactorId) map[key][row.reaction_type].reacted = true;
+  });
+  return map;
+}
+
+export async function reactToDailyVerse(narrativeDate: string, reactorUserId: string, reactionType: string) {
+  const { error } = await supabase
+    .from('daily_verse_reactions')
+    .upsert(
+      { narrative_date: narrativeDate, reactor_user_id: reactorUserId, reaction_type: reactionType },
+      { onConflict: 'narrative_date,reactor_user_id,reaction_type' },
+    );
+  if (error) throw error;
+}
+
+export async function fetchDailyVerseComments(narrativeDate: string) {
+  const { data, error } = await supabase
+    .from('daily_verse_comments')
+    .select('id,body,created_at,commenter_user_id,profiles!daily_verse_comments_commenter_user_id_fkey(display_name,avatar_url)')
+    .eq('narrative_date', narrativeDate)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    body: row.body,
+    created_at: row.created_at,
+    commenter_user_id: row.commenter_user_id,
+    display_name: row.profiles?.display_name || 'User',
+    avatar_url: row.profiles?.avatar_url || null,
+    rank_label: 'Verse',
+  })) as import('./types').DailyQuoteComment[];
+}
+
+export async function commentOnDailyVerse(narrativeDate: string, commenterUserId: string, body: string) {
+  const { data, error } = await supabase
+    .from('daily_verse_comments')
+    .insert({ narrative_date: narrativeDate, commenter_user_id: commenterUserId, body })
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchDailyQuoteInteractionSummary(limit = 50) {
   const { data, error } = await supabase.rpc('get_daily_quote_interaction_summary', { p_limit: limit });
   if (error) throw error;
@@ -1006,6 +1063,33 @@ export async function sendTentMessage(tentId: string, senderId: string, recipien
 export async function markTentMessageRead(messageId: string) {
   const { error } = await supabase
     .from('tent_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', messageId);
+  if (error) throw error;
+}
+
+// ── Direct messages ──
+
+export async function fetchDirectMessages(senderId: string, recipientId: string) {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*, sender:profiles!sender_id(display_name,avatar_url)')
+    .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${senderId})`)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function sendDirectMessage(senderId: string, recipientId: string, body: string) {
+  const { error } = await supabase
+    .from('direct_messages')
+    .insert({ sender_id: senderId, recipient_id: recipientId, body });
+  if (error) throw error;
+}
+
+export async function markDirectMessageRead(messageId: string) {
+  const { error } = await supabase
+    .from('direct_messages')
     .update({ read_at: new Date().toISOString() })
     .eq('id', messageId);
   if (error) throw error;
