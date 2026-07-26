@@ -6,7 +6,7 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow,
+  QuizScoreboardRow, QuestionPayload,
 } from '../lib/types';
 
 export async function fetchTentHouses() {
@@ -1193,6 +1193,34 @@ export async function finishArenaGame(roomId: string, userId: string, score: num
     p_room_id: roomId, p_user_id: userId, p_score: score, p_correct_count: correctCount,
   });
   if (error) throw error;
+}
+
+export async function generateArenaQuestionsWithAI(payload: {
+  roomId: string;
+  roomName: string;
+  topicType?: string | null;
+  topic?: string | null;
+  narrative?: DailyNarrative | null;
+}) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('AI arena generation is not configured.');
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  if (!Array.isArray(data.questions)) throw new Error('AI arena generation returned no questions.');
+  return data.questions as QuestionPayload[];
 }
 
 async function mergeArenaRoomsWithParticipants(rooms: any[]) {

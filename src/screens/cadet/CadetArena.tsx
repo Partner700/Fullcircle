@@ -14,6 +14,7 @@ import {
   fetchArenaRoom,
   fetchNarratives,
   fetchActiveCadets,
+  generateArenaQuestionsWithAI,
 } from '../../lib/queries';
 import { generateLevelQuestionsWithCustom } from '../../lib/gameEngines';
 import { cn, formatDenarii } from '../../lib/utils';
@@ -242,6 +243,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         roomName={activeRoom?.room_name || roomName}
         startedAt={activeRoom?.started_at || null}
         narratives={narratives}
+        roomId={activeRoomId}
+        roomQuestionSet={activeRoom?.question_set}
         onComplete={async (score, correctCount) => {
           try {
             await finishArenaGame(activeRoomId, profile!.id, score, correctCount);
@@ -645,25 +648,70 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
     seen.add(key);
     return true;
   });
-  const fallback: QuestionPayload = {
-    type: 'standard_text',
-    question: 'Write the focus of this arena battle.',
-    correct_answer: 'Scripture',
-    explanation: 'Fallback arena question.',
-  };
-  const pool = cleaned.length > 0 ? cleaned : [fallback];
+  const fallback = buildFallbackArenaQuestions();
+  const pool = [...cleaned, ...fallback.filter((fallbackQuestion) => !seen.has(fallbackQuestion.question.trim().toLowerCase()))];
   const questions: QuestionPayload[] = [];
   for (let i = 0; i < 19; i += 1) {
-    questions.push({ ...pool[i % pool.length], is_bonus: i === 18 });
+    const q = pool[i] || fallback[i % fallback.length];
+    questions.push({
+      ...q,
+      game_round: getArenaRoundForIndex(i) + 1,
+      round_timer_seconds: ARENA_ROUND_SECONDS[getArenaRoundForIndex(i)],
+      is_bonus: i === 18,
+    });
   }
   return questions;
 }
 
-function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onComplete, onExit }: {
+function buildFallbackArenaQuestions(): QuestionPayload[] {
+  const stems = [
+    ['multiple_choice', 'Which response best shows careful Bible reading?', 'The answer must fit the actual passage', ['The answer must fit the actual passage', 'The longest answer is always correct', 'Names never matter', 'Context is optional']],
+    ['true_false', 'A hard Bible question can depend on context, speaker, and sequence.', 'True', ['True', 'False']],
+    ['standard_text', 'Type the word used for all quiz and arena score points.', 'figs'],
+    ['multiple_choice', 'Which detail should settle a difficult question first?', 'The written scripture text', ['The written scripture text', 'A guess from memory', 'The fastest answer', 'A popular saying']],
+    ['true_false', 'Arena bonus questions are worth two figs.', 'True', ['True', 'False']],
+    ['standard_text', 'Type the number of regular arena rounds.', '3'],
+    ['multiple_choice', 'How many questions are in each regular arena round?', '6', ['6', '5', '7', '10']],
+    ['standard_text', 'Type the total arena score possible in figs.', '20'],
+    ['true_false', 'A repeated question should be accepted in an arena battle.', 'False', ['True', 'False']],
+    ['multiple_choice', 'What should happen after a round is complete?', 'Move to the next round when ready', ['Move to the next round when ready', 'Restart the same round', 'Reveal every correct answer', 'Close the room']],
+    ['standard_text', 'Type the name of the Saturday rest day instruction: no daily meditation on Sunday, only verse reaction.', 'Sunday'],
+    ['true_false', 'Timers in this app should be per round, not per question.', 'True', ['True', 'False']],
+    ['multiple_choice', 'What makes a Bible arena question fair?', 'It has one clear answer', ['It has one clear answer', 'It has no answer', 'It repeats earlier wording', 'It reveals the answer']],
+    ['standard_text', 'Type the word used for the winner-takes-all arena reward pool.', 'pot'],
+    ['multiple_choice', 'Which source is preferred for narrative-based arena play?', 'The game content packet', ['The game content packet', 'A random chat message', 'The market panel', 'The password page']],
+    ['true_false', 'The host signing out should not automatically close a staked arena room.', 'True', ['True', 'False']],
+    ['standard_text', 'Type the app name.', 'Full Circle'],
+    ['multiple_choice', 'What should the winner receive after the battle?', 'The full staked pot', ['The full staked pot', 'Only their own stake', 'Nothing', 'A password reset']],
+    ['standard_text', 'Bonus: type the score value of this final bonus question.', '2'],
+  ] as const;
+  return stems.map(([type, question, correct_answer, options]) => ({
+    type: type as QuestionPayload['type'],
+    question,
+    correct_answer,
+    options: options ? [...options] : undefined,
+  }));
+}
+
+function normalizeArenaAnswer(value: string | number | null | undefined) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function isArenaAnswerCorrect(answer: string | null, question: QuestionPayload) {
+  return normalizeArenaAnswer(answer) === normalizeArenaAnswer(question.correct_answer);
+}
+
+function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId, roomQuestionSet, onComplete, onExit }: {
   narrativeDate: string;
   roomName: string;
   startedAt: string | null;
   narratives: DailyNarrative[];
+  roomId: string;
+  roomQuestionSet?: QuestionPayload[] | null;
   onComplete: (score: number, correctCount: number) => void;
   onExit: () => void;
 }) {
@@ -677,19 +725,54 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
   const [ready, setReady] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localStartRef = useRef(Date.now());
+  const scoreRef = useRef(0);
+  const correctCountRef = useRef(0);
+  const completedRef = useRef(false);
+
+  useEffect(() => { scoreRef.current = score; }, [score]);
+  useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
+
+  const completeGame = useCallback((finalScore = scoreRef.current, finalCorrectCount = correctCountRef.current) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    onComplete(finalScore, finalCorrectCount);
+  }, [onComplete]);
 
   useEffect(() => {
     let cancelled = false;
-    const topicQuestions = generateArenaTopicQuestions(roomName);
-    if (topicQuestions.length > 0) {
-      setQuestions(buildArenaQuestionSet(topicQuestions));
-      setReady(true);
-      return () => { cancelled = true; };
-    }
     (async () => {
+      if (Array.isArray(roomQuestionSet) && roomQuestionSet.length >= 19) {
+        setQuestions(buildArenaQuestionSet(roomQuestionSet));
+        setReady(true);
+        return;
+      }
+      const topic = parseArenaTopic(roomName);
       const narrative = narrativeDate
         ? narratives.find((n) => n.narrative_date === narrativeDate)
         : narratives[0];
+      try {
+        const aiQuestions = await generateArenaQuestionsWithAI({
+          roomId,
+          roomName,
+          topicType: topic?.type || 'narrative',
+          topic: topic?.value || null,
+          narrative: narrative || null,
+        });
+        if (!cancelled) {
+          setQuestions(buildArenaQuestionSet(aiQuestions));
+          setReady(true);
+        }
+        return;
+      } catch (e) {
+        console.warn('AI arena generation unavailable, using local packet fallback.', e);
+      }
+      const topicQuestions = generateArenaTopicQuestions(roomName);
+      if (topicQuestions.length > 0) {
+        if (!cancelled) setQuestions(buildArenaQuestionSet(topicQuestions));
+        if (!cancelled) setReady(true);
+        return;
+      }
       if (narrative) {
         const seed = narrative.game_seed_data as GameSeedData;
         const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
@@ -700,20 +783,22 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
       if (!cancelled) setReady(true);
     })();
     return () => { cancelled = true; };
-  }, [narrativeDate, narratives, roomName]);
+  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet]);
 
   const handleAnswer = useCallback((answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ]) return;
     const q = questions[currentQ];
-    const correct = answer === q.correct_answer;
+    const correct = isArenaAnswerCorrect(answer, q);
+    const nextScore = correct ? scoreRef.current + (q.is_bonus ? 2 : 1) : scoreRef.current;
+    const nextCorrectCount = correct ? correctCountRef.current + 1 : correctCountRef.current;
     setAnsweredIds((prev) => {
       const next = new Set(prev);
       next.add(currentQ);
       return next;
     });
     if (correct) {
-      setScore((s) => s + (q.is_bonus ? 2 : 1));
-      setCorrectCount((c) => c + 1);
+      setScore(nextScore);
+      setCorrectCount(nextCorrectCount);
     }
     const nextIndex = currentQ + 1;
     const currentRound = getArenaRoundForIndex(currentQ);
@@ -721,9 +806,9 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
       setCurrentQ(nextIndex);
       setTypedAnswer('');
     } else if (nextIndex >= questions.length) {
-      onComplete(correct ? score + (q.is_bonus ? 2 : 1) : score, correct ? correctCount + 1 : correctCount);
+      completeGame(nextScore, nextCorrectCount);
     }
-  }, [answeredIds, questions, currentQ, onComplete, score, correctCount]);
+  }, [answeredIds, questions, currentQ, completeGame]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -738,7 +823,7 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
       const nextRound = cumulative.findIndex((end) => elapsed < end);
       if (nextRound === -1) {
         setTimeLeft(0);
-        onComplete(score, correctCount);
+        completeGame();
         return;
       }
       const roundStartQuestion = ARENA_ROUND_LENGTHS.slice(0, nextRound).reduce((sum, length) => sum + length, 0);
@@ -746,7 +831,7 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
       setTimeLeft(Math.max(0, cumulative[nextRound] - elapsed));
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, startedAt, onComplete, score, correctCount]);
+  }, [ready, startedAt, completeGame]);
 
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
   const moveToNextRound = () => {
@@ -757,14 +842,9 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
       setCurrentQ(nextRoundQuestionIndex);
       setTypedAnswer('');
     } else {
-      onComplete(score, correctCount);
+      completeGame();
     }
   };
-
-  useEffect(() => {
-    if (!ready || questions.length === 0) return;
-    setTimeLeft(ARENA_ROUND_SECONDS[activeRoundIndex]);
-  }, [activeRoundIndex, questions.length, ready]);
 
   useEffect(() => {
     if (!ready || questions.length === 0 || timeLeft > 0) return;
@@ -774,9 +854,9 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, onCompl
       setCurrentQ(nextRoundQuestionIndex);
       setTypedAnswer('');
     } else {
-      onComplete(score, correctCount);
+      completeGame();
     }
-  }, [timeLeft, ready, questions.length, currentQ, onComplete, score, correctCount]);
+  }, [timeLeft, ready, questions.length, currentQ, completeGame]);
 
   if (!ready) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 

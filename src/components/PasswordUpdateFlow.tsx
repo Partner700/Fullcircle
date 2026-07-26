@@ -25,6 +25,7 @@ export function PasswordUpdateFlow({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -36,19 +37,23 @@ export function PasswordUpdateFlow({
 
   const verifyOldPassword = async () => {
     setError(null);
-    if (!oldPassword) return;
+    setSuccess(null);
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!oldPassword || !normalizedEmail) return;
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password: oldPassword });
+    const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: oldPassword });
     setBusy(false);
     if (error) {
       setError('That old password was not correct.');
       return;
     }
+    setOldPassword('');
     setStep('new');
   };
 
   const updatePassword = async () => {
     setError(null);
+    setSuccess(null);
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -57,14 +62,21 @@ export function PasswordUpdateFlow({
       setError('Passwords do not match.');
       return;
     }
+    const normalizedEmail = email.trim().toLowerCase();
     setBusy(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       setError(error.message);
       return;
     }
-    onDone();
+    await supabase.auth.signInWithPassword({ email: normalizedEmail, password: newPassword });
+    await supabase.auth.refreshSession();
+    setBusy(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    setSuccess('Password updated. Taking you back to settings...');
+    window.setTimeout(onDone, 800);
   };
 
   return (
@@ -104,13 +116,14 @@ export function PasswordUpdateFlow({
           <>
             <PasswordInput label="New Password" value={newPassword} visible={showNew} onToggle={() => setShowNew((v) => !v)} onChange={setNewPassword} />
             <PasswordInput label="Confirm New Password" value={confirmPassword} visible={showConfirm} onToggle={() => setShowConfirm((v) => !v)} onChange={setConfirmPassword} />
-            <button onClick={updatePassword} disabled={busy} className="btn-primary w-full justify-center">
+            <button onClick={updatePassword} disabled={busy || !newPassword || !confirmPassword} className="btn-primary w-full justify-center">
               {busy ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />} Save New Password
             </button>
           </>
         )}
         {error && <p className="text-xs text-coral">{error}</p>}
-        <button onClick={onDone} className="btn-ghost w-full justify-center text-sm">Back to Settings</button>
+        {success && <p className="text-xs text-sage">{success}</p>}
+        <button onClick={onDone} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>
       </div>
     </div>
   );
@@ -129,7 +142,13 @@ function PasswordInput({
     <div>
       <label className="text-xs text-stone block mb-1">{label}</label>
       <div className="relative">
-        <input className="input-field pr-10" type={visible ? 'text' : 'password'} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input
+          className="input-field pr-10"
+          type={visible ? 'text' : 'password'}
+          value={value}
+          autoComplete="current-password"
+          onChange={(e) => onChange(e.target.value)}
+        />
         <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink">
           {visible ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
