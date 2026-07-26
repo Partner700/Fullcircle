@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseConfigError } from '../lib/supabase';
 import type { Profile, Role, RoleAssignment } from '../lib/types';
 
 interface AuthContextValue {
@@ -8,6 +8,7 @@ interface AuthContextValue {
   profile: Profile | null;
   role: Role | null;
   roleAssignment: RoleAssignment | null;
+  configError: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, displayName: string, role: Role, matricule?: string) => Promise<{ error: string | null }>;
@@ -39,6 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId: string) => {
+    if (supabaseConfigError) return;
+
     const { data: prof } = await supabase
       .from('profiles')
       .select('*')
@@ -60,6 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (supabaseConfigError) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       if (data.session) {
@@ -85,12 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    if (supabaseConfigError) return { error: supabaseConfigError };
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message || null };
   }, []);
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string, role: Role, matricule?: string) => {
+      if (supabaseConfigError) return { error: supabaseConfigError };
+
       const normalizedEmail = email.trim().toLowerCase();
       const trimmedDisplayName = displayName.trim();
 
@@ -161,6 +173,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoleAssignment(null);
     clearLocalAuthStorage();
 
+    if (supabaseConfigError) return;
+
     try {
       await Promise.race([
         supabase.auth.signOut({ scope: 'local' }),
@@ -181,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, role, roleAssignment, loading, signIn, signUp, signOut, refreshProfile }}
+      value={{ session, profile, role, roleAssignment, configError: supabaseConfigError, loading, signIn, signUp, signOut, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>
