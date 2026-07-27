@@ -141,19 +141,24 @@ export function QuoteReactions({
                   <p className="text-xs font-bold text-ink">
                     {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span>
                   </p>
-                  <p className="text-sm text-stone leading-snug">{comment.body}</p>
+                  <p className="preserve-paragraphs text-sm text-stone leading-snug">{comment.body}</p>
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-4 flex gap-2">
-            <input
-              className="input-field text-sm"
+            <textarea
+              className="input-field min-h-[72px] resize-y text-sm"
               maxLength={500}
               placeholder="Comment on this quote..."
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void submitComment(); }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void submitComment();
+                }
+              }}
             />
             <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary px-3">
               {commenting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

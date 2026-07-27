@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchAllAnnouncements } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
+import { panelImageObjectPosition } from '../../lib/panelImages';
 import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
 import type { CampayPaymentResult } from '../../lib/queries';
-import type { RelicType, StreakFreezer } from '../../lib/types';
+import type { RelicType, StreakFreezer, PanelImageSetting } from '../../lib/types';
 import {
   ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
   Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy,
@@ -88,7 +89,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [marketImageUrl, setMarketImageUrl] = useState<string | null>(null);
+  const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
 
   const paymentConfirmed = paymentResult
     ? ['confirmed', 'successful', 'success', 'completed'].includes(String(paymentResult.status).toLowerCase())
@@ -99,13 +100,13 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setLoading(true);
     setLoadError(null);
     try {
-      const [relicData, invData, balance, frz, sub, announcements] = await Promise.all([
+      const [relicData, invData, balance, frz, sub, savedMarketImage] = await Promise.all([
         supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
         fetchLedgerTotal(profile.id),
         fetchStreakFreezers(profile.id),
         getSubscriptionStatus(profile.id).catch(() => null),
-        fetchAllAnnouncements().catch(() => []),
+        fetchPanelImageSetting('market').catch(() => null),
       ]);
       setRelics(relicData.data as RelicType[] || []);
       const invMap: Record<string, number> = {};
@@ -114,10 +115,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       setDenarii(balance);
       setFreezers(frz);
       setIsSubscribed(Boolean(sub && ((sub as any).is_paid || (sub as any).status === 'active')));
-      const marketImage = (announcements || [])
-        .filter((item: any) => item.is_active !== false && item.announcement_type === 'panel_image_market' && item.content)
-        .sort((a: any, b: any) => new Date(b.publish_at).getTime() - new Date(a.publish_at).getTime())[0];
-      setMarketImageUrl(marketImage?.content || null);
+      setMarketImage(savedMarketImage);
     } catch (err: any) {
       setLoadError(err?.message || 'The Market could not load. Please try again.');
     }
@@ -407,10 +405,15 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       )}
 
       {/* Balance bar */}
-      <div className="card p-4 flex items-center justify-between relative overflow-hidden">
-        {marketImageUrl && (
+      <div className="card relative flex flex-col items-start justify-between gap-2 overflow-hidden p-4 min-[460px]:flex-row min-[460px]:items-center">
+        {marketImage && (
           <>
-            <img src={marketImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-10 pointer-events-none" />
+            <img
+              src={marketImage.url}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-10 pointer-events-none"
+              style={{ objectPosition: panelImageObjectPosition(marketImage) }}
+            />
             <div className="absolute inset-0 bg-surface/80 pointer-events-none" />
           </>
         )}
@@ -424,9 +427,14 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
       {/* Streak Freezers */}
       <div className="card p-5 relative overflow-hidden">
-        {marketImageUrl && (
+        {marketImage && (
           <>
-            <img src={marketImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-10 pointer-events-none" />
+            <img
+              src={marketImage.url}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-10 pointer-events-none"
+              style={{ objectPosition: panelImageObjectPosition(marketImage) }}
+            />
             <div className="absolute inset-0 bg-surface/85 pointer-events-none" />
           </>
         )}
@@ -521,13 +529,15 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                         {relic.rarity}
                       </span>
                       {owned > 0 && (
-                        <span className="badge badge-sage text-[9px]">
-                          <CheckCircle2 size={8} className="mr-0.5" /> {owned} owned
+                        <span className="badge badge-sage text-[9px]" title={`${owned} owned`}>
+                          <CheckCircle2 size={8} className="mr-0.5" /> {owned}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-stone mt-1">
-                      {slug === RELIC_SLUGS.LAZARUS_COIN ? lazarusMarketDescription : relic.description}
+                      <span className="preserve-paragraphs">
+                        {slug === RELIC_SLUGS.LAZARUS_COIN ? lazarusMarketDescription : relic.description}
+                      </span>
                     </p>
 
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -643,7 +653,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                   {paymentResult.status === 'rejected' ? (
                     <button onClick={retryPayment} className="btn-secondary text-sm">
                       <Smartphone size={14} /> Try Again
@@ -662,7 +672,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-stone block mb-2">Payment method</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-3">
                     {PAYMENT_METHODS.map((method) => {
                       const MethodIcon = method.icon;
                       return (

@@ -600,6 +600,11 @@ export function CadetApp() {
         { event: '*', schema: 'public', table: 'daily_records', filter: `user_id=eq.${profile.id}` },
         refreshCadetWallet,
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` },
+        refreshCadetWallet,
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [profile, refreshCadetState]);
@@ -788,7 +793,7 @@ export function CadetApp() {
                           {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-coral flex-shrink-0 mt-1.5" />}
                           <p className="text-xs font-semibold text-ink leading-snug">{n.title}</p>
                         </div>
-                        <p className="text-xs text-stone leading-relaxed mt-0.5">{n.text}</p>
+                        <p className="preserve-paragraphs text-xs text-stone leading-relaxed mt-0.5">{n.text}</p>
                         {(n.actionTab || !n.read) && (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {n.actionTab && (

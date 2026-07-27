@@ -13,6 +13,19 @@ export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fo
 
 export type ChallengeProofFormat = 'text' | 'png' | 'pdf' | 'link' | 'image';
 export type ChallengeSubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type ChallengeEvidenceKind = 'text' | 'link' | 'image' | 'document';
+
+export interface ChallengeEvidenceItem {
+  id: string;
+  kind: ChallengeEvidenceKind;
+  content?: string;
+  url?: string;
+  storage_path?: string;
+  file_name?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  preview_url?: string;
+}
 export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'grace';
 export type FreezerType = 'daily' | 'weekly';
 
@@ -118,8 +131,17 @@ export interface GameSeedData {
   ordered_units?: string[];
   key_terms?: string[];
   term_facts?: { term: string; fact: string }[];
-  true_false_bank?: { statement: string; is_true: boolean }[];
-  comprehension_questions?: { question: string; answer: string; options: string[]; explanation?: string; reference?: string }[];
+  true_false_bank?: { statement: string; is_true: boolean; explanation?: string; focus_key?: string }[];
+  comprehension_questions?: {
+    question: string;
+    answer: string;
+    options: string[];
+    explanation?: string;
+    reference?: string;
+    skill?: string;
+    difficulty?: string;
+    focus_key?: string;
+  }[];
   cause_effect_pairs?: { cause: string; effect: string }[];
   memory_clues?: { prompt: string; answer: string }[];
   application_prompts?: string[];
@@ -183,8 +205,12 @@ export interface QuestionPayload {
   question: string;
   options?: string[];
   correct_answer: string | number;
+  accepted_answers?: string[];
   explanation?: string;
   reference?: string;
+  focus_key?: string;
+  topic_key?: string;
+  generator_version?: number;
   blanked_text?: string;
   blanks?: string[];
   items?: string[];
@@ -331,6 +357,14 @@ export interface ScheduledAnnouncement {
   audience: string;
   content: string;
   is_active: boolean;
+  image_position_x?: number;
+  image_position_y?: number;
+}
+
+export interface PanelImageSetting {
+  url: string;
+  positionX: number;
+  positionY: number;
 }
 
 export interface UserNotification {
@@ -352,6 +386,7 @@ export interface ChallengeSubmission {
   narrative_date: string;
   proof_text: string | null;
   proof_type: string;
+  evidence_items: ChallengeEvidenceItem[];
   status: ChallengeSubmissionStatus;
   rejection_reason: string | null;
   reviewed_at: string | null;

@@ -88,7 +88,7 @@ export function CadetLeaderboard() {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Board tabs */}
-      <div className="flex gap-1 p-1 bg-surface-2 rounded-lg w-fit border border-border">
+      <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-surface-2 p-1 sm:flex sm:w-fit">
         <BoardTabButton active={tab === 'leader'} onClick={() => setTab('leader')} icon={<CoinIcon size={16} />} label="Denarii Board" />
         <BoardTabButton active={tab === 'streak'} onClick={() => setTab('streak')} icon={<Flame size={16} />} label="Streak Board" />
         <BoardTabButton active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<FileQuestion size={16} />} label="Quiz Board" />
@@ -137,7 +137,7 @@ export function CadetLeaderboard() {
                             <p className={cn('text-sm font-medium truncate', row.user_id === profile?.id ? 'text-brass' : 'text-ink')}>
                               {row.display_name}
                             </p>
-                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
+                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={26} className="flex-shrink-0" />}
                           </div>
                           <span className="text-xs text-stone">{tint.label} honor</span>
                         </div>
@@ -236,7 +236,7 @@ export function CadetLeaderboard() {
                             <p className={cn('text-sm font-medium truncate', row.user_id === profile?.id ? 'text-brass' : 'text-ink')}>
                               {row.profiles.display_name}
                             </p>
-                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
+                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={26} className="flex-shrink-0" />}
                           </div>
                           <span className="text-xs text-stone">Longest: {row.consistency} days</span>
                         </div>
@@ -327,7 +327,7 @@ export function CadetLeaderboard() {
                             <p className={cn('text-sm font-medium truncate', row.user_id === profile?.id ? 'text-brass' : 'text-ink')}>
                               {row.display_name}
                             </p>
-                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
+                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={26} className="flex-shrink-0" />}
                           </div>
                           <span className="text-xs text-stone">{subtext}</span>
                         </div>
@@ -402,7 +402,7 @@ export function CadetLeaderboard() {
                           <div className="flex items-center gap-2">
                             <TentBoardImage src={row.tent_profile_image_url} />
                             <p className="text-sm font-medium truncate text-ink">{row.tent_name}</p>
-                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
+                            {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={26} className="flex-shrink-0" />}
                           </div>
 		                          <span className="text-xs text-stone">{row.cadet_count} cadets · streak {row.total_streak} · {tint.label} honor</span>
 		                          {sentries && <p className="text-[11px] text-stone truncate mt-0.5">{sentries}</p>}
