@@ -365,6 +365,27 @@ export interface PanelImageSetting {
   url: string;
   positionX: number;
   positionY: number;
+  adjustments?: PanelImageAdjustments;
+}
+
+export interface PanelImageAdjustments {
+  brightness: number;
+  contrast: number;
+  blackPoint: number;
+  whitePoint: number;
+  black: number;
+  saturation: number;
+  vibrance: number;
+  hue: number;
+  temperature: number;
+  sharpness: number;
+  definition: number;
+  noise: number;
+  depth: number;
+  vignette: number;
+  grain: number;
+  age: number;
+  opacity: number;
 }
 
 export interface UserNotification {

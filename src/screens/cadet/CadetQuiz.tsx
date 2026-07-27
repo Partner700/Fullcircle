@@ -3,12 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { Dove } from '../../components/Dove';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
   fetchNarratives, fetchPanelImageSetting, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
   settleQuizAttemptReward,
 } from '../../lib/queries';
-import { panelImageObjectPosition } from '../../lib/panelImages';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, FULL_QUIZ_DENARII, IMPERFECT_QUIZ_DENARII, RELIC_SLUGS } from '../../lib/constants';
 import { formatCountdown, formatDenarii, cn } from '../../lib/utils';
@@ -48,6 +48,24 @@ function localQuizResultsRelease(sessionDate: string) {
 function hasUsedLazarus(attempt: QuizAttempt | null) {
   const used = attempt?.relics_used;
   return Array.isArray(used) && used.some((entry: any) => entry?.slug === RELIC_SLUGS.LAZARUS_COIN);
+}
+
+function looksLikeGeneratorLeak(option: string) {
+  const value = option.trim();
+  if (!value) return true;
+  if (value.length > 220) return true;
+  return /(\"?(question|options|correct_answer|accepted_answers|explanation|reference|focus_key)\"?\s*:|distractor|plausible option|generate|reasoning|i should|we need|the answer is|think carefully|json)/i.test(value);
+}
+
+function cleanQuizOptions(options: unknown, correctAnswer: unknown) {
+  if (!Array.isArray(options)) return [];
+  const correct = String(correctAnswer || '').trim();
+  const cleaned = Array.from(new Set(options.map((option) => String(option || '').trim())))
+    .filter((option) => !looksLikeGeneratorLeak(option));
+  if (correct && !looksLikeGeneratorLeak(correct) && !cleaned.some((option) => option.toLowerCase() === correct.toLowerCase())) {
+    cleaned.push(correct);
+  }
+  return cleaned.slice(0, 4);
 }
 
 export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) {
@@ -257,15 +275,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     <div className="space-y-5 animate-fade-in max-w-2xl mx-auto">
       {/* Quiz card — session header */}
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
-        {quizImage && (
-          <img
-            src={quizImage.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.2] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(quizImage) }}
-          />
-        )}
-        {quizImage && <div className="absolute inset-0 bg-surface/75 pointer-events-none" />}
+        <PanelImageBackdrop image={quizImage} opacityFallback={20} veilClassName="bg-surface/75" />
         <div className="relative text-center">
           <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
@@ -765,7 +775,7 @@ function QuizPlay({ questions, attempt, userId, sessionDate, liveCloses, onSubmi
         {/* Multiple choice / True-false */}
         {payload.type !== 'scriptorium' && payload.type !== 'standard_text' && payload.options && (
           <div className="space-y-2">
-            {payload.options.map((opt, i) => {
+            {cleanQuizOptions(payload.options, payload.correct_answer).map((opt, i) => {
               const isSelected = selectedAnswer === opt;
               return (
                 <button
@@ -907,15 +917,7 @@ function SubmittedView({
   return (
     <div className="max-w-md mx-auto animate-scale-in">
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center border-moss/30">
-        {image && (
-          <img
-            src={image.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.18] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(image) }}
-          />
-        )}
-        {image && <div className="absolute inset-0 bg-surface/80 pointer-events-none" />}
+        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
           <div className="eyebrow text-moss mb-3">Submitted</div>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-moss/10 border border-moss/30">
@@ -955,15 +957,7 @@ function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazar
   return (
     <div className="max-w-md mx-auto animate-scale-in">
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center border-roman/30">
-        {image && (
-          <img
-            src={image.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.18] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(image) }}
-          />
-        )}
-        {image && <div className="absolute inset-0 bg-surface/80 pointer-events-none" />}
+        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
           <div className="eyebrow text-roman mb-3">Forfeited</div>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-roman/10 border border-roman/30">
@@ -1021,15 +1015,7 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
   return (
     <div className="max-w-2xl mx-auto animate-fade-in space-y-4">
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center animate-scale-in">
-        {image && (
-          <img
-            src={image.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.18] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(image) }}
-          />
-        )}
-        {image && <div className="absolute inset-0 bg-surface/80 pointer-events-none" />}
+        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
           <div className="eyebrow text-brass mb-3">Complete</div>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-brass/10 border border-brass/30">

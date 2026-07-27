@@ -3,8 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { ChallengeEvidenceList } from '../../components/ChallengeEvidenceList';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchChallengeSubmission, fetchPanelImageSetting, upsertChallengeSubmission } from '../../lib/queries';
-import { panelImageObjectPosition } from '../../lib/panelImages';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -270,15 +270,7 @@ export function CadetNarrative({
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       {/* ── Header card — scripture reference + theme ── */}
       <div className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up bg-surface-2 border-border">
-        {readingImage && (
-          <img
-            src={readingImage.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.18] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(readingImage) }}
-          />
-        )}
-        {readingImage && <div className="absolute inset-0 bg-surface-2/75 pointer-events-none" />}
+        <PanelImageBackdrop image={readingImage} veilClassName="bg-surface-2/75" />
         <div className="relative">
           <div className="eyebrow text-brass flex items-center gap-2 mb-2">
             <BookMarked size={14} strokeWidth={1.5} />

@@ -9,7 +9,7 @@ import type {
   QuizScoreboardRow, QuestionPayload, PanelImageSetting, ChallengeEvidenceItem,
   GameSeedData,
 } from '../lib/types';
-import { panelImageFromAnnouncement } from './panelImages';
+import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -360,9 +360,14 @@ export async function fetchRelicInventory(userId: string) {
 }
 
 export async function fetchStreakboardSnapshots() {
+  const { data: liveData, error: liveError } = await supabase.rpc('get_streakboard_live');
+  if (!liveError && liveData) {
+    return liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
+  }
+
   const { data, error } = await supabase
     .from('streakboard_snapshots')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name,avatar_url)')
     .order('snapshot_date', { ascending: false })
     .limit(1);
   if (error) throw error;
@@ -370,11 +375,11 @@ export async function fetchStreakboardSnapshots() {
   const latestDate = data[0].snapshot_date;
   const { data: rows, error: err2 } = await supabase
     .from('streakboard_snapshots')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name,avatar_url)')
     .eq('snapshot_date', latestDate)
     .order('rank');
   if (err2) throw err2;
-  return rows as (StreakboardSnapshot & { profiles: { display_name: string } })[];
+  return rows as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
 export async function fetchLeaderboardSnapshots() {
@@ -435,7 +440,7 @@ export async function fetchPanelImageSetting(
   panelType: string,
   audiences: string[] = ['all', 'cadets'],
 ): Promise<PanelImageSetting | null> {
-  const announcementType = panelType.startsWith('panel_image_')
+  const announcementType = panelType === 'weekly_background' || panelType.startsWith('panel_image_')
     ? panelType
     : `panel_image_${panelType}`;
   const now = new Date().toISOString();
@@ -450,7 +455,7 @@ export async function fetchPanelImageSetting(
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data?.content && /^https?:\/\//i.test(data.content)
+  return data?.content && isPanelImageContent(data.content)
     ? panelImageFromAnnouncement(data)
     : null;
 }
@@ -1198,7 +1203,8 @@ export async function uploadAvatar(userId: string, file: File) {
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const publicUrl = `${data.publicUrl}?v=${version}`;
-  await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
+  const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
+  if (profileError) throw profileError;
   return publicUrl;
 }
 

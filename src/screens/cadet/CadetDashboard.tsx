@@ -4,8 +4,9 @@ import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
-import { panelImageFromAnnouncement, panelImageObjectPosition } from '../../lib/panelImages';
+import { panelImageFromAnnouncement } from '../../lib/panelImages';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
 import {
@@ -117,11 +118,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       map[announcement.announcement_type.replace('panel_image_', '')] = panelImageFromAnnouncement(announcement);
       return map;
     }, {});
-  const weeklyBackgroundAnnouncement = announcements.find((announcement) => announcement.announcement_type === 'weekly_background');
-  const weeklyBackgroundImage = weeklyBackgroundAnnouncement
-    ? panelImageFromAnnouncement(weeklyBackgroundAnnouncement)
-    : null;
-
   useEffect(() => {
     if (heroSlideCount <= 1 || heroPaused) return;
     const interval = window.setInterval(() => {
@@ -175,7 +171,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         currentUserId={profile?.id || null}
         count={heroSlideCount}
         index={activeHeroIndex}
-        backgroundImage={weeklyBackgroundImage}
         panelImages={panelImages}
         quoteReactions={quoteReactions}
         verseReactions={verseReactions}
@@ -221,15 +216,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
 
       {/* Today's status bar */}
       <div className="card relative overflow-hidden p-4">
-        {panelImages.progress && (
-          <img
-            src={panelImages.progress.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.18] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(panelImages.progress) }}
-          />
-        )}
-        {panelImages.progress && <div className="absolute inset-0 bg-surface/75 pointer-events-none" />}
+        <PanelImageBackdrop image={panelImages.progress} />
         <div className="relative">
           <SectionHeader title="Today's Progress" subtitle="Complete each item to keep your streak alive" />
           <div className="space-y-2">
@@ -279,15 +266,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       {/* Two-column: narrative preview + recent activity */}
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card relative overflow-hidden p-4 card-hover">
-          {panelImages.reading && (
-            <img
-              src={panelImages.reading.url}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover opacity-[0.18] pointer-events-none"
-              style={{ objectPosition: panelImageObjectPosition(panelImages.reading) }}
-            />
-          )}
-          {panelImages.reading && <div className="absolute inset-0 bg-surface/75 pointer-events-none" />}
+          <PanelImageBackdrop image={panelImages.reading} />
           <div className="relative">
             <SectionHeader title="Today's Reading" />
             {dayType === 'saturday' ? (
@@ -346,7 +325,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   );
 }
 
-function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, backgroundImage, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
+function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -355,7 +334,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   currentUserId: string | null;
   count: number;
   index: number;
-  backgroundImage: PanelImageSetting | null;
   panelImages: Record<string, PanelImageSetting>;
   quoteReactions: Record<string, QuoteReactionState>;
   verseReactions: Record<string, QuoteReactionState>;
@@ -372,14 +350,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
 
   return (
     <div className="card relative overflow-hidden min-h-[180px] animate-slide-up">
-      {backgroundImage && (
-        <img
-          src={backgroundImage.url}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
-          style={{ objectPosition: panelImageObjectPosition(backgroundImage) }}
-        />
-      )}
       <div
         className="flex transition-transform duration-700 ease-out"
         style={{ transform: `translateX(-${index * 100}%)` }}
@@ -388,19 +358,15 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
-          const slideImage = panelImages[slide.kind] || backgroundImage;
+          const slideImage = slide.kind === 'announcement'
+            ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
+            : panelImages[slide.kind];
 
           return (
             <div key={slide.id} className="relative min-w-full p-5 pb-16 overflow-hidden">
               {slideImage && (
-                <img
-                  src={slideImage.url}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-[0.16] pointer-events-none"
-                  style={{ objectPosition: panelImageObjectPosition(slideImage) }}
-                />
+                <PanelImageBackdrop image={slideImage} opacityFallback={16} />
               )}
-              <div className="absolute inset-0 bg-surface/70 pointer-events-none" />
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   {slide.kind === 'welcome' && (

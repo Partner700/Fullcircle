@@ -5,12 +5,13 @@ import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import { fetchAnnouncements, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
-import { panelImageFromAnnouncement, panelImageObjectPosition } from '../../lib/panelImages';
+import { panelImageFromAnnouncement } from '../../lib/panelImages';
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo, PanelImageSetting } from '../../lib/types';
@@ -215,11 +216,6 @@ export function SentryApp() {
       map[announcement.announcement_type.replace('panel_image_', '')] = panelImageFromAnnouncement(announcement);
       return map;
     }, {});
-  const weeklyBackgroundAnnouncement = announcements.find((announcement) => announcement.announcement_type === 'weekly_background');
-  const weeklyBackgroundImage = weeklyBackgroundAnnouncement
-    ? panelImageFromAnnouncement(weeklyBackgroundAnnouncement)
-    : null;
-
   const tabLabels: Record<Tab, string> = {
     overview: 'Sentry Overview',
     attendance: 'Mark Attendance',
@@ -255,7 +251,6 @@ export function SentryApp() {
           quoteReactions={quoteReactions}
           reactingQuote={reactingQuote}
           currentUserId={profile?.id || null}
-          backgroundImage={weeklyBackgroundImage}
           panelImages={panelImages}
           onReactQuote={async (quote, reactionType) => {
             if (!profile) return;
@@ -326,7 +321,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, backgroundImage, panelImages, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
+function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -339,7 +334,6 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   quoteReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
   currentUserId: string | null;
-  backgroundImage: PanelImageSetting | null;
   panelImages: Record<string, PanelImageSetting>;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onQuotePrev: () => void;
@@ -417,7 +411,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
           quoteReactions={quoteReactions}
           reactingQuote={reactingQuote}
           currentUserId={currentUserId}
-          image={panelImages.quote || backgroundImage}
+          image={panelImages.quote || null}
           onReactQuote={onReactQuote}
           onPrev={onQuotePrev}
           onNext={onQuoteNext}
@@ -495,17 +489,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
 }) {
   return (
     <div className="card p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
-      {image && (
-        <>
-          <img
-            src={image.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.16] pointer-events-none"
-            style={{ objectPosition: panelImageObjectPosition(image) }}
-          />
-          <div className="absolute inset-0 bg-surface/72 pointer-events-none" />
-        </>
-      )}
+      <PanelImageBackdrop image={image} opacityFallback={16} veilClassName="bg-surface/72" />
       <div className="relative flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Quote size={18} className="text-brass" />

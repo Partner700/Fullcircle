@@ -3,6 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { DoveMark } from './Dove';
 import { LogOut, Sun, Moon, Menu, X } from 'lucide-react';
+import { fetchPanelImageSetting } from '../lib/queries';
+import type { PanelImageSetting } from '../lib/types';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
 
 type Theme = 'night' | 'day';
 
@@ -56,8 +59,9 @@ interface ShellProps {
 }
 
 export function AppShell({ children, navItems, activeKey, onNavigate, headerTitle, headerSubtitle, rightHeader, navBadges = {}, showTopSignOut = true }: ShellProps) {
-  const { profile, signOut } = useAuth();
+  const { profile, role, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [weeklyBackground, setWeeklyBackground] = useState<PanelImageSetting | null>(null);
 
   const navigate = (key: string) => {
     onNavigate(key);
@@ -81,8 +85,31 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    const audience = role === 'instructor' ? 'instructors' : role === 'sentry' ? 'sentries' : 'cadets';
+    fetchPanelImageSetting('weekly_background', ['all', audience])
+      .then((image) => {
+        if (mounted) setWeeklyBackground(image);
+      })
+      .catch(() => {
+        if (mounted) setWeeklyBackground(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [role]);
+
   return (
-    <div className="min-h-screen flex bg-navy">
+    <div className="relative min-h-screen flex overflow-x-hidden bg-navy">
+      {weeklyBackground && (
+        <PanelImageBackdrop
+          image={weeklyBackground}
+          className="fixed z-0"
+          veilClassName=""
+          opacityFallback={24}
+        />
+      )}
       {/* Sidebar */}
       <aside className="w-60 flex-shrink-0 border-r border-border bg-navy-2 flex flex-col fixed lg:sticky top-0 h-screen z-30 hidden md:flex">
         <div className="p-5 border-b border-border">
@@ -206,7 +233,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 md:ml-0">
+      <div className="relative z-10 flex-1 flex flex-col min-w-0 md:ml-0">
         <header className="sticky top-0 z-20 border-b border-border bg-navy-2 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="min-w-0 flex-1">

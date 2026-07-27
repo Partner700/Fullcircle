@@ -75,8 +75,11 @@ export function CadetLeaderboard() {
       .channel('cadet_quiz_scoreboard_live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_attempts' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'relic_inventory' }, () => load())
       .subscribe();
-    const interval = window.setInterval(() => load(), 60_000);
+    const interval = window.setInterval(() => load(), 15_000);
     return () => {
       supabase.removeChannel(channel);
       window.clearInterval(interval);
@@ -199,18 +202,18 @@ export function CadetLeaderboard() {
             <div className="flex items-center gap-2 mb-1">
               <Flame size={20} className="text-roman" />
               <h3 className="font-display font-semibold text-ink">Streak Challenge Board</h3>
-              <span className="badge badge-neutral text-[10px] inline-flex items-center gap-1">
-                <Clock size={10} /> Daily 9 PM
+              <span className="badge badge-moss text-[10px] inline-flex items-center gap-1">
+                <Clock size={10} /> Live
               </span>
             </div>
             <p className="text-xs text-stone">
-              Ranks by Volume → Consistency → Improvement. Tent symbols appear beside each name. Updates daily at 9 PM.
+              Always on. Ranks by current streak, longest streak, then total valid days. Tent symbols appear beside each name.
             </p>
           </div>
 
           {streakRows.length > 0 ? (
             <div className="card p-4">
-              <p className="text-xs text-stone mb-3">Last updated: {formatShortDate(streakRows[0].snapshot_date)} at 9:00 PM</p>
+              <p className="text-xs text-stone mb-3">Live as of {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}</p>
               <BoardList>
                 {streakRows.map((row) => {
                   const isPodium = row.rank >= 1 && row.rank <= 3;
@@ -238,11 +241,11 @@ export function CadetLeaderboard() {
                             </p>
                             {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={26} className="flex-shrink-0" />}
                           </div>
-                          <span className="text-xs text-stone">Longest: {row.consistency} days</span>
+                          <span className="text-xs text-stone">Longest: {row.longest_streak || row.consistency} days</span>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <span className="text-sm font-medium text-ink">{row.volume}</span>
-                          <p className="text-[10px] text-stone">valid days · streak {row.current_streak}</p>
+                          <p className="text-[10px] text-stone">current streak · {row.volume} valid days</p>
                         </div>
                       </div>
                     );
@@ -253,9 +256,10 @@ export function CadetLeaderboard() {
                       key={row.id}
                       rank={row.rank}
                       name={row.profiles.display_name}
-                      value={`${row.volume}`}
+                      value={`${row.current_streak}`}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
+                      subtext={`Longest ${row.longest_streak || row.consistency} days · ${row.volume} valid days`}
                     />
                   );
                 })}
@@ -278,7 +282,7 @@ export function CadetLeaderboard() {
               </ul>
             </div>
           ) : (
-            <EmptyState icon={Crown} title="No streak data yet" message="The streak board updates nightly at 9 PM. Complete a few days to see rankings." />
+            <EmptyState icon={Crown} title="No streak data yet" message="The live streak board is on. Complete today's streak actions to appear here." />
           )}
         </div>
       )}
