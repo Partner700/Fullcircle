@@ -5,14 +5,13 @@ import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, uploadAvatar, fetch
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
-import { DeleteAccountSection } from './DeleteAccountSection';
 import { StatCard, SectionHeader } from './AppShell';
 import {
   CadetIcon, SentryIcon, InstructorIcon,
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
-import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, KeyRound } from 'lucide-react';
+import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, KeyRound, Eye, EyeOff } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -29,6 +28,13 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showWaMsg, setShowWaMsg] = useState(false);
   const [waMsg, setWaMsg] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
   const { refreshProfile } = useAuth();
 
@@ -89,6 +95,29 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
     }
   };
 
+  const changePassword = async () => {
+    setPasswordError(null);
+    setPasswordMessage(null);
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    setChangingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setChangingPassword(false);
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordMessage('Password changed successfully.');
+  };
+
   const roleIcon = role === 'cadet' ? CadetIcon : role === 'sentry' ? SentryIcon : InstructorIcon;
   const RoleIcon = roleIcon;
 
@@ -99,7 +128,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       </div>
     );
   }
-  if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
+  if (passwordPage && profile?.email) return <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />;
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
@@ -222,7 +251,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       )}
 
       {/* Stats grid */}
-      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 md:grid-cols-4 gap-3 animate-slide-up">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-slide-up">
         <StatCard icon={CoinIcon} label="Denarii" value={formatDenarii(stats.denarii)} color="#F5B731" />
         <StatCard icon={FlameIcon} label="Streak" value={stats.streak} sublabel={`Best: ${stats.longestStreak}`} color="#E05252" />
         <StatCard icon={AwardIcon} label="Awards" value={stats.awards.length} color="#5BAD7F" />
@@ -304,11 +333,42 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         </div>
       </div>
 
-      <DeleteAccountSection dark />
-
       {/* Dove footer */}
       <div className="flex justify-center py-4">
         <Dove size={56} className="opacity-30" />
+      </div>
+    </div>
+  );
+}
+
+function SettingsPasswordField({
+  label, value, visible, onToggle, onChange,
+}: {
+  label: string;
+  value: string;
+  visible: boolean;
+  onToggle: () => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-bold text-peri mb-1.5">{label}</label>
+      <div className="relative">
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="input-field pr-10"
+          minLength={6}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors"
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
       </div>
     </div>
   );

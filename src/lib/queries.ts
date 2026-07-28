@@ -6,10 +6,12 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow, QuestionPayload, PanelImageSetting, ChallengeEvidenceItem,
-  GameSeedData,
+  QuizScoreboardRow, QuestionPayload,
 } from '../lib/types';
+<<<<<<< HEAD
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
+=======
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -255,24 +257,6 @@ export async function fetchResponsesForAttempt(attemptId: string) {
   return data as QuestionResponse[];
 }
 
-export async function settleQuizAttemptReward(
-  attemptId: string,
-  status: 'submitted' | 'timed_out',
-) {
-  const { data, error } = await supabase.rpc('settle_quiz_attempt_reward', {
-    p_attempt_id: attemptId,
-    p_status: status,
-  });
-  if (error) throw error;
-  return data as {
-    success: boolean;
-    figs: number;
-    max_figs: number;
-    perfect: boolean;
-    reward_denarii: number;
-  };
-}
-
 export async function fetchQuizAnswerSheets(sessionId: string) {
   const { data, error } = await supabase
     .from('quiz_attempts')
@@ -423,11 +407,12 @@ export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']
     .eq('is_active', true)
     .in('audience', audiences)
     .order('publish_at', { ascending: false })
-    .limit(50);
+    .limit(5);
   if (error) throw error;
   return data as ScheduledAnnouncement[];
 }
 
+<<<<<<< HEAD
 export async function fetchPanelImage(
   panelType: string,
   audiences: string[] = ['all', 'cadets'],
@@ -460,6 +445,8 @@ export async function fetchPanelImageSetting(
     : null;
 }
 
+=======
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 export async function fetchAllAnnouncements() {
   const { data, error } = await supabase
     .from('scheduled_announcements')
@@ -519,11 +506,9 @@ export async function fetchChallengeSubmission(userId: string, date: string) {
     .select('*')
     .eq('user_id', userId)
     .eq('narrative_date', date)
-    .order('submitted_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return addChallengeEvidenceUrls(data as ChallengeSubmission | null);
+  return data as ChallengeSubmission | null;
 }
 
 export async function upsertChallengeSubmission(sub: Partial<ChallengeSubmission>) {
@@ -590,22 +575,7 @@ export async function fetchAllChallengeSubmissions() {
     .select('*, profiles(display_name)')
     .order('submitted_at', { ascending: false });
   if (error) throw error;
-  return Promise.all((data || []).map((submission: any) => addChallengeEvidenceUrls(submission)));
-}
-
-async function addChallengeEvidenceUrls<T extends ChallengeSubmission | null>(submission: T): Promise<T> {
-  if (!submission) return submission;
-  const evidence = Array.isArray(submission.evidence_items)
-    ? submission.evidence_items as ChallengeEvidenceItem[]
-    : [];
-  const evidenceWithUrls = await Promise.all(evidence.map(async (item) => {
-    if (!item.storage_path) return item;
-    const { data } = await supabase.storage
-      .from('challenge-evidence')
-      .createSignedUrl(item.storage_path, 60 * 60);
-    return data?.signedUrl ? { ...item, preview_url: data.signedUrl } : item;
-  }));
-  return { ...submission, evidence_items: evidenceWithUrls } as T;
+  return data;
 }
 
 export async function reviewChallengeSubmission(
@@ -1276,7 +1246,6 @@ export async function generateArenaQuestionsWithAI(payload: {
   topicType?: string | null;
   topic?: string | null;
   narrative?: DailyNarrative | null;
-  forceRegenerate?: boolean;
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -1293,53 +1262,10 @@ export async function generateArenaQuestionsWithAI(payload: {
     },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.error || 'The arena question generator could not prepare this battle.');
-  }
+  if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   if (!Array.isArray(data.questions)) throw new Error('AI arena generation returned no questions.');
   return data.questions as QuestionPayload[];
-}
-
-export async function generateGamePacketWithAI(payload: {
-  source: {
-    title: string;
-    theme: string;
-    scriptureReference: string;
-    mainText: string;
-    verseOfDay: string;
-  };
-  existing?: GameSeedData;
-  sections?: (keyof GameSeedData)[];
-}) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!token || !supabaseUrl || !supabaseAnonKey) {
-    throw new Error('AI packet generation is not configured.');
-  }
-
-  const res = await fetch(`${supabaseUrl}/functions/v1/generate-game-packet`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: supabaseAnonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.error || 'The Game Content Packet generator could not complete this passage.');
-  }
-
-  const result = await res.json();
-  if (!result?.packet || typeof result.packet !== 'object') {
-    throw new Error('AI packet generation returned no usable content.');
-  }
-  return result.packet as GameSeedData;
 }
 
 async function mergeArenaRoomsWithParticipants(rooms: any[]) {

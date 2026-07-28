@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
-import { DeleteAccountSection } from '../../components/DeleteAccountSection';
-import { ChallengeEvidenceList } from '../../components/ChallengeEvidenceList';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -23,8 +21,7 @@ import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
-  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
-  Image as ImageIcon, Upload, Move, X,
+  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -90,7 +87,7 @@ function AwardCheckboxList({ selected, onToggle, target = 'cadet' }: { selected:
                     className="mt-0.5 accent-peri flex-shrink-0" />
                   <div>
                     <p className="text-xs font-semibold text-ink leading-tight">{award.title}</p>
-                    <p className="preserve-paragraphs text-[11px] text-stone mt-0.5">{award.description}</p>
+                    <p className="text-[11px] text-stone mt-0.5">{award.description}</p>
                   </div>
                 </label>
               );
@@ -369,12 +366,16 @@ function AnnouncementManager() {
   const [publishAt, setPublishAt] = useState(toDateTimeLocal(new Date().toISOString()));
   const [content, setContent] = useState('');
   const [isActive, setIsActive] = useState(true);
+<<<<<<< HEAD
   const [editingImageType, setEditingImageType] = useState<string | null>(null);
   const [imagePositionX, setImagePositionX] = useState(50);
   const [imagePositionY, setImagePositionY] = useState(50);
   const [uploadingImageType, setUploadingImageType] = useState<string | null>(null);
   const [savingImagePosition, setSavingImagePosition] = useState(false);
   const [imageAdjustments, setImageAdjustments] = useState<PanelImageAdjustments>(DEFAULT_PANEL_IMAGE_ADJUSTMENTS);
+=======
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -427,6 +428,7 @@ function AnnouncementManager() {
     setSaving(false);
   };
 
+<<<<<<< HEAD
   const publishImageSetting = async (
     type: string,
     imageUrl: string,
@@ -435,20 +437,26 @@ function AnnouncementManager() {
     positionY = 50,
     adjustments: PanelImageAdjustments = DEFAULT_PANEL_IMAGE_ADJUSTMENTS,
   ) => {
+=======
+  const publishImageSetting = async (type: string, imageUrl: string, targetAudience = 'all') => {
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     const payload = {
       announcement_type: type,
       audience: targetAudience,
       publish_at: new Date().toISOString(),
       content: serializePanelImageSetting(imageUrl, adjustments),
       is_active: true,
-      image_position_x: positionX,
-      image_position_y: positionY,
     };
     const existing = announcements.find((announcement) =>
       announcement.announcement_type === type && announcement.audience === targetAudience && announcement.is_active !== false
     );
     if (existing) await updateAnnouncement(existing.id, payload);
     else await createAnnouncement(payload);
+    setAnnouncementType(type);
+    setAudience(targetAudience);
+    setPublishAt(toDateTimeLocal(payload.publish_at));
+    setContent(imageUrl);
+    setIsActive(true);
     await load();
   };
 
@@ -460,14 +468,25 @@ function AnnouncementManager() {
     if (!window.confirm('Delete this saved image from the app?')) return;
     try {
       await Promise.all(matches.map((announcement) => deleteAnnouncement(announcement.id)));
-      if (editingImageType === type) setEditingImageType(null);
+      if (announcementType === type && audience === targetAudience) resetForm();
       await load();
     } catch (e: any) {
       alert(e.message || 'Failed to delete image setting');
     }
   };
 
+<<<<<<< HEAD
   const activeImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
+=======
+  const activeImageSettings = [
+    { type: 'weekly_background', label: 'Weekly Background', audience: 'all' },
+    { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
+    { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
+    { type: 'panel_image_announcement', label: 'Announcement Panel', audience: 'all' },
+    { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
+    { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
+  ].map((slot) => ({
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     ...slot,
     item: announcements.find((announcement) =>
       announcement.announcement_type === slot.type
@@ -480,6 +499,7 @@ function AnnouncementManager() {
     image: setting.item ? panelImageFromAnnouncement(setting.item) : null,
   }));
 
+<<<<<<< HEAD
   const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
   const standardAnnouncements = announcements.filter((announcement) =>
     announcement.announcement_type !== 'weekly_background'
@@ -496,14 +516,18 @@ function AnnouncementManager() {
 
   const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
     setUploadingImageType(type);
+=======
+  const uploadWeeklyBackground = async (file: File) => {
+    setUploadingBackground(true);
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     try {
       const ext = file.name.split('.').pop() || 'jpg';
       const version = Date.now();
-      const folder = type === 'weekly_background' ? 'weekly-backgrounds' : 'panel-images';
-      const path = `${folder}/${type}-${version}.${ext}`;
+      const path = `weekly-backgrounds/${version}.${ext}`;
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+<<<<<<< HEAD
       await publishImageSetting(type, `${data.publicUrl}?v=${version}`, targetAudience, imagePositionX, imagePositionY, imageAdjustments);
     } catch (e: any) {
       alert(e.message || 'Failed to upload panel image');
@@ -526,6 +550,29 @@ function AnnouncementManager() {
       alert(e.message || 'Failed to save image framing');
     }
     setSavingImagePosition(false);
+=======
+      await publishImageSetting('weekly_background', `${data.publicUrl}?v=${version}`, 'all');
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload weekly background image');
+    }
+    setUploadingBackground(false);
+  };
+
+  const uploadPanelImage = async (file: File, panelType: string) => {
+    setUploadingBackground(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const version = Date.now();
+      const path = `panel-images/${panelType}-${version}.${ext}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      await publishImageSetting(`panel_image_${panelType}`, `${data.publicUrl}?v=${version}`, 'all');
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload panel image');
+    }
+    setUploadingBackground(false);
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   };
 
   const toggleActive = async (announcement: ScheduledAnnouncement) => {
@@ -552,7 +599,7 @@ function AnnouncementManager() {
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Announcements" subtitle="Schedule dashboard slideshow notices for cadets, sentries, or everyone." />
 
-      <div className="card space-y-4 p-4 sm:p-5">
+      <div className="card p-5 space-y-4">
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">Type</label>
@@ -563,6 +610,12 @@ function AnnouncementManager() {
               <option value="evening_reminder">Evening Reminder</option>
               <option value="quote_of_day">Quote of the Day</option>
               <option value="streakboard_release">Streakboard Release</option>
+              <option value="weekly_background">Weekly Background Image</option>
+              <option value="panel_image_welcome">Panel Image: Welcome</option>
+              <option value="panel_image_verse">Panel Image: Verse</option>
+              <option value="panel_image_announcement">Panel Image: Announcement</option>
+              <option value="panel_image_quote">Panel Image: Quote</option>
+              <option value="panel_image_market">Panel Image: Market</option>
             </select>
           </div>
           <div>
@@ -584,19 +637,17 @@ function AnnouncementManager() {
           <label className="text-xs text-stone block mb-1">Announcement text</label>
           <textarea
             className="input-field min-h-[110px]"
-            placeholder="Write the notice that should appear in the dashboard slideshow..."
+            placeholder={announcementType === 'weekly_background' ? 'Upload an image below; the image URL will appear here.' : 'Write the notice that should appear in the dashboard slideshow...'}
             value={content}
             onChange={(e) => setContent(e.target.value)}
           />
         </div>
 
         <div className="rounded-lg border border-border bg-surface-2 p-3">
-          <div className="flex items-center gap-2 mb-3">
-            <ImageIcon size={16} className="text-brass" />
-            <h4 className="text-sm font-semibold text-ink">Panel Images</h4>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <label className="text-xs text-stone block mb-2">Panel Images</label>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
             {activeImageSettings.map((setting) => (
+<<<<<<< HEAD
               <div key={`${setting.type}:${setting.audience}`} className="relative overflow-hidden rounded-lg border border-border bg-surface">
                 <button
                   type="button"
@@ -618,27 +669,68 @@ function AnnouncementManager() {
                       </div>
                     )}
                     <div className="absolute inset-0 bg-ink/0 transition-colors group-hover:bg-ink/10" />
+=======
+              <div key={`${setting.type}:${setting.audience}`} className="rounded-lg border border-border bg-surface p-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-semibold text-ink">{setting.label}</span>
+                  {setting.item && (
+                    <button
+                      type="button"
+                      onClick={() => deleteImageSetting(setting.type, setting.audience)}
+                      className="text-[10px] font-bold text-coral hover:text-coral/80"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+                {setting.item ? (
+                  <img src={setting.item.content} alt="" className="h-20 w-full rounded-md object-cover opacity-80" />
+                ) : (
+                  <div className="h-20 rounded-md border border-dashed border-border bg-surface-2 flex items-center justify-center text-[10px] text-stone">
+                    No image saved
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
                   </div>
-                  <div className="flex items-center justify-between gap-2 p-3">
-                    <span className="text-xs font-semibold text-ink">{setting.label}</span>
-                    <span className="text-[10px] font-semibold text-brass">
-                      {setting.item ? 'Edit image' : 'Add image'}
-                    </span>
-                  </div>
-                </button>
-                {setting.item && (
-                  <button
-                    type="button"
-                    onClick={() => deleteImageSetting(setting.type, setting.audience)}
-                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border border-white/30 bg-black/55 text-white transition-colors hover:bg-coral"
-                    title={`Delete ${setting.label}`}
-                  >
-                    <Trash2 size={15} />
-                  </button>
                 )}
               </div>
             ))}
           </div>
+          <div className="grid sm:grid-cols-2 gap-2 mb-3">
+            {[
+              ['welcome', 'Welcome panel'],
+              ['verse', 'Verse panel'],
+              ['announcement', 'Announcement panel'],
+              ['quote', 'Quote panel'],
+              ['market', 'Market panel'],
+            ].map(([value, label]) => (
+              <label key={value} className="rounded-lg border border-border bg-surface p-2 text-xs text-stone">
+                <span className="block font-semibold text-ink mb-1">{label}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingBackground}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void uploadPanelImage(file, value);
+                  }}
+                  className="block w-full text-[10px] text-stone"
+                />
+              </label>
+            ))}
+          </div>
+          <label className="text-xs text-stone block mb-2">Upload fallback weekly background image</label>
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploadingBackground}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadWeeklyBackground(file);
+            }}
+            className="block w-full text-xs text-stone"
+          />
+          <p className="text-[10px] text-stone mt-2">
+            Images appear almost translucent behind text. Uploading a new image creates an editable active image setting you can update any time.
+          </p>
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -646,9 +738,9 @@ function AnnouncementManager() {
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-peri" />
             Active
           </label>
-          <div className="flex w-full flex-col gap-2 min-[460px]:w-auto min-[460px]:flex-row">
+          <div className="flex gap-2">
             {editingId && <button onClick={resetForm} className="btn-secondary text-sm">Cancel Edit</button>}
-            <button onClick={save} disabled={saving || !content.trim()} className="btn-primary w-full text-sm min-[460px]:w-auto">
+            <button onClick={save} disabled={saving || !content.trim()} className="btn-primary text-sm">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {editingId ? 'Save Changes' : 'Schedule Announcement'}
             </button>
@@ -656,15 +748,15 @@ function AnnouncementManager() {
         </div>
       </div>
 
-      <div className="card p-4 sm:p-5">
+      <div className="card p-5">
         <h4 className="font-display font-semibold text-ink mb-3">Scheduled & Published</h4>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
-        ) : standardAnnouncements.length === 0 ? (
+        ) : announcements.length === 0 ? (
           <EmptyState icon={Megaphone} title="No announcements yet" message="Create one above to place it in the dashboard slideshow." />
         ) : (
           <div className="space-y-2">
-            {standardAnnouncements.map((announcement) => {
+            {announcements.map((announcement) => {
               const published = new Date(announcement.publish_at).getTime() <= Date.now();
               return (
                 <div key={announcement.id} className="rounded-lg border border-border-bright bg-surface-2 p-3 flex items-start gap-3">
@@ -680,7 +772,7 @@ function AnnouncementManager() {
                         {published ? 'Published' : 'Scheduled'}
                       </span>
                     </div>
-                    <p className="preserve-paragraphs text-sm text-ink">{announcement.content}</p>
+                    <p className="text-sm text-ink whitespace-pre-wrap">{announcement.content}</p>
                     <p className="text-xs text-stone mt-1">{new Date(announcement.publish_at).toLocaleString()}</p>
                   </div>
                   <div className="flex flex-col gap-1.5 flex-shrink-0">
@@ -698,6 +790,7 @@ function AnnouncementManager() {
           </div>
         )}
       </div>
+<<<<<<< HEAD
 
       {editingImageSetting && (
         <div
@@ -855,6 +948,8 @@ function AnnouncementManager() {
           </div>
         </div>
       )}
+=======
+>>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     </div>
   );
 }
@@ -878,9 +973,9 @@ function NarrativesTab({ narratives, editingNarrative, onSelectNarrative, onDone
   const today = getTodayISODate();
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col items-stretch justify-between gap-3 min-[460px]:flex-row min-[460px]:items-center">
+      <div className="flex items-center justify-between">
         <SectionHeader title="Narratives" subtitle="Daily scripture readings and game content" />
-        <button onClick={() => onSelectNarrative('new')} className="btn-primary w-full text-sm min-[460px]:w-auto">
+        <button onClick={() => onSelectNarrative('new')} className="btn-primary text-sm">
           <Plus size={16} /> New Narrative
         </button>
       </div>
@@ -963,7 +1058,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatBox icon={Users} label="Cadets" value={cadetCount} tint="text-peri-2" />
         <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />
         <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
@@ -2193,7 +2288,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                           className="mt-0.5 accent-peri flex-shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-ink leading-tight">{award.title}</p>
-                          <p className="preserve-paragraphs text-xs text-stone mt-0.5">{award.description}</p>
+                          <p className="text-xs text-stone mt-0.5">{award.description}</p>
                         </div>
                       </label>
                     );
@@ -2238,7 +2333,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                   {a.award_target_type === 'tent' && ' · Tent Award'}
                   {' · '}{a.award_month}
                 </p>
-                {a.description && <p className="preserve-paragraphs text-xs text-stone mt-0.5 line-clamp-2">{a.description}</p>}
+                {a.description && <p className="text-xs text-stone mt-0.5 line-clamp-1">{a.description}</p>}
               </div>
             </div>
           ))
@@ -2471,7 +2566,7 @@ function QuizBuilder() {
                       <span className="badge badge-brass text-xs">{q.difficulty_tag}</span>
                       <span className="text-xs text-stone">{q.mechanic_type}</span>
                     </div>
-                    <p className="preserve-paragraphs text-sm text-ink font-medium">{q.question_payload.question}</p>
+                    <p className="text-sm text-ink font-medium">{q.question_payload.question}</p>
                     {q.question_payload.options && (
                       <div className="mt-1.5 space-y-0.5">
                         {q.question_payload.options.map((opt: string, idx: number) => (
@@ -2602,6 +2697,13 @@ function InstructorSettings({ profile, tents, members }: {
     payout_max_amount_xaf: null,
   });
   const [mmSaving, setMmSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
 
   useEffect(() => {
@@ -2644,9 +2746,32 @@ function InstructorSettings({ profile, tents, members }: {
     setMmSaving(false);
   };
 
+  const changePassword = async () => {
+    setPasswordError(null);
+    setPasswordMessage(null);
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+    setChangingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setChangingPassword(false);
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordMessage('Password changed successfully.');
+  };
+
   return (
-    passwordPage ? (
-      <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />
+    passwordPage && profile?.email ? (
+      <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />
     ) : (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences" />
@@ -2794,10 +2919,41 @@ function InstructorSettings({ profile, tents, members }: {
         <p className="text-xs text-stone">There can only be one instructor at a time. When you promote a sentry to instructor, you are automatically demoted. Use with care.</p>
         <p className="text-xs text-stone">Visit Sentry Management to promote a sentry to instructor.</p>
       </div>
-
-      <DeleteAccountSection />
     </div>
     )
+  );
+}
+
+function InstructorPasswordField({
+  label, value, visible, onToggle, onChange,
+}: {
+  label: string;
+  value: string;
+  visible: boolean;
+  onToggle: () => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-stone block mb-1">{label}</label>
+      <div className="relative">
+        <input
+          className="input-field text-sm pr-10"
+          type={visible ? 'text' : 'password'}
+          value={value}
+          minLength={6}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -2867,8 +3023,8 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
                     </div>
                     <span className="badge badge-gold text-[10px]">Pending</span>
                   </div>
-                  <div className="mb-3">
-                    <ChallengeEvidenceList items={s.evidence_items || []} legacyText={s.proof_text} />
+                  <div className="p-3 rounded-lg bg-surface-2 text-sm text-ink mb-3">
+                    {s.proof_text}
                   </div>
                   {rejectingId === s.id ? (
                     <div className="space-y-2 animate-slide-up">
@@ -2915,11 +3071,8 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
                       {s.status}
                     </span>
                   </div>
-                  <div className="mt-3">
-                    <ChallengeEvidenceList items={s.evidence_items || []} legacyText={s.proof_text} />
-                  </div>
                   {s.rejection_reason && (
-                    <p className="preserve-paragraphs text-xs text-coral mt-2 pl-3 border-l-2 border-coral/30">{s.rejection_reason}</p>
+                    <p className="text-xs text-coral mt-2 pl-3 border-l-2 border-coral/30">{s.rejection_reason}</p>
                   )}
                 </div>
               ))}
@@ -3148,8 +3301,8 @@ function CustomQuestionsEditor({ sessionId }: { sessionId: string }) {
                     <span className="badge badge-peri text-[10px]">{q.question_type.replace(/_/g, ' ')}</span>
                     <span className="badge badge-neutral text-[10px]">{q.difficulty_tag}</span>
                   </div>
-                  <p className="preserve-paragraphs text-sm text-ink font-medium">{q.question_text}</p>
-                  <p className="preserve-paragraphs text-xs text-moss mt-1">Answer: {q.correct_answer}</p>
+                  <p className="text-sm text-ink font-medium">{q.question_text}</p>
+                  <p className="text-xs text-moss mt-1">Answer: {q.correct_answer}</p>
                   {q.options && <p className="text-xs text-stone mt-0.5">Options: {q.options.join(' · ')}</p>}
                 </div>
                 <button onClick={async () => { await deleteCustomQuestion(q.id); await load(); }}
@@ -3696,10 +3849,10 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                     {q.is_bonus && <span className="badge badge-roman text-[10px]">Bonus</span>}
                     {q.use_for_quiz && <span className="badge badge-moss text-[10px]">Quiz tagged</span>}
                   </div>
-                  <p className="preserve-paragraphs text-sm text-ink font-medium">{q.question_text}</p>
-                  <p className="preserve-paragraphs text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
+                  <p className="text-sm text-ink font-medium">{q.question_text}</p>
+                  <p className="text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
                   {q.options && q.options.length > 0 && <p className="text-xs text-stone mt-0.5">Options: {q.options.join(' · ')}</p>}
-                  {q.explanation && <p className="preserve-paragraphs text-xs text-stone mt-0.5">{q.explanation}</p>}
+                  {q.explanation && <p className="text-xs text-stone mt-0.5">{q.explanation}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
                   <button onClick={() => editQuestion(q)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>

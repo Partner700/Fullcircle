@@ -29,19 +29,14 @@ const HOUSE_NAMES: Record<string, string> = {
   laureats: 'The Laureats',
 };
 
-export function TentHouseSymbol({ houseId, size = 30, className }: { houseId: string; size?: number; className?: string }) {
+export function TentHouseSymbol({ houseId, size = 24, className }: { houseId: string; size?: number; className?: string }) {
   const src = HOUSE_ASSETS[houseId] || squaresAsset;
   return (
     <span
-      className={cn('inline-flex items-center justify-center flex-shrink-0 overflow-visible', className)}
+      className={cn('inline-flex items-center justify-center flex-shrink-0', className)}
       style={{ width: size, height: size }}
     >
-      <img
-        src={src}
-        alt=""
-        className="h-full w-full object-contain"
-        style={{ transform: 'scale(1.35)' }}
-      />
+      <img src={src} alt="" className="h-full w-full object-contain" />
     </span>
   );
 }
@@ -49,9 +44,9 @@ export function TentHouseSymbol({ houseId, size = 30, className }: { houseId: st
 export function TentHouseBadge({ houseId, size = 'md' }: { houseId: string; size?: 'xs' | 'sm' | 'md' | 'lg' }) {
   const color = HOUSE_COLORS[houseId] || '#DDE3FF';
   const src = HOUSE_ASSETS[houseId] || squaresAsset;
-  const iconSize = size === 'xs' ? 17 : size === 'sm' ? 21 : size === 'lg' ? 32 : 26;
-  const padX = size === 'xs' ? 'px-2.5' : 'px-3';
-  const padY = size === 'xs' ? 'py-1' : 'py-1.5';
+  const iconSize = size === 'xs' ? 12 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16;
+  const padX = size === 'xs' ? 'px-2' : 'px-3';
+  const padY = size === 'xs' ? 'py-0.5' : 'py-1.5';
   const textSize = size === 'xs' ? 'text-[10px]' : 'text-sm';
 
   return (
@@ -59,12 +54,7 @@ export function TentHouseBadge({ houseId, size = 'md' }: { houseId: string; size
       className={cn('inline-flex items-center gap-1.5 rounded-full font-bold', padX, padY, textSize)}
       style={{ background: `${color}1A`, border: `1px solid ${color}30`, color }}
     >
-      <img
-        src={src}
-        alt=""
-        className="object-contain"
-        style={{ width: iconSize, height: iconSize, transform: 'scale(1.28)' }}
-      />
+      <img src={src} alt="" className="object-contain" style={{ width: iconSize, height: iconSize }} />
       {size !== 'xs' && <span>{HOUSE_NAMES[houseId] || houseId}</span>}
     </div>
   );

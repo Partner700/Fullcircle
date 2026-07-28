@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
 const SECRET_SCRIPTURES = [
@@ -16,14 +15,12 @@ export function PasswordUpdateFlow({
   email,
   onDone,
 }: {
-  email?: string;
+  email: string;
   onDone: () => void;
 }) {
-  const { session } = useAuth();
   const [step, setStep] = useState<Step>('verify');
   const [scriptureIdx, setScriptureIdx] = useState(0);
   const [oldPassword, setOldPassword] = useState('');
-  const [verifiedOldPassword, setVerifiedOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,37 +35,18 @@ export function PasswordUpdateFlow({
     return () => window.clearInterval(id);
   }, []);
 
-  const accountEmail = (session?.user.email || email || '').trim().toLowerCase();
-
   const verifyOldPassword = async () => {
     setError(null);
     setSuccess(null);
-    if (!accountEmail) {
-      setError('Your signed-in account email could not be read. Please sign out and sign in again.');
-      return;
-    }
-    if (!oldPassword) {
-      setError('Enter your current password.');
-      return;
-    }
-
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!oldPassword || !normalizedEmail) return;
     setBusy(true);
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: accountEmail,
-      password: oldPassword,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: oldPassword });
     setBusy(false);
-
-    if (signInError || !data.session) {
-      setError(
-        /invalid login credentials/i.test(signInError?.message || '')
-          ? 'That current password is not correct.'
-          : signInError?.message || 'Your current password could not be verified.',
-      );
+    if (error) {
+      setError('That old password was not correct.');
       return;
     }
-
-    setVerifiedOldPassword(oldPassword);
     setOldPassword('');
     setStep('new');
   };
@@ -84,41 +62,17 @@ export function PasswordUpdateFlow({
       setError('Passwords do not match.');
       return;
     }
-    if (!verifiedOldPassword) {
-      setStep('verify');
-      setError('Please verify your current password again.');
-      return;
-    }
-
+    const normalizedEmail = email.trim().toLowerCase();
     setBusy(true);
-    let updateError: string | null = null;
-    const { error: directError } = await supabase.auth.updateUser({ password: newPassword });
-
-    if (directError) {
-      const { error: functionError } = await supabase.functions.invoke('update-user-password', {
-        body: { oldPassword: verifiedOldPassword, newPassword },
-      });
-      if (functionError) updateError = await readFunctionError(functionError);
-    }
-
-    if (updateError) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
       setBusy(false);
-      setError(updateError);
+      setError(error.message);
       return;
     }
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: accountEmail,
-      password: newPassword,
-    });
-    if (signInError) {
-      setBusy(false);
-      setError(`The password changed, but the session could not be refreshed: ${signInError.message}`);
-      return;
-    }
-
+    await supabase.auth.signInWithPassword({ email: normalizedEmail, password: newPassword });
+    await supabase.auth.refreshSession();
     setBusy(false);
-    setVerifiedOldPassword('');
     setNewPassword('');
     setConfirmPassword('');
     setSuccess('Password updated. Taking you back to settings...');
@@ -150,44 +104,37 @@ export function PasswordUpdateFlow({
         </div>
       </div>
 
-      <form
-        className="card p-5 space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void (step === 'verify' ? verifyOldPassword() : updatePassword());
-        }}
-      >
+      <div className="card p-5 space-y-3">
         {step === 'verify' ? (
           <>
-            <PasswordInput label="Current Password" value={oldPassword} visible={showOld} autoComplete="current-password" onToggle={() => setShowOld((v) => !v)} onChange={setOldPassword} />
-            <button type="submit" disabled={busy || !oldPassword} className="btn-primary w-full justify-center">
+            <PasswordInput label="Old Password" value={oldPassword} visible={showOld} onToggle={() => setShowOld((v) => !v)} onChange={setOldPassword} />
+            <button onClick={verifyOldPassword} disabled={busy || !oldPassword} className="btn-primary w-full justify-center">
               {busy ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} Continue
             </button>
           </>
         ) : (
           <>
-            <PasswordInput label="New Password" value={newPassword} visible={showNew} autoComplete="new-password" onToggle={() => setShowNew((v) => !v)} onChange={setNewPassword} />
-            <PasswordInput label="Confirm New Password" value={confirmPassword} visible={showConfirm} autoComplete="new-password" onToggle={() => setShowConfirm((v) => !v)} onChange={setConfirmPassword} />
-            <button type="submit" disabled={busy || !newPassword || !confirmPassword} className="btn-primary w-full justify-center">
+            <PasswordInput label="New Password" value={newPassword} visible={showNew} onToggle={() => setShowNew((v) => !v)} onChange={setNewPassword} />
+            <PasswordInput label="Confirm New Password" value={confirmPassword} visible={showConfirm} onToggle={() => setShowConfirm((v) => !v)} onChange={setConfirmPassword} />
+            <button onClick={updatePassword} disabled={busy || !newPassword || !confirmPassword} className="btn-primary w-full justify-center">
               {busy ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />} Save New Password
             </button>
           </>
         )}
         {error && <p className="text-xs text-coral">{error}</p>}
         {success && <p className="text-xs text-sage">{success}</p>}
-        <button type="button" onClick={onDone} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>
-      </form>
+        <button onClick={onDone} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>
+      </div>
     </div>
   );
 }
 
 function PasswordInput({
-  label, value, visible, autoComplete, onToggle, onChange,
+  label, value, visible, onToggle, onChange,
 }: {
   label: string;
   value: string;
   visible: boolean;
-  autoComplete: 'current-password' | 'new-password';
   onToggle: () => void;
   onChange: (value: string) => void;
 }) {
@@ -199,8 +146,7 @@ function PasswordInput({
           className="input-field pr-10"
           type={visible ? 'text' : 'password'}
           value={value}
-          autoComplete={autoComplete}
-          minLength={6}
+          autoComplete="current-password"
           onChange={(e) => onChange(e.target.value)}
         />
         <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink">
@@ -209,17 +155,4 @@ function PasswordInput({
       </div>
     </div>
   );
-}
-
-async function readFunctionError(error: any) {
-  const response = error?.context;
-  if (response instanceof Response) {
-    try {
-      const body = await response.clone().json();
-      if (typeof body?.error === 'string') return body.error;
-    } catch {
-      // Fall back to the Supabase client message below.
-    }
-  }
-  return error?.message || 'The password could not be updated.';
 }

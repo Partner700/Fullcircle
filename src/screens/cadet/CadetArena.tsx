@@ -12,14 +12,14 @@ import {
   finishArenaGame,
   fetchArenaRooms,
   fetchArenaRoom,
-  fetchNarrative,
   fetchNarratives,
   fetchActiveCadets,
   generateArenaQuestionsWithAI,
 } from '../../lib/queries';
+import { generateLevelQuestionsWithCustom } from '../../lib/gameEngines';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
-import type { DailyNarrative, QuestionPayload, Profile, RoleAssignment } from '../../lib/types';
+import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment } from '../../lib/types';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search,
 } from 'lucide-react';
@@ -52,7 +52,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [starting, setStarting] = useState(false);
   const [closing, setClosing] = useState(false);
   const [inviting, setInviting] = useState(false);
-  const [preparingQuestions, setPreparingQuestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allCadets, setAllCadets] = useState<InviteCadet[]>([]);
   const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set());
@@ -118,33 +117,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
   useEffect(() => { load(); }, [load]);
 
-  const prepareQuestionsForRoom = useCallback(async (
-    targetRoomId: string,
-    targetRoomName: string,
-    narrativeDate?: string | null,
-    forceRegenerate = false,
-  ) => {
-    const topic = parseArenaTopic(targetRoomName);
-    setPreparingQuestions(true);
-    try {
-      const cachedNarrative = narrativeDate
-        ? narratives.find((item) => item.narrative_date === narrativeDate)
-        : narratives[0];
-      const narrative = cachedNarrative || (narrativeDate ? await fetchNarrative(narrativeDate) : null);
-      await generateArenaQuestionsWithAI({
-        roomId: targetRoomId,
-        roomName: targetRoomName,
-        topicType: topic?.type || 'narrative',
-        topic: topic?.value || null,
-        narrative: narrative || null,
-        forceRegenerate,
-      });
-      await load();
-    } finally {
-      setPreparingQuestions(false);
-    }
-  }, [load, narratives]);
-
   // Realtime subscription for room updates
   useEffect(() => {
     if (!activeRoomId) return;
@@ -189,28 +161,18 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
   const createRoom = async () => {
     if (!profile) return;
-    if ((arenaTopicType === 'book' || arenaTopicType === 'character') && !arenaTopic.trim()) {
-      setError(`Enter the Bible ${arenaTopicType} this battle should use.`);
-      return;
-    }
     setCreating(true);
     setError(null);
     try {
       const topicSuffix = arenaTopicType === 'narrative' || !arenaTopic.trim()
         ? ''
         : ` [${arenaTopicType}: ${arenaTopic.trim()}]`;
-      const fullRoomName = `${roomName}${topicSuffix}`;
-      const roomId = await createArenaRoom(profile.id, fullRoomName, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
+      const roomId = await createArenaRoom(profile.id, `${roomName}${topicSuffix}`, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
       activateRoom(roomId, 'waiting');
       setShowCreate(false);
       setTaggedIds(new Set());
       setCadetSearch('');
       await load();
-      try {
-        await prepareQuestionsForRoom(roomId, fullRoomName, selectedNarrativeDate);
-      } catch (generationError: any) {
-        setError(`Room created, but its questions are not ready: ${generationError.message || 'generation failed'}`);
-      }
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to create room'); }
     setCreating(false);
@@ -231,11 +193,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     setStarting(true);
     setError(null);
     try {
-      const room = rooms.find((item) => item.id === activeRoomId);
-      if (!room) throw new Error('Arena room could not be loaded.');
-      if (!hasCurrentArenaQuestionSet(room.question_set)) {
-        await prepareQuestionsForRoom(activeRoomId, room.room_name, room.narrative_date, true);
-      }
       await startArenaRoom(activeRoomId, profile.id);
       setPhase('playing');
       await load();
@@ -341,7 +298,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     const participants = room?.arena_participants || [];
     const isCreator = room?.creator_id === profile?.id;
     const canStart = participants.length >= 2;
-    const questionsReady = hasCurrentArenaQuestionSet(room?.question_set);
     const pot = (room?.stake_amount || 0) * participants.length;
     const expiresAt = room?.expires_at ? new Date(room.expires_at).getTime() : null;
     const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
@@ -349,16 +305,16 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
     return (
       <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center justify-between">
           <button onClick={() => clearActiveRoom(true)} className="btn-ghost text-sm">← Back</button>
           <span className="badge badge-gold"><Clock size={12} /> Waiting Room</span>
         </div>
 
         {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
 
-        <div className="card p-4 sm:p-5">
+        <div className="card p-5">
           <h3 className="font-display text-lg font-semibold text-ink mb-1">{room?.room_name || 'Arena Room'}</h3>
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-stone">
+          <div className="flex items-center gap-3 text-sm text-stone mb-4">
             <span className="flex items-center gap-1"><Coins size={14} className="text-gold" /> {formatDenarii(room?.stake_amount || 0)} Ð stake</span>
             <span className="flex items-center gap-1"><Users size={14} /> {participants.length}/{room?.max_players || 4}</span>
             <span className="flex items-center gap-1"><Trophy size={14} className="text-gold" /> {formatDenarii(pot)} Ð pot</span>
@@ -369,16 +325,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           <p className="text-xs text-stone mb-4">
             The stake stays locked in this room. Signing out does not close it; only the host can close it, or it expires after six hours if no one else joins.
           </p>
-
-          <div className={cn(
-            'mb-4 flex items-center gap-2 rounded-lg border p-3 text-xs font-medium',
-            questionsReady ? 'border-sage/30 bg-sage-soft text-sage' : 'border-gold/30 bg-gold-soft text-gold',
-          )}>
-            {questionsReady
-              ? <CheckCircle2 size={16} className="flex-shrink-0" />
-              : <Loader2 size={16} className={cn('flex-shrink-0', preparingQuestions && 'animate-spin')} />}
-            <span>{questionsReady ? '19 unique Bible questions are ready.' : preparingQuestions ? 'Preparing a source-grounded battle...' : 'Questions need to be prepared before play.'}</span>
-          </div>
 
           <div className="space-y-2 mb-4">
             {participants.map((p: any) => (
@@ -445,36 +391,18 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           )}
 
           {isCreator ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button onClick={startGame} disabled={!canStart || starting || preparingQuestions} className="btn-primary w-full disabled:opacity-50">
-                {(starting || preparingQuestions) ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                {preparingQuestions ? 'Preparing Questions...' : canStart ? questionsReady ? 'Start Game' : 'Prepare & Start' : 'Waiting for players...'}
+            <div className="grid sm:grid-cols-2 gap-2">
+              <button onClick={startGame} disabled={!canStart || starting} className="btn-primary w-full disabled:opacity-50">
+                {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                {canStart ? 'Start Game' : 'Waiting for players...'}
               </button>
               <button onClick={closeRoom} disabled={closing} className="btn-secondary w-full text-coral disabled:opacity-50">
                 {closing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
                 Close Room
               </button>
-              {!questionsReady && !preparingQuestions && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      await prepareQuestionsForRoom(activeRoomId, room.room_name, room.narrative_date, true);
-                    } catch (generationError: any) {
-                      setError(generationError.message || 'Question preparation failed.');
-                    }
-                  }}
-                  className="btn-secondary w-full sm:col-span-2"
-                >
-                  <Zap size={16} /> Prepare Questions Now
-                </button>
-              )}
             </div>
           ) : (
-            <p className="text-center text-xs text-stone">
-              {questionsReady ? 'Waiting for the host to start the game...' : 'The host is preparing the battle questions...'}
-            </p>
+            <p className="text-xs text-stone text-center">Waiting for the host to start the game...</p>
           )}
         </div>
       </div>
@@ -486,12 +414,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       <SectionHeader title="The Arena" subtitle="Challenge other cadets to real-time quiz battles. Stake denarii, winner takes all." />
 
-      <div className="card flex flex-col items-stretch justify-between gap-3 p-4 min-[460px]:flex-row min-[460px]:items-center">
+      <div className="card p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Coins size={20} className="text-gold" />
           <span className="font-display font-bold text-gold text-lg">{formatDenarii(denarii)} Ð</span>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary w-full text-sm min-[460px]:w-auto">
+        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm">
           <Plus size={14} /> Create Room
         </button>
       </div>
@@ -499,13 +427,13 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
 
       {showCreate && (
-        <div className="card space-y-3 p-4 animate-slide-up sm:p-5">
+        <div className="card p-5 space-y-3 animate-slide-up">
           <h4 className="font-display font-semibold text-ink">Create Arena Room</h4>
           <div>
             <label className="text-xs text-stone block mb-1">Room Name</label>
             <input className="input-field" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-stone block mb-1">Stake (denarii)</label>
               <input type="number" className="input-field" value={stake} min={10} onChange={(e) => setStake(parseInt(e.target.value) || 0)} />
@@ -524,7 +452,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-stone block mb-1">Arena Question Focus</label>
               <select className="input-field" value={arenaTopicType} onChange={(e) => setArenaTopicType(e.target.value as any)}>
@@ -588,9 +516,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               {allCadets.length === 0 && <p className="text-xs text-stone text-center py-2">No other cadets available.</p>}
             </div>
           </div>
-          <button onClick={createRoom} disabled={creating || preparingQuestions || stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii} className="btn-primary w-full text-sm">
-            {(creating || preparingQuestions) ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />}
-            {preparingQuestions ? 'Building 19 Bible Questions...' : `Create & Stake ${formatDenarii(stake)} Ð`}
+          <button onClick={createRoom} disabled={creating || stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii} className="btn-primary text-sm">
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} Create & Stake {formatDenarii(stake)} Ð
           </button>
           {stake + ARENA_GAME_CALL_FEE > denarii && <p className="text-xs text-coral">Insufficient denarii. You need {formatDenarii(stake + ARENA_GAME_CALL_FEE)} Ð (stake + {ARENA_GAME_CALL_FEE} game call fee).</p>}
           {stake + ARENA_GAME_CALL_FEE <= denarii && <p className="text-xs text-stone">A {ARENA_GAME_CALL_FEE} Ð game call fee is charged in addition to the stake.</p>}
@@ -611,7 +538,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             const minutesUntilExpiry = expiresAt && participants.length <= 1 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
             const pot = room.stake_amount * participants.length;
             return (
-              <div key={room.id} className="card flex flex-col items-stretch gap-3 p-4 min-[520px]:flex-row min-[520px]:items-center">
+              <div key={room.id} className="card p-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
                   <Swords size={20} className="text-gold" />
                 </div>
@@ -621,7 +548,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                     {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
                     {invited && !isParticipant && <span className="badge badge-gold text-[9px]">Invited</span>}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone">
+                  <div className="flex items-center gap-3 text-xs text-stone">
                     <span className="flex items-center gap-0.5"><Coins size={11} /> {formatDenarii(room.stake_amount)} Ð</span>
                     <span className="flex items-center gap-0.5"><Trophy size={11} /> {formatDenarii(pot)} Ð pot</span>
                     <span className="flex items-center gap-0.5"><Users size={11} /> {participants.length}/{room.max_players}</span>
@@ -630,12 +557,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                   </div>
                 </div>
                 {isParticipant ? (
-                  <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary w-full text-xs min-[520px]:w-auto">
+                  <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary text-xs">
                     Enter Room
                   </button>
                 ) : (
                   <button onClick={() => joinRoom(room.id)} disabled={denarii < room.stake_amount || participants.length >= room.max_players}
-                    className="btn-primary w-full text-xs disabled:opacity-40 min-[520px]:w-auto">
+                    className="btn-primary text-xs disabled:opacity-40">
                     {invited ? 'Join Invite' : `Join (${formatDenarii(room.stake_amount)} Ð)`}
                   </button>
                 )}
@@ -672,24 +599,35 @@ function parseArenaTopic(roomName: string) {
   return match ? { type: match[1].toLowerCase(), value: match[2].trim() } : null;
 }
 
+function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
+  const topic = parseArenaTopic(roomName);
+  if (!topic) return [];
+  const label = topic.value;
+  const scope = topic.type === 'book' ? `the book of ${label}` : `${label}'s life and story`;
+  return [
+    {
+      type: 'standard_text',
+      question: `Name one hard-to-fake detail from ${scope}.`,
+      correct_answer: label,
+      explanation: `Arena topic: ${scope}. Instructor review can refine these later.`,
+    },
+    {
+      type: 'multiple_choice',
+      question: `This arena focuses on which ${topic.type === 'book' ? 'book' : 'character'}?`,
+      options: [label, 'Moses', 'Romans', 'Esther'].filter((value, index, arr) => arr.indexOf(value) === index),
+      correct_answer: label,
+    },
+    {
+      type: 'standard_text',
+      question: `Write the exact ${topic.type} selected for this battle.`,
+      correct_answer: label,
+    },
+  ];
+}
+
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
 const ARENA_ROUND_SECONDS = [90, 72, 54, 10];
 const ARENA_TOTAL_FIGS = 20;
-const ARENA_GENERATOR_VERSION = 3;
-
-function hasCurrentArenaQuestionSet(value: unknown): value is QuestionPayload[] {
-  return Array.isArray(value)
-    && value.length === 19
-    && value.every((question) => (
-      question
-      && typeof question.question === 'string'
-      && question.question.trim().length > 0
-      && question.correct_answer !== undefined
-      && question.generator_version === ARENA_GENERATOR_VERSION
-      && typeof question.focus_key === 'string'
-      && question.focus_key.trim().length > 0
-    ));
-}
 
 function getArenaRoundForIndex(questionIndex: number) {
   let start = 0;
@@ -703,23 +641,56 @@ function getArenaRoundForIndex(questionIndex: number) {
 
 function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
   const seen = new Set<string>();
-  const focusKeys = new Set<string>();
   const cleaned = sourceQuestions.filter((q) => {
     if (!q.question || !q.correct_answer) return false;
-    const key = normalizeArenaAnswer(q.question);
-    const focusKey = normalizeArenaAnswer(q.focus_key || '');
-    if (seen.has(key) || !focusKey || focusKeys.has(focusKey)) return false;
+    const key = q.question.trim().toLowerCase();
+    if (seen.has(key)) return false;
     seen.add(key);
-    focusKeys.add(focusKey);
     return true;
   });
-  if (cleaned.length < 19) return [];
-  return cleaned.slice(0, 19).map((q, i) => ({
+  const fallback = buildFallbackArenaQuestions();
+  const pool = [...cleaned, ...fallback.filter((fallbackQuestion) => !seen.has(fallbackQuestion.question.trim().toLowerCase()))];
+  const questions: QuestionPayload[] = [];
+  for (let i = 0; i < 19; i += 1) {
+    const q = pool[i] || fallback[i % fallback.length];
+    questions.push({
       ...q,
       game_round: getArenaRoundForIndex(i) + 1,
       round_timer_seconds: ARENA_ROUND_SECONDS[getArenaRoundForIndex(i)],
       is_bonus: i === 18,
-    }));
+    });
+  }
+  return questions;
+}
+
+function buildFallbackArenaQuestions(): QuestionPayload[] {
+  const stems = [
+    ['multiple_choice', 'Which response best shows careful Bible reading?', 'The answer must fit the actual passage', ['The answer must fit the actual passage', 'The longest answer is always correct', 'Names never matter', 'Context is optional']],
+    ['true_false', 'A hard Bible question can depend on context, speaker, and sequence.', 'True', ['True', 'False']],
+    ['standard_text', 'Type the word used for all quiz and arena score points.', 'figs'],
+    ['multiple_choice', 'Which detail should settle a difficult question first?', 'The written scripture text', ['The written scripture text', 'A guess from memory', 'The fastest answer', 'A popular saying']],
+    ['true_false', 'Arena bonus questions are worth two figs.', 'True', ['True', 'False']],
+    ['standard_text', 'Type the number of regular arena rounds.', '3'],
+    ['multiple_choice', 'How many questions are in each regular arena round?', '6', ['6', '5', '7', '10']],
+    ['standard_text', 'Type the total arena score possible in figs.', '20'],
+    ['true_false', 'A repeated question should be accepted in an arena battle.', 'False', ['True', 'False']],
+    ['multiple_choice', 'What should happen after a round is complete?', 'Move to the next round when ready', ['Move to the next round when ready', 'Restart the same round', 'Reveal every correct answer', 'Close the room']],
+    ['standard_text', 'Type the name of the Saturday rest day instruction: no daily meditation on Sunday, only verse reaction.', 'Sunday'],
+    ['true_false', 'Timers in this app should be per round, not per question.', 'True', ['True', 'False']],
+    ['multiple_choice', 'What makes a Bible arena question fair?', 'It has one clear answer', ['It has one clear answer', 'It has no answer', 'It repeats earlier wording', 'It reveals the answer']],
+    ['standard_text', 'Type the word used for the winner-takes-all arena reward pool.', 'pot'],
+    ['multiple_choice', 'Which source is preferred for narrative-based arena play?', 'The game content packet', ['The game content packet', 'A random chat message', 'The market panel', 'The password page']],
+    ['true_false', 'The host signing out should not automatically close a staked arena room.', 'True', ['True', 'False']],
+    ['standard_text', 'Type the app name.', 'Full Circle'],
+    ['multiple_choice', 'What should the winner receive after the battle?', 'The full staked pot', ['The full staked pot', 'Only their own stake', 'Nothing', 'A password reset']],
+    ['standard_text', 'Bonus: type the score value of this final bonus question.', '2'],
+  ] as const;
+  return stems.map(([type, question, correct_answer, options]) => ({
+    type: type as QuestionPayload['type'],
+    question,
+    correct_answer,
+    options: options ? [...options] : undefined,
+  }));
 }
 
 function normalizeArenaAnswer(value: string | number | null | undefined) {
@@ -731,10 +702,7 @@ function normalizeArenaAnswer(value: string | number | null | undefined) {
 }
 
 function isArenaAnswerCorrect(answer: string | null, question: QuestionPayload) {
-  const acceptedAnswers = question.accepted_answers?.length
-    ? question.accepted_answers
-    : [String(question.correct_answer)];
-  return acceptedAnswers.some((acceptedAnswer) => normalizeArenaAnswer(answer) === normalizeArenaAnswer(acceptedAnswer));
+  return normalizeArenaAnswer(answer) === normalizeArenaAnswer(question.correct_answer);
 }
 
 function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId, roomQuestionSet, onComplete, onExit }: {
@@ -755,10 +723,8 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
   const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(ARENA_ROUND_SECONDS[0]);
   const [ready, setReady] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [generationAttempt, setGenerationAttempt] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const roundStartedAtRef = useRef(Date.now());
+  const localStartRef = useRef(Date.now());
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
@@ -776,15 +742,10 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setReady(false);
-      setGenerationError(null);
-      if (hasCurrentArenaQuestionSet(roomQuestionSet)) {
-        const prepared = buildArenaQuestionSet(roomQuestionSet);
-        if (prepared.length === 19) {
-          setQuestions(prepared);
-          setReady(true);
-          return;
-        }
+      if (Array.isArray(roomQuestionSet) && roomQuestionSet.length >= 19) {
+        setQuestions(buildArenaQuestionSet(roomQuestionSet));
+        setReady(true);
+        return;
       }
       const topic = parseArenaTopic(roomName);
       const narrative = narrativeDate
@@ -797,24 +758,32 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
           topicType: topic?.type || 'narrative',
           topic: topic?.value || null,
           narrative: narrative || null,
-          forceRegenerate: generationAttempt > 0 || !hasCurrentArenaQuestionSet(roomQuestionSet),
         });
-        const prepared = buildArenaQuestionSet(aiQuestions);
-        if (prepared.length !== 19) throw new Error('The generated battle did not contain 19 distinct questions.');
         if (!cancelled) {
-          setQuestions(prepared);
+          setQuestions(buildArenaQuestionSet(aiQuestions));
           setReady(true);
         }
-      } catch (e: any) {
-        if (!cancelled) {
-          setQuestions([]);
-          setGenerationError(e.message || 'The arena could not prepare its Bible questions.');
-          setReady(true);
-        }
+        return;
+      } catch (e) {
+        console.warn('AI arena generation unavailable, using local packet fallback.', e);
       }
+      const topicQuestions = generateArenaTopicQuestions(roomName);
+      if (topicQuestions.length > 0) {
+        if (!cancelled) setQuestions(buildArenaQuestionSet(topicQuestions));
+        if (!cancelled) setReady(true);
+        return;
+      }
+      if (narrative) {
+        const seed = narrative.game_seed_data as GameSeedData;
+        const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
+        if (!cancelled) setQuestions(buildArenaQuestionSet(qs));
+      } else if (!cancelled) {
+        setQuestions([]);
+      }
+      if (!cancelled) setReady(true);
     })();
     return () => { cancelled = true; };
-  }, [generationAttempt, narrativeDate, narratives, roomId, roomName, roomQuestionSet]);
+  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet]);
 
   const handleAnswer = useCallback((answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ]) return;
@@ -841,8 +810,31 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
     }
   }, [answeredIds, questions, currentQ, completeGame]);
 
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (!ready) return;
+    timerRef.current = setInterval(() => {
+      const startMs = startedAt ? new Date(startedAt).getTime() : localStartRef.current;
+      const elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      const cumulative = ARENA_ROUND_SECONDS.reduce<number[]>((acc, seconds) => {
+        acc.push((acc[acc.length - 1] || 0) + seconds);
+        return acc;
+      }, []);
+      const nextRound = cumulative.findIndex((end) => elapsed < end);
+      if (nextRound === -1) {
+        setTimeLeft(0);
+        completeGame();
+        return;
+      }
+      const roundStartQuestion = ARENA_ROUND_LENGTHS.slice(0, nextRound).reduce((sum, length) => sum + length, 0);
+      setCurrentQ((current) => Math.max(current, roundStartQuestion));
+      setTimeLeft(Math.max(0, cumulative[nextRound] - elapsed));
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [ready, startedAt, completeGame]);
+
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
-  const moveToNextRound = useCallback(() => {
+  const moveToNextRound = () => {
     const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
       .slice(0, activeRoundIndex + 1)
       .reduce((sum, length) => sum + length, 0);
@@ -852,63 +844,27 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
     } else {
       completeGame();
     }
-  }, [activeRoundIndex, completeGame, questions.length]);
+  };
 
   useEffect(() => {
-    if (!ready || questions.length === 0) return;
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (!ready || questions.length === 0 || timeLeft > 0) return;
+    const currentRound = getArenaRoundForIndex(currentQ);
+    const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS.slice(0, currentRound + 1).reduce((sum, length) => sum + length, 0);
+    if (nextRoundQuestionIndex < questions.length) {
+      setCurrentQ(nextRoundQuestionIndex);
+      setTypedAnswer('');
+    } else {
+      completeGame();
+    }
+  }, [timeLeft, ready, questions.length, currentQ, completeGame]);
 
-    const configuredSeconds = ARENA_ROUND_SECONDS[activeRoundIndex];
-    const roomStartMs = startedAt ? new Date(startedAt).getTime() : Number.NaN;
-    roundStartedAtRef.current = activeRoundIndex === 0 && Number.isFinite(roomStartMs)
-      ? roomStartMs
-      : Date.now();
-
-    const tick = () => {
-      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - roundStartedAtRef.current) / 1000));
-      const remaining = Math.max(0, configuredSeconds - elapsedSeconds);
-      setTimeLeft(remaining);
-      if (remaining === 0) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        timerRef.current = null;
-        moveToNextRound();
-      }
-    };
-
-    tick();
-    timerRef.current = setInterval(tick, 250);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-    };
-  }, [activeRoundIndex, moveToNextRound, questions.length, ready, startedAt]);
-
-  if (!ready) return (
-    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <Loader2 size={28} className="animate-spin text-gold" />
-      <div>
-        <p className="font-display font-semibold text-ink">Preparing your Bible battle</p>
-        <p className="mt-1 text-xs text-stone">Checking the source, uniqueness, and answer choices...</p>
-      </div>
-    </div>
-  );
+  if (!ready) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
   if (questions.length === 0) {
     return (
-      <div className="mx-auto max-w-lg py-8 text-center">
-        <div className="card space-y-4 p-5 sm:p-6">
-          <XCircle size={30} className="mx-auto text-coral" />
-          <div>
-            <h3 className="font-display text-lg font-semibold text-ink">Questions need another attempt</h3>
-            <p className="mt-1 text-sm leading-relaxed text-stone">
-              {generationError || 'The arena could not produce a complete, non-repeating Bible set.'}
-            </p>
-          </div>
-          <button type="button" onClick={() => setGenerationAttempt((attempt) => attempt + 1)} className="btn-primary w-full">
-            <Zap size={16} /> Regenerate the Battle
-          </button>
-          <button type="button" onClick={onExit} className="btn-ghost w-full">Back to Arena</button>
-        </div>
+      <div className="text-center py-8 space-y-4">
+        <p className="text-stone">No narrative content available for this arena game.</p>
+        <button onClick={onExit} className="btn-primary">Back to Arena</button>
       </div>
     );
   }
@@ -923,11 +879,11 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button onClick={onExit} className="btn-ghost px-3 text-sm">← Exit</button>
+      <div className="flex items-center justify-between">
+        <button onClick={onExit} className="btn-ghost text-sm">← Exit</button>
         <span className="badge badge-gold"><Zap size={12} /> Arena Battle</span>
         <div className={cn(
-          'flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1.5 font-display text-sm font-semibold',
+          'px-3 py-1.5 rounded-lg font-display font-semibold text-sm flex items-center gap-1.5',
           timeLeft <= 10 ? 'bg-coral-soft text-coral' : 'bg-gold-soft text-gold',
         )}>
           <Clock size={14} /> {timeLeft}s
@@ -948,20 +904,20 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
         <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]}</span>
       </div>
 
-      <div className="card p-4 sm:p-5">
+      <div className="card p-5">
         <p className="eyebrow mb-2">{q.is_bonus ? 'Bonus Question · 2 figs' : `Round ${currentRound + 1} · Question ${roundQuestionNumber}`}</p>
-        <h3 className="preserve-paragraphs mb-4 text-base font-semibold leading-relaxed text-ink sm:text-lg">{q.question}</h3>
+        <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
 
         {/* True/False */}
         {q.type === 'true_false' && (
           <div className="grid grid-cols-2 gap-3">
             <button onClick={() => handleAnswer('True')} disabled={isCurrentAnswered}
-              className={cn('min-h-16 py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
+              className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-sage hover:bg-sage-soft text-sage')}>
               <CheckCircle2 size={24} className="mx-auto mb-1" /> True
             </button>
             <button onClick={() => handleAnswer('False')} disabled={isCurrentAnswered}
-              className={cn('min-h-16 py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
+              className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-coral hover:bg-coral-soft text-coral')}>
               <XCircle size={24} className="mx-auto mb-1" /> False
             </button>
@@ -974,7 +930,7 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
             {q.options.map((opt, i) => {
               return (
                 <button key={i} onClick={() => handleAnswer(opt)} disabled={isCurrentAnswered}
-                  className={cn('min-h-12 w-full rounded-lg border p-3.5 text-left text-sm font-medium leading-relaxed transition-all sm:text-base',
+                  className={cn('w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
                     'border-border hover:border-gold text-ink')}>
                   {opt}
                 </button>
@@ -983,7 +939,7 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
           </div>
         )}
 
-        {/* Written-answer questions */}
+        {/* Other types — simplified for arena (just show as multiple choice) */}
         {(q.type === 'cloze' || q.type === 'scriptorium' || q.type === 'order_sequence' || q.type === 'matching' || q.type === 'standard_text') && (
           <div className="space-y-2">
             <input className="input-field" placeholder="Type your answer..." autoFocus

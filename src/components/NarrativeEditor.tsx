@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { generateGamePacketWithAI, upsertNarrative } from '../lib/queries';
+import { upsertNarrative } from '../lib/queries';
 import { getTodayISODate, getDayType, cn } from '../lib/utils';
 import { CHALLENGE_PROOF_FORMATS } from '../lib/constants';
 import type { DailyNarrative, GameSeedData, ChallengeProofFormat } from '../lib/types';
@@ -49,8 +49,61 @@ interface PacketSource {
   verseOfDay: string;
 }
 
+const STOP_WORDS = new Set([
+  'about', 'after', 'again', 'against', 'also', 'among', 'because', 'before', 'being', 'between',
+  'could', 'every', 'from', 'have', 'into', 'made', 'many', 'more', 'said', 'same', 'shall',
+  'that', 'their', 'them', 'then', 'there', 'these', 'they', 'this', 'those', 'through', 'unto',
+  'were', 'what', 'when', 'where', 'which', 'while', 'with', 'would', 'your',
+]);
+
+function splitSentences(text: string): string[] {
+  return text
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 20)
+    .slice(0, 12);
+}
+
 function unique(items: string[]) {
   return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+}
+
+function extractKeyTerms(text: string): string[] {
+  const words = text
+    .replace(/[^A-Za-z\s'-]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.replace(/^'+|'+$/g, '').toLowerCase())
+    .filter((word) => word.length > 4 && !STOP_WORDS.has(word));
+  const counts = new Map<string, number>();
+  words.forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word)
+    .slice(0, 14);
+}
+
+function extractNames(text: string): string[] {
+  const matches = text.match(/\b[A-Z][a-z]{2,}\b/g) || [];
+  return unique(matches.filter((name) => !['The', 'Then', 'When', 'After', 'Before', 'They', 'There'].includes(name))).slice(0, 10);
+}
+
+function pickSentenceForTerm(sentences: string[], term: string) {
+  return sentences.find((sentence) => sentence.toLowerCase().includes(term.toLowerCase())) || sentences[0] || term;
+}
+
+function buildAutoInsight(source: PacketSource) {
+  const sentences = splitSentences(source.mainText);
+  const terms = extractKeyTerms(`${source.theme} ${source.mainText}`).slice(0, 3);
+  const focus = terms.length > 0 ? terms.join(', ') : source.theme || 'today\'s passage';
+  const keyVerse = source.verseOfDay.trim() || sentences[0] || '';
+  const meditation = keyVerse
+    ? `The key verse draws attention to ${focus}. Read it slowly, then let one phrase shape a concrete act of obedience, courage, or mercy today.`
+    : `Today's reading draws attention to ${focus}. Let the passage move from reading into one concrete act of obedience, courage, or mercy today.`;
+  const quote = keyVerse
+    ? 'Carry the key verse into one faithful action today.'
+    : 'Let today\'s reading become one faithful action.';
+  return { meditation, quote };
 }
 
 function syncKeyVerse(seed: GameSeedData, source: PacketSource): GameSeedData {
@@ -66,6 +119,73 @@ function syncKeyVerse(seed: GameSeedData, source: PacketSource): GameSeedData {
     milestone_verse: seed.milestone_verse || keyVerse,
     passage: source.mainText.trim() || seed.passage,
   };
+}
+
+function generatePacketFromSource(source: PacketSource, existing: GameSeedData = {}): GameSeedData {
+  const sentences = splitSentences(source.mainText);
+  const keyTerms = extractKeyTerms(`${source.title} ${source.theme} ${source.mainText}`);
+  const names = extractNames(source.mainText);
+  const actions = unique((source.mainText.match(/\b[A-Za-z]{4,}(?:ed|ing)\b/g) || []).map((word) => word.toLowerCase())).slice(0, 10);
+  const ordered = sentences.slice(0, 8);
+  const distractors = unique([
+    'Jericho', 'Babylon', 'Caesar', 'Pharaoh', 'Goliath', 'Nineveh', 'Egypt', 'Rome',
+    'the palace', 'the marketplace', 'a crown', 'a sword', ...(existing.distractor_pool || []),
+  ]).filter((item) => !source.mainText.toLowerCase().includes(item.toLowerCase())).slice(0, 14);
+  const termFacts = keyTerms.slice(0, 10).map((term) => ({
+    term,
+    fact: pickSentenceForTerm(sentences, term),
+  }));
+  const comprehension = sentences.slice(0, 8).map((sentence, index) => {
+    const otherSentences = sentences.filter((item) => item !== sentence);
+    const fallbackOptions = [...otherSentences.slice(0, 3), ...distractors.slice(0, 3)];
+    return {
+      question: index % 2 === 0
+        ? 'Which detail is supported by today\'s passage?'
+        : `What does the passage show about ${keyTerms[index % Math.max(keyTerms.length, 1)] || 'the reading'}?`,
+      answer: sentence,
+      options: unique([sentence, ...fallbackOptions]).slice(0, 4),
+      explanation: `This comes from ${source.scriptureReference || 'the main scripture text'}.`,
+      reference: source.scriptureReference,
+    };
+  });
+  const trueFalse = [
+    ...keyTerms.slice(0, 7).map((term) => ({ statement: `The passage mentions ${term}.`, is_true: true })),
+    ...distractors.slice(0, 7).map((term) => ({ statement: `The passage mainly focuses on ${term}.`, is_true: false })),
+  ];
+  const categories = {
+    buckets: ['People or places', 'Actions', 'Ideas or objects'],
+    items: [
+      ...names.slice(0, 4).map((text) => ({ text, bucket: 'People or places' })),
+      ...actions.slice(0, 4).map((text) => ({ text, bucket: 'Actions' })),
+      ...keyTerms.slice(0, 5).map((text) => ({ text, bucket: 'Ideas or objects' })),
+    ],
+  };
+  const causeEffectPairs = sentences.slice(0, 5).map((sentence, index) => ({
+    cause: sentence,
+    effect: sentences[index + 1] || buildAutoInsight(source).quote,
+  }));
+
+  return syncKeyVerse({
+    ...existing,
+    characters: names,
+    objects: keyTerms.slice(0, 10),
+    actions,
+    plot_points: ordered,
+    ordered_units: ordered,
+    key_terms: keyTerms,
+    term_facts: termFacts,
+    true_false_bank: trueFalse,
+    comprehension_questions: comprehension,
+    cause_effect_pairs: causeEffectPairs,
+    memory_clues: keyTerms.slice(0, 6).map((term) => ({ prompt: `Remember the role of ${term}`, answer: pickSentenceForTerm(sentences, term) })),
+    application_prompts: [
+      `What would obedience look like after reading ${source.scriptureReference || 'this passage'}?`,
+      `Which phrase from the key verse should guide your choices today?`,
+    ],
+    distractor_pool: distractors,
+    category_schema: categories,
+    passage: source.mainText.trim(),
+  }, source);
 }
 
 export function NarrativeEditor({ narrative, republishMode = false, onDone }: NarrativeEditorProps) {
@@ -577,9 +697,9 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-peri-dim mb-1">Preferred Evidence</label>
+          <label className="block text-sm font-medium text-peri-dim mb-1">Report Format</label>
           <p className="text-xs text-peri-dim mb-2">
-            Choose the main kind of evidence you expect. Cadets can still combine written evidence, links, pictures, and documents.
+            Choose how cadets should submit their challenge proof. They can resubmit if you reject it.
           </p>
           <div className="flex flex-wrap gap-2">
             {CHALLENGE_PROOF_FORMATS.map((fmt) => (
@@ -664,8 +784,6 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
   const [data, setData] = useState<GameSeedData>(() => {
     try { return JSON.parse(value) as GameSeedData; } catch { return {}; }
   });
-  const [generating, setGenerating] = useState<string | null>(null);
-  const [generationError, setGenerationError] = useState<string | null>(null);
 
   const replaceData = (next: GameSeedData) => {
     setData(next);
@@ -683,53 +801,14 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
   };
 
   const arrToText = (arr?: string[]) => (arr || []).join('\n');
-  const canGenerate = Boolean(
-    source.title.trim()
-    && source.theme.trim()
-    && source.scriptureReference.trim()
-    && source.mainText.trim().length >= 120,
-  );
-
-  const generate = async (keys?: (keyof GameSeedData)[]) => {
-    const target = keys?.join(',') || 'all';
-    setGenerating(target);
-    setGenerationError(null);
-    try {
-      const generated = await generateGamePacketWithAI({
-        source,
-        existing: data,
-        sections: keys,
-      });
-      const next = { ...data };
-      if (keys?.length) {
-        keys.forEach((key) => {
-          (next as any)[key] = generated[key];
-        });
-      } else {
-        Object.assign(next, generated);
-      }
-      replaceData(syncKeyVerse(next, source));
-    } catch (error) {
-      setGenerationError(error instanceof Error ? error.message : 'The packet could not be generated.');
-    } finally {
-      setGenerating(null);
-    }
-  };
-
-  const generateButton = (keys: (keyof GameSeedData)[]) => {
-    const target = keys.join(',');
-    const isThisSection = generating === target;
-    return (
-      <button
-        type="button"
-        onClick={() => generate(keys)}
-        disabled={!canGenerate || generating !== null}
-        className="inline-flex min-h-8 items-center gap-1 text-[10px] font-bold text-gold disabled:opacity-40"
-      >
-        {isThisSection && <Loader2 size={12} className="animate-spin" />}
-        {isThisSection ? 'Building...' : 'Generate'}
-      </button>
-    );
+  const generatedSection = () => generatePacketFromSource(source, data);
+  const applyGeneratedSection = (...keys: (keyof GameSeedData)[]) => {
+    const generated = generatedSection();
+    const patch: Partial<GameSeedData> = {};
+    keys.forEach((key) => {
+      (patch as any)[key] = generated[key];
+    });
+    update(patch);
   };
 
   return (
@@ -739,29 +818,18 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
           <div>
             <p className="text-sm font-display font-semibold text-gold">Generate from Main Scripture Text</p>
             <p className="text-xs text-gold/80 mt-1">
-              Uses the title, theme, scripture context, and key verse to build the complete game packet.
+              Builds question banks, terms, events, categories, and distractors from the passage and key verse.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => generate()}
-            disabled={!canGenerate || generating !== null}
+            onClick={() => replaceData(generatePacketFromSource(source, data))}
+            disabled={!source.mainText.trim() || !source.verseOfDay.trim()}
             className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {generating === 'all' ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-            {generating === 'all' ? 'Building Packet...' : 'Generate with AI'}
+            <Wand2 size={14} /> Generate Packet
           </button>
         </div>
-        {!canGenerate && (
-          <p className="mt-3 text-xs text-gold/80">
-            Add the title, theme, scripture reference, and full Main Scripture Text first.
-          </p>
-        )}
-        {generationError && (
-          <p className="mt-3 whitespace-pre-wrap rounded-md border border-coral/25 bg-coral-soft p-2 text-xs text-coral">
-            {generationError}
-          </p>
-        )}
       </div>
 
       {/* Key verse */}
@@ -787,7 +855,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
         <div>
           <div className="flex items-center justify-between gap-2 mb-1">
             <label className="text-xs font-bold text-peri">People / Places (one per line)</label>
-            {generateButton(['characters'])}
+            <button type="button" onClick={() => applyGeneratedSection('characters')} className="text-[10px] font-bold text-gold">Generate</button>
           </div>
           <textarea className="input-field text-sm min-h-[70px]" placeholder="Jesus&#10;Peter&#10;Galilee"
             value={arrToText(data.characters)}
@@ -797,7 +865,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
         <div>
           <div className="flex items-center justify-between gap-2 mb-1">
             <label className="text-xs font-bold text-peri">Actions (one per line)</label>
-            {generateButton(['actions'])}
+            <button type="button" onClick={() => applyGeneratedSection('actions')} className="text-[10px] font-bold text-gold">Generate</button>
           </div>
           <textarea className="input-field text-sm min-h-[70px]" placeholder="calling&#10;following&#10;teaching"
             value={arrToText(data.actions)}
@@ -810,7 +878,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Ordered Units (5-8, one per line)</label>
-          {generateButton(['ordered_units'])}
+          <button type="button" onClick={() => applyGeneratedSection('ordered_units')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">Events in a story, stanzas in a psalm, steps in an argument…</p>
         <textarea className="input-field text-sm min-h-[80px]" placeholder="Called by God&#10;Took Isaac and wood&#10;Three days' journey…"
@@ -822,7 +890,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Plot Points (one per line)</label>
-          {generateButton(['plot_points'])}
+          <button type="button" onClick={() => applyGeneratedSection('plot_points')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">Short event beats used for order, comprehension, and final mixed questions</p>
         <textarea className="input-field text-sm min-h-[80px]" placeholder="Jesus sees the crowd&#10;The disciples obey&#10;The catch overwhelms the nets"
@@ -835,7 +903,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Key Terms (one per line)</label>
-          {generateButton(['key_terms', 'objects'])}
+          <button type="button" onClick={() => applyGeneratedSection('key_terms', 'objects')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">Names, images, or concepts the passage is about</p>
         <textarea className="input-field text-sm min-h-[60px]" placeholder="Abraham&#10;Isaac&#10;The altar…"
@@ -848,7 +916,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Term Facts (term - fact, one per line)</label>
-          {generateButton(['term_facts'])}
+          <button type="button" onClick={() => applyGeneratedSection('term_facts')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">What each term did or means in the passage</p>
         <textarea className="input-field text-sm min-h-[80px]" placeholder="Abraham — said 'God will provide'&#10;Isaac — carried the wood"
@@ -867,7 +935,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Comprehension Bank (question | answer | wrong option | wrong option | wrong option)</label>
-          {generateButton(['comprehension_questions'])}
+          <button type="button" onClick={() => applyGeneratedSection('comprehension_questions')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">Generated from the passage; edit these to make the games sharper</p>
         <textarea className="input-field text-sm min-h-[110px]" placeholder="Which detail is supported by the passage?|Jesus called Peter|Peter ignored Jesus|The crowd left|The boat sank"
@@ -891,7 +959,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">True/False Bank (statement|true or statement|false, one per line)</label>
-          {generateButton(['true_false_bank'])}
+          <button type="button" onClick={() => applyGeneratedSection('true_false_bank')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">8-12 short statements about the passage</p>
         <textarea className="input-field text-sm min-h-[100px]" placeholder="Isaac carried the fire and the knife.|false&#10;Abraham built an altar.|true"
@@ -910,7 +978,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Cause / Effect Pairs (cause | effect, one per line)</label>
-          {generateButton(['cause_effect_pairs'])}
+          <button type="button" onClick={() => applyGeneratedSection('cause_effect_pairs')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">Used in meaning, sequence, and harder comprehension questions</p>
         <textarea className="input-field text-sm min-h-[80px]" placeholder="They obeyed Jesus | The nets filled with fish"
@@ -929,7 +997,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Distractor Pool (one per line)</label>
-          {generateButton(['distractor_pool'])}
+          <button type="button" onClick={() => applyGeneratedSection('distractor_pool')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">Terms from other similar passages — used as wrong answers</p>
         <textarea className="input-field text-sm min-h-[60px]" placeholder="Moses&#10;David&#10;The Ark…"
@@ -952,7 +1020,7 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
       <div>
         <div className="flex items-center justify-between gap-2 mb-1">
           <label className="text-xs font-bold text-peri">Category Schema</label>
-          {generateButton(['category_schema'])}
+          <button type="button" onClick={() => applyGeneratedSection('category_schema')} className="text-[10px] font-bold text-gold">Generate</button>
         </div>
         <p className="text-[10px] text-peri-dim mb-1">A 2-3 bucket sort. Put buckets on the first line (comma-separated), then items below (text|bucket)</p>
         <input className="input-field text-sm mb-2" placeholder="Things Abraham did, Things Isaac did, Things the angel did"

@@ -175,7 +175,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
       </div>
 
       {/* ── Streak stats ── */}
-      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="card p-4 card-hover">
           <div className="flex items-start justify-between">
             <div>
@@ -234,7 +234,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
 	          title="Last 14 Days"
 	          subtitle="Brass = complete, roman = missed, stone = Sunday (frozen)"
 	        />
-        <div className="grid grid-cols-7 gap-1 min-[460px]:gap-2">
+        <div className="grid grid-cols-7 gap-2">
           {last14.map((day, i) => {
             const isFuture = day.date.toISOString().split('T')[0] > todayISO;
             return (

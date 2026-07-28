@@ -36,9 +36,9 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext }:
           <p className={cn('text-sm font-medium truncate', isCurrentUser ? 'text-brass' : 'text-ink')}>
             {name}
           </p>
-          {houseId && <TentHouseSymbol houseId={houseId} size={26} className="flex-shrink-0" />}
+          {houseId && <TentHouseSymbol houseId={houseId} size={18} className="flex-shrink-0" />}
         </div>
-        {subtext && <p className="mt-0.5 break-words text-[11px] leading-relaxed text-stone sm:truncate">{subtext}</p>}
+        {subtext && <p className="text-[11px] text-stone truncate mt-0.5">{subtext}</p>}
       </div>
       <span className="text-sm font-medium text-stone flex-shrink-0">{value}</span>
     </div>

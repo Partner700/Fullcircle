@@ -44,7 +44,7 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center px-3 py-5 sm:px-4 sm:py-8 bg-navy">
+    <div className="min-h-screen relative overflow-hidden flex items-center justify-center px-4 py-8 bg-navy">
       {/* Floating verse fragments */}
       <div className="absolute inset-0 pointer-events-none">
         {VERSE_FRAGMENTS.map((v, i) => (
@@ -62,16 +62,15 @@ export function AuthScreen() {
 
       <div className="relative w-full max-w-md animate-slide-up">
         {/* Hero header */}
-        <div className="mb-5 text-center sm:mb-8">
-          <div className="mb-3 flex justify-center sm:mb-4">
-            <Dove size={64} className="animate-float sm:hidden" />
-            <Dove size={72} className="hidden animate-float sm:block" />
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <Dove size={72} className="animate-float" />
           </div>
           <FullCircleWordmark size="md" />
         </div>
 
         {/* Auth card */}
-        <div className="card p-4 sm:p-6">
+        <div className="card p-6">
           <div className="flex gap-1 mb-6 p-1 bg-navy-3 rounded-xl">
             <button
               onClick={() => { setMode('signin'); setError(null); }}

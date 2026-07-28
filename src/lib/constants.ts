@@ -46,9 +46,8 @@ export const TENT_HOUSE_MAP = Object.fromEntries(
 ) as Record<string, (typeof TENT_HOUSES)[number]>;
 
 export const TALENTS_TO_DENARII = 6000;
-export const FULL_QUIZ_TALENTS = 1;
+export const FULL_QUIZ_TALENTS = 5;
 export const FULL_QUIZ_DENARII = TALENTS_TO_DENARII * FULL_QUIZ_TALENTS;
-export const IMPERFECT_QUIZ_DENARII = 1000;
 
 export const ATTENDANCE_CUTOFF_HOUR = 12;
 export const MEDITATION_CUTOFF_HOUR = 21;

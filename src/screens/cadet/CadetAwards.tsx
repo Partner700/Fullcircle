@@ -104,7 +104,7 @@ export function CadetAwards() {
                     </span>
                   </div>
                   {award.description && (
-                    <p className="preserve-paragraphs text-xs text-stone mt-2 line-clamp-3">{award.description}</p>
+                    <p className="text-xs text-stone mt-2 line-clamp-2">{award.description}</p>
                   )}
                 </div>
               );

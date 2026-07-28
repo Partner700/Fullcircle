@@ -105,7 +105,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
                     'max-w-[75%] px-3 py-2 rounded-lg text-sm',
                     isMe ? 'bg-brass/15 text-ink border border-brass/30' : 'bg-surface-2 text-ink border border-border',
                   )}>
-                    <p className="preserve-paragraphs">{m.body}</p>
+                    <p>{m.body}</p>
                     <p className="text-[10px] text-stone mt-1">
                       {new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </p>
@@ -118,13 +118,13 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
 
         {/* Input */}
         <div className="p-3 border-t border-border flex items-center gap-2">
-          <textarea
+          <input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Type a message..."
-            rows={2}
-            className="input-field min-h-[48px] max-h-32 flex-1 resize-y text-sm"
+            placeholder="Type a message…"
+            className="input-field flex-1 text-sm"
           />
           <button onClick={handleSend} disabled={!input.trim() || sending} className="btn-primary p-2.5">
             {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
