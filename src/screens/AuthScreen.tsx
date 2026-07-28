@@ -121,7 +121,7 @@ export function AuthScreen() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((visible) => !visible)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors flex items-center justify-center w-9 h-9"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
