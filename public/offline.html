@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f2037" />
+  <title>Offline — Full Circle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+      background: #131E34;
+      color: #DDE3FF;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .container {
+      text-align: center;
+      max-width: 400px;
+    }
+    .dove {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 1.5rem;
+      animation: float 4s ease-in-out infinite;
+    }
+    h1 {
+      font-family: 'Baloo 2', system-ui, sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #DDE3FF;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: #8896CC;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 1rem;
+      border: 1.5px solid rgba(221, 227, 255, 0.22);
+      background: rgba(221, 227, 255, 0.10);
+      color: #DDE3FF;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .retry-btn:hover {
+      background: rgba(221, 227, 255, 0.20);
+      border-color: rgba(221, 227, 255, 0.34);
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #DC6A6A;
+      margin-right: 0.5rem;
+    }
+    .status-dot.online {
+      background: #6FBF92;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .container { animation: fadeIn 0.5s ease-out; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg class="dove" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="194" fill="#8EA5FF" opacity="0.16"/>
+      <ellipse cx="342" cy="145" rx="53" ry="34" fill="#B5C0D8"/>
+      <ellipse cx="304" cy="160" rx="34" ry="23" fill="#B5C0D8"/>
+      <ellipse cx="378" cy="163" rx="27" ry="20" fill="#B5C0D8"/>
+      <path d="M269 267C310 250 344 266 353 301C361 343 326 373 288 363C258 351 239 314 269 267Z" fill="#4A6B9E"/>
+      <path d="M289 287C312 276 335 291 337 315C340 338 318 354 294 346C275 338 269 308 289 287Z" fill="#3A5680" opacity="0.6"/>
+      <ellipse cx="252" cy="315" rx="86" ry="70" fill="white"/>
+      <circle cx="191" cy="225" r="55" fill="white"/>
+      <path d="M183 203C206 203 207 222 198 232C189 241 171 235 171 219C171 209 176 203 183 203Z" fill="#1A2438"/>
+      <circle cx="195" cy="214" r="6" fill="white"/>
+      <path d="M143 232L99 248L143 264Z" fill="#D4A05A"/>
+      <path d="M143 232L99 248L143 264Z" stroke="#B88540" stroke-width="3"/>
+      <path d="M211 263C226 200 281 190 310 217C321 233 313 256 288 267C250 283 211 285 211 263Z" fill="white"/>
+      <path d="M225 263C244 221 281 207 300 231" stroke="#D0D8E8" stroke-width="6" stroke-linecap="round"/>
+      <ellipse cx="274" cy="340" rx="54" ry="39" fill="#E8EDF5" opacity="0.6"/>
+      <rect x="239" y="373" width="17" height="34" rx="5" fill="#4A6B9E"/>
+      <path d="M231 407H264L247 418Z" fill="#3A5680"/>
+      <ellipse cx="286" cy="389" rx="14" ry="9" fill="#3A5680" opacity="0.4"/>
+    </svg>
+    <h1>You're Offline</h1>
+    <p>Full Circle needs an internet connection to load. Check your connection and try again.</p>
+    <button class="retry-btn" onclick="window.location.reload()">
+      <span class="status-dot"></span>
+      Retry Connection
+    </button>
+    <p style="margin-top: 1rem; font-size: 0.8rem; color: #8896CC;">
+      Some previously loaded content may still be available.
+    </p>
+  </div>
+  <script>
+    // Update status dot when online
+    window.addEventListener('online', function() {
+      document.querySelector('.status-dot').classList.add('online');
+      document.querySelector('.retry-btn').innerHTML = '<span class="status-dot online"></span> Back Online — Reloading...';
+      setTimeout(function() { window.location.reload(); }, 1000);
+    });
+  </script>
+</body>
+</html>

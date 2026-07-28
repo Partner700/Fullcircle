@@ -1,0 +1,34 @@
+{
+  "_icons-BzFx-gEF.js": {
+    "file": "assets/icons-BzFx-gEF.js",
+    "name": "icons",
+    "imports": [
+      "_react-vendor-CQW2wFTC.js"
+    ]
+  },
+  "_react-vendor-CQW2wFTC.js": {
+    "file": "assets/react-vendor-CQW2wFTC.js",
+    "name": "react-vendor"
+  },
+  "_supabase-BOsFIl5i.js": {
+    "file": "assets/supabase-BOsFIl5i.js",
+    "name": "supabase",
+    "imports": [
+      "_react-vendor-CQW2wFTC.js"
+    ]
+  },
+  "index.html": {
+    "file": "assets/index-Cp7fi_sH.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "_react-vendor-CQW2wFTC.js",
+      "_supabase-BOsFIl5i.js",
+      "_icons-BzFx-gEF.js"
+    ],
+    "css": [
+      "assets/index-JqSU53lu.css"
+    ]
+  }
+}
