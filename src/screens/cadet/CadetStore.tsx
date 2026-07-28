@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
 import type { CampayPaymentResult } from '../../lib/queries';
-import type { RelicType, StreakFreezer } from '../../lib/types';
+import type { RelicType, StreakFreezer, PanelImageSetting } from '../../lib/types';
 import {
   ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
   Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy,
@@ -48,22 +49,6 @@ const PAYMENT_METHODS: { id: StorePaymentMethod; label: string; icon: typeof Sma
 
 const FALLBACK_XAF_PER_USD = 575;
 
-function MarketVectorArt({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 360 180" className={className} aria-hidden="true">
-      <polygon points="0,120 90,35 155,95 250,20 360,88 360,180 0,180" fill="#3D52C8" opacity="0.2" />
-      <polygon points="30,160 88,58 142,160" fill="#FFCF33" />
-      <polygon points="145,164 220,42 306,164" fill="#2EC4B6" />
-      <polygon points="8,180 72,100 138,180" fill="#F15A40" />
-      <rect x="105" y="82" width="46" height="72" fill="#FFF7D6" stroke="#8F6A2A" strokeWidth="6" />
-      <circle cx="128" cy="112" r="18" fill="#C9A227" />
-      <path d="M128 98v28M116 112h24" stroke="#6B4A1F" strokeWidth="6" strokeLinecap="square" />
-      <polygon points="218,82 244,44 270,82 270,146 218,146" fill="#DDE3FF" stroke="#3D52C8" strokeWidth="6" />
-      <rect x="236" y="106" width="16" height="40" fill="#3D52C8" />
-    </svg>
-  );
-}
-
 function relicMoneyPriceXaf(relic: RelicType): number {
   const explicitXaf = Number(relic.money_price_xaf);
   if (Number.isFinite(explicitXaf) && explicitXaf > 0) return Math.round(explicitXaf);
@@ -104,6 +89,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
 
   const paymentConfirmed = paymentResult
     ? ['confirmed', 'successful', 'success', 'completed'].includes(String(paymentResult.status).toLowerCase())
@@ -114,12 +100,13 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setLoading(true);
     setLoadError(null);
     try {
-      const [relicData, invData, balance, frz, sub] = await Promise.all([
+      const [relicData, invData, balance, frz, sub, savedMarketImage] = await Promise.all([
         supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
         fetchLedgerTotal(profile.id),
         fetchStreakFreezers(profile.id),
         getSubscriptionStatus(profile.id).catch(() => null),
+        fetchPanelImageSetting('market').catch(() => null),
       ]);
       setRelics(relicData.data as RelicType[] || []);
       const invMap: Record<string, number> = {};
@@ -128,6 +115,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       setDenarii(balance);
       setFreezers(frz);
       setIsSubscribed(Boolean(sub && ((sub as any).is_paid || (sub as any).status === 'active')));
+      setMarketImage(savedMarketImage);
     } catch (err: any) {
       setLoadError(err?.message || 'The Market could not load. Please try again.');
     }
@@ -417,8 +405,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       )}
 
       {/* Balance bar */}
-      <div className="card p-4 flex items-center justify-between relative overflow-hidden">
-        <MarketVectorArt className="absolute right-0 top-0 h-full w-56 opacity-85 pointer-events-none" />
+      <div className="card relative flex flex-col items-start justify-between gap-2 overflow-hidden p-4 min-[460px]:flex-row min-[460px]:items-center">
+        <PanelImageBackdrop image={marketImage} opacityFallback={10} veilClassName="bg-surface/80" />
         <div className="relative z-10 flex items-center gap-2">
           <Coins size={20} className="text-gold" />
           <span className="font-display font-bold text-gold text-lg">{formatDenarii(denarii)} Ð</span>
@@ -429,7 +417,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
       {/* Streak Freezers */}
       <div className="card p-5 relative overflow-hidden">
-        <MarketVectorArt className="absolute -right-10 -top-4 h-36 w-64 opacity-25 pointer-events-none" />
+        <PanelImageBackdrop image={marketImage} opacityFallback={10} veilClassName="bg-surface/85" />
         <div className="relative z-10 flex items-center gap-2 mb-3">
           <Snowflake size={20} className="text-brass" />
           <h4 className="font-display font-semibold text-ink">Streak Freezers</h4>
@@ -521,13 +509,15 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                         {relic.rarity}
                       </span>
                       {owned > 0 && (
-                        <span className="badge badge-sage text-[9px]">
-                          <CheckCircle2 size={8} className="mr-0.5" /> {owned} owned
+                        <span className="badge badge-sage text-[9px]" title={`${owned} owned`}>
+                          <CheckCircle2 size={8} className="mr-0.5" /> {owned}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-stone mt-1">
-                      {slug === RELIC_SLUGS.LAZARUS_COIN ? lazarusMarketDescription : relic.description}
+                      <span className="preserve-paragraphs">
+                        {slug === RELIC_SLUGS.LAZARUS_COIN ? lazarusMarketDescription : relic.description}
+                      </span>
                     </p>
 
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -643,7 +633,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                   {paymentResult.status === 'rejected' ? (
                     <button onClick={retryPayment} className="btn-secondary text-sm">
                       <Smartphone size={14} /> Try Again
@@ -662,7 +652,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-stone block mb-2">Payment method</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-3">
                     {PAYMENT_METHODS.map((method) => {
                       const MethodIcon = method.icon;
                       return (

@@ -201,7 +201,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="card p-5 relative overflow-hidden animate-slide-up">
+      <div className="card p-4 sm:p-5 relative overflow-hidden animate-slide-up">
         <GameVectorArt variant="campaign" className="pointer-events-none absolute right-0 top-0 h-full w-56 opacity-80" />
         <div className="relative z-10 flex items-center justify-between flex-wrap gap-3 pr-20 sm:pr-36">
           <div>
@@ -573,7 +573,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
           </span>
         </div>
 
-        <div className="card p-5">
+        <div className="card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <p className="eyebrow mb-1">Round {passageIntroRound} Passage</p>
@@ -635,7 +635,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <div className="flex items-center justify-between mb-3">
           <p className="eyebrow mb-0">Round {currentRound} · Question {currentQ + 1} of {questions.length}</p>
           {!showFeedback && !answerRevealed && (
@@ -675,12 +675,12 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
             <Sparkles size={14} /> {hintText}
           </div>
         )}
-        <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
+        <h3 className="preserve-paragraphs font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
 
         {/* Scriptorium / First Letter */}
         {q.type === 'scriptorium' && q.blanked_text && (
           <div className="mb-4">
-            <div className="p-4 rounded-lg bg-surface-2 font-serif text-ink text-center text-lg tracking-wider mb-3 border border-border">
+            <div className="preserve-paragraphs p-4 rounded-lg bg-surface-2 font-serif text-ink text-center text-lg tracking-wider mb-3 border border-border">
               {q.blanked_text}
             </div>
             {!showFeedback ? (
@@ -714,7 +714,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {q.type === 'standard_text' && (
           <div className="mb-4">
             {showInlinePassage && q.passage && (
-              <div className="p-4 rounded-lg bg-surface-2 font-serif text-ink text-sm leading-relaxed border border-border mb-3 max-h-40 overflow-y-auto">
+              <div className="preserve-paragraphs p-4 rounded-lg bg-surface-2 font-serif text-ink text-sm leading-relaxed border border-border mb-3 max-h-40 overflow-y-auto">
                 {q.passage}
               </div>
             )}
@@ -759,7 +759,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {/* True/False — ONE statement, two buttons */}
         {q.type === 'true_false' && (
           <div className="space-y-3">
-            <div className="p-4 rounded-lg bg-surface-2 border border-border text-ink text-center text-lg font-medium mb-3">
+            <div className="preserve-paragraphs p-4 rounded-lg bg-surface-2 border border-border text-ink text-center text-lg font-medium mb-3">
               {q.question}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -853,7 +853,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {q.type === 'comprehension' && q.options && (
           <div className="space-y-3">
             {showInlinePassage && q.passage && (
-              <div className="p-4 rounded-lg bg-surface-2 font-serif text-ink text-sm leading-relaxed border border-border max-h-40 overflow-y-auto">
+              <div className="preserve-paragraphs p-4 rounded-lg bg-surface-2 font-serif text-ink text-sm leading-relaxed border border-border max-h-40 overflow-y-auto">
                 <p className="text-xs text-stone mb-2 font-sans not-italic">Passage:</p>
                 {q.passage}
               </div>
@@ -1168,7 +1168,7 @@ function GameOverScreen({ result, onContinue, onBackToLevels }: {
 
   return (
     <div className="max-w-md mx-auto animate-scale-in">
-      <div className={cn('card p-8 text-center', result.passed ? 'border-sage' : 'border-coral')}>
+      <div className={cn('card p-5 sm:p-8 text-center', result.passed ? 'border-sage' : 'border-coral')}>
         <div className={cn('w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
           result.passed ? 'bg-sage-soft' : 'bg-coral-soft')}>
           {result.passed ? <Trophy size={32} className="text-sage" /> : <XCircle size={32} className="text-coral" />}

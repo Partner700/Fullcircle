@@ -5,14 +5,16 @@ import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
+import { fetchAnnouncements, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
+import { panelImageFromAnnouncement } from '../../lib/panelImages';
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo, PanelImageSetting } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
@@ -75,6 +77,8 @@ export function SentryApp() {
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [reactingQuote, setReactingQuote] = useState<string | null>(null);
   const [quoteIndex, setQuoteIndex] = useState(0);
+  const [quotePaused, setQuotePaused] = useState(false);
+  const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
 
@@ -89,6 +93,7 @@ export function SentryApp() {
         .from('tent_members')
         .select('tent_id')
         .eq('user_id', profile.id)
+        .eq('role', 'sentry')
         .maybeSingle();
 
       let sentryTent: (Tent & { tent_houses?: any }) | null = null;
@@ -144,6 +149,7 @@ export function SentryApp() {
       }
       const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
       setQuotes(quoteFeed);
+      setAnnouncements(await fetchAnnouncements(['all', 'sentries']).catch(() => []));
       if (quoteFeed.length > 0) {
         setQuoteReactions(await fetchDailyQuoteReactions(quoteFeed, profile.id).catch(() => ({})) as Record<string, QuoteReactionState>);
       } else {
@@ -156,12 +162,12 @@ export function SentryApp() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (quotes.length <= 1) return;
+    if (quotes.length <= 1 || quotePaused) return;
     const interval = window.setInterval(() => {
       setQuoteIndex((index) => (index + 1) % quotes.length);
     }, 6000);
     return () => window.clearInterval(interval);
-  }, [quotes.length]);
+  }, [quotePaused, quotes.length]);
 
   const markAttendance = async (cadetId: string, status: 'present' | 'absent') => {
     if (!profile) return;
@@ -204,7 +210,12 @@ export function SentryApp() {
     const todayRec = recs.find((r) => r.record_date === today);
     return todayRec?.attendance_status === 'present' || todayRec?.attendance_status === 'absent';
   }).length;
-
+  const panelImages = announcements
+    .filter((announcement) => announcement.announcement_type?.startsWith('panel_image_'))
+    .reduce<Record<string, PanelImageSetting>>((map, announcement) => {
+      map[announcement.announcement_type.replace('panel_image_', '')] = panelImageFromAnnouncement(announcement);
+      return map;
+    }, {});
   const tabLabels: Record<Tab, string> = {
     overview: 'Sentry Overview',
     attendance: 'Mark Attendance',
@@ -240,6 +251,7 @@ export function SentryApp() {
           quoteReactions={quoteReactions}
           reactingQuote={reactingQuote}
           currentUserId={profile?.id || null}
+          panelImages={panelImages}
           onReactQuote={async (quote, reactionType) => {
             if (!profile) return;
             const key = `${quote.user_id}:${quote.record_date}`;
@@ -254,6 +266,7 @@ export function SentryApp() {
           }}
           onQuotePrev={() => setQuoteIndex((idx) => (idx - 1 + quotes.length) % quotes.length)}
           onQuoteNext={() => setQuoteIndex((idx) => (idx + 1) % quotes.length)}
+          onCommentOpenChange={setQuotePaused}
           onNavigate={setTab}
           onUploadTentPhoto={uploadTentPhoto}
           uploadingTentPhoto={uploadingTentPhoto}
@@ -290,7 +303,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   return (
     <div className="space-y-5 animate-fade-in">
       <EmptyState icon={TentIcon} title={title} message={message} />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 md:grid-cols-4 gap-3">
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
         </button>
@@ -308,7 +321,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, onReactQuote, onQuotePrev, onQuoteNext, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
+function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -320,9 +333,12 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   quoteIndex: number;
   quoteReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
+  currentUserId: string | null;
+  panelImages: Record<string, PanelImageSetting>;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onQuotePrev: () => void;
   onQuoteNext: () => void;
+  onCommentOpenChange: (open: boolean) => void;
   onNavigate: (tab: Tab) => void;
   onUploadTentPhoto: (file: File) => Promise<void>;
   uploadingTentPhoto: boolean;
@@ -380,7 +396,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <ScrollEdge position="bottom" className="text-stone mt-3" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Users} label="Cadets" value={members.length} color="#C9A227" />
         <StatCard icon={UserCheck} label="Marked Today" value={todayMarked} sublabel={`of ${members.length}`} color="#6B8E5A" />
         <StatCard icon={AlertTriangle} label="At Risk" value={atRiskCount} sublabel="need attention" color="#B8553E" />
@@ -394,9 +410,12 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
           index={quoteIndex}
           quoteReactions={quoteReactions}
           reactingQuote={reactingQuote}
+          currentUserId={currentUserId}
+          image={panelImages.quote || null}
           onReactQuote={onReactQuote}
           onPrev={onQuotePrev}
           onNext={onQuoteNext}
+          onCommentOpenChange={onCommentOpenChange}
         />
       )}
 
@@ -443,7 +462,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 gap-3">
         <button onClick={() => onNavigate('attendance')} className="btn-primary">
           <ClipboardCheck size={18} /> Mark Attendance
         </button>
@@ -455,20 +474,23 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   );
 }
 
-function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuote, currentUserId, onReactQuote, onPrev, onNext }: {
+function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuote, currentUserId, image, onReactQuote, onPrev, onNext, onCommentOpenChange }: {
   quote: DailyQuoteFeedItem;
   count: number;
   index: number;
   quoteReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
   currentUserId: string | null;
+  image: PanelImageSetting | null;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onPrev: () => void;
   onNext: () => void;
+  onCommentOpenChange: (open: boolean) => void;
 }) {
   return (
-    <div className="card p-5 bg-surface-2 border-brass/20 animate-slide-up">
-      <div className="flex items-center justify-between gap-3 mb-3">
+    <div className="card p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
+      <PanelImageBackdrop image={image} opacityFallback={16} veilClassName="bg-surface/72" />
+      <div className="relative flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Quote size={18} className="text-brass" />
           <span className="eyebrow text-stone">Quotes From Daily Meditations</span>
@@ -481,22 +503,25 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
           </div>
         )}
       </div>
-      <p className="font-display text-xl text-ink leading-snug italic">"{quote.daily_quote}"</p>
-      <p className="text-sm text-stone mt-3">
+      <p className="relative font-display text-xl text-ink leading-snug italic">"{quote.daily_quote}"</p>
+      <p className="relative text-sm text-stone mt-3">
         {quote.display_name} · {quote.record_date}
       </p>
-      <QuoteReactions
-        state={quoteReactions[`${quote.user_id}:${quote.record_date}`]}
-        disabled={!!reactingQuote?.startsWith(`${quote.user_id}:${quote.record_date}:`)}
-        onReact={(reactionType) => onReactQuote(quote, reactionType)}
-        quoteUserId={quote.user_id}
-        quoteRecordDate={quote.record_date}
-        currentUserId={currentUserId || undefined}
-        fetchComments={fetchDailyQuoteComments}
-        onComment={(body) => currentUserId
-          ? commentOnDailyQuote(quote.user_id, quote.record_date, currentUserId, body)
-          : Promise.reject(new Error('Sign in to comment.'))}
-      />
+      <div className="relative">
+        <QuoteReactions
+          state={quoteReactions[`${quote.user_id}:${quote.record_date}`]}
+          disabled={!!reactingQuote?.startsWith(`${quote.user_id}:${quote.record_date}:`)}
+          onReact={(reactionType) => onReactQuote(quote, reactionType)}
+          quoteUserId={quote.user_id}
+          quoteRecordDate={quote.record_date}
+          currentUserId={currentUserId || undefined}
+          fetchComments={fetchDailyQuoteComments}
+          onComment={(body) => currentUserId
+            ? commentOnDailyQuote(quote.user_id, quote.record_date, currentUserId, body)
+            : Promise.reject(new Error('Sign in to comment.'))}
+          onCommentOpenChange={onCommentOpenChange}
+        />
+      </div>
     </div>
   );
 }

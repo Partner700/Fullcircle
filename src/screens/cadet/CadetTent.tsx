@@ -215,7 +215,7 @@ export function CadetTent() {
                       {isMe && <span className="text-stone text-xs ml-1">(you)</span>}
                     </p>
                     {isSentry && <span className="badge badge-royal text-[9px]">Sentry</span>}
-                    {tent.tent_houses && <TentHouseSymbol houseId={tent.tent_houses.id} size={16} />}
+                    {tent.tent_houses && <TentHouseSymbol houseId={tent.tent_houses.id} size={24} />}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-stone">
                     <span className="flex items-center gap-1">

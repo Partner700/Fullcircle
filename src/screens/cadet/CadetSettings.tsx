@@ -2,13 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import { supabase } from '../../lib/supabase';
 import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getCurrencyForUser, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii, getTodayISODate } from '../../lib/utils';
 import {
   User, Phone, Camera, Loader2, Save, Flame, Coins, Trophy, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
-  KeyRound, Eye, EyeOff,
+  KeyRound,
 } from 'lucide-react';
 
 interface CadetSettingsProps {
@@ -37,13 +38,6 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   });
   const [subStatus, setSubStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -139,31 +133,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
     setUploadingAvatar(false);
   };
 
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
-  };
-
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
-  if (passwordPage && profile?.email) return <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />;
+  if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
 
   const trialCountdown = getCountdownParts(subStatus?.trial_ends_at);
   const periodCountdown = getCountdownParts(subStatus?.current_period_end);
@@ -239,7 +210,7 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
       {/* Stats grid */}
       <div className="card p-5">
         <h4 className="font-display font-semibold text-ink mb-4">My Stats</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 min-[460px]:grid-cols-2 sm:grid-cols-4 gap-3">
           {statCards.map((s) => {
             const Icon = s.icon;
             return (
@@ -302,39 +273,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
             : <>You are on the free trial with <span className="font-semibold text-coral">{trialCountdown.label}</span> remaining. Upgrade to keep playing after the trial ends.</>}
         </p>
       </div>
-    </div>
-  );
-}
 
-function PasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-stone block mb-1">{label}</label>
-      <div className="relative">
-        <input
-          className="input-field pr-10"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          minLength={6}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
+      <DeleteAccountSection />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
+import { MessageAvatar } from './TentMessenger';
 
 export type QuoteReactionState = Record<string, { count: number; reacted: boolean }>;
 
@@ -20,6 +21,7 @@ export function QuoteReactions({
   currentUserId,
   fetchComments,
   onComment,
+  onCommentOpenChange,
 }: {
   state?: QuoteReactionState;
   disabled?: boolean;
@@ -29,6 +31,7 @@ export function QuoteReactions({
   currentUserId?: string;
   fetchComments?: (quoteUserId: string, quoteRecordDate: string) => Promise<DailyQuoteComment[]>;
   onComment?: (body: string) => Promise<void>;
+  onCommentOpenChange?: (open: boolean) => void;
 }) {
   const [comments, setComments] = useState<DailyQuoteComment[]>([]);
   const [body, setBody] = useState('');
@@ -37,6 +40,11 @@ export function QuoteReactions({
   const [commentError, setCommentError] = useState<string | null>(null);
   const [showComments, setShowComments] = useState(false);
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
+
+  useEffect(() => {
+    onCommentOpenChange?.(commentsEnabled && showComments);
+    return () => onCommentOpenChange?.(false);
+  }, [commentsEnabled, onCommentOpenChange, showComments]);
 
   useEffect(() => {
     if (!commentsEnabled || !showComments || !quoteUserId || !quoteRecordDate || !fetchComments) return;
@@ -117,30 +125,40 @@ export function QuoteReactions({
             {!loadingComments && comments.length === 0 && <p className="text-xs text-stone">No comments yet.</p>}
             {comments.map((comment) => (
               <div key={comment.id} className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-2">
-                <div className="h-9 w-9 rounded-full overflow-hidden bg-surface border border-border flex-shrink-0 flex items-center justify-center">
-                  {comment.avatar_url ? (
-                    <img src={comment.avatar_url} alt={comment.display_name} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-xs font-bold text-stone">{comment.display_name?.charAt(0) || '?'}</span>
-                  )}
-                </div>
+                <MessageAvatar
+                  profile={{
+                    id: comment.commenter_user_id,
+                    display_name: comment.display_name || 'User',
+                    email: null,
+                    avatar_url: comment.avatar_url,
+                    whatsapp_number: null,
+                    created_at: comment.created_at,
+                  }}
+                  currentUserId={currentUserId}
+                  size="sm"
+                />
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-ink">
                     {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span>
                   </p>
-                  <p className="text-sm text-stone leading-snug">{comment.body}</p>
+                  <p className="preserve-paragraphs text-sm text-stone leading-snug">{comment.body}</p>
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-4 flex gap-2">
-            <input
-              className="input-field text-sm"
+            <textarea
+              className="input-field min-h-[72px] resize-y text-sm"
               maxLength={500}
               placeholder="Comment on this quote..."
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void submitComment(); }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void submitComment();
+                }
+              }}
             />
             <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary px-3">
               {commenting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

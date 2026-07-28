@@ -1,26 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchTentMessages, sendTentMessage, markTentMessageRead } from '../lib/queries';
-import type { Profile, TentMessage } from '../lib/types';
+import { fetchTentMessages, sendTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, markDirectMessageRead } from '../lib/queries';
+import type { DirectMessage, Profile, TentMessage } from '../lib/types';
 import { X, Send, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface TentMessengerProps {
   recipient: Profile;
   senderId: string;
-  tentId: string;
+  tentId?: string;
   onClose: () => void;
 }
 
 export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMessengerProps) {
-  const [messages, setMessages] = useState<(TentMessage & { sender?: { display_name: string; avatar_url: string | null } })[]>([]);
+  const [messages, setMessages] = useState<((TentMessage | DirectMessage) & { sender?: { display_name: string; avatar_url: string | null } })[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const msgs = await fetchTentMessages(tentId, senderId);
+      const msgs = tentId
+        ? await fetchTentMessages(tentId, senderId)
+        : await fetchDirectMessages(senderId, recipient.id);
       const filtered = (msgs as any[]).filter(
         (m) => m.sender_id === senderId || m.recipient_id === senderId,
       ).filter(
@@ -29,7 +31,8 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
       setMessages(filtered);
       for (const m of filtered) {
         if (m.recipient_id === senderId && !m.read_at) {
-          await markTentMessageRead(m.id);
+          if (tentId) await markTentMessageRead(m.id);
+          else await markDirectMessageRead(m.id);
         }
       }
     } catch (e) { console.error('TentMessenger load error:', e); }
@@ -39,19 +42,22 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
+    const table = tentId ? 'tent_messages' : 'direct_messages';
+    const channelName = tentId ? `tent_messages_${tentId}` : `direct_messages_${senderId}_${recipient.id}`;
     const channel = supabase
-      .channel(`tent_messages_${tentId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tent_messages', filter: `tent_id=eq.${tentId}` },
+      .channel(channelName)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table },
         () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [tentId, load]);
+  }, [tentId, senderId, recipient.id, load]);
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
     setSending(true);
     try {
-      await sendTentMessage(tentId, senderId, recipient.id, input.trim());
+      if (tentId) await sendTentMessage(tentId, senderId, recipient.id, input.trim());
+      else await sendDirectMessage(senderId, recipient.id, input.trim());
       setInput('');
       await load();
     } catch (e) { console.error('Send error:', e); }
@@ -76,7 +82,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
             </div>
             <div>
               <p className="font-display font-semibold text-ink text-sm">{recipient.display_name}</p>
-              <p className="text-xs text-stone">Tent member</p>
+              <p className="text-xs text-stone">{tentId ? 'Tent member' : 'Direct message'}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors">
@@ -99,7 +105,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
                     'max-w-[75%] px-3 py-2 rounded-lg text-sm',
                     isMe ? 'bg-brass/15 text-ink border border-brass/30' : 'bg-surface-2 text-ink border border-border',
                   )}>
-                    <p>{m.body}</p>
+                    <p className="preserve-paragraphs">{m.body}</p>
                     <p className="text-[10px] text-stone mt-1">
                       {new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </p>
@@ -112,13 +118,13 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
 
         {/* Input */}
         <div className="p-3 border-t border-border flex items-center gap-2">
-          <input
-            type="text"
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Type a message…"
-            className="input-field flex-1 text-sm"
+            placeholder="Type a message..."
+            rows={2}
+            className="input-field min-h-[48px] max-h-32 flex-1 resize-y text-sm"
           />
           <button onClick={handleSend} disabled={!input.trim() || sending} className="btn-primary p-2.5">
             {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -183,6 +189,51 @@ export function TentAvatar({
           recipient={profile}
           senderId={currentUserId}
           tentId={tentId}
+          onClose={() => setShowMessenger(false)}
+        />
+      )}
+    </>
+  );
+}
+
+export function MessageAvatar({
+  profile,
+  currentUserId,
+  size = 'sm',
+  showName = false,
+  className,
+}: {
+  profile: Profile;
+  currentUserId?: string | null;
+  size?: 'sm' | 'md' | 'lg';
+  showName?: boolean;
+  className?: string;
+}) {
+  const [showMessenger, setShowMessenger] = useState(false);
+  const sizeClass = size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
+  const isMe = profile.id === currentUserId;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => !isMe && currentUserId && setShowMessenger(true)}
+        className={cn('inline-flex items-center gap-2 group', className, !isMe && currentUserId ? 'cursor-pointer' : 'cursor-default')}
+        title={isMe ? profile.display_name : `Message ${profile.display_name}`}
+      >
+        <div className={cn('rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass flex-shrink-0 transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')}>
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+          ) : (
+            profile.display_name.charAt(0)
+          )}
+        </div>
+        {showName && <span className="text-sm text-ink font-medium">{profile.display_name}</span>}
+      </button>
+      {showMessenger && currentUserId && (
+        <TentMessenger
+          recipient={profile}
+          senderId={currentUserId}
           onClose={() => setShowMessenger(false)}
         />
       )}

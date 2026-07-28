@@ -4,9 +4,11 @@ import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
+import { panelImageFromAnnouncement } from '../../lib/panelImages';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
-import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement } from '../../lib/types';
+import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
@@ -41,8 +43,11 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
+  const [verseReactions, setVerseReactions] = useState<Record<string, QuoteReactionState>>({});
   const [reactingQuote, setReactingQuote] = useState<string | null>(null);
+  const [reactingVerse, setReactingVerse] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const today = getTodayISODate();
@@ -64,6 +69,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         fetchAnnouncements(),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
+      const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
       setRecords(recs.status === 'fulfilled' ? recs.value : []);
       setLedger(led.status === 'fulfilled' ? led.value : []);
       setGames(gms.status === 'fulfilled' ? gms.value : []);
@@ -76,6 +82,12 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         setQuoteReactions(reactions as Record<string, QuoteReactionState>);
       } else {
         setQuoteReactions({});
+      }
+      if (activeNarrative?.verse_of_day) {
+        const reactions = await fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id).catch(() => ({}));
+        setVerseReactions(reactions as Record<string, QuoteReactionState>);
+      } else {
+        setVerseReactions({});
       }
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setHeroIndex(0);
@@ -102,19 +114,17 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const heroSlideCount = heroSlides.length;
   const panelImages = announcements
     .filter((announcement) => announcement.announcement_type?.startsWith('panel_image_'))
-    .reduce<Record<string, string>>((map, announcement) => {
-      map[announcement.announcement_type.replace('panel_image_', '')] = announcement.content;
+    .reduce<Record<string, PanelImageSetting>>((map, announcement) => {
+      map[announcement.announcement_type.replace('panel_image_', '')] = panelImageFromAnnouncement(announcement);
       return map;
     }, {});
-  const weeklyBackgroundUrl = announcements.find((announcement) => announcement.announcement_type === 'weekly_background')?.content || null;
-
   useEffect(() => {
-    if (heroSlideCount <= 1) return;
+    if (heroSlideCount <= 1 || heroPaused) return;
     const interval = window.setInterval(() => {
       setHeroIndex((index) => (index + 1) % heroSlideCount);
     }, 6000);
     return () => window.clearInterval(interval);
-  }, [heroSlideCount]);
+  }, [heroPaused, heroSlideCount]);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -161,10 +171,11 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         currentUserId={profile?.id || null}
         count={heroSlideCount}
         index={activeHeroIndex}
-        backgroundUrl={weeklyBackgroundUrl}
         panelImages={panelImages}
         quoteReactions={quoteReactions}
+        verseReactions={verseReactions}
         reactingQuote={reactingQuote}
+        reactingVerse={reactingVerse}
         onReactQuote={async (quote, reactionType) => {
           if (!profile) return;
           const key = `${quote.user_id}:${quote.record_date}`;
@@ -178,12 +189,25 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
           }
           setReactingQuote(null);
         }}
+        onReactVerse={async (narrativeDate, reactionType) => {
+          if (!profile) return;
+          setReactingVerse(`${narrativeDate}:${reactionType}`);
+          try {
+            await reactToDailyVerse(narrativeDate, profile.id, reactionType);
+            const reactions = await fetchDailyVerseReactions([narrativeDate], profile.id).catch(() => verseReactions);
+            setVerseReactions(reactions as Record<string, QuoteReactionState>);
+          } catch (e: any) {
+            alert(e.message || 'Could not react to verse.');
+          }
+          setReactingVerse(null);
+        }}
         onPrev={() => setHeroIndex((idx) => (idx - 1 + heroSlideCount) % heroSlideCount)}
         onNext={() => setHeroIndex((idx) => (idx + 1) % heroSlideCount)}
+        onCommentOpenChange={setHeroPaused}
       />
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Flame} label="Current Streak" value={`${streak.current_streak}`} sublabel={`Best: ${streak.longest_streak}`} color="#B8553E" />
         <StatCard icon={Coins} label="Denarii" value={formatDenarii(denariiTotal)} sublabel={`+${todayDenarii} today`} color="#C9A227" />
         <StatCard icon={Calendar} label="Valid Days" value={streak.volume_this_month} sublabel="This month" color="#6B8E5A" />
@@ -191,9 +215,11 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       </div>
 
       {/* Today's status bar */}
-      <div className="card p-4">
-        <SectionHeader title="Today's Progress" subtitle="Complete each item to keep your streak alive" />
-        <div className="space-y-2">
+      <div className="card relative overflow-hidden p-4">
+        <PanelImageBackdrop image={panelImages.progress} />
+        <div className="relative">
+          <SectionHeader title="Today's Progress" subtitle="Complete each item to keep your streak alive" />
+          <div className="space-y-2">
 	          <TodayCheckItem
 		            icon={Sunrise}
 		            label="Morning call attendance (+200D)"
@@ -233,29 +259,33 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
             note={!narrative?.challenge_active ? 'No active challenge today' : undefined}
             onClick={() => onNavigate('narrative')}
           />
+          </div>
         </div>
       </div>
 
       {/* Two-column: narrative preview + recent activity */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="card p-4 card-hover">
-          <SectionHeader title="Today's Reading" />
-          {dayType === 'saturday' ? (
-            <button onClick={() => onNavigate('quiz')} className="text-left w-full">
-              <h4 className="font-display font-medium text-ink">Saturday Quiz Day</h4>
-              <p className="text-sm text-stone mt-1">No daily reading or meditation is required today.</p>
-              <span className="text-xs text-brass mt-2 inline-block font-medium">Go to quiz →</span>
-            </button>
-          ) : narrative ? (
-            <button onClick={() => onNavigate('narrative')} className="text-left w-full">
-              <h4 className="font-display font-medium text-ink">{narrative.title}</h4>
-              <p className="text-sm text-stone mt-1">{narrative.scripture_reference} · {narrative.theme}</p>
-              <p className="text-sm text-ink mt-2 line-clamp-3 opacity-80">{narrative.main_text.slice(0, 200)}…</p>
-              <span className="text-xs text-brass mt-2 inline-block font-medium">Read & meditate →</span>
-            </button>
-          ) : (
-            <EmptyState icon={BookOpen} title="No reading yet" message="Today's narrative hasn't been published. Check back soon." />
-          )}
+        <div className="card relative overflow-hidden p-4 card-hover">
+          <PanelImageBackdrop image={panelImages.reading} />
+          <div className="relative">
+            <SectionHeader title="Today's Reading" />
+            {dayType === 'saturday' ? (
+              <button onClick={() => onNavigate('quiz')} className="text-left w-full">
+                <h4 className="font-display font-medium text-ink">Saturday Quiz Day</h4>
+                <p className="text-sm text-stone mt-1">No daily reading or meditation is required today.</p>
+                <span className="text-xs text-brass mt-2 inline-block font-medium">Go to quiz →</span>
+              </button>
+            ) : narrative ? (
+              <button onClick={() => onNavigate('narrative')} className="text-left w-full">
+                <h4 className="font-display font-medium text-ink">{narrative.title}</h4>
+                <p className="text-sm text-stone mt-1">{narrative.scripture_reference} · {narrative.theme}</p>
+                <p className="preserve-paragraphs text-sm text-ink mt-2 line-clamp-3 opacity-80">{narrative.main_text.slice(0, 200)}…</p>
+                <span className="text-xs text-brass mt-2 inline-block font-medium">Read & meditate →</span>
+              </button>
+            ) : (
+              <EmptyState icon={BookOpen} title="No reading yet" message="Today's narrative hasn't been published. Check back soon." />
+            )}
+          </div>
         </div>
 
         <div className="card p-4">
@@ -281,7 +311,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 md:grid-cols-4 gap-3">
         <QuickLink icon={dayType === 'saturday' ? FileQuestion : BookOpen} label={dayType === 'saturday' ? 'Take Quiz' : 'Read Today'} badge={notificationBadges[dayType === 'saturday' ? 'quiz' : 'narrative'] || 0} onClick={() => onNavigate(dayType === 'saturday' ? 'quiz' : 'narrative')} />
         <QuickLink icon={Gamepad2} label="Play Game" badge={notificationBadges.game || 0} onClick={() => onNavigate('game')} />
         <QuickLink icon={TentIcon} label="My Tent" badge={notificationBadges.tent || 0} onClick={() => onNavigate('tent')} />
@@ -295,7 +325,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   );
 }
 
-function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, backgroundUrl, panelImages, quoteReactions, reactingQuote, onReactQuote, onPrev, onNext }: {
+function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -304,26 +334,22 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   currentUserId: string | null;
   count: number;
   index: number;
-  backgroundUrl: string | null;
-  panelImages: Record<string, string>;
+  panelImages: Record<string, PanelImageSetting>;
   quoteReactions: Record<string, QuoteReactionState>;
+  verseReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
+  reactingVerse: string | null;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
+  onReactVerse: (narrativeDate: string, reactionType: string) => void;
   onPrev: () => void;
   onNext: () => void;
+  onCommentOpenChange: (open: boolean) => void;
 }) {
   const dateLabel = todayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const dayLabel = dayType === 'saturday' ? 'Quiz Day' : dayType === 'sunday' ? 'Day of Rest' : 'Reading Day';
 
   return (
     <div className="card relative overflow-hidden min-h-[180px] animate-slide-up">
-      {backgroundUrl && (
-        <img
-          src={backgroundUrl}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
-        />
-      )}
       <div
         className="flex transition-transform duration-700 ease-out"
         style={{ transform: `translateX(-${index * 100}%)` }}
@@ -332,15 +358,14 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
+          const slideImage = slide.kind === 'announcement'
+            ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
+            : panelImages[slide.kind];
 
           return (
             <div key={slide.id} className="relative min-w-full p-5 pb-16 overflow-hidden">
-              {(panelImages[slide.kind] || backgroundUrl) && (
-                <img
-                  src={panelImages[slide.kind] || backgroundUrl || ''}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-[0.07] pointer-events-none"
-                />
+              {slideImage && (
+                <PanelImageBackdrop image={slideImage} opacityFallback={16} />
               )}
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -357,8 +382,21 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   {slide.kind === 'verse' && (
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><BookOpen size={14} /> Verse of the Day</p>
-                      <p className="font-display text-2xl text-ink leading-snug">"{slide.narrative.verse_of_day}"</p>
+                      <p className="preserve-paragraphs font-display text-2xl text-ink leading-snug">"{slide.narrative.verse_of_day}"</p>
                       <p className="text-sm text-stone mt-3">{slide.narrative.scripture_reference || slide.narrative.title}</p>
+                      <QuoteReactions
+                        state={verseReactions[slide.narrative.narrative_date]}
+                        disabled={!!reactingVerse?.startsWith(`${slide.narrative.narrative_date}:`)}
+                        onReact={(reactionType) => onReactVerse(slide.narrative.narrative_date, reactionType)}
+                        quoteUserId={currentUserId || undefined}
+                        quoteRecordDate={slide.narrative.narrative_date}
+                        currentUserId={currentUserId || undefined}
+                        fetchComments={(_quoteUserId, quoteRecordDate) => fetchDailyVerseComments(quoteRecordDate)}
+                        onComment={(body) => currentUserId
+                          ? commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body)
+                          : Promise.reject(new Error('Sign in to comment.'))}
+                        onCommentOpenChange={onCommentOpenChange}
+                      />
                     </>
                   )}
 
@@ -366,7 +404,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Megaphone size={14} /> {announcementTitle}</p>
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Upcoming Notice</h2>
-                      <p className="text-sm text-stone mt-2 leading-relaxed max-w-2xl">{slide.announcement.content}</p>
+                      <p className="preserve-paragraphs text-sm text-stone mt-2 leading-relaxed max-w-2xl">{slide.announcement.content}</p>
                       <p className="text-[10px] text-stone-dim mt-2">
                         Posted {new Date(slide.announcement.publish_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
@@ -389,6 +427,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         onComment={(body) => currentUserId
                           ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
                           : Promise.reject(new Error('Sign in to comment.'))}
+                        onCommentOpenChange={onCommentOpenChange}
                       />
                     </>
                   )}

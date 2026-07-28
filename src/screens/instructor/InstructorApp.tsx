@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { DeleteAccountSection } from '../../components/DeleteAccountSection';
+import { ChallengeEvidenceList } from '../../components/ChallengeEvidenceList';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
+import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
@@ -10,15 +14,17 @@ import {
   fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
 } from '../../lib/queries';
-import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf, computeStreak } from '../../lib/utils';
-import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement } from '../../lib/types';
+import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf } from '../../lib/utils';
+import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
-  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
+  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
+  Image as ImageIcon, Upload, Move, X,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -29,7 +35,8 @@ import {
   fetchMobileMoneySettings, saveMobileMoneySettings, fetchInstructorMobileMoneyPayments,
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
-  fetchQuizAnswerSheets,
+  fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
+  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
@@ -83,7 +90,7 @@ function AwardCheckboxList({ selected, onToggle, target = 'cadet' }: { selected:
                     className="mt-0.5 accent-peri flex-shrink-0" />
                   <div>
                     <p className="text-xs font-semibold text-ink leading-tight">{award.title}</p>
-                    <p className="text-[11px] text-stone mt-0.5">{award.description}</p>
+                    <p className="preserve-paragraphs text-[11px] text-stone mt-0.5">{award.description}</p>
                   </div>
                 </label>
               );
@@ -206,7 +213,7 @@ export function InstructorApp() {
       headerTitle={tabLabels[tab]}
       headerSubtitle="Instructor"
     >
-      {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} onNavigate={setTab as (k: string) => void} />}
+      {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} instructorId={profile?.id || null} onNavigate={setTab as (k: string) => void} />}
       {tab === 'narratives' && (
         <NarrativesTab
           narratives={narratives}
@@ -238,6 +245,120 @@ function toDateTimeLocal(value: string) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+function looksLikeGeneratorLeak(option: string) {
+  const value = option.trim();
+  if (!value) return true;
+  if (value.length > 220) return true;
+  return /(\"?(question|options|correct_answer|accepted_answers|explanation|reference|focus_key)\"?\s*:|distractor|plausible option|generate|reasoning|i should|we need|the answer is|think carefully|json)/i.test(value);
+}
+
+function cleanQuestionPayload(payload: QuestionPayload): QuestionPayload {
+  if (!Array.isArray(payload.options)) return payload;
+  const correct = String(payload.correct_answer || '').trim();
+  const options = Array.from(new Set(payload.options.map((option) => String(option || '').trim())))
+    .filter((option) => !looksLikeGeneratorLeak(option));
+  if (correct && !looksLikeGeneratorLeak(correct) && !options.some((option) => option.toLowerCase() === correct.toLowerCase())) {
+    options.push(correct);
+  }
+  return {
+    ...payload,
+    options: options.slice(0, 4),
+  };
+}
+
+const PANEL_IMAGE_SLOTS = [
+  { type: 'weekly_background', label: 'Weekly App Background', audience: 'all' },
+  { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
+  { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
+  { type: 'panel_image_general', label: 'General Announcement', audience: 'all' },
+  { type: 'panel_image_announcement', label: 'Announcement Fallback', audience: 'all' },
+  { type: 'panel_image_morning_call', label: 'Morning Call', audience: 'all' },
+  { type: 'panel_image_midday_reminder', label: 'Midday Reminder', audience: 'all' },
+  { type: 'panel_image_evening_reminder', label: 'Evening Reminder', audience: 'all' },
+  { type: 'panel_image_quote_of_day', label: 'Quote of the Day Notice', audience: 'all' },
+  { type: 'panel_image_streakboard_release', label: 'Streakboard Release', audience: 'all' },
+  { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
+  { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
+  { type: 'panel_image_reading', label: "Today's Reading", audience: 'all' },
+  { type: 'panel_image_quiz', label: 'Quiz Panel', audience: 'all' },
+  { type: 'panel_image_progress', label: "Today's Progress", audience: 'all' },
+  { type: 'panel_image_recent_denarii', label: 'Recent Denarii', audience: 'all' },
+  { type: 'panel_image_quick_links', label: 'Quick Links', audience: 'all' },
+  { type: 'panel_image_game', label: 'Daily Game', audience: 'all' },
+  { type: 'panel_image_arena', label: 'Arena', audience: 'all' },
+  { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
+  { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
+  { type: 'panel_image_awards', label: 'Awards Hub', audience: 'all' },
+  { type: 'panel_image_settings', label: 'Settings', audience: 'all' },
+  { type: 'panel_image_subscription', label: 'Subscription', audience: 'all' },
+  { type: 'panel_image_sentry_overview', label: 'Sentry Overview', audience: 'sentries' },
+  { type: 'panel_image_sentry_attendance', label: 'Sentry Attendance', audience: 'sentries' },
+  { type: 'panel_image_sentry_cadets', label: 'Sentry Cadets', audience: 'sentries' },
+  { type: 'panel_image_instructor_dashboard', label: 'Instructor Dashboard', audience: 'instructors' },
+  { type: 'panel_image_instructor_stats', label: 'Instructor Stats', audience: 'instructors' },
+  { type: 'panel_image_instructor_narrative', label: 'Narrative Builder', audience: 'instructors' },
+  { type: 'panel_image_instructor_quote_feed', label: 'Quote Feed', audience: 'instructors' },
+  { type: 'panel_image_instructor_tents', label: 'Tent Management', audience: 'instructors' },
+  { type: 'panel_image_instructor_quiz_builder', label: 'Quiz Builder', audience: 'instructors' },
+  { type: 'panel_image_instructor_game_questions', label: 'Game Questions', audience: 'instructors' },
+  { type: 'panel_image_instructor_awards', label: 'Instructor Awards', audience: 'instructors' },
+  { type: 'panel_image_instructor_challenges', label: 'Challenges', audience: 'instructors' },
+  { type: 'panel_image_instructor_mobile_money', label: 'Mobile Money', audience: 'instructors' },
+];
+
+const IMAGE_ADJUSTMENT_CONTROLS: {
+  key: keyof PanelImageAdjustments;
+  label: string;
+  min: number;
+  max: number;
+  suffix?: string;
+}[] = [
+  { key: 'opacity', label: 'Transparency', min: 0, max: 100, suffix: '%' },
+  { key: 'brightness', label: 'Brightness', min: 0, max: 200, suffix: '%' },
+  { key: 'contrast', label: 'Contrast', min: 0, max: 200, suffix: '%' },
+  { key: 'blackPoint', label: 'Black Point', min: 0, max: 100, suffix: '%' },
+  { key: 'whitePoint', label: 'White Point', min: 0, max: 100, suffix: '%' },
+  { key: 'black', label: 'Black', min: 0, max: 100, suffix: '%' },
+  { key: 'saturation', label: 'Saturation', min: 0, max: 200, suffix: '%' },
+  { key: 'vibrance', label: 'Vibrance', min: -100, max: 100 },
+  { key: 'hue', label: 'Hue', min: -180, max: 180, suffix: 'deg' },
+  { key: 'temperature', label: 'Temperature', min: -100, max: 100 },
+  { key: 'sharpness', label: 'Sharpness', min: 0, max: 100, suffix: '%' },
+  { key: 'definition', label: 'Definition', min: 0, max: 100, suffix: '%' },
+  { key: 'noise', label: 'Noise', min: 0, max: 100, suffix: '%' },
+  { key: 'depth', label: 'Depth', min: 0, max: 100, suffix: '%' },
+  { key: 'vignette', label: 'Vignette', min: 0, max: 100, suffix: '%' },
+  { key: 'grain', label: 'Graininess', min: 0, max: 100, suffix: '%' },
+  { key: 'age', label: 'Age Feel', min: 0, max: 100, suffix: '%' },
+];
+
+function ImageAdjustmentSlider({
+  control,
+  value,
+  onChange,
+}: {
+  control: (typeof IMAGE_ADJUSTMENT_CONTROLS)[number];
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="space-y-1.5">
+      <span className="flex items-center justify-between text-xs font-semibold text-ink">
+        {control.label}
+        <span className="text-stone">{value}{control.suffix || ''}</span>
+      </span>
+      <input
+        type="range"
+        min={control.min}
+        max={control.max}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full accent-brass"
+      />
+    </label>
+  );
+}
+
 function AnnouncementManager() {
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,7 +369,12 @@ function AnnouncementManager() {
   const [publishAt, setPublishAt] = useState(toDateTimeLocal(new Date().toISOString()));
   const [content, setContent] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [editingImageType, setEditingImageType] = useState<string | null>(null);
+  const [imagePositionX, setImagePositionX] = useState(50);
+  const [imagePositionY, setImagePositionY] = useState(50);
+  const [uploadingImageType, setUploadingImageType] = useState<string | null>(null);
+  const [savingImagePosition, setSavingImagePosition] = useState(false);
+  const [imageAdjustments, setImageAdjustments] = useState<PanelImageAdjustments>(DEFAULT_PANEL_IMAGE_ADJUSTMENTS);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -301,42 +427,105 @@ function AnnouncementManager() {
     setSaving(false);
   };
 
-  const uploadWeeklyBackground = async (file: File) => {
-    setUploadingBackground(true);
-    try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const version = Date.now();
-      const path = `weekly-backgrounds/${version}.${ext}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      setAnnouncementType('weekly_background');
-      setAudience('cadets');
-      setContent(`${data.publicUrl}?v=${version}`);
-      setIsActive(true);
-    } catch (e: any) {
-      alert(e.message || 'Failed to upload weekly background image');
-    }
-    setUploadingBackground(false);
+  const publishImageSetting = async (
+    type: string,
+    imageUrl: string,
+    targetAudience = 'all',
+    positionX = 50,
+    positionY = 50,
+    adjustments: PanelImageAdjustments = DEFAULT_PANEL_IMAGE_ADJUSTMENTS,
+  ) => {
+    const payload = {
+      announcement_type: type,
+      audience: targetAudience,
+      publish_at: new Date().toISOString(),
+      content: serializePanelImageSetting(imageUrl, adjustments),
+      is_active: true,
+      image_position_x: positionX,
+      image_position_y: positionY,
+    };
+    const existing = announcements.find((announcement) =>
+      announcement.announcement_type === type && announcement.audience === targetAudience && announcement.is_active !== false
+    );
+    if (existing) await updateAnnouncement(existing.id, payload);
+    else await createAnnouncement(payload);
+    await load();
   };
 
-  const uploadPanelImage = async (file: File, panelType: string) => {
-    setUploadingBackground(true);
+  const deleteImageSetting = async (type: string, targetAudience = 'all') => {
+    const matches = announcements.filter((announcement) =>
+      announcement.announcement_type === type && announcement.audience === targetAudience
+    );
+    if (matches.length === 0) return;
+    if (!window.confirm('Delete this saved image from the app?')) return;
+    try {
+      await Promise.all(matches.map((announcement) => deleteAnnouncement(announcement.id)));
+      if (editingImageType === type) setEditingImageType(null);
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to delete image setting');
+    }
+  };
+
+  const activeImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
+    ...slot,
+    item: announcements.find((announcement) =>
+      announcement.announcement_type === slot.type
+      && announcement.audience === slot.audience
+      && announcement.is_active !== false
+      && isPanelImageContent(announcement.content)
+    ),
+  })).map((setting) => ({
+    ...setting,
+    image: setting.item ? panelImageFromAnnouncement(setting.item) : null,
+  }));
+
+  const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
+  const standardAnnouncements = announcements.filter((announcement) =>
+    announcement.announcement_type !== 'weekly_background'
+    && !announcement.announcement_type?.startsWith('panel_image_')
+  );
+
+  const openImageEditor = (type: string) => {
+    const setting = activeImageSettings.find((candidate) => candidate.type === type);
+    setEditingImageType(type);
+    setImagePositionX(Number(setting?.item?.image_position_x ?? 50));
+    setImagePositionY(Number(setting?.item?.image_position_y ?? 50));
+    setImageAdjustments(normaliseAdjustments(setting?.image?.adjustments));
+  };
+
+  const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
+    setUploadingImageType(type);
     try {
       const ext = file.name.split('.').pop() || 'jpg';
       const version = Date.now();
-      const path = `panel-images/${panelType}-${version}.${ext}`;
+      const folder = type === 'weekly_background' ? 'weekly-backgrounds' : 'panel-images';
+      const path = `${folder}/${type}-${version}.${ext}`;
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      setAnnouncementType(`panel_image_${panelType}`);
-      setAudience('all');
-      setContent(`${data.publicUrl}?v=${version}`);
-      setIsActive(true);
+      await publishImageSetting(type, `${data.publicUrl}?v=${version}`, targetAudience, imagePositionX, imagePositionY, imageAdjustments);
     } catch (e: any) {
       alert(e.message || 'Failed to upload panel image');
     }
-    setUploadingBackground(false);
+    setUploadingImageType(null);
+  };
+
+  const saveImageFraming = async () => {
+    if (!editingImageSetting?.item) return;
+    setSavingImagePosition(true);
+    try {
+      await updateAnnouncement(editingImageSetting.item.id, {
+        content: serializePanelImageSetting(editingImageSetting.image?.url || '', imageAdjustments),
+        image_position_x: imagePositionX,
+        image_position_y: imagePositionY,
+      });
+      await load();
+      setEditingImageType(null);
+    } catch (e: any) {
+      alert(e.message || 'Failed to save image framing');
+    }
+    setSavingImagePosition(false);
   };
 
   const toggleActive = async (announcement: ScheduledAnnouncement) => {
@@ -363,7 +552,7 @@ function AnnouncementManager() {
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Announcements" subtitle="Schedule dashboard slideshow notices for cadets, sentries, or everyone." />
 
-      <div className="card p-5 space-y-4">
+      <div className="card space-y-4 p-4 sm:p-5">
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">Type</label>
@@ -374,11 +563,6 @@ function AnnouncementManager() {
               <option value="evening_reminder">Evening Reminder</option>
               <option value="quote_of_day">Quote of the Day</option>
               <option value="streakboard_release">Streakboard Release</option>
-              <option value="weekly_background">Weekly Background Image</option>
-              <option value="panel_image_welcome">Panel Image: Welcome</option>
-              <option value="panel_image_verse">Panel Image: Verse</option>
-              <option value="panel_image_announcement">Panel Image: Announcement</option>
-              <option value="panel_image_quote">Panel Image: Quote</option>
             </select>
           </div>
           <div>
@@ -400,50 +584,61 @@ function AnnouncementManager() {
           <label className="text-xs text-stone block mb-1">Announcement text</label>
           <textarea
             className="input-field min-h-[110px]"
-            placeholder={announcementType === 'weekly_background' ? 'Upload an image below; the image URL will appear here.' : 'Write the notice that should appear in the dashboard slideshow...'}
+            placeholder="Write the notice that should appear in the dashboard slideshow..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
           />
         </div>
 
         <div className="rounded-lg border border-border bg-surface-2 p-3">
-          <label className="text-xs text-stone block mb-2">Panel Images</label>
-          <div className="grid sm:grid-cols-2 gap-2 mb-3">
-            {[
-              ['welcome', 'Welcome panel'],
-              ['verse', 'Verse panel'],
-              ['announcement', 'Announcement panel'],
-              ['quote', 'Quote panel'],
-            ].map(([value, label]) => (
-              <label key={value} className="rounded-lg border border-border bg-surface p-2 text-xs text-stone">
-                <span className="block font-semibold text-ink mb-1">{label}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={uploadingBackground}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void uploadPanelImage(file, value);
-                  }}
-                  className="block w-full text-[10px] text-stone"
-                />
-              </label>
+          <div className="flex items-center gap-2 mb-3">
+            <ImageIcon size={16} className="text-brass" />
+            <h4 className="text-sm font-semibold text-ink">Panel Images</h4>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {activeImageSettings.map((setting) => (
+              <div key={`${setting.type}:${setting.audience}`} className="relative overflow-hidden rounded-lg border border-border bg-surface">
+                <button
+                  type="button"
+                  onClick={() => openImageEditor(setting.type)}
+                  className="group block w-full text-left"
+                  title={`Edit ${setting.label}`}
+                >
+                  <div className="relative h-28 overflow-hidden bg-surface-2">
+                    {setting.image ? (
+                      <PanelImageBackdrop
+                        image={setting.image}
+                        className="transition-transform duration-200 group-hover:scale-[1.02]"
+                        opacityFallback={100}
+                        veilClassName=""
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center border-b border-dashed border-border text-stone">
+                        <ImageIcon size={26} strokeWidth={1.5} />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-ink/0 transition-colors group-hover:bg-ink/10" />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 p-3">
+                    <span className="text-xs font-semibold text-ink">{setting.label}</span>
+                    <span className="text-[10px] font-semibold text-brass">
+                      {setting.item ? 'Edit image' : 'Add image'}
+                    </span>
+                  </div>
+                </button>
+                {setting.item && (
+                  <button
+                    type="button"
+                    onClick={() => deleteImageSetting(setting.type, setting.audience)}
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border border-white/30 bg-black/55 text-white transition-colors hover:bg-coral"
+                    title={`Delete ${setting.label}`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
-          <label className="text-xs text-stone block mb-2">Upload fallback weekly background image</label>
-          <input
-            type="file"
-            accept="image/*"
-            disabled={uploadingBackground}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void uploadWeeklyBackground(file);
-            }}
-            className="block w-full text-xs text-stone"
-          />
-          <p className="text-[10px] text-stone mt-2">
-            Images appear almost translucent behind text. Uploading a new image creates an editable active image setting you can update any time.
-          </p>
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -451,9 +646,9 @@ function AnnouncementManager() {
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-peri" />
             Active
           </label>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-col gap-2 min-[460px]:w-auto min-[460px]:flex-row">
             {editingId && <button onClick={resetForm} className="btn-secondary text-sm">Cancel Edit</button>}
-            <button onClick={save} disabled={saving || !content.trim()} className="btn-primary text-sm">
+            <button onClick={save} disabled={saving || !content.trim()} className="btn-primary w-full text-sm min-[460px]:w-auto">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {editingId ? 'Save Changes' : 'Schedule Announcement'}
             </button>
@@ -461,15 +656,15 @@ function AnnouncementManager() {
         </div>
       </div>
 
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <h4 className="font-display font-semibold text-ink mb-3">Scheduled & Published</h4>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
-        ) : announcements.length === 0 ? (
+        ) : standardAnnouncements.length === 0 ? (
           <EmptyState icon={Megaphone} title="No announcements yet" message="Create one above to place it in the dashboard slideshow." />
         ) : (
           <div className="space-y-2">
-            {announcements.map((announcement) => {
+            {standardAnnouncements.map((announcement) => {
               const published = new Date(announcement.publish_at).getTime() <= Date.now();
               return (
                 <div key={announcement.id} className="rounded-lg border border-border-bright bg-surface-2 p-3 flex items-start gap-3">
@@ -485,7 +680,7 @@ function AnnouncementManager() {
                         {published ? 'Published' : 'Scheduled'}
                       </span>
                     </div>
-                    <p className="text-sm text-ink whitespace-pre-wrap">{announcement.content}</p>
+                    <p className="preserve-paragraphs text-sm text-ink">{announcement.content}</p>
                     <p className="text-xs text-stone mt-1">{new Date(announcement.publish_at).toLocaleString()}</p>
                   </div>
                   <div className="flex flex-col gap-1.5 flex-shrink-0">
@@ -503,6 +698,163 @@ function AnnouncementManager() {
           </div>
         )}
       </div>
+
+      {editingImageSetting && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-3 sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setEditingImageType(null);
+          }}
+        >
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-surface shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+              <div className="min-w-0">
+                <p className="eyebrow text-stone">Panel Image</p>
+                <h3 className="font-display text-lg font-semibold text-ink">{editingImageSetting.label}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingImageType(null)}
+                className="btn-ghost flex h-9 w-9 items-center justify-center p-0"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(92vh-68px)] space-y-4 overflow-y-auto p-4 sm:p-5">
+              <div className="relative aspect-[16/9] overflow-hidden rounded-lg border border-border bg-surface-2">
+                {editingImageSetting.image ? (
+                  <>
+                    <PanelImageBackdrop
+                      image={{
+                        ...editingImageSetting.image,
+                        positionX: imagePositionX,
+                        positionY: imagePositionY,
+                        adjustments: imageAdjustments,
+                      }}
+                      opacityFallback={100}
+                      veilClassName=""
+                    />
+                    <div
+                      className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/35 shadow"
+                      style={{ left: `${imagePositionX}%`, top: `${imagePositionY}%` }}
+                    />
+                  </>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-stone">
+                    <ImageIcon size={36} strokeWidth={1.4} />
+                    <span className="text-sm">No image saved</span>
+                  </div>
+                )}
+                {uploadingImageType === editingImageSetting.type && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-white">
+                    <Loader2 size={28} className="animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              {editingImageSetting.item && (
+                <div className="space-y-4 rounded-lg border border-border bg-surface-2 p-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="flex items-center justify-between text-xs font-semibold text-ink">
+                        Horizontal position <span className="text-stone">{imagePositionX}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={imagePositionX}
+                        onChange={(event) => setImagePositionX(Number(event.target.value))}
+                        className="w-full accent-brass"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="flex items-center justify-between text-xs font-semibold text-ink">
+                        Vertical position <span className="text-stone">{imagePositionY}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={imagePositionY}
+                        onChange={(event) => setImagePositionY(Number(event.target.value))}
+                        className="w-full accent-brass"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-ink">Image Adjustments</p>
+                    <button
+                      type="button"
+                      onClick={() => setImageAdjustments(DEFAULT_PANEL_IMAGE_ADJUSTMENTS)}
+                      className="btn-ghost px-2 py-1 text-[11px]"
+                    >
+                      <RotateCcw size={12} /> Reset
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {IMAGE_ADJUSTMENT_CONTROLS.map((control) => (
+                      <ImageAdjustmentSlider
+                        key={control.key}
+                        control={control}
+                        value={imageAdjustments[control.key]}
+                        onChange={(value) => setImageAdjustments((prev) => normaliseAdjustments({ ...prev, [control.key]: value }))}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-2">
+                  <label
+                    className={cn(
+                      'btn-secondary cursor-pointer text-sm',
+                      uploadingImageType === editingImageSetting.type && 'pointer-events-none opacity-60',
+                    )}
+                  >
+                    {uploadingImageType === editingImageSetting.type ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                    {editingImageSetting.item ? 'Replace image' : 'Add image'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingImageType === editingImageSetting.type}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = '';
+                        if (file) void uploadImage(file, editingImageSetting.type, editingImageSetting.audience);
+                      }}
+                    />
+                  </label>
+                  {editingImageSetting.item && (
+                    <button
+                      type="button"
+                      onClick={() => deleteImageSetting(editingImageSetting.type, editingImageSetting.audience)}
+                      className="btn-secondary text-sm text-coral"
+                    >
+                      <Trash2 size={15} /> Delete
+                    </button>
+                  )}
+                </div>
+                {editingImageSetting.item && (
+                  <button
+                    type="button"
+                    onClick={saveImageFraming}
+                    disabled={savingImagePosition}
+                    className="btn-primary text-sm"
+                  >
+                    {savingImagePosition ? <Loader2 size={15} className="animate-spin" /> : <Move size={15} />}
+                    Save image
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -526,9 +878,9 @@ function NarrativesTab({ narratives, editingNarrative, onSelectNarrative, onDone
   const today = getTodayISODate();
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-stretch justify-between gap-3 min-[460px]:flex-row min-[460px]:items-center">
         <SectionHeader title="Narratives" subtitle="Daily scripture readings and game content" />
-        <button onClick={() => onSelectNarrative('new')} className="btn-primary text-sm">
+        <button onClick={() => onSelectNarrative('new')} className="btn-primary w-full text-sm min-[460px]:w-auto">
           <Plus size={16} /> New Narrative
         </button>
       </div>
@@ -570,17 +922,48 @@ function NarrativesTab({ narratives, editingNarrative, onSelectNarrative, onDone
 }
 
 
-function InstructorDashboard({ tents, members, roles, narratives, onNavigate }: {
+function InstructorDashboard({ tents, members, roles, narratives, instructorId, onNavigate }: {
   tents: any[]; members: any[]; roles: RoleAssignment[]; narratives: DailyNarrative[];
+  instructorId: string | null;
   onNavigate: (k: string) => void;
 }) {
   const cadetCount = roles.filter((r) => r.role === 'cadet' && r.status === 'active').length;
   const sentryCount = roles.filter((r) => r.role === 'sentry' && r.status === 'active').length;
   const todayNarrative = narratives.find((n) => n.narrative_date === new Date().toISOString().slice(0, 10));
+  const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
+  const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [quotePaused, setQuotePaused] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchDailyQuoteFeed(6)
+      .then(async (items) => {
+        if (cancelled) return;
+        setQuotes(items);
+        setQuoteIndex(0);
+        if (instructorId) {
+          const reactions = await fetchDailyQuoteReactions(items, instructorId).catch(() => ({}));
+          if (!cancelled) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
+        }
+      })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [instructorId]);
+
+  useEffect(() => {
+    if (quotes.length <= 1 || quotePaused) return;
+    const interval = window.setInterval(() => {
+      setQuoteIndex((index) => (index + 1) % quotes.length);
+    }, 6000);
+    return () => window.clearInterval(interval);
+  }, [quotePaused, quotes.length]);
+
+  const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[460px]:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatBox icon={Users} label="Cadets" value={cadetCount} tint="text-peri-2" />
         <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />
         <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
@@ -601,6 +984,49 @@ function InstructorDashboard({ tents, members, roles, narratives, onNavigate }: 
           <BookOpen size={14} /> Manage narratives
         </button>
       </div>
+
+      {featuredQuote && (
+        <div className="card p-4">
+          <div className="flex items-start gap-3">
+            <div className="h-11 w-11 rounded-full overflow-hidden bg-surface-2 border border-border flex-shrink-0 flex items-center justify-center">
+              {featuredQuote.avatar_url ? (
+                <img src={featuredQuote.avatar_url} alt={featuredQuote.display_name} className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-display font-bold text-brass">{featuredQuote.display_name?.charAt(0) || '?'}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-1">Quote Feed</p>
+              <p className="text-base text-ink font-display leading-snug">"{featuredQuote.daily_quote}"</p>
+              <p className="text-xs text-stone mt-1">{featuredQuote.display_name}</p>
+              {quotes.length > 1 && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <button onClick={() => setQuoteIndex((idx) => (idx - 1 + quotes.length) % quotes.length)} className="btn-ghost text-xs px-2 py-1">Prev</button>
+                  <span className="text-[10px] text-stone">{quoteIndex + 1}/{quotes.length}</span>
+                  <button onClick={() => setQuoteIndex((idx) => (idx + 1) % quotes.length)} className="btn-ghost text-xs px-2 py-1">Next</button>
+                </div>
+              )}
+              <QuoteReactions
+                state={quoteReactions[`${featuredQuote.user_id}:${featuredQuote.record_date}`]}
+                disabled={!instructorId}
+                onReact={async (reactionType) => {
+                  if (!instructorId) return;
+                  await reactToDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, reactionType);
+                  setQuoteReactions(await fetchDailyQuoteReactions(quotes, instructorId).catch(() => quoteReactions) as Record<string, QuoteReactionState>);
+                }}
+                quoteUserId={featuredQuote.user_id}
+                quoteRecordDate={featuredQuote.record_date}
+                currentUserId={instructorId || undefined}
+                fetchComments={fetchDailyQuoteComments}
+                onComment={(body) => instructorId
+                  ? commentOnDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, body)
+                  : Promise.resolve()}
+                onCommentOpenChange={setQuotePaused}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <SectionHeader title="Tents Overview" subtitle="Quick view of tent membership" />
       <div className="grid sm:grid-cols-2 gap-3">
@@ -852,8 +1278,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
       const dMap: Record<string, number> = {};
       await Promise.all(cadets.map(async (c) => {
         try {
-          const { data: recs } = await supabase.from('daily_records').select('*').eq('user_id', c.user_id);
-          const st = computeStreak(recs || []);
+          const st = await fetchStrictStreak(c.user_id);
           sMap[c.user_id] = { current: st.current_streak, longest: st.longest_streak };
         } catch { sMap[c.user_id] = { current: 0, longest: 0 }; }
         try {
@@ -1042,8 +1467,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
       const dMap: Record<string, number> = {};
       await Promise.all(sentries.map(async (s) => {
         try {
-          const { data: recs } = await supabase.from('daily_records').select('*').eq('user_id', s.user_id);
-          const st = computeStreak(recs || []);
+          const st = await fetchStrictStreak(s.user_id);
           sMap[s.user_id] = { current: st.current_streak, longest: st.longest_streak };
         } catch { sMap[s.user_id] = { current: 0, longest: 0 }; }
         try {
@@ -1455,10 +1879,10 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     ],
   },
   {
-    group: 'Weekly House',
+    group: 'Weekly Tent',
     cadence: 'weekly',
     awards: [
-      { title: "The Lord's Secret", description: 'House of Job – Best Performing House', forTent: true },
+      { title: "The Lord's Secret", description: 'Best Performing Tent', forTent: true },
     ],
   },
   {
@@ -1473,10 +1897,10 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     ],
   },
   {
-    group: 'Monthly House',
+    group: 'Monthly Tent',
     cadence: 'monthly',
     awards: [
-      { title: 'Portion of the Priests', description: 'House of Aaron – Overall Best House', forTent: true },
+      { title: 'Portion of the Priests', description: 'Overall Best Tent', forTent: true },
     ],
   },
   {
@@ -1491,13 +1915,21 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     ],
   },
   {
-    group: 'Annual House',
+    group: 'Annual Tent',
     cadence: 'annual',
     awards: [
-      { title: 'Bethel Stone', description: 'House of God – Overall Best House', forTent: true },
+      { title: 'Bethel Stone', description: 'Overall Best Tent', forTent: true },
     ],
   },
 ];
+
+const AWARD_MEASUREMENT_START = '2026-07-27';
+
+type AwardRecommendation = {
+  title: string;
+  candidate: string;
+  detail: string;
+};
 
 function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
   awards: (Award & { profiles: { display_name: string } })[];
@@ -1514,9 +1946,101 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [awardDescription, setAwardDescription] = useState('');
   const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
   const [saving, setSaving] = useState(false);
+  const [recommendations, setRecommendations] = useState<AwardRecommendation[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
   const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
+  const cadetIds = cadets.map((r) => r.user_id);
+  const profileName = (userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet';
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRecommendations = async () => {
+      if (cadetIds.length === 0) {
+        setRecommendations([]);
+        return;
+      }
+      setLoadingRecommendations(true);
+      const next: AwardRecommendation[] = [];
+      try {
+        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult] = await Promise.all([
+          supabase
+            .from('daily_records')
+            .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
+            .in('user_id', cadetIds)
+            .gte('record_date', AWARD_MEASUREMENT_START),
+          supabase
+            .from('quiz_attempts')
+            .select('*')
+            .in('user_id', cadetIds)
+            .gte('submitted_at', `${AWARD_MEASUREMENT_START}T00:00:00`),
+          fetchDailyQuoteInteractionSummary(25).then((data) => ({ data })).catch(() => ({ data: [] })),
+        ]);
+
+        const consistency = new Map<string, number>();
+        (dailyRecords || []).forEach((record: any) => {
+          const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
+          consistency.set(record.user_id, (consistency.get(record.user_id) || 0) + credit);
+        });
+        const topConsistent = [...consistency.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topConsistent) {
+          next.push({
+            title: 'Most Consistent Cadet',
+            candidate: profileName(topConsistent[0]),
+            detail: `${topConsistent[1]} qualifying daily action(s) since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
+          });
+        }
+
+        const quizTotals = new Map<string, number>();
+        (quizAttempts || []).forEach((attempt: any) => {
+          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          quizTotals.set(attempt.user_id, (quizTotals.get(attempt.user_id) || 0) + figs);
+        });
+        const topQuiz = [...quizTotals.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topQuiz) {
+          next.push({
+            title: 'The Valediction Crown Watch',
+            candidate: profileName(topQuiz[0]),
+            detail: `${topQuiz[1]} fig(s) recorded from quizzes since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
+          });
+        }
+
+        const quoteLeader = (quoteSummaryResult.data || []).filter((item) => cadetIds.includes(item.quote_user_id))[0];
+        if (quoteLeader) {
+          next.push({
+            title: 'Rhetoric Award (Orator)',
+            candidate: quoteLeader.display_name,
+            detail: `${quoteLeader.interaction_count} quote interaction(s) from reactions and comments.`,
+          });
+        }
+
+        const tentScores = new Map<string, number>();
+        (dailyRecords || []).forEach((record: any) => {
+          const membership = members.find((member) => member.user_id === record.user_id && member.role === 'cadet');
+          if (!membership?.tent_id) return;
+          const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
+          tentScores.set(membership.tent_id, (tentScores.get(membership.tent_id) || 0) + credit);
+        });
+        const topTent = [...tentScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topTent) {
+          next.push({
+            title: "The Lord's Secret",
+            candidate: tents.find((tent) => tent.id === topTent[0])?.name || 'Leading tent',
+            detail: `${topTent[1]} aggregate daily action(s). Tent awards are given to tents, not tent houses.`,
+          });
+        }
+      } catch (error) {
+        console.warn('Award recommendation load failed:', error);
+      }
+      if (!cancelled) {
+        setRecommendations(next);
+        setLoadingRecommendations(false);
+      }
+    };
+    void loadRecommendations();
+    return () => { cancelled = true; };
+  }, [cadetIds.join('|'), members, profiles, tents]);
 
   const visibleCatalog = AWARD_CATALOG.map((group) => ({
     ...group,
@@ -1574,6 +2098,33 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Awards Hub" subtitle="Recognize outstanding cadets, sentries, and tents" />
 
+      <div className="rounded-lg border border-gold/25 bg-gold/10 p-4 text-sm text-ink">
+        <p className="font-semibold">Award measurement starts today: {formatShortDate(AWARD_MEASUREMENT_START)}.</p>
+        <p className="mt-1 text-stone">
+          From this point, awards should be judged from fresh app activity. Leadership awards belong to sentries; group awards belong to tents.
+        </p>
+      </div>
+
+      <div className="card p-4 sm:p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h4 className="font-display font-semibold text-ink">Suggested Award Watch</h4>
+          {loadingRecommendations && <Loader2 size={16} className="animate-spin text-brass" />}
+        </div>
+        {recommendations.length === 0 ? (
+          <p className="text-sm text-stone">No award signals yet. The app starts measuring from today.</p>
+        ) : (
+          <div className="grid gap-2 md:grid-cols-2">
+            {recommendations.map((item) => (
+              <div key={`${item.title}:${item.candidate}`} className="rounded-lg border border-border-bright bg-surface-2 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-brass">{item.title}</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{item.candidate}</p>
+                <p className="mt-1 text-xs text-stone">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="card p-5 space-y-5">
         <h4 className="font-display font-semibold text-ink">Give an Award</h4>
 
@@ -1585,7 +2136,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               <button key={t} onClick={() => { setTargetType(t); setSelectedUserIds(new Set()); setSelectedTentId(''); setSelectedAwards(new Set()); }}
                 className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize',
                   targetType === t ? 'bg-peri text-navy' : 'bg-surface-2 text-stone hover:text-ink')}>
-                {t === 'cadet' ? 'Cadet' : t === 'sentry' ? 'Sentry' : 'Tent House'}
+                {t === 'cadet' ? 'Cadet' : t === 'sentry' ? 'Sentry' : 'Tent'}
               </button>
             ))}
           </div>
@@ -1642,7 +2193,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                           className="mt-0.5 accent-peri flex-shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-ink leading-tight">{award.title}</p>
-                          <p className="text-xs text-stone mt-0.5">{award.description}</p>
+                          <p className="preserve-paragraphs text-xs text-stone mt-0.5">{award.description}</p>
                         </div>
                       </label>
                     );
@@ -1687,7 +2238,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                   {a.award_target_type === 'tent' && ' · Tent Award'}
                   {' · '}{a.award_month}
                 </p>
-                {a.description && <p className="text-xs text-stone mt-0.5 line-clamp-1">{a.description}</p>}
+                {a.description && <p className="preserve-paragraphs text-xs text-stone mt-0.5 line-clamp-2">{a.description}</p>}
               </div>
             </div>
           ))
@@ -1735,19 +2286,23 @@ function QuizBuilder() {
     const liveOpens = startTime.toISOString();
     const countdownOpens = new Date(startTime.getTime() - waitTime * 60 * 1000).toISOString();
     const liveCloses = new Date(startTime.getTime() + quizDuration * 60 * 1000).toISOString();
-    const { data, error } = await createQuizSession({
-      session_date: newDate,
-      title: newTitle,
-      scheduled_start_time: liveOpens,
-      countdown_opens_at: countdownOpens,
-      live_opens_at: liveOpens,
-      live_closes_at: liveCloses,
-      status: 'scheduled',
-      quiz_type: newQuizType,
-      reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
-      reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
-    } as any);
-    if (error) { alert(error.message); return; }
+    try {
+      await createQuizSession({
+        session_date: newDate,
+        title: newTitle,
+        scheduled_start_time: liveOpens,
+        countdown_opens_at: countdownOpens,
+        live_opens_at: liveOpens,
+        live_closes_at: liveCloses,
+        status: 'scheduled',
+        quiz_type: newQuizType,
+        reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
+        reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
+      } as any);
+    } catch (e: any) {
+      alert(e.message || 'Failed to create quiz session');
+      return;
+    }
     setNewTitle(''); setShowCreate(false); setNewQuizType('saturday');
     load();
   };
@@ -1805,7 +2360,7 @@ function QuizBuilder() {
         difficulty_tag: q.difficulty,
         mechanic_type: q.mechanic,
         recycled_from_game: q.recycled,
-        question_payload: q.payload,
+        question_payload: cleanQuestionPayload(q.payload),
       }));
       await insertQuestions(questionsToInsert);
       const qs = await fetchQuestionsForSession(session.id);
@@ -1826,7 +2381,7 @@ function QuizBuilder() {
           source_date: q.narrative_date || null,
           difficulty: (q.difficulty_tag || 'moderate') as 'easy' | 'moderate' | 'hard',
           mechanic: `tagged_${q.question_type}`,
-          payload: customQuestionToPayload(q),
+          payload: cleanQuestionPayload(customQuestionToPayload(q)),
           recycled: true,
         }))
         .filter((q) => !existingKeys.has(`${q.source_date || ''}:${q.payload.question}`));
@@ -1916,7 +2471,7 @@ function QuizBuilder() {
                       <span className="badge badge-brass text-xs">{q.difficulty_tag}</span>
                       <span className="text-xs text-stone">{q.mechanic_type}</span>
                     </div>
-                    <p className="text-sm text-ink font-medium">{q.question_payload.question}</p>
+                    <p className="preserve-paragraphs text-sm text-ink font-medium">{q.question_payload.question}</p>
                     {q.question_payload.options && (
                       <div className="mt-1.5 space-y-0.5">
                         {q.question_payload.options.map((opt: string, idx: number) => (
@@ -2047,13 +2602,6 @@ function InstructorSettings({ profile, tents, members }: {
     payout_max_amount_xaf: null,
   });
   const [mmSaving, setMmSaving] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
 
   useEffect(() => {
@@ -2096,32 +2644,9 @@ function InstructorSettings({ profile, tents, members }: {
     setMmSaving(false);
   };
 
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
-  };
-
   return (
-    passwordPage && profile?.email ? (
-      <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />
+    passwordPage ? (
+      <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />
     ) : (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences" />
@@ -2269,41 +2794,10 @@ function InstructorSettings({ profile, tents, members }: {
         <p className="text-xs text-stone">There can only be one instructor at a time. When you promote a sentry to instructor, you are automatically demoted. Use with care.</p>
         <p className="text-xs text-stone">Visit Sentry Management to promote a sentry to instructor.</p>
       </div>
+
+      <DeleteAccountSection />
     </div>
     )
-  );
-}
-
-function InstructorPasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-stone block mb-1">{label}</label>
-      <div className="relative">
-        <input
-          className="input-field text-sm pr-10"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          minLength={6}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -2373,8 +2867,8 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
                     </div>
                     <span className="badge badge-gold text-[10px]">Pending</span>
                   </div>
-                  <div className="p-3 rounded-lg bg-surface-2 text-sm text-ink mb-3">
-                    {s.proof_text}
+                  <div className="mb-3">
+                    <ChallengeEvidenceList items={s.evidence_items || []} legacyText={s.proof_text} />
                   </div>
                   {rejectingId === s.id ? (
                     <div className="space-y-2 animate-slide-up">
@@ -2421,14 +2915,92 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
                       {s.status}
                     </span>
                   </div>
+                  <div className="mt-3">
+                    <ChallengeEvidenceList items={s.evidence_items || []} legacyText={s.proof_text} />
+                  </div>
                   {s.rejection_reason && (
-                    <p className="text-xs text-coral mt-2 pl-3 border-l-2 border-coral/30">{s.rejection_reason}</p>
+                    <p className="preserve-paragraphs text-xs text-coral mt-2 pl-3 border-l-2 border-coral/30">{s.rejection_reason}</p>
                   )}
                 </div>
               ))}
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+function QuizAnswerSheets({ session, questions }: { session: QuizSession; questions: GeneratedQuestion[] }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sheets, setSheets] = useState<any[]>([]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setSheets(await fetchQuizAnswerSheets(session.id));
+    } catch (e: any) {
+      alert(e.message || 'Could not load quiz answer sheets.');
+    }
+    setLoading(false);
+  };
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && sheets.length === 0) await load();
+  };
+
+  const questionById = new Map(questions.map((question) => [question.id, question]));
+
+  return (
+    <div className="card p-4 bg-surface">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display font-semibold text-ink text-sm">Participant Answer Sheets</h3>
+          <p className="text-xs text-stone">Instructor-only score and response review.</p>
+        </div>
+        <button onClick={toggle} className="btn-secondary text-xs">
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+          {open ? 'Hide Sheets' : 'View Sheets'}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          {loading ? (
+            <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading...</p>
+          ) : sheets.length === 0 ? (
+            <p className="text-xs text-stone">No submitted attempts yet.</p>
+          ) : (
+            sheets.map((attempt) => (
+              <div key={attempt.id} className="rounded-lg border border-border bg-surface-2 p-3">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{attempt.profiles?.display_name || 'Unknown participant'}</p>
+                    <p className="text-xs text-stone">{attempt.profiles?.email || ''}</p>
+                  </div>
+                  <span className="badge badge-gold text-[10px]">{attempt.talents_scored || 0} figs</span>
+                </div>
+                <div className="space-y-2">
+                  {(attempt.question_responses || []).map((response: any, index: number) => {
+                    const question = questionById.get(response.question_id);
+                    return (
+                      <div key={response.id || index} className="rounded-md border border-border bg-surface p-2">
+                        <p className="text-xs font-semibold text-ink">{question?.question_payload?.question || `Question ${index + 1}`}</p>
+                        <p className="text-xs text-stone mt-1">Answer: <span className="text-ink">{String(response.answer_given ?? 'No answer')}</span></p>
+                        <p className={cn('text-[10px] mt-1', response.is_correct ? 'text-sage' : 'text-coral')}>
+                          {response.is_correct ? 'Correct' : `Incorrect · Correct answer: ${question?.question_payload?.correct_answer || 'Not available'}`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
     </div>
   );
@@ -2576,8 +3148,8 @@ function CustomQuestionsEditor({ sessionId }: { sessionId: string }) {
                     <span className="badge badge-peri text-[10px]">{q.question_type.replace(/_/g, ' ')}</span>
                     <span className="badge badge-neutral text-[10px]">{q.difficulty_tag}</span>
                   </div>
-                  <p className="text-sm text-ink font-medium">{q.question_text}</p>
-                  <p className="text-xs text-moss mt-1">Answer: {q.correct_answer}</p>
+                  <p className="preserve-paragraphs text-sm text-ink font-medium">{q.question_text}</p>
+                  <p className="preserve-paragraphs text-xs text-moss mt-1">Answer: {q.correct_answer}</p>
                   {q.options && <p className="text-xs text-stone mt-0.5">Options: {q.options.join(' · ')}</p>}
                 </div>
                 <button onClick={async () => { await deleteCustomQuestion(q.id); await load(); }}
@@ -3124,10 +3696,10 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                     {q.is_bonus && <span className="badge badge-roman text-[10px]">Bonus</span>}
                     {q.use_for_quiz && <span className="badge badge-moss text-[10px]">Quiz tagged</span>}
                   </div>
-                  <p className="text-sm text-ink font-medium">{q.question_text}</p>
-                  <p className="text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
+                  <p className="preserve-paragraphs text-sm text-ink font-medium">{q.question_text}</p>
+                  <p className="preserve-paragraphs text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
                   {q.options && q.options.length > 0 && <p className="text-xs text-stone mt-0.5">Options: {q.options.join(' · ')}</p>}
-                  {q.explanation && <p className="text-xs text-stone mt-0.5">{q.explanation}</p>}
+                  {q.explanation && <p className="preserve-paragraphs text-xs text-stone mt-0.5">{q.explanation}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
                   <button onClick={() => editQuestion(q)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>

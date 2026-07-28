@@ -6,8 +6,10 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow,
+  QuizScoreboardRow, QuestionPayload, PanelImageSetting, ChallengeEvidenceItem,
+  GameSeedData,
 } from '../lib/types';
+import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -253,6 +255,24 @@ export async function fetchResponsesForAttempt(attemptId: string) {
   return data as QuestionResponse[];
 }
 
+export async function settleQuizAttemptReward(
+  attemptId: string,
+  status: 'submitted' | 'timed_out',
+) {
+  const { data, error } = await supabase.rpc('settle_quiz_attempt_reward', {
+    p_attempt_id: attemptId,
+    p_status: status,
+  });
+  if (error) throw error;
+  return data as {
+    success: boolean;
+    figs: number;
+    max_figs: number;
+    perfect: boolean;
+    reward_denarii: number;
+  };
+}
+
 export async function fetchQuizAnswerSheets(sessionId: string) {
   const { data, error } = await supabase
     .from('quiz_attempts')
@@ -340,9 +360,14 @@ export async function fetchRelicInventory(userId: string) {
 }
 
 export async function fetchStreakboardSnapshots() {
+  const { data: liveData, error: liveError } = await supabase.rpc('get_streakboard_live');
+  if (!liveError && liveData) {
+    return liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
+  }
+
   const { data, error } = await supabase
     .from('streakboard_snapshots')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name,avatar_url)')
     .order('snapshot_date', { ascending: false })
     .limit(1);
   if (error) throw error;
@@ -350,11 +375,11 @@ export async function fetchStreakboardSnapshots() {
   const latestDate = data[0].snapshot_date;
   const { data: rows, error: err2 } = await supabase
     .from('streakboard_snapshots')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name,avatar_url)')
     .eq('snapshot_date', latestDate)
     .order('rank');
   if (err2) throw err2;
-  return rows as (StreakboardSnapshot & { profiles: { display_name: string } })[];
+  return rows as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
 export async function fetchLeaderboardSnapshots() {
@@ -398,9 +423,41 @@ export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']
     .eq('is_active', true)
     .in('audience', audiences)
     .order('publish_at', { ascending: false })
-    .limit(5);
+    .limit(50);
   if (error) throw error;
   return data as ScheduledAnnouncement[];
+}
+
+export async function fetchPanelImage(
+  panelType: string,
+  audiences: string[] = ['all', 'cadets'],
+) {
+  const setting = await fetchPanelImageSetting(panelType, audiences);
+  return setting?.url || null;
+}
+
+export async function fetchPanelImageSetting(
+  panelType: string,
+  audiences: string[] = ['all', 'cadets'],
+): Promise<PanelImageSetting | null> {
+  const announcementType = panelType === 'weekly_background' || panelType.startsWith('panel_image_')
+    ? panelType
+    : `panel_image_${panelType}`;
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('scheduled_announcements')
+    .select('content, image_position_x, image_position_y')
+    .eq('announcement_type', announcementType)
+    .lte('publish_at', now)
+    .eq('is_active', true)
+    .in('audience', audiences)
+    .order('publish_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.content && isPanelImageContent(data.content)
+    ? panelImageFromAnnouncement(data)
+    : null;
 }
 
 export async function fetchAllAnnouncements() {
@@ -462,9 +519,11 @@ export async function fetchChallengeSubmission(userId: string, date: string) {
     .select('*')
     .eq('user_id', userId)
     .eq('narrative_date', date)
+    .order('submitted_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data as ChallengeSubmission | null;
+  return addChallengeEvidenceUrls(data as ChallengeSubmission | null);
 }
 
 export async function upsertChallengeSubmission(sub: Partial<ChallengeSubmission>) {
@@ -531,7 +590,22 @@ export async function fetchAllChallengeSubmissions() {
     .select('*, profiles(display_name)')
     .order('submitted_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return Promise.all((data || []).map((submission: any) => addChallengeEvidenceUrls(submission)));
+}
+
+async function addChallengeEvidenceUrls<T extends ChallengeSubmission | null>(submission: T): Promise<T> {
+  if (!submission) return submission;
+  const evidence = Array.isArray(submission.evidence_items)
+    ? submission.evidence_items as ChallengeEvidenceItem[]
+    : [];
+  const evidenceWithUrls = await Promise.all(evidence.map(async (item) => {
+    if (!item.storage_path) return item;
+    const { data } = await supabase.storage
+      .from('challenge-evidence')
+      .createSignedUrl(item.storage_path, 60 * 60);
+    return data?.signedUrl ? { ...item, preview_url: data.signedUrl } : item;
+  }));
+  return { ...submission, evidence_items: evidenceWithUrls } as T;
 }
 
 export async function reviewChallengeSubmission(
@@ -752,6 +826,63 @@ export async function commentOnDailyQuote(quoteUserId: string, quoteRecordDate: 
     p_commenter_user_id: commenterUserId,
     p_body: body,
   });
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchDailyVerseReactions(narrativeDates: string[], reactorId?: string) {
+  if (narrativeDates.length === 0) return {};
+  const { data, error } = await supabase
+    .from('daily_verse_reactions')
+    .select('narrative_date, reactor_user_id, reaction_type')
+    .in('narrative_date', narrativeDates);
+  if (error) throw error;
+
+  const map: Record<string, Record<string, { count: number; reacted: boolean }>> = {};
+  (data || []).forEach((row: any) => {
+    const key = row.narrative_date;
+    if (!map[key]) map[key] = {};
+    if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false };
+    map[key][row.reaction_type].count += 1;
+    if (reactorId && row.reactor_user_id === reactorId) map[key][row.reaction_type].reacted = true;
+  });
+  return map;
+}
+
+export async function reactToDailyVerse(narrativeDate: string, reactorUserId: string, reactionType: string) {
+  const { error } = await supabase
+    .from('daily_verse_reactions')
+    .upsert(
+      { narrative_date: narrativeDate, reactor_user_id: reactorUserId, reaction_type: reactionType },
+      { onConflict: 'narrative_date,reactor_user_id,reaction_type' },
+    );
+  if (error) throw error;
+}
+
+export async function fetchDailyVerseComments(narrativeDate: string) {
+  const { data, error } = await supabase
+    .from('daily_verse_comments')
+    .select('id,body,created_at,commenter_user_id,profiles!daily_verse_comments_commenter_user_id_fkey(display_name,avatar_url)')
+    .eq('narrative_date', narrativeDate)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    body: row.body,
+    created_at: row.created_at,
+    commenter_user_id: row.commenter_user_id,
+    display_name: row.profiles?.display_name || 'User',
+    avatar_url: row.profiles?.avatar_url || null,
+    rank_label: 'Verse',
+  })) as import('./types').DailyQuoteComment[];
+}
+
+export async function commentOnDailyVerse(narrativeDate: string, commenterUserId: string, body: string) {
+  const { data, error } = await supabase
+    .from('daily_verse_comments')
+    .insert({ narrative_date: narrativeDate, commenter_user_id: commenterUserId, body })
+    .select('id')
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -1011,6 +1142,33 @@ export async function markTentMessageRead(messageId: string) {
   if (error) throw error;
 }
 
+// ── Direct messages ──
+
+export async function fetchDirectMessages(senderId: string, recipientId: string) {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('*, sender:profiles!sender_id(display_name,avatar_url)')
+    .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${senderId})`)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function sendDirectMessage(senderId: string, recipientId: string, body: string) {
+  const { error } = await supabase
+    .from('direct_messages')
+    .insert({ sender_id: senderId, recipient_id: recipientId, body });
+  if (error) throw error;
+}
+
+export async function markDirectMessageRead(messageId: string) {
+  const { error } = await supabase
+    .from('direct_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', messageId);
+  if (error) throw error;
+}
+
 export async function fetchUnassignedUsers() {
   const { data, error } = await supabase.rpc('get_unassigned_users');
   if (error) throw error;
@@ -1045,7 +1203,8 @@ export async function uploadAvatar(userId: string, file: File) {
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const publicUrl = `${data.publicUrl}?v=${version}`;
-  await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
+  const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
+  if (profileError) throw profileError;
   return publicUrl;
 }
 
@@ -1109,6 +1268,78 @@ export async function finishArenaGame(roomId: string, userId: string, score: num
     p_room_id: roomId, p_user_id: userId, p_score: score, p_correct_count: correctCount,
   });
   if (error) throw error;
+}
+
+export async function generateArenaQuestionsWithAI(payload: {
+  roomId: string;
+  roomName: string;
+  topicType?: string | null;
+  topic?: string | null;
+  narrative?: DailyNarrative | null;
+  forceRegenerate?: boolean;
+}) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('AI arena generation is not configured.');
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || 'The arena question generator could not prepare this battle.');
+  }
+  const data = await res.json();
+  if (!Array.isArray(data.questions)) throw new Error('AI arena generation returned no questions.');
+  return data.questions as QuestionPayload[];
+}
+
+export async function generateGamePacketWithAI(payload: {
+  source: {
+    title: string;
+    theme: string;
+    scriptureReference: string;
+    mainText: string;
+    verseOfDay: string;
+  };
+  existing?: GameSeedData;
+  sections?: (keyof GameSeedData)[];
+}) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!token || !supabaseUrl || !supabaseAnonKey) {
+    throw new Error('AI packet generation is not configured.');
+  }
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/generate-game-packet`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || 'The Game Content Packet generator could not complete this passage.');
+  }
+
+  const result = await res.json();
+  if (!result?.packet || typeof result.packet !== 'object') {
+    throw new Error('AI packet generation returned no usable content.');
+  }
+  return result.packet as GameSeedData;
 }
 
 async function mergeArenaRoomsWithParticipants(rooms: any[]) {
