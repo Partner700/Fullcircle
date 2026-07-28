@@ -8,10 +8,7 @@ import type {
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
   QuizScoreboardRow, QuestionPayload,
 } from '../lib/types';
-<<<<<<< HEAD
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -412,7 +409,6 @@ export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']
   return data as ScheduledAnnouncement[];
 }
 
-<<<<<<< HEAD
 export async function fetchPanelImage(
   panelType: string,
   audiences: string[] = ['all', 'cadets'],
@@ -445,8 +441,6 @@ export async function fetchPanelImageSetting(
     : null;
 }
 
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 export async function fetchAllAnnouncements() {
   const { data, error } = await supabase
     .from('scheduled_announcements')

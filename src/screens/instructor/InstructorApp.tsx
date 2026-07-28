@@ -22,6 +22,7 @@ import {
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
+  Image as ImageIcon, Upload, X, Move,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -267,8 +268,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'weekly_background', label: 'Weekly App Background', audience: 'all' },
   { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
   { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
-  { type: 'panel_image_general', label: 'General Announcement', audience: 'all' },
-  { type: 'panel_image_announcement', label: 'Announcement Fallback', audience: 'all' },
+  { type: 'panel_image_announcement', label: 'General / Announcement Panel', audience: 'all' },
   { type: 'panel_image_morning_call', label: 'Morning Call', audience: 'all' },
   { type: 'panel_image_midday_reminder', label: 'Midday Reminder', audience: 'all' },
   { type: 'panel_image_evening_reminder', label: 'Evening Reminder', audience: 'all' },
@@ -366,16 +366,12 @@ function AnnouncementManager() {
   const [publishAt, setPublishAt] = useState(toDateTimeLocal(new Date().toISOString()));
   const [content, setContent] = useState('');
   const [isActive, setIsActive] = useState(true);
-<<<<<<< HEAD
   const [editingImageType, setEditingImageType] = useState<string | null>(null);
   const [imagePositionX, setImagePositionX] = useState(50);
   const [imagePositionY, setImagePositionY] = useState(50);
   const [uploadingImageType, setUploadingImageType] = useState<string | null>(null);
   const [savingImagePosition, setSavingImagePosition] = useState(false);
   const [imageAdjustments, setImageAdjustments] = useState<PanelImageAdjustments>(DEFAULT_PANEL_IMAGE_ADJUSTMENTS);
-=======
-  const [uploadingBackground, setUploadingBackground] = useState(false);
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -428,7 +424,6 @@ function AnnouncementManager() {
     setSaving(false);
   };
 
-<<<<<<< HEAD
   const publishImageSetting = async (
     type: string,
     imageUrl: string,
@@ -437,15 +432,14 @@ function AnnouncementManager() {
     positionY = 50,
     adjustments: PanelImageAdjustments = DEFAULT_PANEL_IMAGE_ADJUSTMENTS,
   ) => {
-=======
-  const publishImageSetting = async (type: string, imageUrl: string, targetAudience = 'all') => {
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     const payload = {
       announcement_type: type,
       audience: targetAudience,
       publish_at: new Date().toISOString(),
       content: serializePanelImageSetting(imageUrl, adjustments),
       is_active: true,
+      image_position_x: positionX,
+      image_position_y: positionY,
     };
     const existing = announcements.find((announcement) =>
       announcement.announcement_type === type && announcement.audience === targetAudience && announcement.is_active !== false
@@ -475,18 +469,7 @@ function AnnouncementManager() {
     }
   };
 
-<<<<<<< HEAD
   const activeImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
-=======
-  const activeImageSettings = [
-    { type: 'weekly_background', label: 'Weekly Background', audience: 'all' },
-    { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
-    { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
-    { type: 'panel_image_announcement', label: 'Announcement Panel', audience: 'all' },
-    { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
-    { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
-  ].map((slot) => ({
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     ...slot,
     item: announcements.find((announcement) =>
       announcement.announcement_type === slot.type
@@ -499,7 +482,6 @@ function AnnouncementManager() {
     image: setting.item ? panelImageFromAnnouncement(setting.item) : null,
   }));
 
-<<<<<<< HEAD
   const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
   const standardAnnouncements = announcements.filter((announcement) =>
     announcement.announcement_type !== 'weekly_background'
@@ -516,18 +498,15 @@ function AnnouncementManager() {
 
   const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
     setUploadingImageType(type);
-=======
-  const uploadWeeklyBackground = async (file: File) => {
-    setUploadingBackground(true);
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     try {
       const ext = file.name.split('.').pop() || 'jpg';
       const version = Date.now();
-      const path = `weekly-backgrounds/${version}.${ext}`;
+      const safeType = type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+      const folder = type === 'weekly_background' ? 'weekly-backgrounds' : 'panel-images';
+      const path = `${folder}/${safeType}-${version}.${ext}`;
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-<<<<<<< HEAD
       await publishImageSetting(type, `${data.publicUrl}?v=${version}`, targetAudience, imagePositionX, imagePositionY, imageAdjustments);
     } catch (e: any) {
       alert(e.message || 'Failed to upload panel image');
@@ -550,29 +529,6 @@ function AnnouncementManager() {
       alert(e.message || 'Failed to save image framing');
     }
     setSavingImagePosition(false);
-=======
-      await publishImageSetting('weekly_background', `${data.publicUrl}?v=${version}`, 'all');
-    } catch (e: any) {
-      alert(e.message || 'Failed to upload weekly background image');
-    }
-    setUploadingBackground(false);
-  };
-
-  const uploadPanelImage = async (file: File, panelType: string) => {
-    setUploadingBackground(true);
-    try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const version = Date.now();
-      const path = `panel-images/${panelType}-${version}.${ext}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      await publishImageSetting(`panel_image_${panelType}`, `${data.publicUrl}?v=${version}`, 'all');
-    } catch (e: any) {
-      alert(e.message || 'Failed to upload panel image');
-    }
-    setUploadingBackground(false);
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   };
 
   const toggleActive = async (announcement: ScheduledAnnouncement) => {
@@ -644,10 +600,15 @@ function AnnouncementManager() {
         </div>
 
         <div className="rounded-lg border border-border bg-surface-2 p-3">
-          <label className="text-xs text-stone block mb-2">Panel Images</label>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <label className="text-xs font-semibold text-ink">Panel Images</label>
+              <p className="text-[10px] text-stone">Click any panel to add, replace, crop, or tune its image.</p>
+            </div>
+            <span className="badge badge-neutral text-[10px]">{activeImageSettings.length} panels</span>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {activeImageSettings.map((setting) => (
-<<<<<<< HEAD
               <div key={`${setting.type}:${setting.audience}`} className="relative overflow-hidden rounded-lg border border-border bg-surface">
                 <button
                   type="button"
@@ -669,65 +630,27 @@ function AnnouncementManager() {
                       </div>
                     )}
                     <div className="absolute inset-0 bg-ink/0 transition-colors group-hover:bg-ink/10" />
-=======
-              <div key={`${setting.type}:${setting.audience}`} className="rounded-lg border border-border bg-surface p-2">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-xs font-semibold text-ink">{setting.label}</span>
-                  {setting.item && (
-                    <button
-                      type="button"
-                      onClick={() => deleteImageSetting(setting.type, setting.audience)}
-                      className="text-[10px] font-bold text-coral hover:text-coral/80"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-                {setting.item ? (
-                  <img src={setting.item.content} alt="" className="h-20 w-full rounded-md object-cover opacity-80" />
-                ) : (
-                  <div className="h-20 rounded-md border border-dashed border-border bg-surface-2 flex items-center justify-center text-[10px] text-stone">
-                    No image saved
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
                   </div>
+                  <div className="flex items-center justify-between gap-2 p-3">
+                    <span className="text-xs font-semibold text-ink">{setting.label}</span>
+                    <span className="text-[10px] font-semibold text-brass">
+                      {setting.item ? 'Edit image' : 'Add image'}
+                    </span>
+                  </div>
+                </button>
+                {setting.item && (
+                  <button
+                    type="button"
+                    onClick={() => deleteImageSetting(setting.type, setting.audience)}
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border border-white/30 bg-black/55 text-white transition-colors hover:bg-coral"
+                    title={`Delete ${setting.label}`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 )}
               </div>
             ))}
           </div>
-          <div className="grid sm:grid-cols-2 gap-2 mb-3">
-            {[
-              ['welcome', 'Welcome panel'],
-              ['verse', 'Verse panel'],
-              ['announcement', 'Announcement panel'],
-              ['quote', 'Quote panel'],
-              ['market', 'Market panel'],
-            ].map(([value, label]) => (
-              <label key={value} className="rounded-lg border border-border bg-surface p-2 text-xs text-stone">
-                <span className="block font-semibold text-ink mb-1">{label}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={uploadingBackground}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void uploadPanelImage(file, value);
-                  }}
-                  className="block w-full text-[10px] text-stone"
-                />
-              </label>
-            ))}
-          </div>
-          <label className="text-xs text-stone block mb-2">Upload fallback weekly background image</label>
-          <input
-            type="file"
-            accept="image/*"
-            disabled={uploadingBackground}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void uploadWeeklyBackground(file);
-            }}
-            className="block w-full text-xs text-stone"
-          />
           <p className="text-[10px] text-stone mt-2">
             Images appear almost translucent behind text. Uploading a new image creates an editable active image setting you can update any time.
           </p>
@@ -752,15 +675,28 @@ function AnnouncementManager() {
         <h4 className="font-display font-semibold text-ink mb-3">Scheduled & Published</h4>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
-        ) : announcements.length === 0 ? (
+        ) : standardAnnouncements.length === 0 ? (
           <EmptyState icon={Megaphone} title="No announcements yet" message="Create one above to place it in the dashboard slideshow." />
         ) : (
           <div className="space-y-2">
-            {announcements.map((announcement) => {
+            {standardAnnouncements.map((announcement) => {
               const published = new Date(announcement.publish_at).getTime() <= Date.now();
+              const associatedImage = activeImageSettings.find((setting) =>
+                setting.type === `panel_image_${announcement.announcement_type}` && setting.audience === announcement.audience
+              )?.image || activeImageSettings.find((setting) =>
+                setting.type === `panel_image_${announcement.announcement_type}` && setting.audience === 'all'
+              )?.image || activeImageSettings.find((setting) =>
+                setting.type === 'panel_image_announcement' && setting.audience === 'all'
+              )?.image || null;
               return (
-                <div key={announcement.id} className="rounded-lg border border-border-bright bg-surface-2 p-3 flex items-start gap-3">
-                  <Megaphone size={18} className={cn('mt-0.5 flex-shrink-0', announcement.is_active ? 'text-brass' : 'text-stone')} />
+                <div key={announcement.id} className="rounded-lg border border-border-bright bg-surface-2 p-3 flex flex-col sm:flex-row sm:items-start gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <Megaphone size={18} className={cn('mt-0.5 flex-shrink-0', announcement.is_active ? 'text-brass' : 'text-stone')} />
+                    {associatedImage && (
+                      <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-md border border-border bg-surface">
+                        <PanelImageBackdrop image={associatedImage} opacityFallback={100} veilClassName="" />
+                      </div>
+                    )}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap gap-1.5 mb-1">
                       <span className="badge badge-neutral text-[10px]">{announcement.announcement_type.replace(/_/g, ' ')}</span>
@@ -775,7 +711,8 @@ function AnnouncementManager() {
                     <p className="text-sm text-ink whitespace-pre-wrap">{announcement.content}</p>
                     <p className="text-xs text-stone mt-1">{new Date(announcement.publish_at).toLocaleString()}</p>
                   </div>
-                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  </div>
+                  <div className="flex flex-row sm:flex-col gap-1.5 flex-shrink-0">
                     <button onClick={() => edit(announcement)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>
                     <button onClick={() => toggleActive(announcement)} className="btn-ghost text-[10px] px-2 py-1">
                       {announcement.is_active ? 'Pause' : 'Activate'}
@@ -790,7 +727,6 @@ function AnnouncementManager() {
           </div>
         )}
       </div>
-<<<<<<< HEAD
 
       {editingImageSetting && (
         <div
@@ -948,8 +884,6 @@ function AnnouncementManager() {
           </div>
         </div>
       )}
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
     </div>
   );
 }

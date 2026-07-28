@@ -7,12 +7,13 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
   fetchNarratives, fetchFortuneQuizSession, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
+  fetchPanelImageSetting,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
-import { QUIZ_LIVE_DURATION_MINUTES, FULL_QUIZ_TALENTS, TALENTS_TO_DENARII, RELIC_SLUGS } from '../../lib/constants';
-import { formatCountdown, formatDenarii, cn, quizScoreToTalents, talentsToDenarii } from '../../lib/utils';
+import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
+import { formatCountdown, cn } from '../../lib/utils';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
-import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative } from '../../lib/types';
+import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
   FileQuestion, Clock, CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
   Trophy, Zap, Lock, Ban, Timer, BookOpen, Swords, RefreshCw,
@@ -37,6 +38,11 @@ function localQuizDeadline(sessionDate: string) {
 function localQuizDayStart(sessionDate: string) {
   const [year, month, day] = sessionDate.split('-').map(Number);
   return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+}
+
+function localQuizResultsRelease(sessionDate: string) {
+  const [year, month, day] = sessionDate.split('-').map(Number);
+  return new Date(year, month - 1, day, 15, 0, 0, 0).getTime();
 }
 
 function hasUsedLazarus(attempt: QuizAttempt | null) {
@@ -75,6 +81,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [lazarusCount, setLazarusCount] = useState(0);
   const [usingLazarus, setUsingLazarus] = useState(false);
   const [lazarusMode, setLazarusMode] = useState(false);
+  const [quizImage, setQuizImage] = useState<PanelImageSetting | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -83,13 +90,15 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     const sess = await fetchLatestQuizSession();
     setSession(sess);
     if (sess) {
-      const [qs, att, relics] = await Promise.allSettled([
+      const [qs, att, relics, image] = await Promise.allSettled([
         fetchQuestionsForSession(sess.id),
         fetchQuizAttempt(profile.id, sess.id),
         fetchRelicInventory(profile.id),
+        fetchPanelImageSetting('quiz'),
       ]);
       setQuestions(qs.status === 'fulfilled' ? qs.value : []);
       setAttempt(att.status === 'fulfilled' ? att.value : null);
+      setQuizImage(image.status === 'fulfilled' ? image.value : null);
       if (relics.status === 'fulfilled') {
         const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
         setLazarusCount(lazarus?.quantity || 0);
@@ -221,12 +230,17 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setUsingLazarus(false);
   };
 
-  // If attempt is forfeited or submitted, show result
+  const resultsReleaseAt = localQuizResultsRelease(session.session_date);
+
+  // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    return <ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
-    return <ResultsView attempt={attempt} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
+      return <SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    }
+    return <ResultsView attempt={attempt} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
   }
 
   // In quiz
@@ -251,14 +265,9 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   return (
     <div className="space-y-5 animate-fade-in max-w-2xl mx-auto">
       {/* Quiz card — session header */}
-<<<<<<< HEAD
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
         <PanelImageBackdrop image={quizImage} opacityFallback={20} veilClassName="bg-surface/75" />
         <div className="relative text-center">
-=======
-      <div className="card p-6 animate-slide-up">
-        <div className="text-center">
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
           <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
             <FileQuestion size={28} className="text-brass" />
@@ -351,13 +360,13 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <RuleItem icon={Clock} text={`${QUIZ_LIVE_DURATION_MINUTES}-minute live window — no late submissions`} />
           <RuleItem icon={ChevronRight} text="Forward-gated: can't skip ahead without answering" />
           <RuleItem icon={ChevronLeft} text="Can navigate back to review/change earlier answers" />
-          <RuleItem icon={AlertTriangle} text="App-exit = instant forfeiture, zero talents, broken streak" />
+          <RuleItem icon={AlertTriangle} text="App-exit = instant forfeiture, zero figs, broken streak" />
           <RuleItem icon={RefreshCw} text="Lazarus Coin can reopen or retake the Saturday quiz before 2:45 PM" />
           <RuleItem
             icon={Trophy}
             text={session.quiz_type === 'fortune'
-              ? `Perfect = 6,000 Ð (1 talent). Less than perfect = 1,000 Ð.`
-              : `10/10 = ${FULL_QUIZ_TALENTS} talents = ${formatDenarii(FULL_QUIZ_TALENTS * TALENTS_TO_DENARII)} denarii. 2 correct = 1 talent.`}
+              ? 'Perfect = 6,000 Ð. Less than perfect = 1,000 Ð. Figs are weighted by difficulty.'
+              : 'Figs: easy answers = 1, medium = 3, hard = 5. Perfect score earns 6,000 Ð; any imperfect score with at least one correct answer earns 1,000 Ð.'}
           />
         </div>
       </div>
@@ -571,8 +580,15 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
   const handleSubmit = async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
     setSubmitting(true);
     let correctCount = 0;
+    let figs = 0;
+    const figValue = (difficulty: string | null | undefined) => {
+      if (difficulty === 'hard') return 5;
+      if (difficulty === 'moderate' || difficulty === 'medium') return 3;
+      return 1;
+    };
     if (forcePerfect) {
       correctCount = questions.length;
+      figs = questions.reduce((sum, question) => sum + figValue(question.difficulty_tag), 0);
       const now = new Date().toISOString();
       const perfectResponses = questions.map((question) => ({
         quiz_attempt_id: attempt.id,
@@ -588,11 +604,15 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     } else {
       for (const [qId, ans] of localResponses) {
         const question = questions.find((q) => q.id === qId);
-        if (question && ans === question.question_payload.correct_answer) correctCount++;
+        if (question && ans === question.question_payload.correct_answer) {
+          correctCount++;
+          figs += figValue(question.difficulty_tag);
+        }
       }
     }
-    const talents = quizScoreToTalents(correctCount);
-    const denarii = talentsToDenarii(talents);
+    const talents = figs;
+    const perfectScore = correctCount === questions.length && questions.length > 0;
+    const denarii = perfectScore ? 6000 : correctCount > 0 ? 1000 : 0;
 
     await supabase.from('quiz_attempts').update({
       status,
@@ -607,8 +627,8 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         source_type: 'quiz_reward',
         source_reference: attempt.id,
         description: forcePerfect
-          ? `Quiz: perfect score by Sword of Goliath · ${talents} talents`
-          : `Quiz: ${correctCount}/${questions.length} correct · ${talents} talents`,
+          ? `Quiz: perfect score by Sword of Goliath · ${figs} figs`
+          : `Quiz: ${correctCount}/${questions.length} correct · ${figs} figs`,
       });
     }
 
@@ -905,8 +925,9 @@ function LazarusQuizButton({
   );
 }
 
-function ForfeitedView({ attempt, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
-  attempt: QuizAttempt;
+function SubmittedView({ releaseAt, image, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+  releaseAt: number;
+  image: PanelImageSetting | null;
   canUseLazarus: boolean;
   lazarusCount: number;
   usingLazarus: boolean;
@@ -914,7 +935,6 @@ function ForfeitedView({ attempt, canUseLazarus, lazarusCount, usingLazarus, onU
 }) {
   return (
     <div className="max-w-md mx-auto animate-scale-in">
-<<<<<<< HEAD
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center border-moss/30">
         <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
@@ -939,45 +959,14 @@ function ForfeitedView({ attempt, canUseLazarus, lazarusCount, usingLazarus, onU
             onUseLazarus={onUseLazarus}
             className="mt-4"
           />
-=======
-      <div className="card p-8 text-center border-roman/30">
-        <div className="eyebrow text-roman mb-3">Forfeited</div>
-        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-roman/10 border border-roman/30">
-          <Ban size={32} className="text-roman" />
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
         </div>
-        <h2 className="font-display text-xl font-semibold text-roman mb-2">Quiz Forfeited</h2>
-        <p className="text-sm text-stone mb-4">
-          You left the quiz screen while it was live. The forfeiture is irreversible.
-        </p>
-        <div className="bg-roman/5 rounded-lg p-3 text-sm text-left space-y-2 border border-roman/20">
-          <p className="text-roman font-medium">Consequences:</p>
-          <div className="space-y-1.5 text-stone">
-            <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Zero talents, zero denarii from this quiz</p>
-            <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Does not count toward Quiz Champion</p>
-            <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Breaks this Saturday's streak (quizzes are obligatory)</p>
-          </div>
-        </div>
-        {attempt.forfeited_at && (
-          <p className="text-xs text-stone mt-3">
-            Forfeited at {new Date(attempt.forfeited_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-          </p>
-        )}
-        <LazarusQuizButton
-          canUseLazarus={canUseLazarus}
-          lazarusCount={lazarusCount}
-          usingLazarus={usingLazarus}
-          onUseLazarus={onUseLazarus}
-          className="mt-4"
-        />
       </div>
     </div>
   );
 }
 
-function ResultsView({ attempt, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
   attempt: QuizAttempt;
-<<<<<<< HEAD
   image: PanelImageSetting | null;
   canUseLazarus: boolean;
   lazarusCount: number;
@@ -1000,9 +989,9 @@ function ResultsView({ attempt, questions, responses, canUseLazarus, lazarusCoun
           <div className="bg-roman/5 rounded-lg p-3 text-sm text-left space-y-2 border border-roman/20">
             <p className="text-roman font-medium">Consequences:</p>
             <div className="space-y-1.5 text-stone">
-              <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Zero talents, zero denarii from this quiz</p>
+              <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Zero figs, zero denarii from this quiz</p>
               <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Does not count toward Quiz Champion</p>
-              <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Breaks this Saturday's streak (quizzes are obligatory)</p>
+              <p className="flex items-start gap-2"><SealBullet className="text-roman mt-1.5 flex-shrink-0" /> Breaks this Saturday's streak unless Lazarus reopens it in time</p>
             </div>
           </div>
           {attempt.forfeited_at && (
@@ -1026,8 +1015,6 @@ function ResultsView({ attempt, questions, responses, canUseLazarus, lazarusCoun
 function ResultsView({ attempt, image, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
   attempt: QuizAttempt;
   image: PanelImageSetting | null;
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   questions: GeneratedQuestion[];
   responses: QuestionResponse[];
   canUseLazarus: boolean;
@@ -1035,17 +1022,15 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
   usingLazarus: boolean;
   onUseLazarus: () => void;
 }) {
-  const correctCount = questions.filter((q) => {
+  const figs = questions.filter((q) => {
     const resp = responses.find((r) => r.question_id === q.id);
-    return resp && resp.answer === q.question_payload.correct_answer;
+    return resp && String(resp.answer) === String(q.question_payload.correct_answer);
   }).length;
-
-  const talents = attempt.talents_scored || quizScoreToTalents(correctCount);
-  const denarii = talentsToDenarii(talents);
+  const perfect = questions.length > 0 && figs === questions.length;
+  const denarii = perfect ? 6000 : 1000;
 
   return (
     <div className="max-w-2xl mx-auto animate-fade-in space-y-4">
-<<<<<<< HEAD
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center animate-scale-in">
         <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
@@ -1055,22 +1040,22 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink mb-1">Quiz Complete</h2>
           <p className="text-sm text-stone mb-4">
-            {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {correctCount}/{questions.length} correct
+            {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {figs}/{questions.length} figs
           </p>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="card p-3 bg-surface-2">
+            <div className="rounded-lg border border-border bg-surface-2 p-3">
               <p className="text-xs text-stone uppercase tracking-wider">Figs</p>
               <p className="font-display text-xl font-semibold text-brass">{figs}/{questions.length}</p>
             </div>
-            <div className="card p-3 bg-surface-2">
+            <div className="rounded-lg border border-border bg-surface-2 p-3">
               <p className="text-xs text-stone uppercase tracking-wider">Denarii</p>
               <p className="font-display text-xl font-semibold text-brass">{formatDenarii(denarii)}</p>
             </div>
           </div>
 
           <p className="text-xs text-stone mb-3">
-            {perfect ? 'Perfect score reward: 1 talent' : 'Imperfect score reward'}
+            {perfect ? 'Perfect score reward: 1 talent' : 'Imperfect score reward: 1,000 denarii'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-1">
             {Array.from({ length: questions.length }, (_, i) => (
@@ -1089,77 +1074,6 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
             onUseLazarus={onUseLazarus}
             className="mt-5"
           />
-=======
-      <div className="card p-8 text-center animate-scale-in">
-        <div className="eyebrow text-brass mb-3">Complete</div>
-        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-brass/10 border border-brass/30">
-          <Trophy size={32} className="text-brass" />
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
-        </div>
-        <h2 className="font-display text-2xl font-semibold text-ink mb-1">Quiz Complete</h2>
-        <p className="text-sm text-stone mb-4">
-          {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {correctCount}/{questions.length} correct
-        </p>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="card p-3 bg-surface-2">
-            <p className="text-xs text-stone uppercase tracking-wider">Talents</p>
-            <p className="font-display text-xl font-semibold text-brass">{talents}/5</p>
-          </div>
-          <div className="card p-3 bg-surface-2">
-            <p className="text-xs text-stone uppercase tracking-wider">Denarii</p>
-            <p className="font-display text-xl font-semibold text-brass">{formatDenarii(denarii)}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-center gap-1">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className={cn(
-              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold',
-              i < talents ? 'bg-brass text-bg' : 'bg-surface-2 text-stone/40 border border-border',
-            )}>
-              {i + 1}
-            </div>
-          ))}
-        </div>
-        <LazarusQuizButton
-          canUseLazarus={canUseLazarus}
-          lazarusCount={lazarusCount}
-          usingLazarus={usingLazarus}
-          onUseLazarus={onUseLazarus}
-          className="mt-5"
-        />
-      </div>
-
-      {/* Answer review with seal bullets */}
-      <div className="card p-5 animate-slide-up">
-        <SectionHeader title="Answer Review" />
-        <div className="space-y-3">
-          {questions.map((q, i) => {
-            const resp = responses.find((r) => r.question_id === q.id);
-            const correct = resp && resp.answer === q.question_payload.correct_answer;
-            return (
-              <div key={q.id} className={cn(
-                'p-3 rounded-lg border',
-                correct ? 'border-moss/30 bg-moss/5' : resp ? 'border-roman/30 bg-roman/5' : 'border-border bg-surface-2',
-              )}>
-                <div className="flex items-start gap-2">
-                  {correct
-                    ? <CheckCircle2 size={16} className="text-moss flex-shrink-0 mt-0.5" />
-                    : <XCircle size={16} className="text-roman flex-shrink-0 mt-0.5" />}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-ink font-medium">Q{i + 1}: {q.question_payload.question}</p>
-                    {resp && !correct && (
-                      <p className="text-xs text-roman mt-0.5 flex items-center gap-1.5">
-                        <SealBullet className="text-roman" /> Your answer: {String(resp.answer)}
-                      </p>
-                    )}
-                    {!resp && <p className="text-xs text-stone mt-0.5">Not answered</p>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>

@@ -11,13 +11,10 @@ import {
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import { fetchAnnouncements, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
-<<<<<<< HEAD
 import { panelImageFromAnnouncement } from '../../lib/panelImages';
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo, PanelImageSetting } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
@@ -214,15 +211,11 @@ export function SentryApp() {
   }).length;
   const panelImages = announcements
     .filter((announcement) => announcement.announcement_type?.startsWith('panel_image_'))
-    .reduce<Record<string, string>>((map, announcement) => {
-      map[announcement.announcement_type.replace('panel_image_', '')] = announcement.content;
+    .reduce<Record<string, PanelImageSetting>>((map, announcement) => {
+      const panelImage = panelImageFromAnnouncement(announcement);
+      if (panelImage) map[announcement.announcement_type.replace('panel_image_', '')] = panelImage;
       return map;
     }, {});
-<<<<<<< HEAD
-=======
-  const weeklyBackgroundUrl = announcements.find((announcement) => announcement.announcement_type === 'weekly_background')?.content || null;
-
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   const tabLabels: Record<Tab, string> = {
     overview: 'Sentry Overview',
     attendance: 'Mark Attendance',
@@ -258,10 +251,6 @@ export function SentryApp() {
           quoteReactions={quoteReactions}
           reactingQuote={reactingQuote}
           currentUserId={profile?.id || null}
-<<<<<<< HEAD
-=======
-          backgroundUrl={weeklyBackgroundUrl}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
           panelImages={panelImages}
           onReactQuote={async (quote, reactionType) => {
             if (!profile) return;
@@ -285,7 +274,7 @@ export function SentryApp() {
       )}
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
-      {tab === 'reading' && <CadetNarrative />}
+      {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'game' && <CadetGame onRewardEarned={load} />}
       {tab === 'streak' && <CadetStreak />}
       {tab === 'store' && (
@@ -332,11 +321,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-<<<<<<< HEAD
 function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
-=======
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, backgroundUrl, panelImages, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -349,12 +334,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   quoteReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
   currentUserId: string | null;
-<<<<<<< HEAD
   panelImages: Record<string, PanelImageSetting>;
-=======
-  backgroundUrl: string | null;
-  panelImages: Record<string, string>;
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onQuotePrev: () => void;
   onQuoteNext: () => void;
@@ -431,12 +411,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
           quoteReactions={quoteReactions}
           reactingQuote={reactingQuote}
           currentUserId={currentUserId}
-<<<<<<< HEAD
           image={panelImages.quote || null}
-=======
-          backgroundUrl={backgroundUrl}
-          imageUrl={panelImages.quote || backgroundUrl}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
           onReactQuote={onReactQuote}
           onPrev={onQuotePrev}
           onNext={onQuoteNext}
@@ -499,15 +474,14 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   );
 }
 
-function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuote, currentUserId, backgroundUrl, imageUrl, onReactQuote, onPrev, onNext, onCommentOpenChange }: {
+function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuote, currentUserId, image, onReactQuote, onPrev, onNext, onCommentOpenChange }: {
   quote: DailyQuoteFeedItem;
   count: number;
   index: number;
   quoteReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
   currentUserId: string | null;
-  backgroundUrl: string | null;
-  imageUrl?: string | null;
+  image: PanelImageSetting | null;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onPrev: () => void;
   onNext: () => void;
@@ -515,16 +489,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
 }) {
   return (
     <div className="card p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
-<<<<<<< HEAD
       <PanelImageBackdrop image={image} opacityFallback={16} veilClassName="bg-surface/72" />
-=======
-      {(imageUrl || backgroundUrl) && (
-        <>
-          <img src={imageUrl || backgroundUrl || ''} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.16] pointer-events-none" />
-          <div className="absolute inset-0 bg-surface/72 pointer-events-none" />
-        </>
-      )}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
       <div className="relative flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Quote size={18} className="text-brass" />

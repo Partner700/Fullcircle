@@ -68,7 +68,6 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     setMobileNavOpen(false);
   };
 
-<<<<<<< HEAD
   useEffect(() => {
     if (!mobileNavOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -101,8 +100,6 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     };
   }, [role]);
 
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   return (
     <div className="relative min-h-screen flex overflow-x-hidden bg-navy">
       {weeklyBackground && (
@@ -114,7 +111,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
         />
       )}
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 border-r border-border bg-navy-2 flex flex-col fixed lg:sticky top-0 h-screen z-30 hidden md:flex">
+      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-border bg-navy-2 md:flex">
         <div className="p-5 border-b border-border">
           <div className="flex items-center gap-2.5">
             <DoveMark size={28} />
@@ -166,17 +163,10 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
       </aside>
 
       {/* Main content */}
-<<<<<<< HEAD
-      <div className="relative z-10 flex-1 flex flex-col min-w-0 md:ml-0">
+      <div className="relative z-10 flex-1 flex flex-col min-w-0 md:ml-60">
         <header className="sticky top-0 z-20 border-b border-border bg-navy-2 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="min-w-0 flex-1">
-=======
-      <div className="flex-1 flex flex-col min-w-0 md:ml-0">
-        <header className="sticky top-0 z-20 bg-navy-2 border-b border-border px-4 md:px-6 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setMobileNavOpen((open) => !open)}
@@ -203,30 +193,81 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
               {rightHeader}
             </div>
           </div>
-          {/* Mobile nav */}
-          {mobileNavOpen && <div className="md:hidden fixed inset-0 top-[68px] bg-ink/35 z-10" onClick={() => setMobileNavOpen(false)} />}
-          {mobileNavOpen && <div className="md:hidden relative z-20 grid grid-cols-2 gap-2 mt-3 rounded-xl border border-border bg-navy-2 p-2 shadow-lg animate-fade-in">
-            {navItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => navigate(item.key)}
-                aria-current={activeKey === item.key ? 'page' : undefined}
-                className={cn(
-                  'relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all',
-                  activeKey === item.key ? 'bg-navy-4 text-peri border border-border-bright' : 'text-peri-dim bg-navy-3',
-                )}
-              >
-                <item.icon size={14} />
-                <span className="truncate">{item.label}</span>
-                {(navBadges[item.key] || 0) > 0 && (
-                  <span className="ml-auto min-w-5 h-5 px-1 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center">
-                    {navBadges[item.key] > 9 ? '9+' : navBadges[item.key]}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>}
         </header>
+
+        {/* Mobile side dashboard */}
+        <div
+          className={cn(
+            'md:hidden fixed inset-0 z-40 transition-opacity duration-300',
+            mobileNavOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
+          )}
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-ink/45"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close dashboard menu"
+          />
+          <aside
+            className={cn(
+              'absolute left-0 top-0 h-full w-[82vw] max-w-[320px] border-r border-border bg-navy-2 shadow-2xl transition-transform duration-300 ease-out',
+              mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
+            )}
+          >
+            <div className="flex items-center justify-between border-b border-border p-4">
+              <div className="flex items-center gap-2.5">
+                <DoveMark size={28} />
+                <div>
+                  <h1 className="font-display font-extrabold text-peri text-base leading-none">FULL</h1>
+                  <p className="text-peri-dim text-xs font-bold tracking-[0.2em] leading-none mt-0.5">CIRCLE</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setMobileNavOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim hover:text-peri"
+                aria-label="Close dashboard menu"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <nav className="h-[calc(100%-150px)] overflow-y-auto p-3 space-y-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => navigate(item.key)}
+                  aria-current={activeKey === item.key ? 'page' : undefined}
+                  className={cn(
+                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all',
+                    activeKey === item.key
+                      ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
+                      : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
+                  )}
+                >
+                  <item.icon size={18} />
+                  <span className="flex-1 text-left truncate">{item.label}</span>
+                  {(navBadges[item.key] || 0) > 0 && (
+                    <span className="min-w-5 h-5 px-1 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center">
+                      {navBadges[item.key] > 9 ? '9+' : navBadges[item.key]}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            <div className="border-t border-border p-3">
+              <div className="flex items-center gap-2.5 rounded-xl bg-navy-3 px-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-peri-soft overflow-hidden flex items-center justify-center text-peri font-display font-bold text-sm">
+                  {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="w-full h-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>
+                  <p className="text-xs text-peri-dim truncate">{profile?.email}</p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
 
         <main className="flex-1 p-4 md:p-6 max-w-6xl mx-auto w-full">{children}</main>
       </div>

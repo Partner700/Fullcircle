@@ -1,34 +1,63 @@
 {
-  "_icons-BzFx-gEF.js": {
-    "file": "assets/icons-BzFx-gEF.js",
-    "name": "icons",
+  "_icons-MHw9vXSK.js": {
+    "file": "assets/icons-MHw9vXSK.js",
+    "name": "icons"
+  },
+  "_react-vendor-D0d-J6x1.js": {
+    "file": "assets/react-vendor-D0d-J6x1.js",
+    "name": "react-vendor",
     "imports": [
-      "_react-vendor-CQW2wFTC.js"
+      "_icons-MHw9vXSK.js"
     ]
   },
-  "_react-vendor-CQW2wFTC.js": {
-    "file": "assets/react-vendor-CQW2wFTC.js",
-    "name": "react-vendor"
-  },
-  "_supabase-BOsFIl5i.js": {
-    "file": "assets/supabase-BOsFIl5i.js",
-    "name": "supabase",
-    "imports": [
-      "_react-vendor-CQW2wFTC.js"
-    ]
+  "_supabase-wIXNjVJv.js": {
+    "file": "assets/supabase-wIXNjVJv.js",
+    "name": "supabase"
   },
   "index.html": {
-    "file": "assets/index-Cp7fi_sH.js",
+    "file": "assets/index-VKTOTvyj.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "imports": [
-      "_react-vendor-CQW2wFTC.js",
-      "_supabase-BOsFIl5i.js",
-      "_icons-BzFx-gEF.js"
+      "_icons-MHw9vXSK.js",
+      "_react-vendor-D0d-J6x1.js",
+      "_supabase-wIXNjVJv.js"
     ],
     "css": [
-      "assets/index-JqSU53lu.css"
+      "assets/index-CwVvwP9g.css"
+    ],
+    "assets": [
+      "assets/dove-DuNTTTjh.png",
+      "assets/squares-DQsplbjx.png",
+      "assets/spades-CyqRD20i.png",
+      "assets/darics-CL9XqvYX.png",
+      "assets/sword-Cb6mL_DG.png",
+      "assets/laureats-CQlp2eDZ.png"
     ]
+  },
+  "src/assets/brand-real/darics.png": {
+    "file": "assets/darics-CL9XqvYX.png",
+    "src": "src/assets/brand-real/darics.png"
+  },
+  "src/assets/brand-real/dove.png": {
+    "file": "assets/dove-DuNTTTjh.png",
+    "src": "src/assets/brand-real/dove.png"
+  },
+  "src/assets/brand-real/laureats.png": {
+    "file": "assets/laureats-CQlp2eDZ.png",
+    "src": "src/assets/brand-real/laureats.png"
+  },
+  "src/assets/brand-real/spades.png": {
+    "file": "assets/spades-CyqRD20i.png",
+    "src": "src/assets/brand-real/spades.png"
+  },
+  "src/assets/brand-real/squares.png": {
+    "file": "assets/squares-DQsplbjx.png",
+    "src": "src/assets/brand-real/squares.png"
+  },
+  "src/assets/brand-real/sword.png": {
+    "file": "assets/sword-Cb6mL_DG.png",
+    "src": "src/assets/brand-real/sword.png"
   }
 }

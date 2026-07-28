@@ -298,6 +298,8 @@ export interface StreakboardSnapshot {
   improvement: number;
   current_streak: number;
   longest_streak: number;
+  consecutive_inactive?: number;
+  cumulative_inactive?: number;
   rank: number;
 }
 
@@ -331,7 +333,6 @@ export interface ScheduledAnnouncement {
   audience: string;
   content: string;
   is_active: boolean;
-<<<<<<< HEAD
   image_position_x?: number;
   image_position_y?: number;
 }
@@ -361,8 +362,6 @@ export interface PanelImageAdjustments {
   grain: number;
   age: number;
   opacity: number;
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 }
 
 export interface UserNotification {

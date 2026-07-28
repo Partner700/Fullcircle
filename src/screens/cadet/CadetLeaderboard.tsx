@@ -22,6 +22,7 @@ type TentLeaderboardRow = {
   cadet_count: number;
   total_denarii: number;
   total_streak: number;
+  total_figs?: number;
   combined_score: number;
   rank: number;
 };
@@ -218,6 +219,12 @@ export function CadetLeaderboard() {
                 {streakRows.map((row) => {
                   const isPodium = row.rank >= 1 && row.rank <= 3;
                   const tint = RANK_HONOR_TINT[row.rank];
+                  const currentStreak = Number(row.current_streak ?? row.consistency ?? 0);
+                  const longestStreak = Number(row.longest_streak ?? row.consistency ?? currentStreak);
+                  const validDays = Number(row.volume ?? 0);
+                  const consecutiveInactive = Number(row.consecutive_inactive ?? 0);
+                  const cumulativeInactive = Number(row.cumulative_inactive ?? 0);
+                  const streakSubtext = `Current ${currentStreak} · Longest ${longestStreak} · Valid ${validDays} · Missed ${cumulativeInactive}`;
 
                   if (isPodium && tint) {
                     return (
@@ -241,11 +248,15 @@ export function CadetLeaderboard() {
                             </p>
                             {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
                           </div>
-                          <span className="text-xs text-stone">Longest: {row.longest_streak || row.consistency} days</span>
+                          <span className="text-xs text-stone">{streakSubtext}</span>
+                          {consecutiveInactive > 0 && (
+                            <p className="text-[11px] text-roman mt-0.5">{consecutiveInactive} consecutive missed day{consecutiveInactive === 1 ? '' : 's'}</p>
+                          )}
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-sm font-medium text-ink">{row.volume}</span>
-                          <p className="text-[10px] text-stone">current streak · {row.volume} valid days</p>
+                          <span className="text-sm font-medium text-ink">{currentStreak}</span>
+                          <p className="text-[10px] text-stone">current streak</p>
+                          <p className="text-[10px] text-stone">best {longestStreak}</p>
                         </div>
                       </div>
                     );
@@ -256,10 +267,10 @@ export function CadetLeaderboard() {
                       key={row.id}
                       rank={row.rank}
                       name={row.profiles.display_name}
-                      value={`${row.current_streak}`}
+                      value={`${currentStreak}`}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
-                      subtext={`Longest ${row.longest_streak || row.consistency} days · ${row.volume} valid days`}
+                      subtext={streakSubtext}
                     />
                   );
                 })}
@@ -409,11 +420,12 @@ export function CadetLeaderboard() {
                             {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
                           </div>
 		                          <span className="text-xs text-stone">{row.cadet_count} cadets · streak {row.total_streak} · {tint.label} honor</span>
+                              <p className="text-[11px] text-stone truncate mt-0.5">{Number(row.total_figs || 0)} figs · {formatDenarii(row.total_denarii)}D</p>
 		                          {sentries && <p className="text-[11px] text-stone truncate mt-0.5">{sentries}</p>}
 		                        </div>
                         <div className="text-right flex-shrink-0">
 	                          <span className="text-sm font-medium text-ink">{formatDenarii(row.combined_score)}</span>
-	                          <p className="text-[10px] text-stone">{formatDenarii(row.total_denarii)}D · {row.total_streak} streak</p>
+	                          <p className="text-[10px] text-stone">{Number(row.total_figs || 0)} figs · {row.total_streak} streak</p>
                         </div>
                       </div>
                     );
@@ -427,7 +439,7 @@ export function CadetLeaderboard() {
 		                      value={formatDenarii(row.combined_score)}
 		                      houseId={row.tent_house_id || undefined}
 		                      isCurrentUser={false}
-		                      subtext={[`${formatDenarii(row.total_denarii)}D`, `${row.total_streak} streak days`, sentries].filter(Boolean).join(' · ')}
+		                      subtext={[`${formatDenarii(row.total_denarii)}D`, `${Number(row.total_figs || 0)} figs`, `${row.total_streak} streak days`, sentries].filter(Boolean).join(' · ')}
 		                    />
                   );
                 })}

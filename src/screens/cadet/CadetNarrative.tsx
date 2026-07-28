@@ -2,17 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
-<<<<<<< HEAD
 import { ChallengeEvidenceList } from '../../components/ChallengeEvidenceList';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchChallengeSubmission, fetchPanelImageSetting, upsertChallengeSubmission } from '../../lib/queries';
-=======
-import { fetchNarrative, fetchChallengeSubmission, upsertChallengeSubmission } from '../../lib/queries';
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
-import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat } from '../../lib/types';
+import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
 import {
   BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   Quote, ScrollText, Sun, Link2, Image as ImageIcon,
@@ -38,6 +34,7 @@ export function CadetNarrative({
   const [challengeLink, setChallengeLink] = useState('');
   const [challengeSaved, setChallengeSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [readingImage, setReadingImage] = useState<PanelImageSetting | null>(null);
 
   const today = getTodayISODate();
   const dayType = getDayType(new Date());
@@ -47,12 +44,14 @@ export function CadetNarrative({
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-    const [narr, chal] = await Promise.all([
+    const [narr, chal, panelImage] = await Promise.all([
       fetchNarrative(today),
       fetchChallengeSubmission(profile.id, today),
+      fetchPanelImageSetting('reading').catch(() => null),
     ]);
     setNarrative(narr);
     setChallenge(chal);
+    setReadingImage(panelImage);
     if (chal?.proof_text) {
       if (narr?.challenge_proof_format === 'link') setChallengeLink(chal.proof_text);
       else setChallengeText(chal.proof_text);
@@ -170,7 +169,6 @@ export function CadetNarrative({
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       {/* ── Header card — scripture reference + theme ── */}
-<<<<<<< HEAD
       <div className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up bg-surface-2 border-border">
         <PanelImageBackdrop image={readingImage} veilClassName="bg-surface-2/75" />
         <div className="relative">
@@ -182,17 +180,7 @@ export function CadetNarrative({
             {narrative.title}
           </h2>
           <p className="text-sm text-stone mt-1.5">{narrative.theme}</p>
-=======
-      <div className="card p-5 animate-slide-up bg-surface-2 border-border">
-        <div className="eyebrow text-brass flex items-center gap-2 mb-2">
-          <BookMarked size={14} strokeWidth={1.5} />
-          {narrative.scripture_reference} · {narrative.translation}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
         </div>
-        <h2 className="font-display text-2xl font-semibold text-ink leading-tight">
-          {narrative.title}
-        </h2>
-        <p className="text-sm text-stone mt-1.5">{narrative.theme}</p>
       </div>
 
       {narrative.verse_of_day && (

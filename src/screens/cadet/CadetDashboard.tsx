@@ -6,12 +6,9 @@ import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
-<<<<<<< HEAD
 import { panelImageFromAnnouncement } from '../../lib/panelImages';
-=======
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
-import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement } from '../../lib/types';
+import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
@@ -117,15 +114,10 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const heroSlideCount = heroSlides.length;
   const panelImages = announcements
     .filter((announcement) => announcement.announcement_type?.startsWith('panel_image_'))
-    .reduce<Record<string, string>>((map, announcement) => {
-      map[announcement.announcement_type.replace('panel_image_', '')] = announcement.content;
+    .reduce<Record<string, PanelImageSetting>>((map, announcement) => {
+      map[announcement.announcement_type.replace('panel_image_', '')] = panelImageFromAnnouncement(announcement);
       return map;
     }, {});
-<<<<<<< HEAD
-=======
-  const weeklyBackgroundUrl = announcements.find((announcement) => announcement.announcement_type === 'weekly_background')?.content || null;
-
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   useEffect(() => {
     if (heroSlideCount <= 1 || heroPaused) return;
     const interval = window.setInterval(() => {
@@ -179,10 +171,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         currentUserId={profile?.id || null}
         count={heroSlideCount}
         index={activeHeroIndex}
-<<<<<<< HEAD
-=======
-        backgroundUrl={weeklyBackgroundUrl}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
         panelImages={panelImages}
         quoteReactions={quoteReactions}
         verseReactions={verseReactions}
@@ -227,62 +215,56 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       </div>
 
       {/* Today's status bar */}
-<<<<<<< HEAD
       <div className="card relative overflow-hidden p-4">
         <PanelImageBackdrop image={panelImages.progress} />
         <div className="relative">
           <SectionHeader title="Today's Progress" subtitle="Complete each item to keep your streak alive" />
           <div className="space-y-2">
-=======
-      <div className="card p-4">
-        <SectionHeader title="Today's Progress" subtitle="Complete each item to keep your streak alive" />
-        <div className="space-y-2">
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
-	          <TodayCheckItem
-		            icon={Sunrise}
-		            label="Morning call attendance (+200D)"
-		            done={attendanceDone}
-		            n_a={dayType !== 'weekday'}
-		            note={attendanceNote}
-		          />
-          <TodayCheckItem
-            icon={Moon}
-            label="Meditation submitted (before 9:00 PM)"
-            done={todayRecord?.meditation_submitted === true}
-            n_a={dayType !== 'weekday'}
-            note={dayType !== 'weekday' ? 'Meditation is only required on weekdays' : undefined}
-            onClick={() => onNavigate('narrative')}
-          />
-          <TodayCheckItem
-            icon={FileQuestion}
-            label="Saturday quiz submitted"
-            done={todayRecord?.quiz_attempt_id !== null && !!todayRecord?.quiz_attempt_id}
-            n_a={dayType !== 'saturday'}
-            note={dayType !== 'saturday' ? 'Quiz is only on Saturdays' : undefined}
-            onClick={() => onNavigate('quiz')}
-          />
-          <TodayCheckItem
-            icon={Gamepad2}
-            label="Daily game progress"
-            done={completedLevels > 0}
-            n_a={false}
-            note={`${completedLevels} of 10 levels cleared`}
-            onClick={() => onNavigate('game')}
-          />
-          <TodayCheckItem
-            icon={Target}
-            label="Challenge proof submitted"
-            done={!!challenge}
-            n_a={!narrative?.challenge_active}
-            note={!narrative?.challenge_active ? 'No active challenge today' : undefined}
-            onClick={() => onNavigate('narrative')}
-          />
+            <TodayCheckItem
+              icon={Sunrise}
+              label="Morning call attendance (+200D)"
+              done={attendanceDone}
+              n_a={dayType !== 'weekday'}
+              note={attendanceNote}
+            />
+            <TodayCheckItem
+              icon={Moon}
+              label="Meditation submitted (before 9:00 PM)"
+              done={todayRecord?.meditation_submitted === true}
+              n_a={dayType !== 'weekday'}
+              note={dayType !== 'weekday' ? 'Meditation is only required on weekdays' : undefined}
+              onClick={() => onNavigate('narrative')}
+            />
+            <TodayCheckItem
+              icon={FileQuestion}
+              label="Saturday quiz submitted"
+              done={todayRecord?.quiz_attempt_id !== null && !!todayRecord?.quiz_attempt_id}
+              n_a={dayType !== 'saturday'}
+              note={dayType !== 'saturday' ? 'Quiz is only on Saturdays' : undefined}
+              onClick={() => onNavigate('quiz')}
+            />
+            <TodayCheckItem
+              icon={Gamepad2}
+              label="Daily game progress"
+              done={completedLevels > 0}
+              n_a={false}
+              note={`${completedLevels} of 10 levels cleared`}
+              onClick={() => onNavigate('game')}
+            />
+            <TodayCheckItem
+              icon={Target}
+              label="Challenge proof submitted"
+              done={!!challenge}
+              n_a={!narrative?.challenge_active}
+              note={!narrative?.challenge_active ? 'No active challenge today' : undefined}
+              onClick={() => onNavigate('narrative')}
+            />
+          </div>
         </div>
       </div>
 
       {/* Two-column: narrative preview + recent activity */}
       <div className="grid md:grid-cols-2 gap-4">
-<<<<<<< HEAD
         <div className="card relative overflow-hidden p-4 card-hover">
           <PanelImageBackdrop image={panelImages.reading} />
           <div className="relative">
@@ -304,26 +286,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
               <EmptyState icon={BookOpen} title="No reading yet" message="Today's narrative hasn't been published. Check back soon." />
             )}
           </div>
-=======
-        <div className="card p-4 card-hover">
-          <SectionHeader title="Today's Reading" />
-          {dayType === 'saturday' ? (
-            <button onClick={() => onNavigate('quiz')} className="text-left w-full">
-              <h4 className="font-display font-medium text-ink">Saturday Quiz Day</h4>
-              <p className="text-sm text-stone mt-1">No daily reading or meditation is required today.</p>
-              <span className="text-xs text-brass mt-2 inline-block font-medium">Go to quiz →</span>
-            </button>
-          ) : narrative ? (
-            <button onClick={() => onNavigate('narrative')} className="text-left w-full">
-              <h4 className="font-display font-medium text-ink">{narrative.title}</h4>
-              <p className="text-sm text-stone mt-1">{narrative.scripture_reference} · {narrative.theme}</p>
-              <p className="text-sm text-ink mt-2 line-clamp-3 opacity-80">{narrative.main_text.slice(0, 200)}…</p>
-              <span className="text-xs text-brass mt-2 inline-block font-medium">Read & meditate →</span>
-            </button>
-          ) : (
-            <EmptyState icon={BookOpen} title="No reading yet" message="Today's narrative hasn't been published. Check back soon." />
-          )}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
         </div>
 
         <div className="card p-4">
@@ -363,11 +325,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   );
 }
 
-<<<<<<< HEAD
 function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
-=======
-function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, backgroundUrl, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -376,12 +334,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   currentUserId: string | null;
   count: number;
   index: number;
-<<<<<<< HEAD
   panelImages: Record<string, PanelImageSetting>;
-=======
-  backgroundUrl: string | null;
-  panelImages: Record<string, string>;
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
   quoteReactions: Record<string, QuoteReactionState>;
   verseReactions: Record<string, QuoteReactionState>;
   reactingQuote: string | null;
@@ -397,16 +350,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
 
   return (
     <div className="card relative overflow-hidden min-h-[180px] animate-slide-up">
-<<<<<<< HEAD
-=======
-      {backgroundUrl && (
-        <img
-          src={backgroundUrl}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
-        />
-      )}
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
       <div
         className="flex transition-transform duration-700 ease-out"
         style={{ transform: `translateX(-${index * 100}%)` }}
@@ -415,7 +358,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
-<<<<<<< HEAD
           const slideImage = slide.kind === 'announcement'
             ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
             : panelImages[slide.kind];
@@ -424,17 +366,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
             <div key={slide.id} className="relative min-w-full p-5 pb-16 overflow-hidden">
               {slideImage && (
                 <PanelImageBackdrop image={slideImage} opacityFallback={16} />
-=======
-
-          return (
-            <div key={slide.id} className="relative min-w-full p-5 pb-16 overflow-hidden">
-              {(panelImages[slide.kind] || backgroundUrl) && (
-                <img
-                  src={panelImages[slide.kind] || backgroundUrl || ''}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-[0.16] pointer-events-none"
-                />
->>>>>>> parent of b5ae5d2 (interface, settings, error fixing and backend addjustments)
               )}
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
