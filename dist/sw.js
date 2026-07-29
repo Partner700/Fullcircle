@@ -1,4 +1,6 @@
-const CACHE_VERSION = 'full-circle-v5';
+// Bump this whenever the bundle-loading strategy changes. It forces installed
+// copies to discard any old HTML/chunk pairing left by a previous deployment.
+const CACHE_VERSION = 'full-circle-v6';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -144,9 +146,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets: cache-first
+  // JavaScript and CSS filenames are content-hashed by Vite. Prefer the network
+  // while online so an installed app never combines a new index.html with an
+  // obsolete lazy-loaded chunk from an earlier release.
   if (url.origin === self.location.origin && isStaticAsset(url)) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    event.respondWith(networkFirstStaticAsset(request));
     return;
   }
 
@@ -334,6 +338,34 @@ async function cacheFirst(request, cacheName) {
     }
     throw error;
   }
+}
+
+function isValidStaticAssetResponse(request, response) {
+  if (!response.ok) return false;
+  const contentType = response.headers.get('content-type') || '';
+  if (request.destination === 'script') return /javascript|ecmascript|text\/plain/i.test(contentType);
+  if (request.destination === 'style') return /text\/css/i.test(contentType);
+  return true;
+}
+
+async function networkFirstStaticAsset(request) {
+  const cache = await caches.open(STATIC_CACHE);
+
+  try {
+    const response = await fetch(request);
+    // Some static hosts return index.html with a 200 status for a missing old
+    // chunk. Never cache or serve that HTML as JavaScript/CSS.
+    if (isValidStaticAssetResponse(request, response)) {
+      await cache.put(request, response.clone());
+      return response;
+    }
+  } catch {
+    // Offline fallback below.
+  }
+
+  const cachedResponse = await cache.match(request);
+  if (cachedResponse) return cachedResponse;
+  return new Response('', { status: 404, statusText: 'App asset unavailable' });
 }
 
 async function cacheFirstWithTTL(request, cacheName, ttl) {
