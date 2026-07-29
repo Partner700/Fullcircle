@@ -8,6 +8,13 @@ let currentMood: SoundMood = 'default';
 let dashboardAudio: HTMLAudioElement | null = null;
 const assetCache = new Map<string, string | null>();
 
+/** Call after an instructor changes a shared sound so the next interaction
+ * uses the new upload without requiring a browser refresh. */
+export function invalidateSoundAsset(type?: 'sound_dashboard' | 'sound_button') {
+  if (type) assetCache.delete(type);
+  else assetCache.clear();
+}
+
 function getAudioContext() {
   if (typeof window === 'undefined') return null;
   if (!audioContext) audioContext = new AudioContext();
@@ -70,6 +77,8 @@ export async function setSoundscapeEnabled(enabled: boolean) {
   if (enabled) {
     const context = getAudioContext();
     if (context?.state === 'suspended') await context.resume();
+    // Prime the short button sound while the user has provided a gesture.
+    void getSoundUrl('sound_button');
     await syncDashboardSound();
   } else stopDashboardSound();
 }
@@ -89,7 +98,7 @@ export async function playInterfaceTone() {
   const customUrl = await getSoundUrl('sound_button');
   if (customUrl) {
     const audio = new Audio(customUrl);
-    audio.volume = 0.5;
+    audio.volume = 0.8;
     try { await audio.play(); return; } catch { /* Fall back to the built-in tactile click. */ }
   }
 
@@ -102,7 +111,7 @@ export async function playInterfaceTone() {
   }
   const source = context.createBufferSource();
   const gain = context.createGain();
-  gain.gain.value = currentMood === 'game' || currentMood === 'quiz' ? 0.06 : 0.038;
+  gain.gain.value = currentMood === 'game' || currentMood === 'quiz' ? 0.13 : 0.09;
   source.buffer = buffer;
   source.connect(gain).connect(context.destination);
   source.start();
@@ -114,7 +123,7 @@ export async function playInterfaceTone() {
   chime.frequency.setValueAtTime(currentMood === 'game' || currentMood === 'quiz' ? 783.99 : 659.25, now);
   chime.frequency.exponentialRampToValueAtTime(987.77, now + 0.09);
   chimeGain.gain.setValueAtTime(0.0001, now);
-  chimeGain.gain.exponentialRampToValueAtTime(0.026, now + 0.008);
+  chimeGain.gain.exponentialRampToValueAtTime(0.055, now + 0.008);
   chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
   chime.connect(chimeGain).connect(context.destination);
   chime.start(now);

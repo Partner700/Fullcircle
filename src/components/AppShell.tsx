@@ -83,6 +83,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
   const { profile, role, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [weeklyBackground, setWeeklyBackground] = useState<PanelImageSetting | null>(null);
+  const [activePanelImage, setActivePanelImage] = useState<PanelImageSetting | null>(null);
 
   const navigate = (key: string) => {
     onNavigate(key);
@@ -134,6 +135,29 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
       mounted = false;
     };
   }, [role]);
+
+  useEffect(() => {
+    let mounted = true;
+    const audience = role === 'instructor' ? 'instructors' : role === 'sentry' ? 'sentries' : 'cadets';
+    const rolePrefix = role === 'instructor' ? 'instructor_' : role === 'sentry' ? 'sentry_' : '';
+    const keyByTab: Record<string, string> = {
+      dashboard: rolePrefix ? `${rolePrefix}dashboard`.replace('sentry_dashboard', 'sentry_overview') : 'welcome',
+      narratives: 'instructor_narrative',
+      attendance: 'sentry_attendance',
+      cadets: role === 'sentry' ? 'sentry_cadets' : 'instructor_tents',
+      quiz: role === 'instructor' ? 'instructor_quiz_builder' : 'quiz',
+      game_questions: 'instructor_game_questions',
+      leaderboard: role === 'instructor' ? 'instructor_stats' : 'leaderboard',
+      awards: role === 'instructor' ? 'instructor_awards' : 'awards',
+      challenges: 'instructor_challenges',
+      mobile_money: 'instructor_mobile_money',
+    };
+    const panelKey = keyByTab[activeKey] || activeKey;
+    fetchPanelImageSetting(panelKey, ['all', audience])
+      .then((image) => { if (mounted) setActivePanelImage(image); })
+      .catch(() => { if (mounted) setActivePanelImage(null); });
+    return () => { mounted = false; };
+  }, [activeKey, role]);
 
   useEffect(() => {
     const playButtonTone = (event: MouseEvent) => {
@@ -334,7 +358,10 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
           </aside>
         </div>
 
-        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6">{children}</main>
+        <main className="relative flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6 overflow-hidden">
+          {activePanelImage && <PanelImageBackdrop image={activePanelImage} opacityFallback={16} veilClassName="bg-surface/48" />}
+          <div className="relative z-10">{children}</div>
+        </main>
       </div>
     </div>
   );

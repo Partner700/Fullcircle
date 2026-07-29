@@ -41,7 +41,7 @@ export function PanelImageBackdrop({
 
   return (
     <div className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
-      <img src={image.url} alt="" className={cn('h-full w-full object-cover', imageClassName)} style={imageStyle} />
+      <img src={image.url} alt="" loading="lazy" decoding="async" className={cn('h-full w-full object-cover', imageClassName)} style={imageStyle} />
       {whiteOverlayOpacity > 0 && <div className="absolute inset-0 bg-white" style={{ opacity: whiteOverlayOpacity }} />}
       {blackOverlayOpacity > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: blackOverlayOpacity }} />}
       {ageOpacity > 0 && (

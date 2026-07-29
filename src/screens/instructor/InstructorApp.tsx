@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { invalidateSoundAsset } from '../../lib/soundscape';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -595,6 +596,7 @@ function AnnouncementManager() {
       const existing = announcements.find((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
       if (existing) await updateAnnouncement(existing.id, payload);
       else await createAnnouncement(payload);
+      if (type === 'sound_dashboard' || type === 'sound_button') invalidateSoundAsset(type);
       await load();
     } catch (e: any) {
       alert(e.message || 'Failed to upload sound');
@@ -605,7 +607,11 @@ function AnnouncementManager() {
   const deleteSound = async (type: string, targetAudience = 'all') => {
     const rows = announcements.filter((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
     if (rows.length === 0 || !window.confirm('Remove this sound from the app?')) return;
-    try { await Promise.all(rows.map((row) => deleteAnnouncement(row.id))); await load(); }
+    try {
+      await Promise.all(rows.map((row) => deleteAnnouncement(row.id)));
+      if (type === 'sound_dashboard' || type === 'sound_button') invalidateSoundAsset(type);
+      await load();
+    }
     catch (e: any) { alert(e.message || 'Failed to remove sound'); }
   };
 
