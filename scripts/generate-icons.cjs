@@ -1,20 +1,22 @@
-const sharp = require('sharp');
+const sharp = require('/Users/bameelhakol/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/sharp');
 const fs = require('fs');
 const path = require('path');
 
-const SVG_PATH = path.join(__dirname, '..', 'public', 'icons', 'fullcircle-icon.svg');
+const SOURCE_PATH = path.join(__dirname, '..', 'public', 'icons', 'fullcircle-dove.png');
 const ICONS_DIR = path.join(__dirname, '..', 'public', 'icons');
 
 const SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
 
 async function generateIcons() {
-  const svgBuffer = fs.readFileSync(SVG_PATH);
+  const dove = fs.readFileSync(SOURCE_PATH);
 
   for (const size of SIZES) {
     // Regular icon
     const regularPath = path.join(ICONS_DIR, `icon-${size}.png`);
-    await sharp(svgBuffer)
-      .resize(size, size)
+    await sharp({
+      create: { width: size, height: size, channels: 4, background: { r: 15, g: 32, b: 55, alpha: 1 } },
+    })
+      .composite([{ input: await sharp(dove).resize(Math.round(size * 0.82), Math.round(size * 0.82), { fit: 'contain' }).png().toBuffer(), top: Math.round(size * 0.09), left: Math.round(size * 0.09) }])
       .png()
       .toFile(regularPath);
     console.log(`✓ Generated icon-${size}.png`);
@@ -34,7 +36,7 @@ async function generateIcons() {
     })
       .composite([
         {
-          input: await sharp(svgBuffer).resize(innerSize, innerSize).png().toBuffer(),
+          input: await sharp(dove).resize(innerSize, innerSize, { fit: 'contain' }).png().toBuffer(),
           top: padding,
           left: padding,
         },
@@ -46,8 +48,10 @@ async function generateIcons() {
 
   // Apple touch icon (180x180)
   const appleTouchPath = path.join(ICONS_DIR, 'apple-touch-icon.png');
-  await sharp(svgBuffer)
-    .resize(180, 180)
+  await sharp({
+    create: { width: 180, height: 180, channels: 4, background: { r: 15, g: 32, b: 55, alpha: 1 } },
+  })
+    .composite([{ input: await sharp(dove).resize(148, 148, { fit: 'contain' }).png().toBuffer(), top: 16, left: 16 }])
     .png()
     .toFile(appleTouchPath);
   console.log('✓ Generated apple-touch-icon.png');

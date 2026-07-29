@@ -33,12 +33,12 @@ export default function App() {
   // The PWA update notification must be rendered globally so it can
   // detect service worker updates regardless of which screen is shown.
   // It conditionally renders itself only when an update is available.
-  const updateNotification = <PWAUpdateNotification />;
+  const overlays = <><PWAUpdateNotification /><PWAInstallPrompt /></>;
 
   if (loading) {
     return (
       <>
-        {updateNotification}
+        {overlays}
         <div className="min-h-screen flex flex-col items-center justify-center bg-navy gap-6">
           <Dove size={80} className="animate-float" />
           <div className="text-center max-w-sm px-4">
@@ -57,7 +57,7 @@ export default function App() {
   if (configError) {
     return (
       <>
-        {updateNotification}
+        {overlays}
         <div className="min-h-screen flex items-center justify-center bg-navy px-4">
           <div className="card max-w-lg p-6 text-center space-y-3">
             <Dove size={64} className="mx-auto" />
@@ -76,15 +76,14 @@ export default function App() {
   if (!session || !profile) {
     return (
       <>
-        {updateNotification}
+        {overlays}
         <AuthScreen />
-        <PWAInstallPrompt />
       </>
     );
   }
 
-  if (role === 'instructor') return <>{updateNotification}<InstructorApp /></>;
-  if (role === 'sentry') return <>{updateNotification}<SentryApp /></>;
+  if (role === 'instructor') return <>{overlays}<InstructorApp /></>;
+  if (role === 'sentry') return <>{overlays}<SentryApp /></>;
   // Default: cadet (includes unassigned users with limited access)
-  return <>{updateNotification}<CadetApp /></>;
+  return <>{overlays}<CadetApp /></>;
 }

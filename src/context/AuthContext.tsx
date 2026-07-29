@@ -95,7 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     if (supabaseConfigError) return { error: supabaseConfigError };
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    clearLocalAuthStorage();
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     return { error: error?.message || null };
   }, []);
 

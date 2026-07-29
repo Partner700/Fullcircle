@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { supabase } from '../../lib/supabase';
 import {
   fetchLedgerTotal,
@@ -15,11 +16,12 @@ import {
   fetchNarratives,
   fetchActiveCadets,
   generateArenaQuestionsWithAI,
+  fetchPanelImageSetting,
 } from '../../lib/queries';
 import { generateLevelQuestionsWithCustom } from '../../lib/gameEngines';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
-import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment } from '../../lib/types';
+import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search,
 } from 'lucide-react';
@@ -56,6 +58,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [allCadets, setAllCadets] = useState<InviteCadet[]>([]);
   const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set());
   const [cadetSearch, setCadetSearch] = useState('');
+  const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -100,16 +103,18 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [roomsData, balance, narrs, cadets] = await Promise.allSettled([
+      const [roomsData, balance, narrs, cadets, panelImage] = await Promise.allSettled([
         fetchArenaRooms(),
         fetchLedgerTotal(profile.id),
         fetchNarratives(30),
         fetchActiveCadets(),
+        fetchPanelImageSetting('arena'),
       ]);
       setRooms(roomsData.status === 'fulfilled' ? roomsData.value : []);
       setDenarii(balance.status === 'fulfilled' ? balance.value : 0);
       setNarratives(narrs.status === 'fulfilled' ? narrs.value : []);
       setAllCadets((cadets.status === 'fulfilled' ? cadets.value : []).filter((c) => c.user_id !== profile.id));
+      setArenaImage(panelImage.status === 'fulfilled' ? panelImage.value : null);
       if (narrs.status === 'fulfilled' && narrs.value && narrs.value.length > 0 && !selectedNarrativeDate) setSelectedNarrativeDate(narrs.value[0].narrative_date);
     } catch (e) { console.error('Arena load error:', e); }
     setLoading(false);
@@ -312,7 +317,9 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
         {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
 
-        <div className="card p-5">
+        <div className="card relative overflow-hidden p-5">
+          <PanelImageBackdrop image={arenaImage} opacityFallback={24} veilClassName="bg-navy-2/76" />
+          <div className="relative">
           <h3 className="font-display text-lg font-semibold text-ink mb-1">{room?.room_name || 'Arena Room'}</h3>
           <div className="flex items-center gap-3 text-sm text-stone mb-4">
             <span className="flex items-center gap-1"><Coins size={14} className="text-gold" /> {formatDenarii(room?.stake_amount || 0)} Ð stake</span>
@@ -404,6 +411,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           ) : (
             <p className="text-xs text-stone text-center">Waiting for the host to start the game...</p>
           )}
+          </div>
         </div>
       </div>
     );
@@ -412,7 +420,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   // Lobby
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
-      <SectionHeader title="The Arena" subtitle="Challenge other cadets to real-time quiz battles. Stake denarii, winner takes all." />
+      <div className="card relative overflow-hidden p-4 sm:p-5">
+        <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="bg-navy-2/78" />
+        <div className="relative">
+          <SectionHeader title="The Arena" subtitle="Challenge other cadets to real-time quiz battles. Stake denarii, winner takes all." />
+        </div>
+      </div>
 
       <div className="card p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -538,7 +551,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             const minutesUntilExpiry = expiresAt && participants.length <= 1 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
             const pot = room.stake_amount * participants.length;
             return (
-              <div key={room.id} className="card p-4 flex items-center gap-3">
+              <div key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">
+                <PanelImageBackdrop image={arenaImage} opacityFallback={18} veilClassName="bg-navy-2/80" />
                 <div className="w-10 h-10 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
                   <Swords size={20} className="text-gold" />
                 </div>
@@ -579,7 +593,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             const participants = room.arena_participants || [];
             const winner = participants.find((p: any) => p.user_id === room.winner_id);
             return (
-              <div key={room.id} className="card p-3 flex items-center gap-3 opacity-75">
+              <div key={room.id} className="card bg-surface/70 backdrop-blur-sm p-3 flex items-center gap-3 opacity-75">
                 <Trophy size={16} className="text-gold flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-ink">{room.room_name}</p>

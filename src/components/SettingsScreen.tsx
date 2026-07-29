@@ -5,6 +5,7 @@ import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, uploadAvatar, fetch
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
+import { BrowserNotificationSettings } from './BrowserNotificationSettings';
 import { StatCard, SectionHeader } from './AppShell';
 import {
   CadetIcon, SentryIcon, InstructorIcon,
@@ -128,7 +129,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       </div>
     );
   }
-  if (passwordPage && profile?.email) return <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />;
+  if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
@@ -301,6 +302,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
           Update Password
         </button>
       </div>
+
+      <BrowserNotificationSettings />
 
       {/* Account section */}
       <div className="card p-5 animate-slide-up">

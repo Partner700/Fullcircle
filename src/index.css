@@ -29,6 +29,7 @@
     --color-border: rgba(221, 227, 255, 0.10);
     --color-border-bright: rgba(221, 227, 255, 0.22);
     --color-stone-dim: rgba(136, 150, 204, 0.55);
+    --panel-image-mode-filter: brightness(0.34) saturate(0.76) contrast(1.12);
   }
 
   [data-theme="day"] {
@@ -56,7 +57,14 @@
     --color-border: rgba(13, 33, 55, 0.18);
     --color-border-bright: rgba(13, 33, 55, 0.34);
     --color-stone-dim: rgba(46, 75, 105, 0.78);
+    --panel-image-mode-filter: brightness(1.92) saturate(0.78) contrast(0.88);
   }
+
+  /* Tailwind's legacy text utilities are fixed dark-theme colors. Rebind
+     them in day mode so image-panel copy remains readable. */
+  [data-theme="day"] .text-ink { color: var(--color-peri); }
+  [data-theme="day"] .text-stone { color: var(--color-peri-dim); }
+  [data-theme="day"] .text-stone-dim { color: var(--color-stone-dim); }
 
   html {
     font-family: 'Nunito', system-ui, sans-serif;
@@ -105,7 +113,22 @@
   }
 
   .font-display, h1, h2, h3 {
-    font-family: 'Baloo 2', system-ui, sans-serif;
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  /* Keep imported scripture and legacy content from slipping into a disconnected serif face. */
+  .font-serif {
+    font-family: 'Nunito', system-ui, sans-serif !important;
+  }
+
+  button {
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+
+  input,
+  textarea,
+  select {
+    font-family: 'Nunito', system-ui, sans-serif;
   }
 
   select option {
@@ -120,7 +143,7 @@
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl font-semibold transition-all duration-200 active:scale-[0.97] cursor-pointer;
     background: var(--color-peri);
     color: var(--color-navy-3);
-    font-family: 'Nunito', sans-serif;
+    font-family: 'Nunito', system-ui, sans-serif;
   }
   .btn-primary:hover {
     opacity: 0.88;

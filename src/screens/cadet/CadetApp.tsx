@@ -735,7 +735,7 @@ export function CadetApp() {
       onNavigate={handleNavigate}
       headerTitle={tabLabels[tab]}
       headerSubtitle={houseName ? `${tentName} · ${houseName}` : 'Cadet'}
-      showTopSignOut={false}
+      showTopSignOut
       rightHeader={
         <div className="flex items-center gap-2">
           {isExpired && (
@@ -749,7 +749,7 @@ export function CadetApp() {
             <span className="font-display font-bold text-coral text-sm">{streakCount}</span>
           </div>
           {/* Notification bell */}
-          <div className="relative" ref={notificationsRef}>
+          <div className="relative z-[70]" ref={notificationsRef}>
             <button onClick={() => setShowNotifications(s => !s)} className="relative flex items-center justify-center w-9 h-9 rounded-full bg-surface-2 border border-border hover:border-border-bright transition-colors">
               <Bell size={16} className="text-ink" />
               {unreadNotificationCount > 0 && (
@@ -759,7 +759,7 @@ export function CadetApp() {
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-1rem)] rounded-xl border border-border bg-surface shadow-lg z-50 overflow-hidden animate-fade-in">
+              <div className="fixed right-3 top-[7.1rem] z-[100] w-[calc(100vw-1.5rem)] max-w-sm rounded-xl border border-border bg-surface shadow-2xl overflow-hidden animate-fade-in md:absolute md:right-0 md:top-full md:mt-2 md:w-[22rem]">
                 <div className="px-4 py-2.5 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
                   <div>
                     <span className="text-xs font-display font-semibold text-ink">Notifications</span>

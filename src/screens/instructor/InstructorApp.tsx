@@ -22,7 +22,7 @@ import {
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
-  Image as ImageIcon, Upload, X, Move,
+  Image as ImageIcon, Upload, X, Move, Volume2, Music2,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -287,6 +287,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
   { type: 'panel_image_awards', label: 'Awards Hub', audience: 'all' },
   { type: 'panel_image_settings', label: 'Settings', audience: 'all' },
+  { type: 'panel_image_password_update', label: 'Password Update', audience: 'all' },
   { type: 'panel_image_subscription', label: 'Subscription', audience: 'all' },
   { type: 'panel_image_sentry_overview', label: 'Sentry Overview', audience: 'sentries' },
   { type: 'panel_image_sentry_attendance', label: 'Sentry Attendance', audience: 'sentries' },
@@ -301,6 +302,11 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_instructor_awards', label: 'Instructor Awards', audience: 'instructors' },
   { type: 'panel_image_instructor_challenges', label: 'Challenges', audience: 'instructors' },
   { type: 'panel_image_instructor_mobile_money', label: 'Mobile Money', audience: 'instructors' },
+];
+
+const SOUND_SLOTS = [
+  { type: 'sound_dashboard', label: 'Dashboard Atmosphere', description: 'A low-volume looping track for the Home dashboard only.', audience: 'all' },
+  { type: 'sound_button', label: 'Button Feedback', description: 'A short sound played when someone presses an app button.', audience: 'all' },
 ];
 
 const IMAGE_ADJUSTMENT_CONTROLS: {
@@ -370,6 +376,7 @@ function AnnouncementManager() {
   const [imagePositionX, setImagePositionX] = useState(50);
   const [imagePositionY, setImagePositionY] = useState(50);
   const [uploadingImageType, setUploadingImageType] = useState<string | null>(null);
+  const [uploadingSoundType, setUploadingSoundType] = useState<string | null>(null);
   const [savingImagePosition, setSavingImagePosition] = useState(false);
   const [imageAdjustments, setImageAdjustments] = useState<PanelImageAdjustments>(DEFAULT_PANEL_IMAGE_ADJUSTMENTS);
 
@@ -486,7 +493,18 @@ function AnnouncementManager() {
   const standardAnnouncements = announcements.filter((announcement) =>
     announcement.announcement_type !== 'weekly_background'
     && !announcement.announcement_type?.startsWith('panel_image_')
+    && !announcement.announcement_type?.startsWith('sound_')
   );
+
+  const activeSoundSettings = SOUND_SLOTS.map((slot) => ({
+    ...slot,
+    item: announcements.find((announcement) =>
+      announcement.announcement_type === slot.type
+      && announcement.audience === slot.audience
+      && announcement.is_active !== false
+      && !!announcement.content
+    ),
+  }));
 
   const openImageEditor = (type: string) => {
     const setting = activeImageSettings.find((candidate) => candidate.type === type);
@@ -512,6 +530,41 @@ function AnnouncementManager() {
       alert(e.message || 'Failed to upload panel image');
     }
     setUploadingImageType(null);
+  };
+
+  const uploadSound = async (file: File, type: string, targetAudience = 'all') => {
+    setUploadingSoundType(type);
+    try {
+      if (!file.type.startsWith('audio/')) throw new Error('Please choose an audio file.');
+      if (file.size > 15 * 1024 * 1024) throw new Error('Sound files must be 15 MB or smaller.');
+      const ext = file.name.split('.').pop() || 'mp3';
+      const version = Date.now();
+      const path = `sound-assets/${type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase()}-${version}.${ext}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      const payload = {
+        announcement_type: type,
+        audience: targetAudience,
+        publish_at: new Date().toISOString(),
+        content: `${data.publicUrl}?v=${version}`,
+        is_active: true,
+      };
+      const existing = announcements.find((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
+      if (existing) await updateAnnouncement(existing.id, payload);
+      else await createAnnouncement(payload);
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload sound');
+    }
+    setUploadingSoundType(null);
+  };
+
+  const deleteSound = async (type: string, targetAudience = 'all') => {
+    const rows = announcements.filter((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
+    if (rows.length === 0 || !window.confirm('Remove this sound from the app?')) return;
+    try { await Promise.all(rows.map((row) => deleteAnnouncement(row.id))); await load(); }
+    catch (e: any) { alert(e.message || 'Failed to remove sound'); }
   };
 
   const saveImageFraming = async () => {
@@ -654,6 +707,41 @@ function AnnouncementManager() {
           <p className="text-[10px] text-stone mt-2">
             Images appear almost translucent behind text. Uploading a new image creates an editable active image setting you can update any time.
           </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface-2 p-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <label className="text-xs font-semibold text-ink">Sound Assignments</label>
+              <p className="text-[10px] text-stone">Instructor-only audio for the dashboard and button feedback. Upload MP3, M4A, WAV, or OGG.</p>
+            </div>
+            <Music2 size={17} className="text-brass" />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {activeSoundSettings.map((setting) => (
+              <div key={setting.type} className="rounded-lg border border-border bg-surface p-3">
+                <div className="flex items-start gap-2">
+                  <Volume2 size={17} className="mt-0.5 flex-shrink-0 text-peri" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-ink">{setting.label}</p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-stone">{setting.description}</p>
+                    {setting.item && <audio className="mt-2 h-8 w-full" controls src={setting.item.content} />}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <label className={cn('btn-secondary cursor-pointer px-2 py-1 text-[11px]', uploadingSoundType === setting.type && 'pointer-events-none opacity-60')}>
+                        {uploadingSoundType === setting.type ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                        {setting.item ? 'Replace' : 'Upload'}
+                        <input type="file" accept="audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/*" className="hidden" onChange={(event) => {
+                          const file = event.target.files?.[0]; event.target.value = '';
+                          if (file) void uploadSound(file, setting.type, setting.audience);
+                        }} />
+                      </label>
+                      {setting.item && <button type="button" onClick={() => deleteSound(setting.type, setting.audience)} className="btn-ghost px-2 py-1 text-[11px] text-coral"><Trash2 size={13} /> Remove</button>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -963,6 +1051,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
+  const [endOfDayStats, setEndOfDayStats] = useState<{ records: number; attendance: number; meditations: number; streaks: number; challenges: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -988,6 +1077,27 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
     return () => window.clearInterval(interval);
   }, [quotePaused, quotes.length]);
 
+  useEffect(() => {
+    const loadEndOfDayStats = async () => {
+      const now = new Date();
+      if (now.getHours() < 20) return;
+      const today = getTodayISODate();
+      const [{ data: records }, { data: challenges }] = await Promise.all([
+        supabase.from('daily_records').select('attendance_status, meditation_submitted, streak_valid').eq('record_date', today),
+        supabase.from('challenge_submissions').select('id').eq('narrative_date', today),
+      ]);
+      const dailyRecords = records || [];
+      setEndOfDayStats({
+        records: dailyRecords.length,
+        attendance: dailyRecords.filter((record) => record.attendance_status === 'present').length,
+        meditations: dailyRecords.filter((record) => record.meditation_submitted).length,
+        streaks: dailyRecords.filter((record) => record.streak_valid).length,
+        challenges: (challenges || []).length,
+      });
+    };
+    loadEndOfDayStats().catch(() => setEndOfDayStats(null));
+  }, []);
+
   const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
 
   return (
@@ -997,6 +1107,27 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />
         <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
         <StatBox icon={BookOpen} label="Narratives" value={narratives.length} tint="text-roman" />
+      </div>
+
+      <div className="card p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="eyebrow">End-of-Day Summary</p>
+            <p className="text-xs text-stone mt-1">Available from 8:00 PM</p>
+          </div>
+          <CheckCircle2 size={20} className="text-moss" />
+        </div>
+        {endOfDayStats ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <SummaryMetric label="Records" value={endOfDayStats.records} />
+            <SummaryMetric label="Present" value={endOfDayStats.attendance} />
+            <SummaryMetric label="Meditations" value={endOfDayStats.meditations} />
+            <SummaryMetric label="Streaks" value={endOfDayStats.streaks} />
+            <SummaryMetric label="Challenges" value={endOfDayStats.challenges} />
+          </div>
+        ) : (
+          <p className="text-sm text-stone">Today’s summary will appear here at 8:00 PM.</p>
+        )}
       </div>
 
       <div className="card p-4">
@@ -1073,6 +1204,15 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+      <p className="text-lg font-bold text-ink">{value}</p>
+      <p className="text-[10px] text-stone">{label}</p>
     </div>
   );
 }
@@ -2705,7 +2845,7 @@ function InstructorSettings({ profile, tents, members }: {
 
   return (
     passwordPage && profile?.email ? (
-      <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />
+      <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />
     ) : (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences" />

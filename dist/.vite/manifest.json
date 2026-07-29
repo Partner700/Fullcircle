@@ -1,13 +1,13 @@
 {
-  "_icons-MHw9vXSK.js": {
-    "file": "assets/icons-MHw9vXSK.js",
+  "_icons-ClL7rRo6.js": {
+    "file": "assets/icons-ClL7rRo6.js",
     "name": "icons"
   },
-  "_react-vendor-D0d-J6x1.js": {
-    "file": "assets/react-vendor-D0d-J6x1.js",
+  "_react-vendor-C2uoXDca.js": {
+    "file": "assets/react-vendor-C2uoXDca.js",
     "name": "react-vendor",
     "imports": [
-      "_icons-MHw9vXSK.js"
+      "_icons-ClL7rRo6.js"
     ]
   },
   "_supabase-wIXNjVJv.js": {
@@ -15,20 +15,20 @@
     "name": "supabase"
   },
   "index.html": {
-    "file": "assets/index-VKTOTvyj.js",
+    "file": "assets/index-Ba1gfCeG.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "imports": [
-      "_icons-MHw9vXSK.js",
-      "_react-vendor-D0d-J6x1.js",
+      "_icons-ClL7rRo6.js",
+      "_react-vendor-C2uoXDca.js",
       "_supabase-wIXNjVJv.js"
     ],
     "css": [
-      "assets/index-CwVvwP9g.css"
+      "assets/index-UvBkXpG5.css"
     ],
     "assets": [
-      "assets/dove-DuNTTTjh.png",
+      "assets/dove-clean-BeQoHgAq.png",
       "assets/squares-DQsplbjx.png",
       "assets/spades-CyqRD20i.png",
       "assets/darics-CL9XqvYX.png",
@@ -40,9 +40,9 @@
     "file": "assets/darics-CL9XqvYX.png",
     "src": "src/assets/brand-real/darics.png"
   },
-  "src/assets/brand-real/dove.png": {
-    "file": "assets/dove-DuNTTTjh.png",
-    "src": "src/assets/brand-real/dove.png"
+  "src/assets/brand-real/dove-clean.png": {
+    "file": "assets/dove-clean-BeQoHgAq.png",
+    "src": "src/assets/brand-real/dove-clean.png"
   },
   "src/assets/brand-real/laureats.png": {
     "file": "assets/laureats-CQlp2eDZ.png",

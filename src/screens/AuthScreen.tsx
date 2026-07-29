@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Dove, FullCircleWordmark } from '../components/Dove';
 import { Loader2, Mail, Lock, User as UserIcon, Info, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const VERSE_FRAGMENTS = [
   { text: 'In the beginning…', top: '8%', left: '12%', delay: '0s' },
@@ -19,12 +20,15 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
     if (mode === 'signin') {
       const { error } = await signIn(email, password);
@@ -41,6 +45,26 @@ export function AuthScreen() {
       if (error) setError(error);
     }
     setLoading(false);
+  };
+
+  const handlePasswordReset = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    setError(null);
+    setNotice(null);
+    if (!normalizedEmail) {
+      setError('Enter your email first, then press Reset Password.');
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: window.location.origin,
+    });
+    setResetLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setNotice('Password reset sent. Open your email, then return here to sign in.');
   };
 
   return (
@@ -138,7 +162,19 @@ export function AuthScreen() {
               </div>
             )}
 
+            {mode === 'signin' && (
+              <button
+                type="button"
+                onClick={handlePasswordReset}
+                disabled={resetLoading || loading}
+                className="text-xs font-bold text-peri-dim hover:text-peri transition-colors disabled:opacity-60"
+              >
+                {resetLoading ? 'Sending reset link...' : 'Reset Password'}
+              </button>
+            )}
+
             {error && <div className="text-sm text-coral bg-coral-soft rounded-lg p-3">{error}</div>}
+            {notice && <div className="text-sm text-sage bg-sage/10 rounded-lg p-3">{notice}</div>}
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? <Loader2 size={18} className="animate-spin" /> : null}

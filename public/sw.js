@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'full-circle-v2';
+const CACHE_VERSION = 'full-circle-v3';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;

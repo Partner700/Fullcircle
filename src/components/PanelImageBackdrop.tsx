@@ -5,15 +5,21 @@ import { normaliseAdjustments, panelImageFilter, panelImageObjectPosition, panel
 interface PanelImageBackdropProps {
   image: PanelImageSetting | null | undefined;
   className?: string;
+  imageClassName?: string;
   veilClassName?: string;
   opacityFallback?: number;
+  opacityOverride?: number;
+  modeFilter?: boolean;
 }
 
 export function PanelImageBackdrop({
   image,
   className,
+  imageClassName,
   veilClassName = 'bg-surface/78',
   opacityFallback = 18,
+  opacityOverride,
+  modeFilter = true,
 }: PanelImageBackdropProps) {
   if (!image?.url) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
@@ -23,8 +29,8 @@ export function PanelImageBackdrop({
   const definition = adjustments.definition + adjustments.sharpness;
   const imageStyle = {
     objectPosition: panelImageObjectPosition(image),
-    opacity: panelImageOpacity(image, opacityFallback),
-    filter: `${panelImageFilter(image)} ${shadow}`.trim(),
+    opacity: opacityOverride === undefined ? panelImageOpacity(image, opacityFallback) : opacityOverride / 100,
+    filter: `${panelImageFilter(image)} ${modeFilter ? 'var(--panel-image-mode-filter)' : ''} ${shadow}`.trim(),
     transform: definition > 0 ? `scale(${1 + definition / 1600})` : undefined,
   };
   const whiteOverlayOpacity = Math.max(0, 100 - adjustments.whitePoint) / 160;
@@ -35,7 +41,7 @@ export function PanelImageBackdrop({
 
   return (
     <div className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
-      <img src={image.url} alt="" className="h-full w-full object-cover" style={imageStyle} />
+      <img src={image.url} alt="" className={cn('h-full w-full object-cover', imageClassName)} style={imageStyle} />
       {whiteOverlayOpacity > 0 && <div className="absolute inset-0 bg-white" style={{ opacity: whiteOverlayOpacity }} />}
       {blackOverlayOpacity > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: blackOverlayOpacity }} />}
       {ageOpacity > 0 && (
@@ -68,6 +74,12 @@ export function PanelImageBackdrop({
           }}
         />
       )}
+      <div
+        className="absolute inset-y-0 left-0 w-[78%]"
+        style={{
+          background: 'linear-gradient(90deg, color-mix(in srgb, var(--color-navy-2) 58%, transparent) 0%, color-mix(in srgb, var(--color-navy-2) 46%, transparent) 34%, color-mix(in srgb, var(--color-navy-2) 25%, transparent) 64%, color-mix(in srgb, var(--color-navy-2) 8%, transparent) 86%, transparent 100%)',
+        }}
+      />
       <div className={cn('absolute inset-0', veilClassName)} />
     </div>
   );

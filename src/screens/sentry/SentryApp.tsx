@@ -10,8 +10,7 @@ import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchAnnouncements, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
-import { panelImageFromAnnouncement } from '../../lib/panelImages';
+import { fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo, PanelImageSetting } from '../../lib/types';
@@ -79,6 +78,7 @@ export function SentryApp() {
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
+  const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
 
@@ -148,7 +148,12 @@ export function SentryApp() {
       }
       const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
       setQuotes(quoteFeed);
-      setAnnouncements(await fetchAnnouncements(['all', 'sentries']).catch(() => []));
+      const [sentryAnnouncements, sentryPanelImages] = await Promise.all([
+        fetchAnnouncements(['all', 'sentries']).catch(() => []),
+        fetchPanelImageSettings(['quote', 'sentry_overview'], ['all', 'sentries']).catch(() => ({})),
+      ]);
+      setAnnouncements(sentryAnnouncements);
+      setPanelImages(sentryPanelImages);
       if (quoteFeed.length > 0) {
         setQuoteReactions(await fetchDailyQuoteReactions(quoteFeed, profile.id).catch(() => ({})) as Record<string, QuoteReactionState>);
       } else {
@@ -209,13 +214,6 @@ export function SentryApp() {
     const todayRec = recs.find((r) => r.record_date === today);
     return todayRec?.attendance_status === 'present' || todayRec?.attendance_status === 'absent';
   }).length;
-  const panelImages = announcements
-    .filter((announcement) => announcement.announcement_type?.startsWith('panel_image_'))
-    .reduce<Record<string, PanelImageSetting>>((map, announcement) => {
-      const panelImage = panelImageFromAnnouncement(announcement);
-      if (panelImage) map[announcement.announcement_type.replace('panel_image_', '')] = panelImage;
-      return map;
-    }, {});
   const tabLabels: Record<Tab, string> = {
     overview: 'Sentry Overview',
     attendance: 'Mark Attendance',
@@ -488,8 +486,8 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
   onCommentOpenChange: (open: boolean) => void;
 }) {
   return (
-    <div className="card p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
-      <PanelImageBackdrop image={image} opacityFallback={16} veilClassName="bg-surface/72" />
+    <div className="card p-4 sm:p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
+      <PanelImageBackdrop image={image} opacityFallback={22} veilClassName="bg-navy-2/76" />
       <div className="relative flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Quote size={18} className="text-brass" />

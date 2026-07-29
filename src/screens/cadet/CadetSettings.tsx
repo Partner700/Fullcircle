@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
 import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getCurrencyForUser, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii, getTodayISODate } from '../../lib/utils';
@@ -163,7 +164,7 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   };
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
-  if (passwordPage && profile?.email) return <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />;
+  if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
 
   const trialCountdown = getCountdownParts(subStatus?.trial_ends_at);
   const periodCountdown = getCountdownParts(subStatus?.current_period_end);
@@ -263,6 +264,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           <KeyRound size={14} /> Update Password
         </button>
       </div>
+
+      <BrowserNotificationSettings />
 
       {/* Subscription */}
       <div className="card p-5">

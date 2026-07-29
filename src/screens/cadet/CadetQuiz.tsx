@@ -266,7 +266,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     <div className="space-y-5 animate-fade-in max-w-2xl mx-auto">
       {/* Quiz card — session header */}
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
-        <PanelImageBackdrop image={quizImage} opacityFallback={20} veilClassName="bg-surface/75" />
+        <PanelImageBackdrop image={quizImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
         <div className="relative text-center">
           <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">

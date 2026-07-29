@@ -15,6 +15,17 @@ import {
   AlertCircle, RefreshCw, FileText,
 } from 'lucide-react';
 
+function splitScriptureVerses(text: string) {
+  const compact = text.replace(/\r/g, '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+  const matches = Array.from(compact.matchAll(/(?:^|\s)(\d{1,3})[.)]?\s+(.+?)(?=(?:\s+\d{1,3}[.)]?\s+(?=[A-Z“\"]|$))|$)/g));
+  if (matches.length >= 2) {
+    return matches.map((match) => ({ number: match[1], text: match[2].trim() })).filter((verse) => verse.text);
+  }
+  return text.split(/\n{2,}/).filter(Boolean).map((paragraph, index) => ({ number: String(index + 1), text: paragraph.trim() }));
+}
+
+type ScriptureVerse = { reference: string; text: string; meditation: string };
+
 export function CadetNarrative({
   onMeditationSaved,
   streakCount = 0,
@@ -35,6 +46,8 @@ export function CadetNarrative({
   const [challengeSaved, setChallengeSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [readingImage, setReadingImage] = useState<PanelImageSetting | null>(null);
+  const [openVerse, setOpenVerse] = useState<number | null>(null);
+  const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
 
   const today = getTodayISODate();
   const dayType = getDayType(new Date());
@@ -76,6 +89,34 @@ export function CadetNarrative({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!narrative) return;
+    const savedVerses = narrative.highlighted_verses || [];
+    if (savedVerses.length > 1) {
+      setReaderVerses(savedVerses);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchFullPassage = async () => {
+      try {
+        const response = await fetch(`https://bible-api.com/${encodeURIComponent(narrative.scripture_reference)}?translation=${narrative.translation || 'web'}`);
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data.verses) || data.verses.length === 0) throw new Error('No verses');
+        const notesByReference = new Map(savedVerses.map((verse) => [verse.reference, verse.meditation]));
+        const verses = data.verses.map((verse: { book_name: string; chapter: number; verse: number; text: string }) => {
+          const reference = `${verse.book_name} ${verse.chapter}:${verse.verse}`;
+          return { reference, text: String(verse.text || '').trim(), meditation: notesByReference.get(reference) || '' };
+        });
+        if (!cancelled) setReaderVerses(verses);
+      } catch {
+        if (!cancelled) setReaderVerses(savedVerses);
+      }
+    };
+    fetchFullPassage();
+    return () => { cancelled = true; };
+  }, [narrative]);
 
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
@@ -165,12 +206,18 @@ export function CadetNarrative({
   const challengeRejected = challenge?.status === 'rejected';
   const challengeApproved = challenge?.status === 'approved';
   const proofFormat: ChallengeProofFormat = (narrative.challenge_proof_format as ChallengeProofFormat) || 'text';
+  const displayVerses = readerVerses.length ? readerVerses : (narrative.highlighted_verses || []);
+  const verseChoices = displayVerses.map((verse) => ({ value: verse.reference, label: verse.reference }));
+  const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       {/* ── Header card — scripture reference + theme ── */}
-      <div className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up bg-surface-2 border-border">
-        <PanelImageBackdrop image={readingImage} veilClassName="bg-surface-2/75" />
+      <div
+        className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up border-border backdrop-blur-sm"
+        style={{ background: 'color-mix(in srgb, var(--color-navy-3) 88%, transparent)' }}
+      >
+        <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="" />
         <div className="relative">
           <div className="eyebrow text-brass flex items-center gap-2 mb-2">
             <BookMarked size={14} strokeWidth={1.5} />
@@ -184,63 +231,74 @@ export function CadetNarrative({
       </div>
 
       {narrative.verse_of_day && (
-        <div className="card p-5 animate-slide-up bg-surface-2 border-brass/30">
+        <div
+          className="card relative overflow-hidden p-5 animate-slide-up border-brass/30"
+          style={{
+            backgroundColor: 'transparent',
+            backdropFilter: 'blur(14px) saturate(1.12)',
+          }}
+        >
+          <div>
           <div className="flex items-center gap-2 mb-3">
             <Sun size={18} className="text-brass" strokeWidth={1.5} />
             <span className="eyebrow text-stone">Verse of the Day</span>
           </div>
           <ScrollEdge position="top" className="text-brass mb-3" />
-          <p className="font-display text-xl text-ink leading-snug font-serif">
+          <p className="font-display text-xl text-ink leading-snug">
             &ldquo;{narrative.verse_of_day}&rdquo;
           </p>
           <ScrollEdge position="bottom" className="text-brass mt-3" />
+          </div>
         </div>
       )}
 
       {/* ── Scripture text ── */}
-      <div className="card p-5 animate-slide-up bg-surface border-border">
+      <div
+        className="card p-5 animate-slide-up border-border"
+        style={{
+          backgroundColor: 'transparent',
+          backdropFilter: 'blur(14px) saturate(1.12)',
+        }}
+      >
         <div className="flex items-center gap-2 mb-3">
           <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
           <span className="eyebrow text-stone">Scripture</span>
         </div>
         <ScrollEdge position="top" className="text-brass mb-4" />
-        <div className="prose prose-sm max-w-none">
-          <p className="text-ink leading-relaxed whitespace-pre-wrap font-serif text-[15px]">
-            {narrative.main_text}
-          </p>
+        <div className="space-y-4 sm:space-y-5">
+          {displayVerses.length ? displayVerses.map((verse, index) => {
+            const hasInsight = Boolean(verse.meditation?.trim());
+            const expanded = openVerse === index;
+            const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
+            return (
+              <article key={`${verse.reference}-${index}`} className="overflow-hidden border-b border-border pb-4 last:border-b-0 last:pb-0">
+                <button
+                  type="button"
+                  onClick={() => hasInsight && setOpenVerse(expanded ? null : index)}
+                  className={cn('w-full px-1 py-1 text-left transition-colors', hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
+                  aria-expanded={hasInsight ? expanded : undefined}
+                >
+                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
+                  <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
+                    {verse.reference}{hasInsight ? ' · Instructor annotation available' : ''}
+                  </span>
+                </button>
+                {hasInsight && expanded && (
+                  <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
+                    <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
+                  </div>
+                )}
+              </article>
+            );
+          }) : fetchedVerses.map((verse, index) => (
+            <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
+              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
+            </article>
+          ))}
         </div>
         <ScrollEdge position="bottom" className="text-brass mt-4" />
       </div>
-
-      {/* ── Highlighted verses ── */}
-      {narrative.highlighted_verses && narrative.highlighted_verses.length > 0 && (
-        <div className="card p-5 animate-slide-up bg-surface border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <Quote size={18} className="text-brass" strokeWidth={1.5} />
-            <span className="eyebrow text-stone">Highlighted Verses</span>
-          </div>
-          <div className="space-y-5">
-            {narrative.highlighted_verses.map((v, i) => (
-              <div
-                key={i}
-                className="relative pl-5 border-l-2 border-brass/40 bg-surface-2/50 rounded-r-lg py-4 pr-4"
-              >
-                <ScrollEdge position="top" className="text-brass mb-3" />
-                <p className="font-display text-2xl text-ink leading-snug">
-                  &ldquo;{v.text}&rdquo;
-                </p>
-                <p className="text-xs text-brass font-medium mt-2 eyebrow">
-                  {v.reference}
-                </p>
-                <p className="text-sm text-stone mt-3 leading-relaxed">
-                  {v.meditation}
-                </p>
-                <ScrollEdge position="bottom" className="text-brass mt-3" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Reflection prompts ── */}
       {narrative.reflection_prompts && narrative.reflection_prompts.length > 0 && (
@@ -284,12 +342,17 @@ export function CadetNarrative({
         <div className="mb-4">
           <label className="text-sm font-medium text-ink mb-1.5 block">Best Verse</label>
           <p className="text-xs text-stone mb-2">Your best verse of the day</p>
-          <textarea
+          <select
             value={bestVerse}
             onChange={(e) => { setBestVerse(e.target.value); setSavedMeditation(false); }}
-            className="input-field min-h-[60px] resize-y font-serif"
-            placeholder="Enter your best verse of the day…"
-          />
+            className="input-field"
+          >
+            <option value="">Select a verse from today's reading</option>
+            {bestVerse && !verseChoices.some((choice) => choice.value === bestVerse) && (
+              <option value={bestVerse}>{bestVerse}</option>
+            )}
+            {verseChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+          </select>
         </div>
 
         {/* Daily Meditation (50-100 words) */}
@@ -299,7 +362,7 @@ export function CadetNarrative({
           <textarea
             value={meditation}
             onChange={(e) => { setMeditation(e.target.value); setSavedMeditation(false); }}
-            className="input-field min-h-[120px] resize-y font-serif"
+            className="input-field min-h-[120px] resize-y"
             placeholder="Write your meditation on today's reading (50–100 words)…"
           />
           <p className={cn('text-xs mt-1', meditationWordCount < 50 ? 'text-roman' : 'text-moss')}>
@@ -315,7 +378,7 @@ export function CadetNarrative({
             type="text"
             value={dailyQuote}
             onChange={(e) => { setDailyQuote(e.target.value); setSavedMeditation(false); }}
-            className="input-field font-serif"
+            className="input-field"
             placeholder="Your daily quote (max 10 words)…"
           />
           <p className={cn('text-xs mt-1', quoteWordCount > 10 ? 'text-roman' : 'text-stone')}>
@@ -336,9 +399,10 @@ export function CadetNarrative({
           <button
             onClick={saveMeditation}
             disabled={!canSubmitMeditation || saving}
-            className="btn-primary disabled:opacity-50"
+            className="btn-primary px-3 text-xs disabled:opacity-50 sm:px-5 sm:text-sm"
+            title="Submit meditation"
           >
-            <Save size={16} strokeWidth={1.5} /> {saving ? 'Saving…' : 'Submit Meditation'}
+            <Save size={16} strokeWidth={1.5} /> <span className="hidden sm:inline">{saving ? 'Saving…' : 'Submit Meditation'}</span>
           </button>
         </div>
       </div>}
@@ -360,7 +424,7 @@ export function CadetNarrative({
         <div className="card p-5 animate-slide-up bg-surface-2 border-border">
           <div className="flex items-center justify-between gap-3 mb-1">
             <span className="eyebrow text-stone">Daily Challenge</span>
-            <span className="badge badge-roman">5% ranking</span>
+            <span className="badge badge-roman text-[10px]" title="Counts after sentry approval">5%</span>
           </div>
           <div className="flex items-center gap-2 mt-3 mb-2">
             <Target size={18} className="text-roman" strokeWidth={1.5} />
@@ -460,15 +524,16 @@ export function CadetNarrative({
                   </span>
                 ) : (
                   <span className="text-sm text-stone">
-                    Counts toward monthly ranking
+                    Counts after sentry approval
                   </span>
                 )}
                 <button
                   onClick={saveChallenge}
                   disabled={(proofFormat === 'link' ? !challengeLink.trim() : !challengeText.trim()) || saving}
-                  className="btn-secondary disabled:opacity-50"
+                  className="btn-secondary px-3 text-xs disabled:opacity-50 sm:px-5 sm:text-sm"
+                  title={challengeRejected ? 'Resubmit challenge' : 'Submit challenge'}
                 >
-                  <Sparkles size={16} strokeWidth={1.5} /> {saving ? 'Saving…' : challengeRejected ? 'Resubmit' : 'Submit Challenge'}
+                  <Sparkles size={16} strokeWidth={1.5} /> <span className="hidden sm:inline">{saving ? 'Saving…' : challengeRejected ? 'Resubmit' : 'Submit Challenge'}</span>
                 </button>
               </div>
             </>

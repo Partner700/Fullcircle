@@ -397,16 +397,19 @@ export async function insertAward(award: Partial<Award>) {
 
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  const announcementResult = await supabase
     .from('scheduled_announcements')
     .select('*')
     .lte('publish_at', now)
     .eq('is_active', true)
     .in('audience', audiences)
+    .not('announcement_type', 'like', 'panel_image_%')
+    .neq('announcement_type', 'weekly_background')
     .order('publish_at', { ascending: false })
-    .limit(5);
-  if (error) throw error;
-  return data as ScheduledAnnouncement[];
+    .limit(12);
+
+  if (announcementResult.error) throw announcementResult.error;
+  return (announcementResult.data || []) as ScheduledAnnouncement[];
 }
 
 export async function fetchPanelImage(
@@ -421,24 +424,45 @@ export async function fetchPanelImageSetting(
   panelType: string,
   audiences: string[] = ['all', 'cadets'],
 ): Promise<PanelImageSetting | null> {
-  const announcementType = panelType === 'weekly_background' || panelType.startsWith('panel_image_')
-    ? panelType
-    : `panel_image_${panelType}`;
+  const images = await fetchPanelImageSettings([panelType], audiences);
+  const normalizedType = panelType === 'weekly_background' || panelType.startsWith('panel_image_')
+    ? panelType.replace('panel_image_', '')
+    : panelType;
+  return images[normalizedType] || null;
+}
+
+export async function fetchPanelImageSettings(
+  panelTypes: string[],
+  audiences: string[] = ['all', 'cadets'],
+): Promise<Record<string, PanelImageSetting>> {
+  const announcementTypes = Array.from(new Set(panelTypes.map((panelType) => (
+    panelType === 'weekly_background' || panelType.startsWith('panel_image_')
+      ? panelType
+      : `panel_image_${panelType}`
+  ))));
+  if (announcementTypes.length === 0) return {};
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('scheduled_announcements')
-    .select('content, image_position_x, image_position_y')
-    .eq('announcement_type', announcementType)
+    .select('announcement_type, content, image_position_x, image_position_y, audience, publish_at')
+    .in('announcement_type', announcementTypes)
     .lte('publish_at', now)
     .eq('is_active', true)
     .in('audience', audiences)
     .order('publish_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(Math.max(20, announcementTypes.length * 6));
   if (error) throw error;
-  return data?.content && isPanelImageContent(data.content)
-    ? panelImageFromAnnouncement(data)
-    : null;
+  const rows = ((data || []) as (ScheduledAnnouncement & { audience: string })[])
+    .filter((row) => row.content && isPanelImageContent(row.content));
+  const images: Record<string, PanelImageSetting> = {};
+
+  announcementTypes.forEach((type) => {
+    const candidates = rows.filter((row) => row.announcement_type === type);
+    const preferred = candidates.find((row) => row.audience !== 'all') || candidates[0];
+    if (preferred) images[type.replace('panel_image_', '')] = panelImageFromAnnouncement(preferred);
+  });
+
+  return images;
 }
 
 export async function fetchAllAnnouncements() {

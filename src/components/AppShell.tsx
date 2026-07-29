@@ -2,10 +2,11 @@ import { type ReactNode, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { DoveMark } from './Dove';
-import { LogOut, Sun, Moon, Menu, X } from 'lucide-react';
+import { LogOut, Sun, Moon, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { isSoundscapeEnabled, playInterfaceTone, setSoundscapeEnabled, setSoundscapeMood, type SoundMood } from '../lib/soundscape';
 
 type Theme = 'night' | 'day';
 
@@ -32,10 +33,30 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-border bg-navy-3 text-peri-dim hover:text-peri hover:border-border-bright transition-all"
+      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:text-peri"
       title={theme === 'night' ? 'Switch to day mode' : 'Switch to night mode'}
     >
       {theme === 'night' ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+}
+
+function SoundToggle() {
+  const [enabled, setEnabled] = useState(() => isSoundscapeEnabled());
+  const toggle = async () => {
+    const next = !enabled;
+    await setSoundscapeEnabled(next);
+    setEnabled(next);
+  };
+  return (
+    <button
+      onClick={toggle}
+      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:text-peri"
+      title={enabled ? 'Turn sounds off' : 'Turn sounds on'}
+      aria-label={enabled ? 'Turn sounds off' : 'Turn sounds on'}
+      aria-pressed={enabled}
+    >
+      {enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
     </button>
   );
 }
@@ -86,6 +107,20 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
   }, []);
 
   useEffect(() => {
+    const key = `${activeKey} ${headerTitle}`.toLowerCase();
+    let mood: SoundMood = 'default';
+    if (key.includes('dashboard') || key.includes('home')) mood = 'home';
+    else if (key.includes('reading') || key.includes('narrative') || key.includes('devotion')) mood = 'reading';
+    else if (key.includes('tent')) mood = 'tent';
+    else if (key.includes('arena') || key.includes('daily game') || key.includes('game')) mood = 'game';
+    else if (key.includes('quiz')) mood = 'quiz';
+    else if (key.includes('streak') || key.includes('challenge board') || key.includes('leaderboard')) mood = 'board';
+    else if (key.includes('award')) mood = 'awards';
+    else if (key.includes('market') || key.includes('store')) mood = 'market';
+    void setSoundscapeMood(mood);
+  }, [activeKey, headerTitle]);
+
+  useEffect(() => {
     let mounted = true;
     const audience = role === 'instructor' ? 'instructors' : role === 'sentry' ? 'sentries' : 'cadets';
     fetchPanelImageSetting('weekly_background', ['all', audience])
@@ -100,6 +135,15 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     };
   }, [role]);
 
+  useEffect(() => {
+    const playButtonTone = (event: MouseEvent) => {
+      const button = (event.target as HTMLElement | null)?.closest('button');
+      if (button && !button.disabled) void playInterfaceTone();
+    };
+    document.addEventListener('click', playButtonTone);
+    return () => document.removeEventListener('click', playButtonTone);
+  }, []);
+
   return (
     <div className="relative min-h-screen flex overflow-x-hidden bg-navy">
       {weeklyBackground && (
@@ -108,6 +152,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
           className="fixed z-0"
           veilClassName=""
           opacityFallback={24}
+          modeFilter
         />
       )}
       {/* Sidebar */}
@@ -164,27 +209,47 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
 
       {/* Main content */}
       <div className="relative z-10 flex-1 flex flex-col min-w-0 md:ml-60">
-        <header className="sticky top-0 z-20 border-b border-border bg-navy-2 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+        <header className="sticky top-0 z-30 border-b border-border bg-navy-2 px-3 py-2 shadow-sm sm:px-4 sm:py-3 md:px-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
+            <div className="flex min-w-0 items-start justify-between gap-2 md:flex-1">
+              <div className="flex min-w-0 items-start gap-2">
                 <button
                   onClick={() => setMobileNavOpen((open) => !open)}
-                  className="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-xl border border-border bg-navy-3 text-peri-dim hover:text-peri"
+                  className="md:hidden inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-navy-3 text-peri-dim shadow-sm hover:text-peri"
                   aria-label={mobileNavOpen ? 'Close dashboard menu' : 'Open dashboard menu'}
                 >
-                  {mobileNavOpen ? <X size={16} /> : <Menu size={16} />}
+                  {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
                 </button>
-                <h2 className="font-display font-extrabold text-peri text-lg leading-tight truncate">{headerTitle}</h2>
+                <div className="min-w-0 pt-0.5">
+                  <h2 className="font-display font-extrabold text-peri text-base leading-tight truncate md:text-lg">{headerTitle}</h2>
+                  {headerSubtitle && <p className="hidden text-xs text-peri-dim truncate font-medium sm:block">{headerSubtitle}</p>}
+                </div>
               </div>
-              {headerSubtitle && <p className="text-xs text-peri-dim truncate font-medium">{headerSubtitle}</p>}
+              <div className="flex flex-shrink-0 items-center gap-2 md:hidden">
+                <SoundToggle />
+                <ThemeToggle />
+                {showTopSignOut && (
+                  <button
+                    onClick={signOut}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:bg-coral-soft hover:text-coral"
+                    title="Sign out"
+                  >
+                    <LogOut size={16} />
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <ThemeToggle />
+            <div className="flex max-w-full items-center gap-2 overflow-x-auto overscroll-x-contain pb-0.5 md:flex-shrink-0 md:justify-end md:overflow-visible md:pb-0">
+              <div className="hidden md:block">
+                <ThemeToggle />
+              </div>
+              <div className="hidden md:block">
+                <SoundToggle />
+              </div>
               {showTopSignOut && (
                 <button
                   onClick={signOut}
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-border bg-navy-3 text-peri-dim hover:text-coral hover:border-border-bright hover:bg-coral-soft transition-all"
+                  className="hidden h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:bg-coral-soft hover:text-coral md:inline-flex"
                   title="Sign out"
                 >
                   <LogOut size={16} />
@@ -210,7 +275,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
           />
           <aside
             className={cn(
-              'absolute left-0 top-0 h-full w-[82vw] max-w-[320px] border-r border-border bg-navy-2 shadow-2xl transition-transform duration-300 ease-out',
+              'absolute left-0 top-0 h-full w-[86vw] max-w-[340px] border-r border-border bg-navy-2 shadow-2xl transition-transform duration-300 ease-out safe-area-left safe-area-bottom',
               mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
             )}
           >
@@ -231,7 +296,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
               </button>
             </div>
 
-            <nav className="h-[calc(100%-150px)] overflow-y-auto p-3 space-y-1">
+            <nav className="h-[calc(100%-150px)] overflow-y-auto overscroll-contain p-3 space-y-1">
               {navItems.map((item) => (
                 <button
                   key={item.key}
@@ -269,7 +334,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
           </aside>
         </div>
 
-        <main className="flex-1 p-4 md:p-6 max-w-6xl mx-auto w-full">{children}</main>
+        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6">{children}</main>
       </div>
     </div>
   );
