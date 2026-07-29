@@ -14,7 +14,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   state: State = { error: null, retryKey: 0 };
 
   static getDerivedStateFromError(error: Error): State {
-    return { error };
+    return { error, retryKey: 0 };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {

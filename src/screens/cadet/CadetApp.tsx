@@ -18,7 +18,7 @@ import { formatDenarii, getDayType, getTodayISODate } from '../../lib/utils';
 import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
-  Lock, Clock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
+  Lock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
 } from 'lucide-react';
 
@@ -843,7 +843,7 @@ export function CadetApp() {
         {tab === 'awards' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
         {tab === 'store' && <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />}
         {tab === 'settings' && <CadetSettings refreshKey={cadetRefreshKey} currentStreak={streakCount} />}
-        {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} onSubscribed={loadSubStatus} />}
+      {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} />}
       </Suspense>
     </AppShell>
   );
@@ -870,7 +870,7 @@ function SubscribeGate({ onSubscribe }: { onSubscribe: () => void }) {
   );
 }
 
-function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: string; trial_ends_at: string; current_period_end: string | null; is_paid: boolean } | null; onSubscribed: () => void }) {
+function SubscribeScreen({ subStatus }: { subStatus: { status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<string>('mobile_money');
@@ -895,7 +895,8 @@ function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: str
     setLoading(false);
   };
 
-  const trialDaysLeft = subStatus ? Math.max(0, Math.ceil((new Date(subStatus.trial_ends_at).getTime() - Date.now()) / 86400000)) : 0;
+  const trialEndsAt = subStatus?.trial_ends_at ? new Date(subStatus.trial_ends_at).getTime() : NaN;
+  const trialDaysLeft = Number.isFinite(trialEndsAt) ? Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000)) : 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">

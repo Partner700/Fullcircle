@@ -93,15 +93,19 @@ export function CadetTent() {
       target_reference: ref || null,
     });
     if (targetUserId !== profile.id) {
-      await supabase.rpc('notify_user', {
-        p_recipient_id: targetUserId,
-        p_actor_id: profile.id,
-        p_notification_type: 'info',
-        p_title: 'Tent reaction',
-        p_body: `${profile.display_name} reacted to you in ${tent.name}.`,
-        p_action_key: 'tent',
-        p_metadata: { tent_id: tent.id, reaction_type: reactionType, target_type: targetType },
-      }).catch(() => null);
+      try {
+        await supabase.rpc('notify_user', {
+          p_recipient_id: targetUserId,
+          p_actor_id: profile.id,
+          p_notification_type: 'info',
+          p_title: 'Tent reaction',
+          p_body: `${profile.display_name} reacted to you in ${tent.name}.`,
+          p_action_key: 'tent',
+          p_metadata: { tent_id: tent.id, reaction_type: reactionType, target_type: targetType },
+        });
+      } catch {
+        // A reaction should still save even if its optional notification fails.
+      }
     }
     await load();
     setReactingTo(null);
