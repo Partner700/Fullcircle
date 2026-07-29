@@ -5,7 +5,7 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { fetchAwards } from '../../lib/queries';
 import { formatShortDate, cn } from '../../lib/utils';
 import type { Award } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, Star, Flame, Coins, Target, Zap, BookOpen, Medal, TrendingUp } from 'lucide-react';
+import { Award as AwardIcon, Trophy, Crown, Flame, Coins, Target, Zap, BookOpen, TrendingUp } from 'lucide-react';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   cadet_of_month: Crown,

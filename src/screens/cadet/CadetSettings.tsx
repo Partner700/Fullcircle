@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { SectionHeader, EmptyState } from '../../components/AppShell';
+import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getCurrencyForUser, getSubscriptionStatus } from '../../lib/queries';
-import { cn, formatDenarii, getTodayISODate } from '../../lib/utils';
+import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getSubscriptionStatus } from '../../lib/queries';
+import { cn, formatDenarii } from '../../lib/utils';
 import {
-  User, Phone, Camera, Loader2, Save, Flame, Coins, Trophy, Award,
+  User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
-  KeyRound, Eye, EyeOff,
+  KeyRound,
 } from 'lucide-react';
 
 interface CadetSettingsProps {
@@ -38,13 +38,6 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   });
   const [subStatus, setSubStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,29 +131,6 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
       alert(err.message || 'Failed to upload avatar');
     }
     setUploadingAvatar(false);
-  };
-
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
   };
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
@@ -304,39 +274,6 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
             ? `You have an active paid subscription${subStatus?.current_period_end ? ` until ${new Date(subStatus.current_period_end).toLocaleDateString()}` : ''}.`
             : <>You are on the free trial with <span className="font-semibold text-coral">{trialCountdown.label}</span> remaining. Upgrade to keep playing after the trial ends.</>}
         </p>
-      </div>
-    </div>
-  );
-}
-
-function PasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-stone block mb-1">{label}</label>
-      <div className="relative">
-        <input
-          className="input-field pr-10"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          minLength={6}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
       </div>
     </div>
   );

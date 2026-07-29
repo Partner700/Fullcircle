@@ -6,17 +6,17 @@ import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
-  fetchNarratives, fetchFortuneQuizSession, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
+  fetchNarratives, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
   fetchPanelImageSetting,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
-import { formatCountdown, cn } from '../../lib/utils';
+import { formatCountdown, formatDenarii, cn } from '../../lib/utils';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
 import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
-  FileQuestion, Clock, CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
-  Trophy, Zap, Lock, Ban, Timer, BookOpen, Swords, RefreshCw,
+  FileQuestion, Clock, CheckCircle2, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
+  Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw,
 } from 'lucide-react';
 
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
@@ -283,7 +283,6 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       {phase === 'scheduled' && (
         <WaitingRoom
           eyebrow="Not Yet Open"
-          icon={Clock}
           title="Quiz Not Yet Open"
           description="The waiting room opens in:"
           countdownMs={timeToCountdown}
@@ -295,7 +294,6 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       {phase === 'countdown' && (
         <WaitingRoom
           eyebrow="Waiting Room"
-          icon={Timer}
           title="Waiting Room"
           description="Quiz starts in:"
           countdownMs={timeToLive}
@@ -376,10 +374,9 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
 
 // ── Waiting / countdown room — Dove + rotating scripture + thin progress bar ──
 function WaitingRoom({
-  eyebrow, icon: Icon, title, description, countdownMs, footnote, progressLabel, pulse,
+  eyebrow, title, description, countdownMs, footnote, progressLabel, pulse,
 }: {
   eyebrow: string;
-  icon: typeof Clock;
   title: string;
   description: string;
   countdownMs: number;
@@ -672,7 +669,6 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     setUsingGoliath(false);
   };
 
-  const correct = selectedAnswer === payload.correct_answer;
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const lowTime = timeLeft <= 60;

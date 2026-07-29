@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
-import { ChallengeEvidenceList } from '../../components/ChallengeEvidenceList';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchChallengeSubmission, fetchPanelImageSetting, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
@@ -11,7 +10,7 @@ import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/cons
 import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
 import {
   BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
-  Quote, ScrollText, Sun, Link2, Image as ImageIcon,
+  ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
 } from 'lucide-react';
 

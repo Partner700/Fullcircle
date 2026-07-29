@@ -8,7 +8,7 @@ import { getRemovalState, getDayType, formatShortDate, cn, isWeekdayValid } from
 import type { DailyRecord, RemovalState, StreakInfo } from '../../lib/types';
 import {
   Flame, Calendar, TrendingUp, AlertTriangle, ShieldCheck, XCircle,
-  CheckCircle2, MinusCircle, Award, Info, Snowflake, Loader2, Coins,
+  CheckCircle2, MinusCircle, Award, Snowflake, Loader2, Coins,
 } from 'lucide-react';
 import { fetchStreakFreezers, purchaseDailyFreezer } from '../../lib/queries';
 import { FREEZER_DAILY_COST } from '../../lib/constants';

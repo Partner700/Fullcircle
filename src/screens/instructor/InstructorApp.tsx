@@ -22,7 +22,7 @@ import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
-  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
+  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Image as ImageIcon, Upload, X, Move, Volume2, Music2,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
@@ -2029,7 +2029,7 @@ function MatriculesManagement() {
 
   const generate = async () => {
     setGenerating(true);
-    const { data, error } = await supabase.rpc('generate_matricules', { p_count: count });
+    const { error } = await supabase.rpc('generate_matricules', { p_count: count });
     if (error) { alert(error.message); setGenerating(false); return; }
     setGenerating(false);
     load();
@@ -2785,7 +2785,7 @@ function QuizBuilder() {
                     <Rocket size={12} /> Launch
                   </button>
                 )}
-                {(s.status === 'completed' || s.status === 'closed') && (
+                {((s.status as string) === 'completed' || s.status === 'closed') && (
                   <button onClick={() => relaunchQuiz(s)} className="btn-primary text-xs">
                     <RotateCcw size={12} /> Republish
                   </button>
@@ -2819,13 +2819,6 @@ function InstructorSettings({ profile, tents, members }: {
     payout_max_amount_xaf: null,
   });
   const [mmSaving, setMmSaving] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
 
   useEffect(() => {
@@ -2866,29 +2859,6 @@ function InstructorSettings({ profile, tents, members }: {
       alert('Mobile Money settings saved.');
     } catch (e: any) { alert(e.message); }
     setMmSaving(false);
-  };
-
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
   };
 
   return (
@@ -3046,38 +3016,6 @@ function InstructorSettings({ profile, tents, members }: {
   );
 }
 
-function InstructorPasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-stone block mb-1">{label}</label>
-      <div className="relative">
-        <input
-          className="input-field text-sm pr-10"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          minLength={6}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; onRefresh: () => void }) {
   const [submissions, setSubmissions] = useState<any[]>([]);

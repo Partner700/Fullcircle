@@ -12,7 +12,7 @@ import {
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
-import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, KeyRound } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -29,13 +29,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showWaMsg, setShowWaMsg] = useState(false);
   const [waMsg, setWaMsg] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
   const { refreshProfile } = useAuth();
 
@@ -94,29 +87,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     }
-  };
-
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
   };
 
   const roleIcon = role === 'cadet' ? CadetIcon : role === 'sentry' ? SentryIcon : InstructorIcon;
@@ -339,39 +309,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       {/* Dove footer */}
       <div className="flex justify-center py-4">
         <Dove size={56} className="opacity-30" />
-      </div>
-    </div>
-  );
-}
-
-function SettingsPasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-bold text-peri mb-1.5">{label}</label>
-      <div className="relative">
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="input-field pr-10"
-          minLength={6}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
       </div>
     </div>
   );

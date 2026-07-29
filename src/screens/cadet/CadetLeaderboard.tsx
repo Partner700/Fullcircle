@@ -42,7 +42,7 @@ export function CadetLeaderboard() {
   const { profile } = useAuth();
   const [tab, setTab] = useState<BoardTab>('leader');
   const [streakRows, setStreakRows] = useState<(StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
-  const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
+  const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
   const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
   const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);

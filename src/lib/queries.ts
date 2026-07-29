@@ -6,7 +6,7 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow, QuestionPayload,
+  QuizScoreboardRow, QuestionPayload, PanelImageSetting,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 

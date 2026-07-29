@@ -394,9 +394,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         quoteRecordDate={slide.narrative.narrative_date}
                         currentUserId={currentUserId || undefined}
                         fetchComments={(_quoteUserId, quoteRecordDate) => fetchDailyVerseComments(quoteRecordDate)}
-                        onComment={(body) => currentUserId
-                          ? commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body)
-                          : Promise.reject(new Error('Sign in to comment.'))}
+                        onComment={async (body) => {
+                          if (!currentUserId) throw new Error('Sign in to comment.');
+                          await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
+                        }}
                         onCommentOpenChange={onCommentOpenChange}
                       />
                     </>

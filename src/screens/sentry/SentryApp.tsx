@@ -10,10 +10,10 @@ import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
+import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo, PanelImageSetting } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
@@ -77,7 +77,6 @@ export function SentryApp() {
   const [reactingQuote, setReactingQuote] = useState<string | null>(null);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
-  const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
@@ -144,11 +143,7 @@ export function SentryApp() {
       }
       const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
       setQuotes(quoteFeed);
-      const [sentryAnnouncements, sentryPanelImages] = await Promise.all([
-        fetchAnnouncements(['all', 'sentries']).catch(() => []),
-        fetchPanelImageSettings(['quote', 'sentry_overview'], ['all', 'sentries']).catch(() => ({})),
-      ]);
-      setAnnouncements(sentryAnnouncements);
+      const sentryPanelImages = await fetchPanelImageSettings(['quote', 'sentry_overview'], ['all', 'sentries']).catch(() => ({}));
       setPanelImages(sentryPanelImages);
       if (quoteFeed.length > 0) {
         setQuoteReactions(await fetchDailyQuoteReactions(quoteFeed, profile.id).catch(() => ({})) as Record<string, QuoteReactionState>);
