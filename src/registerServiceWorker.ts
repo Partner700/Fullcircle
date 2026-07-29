@@ -1,15 +1,15 @@
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
 
-  let refreshing = false;
+  const reloadKey = 'full-circle-last-service-worker-reload';
 
-  // Handle service worker updates - this fires when SKIP_WAITING is sent
-  // and the new SW takes control. The PWAUpdateNotification component
-  // triggers this via user action ("Refresh Now").
+  // A new worker takes control after it is installed. Reload once into its
+  // matching bundle, but throttle the guard so an update can never trap a
+  // device in a refresh loop.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    // Reload to get new content from the updated service worker
+    const lastReload = Number(window.sessionStorage.getItem(reloadKey) || 0);
+    if (Date.now() - lastReload < 10_000) return;
+    window.sessionStorage.setItem(reloadKey, String(Date.now()));
     window.location.reload();
   });
 
@@ -17,12 +17,26 @@ export function registerServiceWorker() {
     navigator.serviceWorker
       .register('/sw.js')
       .then((registration) => {
-        // Check for updates on page load
-        registration.update();
+        const activateUpdate = () => {
+          // The current worker also calls skipWaiting during install. This
+          // explicit message covers browsers that leave a worker waiting.
+          registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+        };
+
+        // Check and apply updates every time the app opens.
+        void registration.update().then(activateUpdate).catch(() => undefined);
+
+        if (registration.waiting) activateUpdate();
+        registration.addEventListener('updatefound', () => {
+          const worker = registration.installing;
+          worker?.addEventListener('statechange', () => {
+            if (worker.state === 'installed') activateUpdate();
+          });
+        });
 
         // Periodically check for updates (every hour)
         setInterval(() => {
-          registration.update();
+          void registration.update().then(activateUpdate).catch(() => undefined);
         }, 60 * 60 * 1000);
 
         // Listen for messages from the service worker

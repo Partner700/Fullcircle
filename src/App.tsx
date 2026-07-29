@@ -3,7 +3,6 @@ import { useAuth } from './context/AuthContext';
 import { AuthScreen } from './screens/AuthScreen';
 import { Dove } from './components/Dove';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
-import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 
 // Role applications are large, independent experiences. Load only the one the
@@ -38,10 +37,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loading]);
 
-  // The PWA update notification must be rendered globally so it can
-  // detect service worker updates regardless of which screen is shown.
-  // It conditionally renders itself only when an update is available.
-  const overlays = <><PWAUpdateNotification /><PWAInstallPrompt /></>;
+  // Installation remains user-directed, while service-worker updates are
+  // applied automatically by registerServiceWorker.
+  const overlays = <PWAInstallPrompt />;
 
   if (loading) {
     return (
