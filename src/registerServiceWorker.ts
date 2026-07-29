@@ -5,29 +5,13 @@ export function registerServiceWorker() {
     navigator.serviceWorker
       .register('/sw.js')
       .then((registration) => {
-        const activateUpdate = () => {
-          // The current worker also calls skipWaiting during install. This
-          // explicit message covers browsers that leave a worker waiting.
-          registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
-        };
-
-        // Check and activate updates every time the app opens. We deliberately
-        // do not force a location.reload() after takeover: iOS standalone apps
-        // can re-run startup in a loop when a controller changes mid-session.
-        // The next normal open uses the newly activated app shell.
-        void registration.update().then(activateUpdate).catch(() => undefined);
-
-        if (registration.waiting) activateUpdate();
-        registration.addEventListener('updatefound', () => {
-          const worker = registration.installing;
-          worker?.addEventListener('statechange', () => {
-            if (worker.state === 'installed') activateUpdate();
-          });
-        });
+        // Check for a new worker at launch. The worker itself activates safely;
+        // this client never forces a mid-session reload.
+        void registration.update().catch(() => undefined);
 
         // Periodically check for updates (every hour)
         setInterval(() => {
-          void registration.update().then(activateUpdate).catch(() => undefined);
+          void registration.update().catch(() => undefined);
         }, 60 * 60 * 1000);
 
         // Listen for messages from the service worker
