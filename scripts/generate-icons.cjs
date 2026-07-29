@@ -2,7 +2,7 @@ const sharp = require('/Users/bameelhakol/.cache/codex-runtimes/codex-primary-ru
 const fs = require('fs');
 const path = require('path');
 
-const SOURCE_PATH = path.join(__dirname, '..', 'public', 'icons', 'fullcircle-dove.png');
+const SOURCE_PATH = path.join(__dirname, '..', 'public', 'icons', 'fullcircle-dove-clean.png');
 const ICONS_DIR = path.join(__dirname, '..', 'public', 'icons');
 
 const SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
