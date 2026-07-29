@@ -176,6 +176,18 @@ export function InstructorApp() {
   const [awards, setAwards] = useState<(Award & { profiles: { display_name: string } })[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadDashboardData = useCallback(async () => {
+    setLoading(true);
+    const [t, m, r, n] = await Promise.allSettled([
+      fetchTents(), fetchTentMembers(), fetchAllRoleAssignments(), fetchAllNarratives(),
+    ]);
+    setTents(t.status === 'fulfilled' ? t.value : []);
+    setMembers(m.status === 'fulfilled' ? m.value : []);
+    setRoles(r.status === 'fulfilled' ? r.value : []);
+    setNarratives(n.status === 'fulfilled' ? n.value : []);
+    setLoading(false);
+  }, []);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     const [t, m, p, r, n, a] = await Promise.allSettled([
@@ -191,7 +203,9 @@ export function InstructorApp() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // The landing dashboard does not need every profile or historical award.
+  // Defer those larger management datasets until a management screen is opened.
+  useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', quiz: 'Quiz Builder',
@@ -207,7 +221,11 @@ export function InstructorApp() {
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
-      onNavigate={(k) => { setTab(k as Tab); if (k === 'narratives') setEditingNarrative('new'); }}
+      onNavigate={(k) => {
+        setTab(k as Tab);
+        if (k === 'narratives') setEditingNarrative('new');
+        if (['tents', 'cadets', 'sentries', 'awards'].includes(k) && profiles.length === 0) void loadAll();
+      }}
       headerTitle={tabLabels[tab]}
       headerSubtitle="Instructor"
     >

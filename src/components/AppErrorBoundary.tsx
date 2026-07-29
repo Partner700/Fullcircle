@@ -7,10 +7,11 @@ type Props = {
 
 type State = {
   error: Error | null;
+  retryKey: number;
 };
 
 export class AppErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  state: State = { error: null, retryKey: 0 };
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
@@ -21,7 +22,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    if (!this.state.error) return this.props.children;
+    if (!this.state.error) return <div key={this.state.retryKey}>{this.props.children}</div>;
 
     return (
       <div className="min-h-screen bg-bg text-ink flex items-center justify-center p-6">
@@ -36,9 +37,14 @@ export class AppErrorBoundary extends Component<Props, State> {
           <pre className="mt-4 max-h-44 overflow-auto rounded-lg border border-border bg-surface-2 p-3 text-left text-xs text-stone">
             {this.state.error.message}
           </pre>
-          <button type="button" onClick={() => window.location.reload()} className="btn-primary mt-4">
-            <RefreshCcw size={16} /> Refresh
-          </button>
+          <div className="mt-4 flex justify-center gap-2">
+            <button type="button" onClick={() => this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }))} className="btn-primary">
+              <RefreshCcw size={16} /> Try Again
+            </button>
+            <button type="button" onClick={() => window.location.reload()} className="btn-secondary">
+              Reload App
+            </button>
+          </div>
         </div>
       </div>
     );

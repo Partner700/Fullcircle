@@ -40,70 +40,43 @@ export function CadetTent() {
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
+    try {
+      const { data: member } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).maybeSingle();
+      if (!member) {
+        setTent(null);
+        setMembers([]);
+        return;
+      }
 
-    const { data: member } = await supabase
-      .from('tent_members')
-      .select('tent_id')
-      .eq('user_id', profile.id)
-      .maybeSingle();
+      const [tentResult, membersResult, reactionsResult, unreadResult] = await Promise.all([
+        supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
+        supabase.from('tent_members').select('*, profiles(*)').eq('tent_id', member.tent_id).order('joined_at'),
+        supabase.from('tent_reactions').select('*').eq('tent_id', member.tent_id).order('created_at', { ascending: false }).limit(50),
+        supabase.from('user_notifications').select('actor_id').eq('recipient_id', profile.id).is('read_at', null).eq('action_key', 'tent'),
+      ]);
+      setTent(tentResult.data as any);
+      setMembers((membersResult.data || []) as any);
+      setReactions((reactionsResult.data || []) as any);
 
-    if (!member) {
+      const memberIds = (membersResult.data || []).map((m: any) => m.user_id);
+      const [denariiResults, streakResults] = await Promise.all([
+        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('get_user_denarii_total', { p_user_id: uid })).data }))),
+        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('compute_strict_streak', { p_user_id: uid })).data }))),
+      ]);
+      setDenariiMap(Object.fromEntries(denariiResults.map(({ uid, data }) => [uid, Number(data) || 0])));
+      setStreakMap(Object.fromEntries(streakResults.flatMap(({ uid, data }: any) => data?.[0] ? [[uid, data[0].current_streak]] : [])));
+
+      const unreadMap: Record<string, number> = {};
+      (unreadResult.data || []).forEach((n: any) => {
+        if (n.actor_id) unreadMap[n.actor_id] = (unreadMap[n.actor_id] || 0) + 1;
+      });
+      setUnreadBySender(unreadMap);
+    } catch (error) {
+      console.error('Tent load error:', error);
+      setTent(null);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data: tentData } = await supabase
-      .from('tents')
-      .select('*, tent_houses(*)')
-      .eq('id', member.tent_id)
-      .maybeSingle();
-    setTent(tentData as any);
-
-    const { data: memberData } = await supabase
-      .from('tent_members')
-      .select('*, profiles(*)')
-      .eq('tent_id', member.tent_id)
-      .order('joined_at');
-    setMembers((memberData || []) as any);
-
-    const { data: reactData } = await supabase
-      .from('tent_reactions')
-      .select('*')
-      .eq('tent_id', member.tent_id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    setReactions((reactData || []) as any);
-
-    const memberIds = (memberData || []).map((m: any) => m.user_id);
-    if (memberIds.length > 0) {
-      const denMap: Record<string, number> = {};
-      await Promise.all(memberIds.map(async (uid: string) => {
-        const { data } = await supabase.rpc('get_user_denarii_total', { p_user_id: uid });
-        denMap[uid] = (data as number) || 0;
-      }));
-      setDenariiMap(denMap);
-
-      const streakMap: Record<string, number> = {};
-      await Promise.all(memberIds.map(async (uid: string) => {
-        const { data } = await supabase.rpc('compute_strict_streak', { p_user_id: uid });
-        if (data && data[0]) streakMap[uid] = data[0].current_streak;
-      }));
-      setStreakMap(streakMap);
-    }
-
-    const { data: unread } = await supabase
-      .from('user_notifications')
-      .select('actor_id')
-      .eq('recipient_id', profile.id)
-      .is('read_at', null)
-      .eq('action_key', 'tent');
-    const unreadMap: Record<string, number> = {};
-    (unread || []).forEach((n: any) => {
-      if (n.actor_id) unreadMap[n.actor_id] = (unreadMap[n.actor_id] || 0) + 1;
-    });
-    setUnreadBySender(unreadMap);
-
-    setLoading(false);
   }, [profile]);
 
   useEffect(() => { load(); }, [load]);

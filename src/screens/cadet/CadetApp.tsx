@@ -1,17 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/AppShell';
 import { CadetDashboard } from './CadetDashboard';
-import { CadetNarrative } from './CadetNarrative';
-import { CadetGame } from './CadetGame';
-import { CadetQuiz } from './CadetQuiz';
-import { CadetLeaderboard } from './CadetLeaderboard';
-import { CadetAwards } from './CadetAwards';
-import { CadetTent } from './CadetTent';
-import { CadetSettings } from './CadetSettings';
-import { CadetStore } from './CadetStore';
-import { CadetArena } from './CadetArena';
-import { CadetStreak } from './CadetStreak';
 import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
@@ -31,6 +21,19 @@ import {
   Lock, Clock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
 } from 'lucide-react';
+
+// Keep the first dashboard paint light. Each sizeable workspace is downloaded
+// only when the cadet actually opens it.
+const CadetNarrative = lazy(() => import('./CadetNarrative').then((module) => ({ default: module.CadetNarrative })));
+const CadetGame = lazy(() => import('./CadetGame').then((module) => ({ default: module.CadetGame })));
+const CadetQuiz = lazy(() => import('./CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
+const CadetLeaderboard = lazy(() => import('./CadetLeaderboard').then((module) => ({ default: module.CadetLeaderboard })));
+const CadetAwards = lazy(() => import('./CadetAwards').then((module) => ({ default: module.CadetAwards })));
+const CadetTent = lazy(() => import('./CadetTent').then((module) => ({ default: module.CadetTent })));
+const CadetSettings = lazy(() => import('./CadetSettings').then((module) => ({ default: module.CadetSettings })));
+const CadetStore = lazy(() => import('./CadetStore').then((module) => ({ default: module.CadetStore })));
+const CadetArena = lazy(() => import('./CadetArena').then((module) => ({ default: module.CadetArena })));
+const CadetStreak = lazy(() => import('./CadetStreak').then((module) => ({ default: module.CadetStreak })));
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
@@ -828,20 +831,26 @@ export function CadetApp() {
       }
       navBadges={notificationBadges}
     >
-      {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-      {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
-      {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
-      {tab === 'game' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
-      {tab === 'arena' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
-      {tab === 'quiz' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
-      {tab === 'tent' && <CadetTent />}
-      {tab === 'leaderboard' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
-      {tab === 'awards' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
-      {tab === 'store' && <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />}
-      {tab === 'settings' && <CadetSettings refreshKey={cadetRefreshKey} currentStreak={streakCount} />}
-      {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} onSubscribed={loadSubStatus} />}
+      <Suspense fallback={<TabLoading />}>
+        {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
+        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
+        {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
+        {tab === 'game' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
+        {tab === 'arena' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
+        {tab === 'quiz' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
+        {tab === 'tent' && <CadetTent />}
+        {tab === 'leaderboard' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
+        {tab === 'awards' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
+        {tab === 'store' && <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />}
+        {tab === 'settings' && <CadetSettings refreshKey={cadetRefreshKey} currentStreak={streakCount} />}
+        {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} onSubscribed={loadSubStatus} />}
+      </Suspense>
     </AppShell>
   );
+}
+
+function TabLoading() {
+  return <div className="py-16 text-center text-sm text-stone animate-fade-in">Loading this space...</div>;
 }
 
 function SubscribeGate({ onSubscribe }: { onSubscribe: () => void }) {
