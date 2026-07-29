@@ -1,18 +1,6 @@
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
 
-  const reloadKey = 'full-circle-last-service-worker-reload';
-
-  // A new worker takes control after it is installed. Reload once into its
-  // matching bundle, but throttle the guard so an update can never trap a
-  // device in a refresh loop.
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    const lastReload = Number(window.sessionStorage.getItem(reloadKey) || 0);
-    if (Date.now() - lastReload < 10_000) return;
-    window.sessionStorage.setItem(reloadKey, String(Date.now()));
-    window.location.reload();
-  });
-
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
@@ -23,7 +11,10 @@ export function registerServiceWorker() {
           registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
         };
 
-        // Check and apply updates every time the app opens.
+        // Check and activate updates every time the app opens. We deliberately
+        // do not force a location.reload() after takeover: iOS standalone apps
+        // can re-run startup in a loop when a controller changes mid-session.
+        // The next normal open uses the newly activated app shell.
         void registration.update().then(activateUpdate).catch(() => undefined);
 
         if (registration.waiting) activateUpdate();
