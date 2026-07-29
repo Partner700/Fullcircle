@@ -33,6 +33,13 @@ function clearLocalAuthStorage() {
   });
 }
 
+function waitFor<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds)),
+  ]);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -68,14 +75,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) {
-        loadProfile(data.session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
+    let active = true;
+    const initialise = async () => {
+      try {
+        const { data } = await waitFor(supabase.auth.getSession(), 8_000, 'Session check');
+        if (!active) return;
+        setSession(data.session);
+        if (data.session) {
+          await waitFor(loadProfile(data.session.user.id), 8_000, 'Profile loading');
+        }
+      } catch (error) {
+        // A slow/offline Supabase request must not strand the app on its loading screen.
+        console.warn('Auth initialisation could not complete:', error);
+        if (active) {
+          setSession(null);
+          setProfile(null);
+          setRoleAssignment(null);
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-    });
+    };
+    void initialise();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, sess) => {
       setSession(sess);
@@ -89,7 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => authListener.subscription.unsubscribe();
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {

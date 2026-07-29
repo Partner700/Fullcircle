@@ -15,9 +15,7 @@ declare global {
   }
 }
 
-const DISMISS_KEY = 'pwa_install_prompt_dismissed_at';
 const SESSION_KEY = 'pwa_install_prompt_seen';
-const DISMISS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
@@ -31,11 +29,6 @@ function isEligibleIOSSafari() {
   return ios && safari;
 }
 
-function dismissedRecently() {
-  const timestamp = Number(window.localStorage.getItem(DISMISS_KEY));
-  return Number.isFinite(timestamp) && Date.now() - timestamp < DISMISS_WINDOW_MS;
-}
-
 /** A single install surface for Chromium's native prompt and Safari's Home Screen guide. */
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -44,7 +37,7 @@ export function PWAInstallPrompt() {
   const [iosGuide, setIosGuide] = useState(false);
   const installButtonRef = useRef<HTMLButtonElement>(null);
 
-  const canShow = useCallback(() => !isStandalone() && !dismissedRecently()
+  const canShow = useCallback(() => !isStandalone()
     && !window.sessionStorage.getItem(SESSION_KEY), []);
 
   const showSoon = useCallback(() => {
@@ -95,7 +88,6 @@ export function PWAInstallPrompt() {
   }, [visible]);
 
   const dismiss = useCallback(() => {
-    window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
     setVisible(false);
     setIosGuide(false);
   }, []);

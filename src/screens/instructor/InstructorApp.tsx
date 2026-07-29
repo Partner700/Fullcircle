@@ -307,6 +307,30 @@ const PANEL_IMAGE_SLOTS = [
 const SOUND_SLOTS = [
   { type: 'sound_dashboard', label: 'Dashboard Atmosphere', description: 'A low-volume looping track for the Home dashboard only.', audience: 'all' },
   { type: 'sound_button', label: 'Button Feedback', description: 'A short sound played when someone presses an app button.', audience: 'all' },
+  { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Reserved for a future welcome moment.', audience: 'all' },
+  { type: 'sound_reading', label: "Today's Reading", description: 'Reserved for scripture and meditation spaces.', audience: 'all' },
+  { type: 'sound_tent', label: 'Tent Space', description: 'Reserved for tent conversations and activity.', audience: 'all' },
+  { type: 'sound_game_lobby', label: 'Daily Game Lobby', description: 'Reserved for the daily game landing space.', audience: 'all' },
+  { type: 'sound_game_start', label: 'Daily Game Start', description: 'Reserved for when a daily game begins.', audience: 'all' },
+  { type: 'sound_game_correct', label: 'Correct Answer', description: 'Reserved for a correct daily-game answer.', audience: 'all' },
+  { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Reserved for a missed daily-game answer.', audience: 'all' },
+  { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Reserved for completing a daily game.', audience: 'all' },
+  { type: 'sound_arena_lobby', label: 'Arena Lobby', description: 'Reserved for the Arena room space.', audience: 'all' },
+  { type: 'sound_arena_start', label: 'Arena Start', description: 'Reserved for an Arena battle start.', audience: 'all' },
+  { type: 'sound_arena_round', label: 'Arena Round', description: 'Reserved for a new Arena round.', audience: 'all' },
+  { type: 'sound_arena_finish', label: 'Arena Finish', description: 'Reserved for an Arena result.', audience: 'all' },
+  { type: 'sound_quiz_waiting', label: 'Quiz Waiting Room', description: 'Reserved while waiting for a quiz.', audience: 'all' },
+  { type: 'sound_quiz_start', label: 'Quiz Start', description: 'Reserved for a quiz beginning.', audience: 'all' },
+  { type: 'sound_quiz_finish', label: 'Quiz Finish', description: 'Reserved for a quiz submission/result.', audience: 'all' },
+  { type: 'sound_streak', label: 'Streak Update', description: 'Reserved for a streak gained or protected.', audience: 'all' },
+  { type: 'sound_challenge', label: 'Challenge Update', description: 'Reserved for challenge approval and progress.', audience: 'all' },
+  { type: 'sound_board', label: 'Challenge Boards', description: 'Reserved for board visits and rank movement.', audience: 'all' },
+  { type: 'sound_award', label: 'Award Received', description: 'Reserved for awards and achievements.', audience: 'all' },
+  { type: 'sound_market', label: 'Market', description: 'Reserved for market browsing.', audience: 'all' },
+  { type: 'sound_purchase_success', label: 'Purchase Confirmed', description: 'Reserved for successful purchases.', audience: 'all' },
+  { type: 'sound_purchase_failed', label: 'Purchase Needs Retry', description: 'Reserved for unsuccessful purchases.', audience: 'all' },
+  { type: 'sound_notification', label: 'Notification', description: 'Reserved for a new notification.', audience: 'all' },
+  { type: 'sound_message', label: 'Tent Message', description: 'Reserved for a new direct or tent message.', audience: 'all' },
 ];
 
 const IMAGE_ADJUSTMENT_CONTROLS: {
@@ -713,17 +737,17 @@ function AnnouncementManager() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <label className="text-xs font-semibold text-ink">Sound Assignments</label>
-              <p className="text-[10px] text-stone">Instructor-only audio for the dashboard and button feedback. Upload MP3, M4A, WAV, or OGG.</p>
+              <p className="text-[10px] text-stone">Instructor-only audio library. Dashboard and button feedback are live; the other slots are ready for their matching scenario. Upload MP3, M4A, WAV, or OGG.</p>
             </div>
             <Music2 size={17} className="text-brass" />
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {activeSoundSettings.map((setting) => (
               <div key={setting.type} className="rounded-lg border border-border bg-surface p-3">
                 <div className="flex items-start gap-2">
                   <Volume2 size={17} className="mt-0.5 flex-shrink-0 text-peri" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-ink">{setting.label}</p>
+                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
                     <p className="mt-0.5 text-[10px] leading-relaxed text-stone">{setting.description}</p>
                     {setting.item && <audio className="mt-2 h-8 w-full" controls src={setting.item.content} />}
                     <div className="mt-3 flex flex-wrap gap-2">

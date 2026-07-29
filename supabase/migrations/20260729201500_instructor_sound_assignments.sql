@@ -11,7 +11,7 @@ ALTER TABLE public.scheduled_announcements
       'streakboard_release', 'general', 'weekly_background'
     )
     OR announcement_type LIKE 'panel_image_%'
-    OR announcement_type IN ('sound_dashboard', 'sound_button')
+    OR announcement_type LIKE 'sound_%'
   );
 
 DROP POLICY IF EXISTS "instructor_upload_shared_sound_assets" ON storage.objects;
