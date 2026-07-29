@@ -25,11 +25,13 @@ function hasRecentPasswordVerification() {
 export function PasswordUpdateFlow({
   email,
   onDone,
+  recoveryMode = false,
 }: {
   email: string;
   onDone: () => void;
+  recoveryMode?: boolean;
 }) {
-  const [step, setStep] = useState<Step>(() => hasRecentPasswordVerification() ? 'new' : 'verify');
+  const [step, setStep] = useState<Step>(() => recoveryMode || hasRecentPasswordVerification() ? 'new' : 'verify');
   const [scriptureIdx, setScriptureIdx] = useState(0);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -117,7 +119,7 @@ export function PasswordUpdateFlow({
           </div>
           <p className="eyebrow text-brass mb-2">Password Security</p>
           <h2 className="font-display text-xl font-semibold text-ink">
-            {step === 'verify' ? 'Confirm Old Password' : 'Choose New Password'}
+            {step === 'verify' ? 'Confirm Old Password' : recoveryMode ? 'Reset Your Password' : 'Choose New Password'}
           </h2>
           <p key={scriptureIdx} className="text-sm text-stone mt-3 min-h-10 animate-fade-in">
             {SECRET_SCRIPTURES[scriptureIdx]}
@@ -144,7 +146,7 @@ export function PasswordUpdateFlow({
         )}
         {error && <p className="text-xs text-coral">{error}</p>}
         {success && <p className="text-xs text-sage">{success}</p>}
-        <button onClick={returnToSettings} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>
+        {!recoveryMode && <button onClick={returnToSettings} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>}
       </div>
     </div>
   );

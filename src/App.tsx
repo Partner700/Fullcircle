@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { AuthScreen } from './screens/AuthScreen';
-import { CadetApp } from './screens/cadet/CadetApp';
-import { SentryApp } from './screens/sentry/SentryApp';
-import { InstructorApp } from './screens/instructor/InstructorApp';
 import { Dove } from './components/Dove';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
+
+// Role applications are large, independent experiences. Load only the one the
+// signed-in person needs instead of making every user download all three.
+const CadetApp = lazy(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp })));
+const SentryApp = lazy(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp })));
+const InstructorApp = lazy(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp })));
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -21,6 +25,10 @@ const SCRIPTURE_FACTS = [
 export default function App() {
   const { session, profile, role, configError, loading } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
+  const passwordRecovery = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('reset-password') === '1';
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -73,6 +81,24 @@ export default function App() {
     );
   }
 
+  if (passwordRecovery && session) {
+    return (
+      <>
+        {overlays}
+        <main className="min-h-screen bg-navy px-4 py-10 flex items-center justify-center">
+          <PasswordUpdateFlow
+            email={profile?.email || session.user.email || ''}
+            recoveryMode
+            onDone={() => {
+              window.history.replaceState({}, '', window.location.pathname);
+              window.location.reload();
+            }}
+          />
+        </main>
+      </>
+    );
+  }
+
   if (!session || !profile) {
     return (
       <>
@@ -82,8 +108,20 @@ export default function App() {
     );
   }
 
-  if (role === 'instructor') return <>{overlays}<InstructorApp /></>;
-  if (role === 'sentry') return <>{overlays}<SentryApp /></>;
-  // Default: cadet (includes unassigned users with limited access)
-  return <>{overlays}<CadetApp /></>;
+  const app = role === 'instructor'
+    ? <InstructorApp />
+    : role === 'sentry'
+      ? <SentryApp />
+      : <CadetApp />;
+
+  return <>{overlays}<Suspense fallback={<RoleLoading />}>{app}</Suspense></>;
+}
+
+function RoleLoading() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-navy gap-4">
+      <Dove size={64} className="animate-float" />
+      <p className="text-peri-dim text-sm">Preparing your Full Circle...</p>
+    </div>
+  );
 }

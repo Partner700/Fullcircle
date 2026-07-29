@@ -57,14 +57,15 @@ export function AuthScreen() {
     }
     setResetLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: window.location.origin,
+      // The recovery session returns to the dedicated Full Circle password form.
+      redirectTo: `${window.location.origin}/?reset-password=1`,
     });
     setResetLoading(false);
     if (error) {
       setError(error.message);
       return;
     }
-    setNotice('Password reset sent. Open your email, then return here to sign in.');
+    setNotice('Password reset sent. Open the email link to choose a new password in Full Circle.');
   };
 
   return (

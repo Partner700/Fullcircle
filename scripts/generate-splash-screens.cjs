@@ -2,7 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
-const SVG_PATH = path.join(__dirname, '..', 'public', 'icons', 'fullcircle-icon.svg');
+const ICON_PATH = path.join(__dirname, '..', 'public', 'icons', 'fullcircle-dove-clean.png');
 const ICONS_DIR = path.join(__dirname, '..', 'public', 'icons');
 
 const SPLASH_CONFIGS = [
@@ -20,7 +20,7 @@ const SPLASH_CONFIGS = [
 
 async function generateSplashScreens() {
   // Logo size proportional to screen
-  const svgBuffer = fs.readFileSync(SVG_PATH);
+  const iconBuffer = fs.readFileSync(ICON_PATH);
 
   for (const config of SPLASH_CONFIGS) {
     const logoSize = Math.round(Math.min(config.width, config.height) * 0.2);
@@ -37,7 +37,7 @@ async function generateSplashScreens() {
     })
       .composite([
         {
-          input: await sharp(svgBuffer).resize(logoSize, logoSize).png().toBuffer(),
+          input: await sharp(iconBuffer).resize(logoSize, logoSize, { fit: 'contain' }).png().toBuffer(),
           top: logoY,
           left: logoX,
         },

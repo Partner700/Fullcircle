@@ -22,7 +22,7 @@ import { CadetStore } from '../cadet/CadetStore';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
-  Coins, Moon, Camera, ImagePlus, Quote, ShoppingBag,
+  Camera, ImagePlus, Quote, ShoppingBag,
 } from 'lucide-react';
 
 type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'store' | 'settings';
@@ -124,21 +124,17 @@ export function SentryApp() {
           .order('joined_at');
         setMembers((mems || []) as any);
 
-        const recordsMap: Record<string, DailyRecord[]> = {};
+        const memberIds = (mems || []).map((m) => m.user_id);
+        const recordsMap: Record<string, DailyRecord[]> = Object.fromEntries(memberIds.map((id) => [id, []]));
         const streakMap: Record<string, StrictStreakData> = {};
-        await Promise.all((mems || []).map(async (m) => {
-          try {
-            const { data: recs } = await supabase
-              .from('daily_records')
-              .select('*')
-              .eq('user_id', m.user_id)
-              .order('record_date', { ascending: true });
-            recordsMap[m.user_id] = (recs || []) as DailyRecord[];
-          } catch { recordsMap[m.user_id] = []; }
-          try {
-            streakMap[m.user_id] = await fetchStrictStreak(m.user_id);
-          } catch {}
-        }));
+        const [recordsResult, streakResults] = await Promise.all([
+          memberIds.length
+            ? supabase.from('daily_records').select('*').in('user_id', memberIds).order('record_date', { ascending: true })
+            : Promise.resolve({ data: [] as DailyRecord[] }),
+          Promise.all(memberIds.map(async (id) => ({ id, data: await fetchStrictStreak(id).catch(() => null) }))),
+        ]);
+        for (const record of (recordsResult.data || []) as DailyRecord[]) recordsMap[record.user_id]?.push(record);
+        for (const result of streakResults) if (result.data) streakMap[result.id] = result.data;
         setAllRecords(recordsMap);
         setStrictStreaks(streakMap);
       } else {
@@ -549,6 +545,13 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
 
   const now = new Date();
   const pastCutoff = now.getHours() >= ATTENDANCE_CUTOFF_HOUR;
+  const attendance = members.map((member) => {
+    const records = allRecords[member.user_id] || [];
+    const todayRecord = records.find((record) => record.record_date === today);
+    return { member, todayRecord, status: todayRecord?.attendance_status || 'unmarked' };
+  });
+  const awaiting = attendance.filter(({ status }) => status === 'unmarked');
+  const marked = attendance.filter(({ status }) => status !== 'unmarked');
 
   const handleMark = async (member: TentMember & { profiles: Profile }, status: 'present' | 'absent') => {
     setMarkingCadet(member.user_id);
@@ -577,106 +580,67 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
 
       <div className="card p-4 bg-surface">
         <SectionHeader title="Mark Attendance" subtitle={`${formatShortDate(today)} · Present cadets receive 200 Denarii`} />
-        <ScrollEdge position="top" className="text-stone mb-2" />
+        <div className="mb-4 rounded-lg bg-surface-2 border border-border px-3 py-2.5">
+          <div className="flex items-center justify-between text-xs text-stone mb-2">
+            <span>{marked.length === members.length ? 'Attendance complete' : `${awaiting.length} cadet${awaiting.length === 1 ? '' : 's'} still to mark`}</span>
+            <span className="font-semibold text-ink">{marked.length}/{members.length}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-border overflow-hidden">
+            <div className="h-full rounded-full bg-moss transition-all duration-300" style={{ width: `${members.length ? (marked.length / members.length) * 100 : 0}%` }} />
+          </div>
+        </div>
         {feedback && (
           <div className="mb-3 rounded-lg border border-moss/30 bg-moss/10 px-3 py-2 text-sm text-moss flex items-center gap-2">
             <CheckCircle2 size={15} className="flex-shrink-0" />
             {feedback}
           </div>
         )}
-        <div className="space-y-2">
-          {members.map((m) => {
-            const recs = allRecords[m.user_id] || [];
-            const todayRec = recs.find((r) => r.record_date === today);
-            const status = todayRec?.attendance_status || 'unmarked';
-            const onTime = todayRec?.attendance_marked_at ? isAttendanceOnTime(new Date(todayRec.attendance_marked_at)) : true;
-            const devotionDone = todayRec?.meditation_submitted === true;
-            const dayComplete = status === 'present' && devotionDone;
-            const streak = streakForMember(m.user_id, allRecords, strictStreaks);
-            const isBusy = markingCadet === m.user_id;
-
-            return (
-              <div
-                key={m.user_id}
-                className={cn(
-                  'flex items-center gap-3 p-3 rounded-lg border bg-surface-2 transition-colors',
-                  status === 'present' && 'border-moss/40 bg-moss/5',
-                  status === 'absent' && 'border-roman/35 bg-roman/5',
-                  status === 'unmarked' && 'border-border',
-                )}
-              >
-                <TentAvatar member={m} currentUserId={currentUserId} tentId={tentId} size="md" />
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium text-ink flex items-center gap-2">
-                    <SealBullet className="text-stone flex-shrink-0" />
-                    {m.profiles.display_name}
-                  </span>
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {status === 'present' && (
-                      <>
-                        <span className="badge badge-moss text-[10px]">
-                          <Sunrise size={10} /> Morning call confirmed{!onTime ? ' late' : ''}
-                        </span>
-                        <span className="badge badge-brass text-[10px]">
-                          <Coins size={10} /> +200D awarded
-                        </span>
-                      </>
-                    )}
-                    {status === 'absent' && (
-                      <span className="badge badge-roman text-[10px]">
-                        <XCircle size={10} /> Absent from morning call
-                      </span>
-                    )}
-                    {status === 'unmarked' && (
-                      <span className="badge badge-neutral text-[10px]">
-                        <Clock size={10} /> Morning call not marked
-                      </span>
-                    )}
-                    <span className={cn('badge text-[10px]', devotionDone ? 'badge-moss' : 'badge-neutral')}>
-                      <Moon size={10} /> {devotionDone ? 'Devotion submitted' : 'Devotion still needed'}
-                    </span>
-                    {dayComplete && (
-                      <span className="badge badge-brass text-[10px]">
-                        <CheckCircle2 size={10} /> Streak day complete
-                      </span>
-                    )}
-                    <span className="badge badge-neutral text-[10px]">
-                      <Shield size={10} /> Streak {streak.current_streak}
-                    </span>
+        {awaiting.length > 0 && (
+          <div className="space-y-2">
+            {awaiting.map(({ member: m }) => {
+              const isBusy = markingCadet === m.user_id;
+              return (
+                <div key={m.user_id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg border border-border bg-surface-2">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <TentAvatar member={m} currentUserId={currentUserId} tentId={tentId} size="md" />
+                    <div className="min-w-0"><p className="text-sm font-medium text-ink truncate">{m.profiles.display_name}</p><p className="text-xs text-stone">Morning call not marked</p></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:w-48 flex-shrink-0">
+                    <button onClick={() => handleMark(m, 'present')} disabled={isBusy} className="btn-primary justify-center text-xs py-2">
+                      {isBusy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Present
+                    </button>
+                    <button onClick={() => handleMark(m, 'absent')} disabled={isBusy} className="btn-secondary justify-center text-xs py-2 text-roman border-roman/30">
+                      <XCircle size={14} /> Absent
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => handleMark(m, 'present')}
-                    disabled={isBusy}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                      status === 'present'
-                        ? 'bg-moss text-white'
-                        : 'bg-moss/10 text-moss hover:bg-moss/20',
-                    )}
-                  >
-                    {isBusy ? <Loader2 size={14} className="inline mr-1 animate-spin" /> : <CheckCircle2 size={14} className="inline mr-1" />}
-                    Present
-                  </button>
-                  <button
-                    onClick={() => handleMark(m, 'absent')}
-                    disabled={isBusy}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                      status === 'absent'
-                        ? 'bg-roman text-white'
-                        : 'bg-roman/10 text-roman hover:bg-roman/20',
-                    )}
-                  >
-                    <XCircle size={14} className="inline mr-1" /> Absent
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <ScrollEdge position="bottom" className="text-stone mt-2" />
+              );
+            })}
+          </div>
+        )}
+        {marked.length > 0 && (
+          <div className={cn(awaiting.length > 0 && 'mt-5')}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-stone mb-2">Marked today</p>
+            <div className="divide-y divide-border rounded-lg border border-border bg-surface-2">
+              {marked.map(({ member: m, todayRecord, status }) => {
+                const onTime = todayRecord?.attendance_marked_at ? isAttendanceOnTime(new Date(todayRecord.attendance_marked_at)) : true;
+                const devotionDone = todayRecord?.meditation_submitted === true;
+                const dayComplete = status === 'present' && devotionDone;
+                const streak = streakForMember(m.user_id, allRecords, strictStreaks);
+                const isBusy = markingCadet === m.user_id;
+                return (
+                  <div key={m.user_id} className="flex items-center gap-3 px-3 py-2.5">
+                    <TentAvatar member={m} currentUserId={currentUserId} tentId={tentId} size="sm" />
+                    <div className="flex-1 min-w-0"><p className="text-sm font-medium text-ink truncate">{m.profiles.display_name}</p><p className="text-xs text-stone truncate">{status === 'present' ? `Present${!onTime ? ' (late)' : ''}${devotionDone ? ' · devotion submitted' : ' · devotion pending'}` : 'Absent'} · Streak {streak.current_streak}{dayComplete ? ' · complete' : ''}</p></div>
+                    <button onClick={() => handleMark(m, status === 'present' ? 'absent' : 'present')} disabled={isBusy} className="btn-ghost text-xs px-2 py-1.5 flex-shrink-0">
+                      {isBusy ? <Loader2 size={13} className="animate-spin" /> : 'Change'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
