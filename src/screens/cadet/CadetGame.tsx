@@ -725,11 +725,15 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
           <button
             onClick={() => setPassageIntroRound(null)}
-            disabled={passageTimeLeft > 0}
-            className="btn-primary mt-4 w-full disabled:opacity-45 disabled:cursor-not-allowed"
+            className="btn-primary mt-4 w-full"
           >
-            {passageTimeLeft > 0 ? `Questions unlock in ${passageTimeLeft}s` : 'Start Round Questions'}
+            {passageTimeLeft > 0 ? 'Skip and begin now' : 'Start Round Questions'}
           </button>
+          {passageTimeLeft > 0 && (
+            <p className="mt-2 text-center text-xs text-stone">
+              Or keep reading. The round begins automatically in {passageTimeLeft}s.
+            </p>
+          )}
         </div>
       </div>
     );
