@@ -102,7 +102,11 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
-    ...announcements.filter((announcement) => !announcement.announcement_type?.startsWith('panel_image_') && announcement.announcement_type !== 'weekly_background').map((announcement) => ({
+    ...announcements.filter((announcement) =>
+      !announcement.announcement_type?.startsWith('panel_image_')
+      && !announcement.announcement_type?.startsWith('sound_')
+      && announcement.announcement_type !== 'weekly_background',
+    ).map((announcement) => ({
       id: `announcement-${announcement.id}`,
       kind: 'announcement' as const,
       announcement,

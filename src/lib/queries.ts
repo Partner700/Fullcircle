@@ -404,6 +404,7 @@ export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']
     .eq('is_active', true)
     .in('audience', audiences)
     .not('announcement_type', 'like', 'panel_image_%')
+    .not('announcement_type', 'like', 'sound_%')
     .neq('announcement_type', 'weekly_background')
     .order('publish_at', { ascending: false })
     .limit(12);
