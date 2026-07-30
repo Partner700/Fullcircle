@@ -8,7 +8,7 @@ import { fetchNarrative, fetchGameAttempts, insertGameAttempt, insertLedgerEntry
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
 import { generateLevelQuestionsWithCustom, getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
 import { isGamePausedNow, getTodayISODate, cn, formatDenarii } from '../../lib/utils';
-import { playRoundWarningBeep, playSoundEffect } from '../../lib/soundscape';
+import { playRoundWarningBeep, playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_PER_ROUND } from '../../lib/constants';
 import type { DailyNarrative, GameAttempt, GameSeedData, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
@@ -316,6 +316,11 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const passageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPractice = mode === 'practice';
+
+  useEffect(() => {
+    void setScenarioSound(`sound_game_level_${level}`);
+    return () => { void setScenarioSound(null); };
+  }, [level]);
 
   useEffect(() => {
     let cancelled = false;

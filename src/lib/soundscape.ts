@@ -6,7 +6,9 @@ export type SoundMood = 'home' | 'reading' | 'tent' | 'game' | 'quiz' | 'board' 
 let audioContext: AudioContext | null = null;
 let currentMood: SoundMood = 'default';
 let dashboardAudio: HTMLAudioElement | null = null;
+let scenarioAudio: HTMLAudioElement | null = null;
 let soundSyncVersion = 0;
+let scenarioSyncVersion = 0;
 const assetCache = new Map<string, string | null>();
 const DASHBOARD_VOLUME = 0.22;
 const DASHBOARD_FADE_MS = 850;
@@ -73,6 +75,15 @@ async function stopDashboardSound() {
   audio.currentTime = 0;
 }
 
+async function stopScenarioSound() {
+  const audio = scenarioAudio;
+  if (!audio) return;
+  scenarioAudio = null;
+  await fadeVolume(audio, 0);
+  audio.pause();
+  audio.currentTime = 0;
+}
+
 async function syncDashboardSound() {
   const version = ++soundSyncVersion;
   if (!isSoundscapeEnabled() || currentMood !== 'home') {
@@ -121,12 +132,50 @@ export async function setSoundscapeEnabled(enabled: boolean) {
     // Prime the short button sound while the user has provided a gesture.
     void getSoundUrl('sound_button');
     await syncDashboardSound();
-  } else await stopDashboardSound();
+  } else {
+    await Promise.all([stopDashboardSound(), stopScenarioSound()]);
+  }
 }
 
 export async function setSoundscapeMood(mood: SoundMood) {
   currentMood = mood;
   await syncDashboardSound();
+}
+
+/** Start or replace a looping, instructor-uploaded soundtrack for a focused activity. */
+export async function setScenarioSound(type: string | null) {
+  const version = ++scenarioSyncVersion;
+  if (!type || !isSoundscapeEnabled()) {
+    await stopScenarioSound();
+    return;
+  }
+  const url = await getSoundUrl(type);
+  if (version !== scenarioSyncVersion || !url || !isSoundscapeEnabled()) return;
+  if (scenarioAudio?.dataset.soundUrl === url) return;
+
+  const previous = scenarioAudio;
+  const audio = new Audio(url);
+  audio.loop = true;
+  audio.preload = 'auto';
+  audio.volume = 0;
+  audio.dataset.soundUrl = url;
+  scenarioAudio = audio;
+  try {
+    await audio.play();
+    if (version !== scenarioSyncVersion || scenarioAudio !== audio) {
+      audio.pause();
+      return;
+    }
+    void fadeVolume(audio, 0.2);
+    if (previous) {
+      void fadeVolume(previous, 0).then(() => {
+        previous.pause();
+        previous.currentTime = 0;
+      });
+    }
+  } catch {
+    if (scenarioAudio === audio) scenarioAudio = previous || null;
+  }
 }
 
 /** Plays only an Instructor-uploaded button sound. No generated fallback tones. */

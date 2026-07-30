@@ -334,6 +334,12 @@ const SOUND_SLOTS = [
   { type: 'sound_game_correct', label: 'Correct Answer', description: 'Reserved for a correct daily-game answer.', audience: 'all' },
   { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Reserved for a missed daily-game answer.', audience: 'all' },
   { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Reserved for completing a daily game.', audience: 'all' },
+  ...Array.from({ length: DAILY_GAME_LEVELS }, (_, index) => ({
+    type: `sound_game_level_${index + 1}`,
+    label: `Daily Game Level ${index + 1}`,
+    description: `Looping soundtrack for Level ${index + 1} only.`,
+    audience: 'all',
+  })),
   { type: 'sound_round_timeout', label: 'Round Time Elapsed', description: 'Plays when a daily-game round closes.', audience: 'all' },
   { type: 'sound_relic_deploy', label: 'Relic Deployed', description: 'Plays when a player uses a game or quiz relic.', audience: 'all' },
   { type: 'sound_relic_reveal', label: 'Relic Reveal', description: 'Plays when a relic reveals an answer or reference.', audience: 'all' },
