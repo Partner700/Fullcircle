@@ -13,6 +13,7 @@ import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
 import { formatCountdown, formatDenarii, cn } from '../../lib/utils';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
+import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
 import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
   FileQuestion, Clock, CheckCircle2, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
@@ -83,6 +84,10 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [usingLazarus, setUsingLazarus] = useState(false);
   const [lazarusMode, setLazarusMode] = useState(false);
   const [quizImage, setQuizImage] = useState<PanelImageSetting | null>(null);
+
+  useEffect(() => {
+    void setScenarioSound(inQuiz ? 'sound_quiz_start' : 'sound_quiz_waiting');
+  }, [inQuiz]);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -662,6 +667,7 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     }
 
     setSubmitting(false);
+    void playSoundEffect('sound_quiz_finish', 0.62);
     onSubmit();
   };
 

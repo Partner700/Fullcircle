@@ -13,6 +13,17 @@ const assetCache = new Map<string, string | null>();
 const DASHBOARD_VOLUME = 0.22;
 const DASHBOARD_FADE_MS = 850;
 
+const moodSoundSlots: Partial<Record<SoundMood, string>> = {
+  reading: 'sound_reading',
+  tent: 'sound_tent',
+  game: 'sound_game_lobby',
+  quiz: 'sound_quiz_waiting',
+  board: 'sound_board',
+  awards: 'sound_award',
+  market: 'sound_market',
+  default: 'sound_welcome',
+};
+
 /** Call after an instructor changes a shared sound so the next interaction
  * uses the new upload without requiring a browser refresh. */
 export function invalidateSoundAsset(type?: string) {
@@ -131,7 +142,7 @@ export async function setSoundscapeEnabled(enabled: boolean) {
     if (context?.state === 'suspended') await context.resume();
     // Prime the short button sound while the user has provided a gesture.
     void getSoundUrl('sound_button');
-    await syncDashboardSound();
+    await setSoundscapeMood(currentMood);
   } else {
     await Promise.all([stopDashboardSound(), stopScenarioSound()]);
   }
@@ -139,7 +150,10 @@ export async function setSoundscapeEnabled(enabled: boolean) {
 
 export async function setSoundscapeMood(mood: SoundMood) {
   currentMood = mood;
-  await syncDashboardSound();
+  await Promise.all([
+    syncDashboardSound(),
+    setScenarioSound(mood === 'home' ? null : moodSoundSlots[mood] || null),
+  ]);
 }
 
 /** Start or replace a looping, instructor-uploaded soundtrack for a focused activity. */

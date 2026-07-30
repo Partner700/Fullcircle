@@ -103,6 +103,10 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (activeLevel === null) void setScenarioSound('sound_game_lobby');
+  }, [activeLevel]);
+
   const hasEarnedFromLevel = (level: number) =>
     attempts.some((a) => a.level === level && a.reward > 0);
 
@@ -319,7 +323,6 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
   useEffect(() => {
     void setScenarioSound(`sound_game_level_${level}`);
-    return () => { void setScenarioSound(null); };
   }, [level]);
 
   useEffect(() => {
@@ -383,8 +386,10 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     if (correct) {
       setScore((s) => s + 1);
       setRoundCorrect((value) => value + 1);
+      void playSoundEffect('sound_game_correct', 0.58);
     } else {
       setFailedQuestions((prev) => [...prev, q]);
+      void playSoundEffect('sound_game_incorrect', 0.52);
     }
   }, [showFeedback, questions, currentQ, donkeyActive]);
 
@@ -558,6 +563,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     }
 
     setSubmitting(false);
+    void playSoundEffect('sound_game_finish', 0.62);
     onComplete({ passed, score: finalScore, maxScore, reward: actualReward, level, mode, nextLevel: passed ? level + 1 : null });
   };
 
