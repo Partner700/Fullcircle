@@ -106,6 +106,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
 
   useEffect(() => {
     if (activeLevel === null) void setScenarioSound('sound_game_lobby');
+    return () => { void setScenarioSound(null); };
   }, [activeLevel]);
 
   const hasEarnedFromLevel = (level: number) =>
@@ -324,6 +325,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
   useEffect(() => {
     void setScenarioSound(`sound_game_level_${level}`);
+    return () => { void setScenarioSound(null); };
   }, [level]);
 
   useEffect(() => {

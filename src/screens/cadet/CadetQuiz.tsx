@@ -88,6 +88,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
 
   useEffect(() => {
     void setScenarioSound(inQuiz ? 'sound_quiz_start' : 'sound_quiz_waiting');
+    return () => { void setScenarioSound(null); };
   }, [inQuiz]);
 
   const load = useCallback(async () => {

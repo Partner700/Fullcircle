@@ -6,7 +6,7 @@ import { LogOut, Sun, Moon, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
-import { isSoundscapeEnabled, playInterfaceTone, setSoundscapeEnabled, setSoundscapeMood, type SoundMood } from '../lib/soundscape';
+import { isSoundscapeEnabled, playInterfaceTone, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, type SoundMood } from '../lib/soundscape';
 
 type Theme = 'night' | 'day';
 
@@ -168,6 +168,8 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     else if (key.includes('market') || key.includes('store')) mood = 'market';
     void setSoundscapeMood(mood);
   }, [activeKey, headerTitle]);
+
+  useEffect(() => () => { void stopSoundscape(); }, []);
 
   useEffect(() => {
     let mounted = true;

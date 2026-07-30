@@ -7,6 +7,8 @@ let audioContext: AudioContext | null = null;
 let currentMood: SoundMood = 'default';
 let dashboardAudio: HTMLAudioElement | null = null;
 let scenarioAudio: HTMLAudioElement | null = null;
+const dashboardLoops = new Set<HTMLAudioElement>();
+const scenarioLoops = new Set<HTMLAudioElement>();
 let soundSyncVersion = 0;
 let scenarioSyncVersion = 0;
 const assetCache = new Map<string, string | null>();
@@ -81,21 +83,23 @@ function fadeVolume(audio: HTMLAudioElement, target: number, duration = DASHBOAR
 }
 
 async function stopDashboardSound() {
-  const audio = dashboardAudio;
-  if (!audio) return;
   dashboardAudio = null;
-  await fadeVolume(audio, 0);
-  audio.pause();
-  audio.currentTime = 0;
+  dashboardLoops.forEach((audio) => {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 0;
+  });
+  dashboardLoops.clear();
 }
 
 async function stopScenarioSound() {
-  const audio = scenarioAudio;
-  if (!audio) return;
   scenarioAudio = null;
-  await fadeVolume(audio, 0);
-  audio.pause();
-  audio.currentTime = 0;
+  scenarioLoops.forEach((audio) => {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 0;
+  });
+  scenarioLoops.clear();
 }
 
 async function syncDashboardSound() {
@@ -109,27 +113,26 @@ async function syncDashboardSound() {
   if (dashboardAudio?.dataset.soundUrl === url) return;
 
   const previous = dashboardAudio;
+  if (previous) await stopDashboardSound();
+  if (version !== soundSyncVersion || !isSoundscapeEnabled() || currentMood !== 'home') return;
   const audio = new Audio(url);
   audio.loop = true;
   audio.preload = 'auto';
   audio.volume = 0;
   audio.dataset.soundUrl = url;
   dashboardAudio = audio;
+  dashboardLoops.add(audio);
   try {
     await audio.play();
     if (version !== soundSyncVersion || dashboardAudio !== audio) {
       audio.pause();
+      dashboardLoops.delete(audio);
       return;
     }
     void fadeVolume(audio, DASHBOARD_VOLUME);
-    if (previous) {
-      void fadeVolume(previous, 0).then(() => {
-        previous.pause();
-        previous.currentTime = 0;
-      });
-    }
   } catch {
-    if (dashboardAudio === audio) dashboardAudio = previous || null;
+    dashboardLoops.delete(audio);
+    if (dashboardAudio === audio) dashboardAudio = null;
   }
 }
 
@@ -170,29 +173,37 @@ export async function setScenarioSound(type: string | null) {
   if (version !== scenarioSyncVersion || !url || !isSoundscapeEnabled()) return;
   if (scenarioAudio?.dataset.soundUrl === url) return;
 
-  const previous = scenarioAudio;
+  // A screen transition must never leave a previous loop playing beneath the
+  // next screen. Stop all tracked loops before starting the new scenario.
+  await stopScenarioSound();
+  if (version !== scenarioSyncVersion || !isSoundscapeEnabled()) return;
   const audio = new Audio(url);
   audio.loop = true;
   audio.preload = 'auto';
   audio.volume = 0;
   audio.dataset.soundUrl = url;
   scenarioAudio = audio;
+  scenarioLoops.add(audio);
   try {
     await audio.play();
     if (version !== scenarioSyncVersion || scenarioAudio !== audio) {
       audio.pause();
+      scenarioLoops.delete(audio);
       return;
     }
     void fadeVolume(audio, 0.2);
-    if (previous) {
-      void fadeVolume(previous, 0).then(() => {
-        previous.pause();
-        previous.currentTime = 0;
-      });
-    }
   } catch {
-    if (scenarioAudio === audio) scenarioAudio = previous || null;
+    scenarioLoops.delete(audio);
+    if (scenarioAudio === audio) scenarioAudio = null;
   }
+}
+
+/** Stops every looping ambient track, including tracks started by a screen that has unmounted. */
+export async function stopSoundscape() {
+  soundSyncVersion += 1;
+  scenarioSyncVersion += 1;
+  currentMood = 'default';
+  await Promise.all([stopDashboardSound(), stopScenarioSound()]);
 }
 
 /** Plays only an Instructor-uploaded button sound. No generated fallback tones. */
