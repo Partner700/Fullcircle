@@ -1,5 +1,26 @@
 export function registerServiceWorker() {
-  if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
+  if (!('serviceWorker' in navigator)) return;
+
+  // A previously installed production worker can otherwise keep serving an
+  // outdated bundle while the local Vite server is running on the same origin.
+  // Development should always use the files Vite is serving right now.
+  if (import.meta.env.DEV) {
+    void navigator.serviceWorker
+      .getRegistrations()
+      .then(async (registrations) => {
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+
+        if (!('caches' in window)) return;
+        const cacheNames = await window.caches.keys();
+        await Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith('full-circle-'))
+            .map((cacheName) => window.caches.delete(cacheName)),
+        );
+      })
+      .catch(() => undefined);
+    return;
+  }
 
   window.addEventListener('load', () => {
     navigator.serviceWorker

@@ -13,6 +13,7 @@ type State = {
 
 export class AppErrorBoundary extends Component<Props, State> {
   private recoveryAttempts = 0;
+  private retryTimer: number | undefined;
 
   state: State = { error: null, retryKey: 0 };
 
@@ -23,17 +24,31 @@ export class AppErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (recoverFromStaleBundle(error)) return;
     console.error('Full Circle screen error:', error, errorInfo);
-    // A render can occasionally fail while a lazy screen is being replaced
-    // after an update. Retry once quietly before showing any fallback UI.
-    if (this.recoveryAttempts === 0) {
-      this.recoveryAttempts += 1;
-      window.setTimeout(() => {
-        this.setState((state) => ({
-          error: null,
-          retryKey: state.retryKey + 1,
-        }));
-      }, 300);
-    }
+    this.retryQuietly();
+  }
+
+  componentDidUpdate(_: Props, previousState: State) {
+    if (previousState.error && !this.state.error) this.recoveryAttempts = 0;
+  }
+
+  componentWillUnmount() {
+    if (this.retryTimer) window.clearTimeout(this.retryTimer);
+  }
+
+  private retryQuietly() {
+    // Let Vite finish replacing a screen after a hot update before conceding
+    // to the fallback. This avoids trapping an already-fixed screen in error UI.
+    const delays = [300, 1200, 3000];
+    const delay = delays[this.recoveryAttempts];
+    if (delay === undefined) return;
+
+    this.recoveryAttempts += 1;
+    this.retryTimer = window.setTimeout(() => {
+      this.setState((state) => ({
+        error: null,
+        retryKey: state.retryKey + 1,
+      }));
+    }, delay);
   }
 
   render() {
@@ -52,6 +67,7 @@ export class AppErrorBoundary extends Component<Props, State> {
           <div className="mt-4 flex justify-center gap-2">
             <button type="button" onClick={() => {
               this.recoveryAttempts = 0;
+              if (this.retryTimer) window.clearTimeout(this.retryTimer);
               this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }));
             }} className="btn-primary">
               <RefreshCcw size={16} /> Try Again
