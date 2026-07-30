@@ -15,7 +15,7 @@ import {
   fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
 } from '../../lib/queries';
-import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf } from '../../lib/utils';
+import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
@@ -1114,6 +1114,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
   const [endOfDayStats, setEndOfDayStats] = useState<{ records: number; attendance: number; meditations: number; streaks: number; challenges: number } | null>(null);
+  const [morningCall, setMorningCall] = useState<{ userId: string; name: string; avatarUrl: string | null; tentName: string; status: 'present' | 'absent' | 'unmarked'; late: boolean }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1140,6 +1141,37 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   }, [quotePaused, quotes.length]);
 
   useEffect(() => {
+    const cadetIds = roles.filter((role) => role.role === 'cadet' && role.status === 'active').map((role) => role.user_id);
+    if (cadetIds.length === 0) { setMorningCall([]); return; }
+    let cancelled = false;
+    const loadMorningCall = async () => {
+      const today = getTodayISODate();
+      const { data } = await supabase
+        .from('daily_records')
+        .select('user_id,attendance_status,attendance_late')
+        .eq('record_date', today)
+        .in('user_id', cadetIds);
+      if (cancelled) return;
+      const records = new Map((data || []).map((record: any) => [record.user_id, record]));
+      setMorningCall(cadetIds.map((userId) => {
+        const member = members.find((item) => item.user_id === userId && item.role === 'cadet');
+        const record = records.get(userId);
+        return {
+          userId,
+          name: member?.profiles?.display_name || 'Cadet',
+          avatarUrl: member?.profiles?.avatar_url || null,
+          tentName: tents.find((tent) => tent.id === member?.tent_id)?.name || 'Unassigned tent',
+          status: record?.attendance_status === 'present' || record?.attendance_status === 'absent' ? record.attendance_status : 'unmarked',
+          late: Boolean(record?.attendance_late),
+        };
+      }));
+    };
+    void loadMorningCall();
+    const interval = window.setInterval(loadMorningCall, 30_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [members, roles, tents]);
+
+  useEffect(() => {
     const loadEndOfDayStats = async () => {
       const now = new Date();
       if (now.getHours() < 20) return;
@@ -1161,6 +1193,10 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   }, []);
 
   const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
+  const markedMorningCall = morningCall.filter((item) => item.status !== 'unmarked');
+  const presentMorningCall = markedMorningCall.filter((item) => item.status === 'present');
+  const absentMorningCall = markedMorningCall.filter((item) => item.status === 'absent');
+  const isWeekday = getDayType(new Date()) === 'weekday';
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -1189,6 +1225,42 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
           </div>
         ) : (
           <p className="text-sm text-stone">Today’s summary will appear here at 8:00 PM.</p>
+        )}
+      </div>
+
+      <div className="card p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display font-semibold text-ink">Morning Call</h3>
+            <p className="mt-1 text-xs text-stone">Live attendance for {formatShortDate(getTodayISODate())}</p>
+          </div>
+          <UserCheck size={20} className="text-moss" />
+        </div>
+        {!isWeekday ? (
+          <p className="text-sm text-stone">Morning call attendance is not required today.</p>
+        ) : (
+          <>
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              <SummaryMetric label="Present" value={presentMorningCall.length} />
+              <SummaryMetric label="Absent" value={absentMorningCall.length} />
+              <SummaryMetric label="Unmarked" value={morningCall.length - markedMorningCall.length} />
+            </div>
+            {markedMorningCall.length === 0 ? <p className="text-sm text-stone">No cadets have been marked yet.</p> : (
+              <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-2">
+                {markedMorningCall.map((item) => (
+                  <div key={item.userId} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-peri-soft text-xs font-bold text-peri">
+                      {item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : item.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{item.name}</p><p className="truncate text-xs text-stone">{item.tentName}</p></div>
+                    <span className={cn('badge text-[10px]', item.status === 'present' ? 'badge-moss' : 'badge-roman')}>
+                      {item.status === 'present' ? `Present${item.late ? ' · late' : ''}` : 'Absent'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
