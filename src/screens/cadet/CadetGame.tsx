@@ -11,7 +11,8 @@ import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_
 import type { DailyNarrative, GameAttempt, GameSeedData, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
   Gamepad2, Lock, CheckCircle2, XCircle, Trophy, Coins, RotateCcw,
-  Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords,
+  Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
+  SkipForward, BookOpen, Volume2, Wand2,
 } from 'lucide-react';
 
 const PASS_THRESHOLD = GAME_PASS_THRESHOLD; // 0.6 = 60%
@@ -284,6 +285,10 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const [hintShown, setHintShown] = useState(false);
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [hintText, setHintText] = useState<string | null>(null);
+  const [relicNotice, setRelicNotice] = useState<string | null>(null);
+  const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
+  const [donkeyActive, setDonkeyActive] = useState(false);
+  const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -348,6 +353,11 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const handleAnswer = useCallback((answer: string | null) => {
     if (showFeedback) return;
     const q = questions[currentQ];
+    if (donkeyActive && answer !== q.correct_answer) {
+      setDonkeyActive(false);
+      setRelicNotice('The Talking Donkey warns that this answer is not right. Try another answer.');
+      return;
+    }
     const correct = answer === q.correct_answer;
     setSelectedAnswer(answer);
     setShowFeedback(true);
@@ -357,7 +367,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     } else {
       setFailedQuestions((prev) => [...prev, q]);
     }
-  }, [showFeedback, questions, currentQ]);
+  }, [showFeedback, questions, currentQ, donkeyActive]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -419,6 +429,60 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     } as any);
     handleAnswer(questions[currentQ].correct_answer as string);
   };
+
+  const consumeQuestionRelic = async (slug: string, action: () => void) => {
+    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+    setUsingQuestionRelic(slug);
+    try {
+      await useRelic(userId, slug);
+      setRelicInventory((previous) => ({
+        ...previous,
+        [slug]: Math.max(0, (previous[slug] || 0) - 1),
+      }));
+      action();
+    } catch (error: any) {
+      setRelicNotice(error.message || 'This relic could not be used.');
+    } finally {
+      setUsingQuestionRelic(null);
+    }
+  };
+
+  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT, () => {
+    setHintShown(true);
+    const question = questions[currentQ];
+    setHintText(question.explanation || 'Read the question and passage again for the detail that changes the answer.');
+  });
+
+  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE, () => {
+    const question = questions[currentQ];
+    const wrongAnswers = (question.options || []).filter((option) => option !== question.correct_answer);
+    setEliminatedOptions(wrongAnswers.slice(0, Math.max(1, Math.floor(wrongAnswers.length / 2))));
+    setRelicNotice('Two wrong options have been removed.');
+  });
+
+  const useFreezeTimer = () => consumeQuestionRelic(RELIC_SLUGS.FREEZE_TIMER, () => {
+    setTimeLeft((seconds) => seconds + 60);
+    setRelicNotice('Your current round received 60 extra seconds.');
+  });
+
+  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP, () => {
+    setRelicNotice('Question skipped. It will not add to your score.');
+    handleAnswer(null);
+  });
+
+  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE, () => {
+    setRelicNotice(questions[currentQ].reference ? `Reference: ${questions[currentQ].reference}` : 'This question has no additional reference.');
+  });
+
+  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL, () => {
+    setAnswerRevealed(true);
+    handleAnswer(questions[currentQ].correct_answer as string);
+  });
+
+  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY, () => {
+    setDonkeyActive(true);
+    setRelicNotice('The Talking Donkey is listening. A wrong answer will be stopped before it is submitted.');
+  });
 
   const finishLevel = async (forcePerfect = false) => {
     setSubmitting(true);
@@ -506,6 +570,12 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
       setCurrentQ((c) => c + 1);
       setSelectedAnswer(null);
       setShowFeedback(false);
+      setHintShown(false);
+      setAnswerRevealed(false);
+      setHintText(null);
+      setRelicNotice(null);
+      setEliminatedOptions([]);
+      setDonkeyActive(false);
       if (nextRound !== currentRound) {
         setTimeLeft(getRoundTimer(questions, level, nextIndex));
         showRoundPassage(questions, nextRound);
@@ -641,9 +711,44 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
             </div>
           )}
         </div>
+        {!showFeedback && (
+          <div className="mb-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
+            {[
+              [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
+              [RELIC_SLUGS.ELIMINATE, 'Eliminate', Wand2, useEliminate, !!q.options?.length],
+              [RELIC_SLUGS.FREEZE_TIMER, '+60s', TimerOff, useFreezeTimer, true],
+              [RELIC_SLUGS.SKIP, 'Skip', SkipForward, useSkip, true],
+              [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
+              [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
+              [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
+            ].map(([slug, label, Icon, onClick, applicable]) => {
+              const amount = relicInventory[slug as string] || 0;
+              if (!amount || !applicable) return null;
+              const isUsing = usingQuestionRelic === slug;
+              return (
+                <button
+                  key={slug as string}
+                  type="button"
+                  onClick={onClick as () => void}
+                  disabled={!!usingQuestionRelic}
+                  className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
+                  title={`Use ${label} relic`}
+                >
+                  {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                  <span>{label}</span> ({amount})
+                </button>
+              );
+            })}
+          </div>
+        )}
         {hintText && (
           <div className="mb-3 p-2.5 rounded-lg bg-gold-soft border border-gold/20 text-xs text-gold flex items-center gap-1.5 animate-fade-in">
             <Sparkles size={14} /> {hintText}
+          </div>
+        )}
+        {relicNotice && (
+          <div className="mb-3 flex items-start gap-1.5 rounded-lg border border-royal/20 bg-royal-soft p-2.5 text-xs text-royal animate-fade-in">
+            <Sparkles size={14} className="mt-0.5 flex-shrink-0" /> {relicNotice}
           </div>
         )}
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
@@ -769,7 +874,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {/* Multiple choice */}
         {q.type === 'multiple_choice' && q.options && (
           <div className="space-y-2">
-            {q.options.map((opt, i) => {
+            {q.options.filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
               const isCorrect = opt === q.correct_answer;
               const isSelected = selectedAnswer === opt;
               return (
@@ -830,7 +935,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
               </div>
             )}
             <div className="space-y-2">
-              {q.options.map((opt, i) => {
+              {q.options.filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
                 const isCorrect = opt === q.correct_answer;
                 const isSelected = selectedAnswer === opt;
                 return (

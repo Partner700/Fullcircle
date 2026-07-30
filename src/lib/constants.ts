@@ -89,6 +89,11 @@ export const LEVEL_TIMERS = [60, 55, 50, 45, 40, 35, 20]; // seconds per questio
 
 // Relic slugs
 export const RELIC_SLUGS = {
+  HINT: 'hint',
+  ELIMINATE: 'eliminate',
+  FREEZE_TIMER: 'freeze-timer',
+  SKIP: 'skip',
+  REVEAL_REFERENCE: 'reveal-reference',
   WITCH_BALL: 'witch-ball-endor',
   SWORD_GOLIATH: 'sword-goliath',
   TALKING_DONKEY: 'talking-donkey',

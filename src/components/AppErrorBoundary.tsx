@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { recoverFromStaleBundle } from '../lib/staleBundleRecovery';
 
 type Props = {
   children: ReactNode;
@@ -18,6 +19,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (recoverFromStaleBundle(error)) return;
     console.error('Full Circle screen error:', error, errorInfo);
   }
 

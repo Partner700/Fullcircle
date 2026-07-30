@@ -351,9 +351,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   const dayLabel = dayType === 'saturday' ? 'Quiz Day' : dayType === 'sunday' ? 'Day of Rest' : 'Reading Day';
 
   return (
-    <div className="card relative overflow-hidden min-h-[220px] animate-slide-up sm:min-h-[190px]">
+    <div className="card relative overflow-hidden animate-slide-up">
       <div
-        className="flex transition-transform duration-700 ease-out"
+        className="flex min-h-[220px] transition-transform duration-700 ease-out sm:min-h-[190px]"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {slides.map((slide) => {
@@ -365,7 +365,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
             : panelImages[slide.kind];
 
           return (
-            <div key={slide.id} className="relative min-w-full overflow-hidden p-4 pb-16 sm:p-5 sm:pb-16">
+            <div key={slide.id} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
               {slideImage && (
                 <PanelImageBackdrop image={slideImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
               )}

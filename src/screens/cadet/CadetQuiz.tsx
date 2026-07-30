@@ -16,7 +16,8 @@ import { generateQuizQuestions } from '../../lib/questionGenerator';
 import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
   FileQuestion, Clock, CheckCircle2, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
-  Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw,
+  Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw, Lightbulb, Wand2,
+  SkipForward, Volume2, Eye, Sparkles,
 } from 'lucide-react';
 
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
@@ -458,6 +459,10 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
   const [submitting, setSubmitting] = useState(false);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [usingGoliath, setUsingGoliath] = useState(false);
+  const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
+  const [relicNotice, setRelicNotice] = useState<string | null>(null);
+  const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
+  const [donkeyActive, setDonkeyActive] = useState(false);
   const forfeitedRef = useRef(false);
 
   useEffect(() => {
@@ -553,6 +558,11 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
 
   const handleAnswer = (answer: any) => {
     if (showFeedback) return;
+    if (donkeyActive && answer !== payload.correct_answer) {
+      setDonkeyActive(false);
+      setRelicNotice('The Talking Donkey warns that this answer is not right. Try another answer.');
+      return;
+    }
     setSelectedAnswer(answer);
     setShowFeedback(true);
     saveResponse(answer);
@@ -563,6 +573,9 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
       setCurrentIdx(currentIdx + 1);
       setSelectedAnswer(localResponses.get(questions[currentIdx + 1].id) ?? null);
       setShowFeedback(localResponses.has(questions[currentIdx + 1].id));
+      setRelicNotice(null);
+      setEliminatedOptions([]);
+      setDonkeyActive(false);
     }
   };
 
@@ -669,6 +682,45 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     setUsingGoliath(false);
   };
 
+  const consumeQuestionRelic = async (slug: string, action: () => void) => {
+    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+    setUsingQuestionRelic(slug);
+    try {
+      await useRelic(userId, slug);
+      setRelicInventory((previous) => ({
+        ...previous,
+        [slug]: Math.max(0, (previous[slug] || 0) - 1),
+      }));
+      action();
+    } catch (error: any) {
+      setRelicNotice(error.message || 'This relic could not be used.');
+    } finally {
+      setUsingQuestionRelic(null);
+    }
+  };
+
+  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT, () =>
+    setRelicNotice(payload.explanation || 'Look closely at the wording, the passage, and the details that distinguish the choices.'),
+  );
+  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE, () => {
+    const wrongAnswers = cleanQuizOptions(payload.options, payload.correct_answer)
+      .filter((option) => option !== payload.correct_answer);
+    setEliminatedOptions(wrongAnswers.slice(0, Math.max(1, Math.floor(wrongAnswers.length / 2))));
+    setRelicNotice('Two wrong options have been removed.');
+  });
+  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP, () => {
+    setRelicNotice('Question skipped. It will not add to your score.');
+    handleAnswer(null);
+  });
+  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE, () =>
+    setRelicNotice(payload.reference ? `Reference: ${payload.reference}` : 'This question has no additional reference.'),
+  );
+  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL, () => handleAnswer(payload.correct_answer));
+  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY, () => {
+    setDonkeyActive(true);
+    setRelicNotice('The Talking Donkey is listening. A wrong answer will be stopped before it is saved.');
+  });
+
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const lowTime = timeLeft <= 60;
@@ -713,6 +765,36 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         />
       </div>
 
+      {!showFeedback && (
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
+            [RELIC_SLUGS.ELIMINATE, 'Eliminate', Wand2, useEliminate, !!payload.options?.length],
+            [RELIC_SLUGS.SKIP, 'Skip', SkipForward, useSkip, true],
+            [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
+            [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
+            [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
+          ].map(([slug, label, Icon, onClick, applicable]) => {
+            const amount = relicInventory[slug as string] || 0;
+            if (!amount || !applicable) return null;
+            const isUsing = usingQuestionRelic === slug;
+            return (
+              <button
+                key={slug as string}
+                type="button"
+                onClick={onClick as () => void}
+                disabled={!!usingQuestionRelic}
+                className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
+                title={`Use ${label} relic`}
+              >
+                {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                <span>{label}</span> ({amount})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Question card with scroll-edge motif */}
       <div className="card p-5 relative animate-slide-up">
         <ScrollEdge position="top" className="text-stone mb-2" />
@@ -731,6 +813,12 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         </div>
 
         <h3 className="font-display font-medium text-ink text-lg mb-4 mt-1">{payload.question}</h3>
+
+        {relicNotice && (
+          <div className="mb-4 flex items-start gap-1.5 rounded-lg border border-royal/20 bg-royal-soft p-2.5 text-xs text-royal animate-fade-in">
+            <Sparkles size={14} className="mt-0.5 flex-shrink-0" /> {relicNotice}
+          </div>
+        )}
 
         {/* Scriptorium */}
         {payload.type === 'scriptorium' && payload.blanked_text && (
@@ -792,7 +880,7 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         {/* Multiple choice / True-false */}
         {payload.type !== 'scriptorium' && payload.type !== 'standard_text' && payload.options && (
           <div className="space-y-2">
-            {cleanQuizOptions(payload.options, payload.correct_answer).map((opt, i) => {
+            {cleanQuizOptions(payload.options, payload.correct_answer).filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
               const isSelected = selectedAnswer === opt;
               return (
                 <button
