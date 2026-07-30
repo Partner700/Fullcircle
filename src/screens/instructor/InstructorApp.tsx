@@ -23,7 +23,7 @@ import { generateQuizQuestions } from '../../lib/questionGenerator';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
-  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
+  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Image as ImageIcon, Upload, X, Move, Volume2, Music2,
 } from 'lucide-react';
