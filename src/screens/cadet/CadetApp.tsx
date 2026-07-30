@@ -51,6 +51,26 @@ type CadetNotification = {
   createdAt?: string;
 };
 
+const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
+
+async function showDeviceNotification(notification: UserNotification) {
+  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
+  if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
+  try {
+    const registration = await navigator.serviceWorker?.ready;
+    if (!registration) return;
+    await registration.showNotification(notification.title || 'Full Circle', {
+      body: notification.body || 'You have a new update.',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-96.png',
+      tag: `full-circle-${notification.id}`,
+      data: { url: '/' },
+    });
+  } catch {
+    // The in-app bell and destination badges still update when the device blocks a foreground toast.
+  }
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
   { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
@@ -572,7 +592,10 @@ export function CadetApp() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
-        () => loadNotifications(),
+        (payload) => {
+          if (payload.eventType === 'INSERT') void showDeviceNotification(payload.new as UserNotification);
+          void loadNotifications();
+        },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };

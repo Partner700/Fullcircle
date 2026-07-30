@@ -1,4 +1,4 @@
-import { type ElementType, type ReactNode, useState, useEffect, useCallback } from 'react';
+import { type ElementType, type ReactNode, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { DoveMark } from './Dove';
@@ -83,6 +83,49 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
   const { profile, role, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [weeklyBackground, setWeeklyBackground] = useState<PanelImageSetting | null>(null);
+  const activeKeyRef = useRef(activeKey);
+  const onNavigateRef = useRef(onNavigate);
+  const historyReadyRef = useRef(false);
+  const handlingPopStateRef = useRef(false);
+
+  useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
+  useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
+
+  // Treat app screens as real history entries so Android/iOS back gestures feel native.
+  useEffect(() => {
+    if (!historyReadyRef.current) {
+      window.history.replaceState({ ...window.history.state, fullCircleTab: activeKey }, '', window.location.href);
+      historyReadyRef.current = true;
+      return;
+    }
+    if (handlingPopStateRef.current) {
+      handlingPopStateRef.current = false;
+      return;
+    }
+    if (window.history.state?.fullCircleTab !== activeKey) {
+      window.history.pushState({ ...window.history.state, fullCircleTab: activeKey }, '', window.location.href);
+    }
+  }, [activeKey]);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const previousTab = event.state?.fullCircleTab;
+      if (mobileNavOpen) {
+        setMobileNavOpen(false);
+        if (typeof previousTab === 'string' && previousTab !== activeKeyRef.current) {
+          handlingPopStateRef.current = true;
+          onNavigateRef.current(previousTab);
+        }
+        return;
+      }
+      if (typeof previousTab === 'string' && previousTab !== activeKeyRef.current) {
+        handlingPopStateRef.current = true;
+        onNavigateRef.current(previousTab);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [mobileNavOpen]);
 
   const navigate = (key: string) => {
     onNavigate(key);
