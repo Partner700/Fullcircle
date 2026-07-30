@@ -584,15 +584,19 @@ export function CadetApp() {
     const refreshVisibleState = () => {
       if (document.visibilityState === 'visible') void refreshCadetState();
     };
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadNotifications();
+    }, 30_000);
 
     window.addEventListener('focus', refreshCadetState);
     document.addEventListener('visibilitychange', refreshVisibleState);
 
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener('focus', refreshCadetState);
       document.removeEventListener('visibilitychange', refreshVisibleState);
     };
-  }, [refreshCadetState]);
+  }, [loadNotifications, refreshCadetState]);
 
   useEffect(() => {
     loadNotifications();

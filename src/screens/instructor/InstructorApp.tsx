@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { NotificationCenter } from '../../components/NotificationCenter';
+import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
@@ -229,6 +231,9 @@ export function InstructorApp() {
       }}
       headerTitle={tabLabels[tab]}
       headerSubtitle="Instructor"
+      rightHeader={<NotificationCenter onNavigate={(key) => {
+        if (NAV_ITEMS.some((item) => item.key === key)) setTab(key as Tab);
+      }} />}
     >
       {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} instructorId={profile?.id || null} onNavigate={setTab as (k: string) => void} />}
       {tab === 'narratives' && (
@@ -2920,6 +2925,8 @@ function InstructorSettings({ profile, tents, members }: {
           <KeyRound size={14} /> Update Password
         </button>
       </div>
+
+      <BrowserNotificationSettings />
 
       <div className="card p-4 space-y-3">
         <div className="flex items-center gap-2">

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
+import { NotificationCenter } from '../../components/NotificationCenter';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -223,7 +224,10 @@ export function SentryApp() {
       onNavigate={(k) => setTab(k as Tab)}
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
-      rightHeader={tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : undefined}
+      rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
+        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', streak: 'streak', store: 'store', tent: 'cadets' };
+        if (destination[key]) setTab(destination[key]);
+      }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
     >
       {!tent && TENT_REQUIRED_TABS.has(tab) && <UnassignedSentryState activeTab={tab} onNavigate={setTab} />}
       {tent && tab === 'overview' && (
