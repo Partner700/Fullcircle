@@ -13,7 +13,7 @@ const DASHBOARD_FADE_MS = 850;
 
 /** Call after an instructor changes a shared sound so the next interaction
  * uses the new upload without requiring a browser refresh. */
-export function invalidateSoundAsset(type?: 'sound_dashboard' | 'sound_button') {
+export function invalidateSoundAsset(type?: string) {
   if (type) assetCache.delete(type);
   else assetCache.clear();
 }
@@ -28,7 +28,7 @@ export function isSoundscapeEnabled() {
   return typeof window !== 'undefined' && localStorage.getItem(SOUND_ENABLED_KEY) === 'true';
 }
 
-async function getSoundUrl(type: 'sound_dashboard' | 'sound_button') {
+async function getSoundUrl(type: string) {
   const cacheKey = type;
   if (assetCache.has(cacheKey)) return assetCache.get(cacheKey) || null;
   try {
@@ -169,4 +169,33 @@ export async function playInterfaceTone() {
   chime.connect(chimeGain).connect(context.destination);
   chime.start(now);
   chime.stop(now + 0.15);
+}
+
+/** Plays an instructor-uploaded event sound. No synthetic fallback is used. */
+export async function playSoundEffect(type: string, volume = 0.68) {
+  if (!isSoundscapeEnabled()) return;
+  const url = await getSoundUrl(type);
+  if (!url) return;
+  const audio = new Audio(url);
+  audio.volume = Math.max(0, Math.min(1, volume));
+  try { await audio.play(); } catch { /* A browser may require the original user gesture. */ }
+}
+
+/** A restrained timer cue; it only runs during the final red seconds of a round. */
+export function playRoundWarningBeep() {
+  if (!isSoundscapeEnabled()) return;
+  const context = getAudioContext();
+  if (!context || context.state === 'suspended') return;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const now = context.currentTime;
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(740, now);
+  oscillator.frequency.exponentialRampToValueAtTime(590, now + 0.11);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.055, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.14);
 }

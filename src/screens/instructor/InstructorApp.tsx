@@ -334,6 +334,9 @@ const SOUND_SLOTS = [
   { type: 'sound_game_correct', label: 'Correct Answer', description: 'Reserved for a correct daily-game answer.', audience: 'all' },
   { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Reserved for a missed daily-game answer.', audience: 'all' },
   { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Reserved for completing a daily game.', audience: 'all' },
+  { type: 'sound_round_timeout', label: 'Round Time Elapsed', description: 'Plays when a daily-game round closes.', audience: 'all' },
+  { type: 'sound_relic_deploy', label: 'Relic Deployed', description: 'Plays when a player uses a game or quiz relic.', audience: 'all' },
+  { type: 'sound_relic_reveal', label: 'Relic Reveal', description: 'Plays when a relic reveals an answer or reference.', audience: 'all' },
   { type: 'sound_arena_lobby', label: 'Arena Lobby', description: 'Reserved for the Arena room space.', audience: 'all' },
   { type: 'sound_arena_start', label: 'Arena Start', description: 'Reserved for an Arena battle start.', audience: 'all' },
   { type: 'sound_arena_round', label: 'Arena Round', description: 'Reserved for a new Arena round.', audience: 'all' },
@@ -596,7 +599,7 @@ function AnnouncementManager() {
       const existing = announcements.find((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
       if (existing) await updateAnnouncement(existing.id, payload);
       else await createAnnouncement(payload);
-      if (type === 'sound_dashboard' || type === 'sound_button') invalidateSoundAsset(type);
+      if (type.startsWith('sound_')) invalidateSoundAsset(type);
       await load();
     } catch (e: any) {
       alert(e.message || 'Failed to upload sound');
@@ -609,7 +612,7 @@ function AnnouncementManager() {
     if (rows.length === 0 || !window.confirm('Remove this sound from the app?')) return;
     try {
       await Promise.all(rows.map((row) => deleteAnnouncement(row.id)));
-      if (type === 'sound_dashboard' || type === 'sound_button') invalidateSoundAsset(type);
+      if (type.startsWith('sound_')) invalidateSoundAsset(type);
       await load();
     }
     catch (e: any) { alert(e.message || 'Failed to remove sound'); }

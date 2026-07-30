@@ -3,10 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { Dove } from '../../components/Dove';
 import { fetchNarrative, fetchGameAttempts, insertGameAttempt, insertLedgerEntry, fetchLedgerTotal, useRelic, fetchPanelImageSetting } from '../../lib/queries';
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
 import { generateLevelQuestionsWithCustom, getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
 import { isGamePausedNow, getTodayISODate, cn, formatDenarii } from '../../lib/utils';
+import { playRoundWarningBeep, playSoundEffect } from '../../lib/soundscape';
 import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_PER_ROUND } from '../../lib/constants';
 import type { DailyNarrative, GameAttempt, GameSeedData, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
@@ -62,6 +64,13 @@ interface GameOverResult {
   mode: string;
   nextLevel: number | null;
 }
+
+type RoundTimeout = {
+  round: number;
+  correct: number;
+  total: number;
+  nextIndex: number | null;
+};
 
 export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   const { profile } = useAuth();
@@ -289,12 +298,15 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
   const [donkeyActive, setDonkeyActive] = useState(false);
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
+  const [relicBurst, setRelicBurst] = useState<string | null>(null);
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(getLevelTimer(level));
+  const [roundCorrect, setRoundCorrect] = useState(0);
+  const [roundTimeout, setRoundTimeout] = useState<RoundTimeout | null>(null);
   const [passageIntroRound, setPassageIntroRound] = useState<number | null>(null);
   const [passageTimeLeft, setPassageTimeLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -318,6 +330,8 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     setRepeatQueue([]);
     setPassageIntroRound(null);
     setPassageTimeLeft(0);
+    setRoundCorrect(0);
+    setRoundTimeout(null);
     generateLevelQuestionsWithCustom(narrative.game_seed_data as GameSeedData, level, narrative.narrative_date)
       .then((qs) => {
         if (!cancelled) {
@@ -361,9 +375,9 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     const correct = answer === q.correct_answer;
     setSelectedAnswer(answer);
     setShowFeedback(true);
-    if (timerRef.current) clearInterval(timerRef.current);
     if (correct) {
       setScore((s) => s + 1);
+      setRoundCorrect((value) => value + 1);
     } else {
       setFailedQuestions((prev) => [...prev, q]);
     }
@@ -371,19 +385,29 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (showFeedback || passageIntroRound !== null) return;
+    if (roundTimeout || passageIntroRound !== null) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
-          handleAnswer(null);
+          const round = getQuestionRound(questions[currentQ], currentQ);
+          const nextIndex = questions.findIndex((question, index) => index > currentQ && getQuestionRound(question, index) !== round);
+          const total = questions.filter((question, index) => getQuestionRound(question, index) === round).length;
+          setRoundTimeout({ round, correct: roundCorrect, total, nextIndex: nextIndex === -1 ? null : nextIndex });
+          void playSoundEffect('sound_round_timeout');
           return 0;
         }
         return t - 1;
       });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [currentQ, showFeedback, passageIntroRound, handleAnswer]);
+  }, [currentQ, passageIntroRound, questions, roundCorrect, roundTimeout]);
+
+  useEffect(() => {
+    if (timeLeft > 0 && timeLeft <= 10 && !roundTimeout && passageIntroRound === null) {
+      playRoundWarningBeep();
+    }
+  }, [timeLeft, roundTimeout, passageIntroRound]);
 
   useEffect(() => {
     if (passageTimerRef.current) clearInterval(passageTimerRef.current);
@@ -439,7 +463,14 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
+      setRelicBurst(slug);
+      void playSoundEffect(
+        slug === RELIC_SLUGS.WITCH_BALL || slug === RELIC_SLUGS.REVEAL_REFERENCE
+          ? 'sound_relic_reveal'
+          : 'sound_relic_deploy',
+      );
       action();
+      window.setTimeout(() => setRelicBurst(null), 650);
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
     } finally {
@@ -534,12 +565,15 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         ...prev,
         [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),
       }));
+      setRelicBurst(RELIC_SLUGS.SWORD_GOLIATH);
+      void playSoundEffect('sound_relic_reveal');
       await finishLevel(true);
     } catch (e: any) {
       alert(e.message || 'Failed to use Sword of Goliath');
       setSubmitting(false);
     }
     setUsingGoliath(false);
+    window.setTimeout(() => setRelicBurst(null), 650);
   };
 
   const showRoundPassage = (questionList: QuestionPayload[], round: number) => {
@@ -577,12 +611,36 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
       setEliminatedOptions([]);
       setDonkeyActive(false);
       if (nextRound !== currentRound) {
+        setRoundCorrect(0);
         setTimeLeft(getRoundTimer(questions, level, nextIndex));
         showRoundPassage(questions, nextRound);
       }
     } else {
       await finishLevel(false);
     }
+  };
+
+  const continueAfterRoundTimeout = async () => {
+    if (!roundTimeout) return;
+    const nextIndex = roundTimeout.nextIndex;
+    setRoundTimeout(null);
+    if (nextIndex === null) {
+      await finishLevel(false);
+      return;
+    }
+    const nextRound = getQuestionRound(questions[nextIndex], nextIndex);
+    setCurrentQ(nextIndex);
+    setSelectedAnswer(null);
+    setShowFeedback(false);
+    setHintShown(false);
+    setAnswerRevealed(false);
+    setHintText(null);
+    setRelicNotice(null);
+    setEliminatedOptions([]);
+    setDonkeyActive(false);
+    setRoundCorrect(0);
+    setTimeLeft(getRoundTimer(questions, level, nextIndex));
+    showRoundPassage(questions, nextRound);
   };
 
   if (questionsLoading || questions.length === 0) {
@@ -604,6 +662,27 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const activePassageQuestion = passageIntroRound !== null
     ? getRoundPassageQuestion(questions, passageIntroRound)
     : undefined;
+
+  if (roundTimeout) {
+    const qualified = roundTimeout.correct >= Math.ceil(roundTimeout.total * PASS_THRESHOLD);
+    return (
+      <div className="mx-auto max-w-md space-y-4 animate-fade-in">
+        <div className="card overflow-hidden p-6 text-center">
+          <Dove size={112} className="mx-auto mb-3 animate-pulse grayscale opacity-70" />
+          <p className="eyebrow mb-1">Round {roundTimeout.round} complete</p>
+          <h3 className="font-display text-2xl font-semibold text-ink">Time has elapsed</h3>
+          <p className="mt-2 text-sm text-stone">{roundTimeout.correct} of {roundTimeout.total} answers correct this round.</p>
+          <p className={cn('mt-2 text-xs font-semibold', qualified ? 'text-sage' : 'text-coral')}>
+            {qualified ? 'You qualified to move forward.' : 'The remaining questions are closed. Keep going.'}
+          </p>
+          <button onClick={continueAfterRoundTimeout} className="btn-primary mt-5 w-full">
+            {roundTimeout.nextIndex === null ? 'Finish Level' : `Start Round ${roundTimeout.round + 1}`}
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (activePassageQuestion && passageIntroRound !== null) {
     return (
@@ -677,7 +756,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
-      <div className="card p-4 sm:p-5">
+      <div className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>
           {!showFeedback && !answerRevealed && (
