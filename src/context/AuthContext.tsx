@@ -121,8 +121,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     void initialise();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, sess) => {
+      // getSession above is the single source of truth for the initial restore.
+      // Handling INITIAL_SESSION here as well caused a second profile request and
+      // made installed copies appear to load twice.
+      if (event === 'INITIAL_SESSION') return;
       setSession(sess);
+      // A refreshed token does not change the profile or role. Avoid turning a
+      // quick token refresh into a full-screen loading state.
+      if (event === 'TOKEN_REFRESHED') return;
       if (sess) {
         (async () => {
           setLoading(true);
