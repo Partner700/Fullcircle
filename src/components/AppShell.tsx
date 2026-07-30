@@ -10,6 +10,12 @@ import { isSoundscapeEnabled, playInterfaceTone, setSoundscapeEnabled, setSounds
 
 type Theme = 'night' | 'day';
 
+function tabUrl(tab: string) {
+  const url = new URL(window.location.href);
+  url.hash = `fc-tab=${encodeURIComponent(tab)}`;
+  return url.toString();
+}
+
 function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof localStorage !== 'undefined') {
@@ -94,7 +100,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
   // Treat app screens as real history entries so Android/iOS back gestures feel native.
   useEffect(() => {
     if (!historyReadyRef.current) {
-      window.history.replaceState({ ...window.history.state, fullCircleTab: activeKey }, '', window.location.href);
+      window.history.replaceState({ ...window.history.state, fullCircleTab: activeKey }, '', tabUrl(activeKey));
       historyReadyRef.current = true;
       return;
     }
@@ -103,7 +109,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
       return;
     }
     if (window.history.state?.fullCircleTab !== activeKey) {
-      window.history.pushState({ ...window.history.state, fullCircleTab: activeKey }, '', window.location.href);
+      window.history.pushState({ ...window.history.state, fullCircleTab: activeKey }, '', tabUrl(activeKey));
     }
   }, [activeKey]);
 

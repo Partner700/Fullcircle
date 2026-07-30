@@ -58,14 +58,20 @@ async function showDeviceNotification(notification: UserNotification) {
   if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
   try {
     const registration = await navigator.serviceWorker?.ready;
-    if (!registration) return;
-    await registration.showNotification(notification.title || 'Full Circle', {
+    const options = {
       body: notification.body || 'You have a new update.',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
       tag: `full-circle-${notification.id}`,
       data: { url: '/' },
-    });
+    };
+    if (registration) {
+      await registration.showNotification(notification.title || 'Full Circle', options);
+    } else {
+      // Vite development and some embedded browsers have no active service worker.
+      // Permission still allows a foreground device notification while the app is open.
+      new Notification(notification.title || 'Full Circle', options);
+    }
   } catch {
     // The in-app bell and destination badges still update when the device blocks a foreground toast.
   }
