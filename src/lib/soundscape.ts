@@ -6,7 +6,10 @@ export type SoundMood = 'home' | 'reading' | 'tent' | 'game' | 'quiz' | 'board' 
 let audioContext: AudioContext | null = null;
 let currentMood: SoundMood = 'default';
 let dashboardAudio: HTMLAudioElement | null = null;
+let soundSyncVersion = 0;
 const assetCache = new Map<string, string | null>();
+const DASHBOARD_VOLUME = 0.22;
+const DASHBOARD_FADE_MS = 850;
 
 /** Call after an instructor changes a shared sound so the next interaction
  * uses the new upload without requiring a browser refresh. */
@@ -47,24 +50,62 @@ async function getSoundUrl(type: 'sound_dashboard' | 'sound_button') {
   }
 }
 
-function stopDashboardSound() {
-  if (!dashboardAudio) return;
-  dashboardAudio.pause();
-  dashboardAudio.currentTime = 0;
+function fadeVolume(audio: HTMLAudioElement, target: number, duration = DASHBOARD_FADE_MS) {
+  const start = audio.volume;
+  const startedAt = performance.now();
+  return new Promise<void>((resolve) => {
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      audio.volume = start + ((target - start) * progress);
+      if (progress < 1) window.requestAnimationFrame(step);
+      else resolve();
+    };
+    window.requestAnimationFrame(step);
+  });
+}
+
+async function stopDashboardSound() {
+  const audio = dashboardAudio;
+  if (!audio) return;
   dashboardAudio = null;
+  await fadeVolume(audio, 0);
+  audio.pause();
+  audio.currentTime = 0;
 }
 
 async function syncDashboardSound() {
-  stopDashboardSound();
-  if (!isSoundscapeEnabled() || currentMood !== 'home') return;
+  const version = ++soundSyncVersion;
+  if (!isSoundscapeEnabled() || currentMood !== 'home') {
+    await stopDashboardSound();
+    return;
+  }
   const url = await getSoundUrl('sound_dashboard');
-  if (!url || !isSoundscapeEnabled() || currentMood !== 'home') return;
+  if (version !== soundSyncVersion || !url || !isSoundscapeEnabled() || currentMood !== 'home') return;
+  if (dashboardAudio?.dataset.soundUrl === url) return;
+
+  const previous = dashboardAudio;
   const audio = new Audio(url);
   audio.loop = true;
   audio.preload = 'auto';
-  audio.volume = 0.22;
+  audio.volume = 0;
+  audio.dataset.soundUrl = url;
   dashboardAudio = audio;
-  try { await audio.play(); } catch { /* The sound toggle provides the required user gesture. */ }
+  try {
+    await audio.play();
+    if (version !== soundSyncVersion || dashboardAudio !== audio) {
+      audio.pause();
+      return;
+    }
+    void fadeVolume(audio, DASHBOARD_VOLUME);
+    if (previous) {
+      void fadeVolume(previous, 0).then(() => {
+        previous.pause();
+        previous.currentTime = 0;
+      });
+    }
+  } catch {
+    if (dashboardAudio === audio) dashboardAudio = previous || null;
+  }
 }
 
 /**
@@ -80,7 +121,7 @@ export async function setSoundscapeEnabled(enabled: boolean) {
     // Prime the short button sound while the user has provided a gesture.
     void getSoundUrl('sound_button');
     await syncDashboardSound();
-  } else stopDashboardSound();
+  } else await stopDashboardSound();
 }
 
 export async function setSoundscapeMood(mood: SoundMood) {
