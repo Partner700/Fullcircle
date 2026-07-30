@@ -69,7 +69,10 @@ function fadeVolume(audio: HTMLAudioElement, target: number, duration = DASHBOAR
   return new Promise<void>((resolve) => {
     const step = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / duration);
-      audio.volume = start + ((target - start) * progress);
+      // Browser animation timestamps can arrive slightly out of order during
+      // a busy render. Clamp the interpolated value to HTMLMediaElement's
+      // required 0..1 range before assigning it.
+      audio.volume = Math.max(0, Math.min(1, start + ((target - start) * progress)));
       if (progress < 1) window.requestAnimationFrame(step);
       else resolve();
     };

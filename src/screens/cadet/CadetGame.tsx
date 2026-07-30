@@ -16,6 +16,7 @@ import {
   Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
   SkipForward, BookOpen, Volume2, Wand2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 const PASS_THRESHOLD = GAME_PASS_THRESHOLD; // 0.6 = 60%
 const DEFAULT_PASSAGE_DISPLAY_SECONDS = 30;
@@ -807,7 +808,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         </div>
         {!showFeedback && (
           <div className="mb-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
-            {[
+            {( [
               [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
               [RELIC_SLUGS.ELIMINATE, 'Eliminate', Wand2, useEliminate, !!q.options?.length],
               [RELIC_SLUGS.FREEZE_TIMER, '+60s', TimerOff, useFreezeTimer, true],
@@ -815,15 +816,15 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
               [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
               [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
               [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
-            ].map(([slug, label, Icon, onClick, applicable]) => {
+            ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
               const amount = relicInventory[slug as string] || 0;
               if (!amount || !applicable) return null;
               const isUsing = usingQuestionRelic === slug;
               return (
                 <button
-                  key={slug as string}
+                  key={slug}
                   type="button"
-                  onClick={onClick as () => void}
+                  onClick={onClick}
                   disabled={!!usingQuestionRelic}
                   className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
                   title={`Use ${label} relic`}

@@ -20,6 +20,7 @@ import {
   Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw, Lightbulb, Wand2,
   SkipForward, Volume2, Eye, Sparkles,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
 
@@ -773,22 +774,22 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
 
       {!showFeedback && (
         <div className="flex flex-wrap gap-1.5">
-          {[
+          {( [
             [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
             [RELIC_SLUGS.ELIMINATE, 'Eliminate', Wand2, useEliminate, !!payload.options?.length],
             [RELIC_SLUGS.SKIP, 'Skip', SkipForward, useSkip, true],
             [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
             [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
             [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
-          ].map(([slug, label, Icon, onClick, applicable]) => {
+          ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
             const amount = relicInventory[slug as string] || 0;
             if (!amount || !applicable) return null;
             const isUsing = usingQuestionRelic === slug;
             return (
               <button
-                key={slug as string}
+                key={slug}
                 type="button"
-                onClick={onClick as () => void}
+                onClick={onClick}
                 disabled={!!usingQuestionRelic}
                 className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
                 title={`Use ${label} relic`}

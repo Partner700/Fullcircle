@@ -91,6 +91,13 @@ const NAV_ITEMS = [
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
+function getInitialCadetTab(): Tab {
+  if (typeof window === 'undefined') return 'dashboard';
+  const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
+  const tabs: Tab[] = ['dashboard', 'narrative', 'streak', 'game', 'arena', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+  return tabs.includes(key as Tab) ? key as Tab : 'dashboard';
+}
+
 function actionKeyToTab(actionKey: string | null | undefined): Tab | undefined {
   if (!actionKey) return undefined;
   return NAV_ITEMS.some((item) => item.key === actionKey) || actionKey === 'subscribe'
@@ -170,7 +177,7 @@ function getCountdownParts(target?: string | null) {
 
 export function CadetApp() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>(getInitialCadetTab);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
