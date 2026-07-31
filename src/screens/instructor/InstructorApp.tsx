@@ -2565,6 +2565,11 @@ function QuizBuilder() {
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [generating, setGenerating] = useState(false);
   const [satScheduled, setSatScheduled] = useState(false);
+  const [editingSessionDetails, setEditingSessionDetails] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessionDate, setSessionDate] = useState(getTodayISODate());
+  const [sessionType, setSessionType] = useState<'saturday' | 'fortune'>('saturday');
+  const [savingSessionDetails, setSavingSessionDetails] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2626,18 +2631,45 @@ function QuizBuilder() {
   };
 
   const relaunchQuiz = async (session: QuizSession) => {
-    const now = new Date();
-    const countdownOpens = now.toISOString();
-    const liveOpens = new Date(now.getTime() + waitTime * 60 * 1000).toISOString();
-    const liveCloses = new Date(now.getTime() + (waitTime + quizDuration) * 60 * 1000).toISOString();
-    const { error } = await supabase.from('quiz_sessions').update({
-      status: 'countdown',
-      countdown_opens_at: countdownOpens,
-      live_opens_at: liveOpens,
-      live_closes_at: liveCloses,
-    }).eq('id', session.id);
-    if (error) { alert(error.message); return; }
-    load();
+    if (!window.confirm('Create a new editable relaunch copy? The original quiz, attempts, and results will remain unchanged.')) return;
+    setGenerating(true);
+    try {
+      const sourceQuestions = await fetchQuestionsForSession(session.id);
+      const now = new Date();
+      const freshSession = await createQuizSession({
+        session_date: getTodayISODate(),
+        title: `${session.title} (Relaunch)`,
+        scheduled_start_time: now.toISOString(),
+        countdown_opens_at: now.toISOString(),
+        live_opens_at: now.toISOString(),
+        live_closes_at: new Date(now.getTime() + quizDuration * 60 * 1000).toISOString(),
+        status: 'scheduled',
+        quiz_type: session.quiz_type,
+        reward_perfect: session.reward_perfect,
+        reward_partial: session.reward_partial,
+      } as Partial<QuizSession>);
+
+      if (sourceQuestions.length > 0) {
+        await insertQuestions(sourceQuestions.map((question, index) => ({
+          quiz_session_id: freshSession.id,
+          question_index: index + 1,
+          source_narrative_date: question.source_narrative_date,
+          difficulty_tag: question.difficulty_tag,
+          mechanic_type: question.mechanic_type,
+          recycled_from_game: question.recycled_from_game,
+          question_payload: question.question_payload,
+        })));
+      }
+
+      await load();
+      await openSession(freshSession);
+      setEditingSessionDetails(true);
+      alert('A new quiz copy is ready. Review it, save any edits, then launch it when you are ready.');
+    } catch (error: any) {
+      alert(error.message || 'Could not create the relaunch copy.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const generateQuestions = async (session: QuizSession) => {
@@ -2716,8 +2748,44 @@ function QuizBuilder() {
 
   const openSession = async (session: QuizSession) => {
     setSelectedSession(session);
+    setSessionTitle(session.title);
+    setSessionDate(session.session_date);
+    setSessionType(session.quiz_type || 'saturday');
+    setEditingSessionDetails(false);
+    const countdownMinutes = Math.round((new Date(session.live_opens_at).getTime() - new Date(session.countdown_opens_at).getTime()) / 60_000);
+    const durationMinutes = Math.round((new Date(session.live_closes_at).getTime() - new Date(session.live_opens_at).getTime()) / 60_000);
+    if (countdownMinutes > 0) setWaitTime(countdownMinutes);
+    if (durationMinutes > 0) setQuizDuration(durationMinutes);
     const qs = await fetchQuestionsForSession(session.id);
     setGeneratedQuestions(qs);
+  };
+
+  const saveSessionDetails = async () => {
+    if (!selectedSession || !sessionTitle.trim()) return;
+    setSavingSessionDetails(true);
+    try {
+      const start = new Date(`${sessionDate}T09:00:00`);
+      const countdownOpens = new Date(start.getTime() - waitTime * 60 * 1000).toISOString();
+      const liveOpens = start.toISOString();
+      const liveCloses = new Date(start.getTime() + quizDuration * 60 * 1000).toISOString();
+      const { data, error } = await supabase.from('quiz_sessions').update({
+        title: sessionTitle.trim(),
+        session_date: sessionDate,
+        quiz_type: sessionType,
+        scheduled_start_time: liveOpens,
+        countdown_opens_at: countdownOpens,
+        live_opens_at: liveOpens,
+        live_closes_at: liveCloses,
+      }).eq('id', selectedSession.id).select().maybeSingle();
+      if (error) throw error;
+      if (data) setSelectedSession(data as QuizSession);
+      setEditingSessionDetails(false);
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Could not save quiz details.');
+    } finally {
+      setSavingSessionDetails(false);
+    }
   };
 
   const editGeneratedQuestion = async (question: GeneratedQuestion) => {
@@ -2752,6 +2820,12 @@ function QuizBuilder() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setEditingSessionDetails(!editingSessionDetails)} className="btn-secondary text-sm">
+            <FileQuestion size={14} /> Edit Quiz
+          </button>
+          <button onClick={() => relaunchQuiz(selectedSession)} disabled={generating} className="btn-secondary text-sm">
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Relaunch as New Quiz
+          </button>
           <button onClick={() => generateQuestions(selectedSession)} disabled={generating} className="btn-primary text-sm">
             {generating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             {generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
@@ -2762,6 +2836,42 @@ function QuizBuilder() {
           </button>
           <span className="text-xs text-stone">{generatedQuestions.length} questions</span>
         </div>
+
+        {editingSessionDetails && (
+          <div className="card p-4 space-y-3 bg-surface-2">
+            <div>
+              <label className="text-xs text-stone block mb-1">Quiz Title</label>
+              <input className="input-field" value={sessionTitle} onChange={(event) => setSessionTitle(event.target.value)} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Date</label>
+                <input type="date" className="input-field" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Type</label>
+                <select className="input-field" value={sessionType} onChange={(event) => setSessionType(event.target.value as 'saturday' | 'fortune')}>
+                  <option value="saturday">Saturday Quiz</option>
+                  <option value="fortune">Fortune Quiz</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Countdown (minutes)</label>
+                <input type="number" min={1} max={180} className="input-field" value={waitTime} onChange={(event) => setWaitTime(Number(event.target.value) || 1)} />
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Duration (minutes)</label>
+                <input type="number" min={5} max={300} className="input-field" value={quizDuration} onChange={(event) => setQuizDuration(Number(event.target.value) || 5)} />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={saveSessionDetails} disabled={savingSessionDetails} className="btn-primary text-sm">
+                {savingSessionDetails ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Quiz Changes
+              </button>
+              <button onClick={() => setEditingSessionDetails(false)} className="btn-secondary text-sm">Cancel</button>
+            </div>
+          </div>
+        )}
 
         {generatedQuestions.length > 0 && (
           <div className="space-y-2">
