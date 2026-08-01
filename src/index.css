@@ -339,10 +339,10 @@
 @keyframes awardChange { from { opacity: 0.88; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
 
 @media (max-width: 640px) {
-  .recent-award-change { animation-name: awardChangeMobile; }
+  /* Mobile Safari can briefly repaint translucent parent layers when keyed
+     content animates. Keep the award surface completely stable on phones. */
+  .recent-award-change { animation: none; }
 }
-
-@keyframes awardChangeMobile { from { transform: translateX(6px); } to { transform: translateX(0); } }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
