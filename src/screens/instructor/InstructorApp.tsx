@@ -2269,9 +2269,10 @@ const AWARD_MEASUREMENT_START = '2026-07-27';
 type AwardRecommendation = {
   title: string;
   candidate: string;
+  candidateId?: string;
   detail: string;
   quote?: string;
-  runnersUp: { candidate: string; detail: string; quote?: string }[];
+  runnersUp: { candidate: string; candidateId?: string; detail: string; quote?: string }[];
 };
 
 function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
@@ -2292,8 +2293,8 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [recommendations, setRecommendations] = useState<AwardRecommendation[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
-  const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
-  const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
+  const cadets = roles.filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved'));
+  const sentries = roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved'));
   const cadetIds = cadets.map((r) => r.user_id);
   const sentryIds = sentries.map((r) => r.user_id);
   const profileName = (userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet';
@@ -2402,9 +2403,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         if (topTutorix) next.push({
           title: 'Tutorix',
           candidate: profileName(topTutorix[0]),
+          candidateId: topTutorix[0],
           detail: `${topTutorix[1].bestScore} figs in their highest quiz score and ${topTutorix[1].totalFigs} quiz figs overall this week.`,
           runnersUp: tutorixRanking.slice(1).map(([userId, result]) => ({
             candidate: profileName(userId),
+            candidateId: userId,
             detail: `${result.bestScore} figs in their highest quiz score; ${result.totalFigs} quiz figs overall.`,
           })),
         });
@@ -2541,6 +2544,16 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     });
   };
 
+  const prepareRecommendedAward = (title: string, candidateId: string) => {
+    const definition = AWARD_CATALOG.flatMap((group) => group.awards).find((award) => award.title === title);
+    const nextTarget: 'cadet' | 'sentry' = definition && isSentryAward(definition) ? 'sentry' : 'cadet';
+    setTargetType(nextTarget);
+    setSelectedTentId('');
+    setSelectedUserIds(new Set([candidateId]));
+    setSelectedAwards(new Set([title]));
+    window.setTimeout(() => document.getElementById('give-award')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  };
+
   const toggleUserId = (id: string) => {
     setSelectedUserIds((prev) => {
       const next = new Set(prev);
@@ -2606,6 +2619,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                 <p className="mt-1 text-[10px] font-semibold uppercase text-gold">Recommended winner</p>
                 <p className="text-sm font-semibold text-ink">{item.candidate}</p>
                 <p className="mt-1 text-xs text-stone">{item.detail}</p>
+                {item.candidateId && (
+                  <button type="button" onClick={() => prepareRecommendedAward(item.title, item.candidateId!)} className="btn-secondary mt-2 text-xs">
+                    Select winner
+                  </button>
+                )}
                 {item.quote && <blockquote className="mt-2 border-l-2 border-brass/50 pl-3 text-sm italic text-ink">“{item.quote}”</blockquote>}
                 <div className="mt-3 border-t border-border pt-2">
                   <p className="mb-1.5 text-[10px] font-semibold uppercase text-stone">Runners-up</p>
@@ -2613,6 +2631,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                     <div key={`${runner.candidate}:${index}`} className="mb-2 last:mb-0">
                       <p className="text-xs font-semibold text-ink">{index + 2}. {runner.candidate}</p>
                       <p className="text-[11px] text-stone">{runner.detail}</p>
+                      {runner.candidateId && (
+                        <button type="button" onClick={() => prepareRecommendedAward(item.title, runner.candidateId!)} className="mt-1 text-[11px] font-semibold text-brass hover:text-gold">
+                          Select this sentry
+                        </button>
+                      )}
                       {runner.quote && <p className="mt-0.5 line-clamp-2 text-xs italic text-stone">“{runner.quote}”</p>}
                     </div>
                   )) : <p className="text-xs text-stone">No other qualifying candidate yet.</p>}
@@ -2623,7 +2646,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         )}
       </div>
 
-      <div className="card p-5 space-y-5">
+      <div id="give-award" className="card scroll-mt-20 p-5 space-y-5">
         <h4 className="font-display font-semibold text-ink">Give an Award</h4>
 
         {/* Target type */}
