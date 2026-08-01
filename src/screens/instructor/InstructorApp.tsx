@@ -53,7 +53,7 @@ function isRepublishSelection(selection: NarrativeSelection): selection is { mod
 }
 
 function isSentryAward(a: { title: string; forSentry?: boolean }) {
-  return !!a.forSentry || a.title === 'Century Badge (Centurion)' || a.title === 'Right Hand Badge' || a.title === 'Reputation Award';
+  return !!a.forSentry || a.title === 'Reputation Award' || a.title === 'Valley Champion';
 }
 
 function awardVisibleForTarget(a: { title: string; forTent?: boolean; forSentry?: boolean }, target: AwardCatalogTarget) {
@@ -2212,6 +2212,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
       { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
       { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
+      { title: 'Valley Champion', description: 'Most Arena Victories of the Week', forSentry: true },
     ],
   },
   {
@@ -2228,7 +2229,6 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Most Consistent Cadet', description: 'Faithfulness & Consistency' },
       { title: 'Rudis Award (Muralis)', description: 'Best Challenger Cadet – Challenge & Courage' },
       { title: 'The Valediction Crown (Vallum)', description: 'Overall Best Cadet – Overall Excellence' },
-      { title: 'Century Badge (Centurion)', description: "Centurion's Award – Faithfulness & Consistency", forSentry: true },
     ],
   },
   {
@@ -2245,7 +2245,6 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Grand Orator', description: 'Most Rhetoric Awards during the year' },
       { title: 'Grand Nuncio', description: 'Most Messenger Awards during the year' },
       { title: 'The Great Muralis Crown', description: 'Grand Muralis / Grand Challenger' },
-      { title: 'Right Hand Badge', description: 'Grand Centurion – for Sentries', forSentry: true },
       { title: 'The Parting Valediction Crown', description: "Heaven's Kiss / Grand Vallum" },
     ],
   },
@@ -2303,7 +2302,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
@@ -2315,10 +2314,18 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             .in('user_id', trackedUserIds)
             .gte('submitted_at', `${AWARD_MEASUREMENT_START}T00:00:00`),
           fetchDailyQuoteInteractionSummary(25).then((data) => ({ data })).catch(() => ({ data: [] })),
+          sentryIds.length > 0
+            ? supabase
+              .from('arena_rooms')
+              .select('winner_id,completed_at')
+              .eq('status', 'completed')
+              .in('winner_id', sentryIds)
+              .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
+            : Promise.resolve({ data: [], error: null }),
         ]);
 
         const consistency = new Map<string, number>();
-        (dailyRecords || []).forEach((record: any) => {
+        (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
           consistency.set(record.user_id, (consistency.get(record.user_id) || 0) + credit);
         });
@@ -2334,7 +2341,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         }
 
         const quizTotals = new Map<string, number>();
-        (quizAttempts || []).forEach((attempt: any) => {
+        (quizAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id)).forEach((attempt: any) => {
           const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
           quizTotals.set(attempt.user_id, (quizTotals.get(attempt.user_id) || 0) + figs);
         });
@@ -2367,6 +2374,21 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           candidate: profileName(topSentry[0]),
           detail: `${topSentry[1]} leadership action(s) this week: morning attendance and daily meditation.`,
           runnersUp: sentryRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} leadership action(s).` })),
+        });
+
+        const arenaVictoryScores = new Map<string, number>();
+        (arenaWins || []).filter((room: any) => room.completed_at?.slice(0, 10) >= weeklyStartIso).forEach((room: any) => {
+          if (room.winner_id) arenaVictoryScores.set(room.winner_id, (arenaVictoryScores.get(room.winner_id) || 0) + 1);
+        });
+        const valleyRanking = [...arenaVictoryScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        if (valleyRanking[0]) next.push({
+          title: 'Valley Champion',
+          candidate: profileName(valleyRanking[0][0]),
+          detail: `${valleyRanking[0][1]} Arena victor${valleyRanking[0][1] === 1 ? 'y' : 'ies'} this week.`,
+          runnersUp: valleyRanking.slice(1).map(([userId, wins]) => ({
+            candidate: profileName(userId),
+            detail: `${wins} Arena victor${wins === 1 ? 'y' : 'ies'} this week.`,
+          })),
         });
 
         const cadetOverall = new Map<string, number>();
@@ -2411,7 +2433,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
 
         const scribeScores = new Map<string, number>();
         (quizAttempts || []).filter((attempt: any) => (
-          (sentryIds.includes(attempt.user_id) || cadetIds.includes(attempt.user_id))
+          cadetIds.includes(attempt.user_id)
           && attempt.submitted_at?.slice(0, 10) >= weeklyStartIso
         )).forEach((attempt: any) => {
           const score = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
