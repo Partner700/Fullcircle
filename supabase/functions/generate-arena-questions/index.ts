@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 type QuestionPayload = {
-  type: "multiple_choice" | "true_false" | "standard_text";
+  type: "multiple_choice" | "true_false";
   question: string;
   options?: string[];
   correct_answer: string;
@@ -32,9 +32,9 @@ function json(body: unknown, status = 200) {
 function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
   const q = raw as Partial<QuestionPayload>;
   if (!q?.question || !q.correct_answer) return null;
-  const type = ["multiple_choice", "true_false", "standard_text"].includes(String(q.type))
+  const type = ["multiple_choice", "true_false"].includes(String(q.type))
     ? q.type as QuestionPayload["type"]
-    : "standard_text";
+    : "multiple_choice";
   const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
   const seconds = round === 1 ? 90 : round === 2 ? 72 : round === 3 ? 54 : 10;
   const options = type === "multiple_choice"
@@ -123,9 +123,8 @@ Deno.serve(async (req) => {
 Rules:
 ${formatRule}
 - No repeated questions, no vague trivia, no incomplete wording.
-- Use only these types: multiple_choice, true_false, standard_text.
+- Use only these types: multiple_choice and true_false. Standard Trivia must always be answerable by tapping a choice, never by typing free text.
 - Every multiple_choice question must have 4 options and one exact correct_answer from the options.
-- Standard_text answers must be short enough for exact checking.
 - Do not reveal answers inside the question.
 - Questions must be intelligible, scholarly, and challenging.
 - Source focus: ${source}

@@ -235,13 +235,7 @@ export function SentryApp() {
       onNavigate={(k) => setTab(k as Tab)}
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
-      rightHeader={<div className="flex items-center gap-2"><button
-        type="button"
-        onClick={() => setTab('quiz')}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-colors hover:text-peri"
-        title="Open Weekly Quiz"
-        aria-label="Open Weekly Quiz"
-      ><FileQuestion size={17} /></button><NotificationCenter onNavigate={(key) => {
+      rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
         const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', store: 'store', tent: 'cadets' };
         if (destination[key]) setTab(destination[key]);
       }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
@@ -419,25 +413,6 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <StatCard icon={UserCheck} label="Marked Today" value={todayMarked} sublabel={`of ${members.length}`} color="#6B8E5A" />
         <StatCard icon={AlertTriangle} label="At Risk" value={atRiskCount} sublabel="need attention" color="#B8553E" />
         <StatCard icon={Sunrise} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
-      </div>
-
-      <div className="card flex flex-col gap-4 border-brass/25 bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-brass/15 text-brass">
-            <FileQuestion size={22} />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-display font-semibold text-ink">Weekly Quiz</h3>
-            <p className="text-sm text-stone">
-              {dayType === 'saturday'
-                ? 'The Saturday quiz is available here for sentries too.'
-                : 'Open the quiz room to see the schedule, revision, and previous submission.'}
-            </p>
-          </div>
-        </div>
-        <button onClick={() => onNavigate('quiz')} className={dayType === 'saturday' ? 'btn-primary sm:flex-shrink-0' : 'btn-secondary sm:flex-shrink-0'}>
-          <FileQuestion size={17} /> {dayType === 'saturday' ? 'Take Quiz' : 'Open Quiz'}
-        </button>
       </div>
 
       {quote && (

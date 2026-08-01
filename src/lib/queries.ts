@@ -1274,6 +1274,24 @@ export async function finishArenaGame(roomId: string, userId: string, score: num
   if (error) throw error;
 }
 
+export async function submitArenaTriviaAnswer(roomId: string, userId: string, questionIndex: number, answer: string | null) {
+  const { data, error } = await supabase.rpc('submit_arena_trivia_answer', {
+    p_room_id: roomId,
+    p_user_id: userId,
+    p_question_index: questionIndex,
+    p_answer: answer || '',
+  });
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) throw new Error('The arena could not verify that answer.');
+  return {
+    correct: Boolean(result.is_correct),
+    figsEarned: Number(result.figs_earned) || 0,
+    totalFigs: Number(result.total_figs) || 0,
+    correctCount: Number(result.correct_count) || 0,
+  };
+}
+
 export async function fetchArenaRoomMessages(roomId: string) {
   const { data, error } = await supabase
     .from('arena_room_messages')

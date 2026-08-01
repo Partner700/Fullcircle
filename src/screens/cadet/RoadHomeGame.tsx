@@ -22,6 +22,7 @@ type Props = {
 type Coordinate = readonly [number, number];
 type RoadHomeCommandError = Error & { state?: RoadHomeState | null };
 type RollOutcome = { value: number; message: string };
+type TurnActivity = RoadHomeState['eventLog'][number] & { diceValue?: number };
 
 const PAWN_STEP_MS = 170;
 
@@ -116,6 +117,9 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const hasState = useRef(false);
   const visualPawnProgressRef = useRef<Record<string, number>>({});
   const pawnAnimationTimers = useRef<number[]>([]);
+  const knownEventIds = useRef<Set<string> | null>(null);
+  const activityTimers = useRef<number[]>([]);
+  const [liveActivity, setLiveActivity] = useState<TurnActivity | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -207,6 +211,34 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const latestMoveEvent = useMemo(() => state ? [...state.eventLog].reverse().find((event) => [
     'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED', 'PAWN_RELEASED',
   ].includes(event.type)) || null : null, [state]);
+
+  useEffect(() => {
+    if (!state) return;
+    const relevant = state.eventLog.filter((event) => [
+      'TURN_STARTED', 'DICE_ROLLED', 'QUESTION_DRAWN', 'QUESTION_CORRECT', 'QUESTION_INCORRECT',
+      'NO_LEGAL_MOVE', 'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED',
+      'PAWN_RELEASED', 'SURPRISE_DRAWN', 'GAME_ENDED',
+    ].includes(event.type));
+    if (!knownEventIds.current) {
+      knownEventIds.current = new Set(state.eventLog.map((event) => event.id));
+      setLiveActivity(relevant.at(-1) || null);
+      return;
+    }
+    const fresh = relevant.filter((event) => !knownEventIds.current!.has(event.id));
+    state.eventLog.forEach((event) => knownEventIds.current!.add(event.id));
+    if (!fresh.length) return;
+    activityTimers.current.forEach((timer) => window.clearTimeout(timer));
+    activityTimers.current = fresh.map((event, index) => window.setTimeout(() => {
+      const diceValue = event.type === 'DICE_ROLLED'
+        ? Number(event.message.match(/rolled\s+(\d+)/i)?.[1] || 0)
+        : undefined;
+      setLiveActivity({ ...event, diceValue: diceValue || undefined });
+    }, index * 850));
+    return () => {
+      activityTimers.current.forEach((timer) => window.clearTimeout(timer));
+      activityTimers.current = [];
+    };
+  }, [state]);
 
   useEffect(() => {
     if (!state) return;
@@ -332,7 +364,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
             <div className="flex items-center gap-3">
               <PlayerAvatar player={activePlayer!} size="lg" />
               <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-stone">Turn {state.turnNumber}</p><p className="truncate text-sm font-bold text-ink">{formatPhase(state, myTurn)}</p></div>
-              {state.diceValue && <Dice value={state.diceValue} />}
+              {(liveActivity?.diceValue || state.diceValue) && <Dice value={liveActivity?.diceValue || state.diceValue || 1} rolling={liveActivity?.type === 'DICE_ROLLED'} />}
             </div>
           </div>
 
@@ -348,9 +380,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
               rollOutcome={rollOutcome}
               send={send}
             />
-          ) : (
-            <div className="rounded-lg border border-border bg-surface/90 p-4 text-center"><Users size={22} className="mx-auto text-royal" /><p className="mt-2 text-sm font-semibold text-ink">Watch the shared board</p><p className="mt-1 text-xs leading-relaxed text-stone">You can see every roll, pawn, capture, prison sentence, and inherited challenge in real time.</p></div>
-          )}
+          ) : <OpponentTurnPanel state={state} activity={liveActivity} />}
 
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
 
@@ -374,7 +404,7 @@ function PlayerStrip({ state, userId }: { state: RoadHomeState; userId: string }
   return <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{state.players.map((player, index) => {
     const active = index === state.activePlayerIndex;
     const home = player.pawns.filter((pawn) => pawn.progress === 58).length;
-    return <div key={player.id} className={cn('min-w-0 rounded-lg border bg-surface/90 p-2.5 transition-all', active ? 'border-gold shadow-md' : 'border-border')}><div className="flex items-center gap-2"><PlayerAvatar player={player} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-ink">{player.name}{player.id === userId ? ' · You' : ''}</p><div className="mt-0.5 flex gap-2 text-[10px] text-stone"><span>{player.denarii}D</span><span>{home}/4 home</span></div></div>{active && <span className="h-2 w-2 animate-pulse rounded-full bg-gold" />}</div></div>;
+    return <div key={player.id} className={cn('min-w-0 rounded-lg border bg-surface/90 p-2.5 transition-all', active ? 'border-gold shadow-md' : 'border-border')}><div className="flex items-center gap-2"><PlayerAvatar player={player} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-ink">{player.name}{player.id === userId ? ' · You' : ''}</p><div className="mt-0.5 flex gap-2 text-[10px] text-stone"><span>{player.denarii}D</span><span>{home}/4 home</span></div></div>{active && <span className="rounded-full bg-gold-soft px-1.5 py-0.5 text-[8px] font-bold uppercase text-gold">Turn</span>}</div></div>;
   })}</div>;
 }
 
@@ -439,9 +469,38 @@ function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnI
   })}</div>;
 }
 
-function Dice({ value }: { value: number }) {
+function Dice({ value, rolling = false }: { value: number; rolling?: boolean }) {
   const dots: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-  return <div className="grid h-10 w-10 flex-shrink-0 grid-cols-3 rounded-lg border border-gold/50 bg-surface p-1 shadow-inner animate-scale-in">{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto h-1.5 w-1.5 rounded-full', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
+  return <div className={cn('grid h-10 w-10 flex-shrink-0 grid-cols-3 rounded-lg border border-gold/50 bg-surface p-1 shadow-inner animate-scale-in', rolling && 'animate-bounce')}>{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto h-1.5 w-1.5 rounded-full', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
+}
+
+function OpponentTurnPanel({ state, activity }: { state: RoadHomeState; activity: TurnActivity | null }) {
+  const active = state.players[state.activePlayerIndex];
+  const actor = activity?.playerId ? state.players.find((player) => player.id === activity.playerId) || active : active;
+  const copy: Record<string, string> = {
+    TURN_STARTED: 'is up next.',
+    DICE_ROLLED: 'rolled the dice.',
+    QUESTION_DRAWN: 'is answering a Bible question.',
+    QUESTION_CORRECT: 'answered correctly and earned the move.',
+    QUESTION_INCORRECT: 'missed the question. The turn moves on.',
+    NO_LEGAL_MOVE: 'has no legal move for that roll.',
+    PAWN_DEPLOYED: 'brought a pawn onto the road.',
+    PAWN_MOVED: 'is moving a pawn forward.',
+    PAWN_CAPTURED: 'captured an opponent pawn.',
+    PAWN_HOME: 'brought a pawn Home.',
+    PAWN_IMPRISONED: 'landed in prison.',
+    PAWN_RELEASED: 'released a pawn from prison.',
+    SURPRISE_DRAWN: 'drew a Surprise Card.',
+  };
+  const message = activity ? `${actor?.name || 'A player'} ${copy[activity.type] || activity.message}` : `${active?.name || 'A player'} is taking a turn.`;
+  return <div className="rounded-lg border border-royal/35 bg-surface/95 p-4" aria-live="polite">
+    <div className="flex items-center gap-3">
+      {actor && <PlayerAvatar player={actor} size="lg" />}
+      <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase text-royal">Live opponent turn</p><p className="mt-0.5 text-sm font-bold text-ink">{message}</p></div>
+      {activity?.diceValue ? <Dice value={activity.diceValue} rolling /> : <Users size={22} className="text-royal" />}
+    </div>
+    <p className="mt-3 text-xs leading-relaxed text-stone">The shared board updates after each roll, answer, and move. Question wording stays private until the turn is resolved.</p>
+  </div>;
 }
 
 type SendCommand = (action: string, payload?: Record<string, unknown>) => Promise<void>;

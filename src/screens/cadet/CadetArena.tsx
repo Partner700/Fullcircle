@@ -13,6 +13,7 @@ import {
   startArenaRoom,
   closeArenaRoom,
   finishArenaGame,
+  submitArenaTriviaAnswer,
   fetchArenaRoomMessages,
   sendArenaRoomMessage,
   fetchArenaRooms,
@@ -305,6 +306,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         roomName={activeRoom?.room_name || roomName}
         narratives={narratives}
         roomId={activeRoomId}
+        userId={profile!.id}
         roomQuestionSet={activeRoom?.question_set}
         onComplete={async (score, correctCount) => {
           try {
@@ -755,10 +757,10 @@ function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
   const scope = topic.type === 'book' ? `the book of ${label}` : `${label}'s life and story`;
   return [
     {
-      type: 'standard_text',
-      question: `Name one hard-to-fake detail from ${scope}.`,
+      type: 'multiple_choice',
+      question: `Which subject is this battle testing?`,
       correct_answer: label,
-      explanation: `Arena topic: ${scope}. Instructor review can refine these later.`,
+      options: [label, 'Moses', 'Romans', 'Esther'].filter((value, index, arr) => arr.indexOf(value) === index),
     },
     {
       type: 'multiple_choice',
@@ -767,9 +769,10 @@ function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
       correct_answer: label,
     },
     {
-      type: 'standard_text',
-      question: `Write the exact ${topic.type} selected for this battle.`,
+      type: 'multiple_choice',
+      question: `The questions in this battle are drawn from which ${topic.type}?`,
       correct_answer: label,
+      options: [label, 'Genesis', 'Paul', 'Jerusalem'].filter((value, index, arr) => arr.indexOf(value) === index),
     },
   ];
 }
@@ -816,7 +819,7 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
     const q = pool[i];
     if (!q) break;
     questions.push({
-      ...q,
+      ...toStandardTriviaQuestion(q),
       game_round: getArenaRoundForIndex(i) + 1,
       difficulty_tag: getArenaDifficulty(i),
       round_timer_seconds: getArenaQuestionSeconds({ ...q, difficulty_tag: getArenaDifficulty(i) }),
@@ -826,27 +829,43 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
   return questions;
 }
 
+function toStandardTriviaQuestion(question: QuestionPayload): QuestionPayload {
+  if (question.type === 'true_false') return { ...question, options: ['True', 'False'] };
+  const answer = String(question.correct_answer).trim();
+  const supplied = (question.options || []).map((option) => String(option).trim()).filter(Boolean);
+  const filler = ['Moses', 'Paul', 'Jerusalem', 'The Philistines', 'A different account in Scripture'];
+  const options = Array.from(new Set([answer, ...supplied, ...filler]))
+    .filter((option) => option.toLowerCase() !== answer.toLowerCase() || option === answer)
+    .slice(0, 4);
+  const stableOrder = [...options].sort((left, right) => {
+    const seed = `${question.question}:${left}`.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
+    const otherSeed = `${question.question}:${right}`.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
+    return seed - otherSeed;
+  });
+  return { ...question, type: 'multiple_choice', options: stableOrder };
+}
+
 function buildFallbackArenaQuestions(): QuestionPayload[] {
   const stems = [
     ['multiple_choice', 'Which brother was sold by his brothers and later became governor in Egypt?', 'Joseph', ['Joseph', 'Benjamin', 'Reuben', 'Judah']],
     ['multiple_choice', 'What sign did Gideon ask God to give with a fleece before battle?', 'Dew on the fleece only', ['Dew on the fleece only', 'Fire from the fleece', 'A rainbow over the camp', 'Oil on the ground']],
-    ['standard_text', 'Who interpreted Pharaoh\'s dreams about seven years of plenty and seven years of famine?', 'Joseph'],
+    ['multiple_choice', 'Who interpreted Pharaoh\'s dreams about seven years of plenty and seven years of famine?', 'Joseph', ['Joseph', 'Daniel', 'Moses', 'Aaron']],
     ['multiple_choice', 'Which judge defeated Midian with three hundred men carrying trumpets, jars, and torches?', 'Gideon', ['Gideon', 'Samson', 'Jephthah', 'Barak']],
     ['true_false', 'Ruth was a Moabite who chose to remain with Naomi.', 'True', ['True', 'False']],
     ['multiple_choice', 'Before David faced Goliath, what did Saul try to give him?', 'His armor', ['His armor', 'A chariot', 'A spear', 'A crown']],
-    ['standard_text', 'Which prophet confronted David after his sin involving Bathsheba?', 'Nathan'],
+    ['multiple_choice', 'Which prophet confronted David after his sin involving Bathsheba?', 'Nathan', ['Nathan', 'Samuel', 'Elijah', 'Elisha']],
     ['multiple_choice', 'What did Esther ask the Jews in Susa to do before she approached the king?', 'Fast for three days', ['Fast for three days', 'Build the wall', 'Leave the city', 'Prepare sacrifices']],
     ['multiple_choice', 'Who was thrown into a lions\' den for praying to God?', 'Daniel', ['Daniel', 'Jeremiah', 'Ezekiel', 'Nehemiah']],
     ['true_false', 'Jonah fled in the direction of Nineveh before the storm at sea.', 'False', ['True', 'False']],
-    ['standard_text', 'What city did Joshua and Israel march around before its walls fell?', 'Jericho'],
+    ['multiple_choice', 'What city did Joshua and Israel march around before its walls fell?', 'Jericho', ['Jericho', 'Ai', 'Jerusalem', 'Hebron']],
     ['multiple_choice', 'Which apostle denied knowing Jesus three times before the rooster crowed?', 'Peter', ['Peter', 'John', 'Thomas', 'Andrew']],
     ['multiple_choice', 'Who baptized the Ethiopian official on the road from Jerusalem to Gaza?', 'Philip', ['Philip', 'Paul', 'Peter', 'Stephen']],
     ['true_false', 'Paul and Silas sang hymns while imprisoned in Philippi.', 'True', ['True', 'False']],
-    ['standard_text', 'Who saw a vision of a sheet with animals before visiting Cornelius?', 'Peter'],
+    ['multiple_choice', 'Who saw a vision of a sheet with animals before visiting Cornelius?', 'Peter', ['Peter', 'Paul', 'Philip', 'John']],
     ['multiple_choice', 'Which woman opened her home to Paul after believing in Philippi?', 'Lydia', ['Lydia', 'Priscilla', 'Martha', 'Dorcas']],
     ['multiple_choice', 'Who replaced Judas Iscariot among the twelve apostles?', 'Matthias', ['Matthias', 'Barnabas', 'Silas', 'Timothy']],
     ['true_false', 'The prodigal son asked to be restored as his father\'s son before he returned home.', 'False', ['True', 'False']],
-    ['standard_text', 'Bonus: who raised Lazarus after he had been in the tomb four days?', 'Jesus'],
+    ['multiple_choice', 'Bonus: who raised Lazarus after he had been in the tomb four days?', 'Jesus', ['Jesus', 'Peter', 'Elijah', 'Martha']],
   ] as const;
   return stems.map(([type, question, correct_answer, options]) => ({
     type: type as QuestionPayload['type'],
@@ -868,11 +887,12 @@ function isArenaAnswerCorrect(answer: string | null, question: QuestionPayload) 
   return normalizeArenaAnswer(answer) === normalizeArenaAnswer(question.correct_answer);
 }
 
-function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuestionSet, onComplete, onExit }: {
+function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onExit }: {
   narrativeDate: string;
   roomName: string;
   narratives: DailyNarrative[];
   roomId: string;
+  userId: string;
   roomQuestionSet?: QuestionPayload[] | null;
   onComplete: (score: number, correctCount: number) => void;
   onExit: () => void;
@@ -885,6 +905,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
   const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
@@ -952,21 +973,27 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
     return () => { cancelled = true; };
   }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet]);
 
-  const handleAnswer = useCallback((answer: string | null) => {
+  const handleAnswer = useCallback(async (answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ]) return;
     const q = questions[currentQ];
-    const correct = isArenaAnswerCorrect(answer, q);
-    const nextScore = correct ? scoreRef.current + (q.is_bonus ? 2 : 1) : scoreRef.current;
-    const nextCorrectCount = correct ? correctCountRef.current + 1 : correctCountRef.current;
+    setSubmittingAnswer(true);
+    let result: { correct: boolean; totalFigs: number; correctCount: number };
+    try {
+      result = await submitArenaTriviaAnswer(roomId, userId, currentQ, answer);
+    } catch (error) {
+      console.error('Arena answer verification failed', error);
+      setSubmittingAnswer(false);
+      return;
+    }
+    const nextScore = result.totalFigs;
+    const nextCorrectCount = result.correctCount;
     setAnsweredIds((prev) => {
       const next = new Set(prev);
       next.add(currentQ);
       return next;
     });
-    if (correct) {
-      setScore(nextScore);
-      setCorrectCount(nextCorrectCount);
-    }
+    setScore(nextScore);
+    setCorrectCount(nextCorrectCount);
     const nextIndex = currentQ + 1;
     const currentRound = getArenaRoundForIndex(currentQ);
     if (nextIndex < questions.length && getArenaRoundForIndex(nextIndex) === currentRound) {
@@ -975,7 +1002,8 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
     } else if (nextIndex >= questions.length) {
       completeGame(nextScore, nextCorrectCount);
     }
-  }, [answeredIds, questions, currentQ, completeGame]);
+    setSubmittingAnswer(false);
+  }, [answeredIds, questions, currentQ, completeGame, roomId, userId]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -992,14 +1020,13 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
       if (remaining > 0) return;
       if (timerRef.current) clearInterval(timerRef.current);
       if (currentQ + 1 >= questions.length) {
-        completeGame();
+        void handleAnswer(null);
       } else {
-        setCurrentQ(currentQ + 1);
-        setTypedAnswer('');
+        void handleAnswer(null);
       }
     }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, questions, currentQ, answeredIds, completeGame]);
+  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer]);
 
   const moveToNextRound = () => {
     const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
@@ -1066,12 +1093,12 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
         {/* True/False */}
         {q.type === 'true_false' && (
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => handleAnswer('True')} disabled={isCurrentAnswered}
+            <button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer}
               className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-sage hover:bg-sage-soft text-sage')}>
               <CheckCircle2 size={24} className="mx-auto mb-1" /> True
             </button>
-            <button onClick={() => handleAnswer('False')} disabled={isCurrentAnswered}
+            <button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer}
               className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-coral hover:bg-coral-soft text-coral')}>
               <XCircle size={24} className="mx-auto mb-1" /> False
@@ -1084,7 +1111,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
           <div className="space-y-2">
             {q.options.map((opt, i) => {
               return (
-                <button key={i} onClick={() => handleAnswer(opt)} disabled={isCurrentAnswered}
+                <button key={i} onClick={() => void handleAnswer(opt)} disabled={isCurrentAnswered || submittingAnswer}
                   className={cn('w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
                     'border-border hover:border-gold text-ink')}>
                   {opt}
@@ -1103,13 +1130,13 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   const v = typedAnswer.trim();
-                  if (v) handleAnswer(v);
+                  if (v) void handleAnswer(v);
                 }
               }} />
             <button className="btn-primary w-full" onClick={() => {
               const v = typedAnswer.trim();
-              if (v) handleAnswer(v);
-            }} disabled={!typedAnswer.trim() || isCurrentAnswered}>Submit</button>
+              if (v) void handleAnswer(v);
+            }} disabled={!typedAnswer.trim() || isCurrentAnswered || submittingAnswer}>Submit</button>
           </div>
         )}
         {waitingForNextRound && (
