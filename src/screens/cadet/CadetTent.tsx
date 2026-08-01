@@ -4,9 +4,12 @@ import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
-import type { Tent, TentMember, Profile } from '../../lib/types';
+import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
-import { MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon } from 'lucide-react';
+import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import type { PanelImageSetting } from '../../lib/types';
+import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon } from 'lucide-react';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -34,6 +37,8 @@ export function CadetTent() {
   const [denariiMap, setDenariiMap] = useState<Record<string, number>>({});
   const [streakMap, setStreakMap] = useState<Record<string, number>>({});
   const [unreadBySender, setUnreadBySender] = useState<Record<string, number>>({});
+  const [tentAwards, setTentAwards] = useState<AwardWithRecipient[]>([]);
+  const [awardsImage, setAwardsImage] = useState<PanelImageSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
 
@@ -48,15 +53,19 @@ export function CadetTent() {
         return;
       }
 
-      const [tentResult, membersResult, reactionsResult, unreadResult] = await Promise.all([
+      const [tentResult, membersResult, reactionsResult, unreadResult, awardsResult, awardsImageResult] = await Promise.all([
         supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
         supabase.from('tent_members').select('*, profiles(*)').eq('tent_id', member.tent_id).order('joined_at'),
         supabase.from('tent_reactions').select('*').eq('tent_id', member.tent_id).order('created_at', { ascending: false }).limit(50),
         supabase.from('user_notifications').select('actor_id').eq('recipient_id', profile.id).is('read_at', null).eq('action_key', 'tent'),
+        fetchAwards(),
+        fetchPanelImageSetting('recent_awards'),
       ]);
       setTent(tentResult.data as any);
       setMembers((membersResult.data || []) as any);
       setReactions((reactionsResult.data || []) as any);
+      setTentAwards(awardsResult.filter((award) => award.award_target_type === 'tent' && award.award_target_id === member.tent_id));
+      setAwardsImage(awardsImageResult);
 
       const memberIds = (membersResult.data || []).map((m: any) => m.user_id);
       const [denariiResults, streakResults] = await Promise.all([
@@ -162,6 +171,39 @@ export function CadetTent() {
           <p className="text-xs text-stone text-center py-2">Your sentry hasn't added a WhatsApp number yet.</p>
         )}
       </div>
+
+      {/* Awards belong to the tent as a family. */}
+      <section className="card relative overflow-hidden border-gold/35">
+        <PanelImageBackdrop image={awardsImage} opacityFallback={34} veilClassName="bg-surface/76" />
+        <div className="relative border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Trophy size={18} className="text-gold" />
+            <div>
+              <h3 className="font-display text-base font-semibold text-ink">Our Family Trophies</h3>
+              <p className="text-xs text-stone">Awards won together by {tent.name}</p>
+            </div>
+          </div>
+        </div>
+        {tentAwards.length > 0 ? (
+          <div className="relative grid gap-3 p-4 sm:grid-cols-2">
+            {tentAwards.map((award) => (
+              <article key={award.id} className="flex items-center gap-3 rounded-lg border border-gold/30 bg-surface/80 p-3 backdrop-blur-sm">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold">
+                  <Trophy size={21} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink">{award.title}</p>
+                  <p className="text-xs text-stone">{award.award_month}</p>
+                  {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
+                </div>
+                <Award size={17} className="flex-shrink-0 text-gold" />
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="relative px-4 py-5 text-sm text-stone">The trophies your tent wins will remain here as part of its family history.</p>
+        )}
+      </section>
 
       {/* Tent members */}
       <SectionHeader title="Your Tent" subtitle="React to your sentry and tent mates" />
