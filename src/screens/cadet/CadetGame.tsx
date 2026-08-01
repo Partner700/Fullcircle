@@ -325,6 +325,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
   useEffect(() => {
     void setScenarioSound(`sound_game_level_${level}`);
+    void playSoundEffect('sound_game_start', 0.62);
     return () => { void setScenarioSound(null); };
   }, [level]);
 
@@ -398,7 +399,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (roundTimeout || passageIntroRound !== null) return;
+    if (showFeedback || roundTimeout || passageIntroRound !== null) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
@@ -414,7 +415,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
       });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [currentQ, passageIntroRound, questions, roundCorrect, roundTimeout]);
+  }, [currentQ, passageIntroRound, questions, roundCorrect, roundTimeout, showFeedback]);
 
   useEffect(() => {
     if (timeLeft > 0 && timeLeft <= 10 && !roundTimeout && passageIntroRound === null) {

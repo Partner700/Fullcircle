@@ -61,7 +61,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activePanelImages] = await Promise.allSettled([
         fetchNarrative(today),
         fetchDailyRecords(profile.id),
-        fetchLedgerEntries(profile.id),
+        fetchLedgerEntries(profile.id, 100),
         fetchGameAttempts(profile.id, today),
         fetchChallengeSubmission(profile.id, today),
         fetchStrictStreak(profile.id),
@@ -78,21 +78,30 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
       setQuotes(quoteFeed.status === 'fulfilled' ? quoteFeed.value : []);
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
-      if (quoteItems.length > 0) {
-        const reactions = await fetchDailyQuoteReactions(quoteItems, profile.id).catch(() => ({}));
-        setQuoteReactions(reactions as Record<string, QuoteReactionState>);
-      } else {
-        setQuoteReactions({});
-      }
-      if (activeNarrative?.verse_of_day) {
-        const reactions = await fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id).catch(() => ({}));
-        setVerseReactions(reactions as Record<string, QuoteReactionState>);
-      } else {
-        setVerseReactions({});
-      }
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
       setHeroIndex(0);
+      // Reactions enrich the slideshow, but they should never hold the entire
+      // dashboard behind a loading screen on a slow mobile connection.
+      setLoading(false);
+      const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
+        quoteItems.length > 0
+          ? fetchDailyQuoteReactions(quoteItems, profile.id)
+          : Promise.resolve({}),
+        activeNarrative?.verse_of_day
+          ? fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id)
+          : Promise.resolve({}),
+      ]);
+      setQuoteReactions(
+        quoteReactionResult.status === 'fulfilled'
+          ? quoteReactionResult.value as Record<string, QuoteReactionState>
+          : {},
+      );
+      setVerseReactions(
+        verseReactionResult.status === 'fulfilled'
+          ? verseReactionResult.value as Record<string, QuoteReactionState>
+          : {},
+      );
     } catch (e) { console.error('Dashboard load error:', e); }
     setLoading(false);
   }, [profile, today, refreshKey]);

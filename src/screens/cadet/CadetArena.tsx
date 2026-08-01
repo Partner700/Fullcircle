@@ -22,6 +22,7 @@ import {
   fetchPanelImageSetting,
 } from '../../lib/queries';
 import { generateLevelQuestionsWithCustom } from '../../lib/gameEngines';
+import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
@@ -64,6 +65,19 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set());
   const [cadetSearch, setCadetSearch] = useState('');
   const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
+  const previousSoundPhase = useRef<ArenaPhase | null>(null);
+
+  useEffect(() => {
+    void setScenarioSound(phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
+    if (phase === 'playing' && previousSoundPhase.current !== 'playing') {
+      void playSoundEffect('sound_arena_start', 0.68);
+    }
+    if (phase === 'finished' && previousSoundPhase.current !== 'finished') {
+      void playSoundEffect('sound_arena_finish', 0.68);
+    }
+    previousSoundPhase.current = phase;
+    return () => { void setScenarioSound(null); };
+  }, [phase]);
 
   useEffect(() => {
     if (!profile) return;
@@ -842,9 +856,14 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
   const isLudo = parseArenaGameType(roomName) === 'ludo';
+  const activeRoundIndex = getArenaRoundForIndex(currentQ);
 
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
+
+  useEffect(() => {
+    if (ready && questions.length > 0) void playSoundEffect('sound_arena_round', 0.62);
+  }, [activeRoundIndex, questions.length, ready]);
 
   const completeGame = useCallback((finalScore = scoreRef.current, finalCorrectCount = correctCountRef.current) => {
     if (completedRef.current) return;
@@ -937,6 +956,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
     if (timerRef.current) clearInterval(timerRef.current);
     const activeQuestion = questions[currentQ];
     if (!ready || !activeQuestion) return;
+    if (answeredIds.has(currentQ)) return;
 
     const seconds = getArenaQuestionSeconds(activeQuestion);
     const deadline = Date.now() + seconds * 1000;
@@ -954,9 +974,8 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
       }
     }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, questions, currentQ, completeGame]);
+  }, [ready, questions, currentQ, answeredIds, completeGame]);
 
-  const activeRoundIndex = getArenaRoundForIndex(currentQ);
   const moveToNextRound = () => {
     const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
       .slice(0, activeRoundIndex + 1)

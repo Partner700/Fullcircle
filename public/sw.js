@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v8';
+const CACHE_VERSION = 'full-circle-v9';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -146,11 +146,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Application code must always be fetched fresh. Falling back to a cached
-  // JavaScript/CSS chunk is what can leave a standalone app with an old login
-  // flow after a deploy. Images/icons can still be cached separately below.
+  // Vite gives application chunks content-hashed filenames. Reusing an already
+  // downloaded chunk is safe and makes installed-app reloads dramatically
+  // faster; new HTML automatically points at new filenames after a deployment.
   if (url.origin === self.location.origin && isStaticAsset(url)) {
-    event.respondWith(networkOnlyStaticAsset(request));
+    event.respondWith(cacheFirstStaticAsset(request));
     return;
   }
 
@@ -276,11 +276,13 @@ function isGoogleFont(url) {
 
 async function networkFirstNavigation(request) {
   const cache = await caches.open(RUNTIME_CACHE);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
     const networkResponse = await fetch(request, {
-      // Don't send credentials for same-origin navigations to avoid issues
       credentials: 'same-origin',
+      signal: controller.signal,
     });
 
     if (networkResponse.ok && networkResponse.type === 'basic') {
@@ -311,6 +313,8 @@ async function networkFirstNavigation(request) {
         }),
       },
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -348,12 +352,21 @@ function isValidStaticAssetResponse(request, response) {
   return true;
 }
 
-async function networkOnlyStaticAsset(request) {
+async function cacheFirstStaticAsset(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const cachedResponse = await cache.match(request);
+  if (cachedResponse && isValidStaticAssetResponse(request, cachedResponse)) {
+    return cachedResponse;
+  }
+
   try {
     const response = await fetch(request);
     // Some static hosts return index.html with a 200 status for a missing old
     // chunk. Never serve that HTML as JavaScript/CSS.
-    if (isValidStaticAssetResponse(request, response)) return response;
+    if (isValidStaticAssetResponse(request, response)) {
+      await cache.put(request, response.clone());
+      return response;
+    }
   } catch {
     // Return the controlled error below so the app never executes stale code.
   }
@@ -399,7 +412,7 @@ async function cacheFirstWithTTL(request, cacheName, ttl) {
       await cache.put(request, newResponse);
     }
     return response;
-  } catch {
+  } catch (error) {
     // If fetch fails, return expired cached version rather than nothing
     if (cachedResponse) return cachedResponse;
     throw error;

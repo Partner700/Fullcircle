@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, CheckCheck, CheckCircle2, Loader2, MessageCircle }
 import { useAuth } from '../context/AuthContext';
 import { fetchUserNotifications, markAllNotificationsRead, markNotificationRead } from '../lib/queries';
 import { supabase } from '../lib/supabase';
+import { playSoundEffect } from '../lib/soundscape';
 import type { UserNotification } from '../lib/types';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
@@ -58,7 +59,14 @@ export function NotificationCenter({ onNavigate }: Props) {
     const channel = supabase.channel(`notification_center_${profile.id}`).on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
-      (payload) => { if (payload.eventType === 'INSERT') void showDeviceNotification(payload.new as UserNotification); void load(); },
+      (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const notification = payload.new as UserNotification;
+          void showDeviceNotification(notification);
+          void playSoundEffect(notification.notification_type === 'message' ? 'sound_message' : 'sound_notification', 0.62);
+        }
+        void load();
+      },
     ).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [load, profile]);

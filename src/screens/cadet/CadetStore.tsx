@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
+import { playSoundEffect } from '../../lib/soundscape';
 import type { CampayPaymentResult } from '../../lib/queries';
 import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
@@ -94,6 +95,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const paymentConfirmed = paymentResult
     ? ['confirmed', 'successful', 'success', 'completed'].includes(String(paymentResult.status).toLowerCase())
     : false;
+
+  useEffect(() => {
+    if (!paymentResult?.status) return;
+    const status = String(paymentResult.status).toLowerCase();
+    if (['confirmed', 'successful', 'success', 'completed'].includes(status)) {
+      void playSoundEffect('sound_purchase_success', 0.68);
+    } else if (['rejected', 'failed', 'cancelled', 'expired'].includes(status)) {
+      void playSoundEffect('sound_purchase_failed', 0.68);
+    }
+  }, [paymentResult?.reference, paymentResult?.status]);
 
   const load = useCallback(async () => {
     if (!profile) return;

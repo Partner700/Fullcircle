@@ -279,64 +279,65 @@ export function CadetApp() {
         .eq('record_date', today)
         .maybeSingle();
 
-      const attendanceStatus = rec?.attendance_status || 'unmarked';
-      if (attendanceStatus === 'present') {
-        notifs.push({
-          id: `attendance-${today}`,
-          title: rec?.attendance_late ? 'Morning call marked late' : 'Morning call confirmed',
-          text: `Your sentry marked you present for morning call. +${formatDenarii(200)} Ð awarded.`,
-          type: 'success',
-          actionTab: 'dashboard',
-          actionLabel: 'Open Dashboard',
-        });
-      } else if (attendanceStatus === 'absent') {
-        notifs.push({
-          id: `attendance-absent-${today}`,
-          title: 'Morning call marked absent',
-          text: 'Your sentry marked you absent for today\'s morning call.',
-          type: 'warning',
-          actionTab: 'tent',
-          actionLabel: 'Open Tent',
-        });
-      } else {
-        notifs.push({
-          id: `attendance-unmarked-${today}`,
-          title: 'Morning call not marked yet',
-          text: 'Your sentry has not marked your morning call attendance yet.',
-          type: 'warning',
-          actionTab: 'tent',
-          actionLabel: 'Open Tent',
-        });
-      }
+      if (getDayType(new Date()) === 'weekday') {
+        const attendanceStatus = rec?.attendance_status || 'unmarked';
+        if (attendanceStatus === 'present') {
+          notifs.push({
+            id: `attendance-${today}`,
+            title: rec?.attendance_late ? 'Morning call marked late' : 'Morning call confirmed',
+            text: `Your sentry marked you present for morning call. +${formatDenarii(200)} Ð awarded.`,
+            type: 'success',
+            actionTab: 'dashboard',
+            actionLabel: 'Open Dashboard',
+          });
+        } else if (attendanceStatus === 'absent') {
+          notifs.push({
+            id: `attendance-absent-${today}`,
+            title: 'Morning call marked absent',
+            text: 'Your sentry marked you absent for today\'s morning call.',
+            type: 'warning',
+            actionTab: 'tent',
+            actionLabel: 'Open Tent',
+          });
+        } else {
+          notifs.push({
+            id: `attendance-unmarked-${today}`,
+            title: 'Morning call not marked yet',
+            text: 'Your sentry has not marked your morning call attendance yet.',
+            type: 'warning',
+            actionTab: 'tent',
+            actionLabel: 'Open Tent',
+          });
+        }
 
-      if (!rec?.meditation_submitted) {
-        notifs.push({
-          id: `devotion-${today}`,
-          title: 'Devotion pending',
-          text: 'Submit today\'s devotion to complete the second part of your streak.',
-          type: 'warning',
-          actionTab: 'narrative',
-          actionLabel: 'Open Reading',
-        });
-      }
-      if (rec?.meditation_submitted) {
-        notifs.push({
-          id: `devotion-done-${today}`,
-          title: 'Devotion submitted',
-          text: 'Today\'s devotion is in.',
-          type: 'success',
-          actionTab: 'dashboard',
-        });
-      }
-      if (attendanceStatus === 'present' && rec?.meditation_submitted) {
-        notifs.push({
-          id: `streak-complete-${today}`,
-          title: 'Streak day complete',
-          text: 'Morning call and devotion are both complete for today.',
-          type: 'success',
-          actionTab: 'dashboard',
-          actionLabel: 'Open Dashboard',
-        });
+        if (!rec?.meditation_submitted) {
+          notifs.push({
+            id: `devotion-${today}`,
+            title: 'Devotion pending',
+            text: 'Submit today\'s devotion to complete the second part of your streak.',
+            type: 'warning',
+            actionTab: 'narrative',
+            actionLabel: 'Open Reading',
+          });
+        } else {
+          notifs.push({
+            id: `devotion-done-${today}`,
+            title: 'Devotion submitted',
+            text: 'Today\'s devotion is in.',
+            type: 'success',
+            actionTab: 'dashboard',
+          });
+        }
+        if (attendanceStatus === 'present' && rec?.meditation_submitted) {
+          notifs.push({
+            id: `streak-complete-${today}`,
+            title: 'Streak day complete',
+            text: 'Morning call and devotion are both complete for today.',
+            type: 'success',
+            actionTab: 'dashboard',
+            actionLabel: 'Open Dashboard',
+          });
+        }
       }
     } catch {}
 
@@ -390,7 +391,7 @@ export function CadetApp() {
     } catch {}
 
     try {
-      const ledgerEntries = await fetchLedgerEntries(profile.id);
+      const ledgerEntries = await fetchLedgerEntries(profile.id, 60);
       ledgerEntries
         .filter((entry) => !persistedLedgerIds.has(entry.id))
         .filter((entry) => new Date(entry.created_at).getTime() >= Date.now() - 3 * 86400000)

@@ -267,12 +267,14 @@ export async function fetchQuizAnswerSheets(sessionId: string) {
   })[];
 }
 
-export async function fetchLedgerEntries(userId: string) {
-  const { data, error } = await supabase
+export async function fetchLedgerEntries(userId: string, limit?: number) {
+  let query = supabase
     .from('denarii_ledger_entries')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
+  if (limit && limit > 0) query = query.limit(limit);
+  const { data, error } = await query;
   if (error) throw error;
   return data as DenariiLedgerEntry[];
 }
