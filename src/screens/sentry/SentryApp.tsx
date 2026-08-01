@@ -11,10 +11,10 @@ import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote } from '../../lib/queries';
+import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
@@ -23,12 +23,13 @@ import { CadetStore } from '../cadet/CadetStore';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
-  Camera, ImagePlus, Quote, ShoppingBag, FileQuestion,
+  Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone,
 } from 'lucide-react';
 
 const CadetQuiz = lazy(() => import('../cadet/CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
+const CadetAwards = lazy(() => import('../cadet/CadetAwards').then((module) => ({ default: module.CadetAwards })));
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'quiz' | 'store' | 'settings';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'quiz' | 'awards' | 'store' | 'settings';
 
 type StrictStreakData = {
   current_streak: number;
@@ -45,6 +46,7 @@ const NAV_ITEMS = [
   { key: 'game', label: 'Daily Game', icon: GamepadIcon },
   { key: 'streak', label: 'My Streak', icon: Shield },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
+  { key: 'awards', label: 'Awards Hub', icon: Award },
   { key: 'store', label: 'Market', icon: ShoppingBag },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -52,7 +54,7 @@ const NAV_ITEMS = [
 function getInitialSentryTab(): Tab {
   if (typeof window === 'undefined') return 'overview';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'streak', 'quiz', 'store', 'settings'];
+  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'streak', 'quiz', 'awards', 'store', 'settings'];
   return tabs.includes(key as Tab) ? key as Tab : 'overview';
 }
 
@@ -89,6 +91,7 @@ export function SentryApp() {
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
+  const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
 
@@ -153,6 +156,7 @@ export function SentryApp() {
         setStrictStreaks({});
       }
       const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
+      setAnnouncements(await fetchAnnouncements(['all', 'cadets', 'sentries']).catch(() => []));
       setQuotes(quoteFeed);
       const sentryPanelImages = await fetchPanelImageSettings(['quote', 'sentry_overview'], ['all', 'sentries']).catch(() => ({}));
       setPanelImages(sentryPanelImages);
@@ -224,6 +228,7 @@ export function SentryApp() {
     game: 'Daily Game',
     streak: 'My Streak',
     quiz: 'Weekly Quiz',
+    awards: 'Awards Hub',
     store: 'The Market',
     settings: 'Settings',
   };
@@ -236,7 +241,7 @@ export function SentryApp() {
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
       rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
-        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', store: 'store', tent: 'cadets' };
+        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', awards: 'awards', store: 'store', tent: 'cadets' };
         if (destination[key]) setTab(destination[key]);
       }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
     >
@@ -256,6 +261,7 @@ export function SentryApp() {
           reactingQuote={reactingQuote}
           currentUserId={profile?.id || null}
           panelImages={panelImages}
+          announcements={announcements}
           onReactQuote={async (quote, reactionType) => {
             if (!profile) return;
             const key = `${quote.user_id}:${quote.record_date}`;
@@ -284,6 +290,11 @@ export function SentryApp() {
       {tab === 'quiz' && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
           <CadetQuiz onQuizSubmitted={load} />
+        </Suspense>
+      )}
+      {tab === 'awards' && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
+          <CadetAwards />
         </Suspense>
       )}
       {tab === 'store' && (
@@ -333,7 +344,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
+function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, announcements, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -347,6 +358,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   reactingQuote: string | null;
   currentUserId: string | null;
   panelImages: Record<string, PanelImageSetting>;
+  announcements: ScheduledAnnouncement[];
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onQuotePrev: () => void;
   onQuoteNext: () => void;
@@ -415,6 +427,23 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <StatCard icon={Sunrise} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
       </div>
 
+      {announcements.length > 0 && (
+        <section className="card overflow-hidden border-brass/25 bg-surface-2">
+          <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+            <Megaphone size={17} className="text-brass" />
+            <div><h3 className="font-display text-sm font-semibold text-ink">Weekly Announcements</h3><p className="text-[11px] text-stone">Shared updates for the whole community</p></div>
+          </div>
+          <div className="divide-y divide-border">
+            {announcements.slice(0, 4).map((announcement) => (
+              <article key={announcement.id} className="px-4 py-3">
+                <p className="text-xs font-semibold capitalize text-ink">{announcement.announcement_type?.replace(/_/g, ' ') || 'Announcement'}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone">{announcement.content}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       {quote && (
         <SentryQuoteSlideshow
           quote={quote}
@@ -474,7 +503,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <button onClick={() => onNavigate('attendance')} className="btn-primary">
           <ClipboardCheck size={18} /> Mark Attendance
         </button>
@@ -483,6 +512,9 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </button>
         <button onClick={() => onNavigate('quiz')} className={dayType === 'saturday' ? 'btn-primary' : 'btn-secondary'}>
           <FileQuestion size={18} /> {dayType === 'saturday' ? 'Take Weekly Quiz' : 'Weekly Quiz'}
+        </button>
+        <button onClick={() => onNavigate('awards')} className="btn-secondary">
+          <Award size={18} /> Awards Hub
         </button>
       </div>
     </div>
