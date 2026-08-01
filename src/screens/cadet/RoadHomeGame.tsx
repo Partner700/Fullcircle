@@ -21,6 +21,9 @@ type Props = {
 
 type Coordinate = readonly [number, number];
 type RoadHomeCommandError = Error & { state?: RoadHomeState | null };
+type RollOutcome = { value: number; message: string };
+
+const PAWN_STEP_MS = 170;
 
 function roadHomeError(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -105,23 +108,31 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const [typedAnswer, setTypedAnswer] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [showLog, setShowLog] = useState(false);
+  const [rollOutcome, setRollOutcome] = useState<RollOutcome | null>(null);
+  const [visualPawnProgress, setVisualPawnProgress] = useState<Record<string, number>>({});
+  const [movingPawnIds, setMovingPawnIds] = useState<Set<string>>(new Set());
   const timedOutVersion = useRef<number | null>(null);
   const finishedNotified = useRef(false);
+  const hasState = useRef(false);
+  const visualPawnProgressRef = useRef<Record<string, number>>({});
+  const pawnAnimationTimers = useRef<number[]>([]);
 
   const load = useCallback(async () => {
     try {
       const response = await fetchRoadHomeState(roomId);
       if (response.state) {
+        hasState.current = true;
         setState(response.state);
         setError(null);
       } else if (response.needsInitialization) {
         setInitializing(true);
         try { await prepareQuestions?.(); } catch { /* The server has a verified local question pool. */ }
         const initialized = await initializeRoadHome(roomId);
+        hasState.current = Boolean(initialized.state);
         setState(initialized.state);
       }
     } catch (loadError: unknown) {
-      setError(roadHomeError(loadError, 'The Road Home board could not load.'));
+      if (!hasState.current) setError(roadHomeError(loadError, 'The Road Home board could not load.'));
     } finally {
       setLoading(false);
       setInitializing(false);
@@ -136,7 +147,10 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       { event: '*', schema: 'public', table: 'arena_ludo_public_states', filter: `room_id=eq.${roomId}` },
       (payload) => {
         const snapshot = (payload.new as { public_state?: RoadHomeState })?.public_state;
-        if (snapshot) setState(snapshot);
+        if (snapshot) {
+          hasState.current = true;
+          setState(snapshot);
+        }
       },
     ).subscribe();
     const interval = window.setInterval(() => {
@@ -149,9 +163,31 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     if (!state || sending) return;
     setSending(true);
     setError(null);
+    if (action === 'ROLL') setRollOutcome(null);
     try {
       const response = await sendRoadHomeCommand(roomId, action, payload, state.version);
-      if (response.state) setState(response.state);
+      if (response.state) {
+        hasState.current = true;
+        setState(response.state);
+        if (action === 'ROLL') {
+          const events = response.state.eventLog;
+          let rollIndex = -1;
+          for (let index = events.length - 1; index >= 0; index -= 1) {
+            if (events[index].type === 'DICE_ROLLED' && events[index].playerId === userId) {
+              rollIndex = index;
+              break;
+            }
+          }
+          if (rollIndex >= 0) {
+            const rollEvent = events[rollIndex];
+            const value = Number(rollEvent.message.match(/rolled\s+(\d+)/i)?.[1] || 0);
+            const noMove = events.slice(rollIndex + 1).find((event) => event.type === 'NO_LEGAL_MOVE' && event.playerId === userId);
+            if (noMove) {
+              setRollOutcome({ value, message: `${rollEvent.message} A 6 is needed to deploy a pawn from base.` });
+            }
+          }
+        }
+      }
       setTypedAnswer('');
     } catch (commandError: unknown) {
       const typedError = commandError as RoadHomeCommandError;
@@ -162,12 +198,68 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     } finally {
       setSending(false);
     }
-  }, [load, roomId, sending, state]);
+  }, [load, roomId, sending, state, userId]);
 
   const activePlayer = state?.players[state.activePlayerIndex] || null;
   const myTurn = activePlayer?.id === userId;
   const me = state?.players.find((player) => player.id === userId) || null;
   const activeChallenge = state?.challengeQueue.find((challenge) => challenge.id === state.activeChallengeId) || null;
+  const latestMoveEvent = useMemo(() => state ? [...state.eventLog].reverse().find((event) => [
+    'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED', 'PAWN_RELEASED',
+  ].includes(event.type)) || null : null, [state]);
+
+  useEffect(() => {
+    if (!state) return;
+    pawnAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
+    pawnAnimationTimers.current = [];
+
+    const targets = Object.fromEntries(state.players.flatMap((player) => player.pawns.map((pawn) => [pawn.id, pawn.progress])));
+    if (Object.keys(visualPawnProgressRef.current).length === 0) {
+      visualPawnProgressRef.current = targets;
+      setVisualPawnProgress(targets);
+      return;
+    }
+
+    const changes = Object.entries(targets).map(([pawnId, target]) => ({
+      pawnId,
+      from: visualPawnProgressRef.current[pawnId] ?? target,
+      target,
+    })).filter((change) => change.from !== change.target);
+    if (changes.length === 0) return;
+
+    const moving = new Set(changes.map((change) => change.pawnId));
+    setMovingPawnIds(moving);
+    const forwardChanges = changes.filter((change) => change.target > change.from && change.target - change.from <= 12);
+    const longestForwardMove = Math.max(0, ...forwardChanges.map((change) => change.target - change.from));
+    const settleDelay = Math.max(PAWN_STEP_MS, (longestForwardMove + 1) * PAWN_STEP_MS);
+
+    const schedule = (callback: () => void, delay: number) => {
+      const timer = window.setTimeout(callback, delay);
+      pawnAnimationTimers.current.push(timer);
+    };
+    const updateVisualProgress = (pawnId: string, progress: number) => {
+      visualPawnProgressRef.current = { ...visualPawnProgressRef.current, [pawnId]: progress };
+      setVisualPawnProgress((current) => ({ ...current, [pawnId]: progress }));
+    };
+
+    changes.forEach((change) => {
+      const forwardDistance = change.target - change.from;
+      if (forwardDistance > 0 && forwardDistance <= 12) {
+        for (let step = 1; step <= forwardDistance; step += 1) {
+          schedule(() => updateVisualProgress(change.pawnId, change.from + step), step * PAWN_STEP_MS);
+        }
+      } else {
+        // Captured pawns return to base after the attacking pawn finishes hopping.
+        schedule(() => updateVisualProgress(change.pawnId, change.target), settleDelay);
+      }
+    });
+    schedule(() => setMovingPawnIds(new Set()), settleDelay + PAWN_STEP_MS);
+
+    return () => {
+      pawnAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
+      pawnAnimationTimers.current = [];
+    };
+  }, [state]);
 
   useEffect(() => {
     if (!state?.questionDeadline || state.phase !== 'QUESTION') { setSecondsLeft(0); return; }
@@ -224,8 +316,14 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <PlayerStrip state={state} userId={userId} />
+          {latestMoveEvent && (
+            <div key={latestMoveEvent.id} className="flex items-center gap-2 rounded-lg border border-gold/30 bg-surface/92 px-3 py-2 text-xs text-stone animate-fade-in" aria-live="polite">
+              <Sparkles size={14} className="flex-shrink-0 text-gold" />
+              <span><strong className="text-ink">Latest move:</strong> {latestMoveEvent.message}</span>
+            </div>
+          )}
           <div className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
-            <RoadHomeBoard state={state} userId={userId} sending={sending} onMove={(pawnId) => void send('MOVE', { pawnId })} />
+            <RoadHomeBoard state={state} userId={userId} sending={sending} visualPawnProgress={visualPawnProgress} movingPawnIds={movingPawnIds} onMove={(pawnId) => void send('MOVE', { pawnId })} />
           </div>
         </div>
 
@@ -247,6 +345,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
               typedAnswer={typedAnswer}
               setTypedAnswer={setTypedAnswer}
               sending={sending}
+              rollOutcome={rollOutcome}
               send={send}
             />
           ) : (
@@ -279,15 +378,25 @@ function PlayerStrip({ state, userId }: { state: RoadHomeState; userId: string }
   })}</div>;
 }
 
-function RoadHomeBoard({ state, userId, sending, onMove }: { state: RoadHomeState; userId: string; sending: boolean; onMove: (pawnId: string) => void }) {
+function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnIds, onMove }: {
+  state: RoadHomeState;
+  userId: string;
+  sending: boolean;
+  visualPawnProgress: Record<string, number>;
+  movingPawnIds: Set<string>;
+  onMove: (pawnId: string) => void;
+}) {
   const tokenMap = useMemo(() => {
     const map = new Map<string, { player: RoadHomePlayer; pawn: RoadHomePawn; playerIndex: number }[]>();
     state.players.forEach((player, playerIndex) => player.pawns.forEach((pawn) => {
-      const coordinate = pawnCoordinate(player, playerIndex, pawn);
+      const coordinate = pawnCoordinate(player, playerIndex, {
+        ...pawn,
+        progress: visualPawnProgress[pawn.id] ?? pawn.progress,
+      });
       map.set(key(coordinate), [...(map.get(key(coordinate)) || []), { player, pawn, playerIndex }]);
     }));
     return map;
-  }, [state.players]);
+  }, [state.players, visualPawnProgress]);
 
   const trackByKey = useMemo(() => new Map(TRACK.map((coordinate, index) => [key(coordinate), index])), []);
   const laneByKey = useMemo(() => new Map(HOME_LANES.flatMap((lane, playerIndex) => lane.map((coordinate) => [key(coordinate), playerIndex] as const))), []);
@@ -323,6 +432,7 @@ function RoadHomeBoard({ state, userId, sending, onMove }: { state: RoadHomeStat
           tokens.length > 2 && tokenIndex === 2 && 'translate-x-[18%] -translate-y-[18%]',
           tokens.length > 3 && tokenIndex === 3 && '-translate-x-[18%] translate-y-[18%]',
           legal && 'animate-pulse cursor-pointer ring-2 ring-white ring-offset-1 ring-offset-gold hover:scale-110',
+          movingPawnIds.has(pawn.id) && 'z-20 animate-bounce ring-2 ring-white/80',
         )}>{pawn.prisonRounds ? <LockKeyhole size={10} /> : pawn.number}</button>;
       })}
     </div>;
@@ -336,7 +446,7 @@ function Dice({ value }: { value: number }) {
 
 type SendCommand = (action: string, payload?: Record<string, unknown>) => Promise<void>;
 
-function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTypedAnswer, sending, send }: {
+function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTypedAnswer, sending, rollOutcome, send }: {
   state: RoadHomeState;
   me: RoadHomePlayer;
   challenge: RoadHomeState['challengeQueue'][number] | null;
@@ -344,9 +454,10 @@ function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTyped
   typedAnswer: string;
   setTypedAnswer: (value: string) => void;
   sending: boolean;
+  rollOutcome: RollOutcome | null;
   send: SendCommand;
 }) {
-  if (state.phase === 'AWAITING_ROLL') return <div className="rounded-lg border border-gold/40 bg-surface/95 p-4 text-center"><Dices size={34} className="mx-auto text-gold" /><p className="mt-2 text-sm font-bold text-ink">Your road is waiting</p><p className="mt-1 text-xs text-stone">A 6 can deploy a pawn. Every legal roll must be earned with a Bible answer.</p><button onClick={() => void send('ROLL')} disabled={sending} className="btn-primary mt-4 w-full py-3">{sending ? <Loader2 size={17} className="animate-spin" /> : <Dices size={17} />} Roll</button></div>;
+  if (state.phase === 'AWAITING_ROLL') return <div className="rounded-lg border border-gold/40 bg-surface/95 p-4 text-center">{rollOutcome ? <div className="mb-4 animate-scale-in rounded-lg border border-gold/35 bg-gold-soft p-3"><div className="flex justify-center"><Dice value={rollOutcome.value} /></div><p className="mt-2 text-sm font-bold text-ink">{rollOutcome.message}</p><p className="mt-1 text-[11px] text-stone">No move was available, so the turn passed normally.</p></div> : <><Dices size={34} className="mx-auto text-gold" /><p className="mt-2 text-sm font-bold text-ink">Your road is waiting</p><p className="mt-1 text-xs text-stone">A 6 can deploy a pawn. Every legal roll must be earned with a Bible answer.</p></>}<button onClick={() => void send('ROLL')} disabled={sending} className="btn-primary mt-4 w-full py-3">{sending ? <Loader2 size={17} className="animate-spin" /> : <Dices size={17} />} {rollOutcome ? 'Roll Again' : 'Roll'}</button></div>;
 
   if (state.phase === 'INHERITED_OFFER' && challenge) return <div className="rounded-lg border border-royal/45 bg-royal/10 p-4"><p className="eyebrow text-royal">Inherited Challenge</p><h3 className="mt-1 text-lg font-bold text-ink">Move value: {challenge.rolledValue}</h3><p className="mt-2 text-xs leading-relaxed text-stone">Accept and answer for +20D and the inherited move. A wrong answer costs up to 20D, but you still keep your normal roll. Declining forfeits this turn.</p><div className="mt-4 grid grid-cols-2 gap-2"><button disabled={sending} onClick={() => void send('CHALLENGE_DECISION', { decision: 'accept' })} className="btn-primary text-xs">Accept</button><button disabled={sending} onClick={() => void send('CHALLENGE_DECISION', { decision: 'decline' })} className="btn-secondary text-xs text-coral">Decline Turn</button></div></div>;
 

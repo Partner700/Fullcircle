@@ -163,6 +163,8 @@ export interface QuizSession {
   quiz_type: 'saturday' | 'fortune';
   reward_perfect: number;
   reward_partial: number;
+  relaunch_of_id?: string | null;
+  relaunch_ready?: boolean;
 }
 
 export interface GeneratedQuestion {
