@@ -6,7 +6,7 @@ import { LogOut, Sun, Moon, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
-import { isSoundscapeEnabled, playInterfaceTone, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, type SoundMood } from '../lib/soundscape';
+import { isSoundscapeEnabled, isSoundscapePlaying, playInterfaceTone, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, subscribeToSoundscape, type SoundMood } from '../lib/soundscape';
 
 type Theme = 'night' | 'day';
 
@@ -49,6 +49,11 @@ function ThemeToggle() {
 
 function SoundToggle() {
   const [enabled, setEnabled] = useState(() => isSoundscapeEnabled());
+  const [playing, setPlaying] = useState(() => isSoundscapePlaying());
+  useEffect(() => subscribeToSoundscape((state) => {
+    setEnabled(state.enabled);
+    setPlaying(state.playing);
+  }), []);
   const toggle = async () => {
     const next = !enabled;
     await setSoundscapeEnabled(next);
@@ -57,12 +62,17 @@ function SoundToggle() {
   return (
     <button
       onClick={toggle}
-      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:text-peri"
+      className="inline-flex h-9 min-w-9 flex-shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-navy-3 px-2 text-peri-dim transition-all hover:border-border-bright hover:text-peri"
       title={enabled ? 'Turn sounds off' : 'Turn sounds on'}
       aria-label={enabled ? 'Turn sounds off' : 'Turn sounds on'}
       aria-pressed={enabled}
     >
       {enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+      {enabled && (
+        <span className={cn('sound-meter', playing && 'is-playing')} aria-hidden="true">
+          <span /><span /><span /><span />
+        </span>
+      )}
     </button>
   );
 }

@@ -16,6 +16,7 @@ const assetCache = new Map<string, SoundAsset | null>();
 let soundAudience: string | null = null;
 const DASHBOARD_VOLUME = 0.22;
 const DASHBOARD_FADE_MS = 850;
+const SOUND_STATE_EVENT = 'full-circle-sound-state';
 
 const moodSoundSlots: Partial<Record<SoundMood, string>> = {
   reading: 'sound_reading',
@@ -43,6 +44,28 @@ function getAudioContext() {
 
 export function isSoundscapeEnabled() {
   return typeof window !== 'undefined' && localStorage.getItem(SOUND_ENABLED_KEY) === 'true';
+}
+
+export function isSoundscapePlaying() {
+  return Boolean(
+    isSoundscapeEnabled()
+    && ((dashboardAudio && !dashboardAudio.paused) || (scenarioAudio && !scenarioAudio.paused)),
+  );
+}
+
+function emitSoundState() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SOUND_STATE_EVENT, {
+    detail: { enabled: isSoundscapeEnabled(), playing: isSoundscapePlaying() },
+  }));
+}
+
+export function subscribeToSoundscape(listener: (state: { enabled: boolean; playing: boolean }) => void) {
+  if (typeof window === 'undefined') return () => undefined;
+  const handle = (event: Event) => listener((event as CustomEvent<{ enabled: boolean; playing: boolean }>).detail);
+  window.addEventListener(SOUND_STATE_EVENT, handle);
+  listener({ enabled: isSoundscapeEnabled(), playing: isSoundscapePlaying() });
+  return () => window.removeEventListener(SOUND_STATE_EVENT, handle);
 }
 
 async function getSoundAsset(type: string): Promise<SoundAsset | null> {
@@ -128,6 +151,7 @@ async function stopDashboardSound() {
     audio.volume = 0;
   });
   dashboardLoops.clear();
+  emitSoundState();
 }
 
 async function stopScenarioSound() {
@@ -138,6 +162,7 @@ async function stopScenarioSound() {
     audio.volume = 0;
   });
   scenarioLoops.clear();
+  emitSoundState();
 }
 
 async function syncDashboardSound() {
@@ -169,9 +194,11 @@ async function syncDashboardSound() {
       return;
     }
     void fadeVolume(audio, DASHBOARD_VOLUME);
+    emitSoundState();
   } catch {
     dashboardLoops.delete(audio);
     if (dashboardAudio === audio) dashboardAudio = null;
+    emitSoundState();
   }
 }
 
@@ -191,6 +218,7 @@ export async function setSoundscapeEnabled(enabled: boolean) {
   } else {
     await Promise.all([stopDashboardSound(), stopScenarioSound()]);
   }
+  emitSoundState();
 }
 
 export async function setSoundscapeMood(mood: SoundMood) {
@@ -232,9 +260,11 @@ export async function setScenarioSound(type: string | null) {
       return;
     }
     void fadeVolume(audio, 0.2);
+    emitSoundState();
   } catch {
     scenarioLoops.delete(audio);
     if (scenarioAudio === audio) scenarioAudio = null;
+    emitSoundState();
   }
 }
 

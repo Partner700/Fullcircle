@@ -354,3 +354,40 @@
 ::-webkit-scrollbar-track { background: var(--color-navy); }
 ::-webkit-scrollbar-thumb { background: var(--color-navy-4); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-peri-dim); }
+@keyframes sound-meter-pulse {
+  0%, 100% { transform: scaleY(0.28); }
+  45% { transform: scaleY(1); }
+  70% { transform: scaleY(0.55); }
+}
+
+.sound-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  width: 16px;
+  height: 14px;
+}
+
+.sound-meter > span {
+  width: 2px;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.38;
+  transform: scaleY(0.18);
+  transform-origin: center;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.sound-meter.is-playing > span {
+  opacity: 0.95;
+  animation: sound-meter-pulse 760ms ease-in-out infinite;
+}
+
+.sound-meter.is-playing > span:nth-child(2) { animation-duration: 540ms; animation-delay: -180ms; }
+.sound-meter.is-playing > span:nth-child(3) { animation-duration: 920ms; animation-delay: -360ms; }
+.sound-meter.is-playing > span:nth-child(4) { animation-duration: 640ms; animation-delay: -90ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sound-meter.is-playing > span { animation: none; transform: scaleY(0.62); }
+}

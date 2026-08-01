@@ -83,6 +83,7 @@ export type RoadHomePlayer = {
   colour: string;
   startOffset: number;
   isBot: boolean;
+  forfeited?: boolean;
   denarii: number;
   pawns: RoadHomePawn[];
   relics: string[];
@@ -164,7 +165,8 @@ export type RoadHomeCommand =
   | { action: 'CHALLENGE_DECISION'; decision: 'accept' | 'decline' }
   | { action: 'PRISON_ACTION'; pawnId: string; decision: 'question' | 'pay' | 'serve' }
   | { action: 'ACK_SURPRISE' }
-  | { action: 'USE_RELIC'; relic: string; pawnId?: string };
+  | { action: 'USE_RELIC'; relic: string; pawnId?: string }
+  | { action: 'FORFEIT' };
 
 type RandomFn = () => number;
 
@@ -409,7 +411,7 @@ function advanceTurn(state: RoadHomeState) {
   do {
     state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
     attempts += 1;
-  } while (activePlayer(state).finishedRank && attempts <= state.players.length);
+  } while ((activePlayer(state).finishedRank || activePlayer(state).forfeited) && attempts <= state.players.length);
   state.turnNumber += 1;
   state.bonusRollsUsed = 0;
   state.activeChallengeId = null;
@@ -423,7 +425,7 @@ function createChallenge(state: RoadHomeState, question: RoadHomeQuestion, value
     question: { ...question, options: question.options ? [...question.options] : undefined },
     rolledValue: value,
     originPlayerId: origin.id,
-    eligiblePlayerIds: state.players.filter((player) => player.id !== origin.id && !player.finishedRank).map((player) => player.id),
+    eligiblePlayerIds: state.players.filter((player) => player.id !== origin.id && !player.finishedRank && !player.forfeited).map((player) => player.id),
     attemptedPlayerIds: [],
     declinedPlayerIds: [],
     createdTurnNumber: state.turnNumber,
@@ -443,7 +445,7 @@ function finishGameIfReady(state: RoadHomeState, player: RoadHomePlayer) {
     }
     addEvent(state, 'PLAYER_FINISHED', `${player.name} finished in position ${player.finishedRank}.`, player.id);
   }
-  const unfinished = state.players.filter((item) => !item.finishedRank);
+  const unfinished = state.players.filter((item) => !item.finishedRank && !item.forfeited);
   if (unfinished.length <= 1) {
     if (unfinished[0]) {
       unfinished[0].finishedRank = state.rankings.length + 1;
@@ -454,6 +456,51 @@ function finishGameIfReady(state: RoadHomeState, player: RoadHomePlayer) {
     return true;
   }
   return false;
+}
+
+export function forfeitRoadHomePlayer(stateInput: RoadHomeState, playerId: string) {
+  const state = structuredClone(stateInput) as RoadHomeState;
+  if (state.phase === 'GAME_OVER') return state;
+  const playerIndex = state.players.findIndex((player) => player.id === playerId);
+  if (playerIndex < 0) throw new Error('That player is not in this Road Home match.');
+  const player = state.players[playerIndex];
+  if (player.isBot) throw new Error('The machine cannot forfeit this match.');
+  if (player.forfeited) return state;
+
+  const wasActive = state.activePlayerIndex === playerIndex;
+  player.forfeited = true;
+  state.challengeQueue.forEach((challenge) => {
+    challenge.eligiblePlayerIds = challenge.eligiblePlayerIds.filter((id) => id !== playerId);
+  });
+  addEvent(state, 'PLAYER_FORFEITED', `${player.name} forfeited The Road Home.`, player.id);
+
+  const contenders = state.players.filter((candidate) => !candidate.forfeited && !candidate.isBot);
+  const activeContenders = state.players.filter((candidate) => !candidate.forfeited);
+  if (contenders.length <= 1 && activeContenders.length <= 2) {
+    const winner = activeContenders.find((candidate) => !candidate.isBot) || activeContenders[0] || null;
+    state.winnerId = winner?.id || null;
+    if (winner && !state.rankings.includes(winner.id)) {
+      winner.finishedRank = 1;
+      state.rankings.unshift(winner.id);
+    }
+    state.phase = 'GAME_OVER';
+    state.currentQuestion = null;
+    state.questionDeadline = null;
+    state.legalPawnIds = [];
+    addEvent(state, 'GAME_ENDED', winner ? `${winner.name} won after the opposing player forfeited.` : 'The match ended by forfeiture.');
+  } else if (wasActive) {
+    state.currentQuestion = null;
+    state.questionPurpose = null;
+    state.questionDeadline = null;
+    state.legalPawnIds = [];
+    state.pendingMoveValue = null;
+    state.pendingSurprise = null;
+    advanceTurn(state);
+  }
+
+  state.updatedAt = nowIso();
+  state.version += 1;
+  return state;
 }
 
 function drawPrisonSentence(random: RandomFn) {
@@ -666,6 +713,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
       colour: ROAD_HOME_CONFIG.colours[playerIndex],
       startOffset: ROAD_HOME_CONFIG.startOffsets[playerIndex],
       isBot: Boolean(participant.isBot),
+      forfeited: false,
       denarii: ROAD_HOME_CONFIG.startingDenarii,
       relics: [],
       finishedRank: null,
@@ -698,6 +746,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
 }
 
 export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random) {
+  if (command.action === 'FORFEIT') return forfeitRoadHomePlayer(stateInput, actorId);
   const state = structuredClone(stateInput) as RoadHomeState;
   const questions = normalizeQuestions(questionsInput);
   const player = activePlayer(state);

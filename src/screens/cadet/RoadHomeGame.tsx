@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign, Clock, Crown, Dices, Gift, History, Loader2,
-  LockKeyhole, RotateCw, Shield, Sparkles, Trophy, Users, X,
+  Flag, LockKeyhole, RotateCw, Shield, Sparkles, Trophy, Users, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
@@ -164,7 +164,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [load, roomId]);
 
   const send = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
-    if (!state || sending) return;
+    if (!state || sending) return false;
     setSending(true);
     setError(null);
     if (action === 'ROLL') setRollOutcome(null);
@@ -193,12 +193,14 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
         }
       }
       setTypedAnswer('');
+      return true;
     } catch (commandError: unknown) {
       const typedError = commandError as RoadHomeCommandError;
       if (typedError.state) setState(typedError.state);
       const message = roadHomeError(commandError, 'That move could not be completed.');
       setError(message);
       if (/changed on another device|advanced/i.test(message)) window.setTimeout(() => void load(), 350);
+      return false;
     } finally {
       setSending(false);
     }
@@ -208,6 +210,14 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const myTurn = activePlayer?.id === userId;
   const me = state?.players.find((player) => player.id === userId) || null;
   const activeChallenge = state?.challengeQueue.find((challenge) => challenge.id === state.activeChallengeId) || null;
+
+  const forfeitMatch = async () => {
+    if (!window.confirm('Forfeit The Road Home? Your stake remains in the prize pool and this cannot be undone.')) return;
+    const forfeited = await send('FORFEIT');
+    if (!forfeited) return;
+    await onStateChanged?.();
+    onExit();
+  };
   const latestMoveEvent = useMemo(() => state ? [...state.eventLog].reverse().find((event) => [
     'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED', 'PAWN_RELEASED',
   ].includes(event.type)) || null : null, [state]);
@@ -340,7 +350,11 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><p className="eyebrow">Full Circle: The Road Home</p><h2 className="truncate font-display text-xl font-bold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2></div>
-        <div className="flex items-center gap-2"><button onClick={() => setShowLog((value) => !value)} className="btn-secondary px-3 py-2 text-xs"><History size={14} /> Events</button><button onClick={onExit} className="btn-ghost h-9 w-9 p-0" title="Leave this view"><X size={17} /></button></div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowLog((value) => !value)} className="btn-secondary px-3 py-2 text-xs"><History size={14} /> Events</button>
+          <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>
+          <button onClick={onExit} className="btn-ghost h-9 w-9 p-0" title="Leave this view"><X size={17} /></button>
+        </div>
       </div>
 
       {error && <div className="flex items-center justify-between gap-3 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-xs text-coral"><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button></div>}
@@ -503,7 +517,7 @@ function OpponentTurnPanel({ state, activity }: { state: RoadHomeState; activity
   </div>;
 }
 
-type SendCommand = (action: string, payload?: Record<string, unknown>) => Promise<void>;
+type SendCommand = (action: string, payload?: Record<string, unknown>) => Promise<boolean>;
 
 function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTypedAnswer, sending, rollOutcome, send }: {
   state: RoadHomeState;

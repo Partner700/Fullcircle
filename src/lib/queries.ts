@@ -1294,6 +1294,23 @@ export async function closeArenaRoom(roomId: string, userId: string) {
   if (error) throw error;
 }
 
+export async function heartbeatArenaParticipant(roomId: string, userId: string) {
+  const { data, error } = await supabase.rpc('heartbeat_arena_participant', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function forfeitArenaGame(roomId: string, userId: string) {
+  const { error } = await supabase.rpc('forfeit_arena_game', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw error;
+}
+
 export async function finishArenaGame(roomId: string, userId: string, score: number, correctCount: number) {
   const { error } = await supabase.rpc('finish_arena_game', {
     p_room_id: roomId, p_user_id: userId, p_score: score, p_correct_count: correctCount,

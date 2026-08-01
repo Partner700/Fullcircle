@@ -36,6 +36,7 @@ export type RoadHomePlayer = {
   colour: string;
   startOffset: number;
   isBot: boolean;
+  forfeited?: boolean;
   denarii: number;
   pawns: RoadHomePawn[];
   relics: string[];

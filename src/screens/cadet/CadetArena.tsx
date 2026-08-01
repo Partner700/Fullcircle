@@ -12,6 +12,8 @@ import {
   joinArenaRoom,
   startArenaRoom,
   closeArenaRoom,
+  forfeitArenaGame,
+  heartbeatArenaParticipant,
   finishArenaGame,
   submitArenaTriviaAnswer,
   fetchArenaRoomMessages,
@@ -29,7 +31,7 @@ import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import {
-  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send,
+  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -61,6 +63,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [creating, setCreating] = useState(false);
   const [starting, setStarting] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [forfeiting, setForfeiting] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allCadets, setAllCadets] = useState<InviteCadet[]>([]);
@@ -157,6 +160,30 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   }, [activeRoomId, load]);
 
   useEffect(() => {
+    if (!profile || !activeRoomId || phase !== 'playing') return;
+    let cancelled = false;
+    const heartbeat = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const active = await heartbeatArenaParticipant(activeRoomId, profile.id);
+        if (!active && !cancelled) {
+          setError('You were away from this Arena match for three minutes and forfeited your place.');
+          clearActiveRoom(true);
+        }
+      } catch { /* Realtime room state handles matches that have just completed. */ }
+    };
+    void heartbeat();
+    const interval = window.setInterval(() => { void heartbeat(); }, 20_000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void heartbeat(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [activeRoomId, clearActiveRoom, phase, profile]);
+
+  useEffect(() => {
     if (!activeRoomId) return;
     const room = rooms.find((r) => r.id === activeRoomId);
     if (!room) {
@@ -179,8 +206,15 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       setError(room.status === 'expired' ? 'That arena room expired.' : 'That arena room was closed by the host.');
       clearActiveRoom(false);
     }
+    const myParticipant = (room.arena_participants || []).find((participant: any) => participant.user_id === profile?.id);
+    if (myParticipant?.forfeited_at && room.status === 'playing') {
+      setError(myParticipant.forfeit_reason === 'inactive'
+        ? 'You were away from this Arena match for three minutes and forfeited your place.'
+        : 'You forfeited this Arena match.');
+      clearActiveRoom(true);
+    }
     if (room.status === 'completed') {
-      if (parseArenaGameType(room.room_name || '') === 'ludo') {
+      if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
       } else if (phase !== 'finished') {
         setPhase('finished');
@@ -189,12 +223,30 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
   }, [activeRoomId, phase, rooms, profile]);
 
+  const forfeitStandardMatch = async () => {
+    if (!profile || !activeRoomId || forfeiting) return;
+    if (!window.confirm('Forfeit this Arena match? Your stake remains in the prize pool and this cannot be undone.')) return;
+    setForfeiting(true);
+    try {
+      await forfeitArenaGame(activeRoomId, profile.id);
+      setError('You forfeited the Arena match.');
+      clearActiveRoom(true);
+      await load();
+      await onBalanceChanged?.();
+    } catch (forfeitError: any) {
+      setError(forfeitError.message || 'The match could not be forfeited.');
+    }
+    setForfeiting(false);
+  };
+
   // A player who has joined a live room must enter it on their own device.
   // This keeps every real player responsible for their own turns in Ludo.
   useEffect(() => {
     if (!profile || activeRoomId) return;
     const liveRoom = rooms.find((room) => room.status === 'playing'
-      && (room.arena_participants || []).some((participant: any) => participant.user_id === profile.id));
+      && (room.arena_participants || []).some((participant: any) => (
+        participant.user_id === profile.id && !participant.forfeited_at
+      )));
     if (liveRoom) activateRoom(liveRoom.id, 'playing');
   }, [activeRoomId, activateRoom, profile, rooms]);
 
@@ -325,6 +377,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           await load();
           await onBalanceChanged?.();
         }}
+        onForfeit={forfeitStandardMatch}
+        forfeiting={forfeiting}
         onExit={() => clearActiveRoom(true)}
       />
     );
@@ -344,7 +398,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             {winner ? 'You Won!' : 'Game Over'}
           </h2>
           <p className="text-stone text-sm mb-4">
-            {winner ? `You won ${formatDenarii((room?.stake_amount || 0) * (room?.arena_participants?.length || 1) * 10)} Ð (ten times the total stake).` : 'Better luck next time!'}
+            {winner ? `You won ${formatDenarii((room?.stake_amount || 0) * (room?.arena_participants?.length || 1) * 10)} Ð (ten times the total stake).` : room?.completion_reason === 'forfeit' ? 'The match ended by forfeiture.' : 'Better luck next time!'}
           </p>
           <button onClick={() => clearActiveRoom(true)} className="btn-primary w-full">
             Back to Arena
@@ -888,7 +942,7 @@ function buildFallbackArenaQuestions(): QuestionPayload[] {
   }));
 }
 
-function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onExit }: {
+function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit }: {
   narrativeDate: string;
   roomName: string;
   narratives: DailyNarrative[];
@@ -896,6 +950,8 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   userId: string;
   roomQuestionSet?: QuestionPayload[] | null;
   onComplete: (score: number, correctCount: number) => void;
+  onForfeit: () => void;
+  forfeiting: boolean;
   onExit: () => void;
 }) {
   const [questions, setQuestions] = useState<QuestionPayload[]>([]);
@@ -1061,8 +1117,10 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
-      <div className="flex items-center justify-between">
-        <button onClick={onExit} className="btn-ghost text-sm">← Exit</button>
+      <div className="flex items-center justify-between gap-2">
+        <button onClick={onForfeit} disabled={forfeiting} className="btn-ghost text-sm text-coral disabled:opacity-50">
+          {forfeiting ? <Loader2 size={14} className="animate-spin" /> : <Flag size={14} />} Forfeit
+        </button>
         <span className="badge badge-gold"><Zap size={12} /> Arena Battle</span>
         <div className={cn(
           'px-3 py-1.5 rounded-lg font-display font-semibold text-sm flex items-center gap-1.5',

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   applyRoadHomeCommand,
   createRoadHomeGame,
+  forfeitRoadHomePlayer,
   normalizeQuestions,
   publicRoadHomeState,
   runRoadHomeBots,
@@ -60,19 +61,25 @@ async function roomContext(roomId: string) {
   const room = rooms?.[0];
   if (!room) throw new Error("Arena room not found.");
   if (!/\[arena:ludo\]/i.test(room.room_name || "")) throw new Error("This room is not a Road Home match.");
-  const participantRows = await rest(`arena_participants?room_id=eq.${roomId}&select=user_id,joined_at&order=joined_at.asc`);
+  const participantRows = await rest(`arena_participants?room_id=eq.${roomId}&select=user_id,joined_at,forfeited_at&order=joined_at.asc`);
   const ids = (participantRows || []).map((item: { user_id: string }) => item.user_id);
   const profiles = ids.length
     ? await rest(`profiles?id=in.(${ids.join(",")})&select=id,display_name,avatar_url`)
     : [];
   const byId = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
-  const participants: RoadHomeParticipant[] = (participantRows || []).map((item: any) => ({
+  const participants: RoadHomeParticipant[] = (participantRows || []).filter((item: any) => !item.forfeited_at).map((item: any) => ({
     id: item.user_id,
     name: byId.get(item.user_id)?.display_name || "Cadet",
     avatarUrl: byId.get(item.user_id)?.avatar_url || null,
   }));
   if (room.play_mode === "machine") participants.push({ id: "machine", name: "The Scribe", isBot: true });
-  return { room, participants, questions: Array.isArray(room.question_set) ? room.question_set : [] };
+  return {
+    room,
+    participants,
+    participantIds: ids,
+    forfeitedIds: (participantRows || []).filter((item: any) => item.forfeited_at).map((item: any) => item.user_id),
+    questions: Array.isArray(room.question_set) ? room.question_set : [],
+  };
 }
 
 async function privateGame(roomId: string) {
@@ -204,8 +211,31 @@ async function finishArenaRoom(room: any, state: RoadHomeState) {
   await rest(`arena_rooms?id=eq.${room.id}`, {
     method: "PATCH",
     headers: serviceHeaders(),
-    body: JSON.stringify({ status: "completed", winner_id: realWinnerId, completed_at: new Date().toISOString() }),
+    body: JSON.stringify({
+      status: "completed",
+      winner_id: realWinnerId,
+      completed_at: new Date().toISOString(),
+      completion_reason: state.eventLog.some((event) => event.type === "PLAYER_FORFEITED") ? "forfeit" : "finished",
+    }),
   });
+}
+
+async function synchronizeForfeits(context: any, existingPrivate: any) {
+  const previous = existingPrivate.private_state as RoadHomeState;
+  let next = previous;
+  for (const playerId of context.forfeitedIds || []) {
+    const player = next.players.find((candidate) => candidate.id === playerId);
+    if (player && !player.forfeited) next = forfeitRoadHomePlayer(next, playerId);
+  }
+  if (next.version === previous.version) return publicRoadHomeState(previous);
+  try {
+    const publicState = await saveGame(context.room.id, previous, next, crypto.randomUUID(), context.forfeitedIds[0] || context.room.creator_id);
+    await finishArenaRoom(context.room, next);
+    return publicState;
+  } catch {
+    const latest = await publicGame(context.room.id);
+    return latest?.public_state || publicRoadHomeState(next);
+  }
 }
 
 function secureRandom() {
@@ -228,12 +258,13 @@ Deno.serve(async (request) => {
     if (!roomId) return json({ error: "roomId is required." }, 400);
 
     const context = await roomContext(roomId);
-    if (!context.participants.some((participant) => participant.id === actorId)) return json({ error: "You are not a participant in this room." }, 403);
+    if (!context.participantIds.includes(actorId)) return json({ error: "You are not a participant in this room." }, 403);
 
     if (action === "GET") {
-      const existing = await publicGame(roomId);
-      if (!existing) return json({ state: null, needsInitialization: context.room.status === "playing" });
-      return json({ state: existing.public_state, version: existing.version });
+      const existingPrivate = await privateGame(roomId);
+      if (!existingPrivate) return json({ state: null, needsInitialization: context.room.status === "playing" });
+      const state = await synchronizeForfeits(context, existingPrivate);
+      return json({ state, version: state.version });
     }
 
     if (action === "INIT") {
@@ -258,6 +289,14 @@ Deno.serve(async (request) => {
     }
 
     const previous = existingPrivate.private_state as RoadHomeState;
+    if (context.forfeitedIds.includes(actorId) && action !== "FORFEIT") return json({ error: "You have forfeited this match." }, 409);
+    if (action === "FORFEIT") {
+      await rest(`arena_participants?room_id=eq.${roomId}&user_id=eq.${actorId}`, {
+        method: "PATCH",
+        headers: serviceHeaders(),
+        body: JSON.stringify({ forfeited_at: new Date().toISOString(), forfeit_reason: "manual", finished_at: new Date().toISOString() }),
+      });
+    }
     const command = { action, ...(body.payload || {}) } as RoadHomeCommand;
     let commandState = structuredClone(previous) as RoadHomeState;
     if (action === "ROLL") {
