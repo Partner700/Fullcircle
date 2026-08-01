@@ -7,7 +7,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
   fetchNarratives, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
-  fetchPanelImageSetting,
+  fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
@@ -301,6 +301,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           countdownMs={timeToCountdown}
           footnote={`Waiting room opens at ${new Date(session.countdown_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Live at ${new Date(session.live_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
           progressLabel="Time to waiting room"
+          sessionId={session.id}
+          userId={profile!.id}
         />
       )}
 
@@ -313,6 +315,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           footnote="Get ready — 10 questions, 15 minutes, no skips forward."
           progressLabel="Countdown to live"
           pulse
+          sessionId={session.id}
+          userId={profile!.id}
         />
       )}
 
@@ -399,7 +403,7 @@ function QuizReadingReview({ archive, verseIndex, onNext }: { archive: (DailyNar
 
 // ── Waiting / countdown room — Dove + rotating scripture + thin progress bar ──
 function WaitingRoom({
-  eyebrow, title, description, countdownMs, footnote, progressLabel, pulse,
+  eyebrow, title, description, countdownMs, footnote, progressLabel, pulse, sessionId, userId,
 }: {
   eyebrow: string;
   title: string;
@@ -408,6 +412,8 @@ function WaitingRoom({
   footnote: string;
   progressLabel: string;
   pulse?: boolean;
+  sessionId: string;
+  userId: string;
 }) {
   const [factIdx, setFactIdx] = useState(0);
   const totalSec = Math.max(1, Math.floor(countdownMs / 1000));
@@ -454,8 +460,18 @@ function WaitingRoom({
       </p>
 
       <p className="text-xs text-stone mt-3">{footnote}</p>
+      <QuizWaitingChat sessionId={sessionId} userId={userId} />
     </div>
   );
+}
+
+function QuizWaitingChat({ sessionId, userId }: { sessionId: string; userId: string }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [body, setBody] = useState('');
+  const load = useCallback(async () => { try { setMessages(await fetchQuizWaitingMessages(sessionId)); } catch (error) { console.error('Quiz chat load failed', error); } }, [sessionId]);
+  useEffect(() => { void load(); const channel = supabase.channel(`quiz-waiting-chat-${sessionId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quiz_waiting_messages', filter: `quiz_session_id=eq.${sessionId}` }, () => void load()).subscribe(); return () => { void supabase.removeChannel(channel); }; }, [sessionId, load]);
+  const send = async () => { if (!body.trim()) return; try { await sendQuizWaitingMessage(sessionId, userId, body); setBody(''); } catch (error) { console.error('Quiz chat send failed', error); } };
+  return <div className="mt-5 border-t border-border pt-4 text-left"><p className="mb-2 text-xs font-semibold text-ink">Waiting room chat</p><div className="max-h-28 space-y-1.5 overflow-y-auto">{messages.length === 0 ? <p className="py-2 text-center text-xs text-stone">Say hello while you wait.</p> : messages.map((message) => <p key={message.id} className="rounded-md bg-surface-2 px-2 py-1.5 text-xs text-ink"><b>{message.sender_id === userId ? 'You' : message.sender?.display_name || 'Cadet'}:</b> {message.body}</p>)}</div><div className="mt-2 flex gap-2"><input className="input-field min-w-0 flex-1 text-xs" value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void send(); } }} placeholder="Message the waiting room..." /><button type="button" onClick={() => void send()} className="btn-primary px-3 text-xs">Send</button></div></div>;
 }
 
 function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {

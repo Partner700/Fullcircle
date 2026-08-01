@@ -64,7 +64,7 @@ async function authenticate(req: Request) {
   if (!res.ok) throw new Error("Invalid user token.");
 }
 
-async function fetchRoomQuestions(roomId: string) {
+async function fetchRoomQuestions(roomId: string, minimumCount: number) {
   const supabaseUrl = env("SUPABASE_URL");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   const res = await fetch(`${supabaseUrl}/rest/v1/arena_rooms?id=eq.${roomId}&select=question_set`, {
@@ -73,7 +73,7 @@ async function fetchRoomQuestions(roomId: string) {
   if (!res.ok) return null;
   const rows = await res.json();
   const existing = rows?.[0]?.question_set;
-  return Array.isArray(existing) && existing.length >= 19 ? existing : null;
+  return Array.isArray(existing) && existing.length >= minimumCount ? existing : null;
 }
 
 async function saveRoomQuestions(roomId: string, questions: QuestionPayload[]) {
@@ -104,7 +104,9 @@ Deno.serve(async (req) => {
     const roomId = String(body.roomId || "");
     if (!roomId) return json({ error: "roomId is required." }, 400);
 
-    const existing = await fetchRoomQuestions(roomId);
+    const gameType = String(body.gameType || (String(body.roomName || '').includes('[arena:ludo]') ? 'ludo' : 'standard'));
+    const targetCount = gameType === 'ludo' ? 60 : 19;
+    const existing = await fetchRoomQuestions(roomId, targetCount);
     if (existing) return json({ questions: existing });
 
     const topicType = String(body.topicType || "narrative");
@@ -114,7 +116,7 @@ Deno.serve(async (req) => {
       ? `${topicType}: ${topic}`
       : `weekly narrative: ${narrative.title || "Untitled"}; theme: ${narrative.theme || ""}; scripture: ${narrative.scripture_reference || ""}; main text: ${narrative.main_text || ""}`;
 
-    const prompt = `Create exactly 19 difficult but fair Bible arena questions for Full Circle.
+    const prompt = `Create exactly ${targetCount} difficult but fair Bible arena questions for Full Circle.
 Rules:
 - Three rounds of six questions, then one final bonus question.
 - No repeated questions, no vague trivia, no incomplete wording.
@@ -156,9 +158,9 @@ Return only JSON in this shape: {"questions":[{"type":"multiple_choice","questio
         seen.add(key);
         return true;
       })
-      .slice(0, 19);
+      .slice(0, targetCount);
 
-    if (questions.length < 19) return json({ error: "AI returned too few valid unique arena questions." }, 502);
+    if (questions.length < targetCount) return json({ error: "AI returned too few valid unique arena questions." }, 502);
     await saveRoomQuestions(roomId, questions);
     return json({ questions });
   } catch (error) {

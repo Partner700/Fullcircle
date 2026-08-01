@@ -1295,12 +1295,27 @@ export async function sendArenaRoomMessage(roomId: string, senderId: string, bod
   if (error) throw error;
 }
 
+export async function fetchQuizWaitingMessages(sessionId: string) {
+  const { data, error } = await supabase.from('quiz_waiting_messages').select('id,quiz_session_id,sender_id,body,created_at').eq('quiz_session_id', sessionId).order('created_at', { ascending: true }).limit(100);
+  if (error) throw error;
+  const senderIds = Array.from(new Set((data || []).map((message: any) => message.sender_id)));
+  const { data: profiles } = senderIds.length ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds) : { data: [] as any[] };
+  const byId = new Map((profiles || []).map((item: any) => [item.id, item]));
+  return (data || []).map((message: any) => ({ ...message, sender: byId.get(message.sender_id) || null }));
+}
+
+export async function sendQuizWaitingMessage(sessionId: string, senderId: string, body: string) {
+  const { error } = await supabase.from('quiz_waiting_messages').insert({ quiz_session_id: sessionId, sender_id: senderId, body: body.trim() });
+  if (error) throw error;
+}
+
 export async function generateArenaQuestionsWithAI(payload: {
   roomId: string;
   roomName: string;
   topicType?: string | null;
   topic?: string | null;
   narrative?: DailyNarrative | null;
+  gameType?: 'standard' | 'ludo';
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;

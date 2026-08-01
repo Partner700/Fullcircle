@@ -465,6 +465,7 @@ export function CadetNarrative({
                 </summary>
                 <div className="mt-3 space-y-3 border-t border-border pt-3">
                   <p className="text-sm leading-relaxed text-ink whitespace-pre-wrap">{item.main_text}</p>
+                  {(item.highlighted_verses || []).length > 0 && <div className="space-y-2">{item.highlighted_verses!.map((verse, index) => <div key={`${item.id}-${index}`} className="rounded-md bg-surface p-2"><p className="text-xs font-semibold text-brass">{verse.reference}</p><p className="mt-1 text-xs text-ink">{verse.text}</p>{verse.meditation && <p className="mt-1 text-xs text-stone">Instructor note: {verse.meditation}</p>}</div>)}</div>}
                   {item.meditation_text ? (
                     <div className="rounded-md border border-brass/20 bg-brass-soft p-3">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Your meditation</p>

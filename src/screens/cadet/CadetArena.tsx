@@ -761,15 +761,17 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
   });
   const fallback = buildFallbackArenaQuestions();
   const pool = [...cleaned, ...fallback.filter((fallbackQuestion) => !seen.has(fallbackQuestion.question.trim().toLowerCase()))];
+  const targetCount = sourceQuestions.length >= 60 ? 60 : Math.min(19, pool.length);
   const questions: QuestionPayload[] = [];
-  for (let i = 0; i < 19; i += 1) {
-    const q = pool[i] || fallback[i % fallback.length];
+  for (let i = 0; i < targetCount; i += 1) {
+    const q = pool[i];
+    if (!q) break;
     questions.push({
       ...q,
       game_round: getArenaRoundForIndex(i) + 1,
       difficulty_tag: getArenaDifficulty(i),
       round_timer_seconds: getArenaQuestionSeconds({ ...q, difficulty_tag: getArenaDifficulty(i) }),
-      is_bonus: i === 18,
+      is_bonus: targetCount === 19 && i === 18,
     });
   }
   return questions;
@@ -867,6 +869,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
         const aiQuestions = await generateArenaQuestionsWithAI({
           roomId,
           roomName,
+          gameType: parseArenaGameType(roomName),
           topicType: topic?.type || 'narrative',
           topic: topic?.value || null,
           narrative: narrative || null,
