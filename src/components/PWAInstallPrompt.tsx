@@ -129,12 +129,13 @@ export function PWAInstallPrompt() {
           <div className="mt-5 space-y-3 text-sm text-ink">
             <p className="font-semibold">Install this app on your iPhone or iPad:</p>
             <ol className="space-y-2 text-stone">
-              <li className="flex gap-2"><Share size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Tap the Share button in {isIOSSafari() ? 'Safari' : 'your browser'}.</li>
+              {!isIOSSafari() && <li className="rounded-lg border border-brass/30 bg-brass/10 p-3 font-semibold text-ink">First open this website in Safari. Installation from WhatsApp, Instagram, Facebook, or another in-app browser may not be available.</li>}
+              <li className="flex gap-2"><Share size={17} className="mt-0.5 flex-shrink-0 text-brass" /> In Safari, tap the Share button.</li>
               <li className="flex gap-2"><PlusSquare size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Select <span className="font-semibold text-ink">Add to Home Screen</span>.</li>
               <li className="pl-6">Tap <span className="font-semibold text-ink">Add</span>.</li>
             </ol>
             <p className="rounded-lg border border-border bg-surface-2 p-3 text-xs text-stone">
-              If Add to Home Screen is hidden, scroll down in the Share menu and choose <span className="font-semibold text-ink">Edit Actions</span>. If your current browser does not offer it, open this page in Safari and try again.
+              If Add to Home Screen is hidden, scroll down in the Share menu and choose <span className="font-semibold text-ink">Edit Actions</span>. Full Circle opens without Safari bars after installation.
             </p>
             <button onClick={dismiss} className="btn-primary mt-2 w-full">Done</button>
           </div>
