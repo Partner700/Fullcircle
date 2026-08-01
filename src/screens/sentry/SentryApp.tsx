@@ -7,6 +7,7 @@ import { NotificationCenter } from '../../components/NotificationCenter';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
@@ -443,6 +444,8 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
           </div>
         </section>
       )}
+
+      <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
 
       {quote && (
         <SentryQuoteSlideshow

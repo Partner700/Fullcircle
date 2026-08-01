@@ -5,6 +5,7 @@ import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
@@ -214,6 +215,8 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         onNext={() => setHeroIndex((idx) => (idx + 1) % heroSlideCount)}
         onCommentOpenChange={setHeroPaused}
       />
+
+      <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

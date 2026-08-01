@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { NotificationCenter } from '../../components/NotificationCenter';
+import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
@@ -1231,6 +1232,8 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
         <StatBox icon={BookOpen} label="Narratives" value={narratives.length} tint="text-roman" />
       </div>
+
+      <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
 
       <div className="card p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
