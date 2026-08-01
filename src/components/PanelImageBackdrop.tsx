@@ -10,6 +10,7 @@ interface PanelImageBackdropProps {
   opacityFallback?: number;
   opacityOverride?: number;
   modeFilter?: boolean;
+  textGradient?: boolean;
 }
 
 export function PanelImageBackdrop({
@@ -20,6 +21,7 @@ export function PanelImageBackdrop({
   opacityFallback = 18,
   opacityOverride,
   modeFilter = true,
+  textGradient = true,
 }: PanelImageBackdropProps) {
   if (!image?.url) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
@@ -81,12 +83,14 @@ export function PanelImageBackdrop({
           }}
         />
       )}
-      <div
-        className="absolute inset-y-0 left-0 w-[78%]"
-        style={{
-          background: 'linear-gradient(90deg, color-mix(in srgb, var(--color-navy-2) 58%, transparent) 0%, color-mix(in srgb, var(--color-navy-2) 46%, transparent) 34%, color-mix(in srgb, var(--color-navy-2) 25%, transparent) 64%, color-mix(in srgb, var(--color-navy-2) 8%, transparent) 86%, transparent 100%)',
-        }}
-      />
+      {textGradient && (
+        <div
+          className="absolute inset-y-0 left-0 w-[78%]"
+          style={{
+            background: 'linear-gradient(90deg, color-mix(in srgb, var(--color-navy-2) 58%, transparent) 0%, color-mix(in srgb, var(--color-navy-2) 46%, transparent) 34%, color-mix(in srgb, var(--color-navy-2) 25%, transparent) 64%, color-mix(in srgb, var(--color-navy-2) 8%, transparent) 86%, transparent 100%)',
+          }}
+        />
+      )}
       <div className={cn('absolute inset-0', veilClassName)} />
     </div>
   );
