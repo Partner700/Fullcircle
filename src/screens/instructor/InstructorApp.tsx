@@ -2210,6 +2210,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Messenger Award (Nuncio)', description: 'Best Meditation of the Week' },
       { title: 'Rumor Award', description: 'Overall Best Cadet of the Week' },
       { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
+      { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
       { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
     ],
   },
@@ -2225,7 +2226,6 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'monthly',
     awards: [
       { title: 'Most Consistent Cadet', description: 'Faithfulness & Consistency' },
-      { title: 'Most Improved Cadet', description: 'Greatest growth this month' },
       { title: 'Rudis Award (Muralis)', description: 'Best Challenger Cadet – Challenge & Courage' },
       { title: 'The Valediction Crown (Vallum)', description: 'Overall Best Cadet – Overall Excellence' },
       { title: 'Century Badge (Centurion)', description: "Centurion's Award – Faithfulness & Consistency", forSentry: true },
@@ -2264,6 +2264,8 @@ type AwardRecommendation = {
   title: string;
   candidate: string;
   detail: string;
+  quote?: string;
+  runnersUp: { candidate: string; detail: string; quote?: string }[];
 };
 
 function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
@@ -2320,12 +2322,14 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
           consistency.set(record.user_id, (consistency.get(record.user_id) || 0) + credit);
         });
-        const topConsistent = [...consistency.entries()].sort((a, b) => b[1] - a[1])[0];
+        const consistentRanking = [...consistency.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topConsistent = consistentRanking[0];
         if (topConsistent) {
           next.push({
             title: 'Most Consistent Cadet',
             candidate: profileName(topConsistent[0]),
             detail: `${topConsistent[1]} qualifying daily action(s) since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
+            runnersUp: consistentRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} qualifying daily action(s).` })),
           });
         }
 
@@ -2334,12 +2338,14 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
           quizTotals.set(attempt.user_id, (quizTotals.get(attempt.user_id) || 0) + figs);
         });
-        const topQuiz = [...quizTotals.entries()].sort((a, b) => b[1] - a[1])[0];
+        const quizRanking = [...quizTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topQuiz = quizRanking[0];
         if (topQuiz) {
           next.push({
             title: 'The Valediction Crown Watch',
             candidate: profileName(topQuiz[0]),
             detail: `${topQuiz[1]} fig(s) recorded from quizzes since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
+            runnersUp: quizRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} quiz fig(s).` })),
           });
         }
 
@@ -2354,46 +2360,87 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           const meditation = record.meditation_submitted ? 1 : 0;
           sentryScores.set(record.user_id, (sentryScores.get(record.user_id) || 0) + credit + meditation);
         });
-        const topSentry = [...sentryScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        const sentryRanking = [...sentryScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topSentry = sentryRanking[0];
         if (topSentry) next.push({
           title: 'Reputation Award',
           candidate: profileName(topSentry[0]),
           detail: `${topSentry[1]} leadership action(s) this week: morning attendance and daily meditation.`,
+          runnersUp: sentryRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} leadership action(s).` })),
         });
 
         const cadetOverall = new Map<string, number>();
-        (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
+        weeklyRecords.filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
           cadetOverall.set(record.user_id, (cadetOverall.get(record.user_id) || 0) + credit);
         });
-        quizTotals.forEach((figs, userId) => {
-          if (cadetIds.includes(userId)) cadetOverall.set(userId, (cadetOverall.get(userId) || 0) + figs);
+        (quizAttempts || []).filter((attempt: any) => attempt.submitted_at?.slice(0, 10) >= weeklyStartIso).forEach((attempt: any) => {
+          if (!cadetIds.includes(attempt.user_id)) return;
+          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          cadetOverall.set(attempt.user_id, (cadetOverall.get(attempt.user_id) || 0) + figs);
         });
-        const topCadet = [...cadetOverall.entries()].sort((a, b) => b[1] - a[1])[0];
+        const cadetRanking = [...cadetOverall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topCadet = cadetRanking[0];
         if (topCadet) next.push({
           title: 'Rumor Award',
           candidate: profileName(topCadet[0]),
           detail: `${topCadet[1]} combined weekly point(s) from faithful daily work and quizzes.`,
+          runnersUp: cadetRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} combined point(s).` })),
+        });
+
+        const priorWeekStart = new Date(weeklyStart);
+        priorWeekStart.setDate(priorWeekStart.getDate() - 7);
+        const priorWeekIso = priorWeekStart.toISOString().slice(0, 10);
+        const improvement = cadetIds.map((userId) => {
+          const scoreForRange = (from: string, to?: string) => (dailyRecords || [])
+            .filter((record: any) => record.user_id === userId && record.record_date >= from && (!to || record.record_date < to))
+            .reduce((sum: number, record: any) => sum + (record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0), 0);
+          const current = scoreForRange(weeklyStartIso);
+          const previous = scoreForRange(priorWeekIso, weeklyStartIso);
+          return [userId, current - previous, current, previous] as const;
+        }).filter(([, gain]) => gain > 0).sort((a, b) => b[1] - a[1] || b[2] - a[2]).slice(0, 4);
+        if (improvement[0]) next.push({
+          title: 'The Sprout',
+          candidate: profileName(improvement[0][0]),
+          detail: `Improved by ${improvement[0][1]} action(s): ${improvement[0][3]} last week to ${improvement[0][2]} this week.`,
+          runnersUp: improvement.slice(1).map(([userId, gain, current, previous]) => ({
+            candidate: profileName(userId),
+            detail: `+${gain}: ${previous} last week to ${current} this week.`,
+          })),
         });
 
         const scribeScores = new Map<string, number>();
-        (quizAttempts || []).filter((attempt: any) => sentryIds.includes(attempt.user_id) || cadetIds.includes(attempt.user_id)).forEach((attempt: any) => {
+        (quizAttempts || []).filter((attempt: any) => (
+          (sentryIds.includes(attempt.user_id) || cadetIds.includes(attempt.user_id))
+          && attempt.submitted_at?.slice(0, 10) >= weeklyStartIso
+        )).forEach((attempt: any) => {
           const score = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
           scribeScores.set(attempt.user_id, Math.max(scribeScores.get(attempt.user_id) || 0, score));
         });
-        const topScribe = [...scribeScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        const scribeRanking = [...scribeScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topScribe = scribeRanking[0];
         if (topScribe) next.push({
           title: 'Scribe Award',
           candidate: profileName(topScribe[0]),
           detail: `${topScribe[1]} figs in their best quiz attempt this week.`,
+          runnersUp: scribeRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} figs in their best attempt.` })),
         });
 
-        const quoteLeader = (quoteSummaryResult.data || []).filter((item) => cadetIds.includes(item.quote_user_id))[0];
+        const quoteRanking = (quoteSummaryResult.data || []).filter((item) => (
+          cadetIds.includes(item.quote_user_id) && item.quote_record_date >= weeklyStartIso
+        )).slice(0, 4);
+        const quoteLeader = quoteRanking[0];
         if (quoteLeader) {
           next.push({
             title: 'Rhetoric Award (Orator)',
             candidate: quoteLeader.display_name,
             detail: `${quoteLeader.interaction_count} quote interaction(s) from reactions and comments.`,
+            quote: quoteLeader.daily_quote,
+            runnersUp: quoteRanking.slice(1).map((item) => ({
+              candidate: item.display_name,
+              detail: `${item.interaction_count} interaction(s).`,
+              quote: item.daily_quote,
+            })),
           });
         }
 
@@ -2404,12 +2451,14 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
           tentScores.set(membership.tent_id, (tentScores.get(membership.tent_id) || 0) + credit);
         });
-        const topTent = [...tentScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        const tentRanking = [...tentScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topTent = tentRanking[0];
         if (topTent) {
           next.push({
             title: "The Lord's Secret",
             candidate: tents.find((tent) => tent.id === topTent[0])?.name || 'Leading tent',
             detail: `${topTent[1]} aggregate daily action(s). Tent awards are given to tents, not tent houses.`,
+            runnersUp: tentRanking.slice(1).map(([tentId, score]) => ({ candidate: tents.find((tent) => tent.id === tentId)?.name || 'Tent', detail: `${score} aggregate daily action(s).` })),
           });
         }
       } catch (error) {
@@ -2495,12 +2544,24 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         {recommendations.length === 0 ? (
           <p className="text-sm text-stone">No award signals yet. The app starts measuring from today.</p>
         ) : (
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {recommendations.map((item) => (
               <div key={`${item.title}:${item.candidate}`} className="rounded-lg border border-border-bright bg-surface-2 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-brass">{item.title}</p>
-                <p className="mt-1 text-sm font-semibold text-ink">{item.candidate}</p>
+                <p className="mt-1 text-[10px] font-semibold uppercase text-gold">Recommended winner</p>
+                <p className="text-sm font-semibold text-ink">{item.candidate}</p>
                 <p className="mt-1 text-xs text-stone">{item.detail}</p>
+                {item.quote && <blockquote className="mt-2 border-l-2 border-brass/50 pl-3 text-sm italic text-ink">“{item.quote}”</blockquote>}
+                <div className="mt-3 border-t border-border pt-2">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase text-stone">Runners-up</p>
+                  {item.runnersUp.length > 0 ? item.runnersUp.map((runner, index) => (
+                    <div key={`${runner.candidate}:${index}`} className="mb-2 last:mb-0">
+                      <p className="text-xs font-semibold text-ink">{index + 2}. {runner.candidate}</p>
+                      <p className="text-[11px] text-stone">{runner.detail}</p>
+                      {runner.quote && <p className="mt-0.5 line-clamp-2 text-xs italic text-stone">“{runner.quote}”</p>}
+                    </div>
+                  )) : <p className="text-xs text-stone">No other qualifying candidate yet.</p>}
+                </div>
               </div>
             ))}
           </div>

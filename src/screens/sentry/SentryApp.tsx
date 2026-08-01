@@ -21,16 +21,17 @@ import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
+import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
-  Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone,
+  Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone, Trophy,
 } from 'lucide-react';
 
 const CadetQuiz = lazy(() => import('../cadet/CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
 const CadetAwards = lazy(() => import('../cadet/CadetAwards').then((module) => ({ default: module.CadetAwards })));
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'quiz' | 'awards' | 'store' | 'settings';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings';
 
 type StrictStreakData = {
   current_streak: number;
@@ -47,6 +48,7 @@ const NAV_ITEMS = [
   { key: 'game', label: 'Daily Game', icon: GamepadIcon },
   { key: 'streak', label: 'My Streak', icon: Shield },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
+  { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
   { key: 'awards', label: 'Awards Hub', icon: Award },
   { key: 'store', label: 'Market', icon: ShoppingBag },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -55,7 +57,7 @@ const NAV_ITEMS = [
 function getInitialSentryTab(): Tab {
   if (typeof window === 'undefined') return 'overview';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'streak', 'quiz', 'awards', 'store', 'settings'];
+  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings'];
   return tabs.includes(key as Tab) ? key as Tab : 'overview';
 }
 
@@ -229,6 +231,7 @@ export function SentryApp() {
     game: 'Daily Game',
     streak: 'My Streak',
     quiz: 'Weekly Quiz',
+    leaderboard: 'Challenge Boards',
     awards: 'Awards Hub',
     store: 'The Market',
     settings: 'Settings',
@@ -242,7 +245,7 @@ export function SentryApp() {
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
       rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
-        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', awards: 'awards', store: 'store', tent: 'cadets' };
+        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets' };
         if (destination[key]) setTab(destination[key]);
       }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
     >
@@ -293,6 +296,7 @@ export function SentryApp() {
           <CadetQuiz onQuizSubmitted={load} />
         </Suspense>
       )}
+      {tab === 'leaderboard' && <CadetLeaderboard />}
       {tab === 'awards' && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
           <CadetAwards />
