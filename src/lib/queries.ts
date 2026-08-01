@@ -6,7 +6,7 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow, QuestionPayload, PanelImageSetting,
+  QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
@@ -385,14 +385,40 @@ export async function fetchLeaderboardSnapshots() {
   return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string } })[];
 }
 
-export async function fetchAwards() {
+export async function fetchAwards(): Promise<AwardWithRecipient[]> {
   const { data, error } = await supabase
     .from('awards')
     .select('*, profiles(display_name, avatar_url)')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  // A tent award can have no profile join. Consumers render a member fallback in that case.
-  return data as (Award & { profiles: { display_name: string; avatar_url: string | null } })[];
+  const awards = data as AwardWithRecipient[];
+  const tentIds = Array.from(new Set(awards
+    .filter((award) => award.award_target_type === 'tent' && award.award_target_id)
+    .map((award) => award.award_target_id as string)));
+  if (tentIds.length === 0) return awards;
+
+  const { data: tentRows, error: tentError } = await supabase
+    .from('tents')
+    .select('id, name, profile_image_url, sentry_id')
+    .in('id', tentIds);
+  if (tentError) throw tentError;
+  const sentryIds = Array.from(new Set((tentRows || []).map((tent) => tent.sentry_id).filter(Boolean))) as string[];
+  const { data: sentryRows, error: sentryError } = sentryIds.length
+    ? await supabase.from('profiles').select('id, display_name, avatar_url').in('id', sentryIds)
+    : { data: [], error: null };
+  if (sentryError) throw sentryError;
+  const sentries = new Map((sentryRows || []).map((profile) => [profile.id, profile]));
+  const tents = new Map((tentRows || []).map((tent) => [tent.id, {
+    ...tent,
+    sentry: tent.sentry_id ? sentries.get(tent.sentry_id) || null : null,
+  }]));
+
+  return awards.map((award) => ({
+    ...award,
+    target_tent: award.award_target_type === 'tent' && award.award_target_id
+      ? tents.get(award.award_target_id) || null
+      : null,
+  })) as AwardWithRecipient[];
 }
 
 export async function insertAward(award: Partial<Award>) {

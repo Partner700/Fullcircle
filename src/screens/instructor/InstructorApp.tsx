@@ -18,7 +18,7 @@ import {
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
-import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
 import {
@@ -177,7 +177,7 @@ export function InstructorApp() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<RoleAssignment[]>([]);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
-  const [awards, setAwards] = useState<(Award & { profiles: { display_name: string } })[]>([]);
+  const [awards, setAwards] = useState<AwardWithRecipient[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadDashboardData = useCallback(async () => {
@@ -1592,7 +1592,7 @@ function AddCadetRow({ tentId, availableCadets, profiles, onRefresh }: {
 
 function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, instructorId }: {
   profiles: Profile[]; roles: RoleAssignment[]; members: any[]; tents: any[];
-  awards: (Award & { profiles: { display_name: string } })[]; onRefresh: () => void; instructorId: string;
+  awards: AwardWithRecipient[]; onRefresh: () => void; instructorId: string;
 }) {
   const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
   const [search, setSearch] = useState('');
@@ -1779,7 +1779,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
 
 function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, instructorId }: {
   profiles: Profile[]; roles: RoleAssignment[]; members: any[]; tents: any[];
-  awards: (Award & { profiles: { display_name: string } })[]; onRefresh: () => void; instructorId: string;
+  awards: AwardWithRecipient[]; onRefresh: () => void; instructorId: string;
 }) {
   const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
   const [search, setSearch] = useState('');
@@ -2267,7 +2267,7 @@ type AwardRecommendation = {
 };
 
 function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
-  awards: (Award & { profiles: { display_name: string } })[];
+  awards: AwardWithRecipient[];
   profiles: Profile[];
   roles: RoleAssignment[];
   tents: any[];
@@ -2616,10 +2616,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{a.title}</p>
                 <p className="text-xs text-stone">
-                  {a.profiles.display_name}
+                  {a.target_tent?.name || a.profiles?.display_name || 'Full Circle member'}
                   {a.award_target_type === 'tent' && ' · Tent Award'}
                   {' · '}{a.award_month}
                 </p>
+                {a.target_tent && <p className="text-xs text-stone">Sentry: {a.target_tent.sentry?.display_name || 'Not assigned'}</p>}
                 {a.description && <p className="text-xs text-stone mt-0.5 line-clamp-1">{a.description}</p>}
               </div>
             </div>

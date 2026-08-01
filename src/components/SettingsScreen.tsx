@@ -45,12 +45,15 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
     ]);
 
-    const awardsList = awards.status === 'fulfilled' ? awards.value : [];
-    const myAwards = awardsList.filter((a) => (
-      a.user_id === profile.id || (a as any).award_target_id === profile.id
-    ));
     const memberRow = memberData.status === 'fulfilled' ? memberData.value.data : null;
     const sentryTentRow = sentryTentData.status === 'fulfilled' ? sentryTentData.value.data : null;
+    const awardsList = awards.status === 'fulfilled' ? awards.value : [];
+    const ownTentId = (memberRow as any)?.tent_id || (sentryTentRow as any)?.id || null;
+    const myAwards = awardsList.filter((award) => (
+      award.award_target_type === 'tent'
+        ? !!ownTentId && award.award_target_id === ownTentId
+        : award.user_id === profile.id
+    ));
 
     let tent: { name: string; houseId: string; sentryName?: string } | null = null;
     const tentRow = (memberRow as any)?.tents || sentryTentRow;

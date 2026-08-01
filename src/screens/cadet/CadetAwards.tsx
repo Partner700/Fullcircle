@@ -4,7 +4,7 @@ import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { fetchAwards } from '../../lib/queries';
 import { formatShortDate, cn } from '../../lib/utils';
-import type { Award } from '../../lib/types';
+import type { AwardWithRecipient } from '../../lib/types';
 import { Award as AwardIcon, Trophy, Crown, Flame, Coins, Target, Zap, BookOpen, TrendingUp } from 'lucide-react';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
@@ -50,7 +50,7 @@ const AWARD_LABEL_MAP: Record<string, string> = {
 
 export function CadetAwards() {
   const { profile } = useAuth();
-  const [awards, setAwards] = useState<(Award & { profiles: { display_name: string } })[]>([]);
+  const [awards, setAwards] = useState<AwardWithRecipient[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -62,7 +62,7 @@ export function CadetAwards() {
 
   useEffect(() => { load(); }, [load]);
 
-  const myAwards = awards.filter((a) => a.user_id === profile?.id);
+  const myAwards = awards.filter((a) => a.award_target_type !== 'tent' && a.user_id === profile?.id);
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading awards…</div>;
 
@@ -143,8 +143,11 @@ export function CadetAwards() {
                     <Icon size={18} color={color} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-ink">{award.profiles.display_name}</span>
+                    <span className="text-sm font-medium text-ink">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</span>
                     <span className="text-stone text-sm"> · {award.title}</span>
+                    {award.target_tent && (
+                      <p className="text-xs text-stone">Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>
+                    )}
                   </div>
                   <span className="text-xs text-stone flex-shrink-0">{formatShortDate(award.award_month)}</span>
                 </div>

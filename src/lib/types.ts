@@ -329,6 +329,17 @@ export interface Award {
   created_at: string;
 }
 
+export type AwardWithRecipient = Award & {
+  profiles: { display_name: string; avatar_url: string | null } | null;
+  target_tent?: {
+    id: string;
+    name: string;
+    profile_image_url: string | null;
+    sentry_id: string | null;
+    sentry: { id: string; display_name: string; avatar_url: string | null } | null;
+  } | null;
+};
+
 export interface ScheduledAnnouncement {
   id: string;
   announcement_type: string;

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Award as AwardIcon, Trophy } from 'lucide-react';
 import { fetchAwards, fetchPanelImageSetting } from '../lib/queries';
-import type { Award, PanelImageSetting } from '../lib/types';
+import type { AwardWithRecipient, PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 
-type RecentAward = Award & { profiles?: { display_name?: string; avatar_url?: string | null } | null };
+type RecentAward = AwardWithRecipient;
 
 export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   const [awards, setAwards] = useState<RecentAward[]>([]);
@@ -37,11 +37,15 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
           {awards.map((award) => (
             <div key={award.id} className="flex items-center gap-3 px-4 py-3">
               <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full border border-gold/40 bg-gold-soft text-center text-xs font-bold leading-9 text-gold">
-                {award.profiles?.avatar_url
-                  ? <img src={award.profiles.avatar_url} alt={award.profiles.display_name || 'Award recipient'} className="h-full w-full object-cover" />
+                {(award.target_tent?.profile_image_url || award.profiles?.avatar_url)
+                  ? <img src={award.target_tent?.profile_image_url || award.profiles?.avatar_url || ''} alt={award.target_tent?.name || award.profiles?.display_name || 'Award recipient'} className="h-full w-full object-cover" />
                   : <AwardIcon size={16} className="mx-auto mt-2.5" />}
               </div>
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{award.title}</p><p className="truncate text-xs text-stone">{award.profiles?.display_name || 'Full Circle member'}</p></div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-ink">{award.title}</p>
+                <p className="truncate text-xs font-medium text-stone">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</p>
+                {award.target_tent && <p className="truncate text-[11px] text-stone">Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>}
+              </div>
               <AwardIcon size={17} className="flex-shrink-0 text-gold" aria-hidden="true" />
             </div>
           ))}
