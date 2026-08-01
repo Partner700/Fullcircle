@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
@@ -23,10 +23,12 @@ import { CadetStore } from '../cadet/CadetStore';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
-  Camera, ImagePlus, Quote, ShoppingBag,
+  Camera, ImagePlus, Quote, ShoppingBag, FileQuestion,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'store' | 'settings';
+const CadetQuiz = lazy(() => import('../cadet/CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
+
+type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'quiz' | 'store' | 'settings';
 
 type StrictStreakData = {
   current_streak: number;
@@ -42,9 +44,17 @@ const NAV_ITEMS = [
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
   { key: 'game', label: 'Daily Game', icon: GamepadIcon },
   { key: 'streak', label: 'My Streak', icon: Shield },
+  { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
   { key: 'store', label: 'Market', icon: ShoppingBag },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
+
+function getInitialSentryTab(): Tab {
+  if (typeof window === 'undefined') return 'overview';
+  const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
+  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'streak', 'quiz', 'store', 'settings'];
+  return tabs.includes(key as Tab) ? key as Tab : 'overview';
+}
 
 const TENT_REQUIRED_TABS = new Set<Tab>(['overview', 'attendance', 'cadets']);
 
@@ -68,7 +78,7 @@ function streakForMember(
 
 export function SentryApp() {
   const { profile, signOut } = useAuth();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(getInitialSentryTab);
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [allRecords, setAllRecords] = useState<Record<string, DailyRecord[]>>({});
@@ -213,6 +223,7 @@ export function SentryApp() {
     reading: "Today's Reading",
     game: 'Daily Game',
     streak: 'My Streak',
+    quiz: 'Weekly Quiz',
     store: 'The Market',
     settings: 'Settings',
   };
@@ -225,7 +236,7 @@ export function SentryApp() {
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
       rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
-        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', streak: 'streak', store: 'store', tent: 'cadets' };
+        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', store: 'store', tent: 'cadets' };
         if (destination[key]) setTab(destination[key]);
       }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
     >
@@ -270,6 +281,11 @@ export function SentryApp() {
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'game' && <CadetGame onRewardEarned={load} />}
       {tab === 'streak' && <CadetStreak />}
+      {tab === 'quiz' && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
+          <CadetQuiz onQuizSubmitted={load} />
+        </Suspense>
+      )}
       {tab === 'store' && (
         <CadetStore
           onBalanceChanged={load}
@@ -296,7 +312,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   return (
     <div className="space-y-5 animate-fade-in">
       <EmptyState icon={TentIcon} title={title} message={message} />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
         </button>
@@ -305,6 +321,9 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
         </button>
         <button onClick={() => onNavigate('streak')} className="btn-secondary">
           <Shield size={18} /> Streak
+        </button>
+        <button onClick={() => onNavigate('quiz')} className="btn-secondary">
+          <FileQuestion size={18} /> Weekly Quiz
         </button>
         <button onClick={() => onNavigate('settings')} className="btn-secondary">
           <SettingsIcon size={18} /> Settings
@@ -396,6 +415,25 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <StatCard icon={Sunrise} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
       </div>
 
+      <div className="card flex flex-col gap-4 border-brass/25 bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-brass/15 text-brass">
+            <FileQuestion size={22} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-display font-semibold text-ink">Weekly Quiz</h3>
+            <p className="text-sm text-stone">
+              {dayType === 'saturday'
+                ? 'The Saturday quiz is available here for sentries too.'
+                : 'Open the quiz room to see the schedule, revision, and previous submission.'}
+            </p>
+          </div>
+        </div>
+        <button onClick={() => onNavigate('quiz')} className={dayType === 'saturday' ? 'btn-primary sm:flex-shrink-0' : 'btn-secondary sm:flex-shrink-0'}>
+          <FileQuestion size={17} /> {dayType === 'saturday' ? 'Take Quiz' : 'Open Quiz'}
+        </button>
+      </div>
+
       {quote && (
         <SentryQuoteSlideshow
           quote={quote}
@@ -455,12 +493,15 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button onClick={() => onNavigate('attendance')} className="btn-primary">
           <ClipboardCheck size={18} /> Mark Attendance
         </button>
         <button onClick={() => onNavigate('game')} className="btn-secondary">
           <GamepadIcon size={18} /> Play Daily Game
+        </button>
+        <button onClick={() => onNavigate('quiz')} className={dayType === 'saturday' ? 'btn-primary' : 'btn-secondary'}>
+          <FileQuestion size={18} /> {dayType === 'saturday' ? 'Take Weekly Quiz' : 'Weekly Quiz'}
         </button>
       </div>
     </div>
