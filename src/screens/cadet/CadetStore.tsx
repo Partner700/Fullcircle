@@ -604,8 +604,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
             {paymentResult ? (
               <div className="space-y-4">
-                <div className={cn(
-                  'p-4 rounded-lg border',
+                <div key={`${paymentResult.reference}:${paymentResult.status}`} className={cn(
+                  'status-surface p-4 rounded-lg border animate-soft-reveal',
                   paymentConfirmed
                     ? 'bg-sage-soft border-sage/30'
                     : paymentResult.status === 'rejected'

@@ -73,25 +73,21 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
         {onOpen && <button type="button" onClick={onOpen} className="btn-ghost px-2 py-1 text-xs">View all</button>}
       </div>
       {activeAward ? (
-        <div className="relative min-h-[118px] overflow-hidden">
-          <div className="flex transition-transform duration-700 ease-out" style={{ transform: `translateX(-${activeIndex * 100}%)` }}>
-            {awards.map((award) => (
-              <div key={award.id} className="flex min-w-full items-center gap-4 px-5 py-5">
-                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
-                  {(award.target_tent?.profile_image_url || award.profiles?.avatar_url)
-                    ? <img src={award.target_tent?.profile_image_url || award.profiles?.avatar_url || ''} alt={award.target_tent?.name || award.profiles?.display_name || 'Award recipient'} className="h-full w-full object-cover" />
-                    : <Trophy size={24} className="mx-auto mt-3.5" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-base font-semibold text-ink">{award.title}</p>
-                  <p className="text-sm font-medium text-stone">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</p>
-                  {award.target_tent && <p className="text-xs text-stone">Family trophy · Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>}
-                  {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
-                  <AwardReactions state={reactions[award.id]} disabled={!!reacting?.startsWith(`${award.id}:`)} onReact={(type) => void handleReaction(award.id, type)} />
-                </div>
-                <AwardIcon size={22} className="flex-shrink-0 text-gold" aria-hidden="true" />
-              </div>
-            ))}
+        <div className="relative min-h-[148px] overflow-hidden">
+          <div key={activeAward.id} className="flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5 animate-soft-reveal">
+            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
+              {(activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url)
+                ? <img src={activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url || ''} alt={activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Award recipient'} className="h-full w-full object-cover" />
+                : <Trophy size={24} className="mx-auto mt-3.5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-ink">{activeAward.title}</p>
+              <p className="text-sm font-medium text-stone">{activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Full Circle member'}</p>
+              {activeAward.target_tent && <p className="text-xs text-stone">Family trophy · Sentry: {activeAward.target_tent.sentry?.display_name || 'Not assigned'}</p>}
+              {activeAward.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{activeAward.description}</p>}
+              <AwardReactions state={reactions[activeAward.id]} disabled={!!reacting?.startsWith(`${activeAward.id}:`)} onReact={(type) => void handleReaction(activeAward.id, type)} />
+            </div>
+            <AwardIcon size={22} className="flex-shrink-0 text-gold" aria-hidden="true" />
           </div>
           {awards.length > 1 && (
             <div className="absolute bottom-2 right-3 flex items-center gap-1">

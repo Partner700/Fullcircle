@@ -323,6 +323,8 @@
   .animate-fade-in { animation: fadeIn 0.4s ease-out; }
   .animate-slide-up { animation: slideUp 0.4s ease-out; }
   .animate-scale-in { animation: scaleIn 0.25s ease-out; }
+  .animate-soft-reveal { animation: softReveal 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+  .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .animate-float { animation: float 4s ease-in-out infinite; }
   .animate-drift { animation: drift 8s ease-in-out infinite; }
   .animate-flicker { animation: flicker 3s ease-in-out infinite; }
@@ -332,6 +334,16 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes softReveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-soft-reveal { animation: none !important; }
+  .transition-transform,
+  .transition-opacity { transition-duration: 0.01ms !important; }
+}
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-8px); }

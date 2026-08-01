@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { PanelImageSetting } from '../lib/types';
 import { cn } from '../lib/utils';
 import { normaliseAdjustments, panelImageFilter, panelImageObjectPosition, panelImageOpacity } from '../lib/panelImages';
@@ -21,6 +22,12 @@ export function PanelImageBackdrop({
   opacityOverride,
   modeFilter = true,
 }: PanelImageBackdropProps) {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [image?.url]);
+
   if (!image?.url) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
   const shadow = adjustments.depth > 0
@@ -29,7 +36,7 @@ export function PanelImageBackdrop({
   const definition = adjustments.definition + adjustments.sharpness;
   const imageStyle = {
     objectPosition: panelImageObjectPosition(image),
-    opacity: opacityOverride === undefined ? panelImageOpacity(image, opacityFallback) : opacityOverride / 100,
+    opacity: loaded ? (opacityOverride === undefined ? panelImageOpacity(image, opacityFallback) : opacityOverride / 100) : 0,
     filter: `${panelImageFilter(image)} ${modeFilter ? 'var(--panel-image-mode-filter)' : ''} ${shadow}`.trim(),
     transform: definition > 0 ? `scale(${1 + definition / 1600})` : undefined,
   };
@@ -41,7 +48,16 @@ export function PanelImageBackdrop({
 
   return (
     <div className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
-      <img src={image.url} alt="" loading="lazy" decoding="async" className={cn('h-full w-full object-cover', imageClassName)} style={imageStyle} />
+      <img
+        src={image.url}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(false)}
+        className={cn('h-full w-full object-cover transition-opacity duration-700 ease-out', imageClassName)}
+        style={imageStyle}
+      />
       {whiteOverlayOpacity > 0 && <div className="absolute inset-0 bg-white" style={{ opacity: whiteOverlayOpacity }} />}
       {blackOverlayOpacity > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: blackOverlayOpacity }} />}
       {ageOpacity > 0 && (
