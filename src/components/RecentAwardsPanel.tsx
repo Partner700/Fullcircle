@@ -74,7 +74,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
       </div>
       {activeAward ? (
         <div className="relative min-h-[148px] overflow-hidden">
-          <div key={activeAward.id} className="flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5 animate-soft-reveal">
+          <div key={activeAward.id} className="recent-award-change flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5">
             <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
               {(activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url)
                 ? <img src={activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url || ''} alt={activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Award recipient'} className="h-full w-full object-cover" />
