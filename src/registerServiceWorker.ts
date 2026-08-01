@@ -24,7 +24,7 @@ export function registerServiceWorker() {
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
         // Check for a new worker at launch. The worker itself activates safely;
         // this client never forces a mid-session reload.

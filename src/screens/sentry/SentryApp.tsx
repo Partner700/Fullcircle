@@ -235,7 +235,13 @@ export function SentryApp() {
       onNavigate={(k) => setTab(k as Tab)}
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
-      rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
+      rightHeader={<div className="flex items-center gap-2"><button
+        type="button"
+        onClick={() => setTab('quiz')}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-colors hover:text-peri"
+        title="Open Weekly Quiz"
+        aria-label="Open Weekly Quiz"
+      ><FileQuestion size={17} /></button><NotificationCenter onNavigate={(key) => {
         const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', store: 'store', tent: 'cadets' };
         if (destination[key]) setTab(destination[key]);
       }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
