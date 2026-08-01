@@ -2597,6 +2597,30 @@ function quizLocalTime(value: string | null | undefined) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+function customQuestionsAsPlayableRows(sessionId: string, questions: CustomQuestion[]): Partial<GeneratedQuestion>[] {
+  return questions.map((question, index) => ({
+    quiz_session_id: sessionId,
+    question_index: index + 1,
+    source_narrative_date: question.narrative_date || null,
+    difficulty_tag: (['easy', 'moderate', 'hard'].includes(question.difficulty_tag) ? question.difficulty_tag : 'moderate') as GeneratedQuestion['difficulty_tag'],
+    mechanic_type: `custom_${question.question_type}`,
+    recycled_from_game: false,
+    question_payload: cleanQuestionPayload(customQuestionToPayload(question)),
+  }));
+}
+
+function generatedQuestionsAsPlayableRows(sessionId: string, questions: GeneratedQuestion[]): Partial<GeneratedQuestion>[] {
+  return questions.map((question, index) => ({
+    quiz_session_id: sessionId,
+    question_index: index + 1,
+    source_narrative_date: question.source_narrative_date,
+    difficulty_tag: question.difficulty_tag,
+    mechanic_type: question.mechanic_type,
+    recycled_from_game: question.recycled_from_game,
+    question_payload: question.question_payload,
+  }));
+}
+
 function QuizBuilder() {
   const [sessions, setSessions] = useState<QuizSession[]>([]);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
@@ -2659,27 +2683,28 @@ function QuizBuilder() {
     load();
   };
 
+  const copyQuestionsIntoSession = async (sourceSessionId: string, targetSessionId: string) => {
+    const existingTargetQuestions = await fetchQuestionsForSession(targetSessionId);
+    if (existingTargetQuestions.length > 0) return existingTargetQuestions;
+
+    const sourceGeneratedQuestions = sourceSessionId === targetSessionId
+      ? existingTargetQuestions
+      : await fetchQuestionsForSession(sourceSessionId);
+    const rows = sourceGeneratedQuestions.length > 0
+      ? generatedQuestionsAsPlayableRows(targetSessionId, sourceGeneratedQuestions)
+      : customQuestionsAsPlayableRows(targetSessionId, await fetchCustomQuestions(sourceSessionId));
+    if (rows.length === 0) return [];
+
+    await insertQuestions(rows);
+    return fetchQuestionsForSession(targetSessionId);
+  };
+
   const launchQuiz = async (session: QuizSession) => {
     if (launchingSessionId) return;
     setLaunchingSessionId(session.id);
     try {
-      let questions = await fetchQuestionsForSession(session.id);
-      if (questions.length === 0) {
-        const customQuestions = await fetchCustomQuestions(session.id);
-        if (customQuestions.length > 0) {
-          await insertQuestions(customQuestions.map((question, index) => ({
-            quiz_session_id: session.id,
-            question_index: index + 1,
-            source_narrative_date: question.narrative_date || null,
-            difficulty_tag: (['easy', 'moderate', 'hard'].includes(question.difficulty_tag) ? question.difficulty_tag : 'moderate') as GeneratedQuestion['difficulty_tag'],
-            mechanic_type: `custom_${question.question_type}`,
-            recycled_from_game: false,
-            question_payload: cleanQuestionPayload(customQuestionToPayload(question)),
-          })));
-          questions = await fetchQuestionsForSession(session.id);
-          if (selectedSession?.id === session.id) setGeneratedQuestions(questions);
-        }
-      }
+      const questions = await copyQuestionsIntoSession(session.id, session.id);
+      if (selectedSession?.id === session.id) setGeneratedQuestions(questions);
       if (questions.length === 0) {
         alert('This quiz cannot be launched because it has no questions. Add, generate, or sync at least one question first.');
         return;
@@ -2714,10 +2739,10 @@ function QuizBuilder() {
     try {
       const existingDraft = sessions.find((candidate) => candidate.status === 'scheduled' && candidate.relaunch_of_id === session.id);
       if (existingDraft) {
+        await copyQuestionsIntoSession(session.id, existingDraft.id);
         await openSession(existingDraft, true);
         return;
       }
-      const sourceQuestions = await fetchQuestionsForSession(session.id);
       const now = new Date();
       const freshSession = await createQuizSession({
         session_date: getTodayISODate(),
@@ -2734,17 +2759,7 @@ function QuizBuilder() {
         relaunch_ready: false,
       } as Partial<QuizSession>);
 
-      if (sourceQuestions.length > 0) {
-        await insertQuestions(sourceQuestions.map((question, index) => ({
-          quiz_session_id: freshSession.id,
-          question_index: index + 1,
-          source_narrative_date: question.source_narrative_date,
-          difficulty_tag: question.difficulty_tag,
-          mechanic_type: question.mechanic_type,
-          recycled_from_game: question.recycled_from_game,
-          question_payload: question.question_payload,
-        })));
-      }
+      await copyQuestionsIntoSession(session.id, freshSession.id);
 
       await load();
       await openSession(freshSession, true);
