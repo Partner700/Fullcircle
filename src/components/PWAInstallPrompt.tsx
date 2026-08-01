@@ -22,11 +22,13 @@ function isStandalone() {
     || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
-function isEligibleIOSSafari() {
+function isIOSDevice() {
   const { userAgent, platform, maxTouchPoints } = navigator;
-  const ios = /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
-  const safari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(userAgent);
-  return ios && safari;
+  return /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
+}
+
+function isIOSSafari() {
+  return isIOSDevice() && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
 }
 
 /** A single install surface for Chromium's native prompt and Safari's Home Screen guide. */
@@ -52,7 +54,7 @@ export function PWAInstallPrompt() {
 
   useEffect(() => {
     setInstalled(isStandalone());
-    if (!isStandalone() && isEligibleIOSSafari()) showSoon();
+    if (!isStandalone() && isIOSDevice()) showSoon();
   }, [showSoon]);
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export function PWAInstallPrompt() {
   }, []);
 
   const install = useCallback(async () => {
-    if (isEligibleIOSSafari()) {
+    if (isIOSDevice()) {
       setIosGuide(true);
       return;
     }
@@ -105,7 +107,7 @@ export function PWAInstallPrompt() {
     if (outcome === 'accepted') window.localStorage.setItem('pwa_install_completed', String(Date.now()));
   }, [deferredPrompt]);
 
-  if (!visible || installed || (!deferredPrompt && !isEligibleIOSSafari())) return null;
+  if (!visible || installed || (!deferredPrompt && !isIOSDevice())) return null;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-3 sm:items-center" role="presentation">
@@ -127,10 +129,13 @@ export function PWAInstallPrompt() {
           <div className="mt-5 space-y-3 text-sm text-ink">
             <p className="font-semibold">Install this app on your iPhone or iPad:</p>
             <ol className="space-y-2 text-stone">
-              <li className="flex gap-2"><Share size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Tap the Share button in Safari.</li>
+              <li className="flex gap-2"><Share size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Tap the Share button in {isIOSSafari() ? 'Safari' : 'your browser'}.</li>
               <li className="flex gap-2"><PlusSquare size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Select <span className="font-semibold text-ink">Add to Home Screen</span>.</li>
               <li className="pl-6">Tap <span className="font-semibold text-ink">Add</span>.</li>
             </ol>
+            <p className="rounded-lg border border-border bg-surface-2 p-3 text-xs text-stone">
+              If Add to Home Screen is hidden, scroll down in the Share menu and choose <span className="font-semibold text-ink">Edit Actions</span>. If your current browser does not offer it, open this page in Safari and try again.
+            </p>
             <button onClick={dismiss} className="btn-primary mt-2 w-full">Done</button>
           </div>
         ) : (

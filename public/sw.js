@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v10';
+const CACHE_VERSION = 'full-circle-v11';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -29,6 +29,7 @@ const APP_SHELL = [
   '/icons/icon-128.png',
   '/icons/icon-144.png',
   '/icons/icon-152.png',
+  '/icons/icon-167.png',
   '/icons/icon-192.png',
   '/icons/icon-384.png',
   '/icons/icon-512.png',
