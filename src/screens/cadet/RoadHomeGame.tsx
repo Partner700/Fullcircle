@@ -221,7 +221,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     ].includes(event.type));
     if (!knownEventIds.current) {
       knownEventIds.current = new Set(state.eventLog.map((event) => event.id));
-      setLiveActivity(relevant.at(-1) || null);
+      setLiveActivity(relevant[relevant.length - 1] || null);
       return;
     }
     const fresh = relevant.filter((event) => !knownEventIds.current!.has(event.id));

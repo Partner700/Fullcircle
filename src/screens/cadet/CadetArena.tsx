@@ -189,6 +189,15 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
   }, [activeRoomId, phase, rooms, profile]);
 
+  // A player who has joined a live room must enter it on their own device.
+  // This keeps every real player responsible for their own turns in Ludo.
+  useEffect(() => {
+    if (!profile || activeRoomId) return;
+    const liveRoom = rooms.find((room) => room.status === 'playing'
+      && (room.arena_participants || []).some((participant: any) => participant.user_id === profile.id));
+    if (liveRoom) activateRoom(liveRoom.id, 'playing');
+  }, [activeRoomId, activateRoom, profile, rooms]);
+
   const createRoom = async () => {
     if (!profile) return;
     setCreating(true);
@@ -542,8 +551,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               <input type="number" className="input-field" value={arenaOpponent === 'machine' ? 50 : stake} min={10} disabled={arenaOpponent === 'machine'} onChange={(e) => setStake(parseInt(e.target.value) || 0)} />
             </div>
             {arenaOpponent === 'players' && <div>
-              <label className="text-xs text-stone block mb-1">Max Players</label>
-              <input type="number" className="input-field" value={maxPlayers} min={2} max={8} onChange={(e) => setMaxPlayers(parseInt(e.target.value) || 4)} />
+              <label className="text-xs text-stone block mb-1">Other Players <span className="text-stone/60">(you are already included)</span></label>
+              <input type="number" className="input-field" value={maxPlayers - 1} min={1} max={arenaGameType === 'ludo' ? 3 : 7} onChange={(e) => {
+                const opponents = Math.max(1, Math.min(arenaGameType === 'ludo' ? 3 : 7, parseInt(e.target.value) || 1));
+                setMaxPlayers(opponents + 1);
+                setTaggedIds((current) => new Set(Array.from(current).slice(0, opponents)));
+              }} />
             </div>}
           </div>
           {arenaOpponent === 'players' && <>
@@ -577,7 +590,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             </div>
           </div>
           <div>
-            <label className="text-xs text-stone block mb-1.5">Tag Cadets <span className="text-stone/60">(optional — notify them to join)</span></label>
+            <label className="text-xs text-stone block mb-1.5">Tag Cadets <span className="text-stone/60">({taggedIds.size}/{maxPlayers - 1} spaces — they still choose whether to join)</span></label>
             <div className="relative mb-2">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone" />
               <input className="input-field pl-9 text-sm" placeholder="Search cadets across tents..." value={cadetSearch} onChange={(e) => setCadetSearch(e.target.value)} />
@@ -601,9 +614,10 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                 .slice(0, 20)
                 .map((cadet) => {
                   const checked = taggedIds.has(cadet.user_id);
+                  const full = !checked && taggedIds.size >= maxPlayers - 1;
                   return (
-                    <label key={cadet.user_id} className={cn('flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
-                      <input type="checkbox" checked={checked} onChange={() => {
+                    <label key={cadet.user_id} className={cn('flex items-center gap-2 p-2 rounded-md transition-colors', full ? 'cursor-not-allowed opacity-45' : 'cursor-pointer', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
+                      <input type="checkbox" checked={checked} disabled={full} onChange={() => {
                         setTaggedIds((prev) => {
                           const n = new Set(prev);
                           n.has(cadet.user_id) ? n.delete(cadet.user_id) : n.add(cadet.user_id);
@@ -754,7 +768,6 @@ function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
   const topic = parseArenaTopic(roomName);
   if (!topic) return [];
   const label = topic.value;
-  const scope = topic.type === 'book' ? `the book of ${label}` : `${label}'s life and story`;
   return [
     {
       type: 'multiple_choice',
@@ -875,18 +888,6 @@ function buildFallbackArenaQuestions(): QuestionPayload[] {
   }));
 }
 
-function normalizeArenaAnswer(value: string | number | null | undefined) {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
-function isArenaAnswerCorrect(answer: string | null, question: QuestionPayload) {
-  return normalizeArenaAnswer(answer) === normalizeArenaAnswer(question.correct_answer);
-}
-
 function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onExit }: {
   narrativeDate: string;
   roomName: string;
@@ -975,7 +976,6 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
 
   const handleAnswer = useCallback(async (answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ]) return;
-    const q = questions[currentQ];
     setSubmittingAnswer(true);
     let result: { correct: boolean; totalFigs: number; correctCount: number };
     try {

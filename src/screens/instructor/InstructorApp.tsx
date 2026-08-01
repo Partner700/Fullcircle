@@ -52,7 +52,7 @@ function isRepublishSelection(selection: NarrativeSelection): selection is { mod
 }
 
 function isSentryAward(a: { title: string; forSentry?: boolean }) {
-  return !!a.forSentry || a.title === 'Century Badge (Centurion)' || a.title === 'Right Hand Badge';
+  return !!a.forSentry || a.title === 'Century Badge (Centurion)' || a.title === 'Right Hand Badge' || a.title === 'Reputation Award';
 }
 
 function awardVisibleForTarget(a: { title: string; forTent?: boolean; forSentry?: boolean }, target: AwardCatalogTarget) {
@@ -2204,6 +2204,9 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     awards: [
       { title: 'Rhetoric Award (Orator)', description: 'Best Quote of the Week' },
       { title: 'Messenger Award (Nuncio)', description: 'Best Meditation of the Week' },
+      { title: 'Rumor Award', description: 'Overall Best Cadet of the Week' },
+      { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
+      { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
     ],
   },
   {
@@ -2280,12 +2283,14 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
   const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
   const cadetIds = cadets.map((r) => r.user_id);
+  const sentryIds = sentries.map((r) => r.user_id);
   const profileName = (userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet';
 
   useEffect(() => {
     let cancelled = false;
     const loadRecommendations = async () => {
-      if (cadetIds.length === 0) {
+      const trackedUserIds = Array.from(new Set([...cadetIds, ...sentryIds]));
+      if (trackedUserIds.length === 0) {
         setRecommendations([]);
         return;
       }
@@ -2296,12 +2301,12 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
-            .in('user_id', cadetIds)
+            .in('user_id', trackedUserIds)
             .gte('record_date', AWARD_MEASUREMENT_START),
           supabase
             .from('quiz_attempts')
             .select('*')
-            .in('user_id', cadetIds)
+            .in('user_id', trackedUserIds)
             .gte('submitted_at', `${AWARD_MEASUREMENT_START}T00:00:00`),
           fetchDailyQuoteInteractionSummary(25).then((data) => ({ data })).catch(() => ({ data: [] })),
         ]);
@@ -2333,6 +2338,51 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             detail: `${topQuiz[1]} fig(s) recorded from quizzes since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
           });
         }
+
+        const weeklyStart = new Date();
+        weeklyStart.setHours(0, 0, 0, 0);
+        weeklyStart.setDate(weeklyStart.getDate() - ((weeklyStart.getDay() + 6) % 7));
+        const weeklyStartIso = weeklyStart.toISOString().slice(0, 10);
+        const weeklyRecords = (dailyRecords || []).filter((record: any) => record.record_date >= weeklyStartIso);
+        const sentryScores = new Map<string, number>();
+        weeklyRecords.filter((record: any) => sentryIds.includes(record.user_id)).forEach((record: any) => {
+          const credit = record.attendance_status === 'present' ? 1 : 0;
+          const meditation = record.meditation_submitted ? 1 : 0;
+          sentryScores.set(record.user_id, (sentryScores.get(record.user_id) || 0) + credit + meditation);
+        });
+        const topSentry = [...sentryScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topSentry) next.push({
+          title: 'Reputation Award',
+          candidate: profileName(topSentry[0]),
+          detail: `${topSentry[1]} leadership action(s) this week: morning attendance and daily meditation.`,
+        });
+
+        const cadetOverall = new Map<string, number>();
+        (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
+          const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
+          cadetOverall.set(record.user_id, (cadetOverall.get(record.user_id) || 0) + credit);
+        });
+        quizTotals.forEach((figs, userId) => {
+          if (cadetIds.includes(userId)) cadetOverall.set(userId, (cadetOverall.get(userId) || 0) + figs);
+        });
+        const topCadet = [...cadetOverall.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topCadet) next.push({
+          title: 'Rumor Award',
+          candidate: profileName(topCadet[0]),
+          detail: `${topCadet[1]} combined weekly point(s) from faithful daily work and quizzes.`,
+        });
+
+        const scribeScores = new Map<string, number>();
+        (quizAttempts || []).filter((attempt: any) => sentryIds.includes(attempt.user_id) || cadetIds.includes(attempt.user_id)).forEach((attempt: any) => {
+          const score = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          scribeScores.set(attempt.user_id, Math.max(scribeScores.get(attempt.user_id) || 0, score));
+        });
+        const topScribe = [...scribeScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (topScribe) next.push({
+          title: 'Scribe Award',
+          candidate: profileName(topScribe[0]),
+          detail: `${topScribe[1]} figs in their best quiz attempt this week.`,
+        });
 
         const quoteLeader = (quoteSummaryResult.data || []).filter((item) => cadetIds.includes(item.quote_user_id))[0];
         if (quoteLeader) {
@@ -2368,7 +2418,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     };
     void loadRecommendations();
     return () => { cancelled = true; };
-  }, [cadetIds.join('|'), members, profiles, tents]);
+  }, [cadetIds.join('|'), sentryIds.join('|'), members, profiles, tents]);
 
   const visibleCatalog = AWARD_CATALOG.map((group) => ({
     ...group,
