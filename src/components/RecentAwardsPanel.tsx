@@ -41,7 +41,8 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
                   ? <img src={award.profiles.avatar_url} alt={award.profiles.display_name || 'Award recipient'} className="h-full w-full object-cover" />
                   : <AwardIcon size={16} className="mx-auto mt-2.5" />}
               </div>
-              <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{award.title}</p><p className="truncate text-xs text-stone">{award.profiles?.display_name || 'Full Circle member'}</p></div>
+              <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{award.title}</p><p className="truncate text-xs text-stone">{award.profiles?.display_name || 'Full Circle member'}</p></div>
+              <AwardIcon size={17} className="flex-shrink-0 text-gold" aria-hidden="true" />
             </div>
           ))}
         </div>
