@@ -2218,6 +2218,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
       { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
       { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
+      { title: 'Tutorix', description: 'Highest Sentry Quiz Score and Most Quiz Figs of the Week', forSentry: true },
       { title: 'Valley Champion', description: 'Most Arena Victories of the Week', forSentry: true },
     ],
   },
@@ -2380,6 +2381,32 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           candidate: profileName(topSentry[0]),
           detail: `${topSentry[1]} leadership action(s) this week: morning attendance and daily meditation.`,
           runnersUp: sentryRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} leadership action(s).` })),
+        });
+
+        const tutorixScores = new Map<string, { bestScore: number; totalFigs: number }>();
+        (quizAttempts || []).filter((attempt: any) => (
+          sentryIds.includes(attempt.user_id)
+          && attempt.submitted_at?.slice(0, 10) >= weeklyStartIso
+        )).forEach((attempt: any) => {
+          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          const current = tutorixScores.get(attempt.user_id) || { bestScore: 0, totalFigs: 0 };
+          tutorixScores.set(attempt.user_id, {
+            bestScore: Math.max(current.bestScore, figs),
+            totalFigs: current.totalFigs + figs,
+          });
+        });
+        const tutorixRanking = [...tutorixScores.entries()]
+          .sort((a, b) => b[1].bestScore - a[1].bestScore || b[1].totalFigs - a[1].totalFigs)
+          .slice(0, 4);
+        const topTutorix = tutorixRanking[0];
+        if (topTutorix) next.push({
+          title: 'Tutorix',
+          candidate: profileName(topTutorix[0]),
+          detail: `${topTutorix[1].bestScore} figs in their highest quiz score and ${topTutorix[1].totalFigs} quiz figs overall this week.`,
+          runnersUp: tutorixRanking.slice(1).map(([userId, result]) => ({
+            candidate: profileName(userId),
+            detail: `${result.bestScore} figs in their highest quiz score; ${result.totalFigs} quiz figs overall.`,
+          })),
         });
 
         const arenaVictoryScores = new Map<string, number>();
