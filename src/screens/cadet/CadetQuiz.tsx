@@ -85,6 +85,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [usingLazarus, setUsingLazarus] = useState(false);
   const [lazarusMode, setLazarusMode] = useState(false);
   const [quizImage, setQuizImage] = useState<PanelImageSetting | null>(null);
+  const [readingArchive, setReadingArchive] = useState<(DailyNarrative & { meditation_text?: string | null; best_verse?: string | null })[]>([]);
+  const [reviewVerseIndex, setReviewVerseIndex] = useState(0);
 
   useEffect(() => {
     void setScenarioSound(inQuiz ? 'sound_quiz_start' : 'sound_quiz_waiting');
@@ -119,9 +121,12 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       }
     }
     try {
-      const narrs = await fetchNarratives(7);
+      const narrs = await fetchNarratives(90);
       setNarratives(narrs);
-    } catch { setNarratives([]); }
+      const { data: records } = await supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id);
+      const recordsByDate = new Map((records || []).map((record: any) => [record.record_date, record]));
+      setReadingArchive(narrs.filter((item) => item.narrative_date < new Date().toISOString().slice(0, 10)).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
+    } catch { setNarratives([]); setReadingArchive([]); }
     } catch (e) { console.error('Quiz load error:', e); }
     setLoading(false);
   }, [profile]);
@@ -376,8 +381,20 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           />
         </div>
       </div>
+
+      <QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />
     </div>
   );
+}
+
+function QuizReadingReview({ archive, verseIndex, onNext }: { archive: (DailyNarrative & { meditation_text?: string | null; best_verse?: string | null })[]; verseIndex: number; onNext: () => void }) {
+  const verses = archive.flatMap((item) => (item.highlighted_verses || []).map((verse) => ({ ...verse, date: item.narrative_date, title: item.title, bestVerse: item.best_verse })));
+  const verse = verses.length ? verses[verseIndex % verses.length] : null;
+  return <section className="card relative overflow-hidden p-5 animate-slide-up">
+    <div className="flex items-center justify-between gap-3"><div><p className="eyebrow text-stone">Quiz Reading Review</p><p className="mt-1 text-sm text-ink">Previous readings and verses to carry into the quiz</p></div><BookOpen size={20} className="text-brass" /></div>
+    {!verse ? <p className="mt-4 text-sm text-stone">Your previous readings will appear here once narratives have been published.</p> : <div className="mt-4 rounded-lg border border-brass/25 bg-brass-soft p-4"><p className="text-xs font-semibold text-brass">{verse.reference} · {verse.title}</p><p className="mt-2 text-sm leading-relaxed text-ink">{verse.text}</p>{verse.bestVerse === verse.reference && <p className="mt-2 text-xs text-sage">Your selected best verse</p>}<button type="button" onClick={onNext} className="btn-secondary mt-3 text-xs">Next verse</button></div>}
+    <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-xs font-semibold text-ink">Open previous readings and my meditations</summary><div className="mt-3 space-y-2">{archive.map((item) => <details key={item.id} className="rounded-md border border-border bg-surface-2 p-3"><summary className="cursor-pointer text-sm text-ink">{item.title} · {item.narrative_date}</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.main_text}</p>{item.meditation_text && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-ink">{item.meditation_text}</p>}</details>)}</div></details>
+  </section>;
 }
 
 // ── Waiting / countdown room — Dove + rotating scripture + thin progress bar ──

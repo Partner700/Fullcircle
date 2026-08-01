@@ -12,6 +12,8 @@ import {
   startArenaRoom,
   closeArenaRoom,
   finishArenaGame,
+  fetchArenaRoomMessages,
+  sendArenaRoomMessage,
   fetchArenaRooms,
   fetchArenaRoom,
   fetchNarratives,
@@ -24,7 +26,7 @@ import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import {
-  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search,
+  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -352,6 +354,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             ))}
           </div>
 
+          {!machineMatch && <ArenaWaitingChat roomId={room.id} userId={profile!.id} />}
+
           {isCreator && !machineMatch && (
             <div className="p-3 rounded-lg border border-border bg-surface-2 mb-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -656,6 +660,45 @@ function parseArenaGameType(roomName: string) {
   return /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
 
+function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const loadMessages = useCallback(async () => {
+    try { setMessages(await fetchArenaRoomMessages(roomId)); } catch (error) { console.error('Arena chat load failed', error); }
+  }, [roomId]);
+
+  useEffect(() => {
+    void loadMessages();
+    const channel = supabase.channel(`arena-room-chat-${roomId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}` }, () => void loadMessages())
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [roomId, loadMessages]);
+
+  const send = async () => {
+    if (!body.trim() || sending) return;
+    setSending(true);
+    try { await sendArenaRoomMessage(roomId, userId, body); setBody(''); await loadMessages(); } catch (error) { console.error('Arena chat send failed', error); }
+    setSending(false);
+  };
+
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-surface/80 p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink"><MessageCircle size={14} className="text-brass" /> Room chat</div>
+      <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
+        {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk while the room fills.</p> : messages.map((message) => {
+          const mine = message.sender_id === userId;
+          return <div key={message.id} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
+            {!mine && <div className="mt-0.5 h-6 w-6 overflow-hidden rounded-full bg-gold-soft text-center text-[10px] leading-6 text-gold">{message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : message.sender?.display_name?.charAt(0) || '?'}</div>}
+            <p className={cn('max-w-[80%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}><span className="mr-1 font-semibold">{mine ? 'You' : message.sender?.display_name || 'Cadet'}</span>{message.body}</p>
+          </div>;
+        })}</div>
+      <div className="mt-3 flex gap-2"><input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void send(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Write a message..." /><button type="button" onClick={() => void send()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send room message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button></div>
+    </div>
+  );
+}
+
 function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
   const topic = parseArenaTopic(roomName);
   if (!topic) return [];
@@ -789,7 +832,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [ludoPosition, setLudoPosition] = useState(0);
+  const [ludoPawns, setLudoPawns] = useState([0, 0, 0, 0]);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -868,7 +911,14 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
     if (correct) {
       setScore(nextScore);
       setCorrectCount(nextCorrectCount);
-      if (isLudo) setLudoPosition((position) => Math.min(24, position + (q.is_bonus ? 2 : 1)));
+      if (isLudo) {
+        setLudoPawns((pawns) => {
+          const next = [...pawns];
+          const pawnIndex = correctCountRef.current % next.length;
+          next[pawnIndex] = Math.min(24, next[pawnIndex] + (q.is_bonus ? 2 : 1));
+          return next;
+        });
+      }
     }
     const nextIndex = currentQ + 1;
     const currentRound = getArenaRoundForIndex(currentQ);
@@ -966,19 +1016,23 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
         <div className="rounded-lg border border-brass/30 bg-surface/80 p-3">
           <div className="mb-2 flex items-center justify-between text-xs text-stone">
             <span className="font-semibold text-ink">Bible Ludo Trail</span>
-            <span>{ludoPosition} / 24 spaces</span>
+            <span>{ludoPawns.filter((position) => position >= 24).length} / 4 pawns home</span>
           </div>
-          <div className="grid grid-cols-8 gap-1.5" aria-label={`Bible Ludo position ${ludoPosition} of 24`}>
+          <div className="mb-3 flex items-center gap-2" aria-label="Your four Bible Ludo pawns">
+            {ludoPawns.map((position, index) => <span key={index} className={cn('flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold', position >= 24 ? 'border-sage bg-sage-soft text-sage' : 'border-gold bg-gold-soft text-gold')}>●{index + 1}</span>)}
+            <span className="text-[11px] text-stone">A correct answer advances the next pawn.</span>
+          </div>
+          <div className="grid grid-cols-8 gap-1.5" aria-label="Bible Ludo board">
             {Array.from({ length: 24 }, (_, index) => (
               <span key={index} className={cn(
                 'flex aspect-square items-center justify-center rounded-sm border text-[10px] font-semibold',
-                index + 1 === ludoPosition ? 'border-gold bg-gold text-navy-2' : index < ludoPosition ? 'border-sage/40 bg-sage-soft text-sage' : 'border-border bg-surface-2 text-stone',
+                ludoPawns.includes(index + 1) ? 'border-gold bg-gold text-navy-2' : ludoPawns.some((position) => position > index + 1) ? 'border-sage/40 bg-sage-soft text-sage' : 'border-border bg-surface-2 text-stone',
               )}>
-                {index + 1 === ludoPosition ? '●' : index + 1}
+                {ludoPawns.reduce((total, position) => total + (position === index + 1 ? 1 : 0), 0) || index + 1}
               </span>
             ))}
           </div>
-          <p className="mt-2 text-[11px] text-stone">A correct answer advances your token. Your figs still decide the winner when the match ends.</p>
+          <p className="mt-2 text-[11px] text-stone">Every move is earned by a correct answer. Your figs still decide the winner when the match ends.</p>
         </div>
       )}
 

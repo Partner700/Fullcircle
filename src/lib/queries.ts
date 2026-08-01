@@ -1270,6 +1270,31 @@ export async function finishArenaGame(roomId: string, userId: string, score: num
   if (error) throw error;
 }
 
+export async function fetchArenaRoomMessages(roomId: string) {
+  const { data, error } = await supabase
+    .from('arena_room_messages')
+    .select('id,room_id,sender_id,body,created_at')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: true })
+    .limit(100);
+  if (error) throw error;
+  const senderIds = Array.from(new Set((data || []).map((message: any) => message.sender_id)));
+  const { data: profiles } = senderIds.length
+    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds)
+    : { data: [] as any[] };
+  const byId = new Map((profiles || []).map((item: any) => [item.id, item]));
+  return (data || []).map((message: any) => ({ ...message, sender: byId.get(message.sender_id) || null }));
+}
+
+export async function sendArenaRoomMessage(roomId: string, senderId: string, body: string) {
+  const { error } = await supabase.from('arena_room_messages').insert({
+    room_id: roomId,
+    sender_id: senderId,
+    body: body.trim(),
+  });
+  if (error) throw error;
+}
+
 export async function generateArenaQuestionsWithAI(payload: {
   roomId: string;
   roomName: string;
