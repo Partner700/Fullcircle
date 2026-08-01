@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     if (!roomId) return json({ error: "roomId is required." }, 400);
 
     const gameType = String(body.gameType || (String(body.roomName || '').includes('[arena:ludo]') ? 'ludo' : 'standard'));
-    const targetCount = gameType === 'ludo' ? 60 : 19;
+    const targetCount = gameType === 'ludo' ? 120 : 19;
     const existing = await fetchRoomQuestions(roomId, targetCount);
     if (existing) return json({ questions: existing });
 
@@ -116,9 +116,12 @@ Deno.serve(async (req) => {
       ? `${topicType}: ${topic}`
       : `weekly narrative: ${narrative.title || "Untitled"}; theme: ${narrative.theme || ""}; scripture: ${narrative.scripture_reference || ""}; main text: ${narrative.main_text || ""}`;
 
+    const formatRule = gameType === 'ludo'
+      ? '- This is a long four-pawn Ludo match. Create one broad, varied question deck with no round grouping.'
+      : '- Three rounds of six questions, then one final bonus question.';
     const prompt = `Create exactly ${targetCount} difficult but fair Bible arena questions for Full Circle.
 Rules:
-- Three rounds of six questions, then one final bonus question.
+${formatRule}
 - No repeated questions, no vague trivia, no incomplete wording.
 - Use only these types: multiple_choice, true_false, standard_text.
 - Every multiple_choice question must have 4 options and one exact correct_answer from the options.

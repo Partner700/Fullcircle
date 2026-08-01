@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { RoadHomeGame } from './RoadHomeGame';
 import { supabase } from '../../lib/supabase';
 import {
   fetchLedgerTotal,
@@ -177,9 +178,13 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       setError(room.status === 'expired' ? 'That arena room expired.' : 'That arena room was closed by the host.');
       clearActiveRoom(false);
     }
-    if (room.status === 'completed' && phase !== 'finished') {
-      setPhase('finished');
-      if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+    if (room.status === 'completed') {
+      if (parseArenaGameType(room.room_name || '') === 'ludo') {
+        if (phase !== 'playing') setPhase('playing');
+      } else if (phase !== 'finished') {
+        setPhase('finished');
+        if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+      }
     }
   }, [activeRoomId, phase, rooms, profile]);
 
@@ -264,6 +269,36 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
   if (phase === 'playing' && activeRoomId) {
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
+    const activeRoomName = activeRoom?.room_name || roomName;
+    if (parseArenaGameType(activeRoomName) === 'ludo') {
+      return (
+        <RoadHomeGame
+          roomId={activeRoomId}
+          roomName={activeRoomName}
+          userId={profile!.id}
+          prepareQuestions={async () => {
+            const topic = parseArenaTopic(activeRoomName);
+            const narrativeDate = activeRoom?.narrative_date || selectedNarrativeDate;
+            const narrative = narrativeDate
+              ? narratives.find((item) => item.narrative_date === narrativeDate)
+              : narratives[0];
+            await generateArenaQuestionsWithAI({
+              roomId: activeRoomId,
+              roomName: activeRoomName,
+              gameType: 'ludo',
+              topicType: topic?.type || 'narrative',
+              topic: topic?.value || null,
+              narrative: narrative || null,
+            });
+          }}
+          onExit={() => clearActiveRoom(true)}
+          onStateChanged={async () => {
+            await load();
+            await onBalanceChanged?.();
+          }}
+        />
+      );
+    }
     return (
       <ArenaGamePlay
         narrativeDate={activeRoom?.narrative_date || selectedNarrativeDate}
@@ -848,14 +883,12 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [ludoPawns, setLudoPawns] = useState([0, 0, 0, 0]);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
-  const isLudo = parseArenaGameType(roomName) === 'ludo';
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
 
   useEffect(() => { scoreRef.current = score; }, [score]);
@@ -933,14 +966,6 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
     if (correct) {
       setScore(nextScore);
       setCorrectCount(nextCorrectCount);
-      if (isLudo) {
-        setLudoPawns((pawns) => {
-          const next = [...pawns];
-          const pawnIndex = correctCountRef.current % next.length;
-          next[pawnIndex] = Math.min(24, next[pawnIndex] + (q.is_bonus ? 2 : 1));
-          return next;
-        });
-      }
     }
     const nextIndex = currentQ + 1;
     const currentRound = getArenaRoundForIndex(currentQ);
@@ -950,7 +975,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
     } else if (nextIndex >= questions.length) {
       completeGame(nextScore, nextCorrectCount);
     }
-  }, [answeredIds, questions, currentQ, completeGame, isLudo]);
+  }, [answeredIds, questions, currentQ, completeGame]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -1033,30 +1058,6 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuesti
         <span>Figs: <span className="text-ink font-semibold">{score}</span> / {ARENA_TOTAL_FIGS}</span>
         <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
       </div>
-
-      {isLudo && (
-        <div className="rounded-lg border border-brass/30 bg-surface/80 p-3">
-          <div className="mb-2 flex items-center justify-between text-xs text-stone">
-            <span className="font-semibold text-ink">Bible Ludo Trail</span>
-            <span>{ludoPawns.filter((position) => position >= 24).length} / 4 pawns home</span>
-          </div>
-          <div className="mb-3 flex items-center gap-2" aria-label="Your four Bible Ludo pawns">
-            {ludoPawns.map((position, index) => <span key={index} className={cn('flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold', position >= 24 ? 'border-sage bg-sage-soft text-sage' : 'border-gold bg-gold-soft text-gold')}>●{index + 1}</span>)}
-            <span className="text-[11px] text-stone">A correct answer advances the next pawn.</span>
-          </div>
-          <div className="grid grid-cols-8 gap-1.5" aria-label="Bible Ludo board">
-            {Array.from({ length: 24 }, (_, index) => (
-              <span key={index} className={cn(
-                'flex aspect-square items-center justify-center rounded-sm border text-[10px] font-semibold',
-                ludoPawns.includes(index + 1) ? 'border-gold bg-gold text-navy-2' : ludoPawns.some((position) => position > index + 1) ? 'border-sage/40 bg-sage-soft text-sage' : 'border-border bg-surface-2 text-stone',
-              )}>
-                {ludoPawns.reduce((total, position) => total + (position === index + 1 ? 1 : 0), 0) || index + 1}
-              </span>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] text-stone">Every move is earned by a correct answer. Your figs still decide the winner when the match ends.</p>
-        </div>
-      )}
 
       <div className="card p-5">
         <p className="eyebrow mb-2">{q.is_bonus ? 'Bonus Question · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p>

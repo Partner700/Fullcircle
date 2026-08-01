@@ -9,6 +9,7 @@ import type {
   QuizScoreboardRow, QuestionPayload, PanelImageSetting,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
+import type { RoadHomeResponse } from './roadHomeTypes';
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -1338,6 +1339,57 @@ export async function generateArenaQuestionsWithAI(payload: {
   const data = await res.json();
   if (!Array.isArray(data.questions)) throw new Error('AI arena generation returned no questions.');
   return data.questions as QuestionPayload[];
+}
+
+async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHomeResponse> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again to continue The Road Home.');
+  const response = await fetch(`${supabaseUrl}/functions/v1/road-home-game`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await response.text();
+  let payload: RoadHomeResponse & { error?: string };
+  try { payload = raw ? JSON.parse(raw) : { state: null }; } catch { payload = { state: null, error: raw || 'The Road Home server returned an invalid response.' }; }
+  if (!response.ok) {
+    const error = new Error(payload.error || 'The Road Home command failed.') as Error & { state?: RoadHomeResponse['state']; version?: number; needsInitialization?: boolean };
+    error.state = payload.state;
+    error.version = payload.version;
+    error.needsInitialization = payload.needsInitialization;
+    throw error;
+  }
+  return payload;
+}
+
+export function fetchRoadHomeState(roomId: string) {
+  return callRoadHomeServer({ roomId, action: 'GET' });
+}
+
+export function initializeRoadHome(roomId: string) {
+  return callRoadHomeServer({ roomId, action: 'INIT', commandId: crypto.randomUUID() });
+}
+
+export function sendRoadHomeCommand(
+  roomId: string,
+  action: string,
+  payload: Record<string, unknown>,
+  expectedVersion: number,
+) {
+  return callRoadHomeServer({
+    roomId,
+    action,
+    payload,
+    expectedVersion,
+    commandId: crypto.randomUUID(),
+  });
 }
 
 async function mergeArenaRoomsWithParticipants(rooms: any[]) {
