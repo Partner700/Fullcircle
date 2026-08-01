@@ -58,6 +58,7 @@ function isSentryAward(a: { title: string; forSentry?: boolean }) {
 
 function awardVisibleForTarget(a: { title: string; forTent?: boolean; forSentry?: boolean }, target: AwardCatalogTarget) {
   if (target === 'tent') return !!a.forTent;
+  if (a.title === 'Valley Champion') return target === 'cadet' || target === 'sentry';
   if (target === 'sentry') return isSentryAward(a);
   return !a.forTent && !isSentryAward(a);
 }
@@ -2314,12 +2315,12 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             .in('user_id', trackedUserIds)
             .gte('submitted_at', `${AWARD_MEASUREMENT_START}T00:00:00`),
           fetchDailyQuoteInteractionSummary(25).then((data) => ({ data })).catch(() => ({ data: [] })),
-          sentryIds.length > 0
+          trackedUserIds.length > 0
             ? supabase
               .from('arena_rooms')
               .select('winner_id,completed_at')
               .eq('status', 'completed')
-              .in('winner_id', sentryIds)
+              .in('winner_id', trackedUserIds)
               .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
             : Promise.resolve({ data: [], error: null }),
         ]);
@@ -2384,7 +2385,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         if (valleyRanking[0]) next.push({
           title: 'Valley Champion',
           candidate: profileName(valleyRanking[0][0]),
-          detail: `${valleyRanking[0][1]} Arena victor${valleyRanking[0][1] === 1 ? 'y' : 'ies'} this week.`,
+          detail: `${valleyRanking[0][1]} Arena victor${valleyRanking[0][1] === 1 ? 'y' : 'ies'} this week across cadets and sentries.`,
           runnersUp: valleyRanking.slice(1).map(([userId, wins]) => ({
             candidate: profileName(userId),
             detail: `${wins} Arena victor${wins === 1 ? 'y' : 'ies'} this week.`,
