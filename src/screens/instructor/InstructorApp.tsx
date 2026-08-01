@@ -311,6 +311,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
   { type: 'panel_image_awards', label: 'Awards Hub', audience: 'all' },
+  { type: 'panel_image_recent_awards', label: 'Recent Awards Dashboard Panel', audience: 'all' },
   { type: 'panel_image_settings', label: 'Settings', audience: 'all' },
   { type: 'panel_image_password_update', label: 'Password Update', audience: 'all' },
   { type: 'panel_image_subscription', label: 'Subscription', audience: 'all' },

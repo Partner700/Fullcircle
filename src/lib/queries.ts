@@ -388,10 +388,11 @@ export async function fetchLeaderboardSnapshots() {
 export async function fetchAwards() {
   const { data, error } = await supabase
     .from('awards')
-    .select('*, profiles(display_name)')
-    .order('award_month', { ascending: false });
+    .select('*, profiles(display_name, avatar_url)')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data as (Award & { profiles: { display_name: string } })[];
+  // A tent award can have no profile join. Consumers render a member fallback in that case.
+  return data as (Award & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
 export async function insertAward(award: Partial<Award>) {
