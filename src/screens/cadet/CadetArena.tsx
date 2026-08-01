@@ -50,6 +50,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [selectedNarrativeDate, setSelectedNarrativeDate] = useState<string>('');
   const [arenaTopicType, setArenaTopicType] = useState<'narrative' | 'book' | 'character'>('narrative');
   const [arenaTopic, setArenaTopic] = useState('');
+  const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
+  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo'>('standard');
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -173,7 +175,10 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       const topicSuffix = arenaTopicType === 'narrative' || !arenaTopic.trim()
         ? ''
         : ` [${arenaTopicType}: ${arenaTopic.trim()}]`;
-      const roomId = await createArenaRoom(profile.id, `${roomName}${topicSuffix}`, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
+      const fullRoomName = `${roomName}${topicSuffix} [arena:${arenaGameType}]`;
+      const roomId = arenaOpponent === 'machine'
+        ? await createMachineArenaRoom(profile.id, fullRoomName, selectedNarrativeDate || undefined)
+        : await createArenaRoom(profile.id, fullRoomName, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
       activateRoom(roomId, 'waiting');
       setShowCreate(false);
       setTaggedIds(new Set());
@@ -181,21 +186,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       await load();
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to create room'); }
-    setCreating(false);
-  };
-
-  const createMachineMatch = async () => {
-    if (!profile) return;
-    setCreating(true);
-    setError(null);
-    try {
-      const roomId = await createMachineArenaRoom(profile.id, 'Bible Trail vs Machine', selectedNarrativeDate || undefined);
-      activateRoom(roomId, 'waiting');
-      await load();
-      await onBalanceChanged?.();
-    } catch (error: any) {
-      setError(error.message || 'Could not create the machine match.');
-    }
     setCreating(false);
   };
 
@@ -262,7 +252,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       <ArenaGamePlay
         narrativeDate={activeRoom?.narrative_date || selectedNarrativeDate}
         roomName={activeRoom?.room_name || roomName}
-        startedAt={activeRoom?.started_at || null}
         narratives={narratives}
         roomId={activeRoomId}
         roomQuestionSet={activeRoom?.question_set}
@@ -454,44 +443,55 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="card p-4">
-          <p className="eyebrow text-stone">Solo Match</p>
-          <h3 className="mt-1 font-display text-base font-semibold text-ink">Machine Battle</h3>
-          <p className="mt-1 text-xs leading-relaxed text-stone">Stake 50 Ð. Beat the machine score to win a tenfold prize.</p>
-          <button onClick={createMachineMatch} disabled={creating || denarii < 50} className="btn-secondary mt-4 w-full text-sm disabled:opacity-50">
-            {creating ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} Play Machine · 50 Ð
-          </button>
-        </div>
-        <div className="card p-4">
-          <p className="eyebrow text-stone">Multiplayer</p>
-          <h3 className="mt-1 font-display text-base font-semibold text-ink">Create a Room</h3>
-          <p className="mt-1 text-xs leading-relaxed text-stone">Choose the stake, invite people, then begin when the room is ready.</p>
-          <button onClick={() => setShowCreate(!showCreate)} className="btn-primary mt-4 w-full text-sm">
-            <Plus size={14} /> {showCreate ? 'Close Room Setup' : 'Create Room'}
-          </button>
-        </div>
+      <div className="card p-4 sm:p-5">
+        <p className="eyebrow text-stone">Arena Match</p>
+        <h3 className="mt-1 font-display text-base font-semibold text-ink">Choose your battle, then create one room.</h3>
+        <p className="mt-1 text-xs leading-relaxed text-stone">Play the machine or invite people. Both use the same match setup and the same tenfold prize rule.</p>
+        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary mt-4 w-full sm:w-auto text-sm">
+          <Plus size={14} /> {showCreate ? 'Close Match Setup' : 'Create Arena Match'}
+        </button>
       </div>
 
       {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
 
       {showCreate && (
         <div className="card p-5 space-y-3 animate-slide-up">
-          <h4 className="font-display font-semibold text-ink">Create Arena Room</h4>
+          <h4 className="font-display font-semibold text-ink">Create Arena Match</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-stone block mb-1">Opponent</label>
+              <select className="input-field" value={arenaOpponent} onChange={(event) => setArenaOpponent(event.target.value as 'players' | 'machine')}>
+                <option value="players">Other players</option>
+                <option value="machine">Machine</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-stone block mb-1">Game Play</label>
+              <select className="input-field" value={arenaGameType} onChange={(event) => setArenaGameType(event.target.value as 'standard' | 'ludo')}>
+                <option value="standard">Standard Trivia</option>
+                <option value="ludo">Ludo Trivia</option>
+              </select>
+            </div>
+          </div>
+          <p className="rounded-lg border border-brass/25 bg-brass-soft p-3 text-xs text-stone">
+            {arenaGameType === 'standard' ? 'Standard Trivia: answer random Bible narrative questions; the highest score wins.' : 'Ludo Trivia: correct answers move tokens around the board, with surprise spaces and relic effects.'}
+            {arenaOpponent === 'machine' && ' Machine matches cost a fixed 50 Ð.'}
+          </p>
           <div>
             <label className="text-xs text-stone block mb-1">Room Name</label>
             <input className="input-field" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={cn('grid gap-3', arenaOpponent === 'machine' ? 'grid-cols-1' : 'grid-cols-2')}>
             <div>
               <label className="text-xs text-stone block mb-1">Stake (denarii)</label>
-              <input type="number" className="input-field" value={stake} min={10} onChange={(e) => setStake(parseInt(e.target.value) || 0)} />
+              <input type="number" className="input-field" value={arenaOpponent === 'machine' ? 50 : stake} min={10} disabled={arenaOpponent === 'machine'} onChange={(e) => setStake(parseInt(e.target.value) || 0)} />
             </div>
-            <div>
+            {arenaOpponent === 'players' && <div>
               <label className="text-xs text-stone block mb-1">Max Players</label>
               <input type="number" className="input-field" value={maxPlayers} min={2} max={8} onChange={(e) => setMaxPlayers(parseInt(e.target.value) || 4)} />
-            </div>
+            </div>}
           </div>
+          {arenaOpponent === 'players' && <>
           <div>
             <label className="text-xs text-stone block mb-1">Content Source (narrative date)</label>
             <select className="input-field" value={selectedNarrativeDate} onChange={(e) => setSelectedNarrativeDate(e.target.value)}>
@@ -565,11 +565,14 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               {allCadets.length === 0 && <p className="text-xs text-stone text-center py-2">No other cadets available.</p>}
             </div>
           </div>
-          <button onClick={createRoom} disabled={creating || stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii} className="btn-primary text-sm">
-            {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} Create & Stake {formatDenarii(stake)} Ð
+          </>}
+          <button onClick={createRoom} disabled={creating || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} {arenaOpponent === 'machine' ? 'Create Machine Match · 50 Ð' : `Create & Stake ${formatDenarii(stake)} Ð`}
           </button>
-          {stake + ARENA_GAME_CALL_FEE > denarii && <p className="text-xs text-coral">Insufficient denarii. You need {formatDenarii(stake + ARENA_GAME_CALL_FEE)} Ð (stake + {ARENA_GAME_CALL_FEE} game call fee).</p>}
-          {stake + ARENA_GAME_CALL_FEE <= denarii && <p className="text-xs text-stone">A {ARENA_GAME_CALL_FEE} Ð game call fee is charged in addition to the stake.</p>}
+          {arenaOpponent === 'machine' ? <p className="text-xs text-stone">Machine matches charge only the fixed 50 Ð stake.</p> : <>
+            {stake + ARENA_GAME_CALL_FEE > denarii && <p className="text-xs text-coral">Insufficient denarii. You need {formatDenarii(stake + ARENA_GAME_CALL_FEE)} Ð (stake + {ARENA_GAME_CALL_FEE} game call fee).</p>}
+            {stake + ARENA_GAME_CALL_FEE <= denarii && <p className="text-xs text-stone">A {ARENA_GAME_CALL_FEE} Ð game call fee is charged in addition to the stake.</p>}
+          </>}
         </div>
       )}
 
@@ -649,6 +652,10 @@ function parseArenaTopic(roomName: string) {
   return match ? { type: match[1].toLowerCase(), value: match[2].trim() } : null;
 }
 
+function parseArenaGameType(roomName: string) {
+  return /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
+}
+
 function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
   const topic = parseArenaTopic(roomName);
   if (!topic) return [];
@@ -676,8 +683,19 @@ function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
 }
 
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
-const ARENA_ROUND_SECONDS = [90, 72, 54, 10];
 const ARENA_TOTAL_FIGS = 20;
+
+function getArenaDifficulty(questionIndex: number): 'easy' | 'moderate' | 'hard' {
+  if (questionIndex < 6) return 'easy';
+  if (questionIndex < 12) return 'moderate';
+  return 'hard';
+}
+
+function getArenaQuestionSeconds(question: QuestionPayload | undefined) {
+  if (question?.difficulty_tag === 'easy') return 40;
+  if (question?.difficulty_tag === 'hard') return 15;
+  return 25;
+}
 
 function getArenaRoundForIndex(questionIndex: number) {
   let start = 0;
@@ -706,7 +724,8 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
     questions.push({
       ...q,
       game_round: getArenaRoundForIndex(i) + 1,
-      round_timer_seconds: ARENA_ROUND_SECONDS[getArenaRoundForIndex(i)],
+      difficulty_tag: getArenaDifficulty(i),
+      round_timer_seconds: getArenaQuestionSeconds({ ...q, difficulty_tag: getArenaDifficulty(i) }),
       is_bonus: i === 18,
     });
   }
@@ -715,25 +734,25 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
 
 function buildFallbackArenaQuestions(): QuestionPayload[] {
   const stems = [
-    ['multiple_choice', 'Which response best shows careful Bible reading?', 'The answer must fit the actual passage', ['The answer must fit the actual passage', 'The longest answer is always correct', 'Names never matter', 'Context is optional']],
-    ['true_false', 'A hard Bible question can depend on context, speaker, and sequence.', 'True', ['True', 'False']],
-    ['standard_text', 'Type the word used for all quiz and arena score points.', 'figs'],
-    ['multiple_choice', 'Which detail should settle a difficult question first?', 'The written scripture text', ['The written scripture text', 'A guess from memory', 'The fastest answer', 'A popular saying']],
-    ['true_false', 'Arena bonus questions are worth two figs.', 'True', ['True', 'False']],
-    ['standard_text', 'Type the number of regular arena rounds.', '3'],
-    ['multiple_choice', 'How many questions are in each regular arena round?', '6', ['6', '5', '7', '10']],
-    ['standard_text', 'Type the total arena score possible in figs.', '20'],
-    ['true_false', 'A repeated question should be accepted in an arena battle.', 'False', ['True', 'False']],
-    ['multiple_choice', 'What should happen after a round is complete?', 'Move to the next round when ready', ['Move to the next round when ready', 'Restart the same round', 'Reveal every correct answer', 'Close the room']],
-    ['standard_text', 'Type the name of the Saturday rest day instruction: no daily meditation on Sunday, only verse reaction.', 'Sunday'],
-    ['true_false', 'Timers in this app should be per round, not per question.', 'True', ['True', 'False']],
-    ['multiple_choice', 'What makes a Bible arena question fair?', 'It has one clear answer', ['It has one clear answer', 'It has no answer', 'It repeats earlier wording', 'It reveals the answer']],
-    ['standard_text', 'Type the word used for the winner-takes-all arena reward pool.', 'pot'],
-    ['multiple_choice', 'Which source is preferred for narrative-based arena play?', 'The game content packet', ['The game content packet', 'A random chat message', 'The market panel', 'The password page']],
-    ['true_false', 'The host signing out should not automatically close a staked arena room.', 'True', ['True', 'False']],
-    ['standard_text', 'Type the app name.', 'Full Circle'],
-    ['multiple_choice', 'What should the winner receive after the battle?', 'The full staked pot', ['The full staked pot', 'Only their own stake', 'Nothing', 'A password reset']],
-    ['standard_text', 'Bonus: type the score value of this final bonus question.', '2'],
+    ['multiple_choice', 'Which brother was sold by his brothers and later became governor in Egypt?', 'Joseph', ['Joseph', 'Benjamin', 'Reuben', 'Judah']],
+    ['multiple_choice', 'What sign did Gideon ask God to give with a fleece before battle?', 'Dew on the fleece only', ['Dew on the fleece only', 'Fire from the fleece', 'A rainbow over the camp', 'Oil on the ground']],
+    ['standard_text', 'Who interpreted Pharaoh\'s dreams about seven years of plenty and seven years of famine?', 'Joseph'],
+    ['multiple_choice', 'Which judge defeated Midian with three hundred men carrying trumpets, jars, and torches?', 'Gideon', ['Gideon', 'Samson', 'Jephthah', 'Barak']],
+    ['true_false', 'Ruth was a Moabite who chose to remain with Naomi.', 'True', ['True', 'False']],
+    ['multiple_choice', 'Before David faced Goliath, what did Saul try to give him?', 'His armor', ['His armor', 'A chariot', 'A spear', 'A crown']],
+    ['standard_text', 'Which prophet confronted David after his sin involving Bathsheba?', 'Nathan'],
+    ['multiple_choice', 'What did Esther ask the Jews in Susa to do before she approached the king?', 'Fast for three days', ['Fast for three days', 'Build the wall', 'Leave the city', 'Prepare sacrifices']],
+    ['multiple_choice', 'Who was thrown into a lions\' den for praying to God?', 'Daniel', ['Daniel', 'Jeremiah', 'Ezekiel', 'Nehemiah']],
+    ['true_false', 'Jonah fled in the direction of Nineveh before the storm at sea.', 'False', ['True', 'False']],
+    ['standard_text', 'What city did Joshua and Israel march around before its walls fell?', 'Jericho'],
+    ['multiple_choice', 'Which apostle denied knowing Jesus three times before the rooster crowed?', 'Peter', ['Peter', 'John', 'Thomas', 'Andrew']],
+    ['multiple_choice', 'Who baptized the Ethiopian official on the road from Jerusalem to Gaza?', 'Philip', ['Philip', 'Paul', 'Peter', 'Stephen']],
+    ['true_false', 'Paul and Silas sang hymns while imprisoned in Philippi.', 'True', ['True', 'False']],
+    ['standard_text', 'Who saw a vision of a sheet with animals before visiting Cornelius?', 'Peter'],
+    ['multiple_choice', 'Which woman opened her home to Paul after believing in Philippi?', 'Lydia', ['Lydia', 'Priscilla', 'Martha', 'Dorcas']],
+    ['multiple_choice', 'Who replaced Judas Iscariot among the twelve apostles?', 'Matthias', ['Matthias', 'Barnabas', 'Silas', 'Timothy']],
+    ['true_false', 'The prodigal son asked to be restored as his father\'s son before he returned home.', 'False', ['True', 'False']],
+    ['standard_text', 'Bonus: who raised Lazarus after he had been in the tomb four days?', 'Jesus'],
   ] as const;
   return stems.map(([type, question, correct_answer, options]) => ({
     type: type as QuestionPayload['type'],
@@ -755,10 +774,9 @@ function isArenaAnswerCorrect(answer: string | null, question: QuestionPayload) 
   return normalizeArenaAnswer(answer) === normalizeArenaAnswer(question.correct_answer);
 }
 
-function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId, roomQuestionSet, onComplete, onExit }: {
+function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, roomQuestionSet, onComplete, onExit }: {
   narrativeDate: string;
   roomName: string;
-  startedAt: string | null;
   narratives: DailyNarrative[];
   roomId: string;
   roomQuestionSet?: QuestionPayload[] | null;
@@ -771,13 +789,14 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(ARENA_ROUND_SECONDS[0]);
+  const [ludoPosition, setLudoPosition] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const localStartRef = useRef(Date.now());
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
+  const isLudo = parseArenaGameType(roomName) === 'ludo';
 
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
@@ -849,6 +868,7 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
     if (correct) {
       setScore(nextScore);
       setCorrectCount(nextCorrectCount);
+      if (isLudo) setLudoPosition((position) => Math.min(24, position + (q.is_bonus ? 2 : 1)));
     }
     const nextIndex = currentQ + 1;
     const currentRound = getArenaRoundForIndex(currentQ);
@@ -858,30 +878,30 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
     } else if (nextIndex >= questions.length) {
       completeGame(nextScore, nextCorrectCount);
     }
-  }, [answeredIds, questions, currentQ, completeGame]);
+  }, [answeredIds, questions, currentQ, completeGame, isLudo]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (!ready) return;
+    const activeQuestion = questions[currentQ];
+    if (!ready || !activeQuestion) return;
+
+    const seconds = getArenaQuestionSeconds(activeQuestion);
+    const deadline = Date.now() + seconds * 1000;
+    setTimeLeft(seconds);
     timerRef.current = setInterval(() => {
-      const startMs = startedAt ? new Date(startedAt).getTime() : localStartRef.current;
-      const elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-      const cumulative = ARENA_ROUND_SECONDS.reduce<number[]>((acc, seconds) => {
-        acc.push((acc[acc.length - 1] || 0) + seconds);
-        return acc;
-      }, []);
-      const nextRound = cumulative.findIndex((end) => elapsed < end);
-      if (nextRound === -1) {
-        setTimeLeft(0);
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining > 0) return;
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (currentQ + 1 >= questions.length) {
         completeGame();
-        return;
+      } else {
+        setCurrentQ(currentQ + 1);
+        setTypedAnswer('');
       }
-      const roundStartQuestion = ARENA_ROUND_LENGTHS.slice(0, nextRound).reduce((sum, length) => sum + length, 0);
-      setCurrentQ((current) => Math.max(current, roundStartQuestion));
-      setTimeLeft(Math.max(0, cumulative[nextRound] - elapsed));
-    }, 1000);
+    }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, startedAt, completeGame]);
+  }, [ready, questions, currentQ, completeGame]);
 
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
   const moveToNextRound = () => {
@@ -895,18 +915,6 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
       completeGame();
     }
   };
-
-  useEffect(() => {
-    if (!ready || questions.length === 0 || timeLeft > 0) return;
-    const currentRound = getArenaRoundForIndex(currentQ);
-    const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS.slice(0, currentRound + 1).reduce((sum, length) => sum + length, 0);
-    if (nextRoundQuestionIndex < questions.length) {
-      setCurrentQ(nextRoundQuestionIndex);
-      setTypedAnswer('');
-    } else {
-      completeGame();
-    }
-  }, [timeLeft, ready, questions.length, currentQ, completeGame]);
 
   if (!ready) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
@@ -951,11 +959,31 @@ function ArenaGamePlay({ narrativeDate, roomName, startedAt, narratives, roomId,
 
       <div className="flex items-center justify-between text-xs text-stone">
         <span>Figs: <span className="text-ink font-semibold">{score}</span> / {ARENA_TOTAL_FIGS}</span>
-        <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]}</span>
+        <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
       </div>
 
+      {isLudo && (
+        <div className="rounded-lg border border-brass/30 bg-surface/80 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs text-stone">
+            <span className="font-semibold text-ink">Bible Ludo Trail</span>
+            <span>{ludoPosition} / 24 spaces</span>
+          </div>
+          <div className="grid grid-cols-8 gap-1.5" aria-label={`Bible Ludo position ${ludoPosition} of 24`}>
+            {Array.from({ length: 24 }, (_, index) => (
+              <span key={index} className={cn(
+                'flex aspect-square items-center justify-center rounded-sm border text-[10px] font-semibold',
+                index + 1 === ludoPosition ? 'border-gold bg-gold text-navy-2' : index < ludoPosition ? 'border-sage/40 bg-sage-soft text-sage' : 'border-border bg-surface-2 text-stone',
+              )}>
+                {index + 1 === ludoPosition ? '●' : index + 1}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-stone">A correct answer advances your token. Your figs still decide the winner when the match ends.</p>
+        </div>
+      )}
+
       <div className="card p-5">
-        <p className="eyebrow mb-2">{q.is_bonus ? 'Bonus Question · 2 figs' : `Round ${currentRound + 1} · Question ${roundQuestionNumber}`}</p>
+        <p className="eyebrow mb-2">{q.is_bonus ? 'Bonus Question · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p>
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
 
         {/* True/False */}

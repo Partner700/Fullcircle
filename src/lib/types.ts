@@ -192,6 +192,7 @@ export interface QuestionPayload {
   passage_display_seconds?: number;
   game_round?: number | null;
   round_timer_seconds?: number | null;
+  difficulty_tag?: 'easy' | 'moderate' | 'hard';
   is_bonus?: boolean | null;
   // Matching game
   pairs?: { left: string; right: string }[];
