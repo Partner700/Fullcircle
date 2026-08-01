@@ -493,13 +493,13 @@ export async function generateLevelQuestionsWithCustom(seed: GameSeedData, level
   let customQuestions: CustomQuestion[] = [];
   try {
     customQuestions = narrativeDate
-      ? await fetchCustomGameQuestions(level, narrativeDate)
-      : await fetchCustomGameQuestions(level);
-    if (narrativeDate && customQuestions.length === 0) {
-      customQuestions = await fetchCustomGameQuestions(level);
-    }
+      ? await fetchCustomGameQuestions(level, narrativeDate, true)
+      : await fetchCustomGameQuestions(level, undefined, true);
   } catch {}
-  return generateLevelQuestions(seed, level, customQuestions);
+  // A daily game is published only from questions the instructor has approved.
+  // Returning no questions makes the unavailable state explicit rather than
+  // silently substituting unreviewed generated material.
+  return customQuestions.length > 0 ? generateLevelQuestions(seed, level, customQuestions) : [];
 }
 
 export function getLevelTimer(level: number): number {

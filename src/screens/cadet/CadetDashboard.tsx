@@ -422,7 +422,12 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
                       <p className="font-display text-2xl text-ink leading-snug italic">"{slide.quote.daily_quote}"</p>
-                      <p className="text-sm text-stone mt-3">{slide.quote.display_name} · {slide.quote.record_date}</p>
+                      <div className="mt-3 flex items-center gap-2 text-sm text-stone">
+                        <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
+                          {slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" /> : slide.quote.display_name.charAt(0)}
+                        </div>
+                        <span>{slide.quote.display_name} · {slide.quote.record_date}</span>
+                      </div>
                       <QuoteReactions
                         state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
                         disabled={!!reactingQuote?.startsWith(`${slide.quote.user_id}:${slide.quote.record_date}:`)}

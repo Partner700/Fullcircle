@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   fetchLedgerTotal,
   createArenaRoom,
+  createMachineArenaRoom,
   inviteArenaPlayers,
   joinArenaRoom,
   startArenaRoom,
@@ -183,6 +184,21 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     setCreating(false);
   };
 
+  const createMachineMatch = async () => {
+    if (!profile) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const roomId = await createMachineArenaRoom(profile.id, 'Bible Trail vs Machine', selectedNarrativeDate || undefined);
+      activateRoom(roomId, 'waiting');
+      await load();
+      await onBalanceChanged?.();
+    } catch (error: any) {
+      setError(error.message || 'Could not create the machine match.');
+    }
+    setCreating(false);
+  };
+
   const joinRoom = async (roomId: string) => {
     if (!profile) return;
     try {
@@ -277,7 +293,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             {winner ? 'You Won!' : 'Game Over'}
           </h2>
           <p className="text-stone text-sm mb-4">
-            {winner ? `You won the pot of ${formatDenarii((room?.stake_amount || 0) * (room?.arena_participants?.length || 1))} Ð` : 'Better luck next time!'}
+            {winner ? `You won ${formatDenarii((room?.stake_amount || 0) * (room?.arena_participants?.length || 1) * 10)} Ð (ten times the total stake).` : 'Better luck next time!'}
           </p>
           <button onClick={() => clearActiveRoom(true)} className="btn-primary w-full">
             Back to Arena
@@ -302,8 +318,9 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
     const participants = room?.arena_participants || [];
     const isCreator = room?.creator_id === profile?.id;
-    const canStart = participants.length >= 2;
-    const pot = (room?.stake_amount || 0) * participants.length;
+    const machineMatch = room?.play_mode === 'machine';
+    const canStart = machineMatch || participants.length >= 2;
+    const pot = (room?.stake_amount || 0) * participants.length * 10;
     const expiresAt = room?.expires_at ? new Date(room.expires_at).getTime() : null;
     const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
     const availableInviteCadets = allCadets.filter((cadet) => !participants.some((p: any) => p.user_id === cadet.user_id));
@@ -330,7 +347,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             )}
           </div>
           <p className="text-xs text-stone mb-4">
-            The stake stays locked in this room. Signing out does not close it; only the host can close it, or it expires after six hours if no one else joins.
+            {machineMatch ? `Machine target: ${room?.machine_score || 10} figs. Win to receive ten times your 50 denarii stake.` : 'The stake stays locked in this room. Signing out does not close it; only the host can close it, or it expires after six hours if no one else joins.'}
           </p>
 
           <div className="space-y-2 mb-4">
@@ -346,7 +363,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             ))}
           </div>
 
-          {isCreator && (
+          {isCreator && !machineMatch && (
             <div className="p-3 rounded-lg border border-border bg-surface-2 mb-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h4 className="text-xs font-display font-semibold text-ink">Invite Cadets</h4>
@@ -432,9 +449,10 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           <Coins size={20} className="text-gold" />
           <span className="font-display font-bold text-gold text-lg">{formatDenarii(denarii)} Ð</span>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm">
-          <Plus size={14} /> Create Room
-        </button>
+        <div className="flex gap-2">
+          <button onClick={createMachineMatch} disabled={creating || denarii < 50} className="btn-secondary text-xs disabled:opacity-50"><Zap size={13} /> Machine · 50 Ð</button>
+          <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm"><Plus size={14} /> Create Room</button>
+        </div>
       </div>
 
       {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
@@ -549,7 +567,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             const invited = Array.isArray(room.tagged_user_ids) && profile?.id ? room.tagged_user_ids.includes(profile.id) : false;
             const expiresAt = room.expires_at ? new Date(room.expires_at).getTime() : null;
             const minutesUntilExpiry = expiresAt && participants.length <= 1 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
-            const pot = room.stake_amount * participants.length;
+            const pot = room.stake_amount * participants.length * 10;
             return (
               <div key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={18} veilClassName="bg-navy-2/80" />
@@ -597,7 +615,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                 <Trophy size={16} className="text-gold flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-ink">{room.room_name}</p>
-                  <p className="text-xs text-stone">Winner: {winner?.profiles?.display_name || '—'} · Pot: {formatDenarii(room.stake_amount * participants.length)} Ð</p>
+                  <p className="text-xs text-stone">Winner: {winner?.profiles?.display_name || '—'} · Prize: {formatDenarii(room.stake_amount * participants.length * 10)} Ð</p>
                 </div>
               </div>
             );

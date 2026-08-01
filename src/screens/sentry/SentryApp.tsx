@@ -497,9 +497,12 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
         )}
       </div>
       <p className="relative font-display text-xl text-ink leading-snug italic">"{quote.daily_quote}"</p>
-      <p className="relative text-sm text-stone mt-3">
-        {quote.display_name} · {quote.record_date}
-      </p>
+      <div className="relative mt-3 flex items-center gap-2 text-sm text-stone">
+        <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
+          {quote.avatar_url ? <img src={quote.avatar_url} alt={quote.display_name} className="h-full w-full object-cover" /> : quote.display_name.charAt(0)}
+        </div>
+        <span>{quote.display_name} · {quote.record_date}</span>
+      </div>
       <div className="relative">
         <QuoteReactions
           state={quoteReactions[`${quote.user_id}:${quote.record_date}`]}

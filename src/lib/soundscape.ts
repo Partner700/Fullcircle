@@ -11,7 +11,9 @@ const dashboardLoops = new Set<HTMLAudioElement>();
 const scenarioLoops = new Set<HTMLAudioElement>();
 let soundSyncVersion = 0;
 let scenarioSyncVersion = 0;
-const assetCache = new Map<string, string | null>();
+type SoundAsset = { url: string; start: number; end: number | null };
+const assetCache = new Map<string, SoundAsset | null>();
+let soundAudience: string | null = null;
 const DASHBOARD_VOLUME = 0.22;
 const DASHBOARD_FADE_MS = 850;
 
@@ -43,26 +45,62 @@ export function isSoundscapeEnabled() {
   return typeof window !== 'undefined' && localStorage.getItem(SOUND_ENABLED_KEY) === 'true';
 }
 
-async function getSoundUrl(type: string) {
+async function getSoundAsset(type: string): Promise<SoundAsset | null> {
   const cacheKey = type;
   if (assetCache.has(cacheKey)) return assetCache.get(cacheKey) || null;
   try {
+    if (!soundAudience) {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData.user) {
+        const { data: roles } = await supabase
+          .from('role_assignments')
+          .select('role')
+          .eq('user_id', userData.user.id)
+          .in('status', ['active', 'approved']);
+        soundAudience = roles?.some((role) => role.role === 'instructor')
+          ? 'instructors'
+          : roles?.some((role) => role.role === 'sentry')
+            ? 'sentries'
+            : 'cadets';
+      } else {
+        soundAudience = 'all';
+      }
+    }
     const { data, error } = await supabase
       .from('scheduled_announcements')
-      .select('content, audience')
+      .select('content, audience, audio_start_seconds, audio_end_seconds')
       .eq('announcement_type', type)
       .eq('is_active', true)
       .lte('publish_at', new Date().toISOString())
-      .eq('audience', 'all')
+      .in('audience', ['all', soundAudience])
       .order('publish_at', { ascending: false })
       .limit(8);
     if (error) throw error;
-    const url = data?.[0]?.content?.trim() || null;
-    assetCache.set(cacheKey, url);
-    return url;
+    const preferred = data?.find((item) => item.audience === soundAudience) || data?.[0];
+    const url = preferred?.content?.trim();
+    const asset = url ? {
+      url,
+      start: Math.max(0, Number(preferred?.audio_start_seconds) || 0),
+      end: preferred?.audio_end_seconds == null ? null : Math.max(0, Number(preferred.audio_end_seconds) || 0),
+    } : null;
+    assetCache.set(cacheKey, asset);
+    return asset;
   } catch {
     return null;
   }
+}
+
+async function getSoundUrl(type: string) {
+  return (await getSoundAsset(type))?.url || null;
+}
+
+function applySoundCrop(audio: HTMLAudioElement, asset: SoundAsset) {
+  if (asset.start <= 0 && !asset.end) return;
+  const seekToStart = () => { if (asset.start > 0) audio.currentTime = asset.start; };
+  audio.addEventListener('loadedmetadata', seekToStart, { once: true });
+  audio.addEventListener('timeupdate', () => {
+    if (asset.end && audio.currentTime >= asset.end) audio.currentTime = asset.start;
+  });
 }
 
 function fadeVolume(audio: HTMLAudioElement, target: number, duration = DASHBOARD_FADE_MS) {
@@ -108,18 +146,19 @@ async function syncDashboardSound() {
     await stopDashboardSound();
     return;
   }
-  const url = await getSoundUrl('sound_dashboard');
-  if (version !== soundSyncVersion || !url || !isSoundscapeEnabled() || currentMood !== 'home') return;
-  if (dashboardAudio?.dataset.soundUrl === url) return;
+  const asset = await getSoundAsset('sound_dashboard');
+  if (version !== soundSyncVersion || !asset || !isSoundscapeEnabled() || currentMood !== 'home') return;
+  if (dashboardAudio?.dataset.soundUrl === asset.url) return;
 
   const previous = dashboardAudio;
   if (previous) await stopDashboardSound();
   if (version !== soundSyncVersion || !isSoundscapeEnabled() || currentMood !== 'home') return;
-  const audio = new Audio(url);
+  const audio = new Audio(asset.url);
   audio.loop = true;
   audio.preload = 'auto';
   audio.volume = 0;
-  audio.dataset.soundUrl = url;
+  audio.dataset.soundUrl = asset.url;
+  applySoundCrop(audio, asset);
   dashboardAudio = audio;
   dashboardLoops.add(audio);
   try {
@@ -169,19 +208,20 @@ export async function setScenarioSound(type: string | null) {
     await stopScenarioSound();
     return;
   }
-  const url = await getSoundUrl(type);
-  if (version !== scenarioSyncVersion || !url || !isSoundscapeEnabled()) return;
-  if (scenarioAudio?.dataset.soundUrl === url) return;
+  const asset = await getSoundAsset(type);
+  if (version !== scenarioSyncVersion || !asset || !isSoundscapeEnabled()) return;
+  if (scenarioAudio?.dataset.soundUrl === asset.url) return;
 
   // A screen transition must never leave a previous loop playing beneath the
   // next screen. Stop all tracked loops before starting the new scenario.
   await stopScenarioSound();
   if (version !== scenarioSyncVersion || !isSoundscapeEnabled()) return;
-  const audio = new Audio(url);
+  const audio = new Audio(asset.url);
   audio.loop = true;
   audio.preload = 'auto';
   audio.volume = 0;
-  audio.dataset.soundUrl = url;
+  audio.dataset.soundUrl = asset.url;
+  applySoundCrop(audio, asset);
   scenarioAudio = audio;
   scenarioLoops.add(audio);
   try {

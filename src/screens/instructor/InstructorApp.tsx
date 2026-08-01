@@ -25,7 +25,7 @@ import {
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
-  Image as ImageIcon, Upload, X, Move, Volume2, Music2,
+  Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -629,6 +629,30 @@ function AnnouncementManager() {
     catch (e: any) { alert(e.message || 'Failed to remove sound'); }
   };
 
+  const cropSound = async (setting: { type: string; audience: string; item?: ScheduledAnnouncement }) => {
+    if (!setting.item) return;
+    const startInput = window.prompt('Start at which second?', String(setting.item.audio_start_seconds || 0));
+    if (startInput === null) return;
+    const endInput = window.prompt('End at which second? Leave blank to play to the end.', setting.item.audio_end_seconds == null ? '' : String(setting.item.audio_end_seconds));
+    if (endInput === null) return;
+    const start = Math.max(0, Number(startInput) || 0);
+    const end = endInput.trim() ? Number(endInput) : null;
+    if (end !== null && (!Number.isFinite(end) || end <= start)) {
+      alert('The end must be a number greater than the start.');
+      return;
+    }
+    try {
+      await updateAnnouncement(setting.item.id, {
+        audio_start_seconds: start,
+        audio_end_seconds: end,
+      } as Partial<ScheduledAnnouncement>);
+      invalidateSoundAsset(setting.type);
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Could not save the sound crop.');
+    }
+  };
+
   const saveImageFraming = async () => {
     if (!editingImageSetting?.item) return;
     setSavingImagePosition(true);
@@ -797,6 +821,7 @@ function AnnouncementManager() {
                           if (file) void uploadSound(file, setting.type, setting.audience);
                         }} />
                       </label>
+                      {setting.item && <button type="button" onClick={() => cropSound(setting)} className="btn-ghost px-2 py-1 text-[11px]"><Clock size={13} /> Trim</button>}
                       {setting.item && <button type="button" onClick={() => deleteSound(setting.type, setting.audience)} className="btn-ghost px-2 py-1 text-[11px] text-coral"><Trash2 size={13} /> Remove</button>}
                     </div>
                   </div>
@@ -3844,6 +3869,26 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     }
   };
 
+  const toggleApproval = async (question: CustomQuestion) => {
+    try {
+      await updateCustomQuestion(question.id, { is_approved: !question.is_approved });
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Failed to update publishing approval.');
+    }
+  };
+
+  const approveVisibleQuestions = async () => {
+    try {
+      await Promise.all(rows.filter((question) => !question.is_approved).map((question) =>
+        updateCustomQuestion(question.id, { is_approved: true }),
+      ));
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Failed to approve these questions.');
+    }
+  };
+
   const updateRoundTimer = async (round: number, seconds: number) => {
     setRoundTimers((prev) => ({ ...prev, [round]: seconds }));
     const impacted = questions.filter((q) => (q.game_round || 1) === round);
@@ -4086,9 +4131,17 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
 
       {/* Existing questions */}
       <div className="card p-5">
-        <h4 className="font-display font-semibold text-ink mb-3">
-          {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
-        </h4>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="font-display font-semibold text-ink">
+              {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
+            </h4>
+            <p className="mt-1 text-xs text-stone">Only approved questions are available to cadets in the Daily Game.</p>
+          </div>
+          <button onClick={approveVisibleQuestions} disabled={!rows.some((question) => !question.is_approved)} className="btn-primary text-xs disabled:opacity-50">
+            <CheckCircle2 size={12} /> Approve visible
+          </button>
+        </div>
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-brass" /></div>
         ) : rows.length === 0 ? (
@@ -4106,6 +4159,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                     {q.passage_display_seconds && <span className="badge badge-neutral text-[10px]">{q.passage_display_seconds}s passage</span>}
                     {q.is_bonus && <span className="badge badge-roman text-[10px]">Bonus</span>}
                     {q.use_for_quiz && <span className="badge badge-moss text-[10px]">Quiz tagged</span>}
+                    <span className={cn('badge text-[10px]', q.is_approved ? 'badge-moss' : 'badge-neutral')}>{q.is_approved ? 'Approved' : 'Draft'}</span>
                   </div>
                   <p className="text-sm text-ink font-medium">{q.question_text}</p>
                   <p className="text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
@@ -4114,6 +4168,9 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
                   <button onClick={() => editQuestion(q)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>
+                  <button onClick={() => toggleApproval(q)} className={cn('btn-ghost text-[10px] px-2 py-1', q.is_approved && 'text-moss')}>
+                    {q.is_approved ? 'Unpublish' : 'Approve'}
+                  </button>
                   <button onClick={() => toggleQuizTag(q)} className="btn-ghost text-[10px] px-2 py-1">{q.use_for_quiz ? 'Untag' : 'Use quiz'}</button>
                   <button onClick={() => removeQuestion(q.id)} className="text-stone hover:text-coral transition-colors">
                     <Trash2 size={16} />

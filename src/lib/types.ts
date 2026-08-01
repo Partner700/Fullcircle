@@ -335,6 +335,8 @@ export interface ScheduledAnnouncement {
   is_active: boolean;
   image_position_x?: number;
   image_position_y?: number;
+  audio_start_seconds?: number;
+  audio_end_seconds?: number | null;
 }
 
 export interface PanelImageSetting {
@@ -439,6 +441,7 @@ export interface CustomQuestion {
   use_for_quiz?: boolean | null;
   generated_from_packet?: boolean | null;
   packet_section?: string | null;
+  is_approved?: boolean | null;
 }
 
 export interface DailyQuoteFeedItem {

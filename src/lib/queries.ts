@@ -732,7 +732,7 @@ export async function deleteCustomQuestion(id: string) {
   if (error) throw error;
 }
 
-export async function fetchCustomGameQuestions(level: number, narrativeDate?: string) {
+export async function fetchCustomGameQuestions(level: number, narrativeDate?: string, approvedOnly = false) {
   let query = supabase
     .from('custom_questions')
     .select('*')
@@ -740,6 +740,7 @@ export async function fetchCustomGameQuestions(level: number, narrativeDate?: st
     .eq('game_level', level)
     .order('question_index');
   if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
+  if (approvedOnly) query = query.eq('is_approved', true);
   const { data, error } = await query;
   if (error) throw error;
   return data as import('./types').CustomQuestion[];
@@ -1221,6 +1222,16 @@ export async function createArenaRoom(creatorId: string, roomName: string, stake
     p_creator_id: creatorId, p_room_name: roomName, p_stake_amount: stake,
     p_max_players: maxPlayers, p_narrative_date: narrativeDate || null,
     p_tagged_user_ids: taggedIds || [],
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function createMachineArenaRoom(creatorId: string, roomName: string, narrativeDate?: string) {
+  const { data, error } = await supabase.rpc('create_machine_arena_room', {
+    p_creator_id: creatorId,
+    p_room_name: roomName,
+    p_narrative_date: narrativeDate || null,
   });
   if (error) throw error;
   return data as string;
