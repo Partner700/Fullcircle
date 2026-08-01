@@ -3,22 +3,43 @@ import { Award as AwardIcon, ChevronLeft, ChevronRight, Trophy } from 'lucide-re
 import { fetchAwards, fetchPanelImageSetting } from '../lib/queries';
 import type { AwardWithRecipient, PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { AwardReactions } from './AwardReactions';
+import { useAuth } from '../context/AuthContext';
+import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../lib/queries';
 
 type RecentAward = AwardWithRecipient;
 
 export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
+  const { profile } = useAuth();
   const [awards, setAwards] = useState<RecentAward[]>([]);
   const [image, setImage] = useState<PanelImageSetting | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [reactions, setReactions] = useState<Record<string, AwardReactionState>>({});
+  const [reacting, setReacting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [awardResult, imageResult] = await Promise.allSettled([
       fetchAwards(),
       fetchPanelImageSetting('recent_awards'),
     ]);
-    setAwards(awardResult.status === 'fulfilled' ? (awardResult.value.slice(0, 4) as RecentAward[]) : []);
+    const allAwards = awardResult.status === 'fulfilled' ? awardResult.value as RecentAward[] : [];
+    setAwards(allAwards);
     setImage(imageResult.status === 'fulfilled' ? imageResult.value : null);
-  }, []);
+    if (profile && allAwards.length > 0) {
+      setReactions(await fetchAwardReactions(allAwards.map((award) => award.id), profile.id).catch(() => ({})));
+    }
+  }, [profile]);
+
+  const handleReaction = async (awardId: string, reactionType: string) => {
+    if (!profile || reacting) return;
+    setReacting(`${awardId}:${reactionType}`);
+    try {
+      await reactToAward(awardId, profile.id, reactionType);
+      setReactions(await fetchAwardReactions(awards.map((award) => award.id), profile.id));
+    } finally {
+      setReacting(null);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -66,6 +87,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
                   <p className="text-sm font-medium text-stone">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</p>
                   {award.target_tent && <p className="text-xs text-stone">Family trophy · Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>}
                   {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
+                  <AwardReactions state={reactions[award.id]} disabled={!!reacting?.startsWith(`${award.id}:`)} onReact={(type) => void handleReaction(award.id, type)} />
                 </div>
                 <AwardIcon size={22} className="flex-shrink-0 text-gold" aria-hidden="true" />
               </div>

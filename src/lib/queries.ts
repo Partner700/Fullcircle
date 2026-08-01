@@ -426,6 +426,34 @@ export async function insertAward(award: Partial<Award>) {
   if (error) throw error;
 }
 
+export type AwardReactionState = Record<string, { count: number; reacted: boolean }>;
+
+export async function fetchAwardReactions(awardIds: string[], reactorId?: string) {
+  if (awardIds.length === 0) return {} as Record<string, AwardReactionState>;
+  const { data, error } = await supabase
+    .from('award_reactions')
+    .select('award_id, reactor_id, reaction_type')
+    .in('award_id', awardIds);
+  if (error) throw error;
+  const result: Record<string, AwardReactionState> = {};
+  (data || []).forEach((row: any) => {
+    result[row.award_id] ||= {};
+    result[row.award_id][row.reaction_type] ||= { count: 0, reacted: false };
+    result[row.award_id][row.reaction_type].count += 1;
+    if (reactorId && row.reactor_id === reactorId) result[row.award_id][row.reaction_type].reacted = true;
+  });
+  return result;
+}
+
+export async function reactToAward(awardId: string, reactorId: string, reactionType: string) {
+  const { error } = await supabase.rpc('react_to_award', {
+    p_award_id: awardId,
+    p_reactor_id: reactorId,
+    p_reaction_type: reactionType,
+  });
+  if (error) throw error;
+}
+
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
   const now = new Date().toISOString();
   const announcementResult = await supabase
