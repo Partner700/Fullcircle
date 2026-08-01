@@ -444,14 +444,32 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         </div>
       </div>
 
-      <div className="card p-4 flex items-center justify-between">
+      <div className="card p-4">
         <div className="flex items-center gap-2">
           <Coins size={20} className="text-gold" />
-          <span className="font-display font-bold text-gold text-lg">{formatDenarii(denarii)} Ð</span>
+          <div>
+            <p className="eyebrow text-stone">Available Denarii</p>
+            <span className="font-display font-bold text-gold text-xl">{formatDenarii(denarii)} Ð</span>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={createMachineMatch} disabled={creating || denarii < 50} className="btn-secondary text-xs disabled:opacity-50"><Zap size={13} /> Machine · 50 Ð</button>
-          <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm"><Plus size={14} /> Create Room</button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="card p-4">
+          <p className="eyebrow text-stone">Solo Match</p>
+          <h3 className="mt-1 font-display text-base font-semibold text-ink">Machine Battle</h3>
+          <p className="mt-1 text-xs leading-relaxed text-stone">Stake 50 Ð. Beat the machine score to win a tenfold prize.</p>
+          <button onClick={createMachineMatch} disabled={creating || denarii < 50} className="btn-secondary mt-4 w-full text-sm disabled:opacity-50">
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} Play Machine · 50 Ð
+          </button>
+        </div>
+        <div className="card p-4">
+          <p className="eyebrow text-stone">Multiplayer</p>
+          <h3 className="mt-1 font-display text-base font-semibold text-ink">Create a Room</h3>
+          <p className="mt-1 text-xs leading-relaxed text-stone">Choose the stake, invite people, then begin when the room is ready.</p>
+          <button onClick={() => setShowCreate(!showCreate)} className="btn-primary mt-4 w-full text-sm">
+            <Plus size={14} /> {showCreate ? 'Close Room Setup' : 'Create Room'}
+          </button>
         </div>
       </div>
 
