@@ -38,7 +38,7 @@ import {
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
-  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary,
+  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
@@ -508,11 +508,14 @@ function AnnouncementManager() {
       image_position_x: positionX,
       image_position_y: positionY,
     };
-    const existing = announcements.find((announcement) =>
-      announcement.announcement_type === type && announcement.audience === targetAudience && announcement.is_active !== false
-    );
-    if (existing) await updateAnnouncement(existing.id, payload);
-    else await createAnnouncement(payload);
+    await savePanelImageSetting({
+      announcementType: type,
+      audience: targetAudience,
+      content: payload.content,
+      publishAt: payload.publish_at,
+      positionX,
+      positionY,
+    });
     setAnnouncementType(type);
     setAudience(targetAudience);
     setPublishAt(toDateTimeLocal(payload.publish_at));
@@ -580,8 +583,10 @@ function AnnouncementManager() {
       const ext = file.name.split('.').pop() || 'jpg';
       const version = Date.now();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) throw authError || new Error('Please sign in again before uploading an image.');
       const folder = type === 'weekly_background' ? 'weekly-backgrounds' : 'panel-images';
-      const path = `${folder}/${safeType}-${version}.${ext}`;
+      const path = `${authData.user.id}/${folder}/${safeType}-${version}.${ext}`;
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);

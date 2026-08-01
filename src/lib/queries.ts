@@ -512,6 +512,26 @@ export async function createAnnouncement(announcement: Omit<ScheduledAnnouncemen
   if (error) throw error;
 }
 
+export async function savePanelImageSetting(setting: {
+  announcementType: string;
+  audience: string;
+  content: string;
+  publishAt: string;
+  positionX: number;
+  positionY: number;
+}) {
+  const { data, error } = await supabase.rpc('save_panel_image_setting', {
+    p_announcement_type: setting.announcementType,
+    p_audience: setting.audience,
+    p_content: setting.content,
+    p_publish_at: setting.publishAt,
+    p_position_x: setting.positionX,
+    p_position_y: setting.positionY,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function updateAnnouncement(id: string, patch: Partial<Omit<ScheduledAnnouncement, 'id'>>) {
   const { error } = await supabase.from('scheduled_announcements').update(patch).eq('id', id);
   if (error) throw error;
