@@ -247,13 +247,13 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
 
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+      return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
     }
-    return <ResultsView attempt={attempt} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ResultsView attempt={attempt} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
 
   // In quiz
@@ -291,6 +291,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           </p>
         </div>
       </div>
+
+      <QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />
 
       {/* Phase-specific content */}
       {phase === 'scheduled' && (
@@ -386,7 +388,6 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         </div>
       </div>
 
-      <QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />
     </div>
   );
 }

@@ -215,11 +215,8 @@ export function CadetNarrative({
 
   if (!narrative) {
     return (
-      <EmptyState
-        icon={BookOpen}
-        title="No reading published"
-        message="Today's narrative hasn't been published yet. Check back soon."
-      />
+      <div className="space-y-5 max-w-3xl mx-auto"><EmptyState icon={BookOpen} title="No reading published" message="Today's narrative hasn't been published yet. Your previous readings remain available below." />
+        <section className="card p-5"><div className="flex items-center justify-between gap-3"><div><p className="eyebrow text-stone">Reading Archive</p><p className="mt-1 text-sm text-ink">Previous readings, notes, and your meditations</p></div><button type="button" className="btn-secondary text-xs" onClick={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}><BookOpen size={14} /> {showHistory ? 'Hide' : 'Open archive'}</button></div>{showHistory && <div className="mt-4 space-y-3">{historyLoading && <p className="text-xs text-stone">Loading your reading archive...</p>}{!historyLoading && readingHistory.map((item) => <details key={item.id} className="rounded-lg border border-border bg-surface-2 p-3"><summary className="cursor-pointer text-sm font-semibold text-ink">{item.title} · {item.narrative_date}</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-ink">{item.main_text}</p>{item.meditation_text && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.meditation_text}</p>}</details>)}</div>}</section></div>
     );
   }
 
