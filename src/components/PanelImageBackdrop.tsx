@@ -11,6 +11,7 @@ interface PanelImageBackdropProps {
   opacityOverride?: number;
   modeFilter?: boolean;
   textGradient?: boolean;
+  simple?: boolean;
 }
 
 export function PanelImageBackdrop({
@@ -22,16 +23,34 @@ export function PanelImageBackdrop({
   opacityOverride,
   modeFilter = true,
   textGradient = true,
+  simple = false,
 }: PanelImageBackdropProps) {
   if (!image?.url) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
+  const opacity = opacityOverride === undefined ? panelImageOpacity(image, opacityFallback) : opacityOverride / 100;
+
+  if (simple) {
+    return (
+      <div className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
+        <img
+          src={image.url}
+          alt=""
+          loading="eager"
+          decoding="async"
+          className={cn('h-full w-full object-cover', imageClassName)}
+          style={{ objectPosition: panelImageObjectPosition(image), opacity }}
+        />
+        <div className={cn('absolute inset-0', veilClassName)} />
+      </div>
+    );
+  }
   const shadow = adjustments.depth > 0
     ? `drop-shadow(0 ${Math.round(adjustments.depth / 7)}px ${Math.round(adjustments.depth / 2)}px rgba(0,0,0,${Math.min(0.55, adjustments.depth / 140)}))`
     : '';
   const definition = adjustments.definition + adjustments.sharpness;
   const imageStyle = {
     objectPosition: panelImageObjectPosition(image),
-    opacity: opacityOverride === undefined ? panelImageOpacity(image, opacityFallback) : opacityOverride / 100,
+    opacity,
     filter: `${panelImageFilter(image)} ${modeFilter ? 'var(--panel-image-mode-filter)' : ''} ${shadow}`.trim(),
     transform: definition > 0 ? `scale(${1 + definition / 1600})` : undefined,
   };
