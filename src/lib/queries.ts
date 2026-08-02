@@ -314,6 +314,15 @@ export async function fetchGameAttemptsForDate(userId: string, date: string) {
   return fetchGameAttempts(userId, date);
 }
 
+export async function recordSundayReadingOpen(userId: string, recordDate: string) {
+  const { data, error } = await supabase.rpc('record_sunday_reading_open', {
+    p_user_id: userId,
+    p_record_date: recordDate,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
 export async function insertGameAttempt(attempt: Partial<GameAttempt>) {
   const { data, error } = await supabase
     .from('game_attempts')

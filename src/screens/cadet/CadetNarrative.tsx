@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
-import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, upsertChallengeSubmission } from '../../lib/queries';
+import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, recordSundayReadingOpen, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -91,6 +91,21 @@ export function CadetNarrative({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!profile || !isSundayRest) return;
+    let cancelled = false;
+    const creditSundayReading = async () => {
+      try {
+        const credited = await recordSundayReadingOpen(profile.id, today);
+        if (credited && !cancelled) await onMeditationSaved?.();
+      } catch (error) {
+        console.error('Sunday reading streak credit failed:', error);
+      }
+    };
+    void creditSundayReading();
+    return () => { cancelled = true; };
+  }, [isSundayRest, onMeditationSaved, profile, today]);
 
   const loadHistory = async () => {
     if (!profile || historyLoading) return;
