@@ -105,9 +105,9 @@ export function NotificationCenter({ onNavigate }: Props) {
     <div className="relative z-[70]" ref={rootRef}>
       <button type="button" onClick={() => setOpen((shown) => !shown)} className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-2 transition-colors hover:border-border-bright" aria-label={unreadCount ? `${unreadCount} unread notifications` : 'Notifications'} aria-expanded={open}>
         <Bell size={16} className="text-ink" />
-        {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+        {unreadCount > 0 && <span className="notification-badge-ring absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
-      {open && <div className="fixed right-3 top-[7.1rem] z-[100] w-[calc(100vw-1.5rem)] max-w-sm overflow-hidden rounded-xl border border-border bg-surface shadow-2xl animate-fade-in md:absolute md:right-0 md:top-full md:mt-2 md:w-[22rem]">
+      {open && <><button type="button" aria-label="Close notifications" onClick={() => setOpen(false)} className="fixed inset-0 z-[80] cursor-default bg-ink/45" /><div className="fixed right-3 top-[7.1rem] z-[100] w-[calc(100vw-1.5rem)] max-w-sm overflow-hidden rounded-xl border border-border bg-surface shadow-2xl animate-fade-in md:absolute md:right-0 md:top-full md:mt-2 md:w-[22rem]">
         <div className="flex items-center justify-between gap-3 border-b border-border bg-surface-2 px-4 py-2.5"><div><span className="text-xs font-semibold text-ink">Notifications</span><p className="mt-0.5 text-[10px] text-stone">{unreadCount ? `${unreadCount} unread` : 'All read'}</p></div><button type="button" onClick={() => void markAllRead()} disabled={!unreadCount} className="inline-flex items-center gap-1.5 rounded-full border border-border-bright bg-surface px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage disabled:cursor-not-allowed disabled:opacity-45"><CheckCheck size={12} /> Mark all as read</button></div>
         <div className="max-h-96 overflow-y-auto">
           {loading ? <div className="flex justify-center px-4 py-6"><Loader2 size={18} className="animate-spin text-peri" /></div> : notifications.length === 0 ? <div className="px-4 py-6 text-center text-xs text-stone">You're all caught up</div> : notifications.map((notification) => {
@@ -118,7 +118,7 @@ export function NotificationCenter({ onNavigate }: Props) {
             </div>;
           })}
         </div>
-      </div>}
+      </div></>}
     </div>
   );
 }

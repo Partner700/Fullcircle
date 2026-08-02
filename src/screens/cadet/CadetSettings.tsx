@@ -6,10 +6,11 @@ import { BrowserNotificationSettings } from '../../components/BrowserNotificatio
 import { supabase } from '../../lib/supabase';
 import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../../lib/profileOptions';
 import {
   User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
-  KeyRound,
+  Globe2, KeyRound, Languages,
 } from 'lucide-react';
 
 interface CadetSettingsProps {
@@ -30,6 +31,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   const { profile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState({
@@ -111,12 +114,21 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
 
   useEffect(() => { load(); }, [load]);
 
-  const saveWhatsapp = async () => {
+  const saveProfile = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() || profile.display_name, whatsapp_number: whatsapp }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      display_name: displayName.trim() || profile.display_name,
+      whatsapp_number: whatsapp,
+      country_code: country,
+      language_code: language,
+      timezone: timezoneForCountry(country),
+    }).eq('id', profile.id);
     if (error) alert(error.message);
-    else await refreshProfile();
+    else {
+      document.documentElement.lang = language;
+      await refreshProfile();
+    }
     setSaving(false);
   };
 
@@ -191,7 +203,7 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           </label>
           <div className="flex gap-2 mb-3">
             <input className="input-field" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            <button onClick={saveWhatsapp} disabled={saving || !displayName.trim()} className="btn-secondary text-sm whitespace-nowrap">
+            <button onClick={saveProfile} disabled={saving || !displayName.trim()} className="btn-secondary text-sm whitespace-nowrap">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>
           </div>
@@ -200,9 +212,23 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           </label>
           <div className="flex gap-2">
             <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-            <button onClick={saveWhatsapp} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
+            <button onClick={saveProfile} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs text-stone">
+              <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
+              <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
+                {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs text-stone">
+              <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+              <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
           </div>
         </div>
       </div>

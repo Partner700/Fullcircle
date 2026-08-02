@@ -803,7 +803,9 @@ export function CadetApp() {
               )}
             </button>
             {showNotifications && (
-              <div className="fixed right-3 top-[7.1rem] z-[100] w-[calc(100vw-1.5rem)] max-w-sm rounded-xl border border-border bg-surface shadow-2xl overflow-hidden animate-fade-in md:absolute md:right-0 md:top-full md:mt-2 md:w-[22rem]">
+              <>
+                <button type="button" aria-label="Close notifications" onClick={() => setShowNotifications(false)} className="fixed inset-0 z-[80] cursor-default bg-ink/45" />
+                <div className="fixed right-3 top-[7.1rem] z-[100] w-[calc(100vw-1.5rem)] max-w-sm rounded-xl border border-border bg-surface shadow-2xl overflow-hidden animate-fade-in md:absolute md:right-0 md:top-full md:mt-2 md:w-[22rem]">
                 <div className="px-4 py-2.5 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
                   <div>
                     <span className="text-xs font-display font-semibold text-ink">Notifications</span>
@@ -858,7 +860,8 @@ export function CadetApp() {
                     </div>
                   ))}
                 </div>
-              </div>
+                </div>
+              </>
             )}
           </div>
           {/* Denarii */}

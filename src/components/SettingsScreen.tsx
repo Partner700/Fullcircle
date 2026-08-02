@@ -6,19 +6,22 @@ import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
 import { BrowserNotificationSettings } from './BrowserNotificationSettings';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../lib/profileOptions';
 import { StatCard, SectionHeader } from './AppShell';
 import {
   CadetIcon, SentryIcon, InstructorIcon,
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
-import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, KeyRound } from 'lucide-react';
+import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
-  const { profile, role } = useAuth();
+  const { profile, role, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tentInfo, setTentInfo] = useState<{ name: string; houseId: string; sentryName?: string } | null>(null);
@@ -30,7 +33,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [showWaMsg, setShowWaMsg] = useState(false);
   const [waMsg, setWaMsg] = useState('');
   const [passwordPage, setPasswordPage] = useState(false);
-  const { refreshProfile } = useAuth();
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -84,9 +86,17 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ display_name: displayName, whatsapp_number: whatsapp || null }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      display_name: displayName,
+      whatsapp_number: whatsapp || null,
+      country_code: country,
+      language_code: language,
+      timezone: timezoneForCountry(country),
+    }).eq('id', profile.id);
     setSaving(false);
     if (!error) {
+      document.documentElement.lang = language;
+      await refreshProfile();
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     }
@@ -193,6 +203,20 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <MessageCircle size={12} /> Send WhatsApp message
             </button>
           )}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-bold text-peri">
+              <span className="mb-1.5 flex items-center gap-1"><Globe2 size={13} /> Country</span>
+              <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
+                {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs font-bold text-peri">
+              <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> Language</span>
+              <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 

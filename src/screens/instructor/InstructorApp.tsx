@@ -7,6 +7,7 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { invalidateSoundAsset } from '../../lib/soundscape';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../../lib/profileOptions';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -27,7 +28,7 @@ import {
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
-  Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock,
+  Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -3380,8 +3381,10 @@ function QuizBuilder() {
 function InstructorSettings({ profile, tents, members }: {
   profile: Profile | null; tents: any[]; members: any[];
 }) {
-  const { signOut } = useAuth();
+  const { signOut, refreshProfile } = useAuth();
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [mmSettings, setMmSettings] = useState<MobileMoneySettings | null>(null);
   const [mmForm, setMmForm] = useState<Partial<MobileMoneySettings>>({
@@ -3423,7 +3426,16 @@ function InstructorSettings({ profile, tents, members }: {
   const save = async () => {
     if (!profile) return;
     setSaving(true);
-    await supabase.from('profiles').update({ whatsapp_number: whatsapp }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      whatsapp_number: whatsapp,
+      country_code: country,
+      language_code: language,
+      timezone: timezoneForCountry(country),
+    }).eq('id', profile.id);
+    if (!error) {
+      document.documentElement.lang = language;
+      await refreshProfile();
+    }
     setSaving(false);
   };
 
@@ -3452,6 +3464,20 @@ function InstructorSettings({ profile, tents, members }: {
         <div>
           <label className="text-xs text-stone block mb-1">WhatsApp Number (for cadets/sentries to contact you)</label>
           <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs text-stone">
+            <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
+            <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
+              {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-stone">
+            <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+            <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+              {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+            </select>
+          </label>
         </div>
         <button onClick={save} disabled={saving} className="btn-primary text-sm">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save

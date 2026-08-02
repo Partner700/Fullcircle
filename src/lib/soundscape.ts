@@ -126,6 +126,13 @@ function applySoundCrop(audio: HTMLAudioElement, asset: SoundAsset) {
   });
 }
 
+function observeLoopState(audio: HTMLAudioElement) {
+  const report = () => emitSoundState();
+  audio.addEventListener('play', report);
+  audio.addEventListener('pause', report);
+  audio.addEventListener('ended', report);
+}
+
 function fadeVolume(audio: HTMLAudioElement, target: number, duration = DASHBOARD_FADE_MS) {
   const start = audio.volume;
   const startedAt = performance.now();
@@ -184,6 +191,7 @@ async function syncDashboardSound() {
   audio.volume = 0;
   audio.dataset.soundUrl = asset.url;
   applySoundCrop(audio, asset);
+  observeLoopState(audio);
   dashboardAudio = audio;
   dashboardLoops.add(audio);
   try {
@@ -223,10 +231,15 @@ export async function setSoundscapeEnabled(enabled: boolean) {
 
 export async function setSoundscapeMood(mood: SoundMood) {
   currentMood = mood;
-  await Promise.all([
-    syncDashboardSound(),
-    setScenarioSound(mood === 'home' ? null : moodSoundSlots[mood] || null),
-  ]);
+  // Change loops in sequence. The old screen must be silent before its
+  // successor is allowed to begin, otherwise slow asset loading can overlap.
+  if (mood === 'home') {
+    await setScenarioSound(null);
+    await syncDashboardSound();
+    return;
+  }
+  await syncDashboardSound();
+  await setScenarioSound(moodSoundSlots[mood] || null);
 }
 
 /** Start or replace a looping, instructor-uploaded soundtrack for a focused activity. */
@@ -236,6 +249,10 @@ export async function setScenarioSound(type: string | null) {
     await stopScenarioSound();
     return;
   }
+  // A focused screen always owns the atmosphere. Invalidating and stopping a
+  // pending dashboard loop prevents two tracks from surviving a tab change.
+  soundSyncVersion += 1;
+  await stopDashboardSound();
   const asset = await getSoundAsset(type);
   if (version !== scenarioSyncVersion || !asset || !isSoundscapeEnabled()) return;
   if (scenarioAudio?.dataset.soundUrl === asset.url) return;
@@ -250,6 +267,7 @@ export async function setScenarioSound(type: string | null) {
   audio.volume = 0;
   audio.dataset.soundUrl = asset.url;
   applySoundCrop(audio, asset);
+  observeLoopState(audio);
   scenarioAudio = audio;
   scenarioLoops.add(audio);
   try {

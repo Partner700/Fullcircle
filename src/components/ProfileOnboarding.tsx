@@ -2,24 +2,7 @@ import { useState } from 'react';
 import { Globe2, Languages, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-
-const COUNTRIES = [
-  { code: 'CM', name: 'Cameroon', timezone: 'Africa/Douala' },
-  { code: 'NG', name: 'Nigeria', timezone: 'Africa/Lagos' },
-  { code: 'GH', name: 'Ghana', timezone: 'Africa/Accra' },
-  { code: 'KE', name: 'Kenya', timezone: 'Africa/Nairobi' },
-  { code: 'ZA', name: 'South Africa', timezone: 'Africa/Johannesburg' },
-  { code: 'GB', name: 'United Kingdom', timezone: 'Europe/London' },
-  { code: 'US', name: 'United States', timezone: 'America/New_York' },
-  { code: 'CA', name: 'Canada', timezone: 'America/Toronto' },
-  { code: 'FR', name: 'France', timezone: 'Europe/Paris' },
-  { code: 'DE', name: 'Germany', timezone: 'Europe/Berlin' },
-];
-
-const LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'fr', name: 'Français' },
-];
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../lib/profileOptions';
 
 export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
@@ -39,12 +22,11 @@ export function ProfileOnboarding() {
     }
     setSaving(true);
     setError(null);
-    const selectedCountry = COUNTRIES.find((item) => item.code === country) || COUNTRIES[0];
     const { error: updateError } = await supabase.from('profiles').update({
       country_code: country,
       whatsapp_number: phone,
       language_code: language,
-      timezone: selectedCountry.timezone,
+      timezone: timezoneForCountry(country),
       onboarding_completed: true,
     }).eq('id', profile.id);
     if (updateError) {
@@ -68,7 +50,7 @@ export function ProfileOnboarding() {
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Globe2 size={16} /> Country</span>
           <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
-            {COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+            {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
           </select>
         </label>
         <label className="block">
@@ -79,7 +61,7 @@ export function ProfileOnboarding() {
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Languages size={16} /> Language</span>
           <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
-            {LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+            {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
           </select>
         </label>
         {error && <div className="rounded-lg bg-coral-soft p-3 text-sm text-coral">{error}</div>}
