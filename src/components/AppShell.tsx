@@ -271,7 +271,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
 
       {/* Main content */}
       <div className="relative z-10 flex-1 flex flex-col min-w-0 md:ml-60">
-        <header className="sticky top-0 z-30 border-b border-border bg-navy-2 px-3 py-2 shadow-sm sm:px-4 sm:py-3 md:px-6">
+        <header className="app-safe-header sticky top-0 z-30 border-b border-border bg-navy-2 px-3 py-2 shadow-sm sm:px-4 sm:py-3 md:px-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
             <div className="flex min-w-0 items-start justify-between gap-2 md:flex-1">
               <div className="flex min-w-0 items-start gap-2">
@@ -337,7 +337,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
           />
           <aside
             className={cn(
-              'absolute left-0 top-0 h-full w-[86vw] max-w-[340px] border-r border-border bg-navy-2 shadow-2xl transition-transform duration-300 ease-out safe-area-left safe-area-bottom',
+              'safe-area-top safe-area-left safe-area-bottom absolute left-0 top-0 h-full w-[86vw] max-w-[340px] border-r border-border bg-navy-2 shadow-2xl transition-transform duration-300 ease-out',
               mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
             )}
           >

@@ -272,6 +272,41 @@
     box-shadow: 0 0 0 3px rgba(221, 227, 255, 0.08);
   }
 
+  select.input-field {
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    padding-right: 2.75rem;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-peri-dim) 50%),
+      linear-gradient(135deg, var(--color-peri-dim) 50%, transparent 50%);
+    background-position:
+      calc(100% - 1.15rem) calc(50% - 2px),
+      calc(100% - 0.85rem) calc(50% - 2px);
+    background-repeat: no-repeat;
+    background-size: 0.38rem 0.38rem, 0.38rem 0.38rem;
+  }
+  select.input-field:hover {
+    border-color: var(--color-border-bright);
+    background-color: var(--color-navy-4);
+  }
+  select.input-field:focus {
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-peri) 50%),
+      linear-gradient(135deg, var(--color-peri) 50%, transparent 50%);
+  }
+  select.input-field:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  @media (max-width: 640px) {
+    select.input-field {
+      min-height: 2.75rem;
+      font-size: 1rem;
+    }
+  }
+
   /* ── Eyebrow ── */
   .eyebrow {
     @apply text-xs font-bold uppercase tracking-widest;
@@ -309,6 +344,9 @@
   .bg-peri { background-color: var(--color-peri); }
   .bg-peri-soft { background-color: var(--color-peri-soft); }
   .notification-badge-ring { border-color: var(--color-peri); }
+  .app-safe-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem) !important;
+  }
   .bg-gold-soft { background-color: var(--color-gold-soft); }
   .bg-sage-soft { background-color: var(--color-sage-soft); }
   .bg-coral-soft { background-color: var(--color-coral-soft); }
@@ -328,6 +366,18 @@
   .border-border-bright { border-color: var(--color-border-bright); }
   .border-brass { border-color: var(--color-gold); }
   .border-moss { border-color: var(--color-sage); }
+
+  @media (min-width: 640px) {
+    .app-safe-header {
+      padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem) !important;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .app-safe-header {
+      padding-top: 0.75rem !important;
+    }
+  }
 
   /* Animations */
   .animate-fade-in { animation: fadeIn 0.4s ease-out; }
