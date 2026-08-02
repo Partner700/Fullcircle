@@ -15,15 +15,17 @@ const VERSE_FRAGMENTS = [
 
 export function AuthScreen() {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +38,11 @@ export function AuthScreen() {
     } else {
       if (!displayName.trim()) {
         setError('Please enter your display name.');
+        setLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('The passwords do not match. Please enter them again.');
         setLoading(false);
         return;
       }
@@ -117,7 +124,7 @@ export function AuthScreen() {
                 <label className="block text-sm font-bold text-peri mb-1.5">Display Name</label>
                 <div className="relative">
                   <UserIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
-                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input-field pl-10" placeholder="Your name" required />
+                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input-field pl-10" placeholder="Your name" autoComplete="name" required />
                 </div>
               </div>
             )}
@@ -126,12 +133,12 @@ export function AuthScreen() {
               <label className="block text-sm font-bold text-peri mb-1.5">Email</label>
               <div className="relative">
                 <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field pl-10" placeholder="you@example.com" required />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field pl-10" placeholder="you@example.com" autoComplete="email" required />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-peri mb-1.5">Password</label>
+              <label className="block text-sm font-bold text-peri mb-1.5">{mode === 'signup' ? 'Create Password' : 'Password'}</label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
                 <input
@@ -142,6 +149,7 @@ export function AuthScreen() {
                   placeholder="••••••••"
                   required
                   minLength={6}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 />
                 <button
                   type="button"
@@ -153,6 +161,33 @@ export function AuthScreen() {
                 </button>
               </div>
             </div>
+
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-sm font-bold text-peri mb-1.5">Confirm Password</label>
+                <div className="relative">
+                  <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="input-field pl-10 pr-10"
+                    placeholder="Enter your new password again"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((visible) => !visible)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors flex items-center justify-center w-9 h-9"
+                    aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {mode === 'signup' && (
               <div className="flex items-start gap-2 p-3 rounded-lg bg-peri-soft border border-border">

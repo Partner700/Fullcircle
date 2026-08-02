@@ -23,9 +23,9 @@ const LANGUAGES = [
 
 export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
-  const [country, setCountry] = useState('CM');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -112,7 +112,13 @@ export default function App() {
     );
   }
 
-  if (profile.onboarding_completed === false) {
+  const profileSetupComplete = profile.onboarding_completed === true
+    && Boolean(profile.country_code?.trim())
+    && Boolean(profile.whatsapp_number?.trim())
+    && Boolean(profile.language_code?.trim())
+    && Boolean(profile.timezone?.trim());
+
+  if (!profileSetupComplete) {
     return <>{overlays}<ProfileOnboarding /></>;
   }
 
