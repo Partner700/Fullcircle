@@ -869,8 +869,6 @@ function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
 }
 
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
-const ARENA_TOTAL_FIGS = 20;
-
 function getArenaDifficulty(questionIndex: number): 'easy' | 'moderate' | 'hard' {
   if (questionIndex < 6) return 'easy';
   if (questionIndex < 12) return 'moderate';
@@ -893,7 +891,18 @@ function getArenaRoundForIndex(questionIndex: number) {
   return ARENA_ROUND_LENGTHS.length - 1;
 }
 
-function buildArenaQuestionSet(sourceQuestions: QuestionPayload[], fixedDifficulty?: 'easy' | 'medium' | 'hard') {
+function seededShuffle<T>(values: T[], seedText: string) {
+  let seed = Array.from(seedText).reduce((value, char) => Math.imul(value ^ char.charCodeAt(0), 16777619), 2166136261) >>> 0;
+  const shuffled = [...values];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const target = seed % (index + 1);
+    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function buildArenaQuestionSet(sourceQuestions: QuestionPayload[], fixedDifficulty?: 'easy' | 'medium' | 'hard', roomSeed = '') {
   const seen = new Set<string>();
   const cleaned = sourceQuestions.filter((q) => {
     if (!q.question || !q.correct_answer) return false;
@@ -903,7 +912,10 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[], fixedDifficul
     return true;
   });
   const fallback = buildFallbackArenaQuestions();
-  const pool = [...cleaned, ...fallback.filter((fallbackQuestion) => !seen.has(fallbackQuestion.question.trim().toLowerCase()))];
+  const pool = seededShuffle(
+    [...cleaned, ...fallback.filter((fallbackQuestion) => !seen.has(fallbackQuestion.question.trim().toLowerCase()))],
+    roomSeed || `${Date.now()}`,
+  );
   const targetCount = sourceQuestions.length >= 60 ? 60 : Math.min(19, pool.length);
   const questions: QuestionPayload[] = [];
   for (let i = 0; i < targetCount; i += 1) {
@@ -988,6 +1000,9 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [machineScore, setMachineScore] = useState(0);
+  const [turnPhase, setTurnPhase] = useState<'user' | 'user-feedback' | 'machine-thinking' | 'machine-feedback'>('user');
+  const [answerFeedback, setAnswerFeedback] = useState<{ correct: boolean; answer: string } | null>(null);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
@@ -997,6 +1012,9 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
+  const machineMatch = /\[difficulty:(easy|medium|hard)\]/i.test(roomName);
+  const machineDifficulty = parseArenaDifficulty(roomName);
+  const machineTarget = machineDifficulty === 'easy' ? 7 : machineDifficulty === 'hard' ? 17 : 12;
 
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
@@ -1014,38 +1032,6 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   useEffect(() => {
     if (ready && questions.length > 0) void playSoundEffect('sound_arena_round', 0.62);
   }, [activeRoundIndex, questions.length, ready]);
-
-  useEffect(() => {
-    if (!ready || questions.length === 0 || !/\[difficulty:(easy|medium|hard)\]/i.test(roomName)) return;
-    let cancelled = false;
-    const difficulty = parseArenaDifficulty(roomName);
-    const delay = difficulty === 'easy' ? 6200 : difficulty === 'hard' ? 2600 : 4200;
-    const accuracy = difficulty === 'easy' ? 46 : difficulty === 'hard' ? 88 : 68;
-    setMachineAnswerFeed([]);
-    const run = async () => {
-      for (let index = 0; index < questions.length && !cancelled; index += 1) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
-        if (cancelled) return;
-        const question = questions[index];
-        const seed = `${roomId}:${question.question}:${index}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-        const correct = seed % 100 < accuracy;
-        const wrongOptions = (question.options || []).filter((option) => option !== question.correct_answer);
-        const selected = String(correct ? question.correct_answer : wrongOptions[seed % Math.max(1, wrongOptions.length)] || 'No answer');
-        setMachineAnswerFeed((current) => [...current, {
-          user_id: 'arena-machine',
-          display_name: difficulty === 'hard' ? 'The Scribe · Hard' : difficulty === 'easy' ? 'The Scribe · Easy' : 'The Scribe · Medium',
-          avatar_url: null,
-          question_index: index,
-          submitted_answer: selected,
-          is_correct: correct,
-          figs_earned: correct ? (question.is_bonus ? 2 : 1) : 0,
-          created_at: new Date().toISOString(),
-        }]);
-      }
-    };
-    void run();
-    return () => { cancelled = true; };
-  }, [questions, ready, roomId, roomName]);
 
   const completeGame = useCallback((finalScore = scoreRef.current, finalCorrectCount = correctCountRef.current) => {
     if (completedRef.current) return;
@@ -1078,7 +1064,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           difficulty,
         });
         if (!cancelled) {
-          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(aiQuestions, difficulty));
+          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(aiQuestions, difficulty, roomId));
           setQuestions(stored);
           setReady(true);
         }
@@ -1088,7 +1074,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       }
       const topicQuestions = generateArenaTopicQuestions(roomName);
       if (topicQuestions.length > 0) {
-        const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(topicQuestions, parseArenaDifficulty(roomName)));
+        const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(topicQuestions, parseArenaDifficulty(roomName), roomId));
         if (!cancelled) setQuestions(stored);
         if (!cancelled) setReady(true);
         return;
@@ -1097,7 +1083,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         try {
           const seed = narrative.game_seed_data as GameSeedData;
           const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
-          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(qs, parseArenaDifficulty(roomName)));
+          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(qs, parseArenaDifficulty(roomName), roomId));
           if (!cancelled) setQuestions(stored);
           if (!cancelled) setReady(true);
           return;
@@ -1105,7 +1091,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           console.warn('Narrative packet arena generation unavailable, using the verified Bible deck.', fallbackError);
         }
       }
-      const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(buildFallbackArenaQuestions(), parseArenaDifficulty(roomName)));
+      const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(buildFallbackArenaQuestions(), parseArenaDifficulty(roomName), roomId));
       if (!cancelled) setQuestions(stored);
       if (!cancelled) setReady(true);
     })();
@@ -1113,7 +1099,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId]);
 
   const handleAnswer = useCallback(async (answer: string | null) => {
-    if (answeredIds.has(currentQ) || !questions[currentQ]) return;
+    if (answeredIds.has(currentQ) || !questions[currentQ] || turnPhase !== 'user') return;
     setSubmittingAnswer(true);
     setAnswerError(null);
     let result: { correct: boolean; totalFigs: number; correctCount: number };
@@ -1134,23 +1120,63 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     });
     setScore(nextScore);
     setCorrectCount(nextCorrectCount);
+    setAnswerFeedback({ correct: result.correct, answer: answer || 'No answer' });
+    setTurnPhase('user-feedback');
     void refreshAnswerFeed();
-    const nextIndex = currentQ + 1;
-    const currentRound = getArenaRoundForIndex(currentQ);
-    if (nextIndex < questions.length && getArenaRoundForIndex(nextIndex) === currentRound) {
+    setSubmittingAnswer(false);
+
+    const advance = (finalMachineScore: number) => {
+      const nextIndex = currentQ + 1;
+      if (nextIndex >= questions.length) {
+        setMachineScore(finalMachineScore);
+        completeGame(nextScore, nextCorrectCount);
+        return;
+      }
       setCurrentQ(nextIndex);
       setTypedAnswer('');
-    } else if (nextIndex >= questions.length) {
-      completeGame(nextScore, nextCorrectCount);
+      setAnswerFeedback(null);
+      setTurnPhase('user');
+    };
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 900));
+    if (!machineMatch) {
+      advance(machineScore);
+      return;
     }
-    setSubmittingAnswer(false);
-  }, [answeredIds, questions, currentQ, completeGame, refreshAnswerFeed, roomId, userId]);
+
+    setTurnPhase('machine-thinking');
+    const delay = machineDifficulty === 'easy' ? 2600 : machineDifficulty === 'hard' ? 1250 : 1850;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+    const question = questions[currentQ];
+    const expectedCorrectThroughTurn = Math.round(((currentQ + 1) * machineTarget) / questions.length);
+    const expectedCorrectBeforeTurn = Math.round((currentQ * machineTarget) / questions.length);
+    const machineCorrect = expectedCorrectThroughTurn > expectedCorrectBeforeTurn;
+    const wrongOptions = (question.options || []).filter((option) => option !== question.correct_answer);
+    const seed = `${roomId}:${currentQ}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const selected = String(machineCorrect ? question.correct_answer : wrongOptions[seed % Math.max(1, wrongOptions.length)] || 'No answer');
+    const earned = machineCorrect ? (question.is_bonus ? 2 : 1) : 0;
+    const nextMachineScore = machineScore + earned;
+    setMachineScore(nextMachineScore);
+    setMachineAnswerFeed((current) => [...current, {
+      user_id: 'arena-machine',
+      display_name: `The Scribe · ${machineDifficulty.charAt(0).toUpperCase()}${machineDifficulty.slice(1)}`,
+      avatar_url: null,
+      question_index: currentQ,
+      submitted_answer: selected,
+      is_correct: machineCorrect,
+      figs_earned: earned,
+      created_at: new Date().toISOString(),
+    }]);
+    setTurnPhase('machine-feedback');
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
+    advance(nextMachineScore);
+  }, [answeredIds, questions, currentQ, turnPhase, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, machineTarget, machineScore, completeGame]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     const activeQuestion = questions[currentQ];
     if (!ready || !activeQuestion) return;
-    if (answeredIds.has(currentQ)) return;
+    if (answeredIds.has(currentQ) || turnPhase !== 'user') return;
 
     const seconds = getArenaQuestionSeconds(activeQuestion);
     const deadline = Date.now() + seconds * 1000;
@@ -1167,7 +1193,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       }
     }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer]);
+  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase]);
 
   const moveToNextRound = () => {
     const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
@@ -1200,6 +1226,13 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const nextQuestionWouldStartNewRound = getArenaRoundForIndex(currentQ + 1) !== currentRound;
   const waitingForNextRound = isCurrentAnswered && nextQuestionWouldStartNewRound && currentQ + 1 < questions.length;
   const visibleAnswerFeed = [...answerFeed, ...machineAnswerFeed].sort((left, right) => left.created_at.localeCompare(right.created_at));
+  const opponentScores = Array.from(answerFeed.reduce((scores, item) => {
+    if (item.user_id === userId) return scores;
+    const current = scores.get(item.user_id) || { name: item.display_name, figs: 0 };
+    current.figs += item.figs_earned;
+    scores.set(item.user_id, current);
+    return scores;
+  }, new Map<string, { name: string; figs: number }>()).values());
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
@@ -1226,9 +1259,21 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       </div>
 
       <div className="flex items-center justify-between text-xs text-stone">
-        <span>Figs: <span className="text-ink font-semibold">{score}</span> / {ARENA_TOTAL_FIGS}</span>
+        <span>Live score: <span className="text-ink font-semibold">You {score}</span>{machineMatch ? ` · The Scribe ${machineScore}` : opponentScores.map((opponent) => ` · ${opponent.name} ${opponent.figs}`).join('')}</span>
         <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
       </div>
+
+      {machineMatch && turnPhase.startsWith('machine') && (
+        <div className={cn('card border-2 p-4 transition-all', turnPhase === 'machine-thinking' ? 'border-gold/45' : machineAnswerFeed.at(-1)?.is_correct ? 'border-sage/45' : 'border-coral/45')}>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold-soft"><Zap size={20} className="text-gold" /></div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">The Scribe’s turn</p><p className="text-xs text-stone">{turnPhase === 'machine-thinking' ? 'Reading the question and choosing…' : machineAnswerFeed.at(-1)?.is_correct ? 'Right answer' : 'Wrong answer'}</p></div>
+            {turnPhase === 'machine-thinking' && <Loader2 size={18} className="animate-spin text-gold" />}
+          </div>
+          <p className="mt-3 text-sm font-semibold text-ink">{q.question}</p>
+          {turnPhase === 'machine-feedback' && <p className="mt-2 text-sm text-stone">Selected: <span className="font-bold text-ink">{machineAnswerFeed.at(-1)?.submitted_answer}</span></p>}
+        </div>
+      )}
 
       <div className="card p-5">
         {answerError && <div className="mb-4 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
@@ -1237,16 +1282,22 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           <div><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
         </div>
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
+        {answerFeedback && (
+          <div className={cn('mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold', answerFeedback.correct ? 'border-sage/40 bg-sage-soft text-sage' : 'border-coral/40 bg-coral-soft text-coral')}>
+            {answerFeedback.correct ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+            {answerFeedback.correct ? 'Right answer' : 'Wrong answer'}
+          </div>
+        )}
 
         {/* True/False */}
         {q.type === 'true_false' && (
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer}
+            <button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'}
               className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-sage hover:bg-sage-soft text-sage')}>
               <CheckCircle2 size={24} className="mx-auto mb-1" /> True
             </button>
-            <button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer}
+            <button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'}
               className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-coral hover:bg-coral-soft text-coral')}>
               <XCircle size={24} className="mx-auto mb-1" /> False
@@ -1259,7 +1310,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           <div className="space-y-2">
             {q.options.map((opt, i) => {
               return (
-                <button key={i} onClick={() => void handleAnswer(opt)} disabled={isCurrentAnswered || submittingAnswer}
+                <button key={i} onClick={() => void handleAnswer(opt)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'}
                   className={cn('w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
                     'border-border hover:border-gold text-ink')}>
                   {opt}

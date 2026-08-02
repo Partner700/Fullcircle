@@ -66,6 +66,15 @@
   [data-theme="day"] .text-stone { color: var(--color-peri-dim); }
   [data-theme="day"] .text-stone-dim { color: var(--color-stone-dim); }
 
+  /* The weekly artwork is the app canvas, not a panel illustration. */
+  [data-theme="night"] .weekly-app-background-image,
+  :root:not([data-theme="day"]) .weekly-app-background-image {
+    filter: brightness(0.27) saturate(0.82) contrast(1.15) !important;
+  }
+  [data-theme="day"] .weekly-app-background-image {
+    filter: brightness(1.72) saturate(0.82) contrast(0.9) !important;
+  }
+
   html {
     font-family: 'Nunito', system-ui, sans-serif;
     color: var(--color-peri);

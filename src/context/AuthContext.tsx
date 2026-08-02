@@ -156,7 +156,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     if (supabaseConfigError) return { error: supabaseConfigError };
 
+    // Installed mobile copies can retain a valid Supabase session even after
+    // the UI has returned to sign in. End it before accepting another account.
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.warn('Previous mobile session could not be closed cleanly:', error);
+    }
     clearLocalAuthStorage();
+    setSession(null);
     setLoading(true);
     setProfile(null);
     setRoleAssignment(null);

@@ -211,9 +211,10 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
         <PanelImageBackdrop
           image={weeklyBackground}
           className="fixed z-0"
+          imageClassName="weekly-app-background-image"
           veilClassName=""
           opacityFallback={24}
-          modeFilter
+          modeFilter={false}
         />
       )}
       {/* Sidebar */}

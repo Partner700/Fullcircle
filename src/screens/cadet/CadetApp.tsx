@@ -781,23 +781,23 @@ export function CadetApp() {
       headerSubtitle={houseName ? `${tentName} · ${houseName}` : 'Cadet'}
       showTopSignOut
       rightHeader={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {isExpired && (
             <button onClick={() => setTab('subscribe')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-coral-soft text-coral border border-coral/30 hover:bg-coral/10 transition-colors">
               <Lock size={14} /> Subscribe
             </button>
           )}
           {/* Streak icon */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
-            <Flame size={16} className="text-coral" />
-            <span className="font-display font-bold text-coral text-sm">{streakCount}</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
+            <Flame size={15} className="text-coral" />
+            <span className="font-display font-bold text-coral text-[13px]">{streakCount}</span>
           </div>
           {/* Notification bell */}
           <div className="relative z-[70]" ref={notificationsRef}>
-            <button onClick={() => setShowNotifications(s => !s)} className="relative flex items-center justify-center w-9 h-9 rounded-full bg-surface-2 border border-border hover:border-border-bright transition-colors">
-              <Bell size={16} className="text-ink" />
+            <button onClick={() => setShowNotifications(s => !s)} className="relative flex h-8 w-8 items-center justify-center overflow-visible rounded-full border border-border bg-surface-2 transition-colors hover:border-border-bright">
+              <Bell size={15} className="text-ink" />
               {unreadNotificationCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                   {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                 </span>
               )}
@@ -862,9 +862,9 @@ export function CadetApp() {
             )}
           </div>
           {/* Denarii */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-peri-soft border border-border-bright">
-            <Coins size={18} className="text-gold" />
-            <span className="font-display font-bold text-gold text-sm">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright">
+            <Coins size={16} className="text-gold" />
+            <span className="font-display font-bold text-gold text-[13px]">
               {denariiTotal >= 1000 ? `${(denariiTotal / 1000).toFixed(1)}K` : denariiTotal}
             </span>
           </div>
