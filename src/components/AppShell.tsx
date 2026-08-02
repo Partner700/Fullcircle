@@ -245,7 +245,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
               <item.icon size={18} />
               <span className="flex-1 text-left">{item.label}</span>
               {(navBadges[item.key] || 0) > 0 && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
+                <span className="notification-badge-ring flex h-5 w-5 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                   {navBadges[item.key] > 9 ? '9+' : navBadges[item.key]}
                 </span>
               )}
@@ -374,7 +374,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
                   <item.icon size={18} />
                   <span className="flex-1 text-left truncate">{item.label}</span>
                   {(navBadges[item.key] || 0) > 0 && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
+                    <span className="notification-badge-ring flex h-5 w-5 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                       {navBadges[item.key] > 9 ? '9+' : navBadges[item.key]}
                     </span>
                   )}

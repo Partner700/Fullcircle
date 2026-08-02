@@ -510,7 +510,7 @@ function QuickLink({ icon: Icon, label, badge = 0, onClick }: { icon: typeof Fla
   return (
     <button onClick={onClick} className="card p-4 card-hover flex flex-col items-center gap-2 text-center relative">
       {badge > 0 && (
-        <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
+        <span className="notification-badge-ring absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
           {badge > 9 ? '9+' : badge}
         </span>
       )}

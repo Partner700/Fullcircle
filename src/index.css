@@ -308,6 +308,7 @@
   .bg-royal { background-color: var(--color-royal); }
   .bg-peri { background-color: var(--color-peri); }
   .bg-peri-soft { background-color: var(--color-peri-soft); }
+  .notification-badge-ring { border-color: var(--color-peri); }
   .bg-gold-soft { background-color: var(--color-gold-soft); }
   .bg-sage-soft { background-color: var(--color-sage-soft); }
   .bg-coral-soft { background-color: var(--color-coral-soft); }

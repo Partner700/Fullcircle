@@ -256,7 +256,7 @@ export function CadetTent() {
                 <div className="relative flex-shrink-0">
                   <TentAvatar member={m} currentUserId={profile!.id} tentId={tent.id} size="md" />
                   {(unreadBySender[m.user_id] || 0) > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
+                    <span className="notification-badge-ring absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                       {unreadBySender[m.user_id]}
                     </span>
                   )}
