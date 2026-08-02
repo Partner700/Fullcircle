@@ -4,6 +4,7 @@ import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { NotificationCenter } from '../../components/NotificationCenter';
+import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -770,6 +771,10 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
           </div>
         );
       })}
+      <MeditationHistoryPanel
+        userIds={members.map((member) => member.user_id)}
+        title="My Cadets’ Meditation History"
+      />
     </div>
   );
 }

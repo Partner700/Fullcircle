@@ -5,6 +5,7 @@ import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { NotificationCenter } from '../../components/NotificationCenter';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
+import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
@@ -1241,6 +1242,11 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
       </div>
 
       <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
+
+      <MeditationHistoryPanel
+        title="Everyone’s Meditation History"
+        showWeeklyVerse
+      />
 
       <div className="card p-4">
         <div className="flex items-center justify-between gap-3 mb-3">

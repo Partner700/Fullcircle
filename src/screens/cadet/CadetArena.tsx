@@ -16,6 +16,7 @@ import {
   heartbeatArenaParticipant,
   finishArenaGame,
   submitArenaTriviaAnswer,
+  fetchArenaTriviaFeed,
   fetchArenaRoomMessages,
   sendArenaRoomMessage,
   fetchArenaRooms,
@@ -30,6 +31,7 @@ import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
+import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
 } from 'lucide-react';
@@ -954,7 +956,9 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   forfeiting: boolean;
   onExit: () => void;
 }) {
+  const { profile } = useAuth();
   const [questions, setQuestions] = useState<QuestionPayload[]>([]);
+  const [answerFeed, setAnswerFeed] = useState<ArenaTriviaFeedItem[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
@@ -971,6 +975,16 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
 
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
+
+  const refreshAnswerFeed = useCallback(async () => {
+    try { setAnswerFeed(await fetchArenaTriviaFeed(roomId)); } catch { /* The room may be settling between states. */ }
+  }, [roomId]);
+
+  useEffect(() => {
+    void refreshAnswerFeed();
+    const interval = window.setInterval(() => { void refreshAnswerFeed(); }, 1200);
+    return () => window.clearInterval(interval);
+  }, [refreshAnswerFeed]);
 
   useEffect(() => {
     if (ready && questions.length > 0) void playSoundEffect('sound_arena_round', 0.62);
@@ -1050,6 +1064,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     });
     setScore(nextScore);
     setCorrectCount(nextCorrectCount);
+    void refreshAnswerFeed();
     const nextIndex = currentQ + 1;
     const currentRound = getArenaRoundForIndex(currentQ);
     if (nextIndex < questions.length && getArenaRoundForIndex(nextIndex) === currentRound) {
@@ -1059,7 +1074,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       completeGame(nextScore, nextCorrectCount);
     }
     setSubmittingAnswer(false);
-  }, [answeredIds, questions, currentQ, completeGame, roomId, userId]);
+  }, [answeredIds, questions, currentQ, completeGame, refreshAnswerFeed, roomId, userId]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -1145,7 +1160,10 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       </div>
 
       <div className="card p-5">
-        <p className="eyebrow mb-2">{q.is_bonus ? 'Bonus Question · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2 text-sm font-bold text-ink">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</div>
+          <div><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
+        </div>
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
 
         {/* True/False */}
@@ -1205,6 +1223,16 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
             </button>
           </div>
         )}
+      </div>
+
+      <div className="card p-4">
+        <div className="mb-3 flex items-center justify-between gap-2"><div><p className="text-sm font-bold text-ink">Live Answers</p><p className="text-[11px] text-stone">Every player’s question, choice, and outcome</p></div><Users size={18} className="text-royal" /></div>
+        {answerFeed.length === 0 ? <p className="text-xs text-stone">Answers will appear here as players submit them.</p> : <div className="max-h-72 space-y-2 overflow-y-auto">{answerFeed.map((item) => {
+          const feedQuestion = questions[item.question_index];
+          return <div key={`${item.user_id}-${item.question_index}`} className={cn('rounded-lg border p-3 animate-fade-in', item.is_correct ? 'border-sage/35 bg-sage/10' : 'border-coral/30 bg-coral/8')}>
+            <div className="flex items-start gap-2.5"><div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-[10px] font-bold">{item.avatar_url ? <img src={item.avatar_url} alt={item.display_name} className="h-full w-full object-cover" /> : item.display_name.charAt(0)}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-ink">{item.display_name}</p><span className={cn('text-[10px] font-bold', item.is_correct ? 'text-sage' : 'text-coral')}>{item.is_correct ? 'Correct' : 'Incorrect'}</span></div><p className="mt-1 text-xs leading-relaxed text-stone">{feedQuestion?.question || `Question ${item.question_index + 1}`}</p><p className="mt-1 text-xs font-semibold text-ink">Selected: {item.submitted_answer || 'No answer'}</p></div></div>
+          </div>;
+        })}</div>}
       </div>
     </div>
   );

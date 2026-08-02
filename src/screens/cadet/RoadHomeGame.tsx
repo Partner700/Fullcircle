@@ -243,7 +243,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
         ? Number(event.message.match(/rolled\s+(\d+)/i)?.[1] || 0)
         : undefined;
       setLiveActivity({ ...event, diceValue: diceValue || undefined });
-    }, index * 850));
+    }, index * 1500));
     return () => {
       activityTimers.current.forEach((timer) => window.clearTimeout(timer));
       activityTimers.current = [];
@@ -312,7 +312,8 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [state?.phase, state?.questionDeadline, state?.version]);
 
   useEffect(() => {
-    if (!state || !myTurn || state.phase !== 'QUESTION' || secondsLeft > 0 || timedOutVersion.current === state.version) return;
+    if (!state || !myTurn || state.phase !== 'QUESTION' || !state.questionDeadline || timedOutVersion.current === state.version) return;
+    if (new Date(state.questionDeadline).getTime() > Date.now()) return;
     timedOutVersion.current = state.version;
     void send('ANSWER', { answer: '' });
   }, [myTurn, secondsLeft, send, state]);
@@ -394,7 +395,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
               rollOutcome={rollOutcome}
               send={send}
             />
-          ) : <OpponentTurnPanel state={state} activity={liveActivity} />}
+          ) : <OpponentTurnPanel state={state} activity={liveActivity} secondsLeft={secondsLeft} />}
 
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
 
@@ -488,7 +489,7 @@ function Dice({ value, rolling = false }: { value: number; rolling?: boolean }) 
   return <div className={cn('grid h-10 w-10 flex-shrink-0 grid-cols-3 rounded-lg border border-gold/50 bg-surface p-1 shadow-inner animate-scale-in', rolling && 'animate-bounce')}>{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto h-1.5 w-1.5 rounded-full', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
 }
 
-function OpponentTurnPanel({ state, activity }: { state: RoadHomeState; activity: TurnActivity | null }) {
+function OpponentTurnPanel({ state, activity, secondsLeft }: { state: RoadHomeState; activity: TurnActivity | null; secondsLeft: number }) {
   const active = state.players[state.activePlayerIndex];
   const actor = activity?.playerId ? state.players.find((player) => player.id === activity.playerId) || active : active;
   const copy: Record<string, string> = {
@@ -506,14 +507,25 @@ function OpponentTurnPanel({ state, activity }: { state: RoadHomeState; activity
     PAWN_RELEASED: 'released a pawn from prison.',
     SURPRISE_DRAWN: 'drew a Surprise Card.',
   };
-  const message = activity ? `${actor?.name || 'A player'} ${copy[activity.type] || activity.message}` : `${active?.name || 'A player'} is taking a turn.`;
+  const message = activity
+    ? activity.type.startsWith('QUESTION_') ? activity.message : `${actor?.name || 'A player'} ${copy[activity.type] || activity.message}`
+    : `${active?.name || 'A player'} is taking a turn.`;
   return <div className="rounded-lg border border-royal/35 bg-surface/95 p-4" aria-live="polite">
     <div className="flex items-center gap-3">
       {actor && <PlayerAvatar player={actor} size="lg" />}
       <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase text-royal">Live opponent turn</p><p className="mt-0.5 text-sm font-bold text-ink">{message}</p></div>
       {activity?.diceValue ? <Dice value={activity.diceValue} rolling /> : <Users size={22} className="text-royal" />}
     </div>
-    <p className="mt-3 text-xs leading-relaxed text-stone">The shared board updates after each roll, answer, and move. Question wording stays private until the turn is resolved.</p>
+    {state.phase === 'QUESTION' && state.currentQuestion ? (
+      <div className="mt-4 rounded-lg border border-border bg-surface-2 p-3 animate-fade-in">
+        <div className="flex items-center justify-between gap-2">
+          <span className="badge badge-brass text-[9px]">{state.currentQuestion.difficulty.replace('_', ' ')}</span>
+          <span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={12} /> {secondsLeft}s</span>
+        </div>
+        <p className="mt-2 text-sm font-bold leading-snug text-ink">{state.currentQuestion.prompt}</p>
+        {state.currentQuestion.options?.length ? <div className="mt-3 space-y-1.5">{state.currentQuestion.options.map((option) => <div key={option} className="rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-stone">{option}</div>)}</div> : <p className="mt-2 text-xs italic text-stone">A written answer is being entered.</p>}
+      </div>
+    ) : <p className="mt-3 text-xs leading-relaxed text-stone">Every roll, question, selected answer, and outcome is shown to all players.</p>}
   </div>;
 }
 

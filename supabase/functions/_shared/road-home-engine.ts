@@ -361,7 +361,7 @@ function setQuestion(state: RoadHomeState, question: RoadHomeQuestion, purpose: 
   state.questionAttempts = 0;
   state.questionDeadline = new Date(Date.now() + question.timerSeconds * 1000).toISOString();
   state.phase = 'QUESTION';
-  addEvent(state, 'QUESTION_DRAWN', `${activePlayer(state).name} received a ${question.difficulty.replace('_', ' ')} question.`, activePlayer(state).id);
+  addEvent(state, 'QUESTION_DRAWN', `${activePlayer(state).name}'s question: ${question.prompt}`, activePlayer(state).id);
 }
 
 function unresolvedChallengeFor(state: RoadHomeState, playerId: string) {
@@ -621,7 +621,7 @@ function resolveAnswer(state: RoadHomeState, questions: RoadHomeQuestion[], answ
   state.questionAttempts += 1;
   if (correct) {
     player.stats.correct += 1;
-    addEvent(state, 'QUESTION_CORRECT', `${player.name} answered correctly${question.reference ? ` (${question.reference})` : ''}.`, player.id);
+    addEvent(state, 'QUESTION_CORRECT', `${player.name} chose "${answer}" — correct${question.reference ? ` (${question.reference})` : ''}.`, player.id);
     if (purpose === 'own') {
       addDenarii(state, player, ROAD_HOME_CONFIG.rewards.ownQuestion, 'correct movement question');
       state.pendingMoveValue = state.diceValue;
@@ -666,7 +666,7 @@ function resolveAnswer(state: RoadHomeState, questions: RoadHomeQuestion[], answ
     return;
   }
 
-  addEvent(state, 'QUESTION_INCORRECT', `${player.name} did not answer correctly.`, player.id);
+  addEvent(state, 'QUESTION_INCORRECT', `${player.name} chose "${answer || 'No answer'}" — incorrect. Correct answer: ${question.correctAnswer}${question.reference ? ` (${question.reference})` : ''}.`, player.id);
   if (purpose === 'own') {
     createChallenge(state, question, state.diceValue || 0, player);
     advanceTurn(state);

@@ -1384,6 +1384,23 @@ export async function submitArenaTriviaAnswer(roomId: string, userId: string, qu
   };
 }
 
+export type ArenaTriviaFeedItem = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  question_index: number;
+  submitted_answer: string;
+  is_correct: boolean;
+  figs_earned: number;
+  created_at: string;
+};
+
+export async function fetchArenaTriviaFeed(roomId: string) {
+  const { data, error } = await supabase.rpc('get_arena_trivia_feed', { p_room_id: roomId });
+  if (error) throw error;
+  return (data || []) as ArenaTriviaFeedItem[];
+}
+
 export async function fetchArenaRoomMessages(roomId: string) {
   const { data, error } = await supabase
     .from('arena_room_messages')
