@@ -26,6 +26,12 @@ type TurnActivity = RoadHomeState['eventLog'][number] & { diceValue?: number };
 
 const PAWN_STEP_MS = 170;
 
+function machineReplayDelay(roomName: string) {
+  if (/\[difficulty:hard\]/i.test(roomName)) return 850;
+  if (/\[difficulty:easy\]/i.test(roomName)) return 2100;
+  return 1450;
+}
+
 function roadHomeError(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -238,17 +244,18 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     state.eventLog.forEach((event) => knownEventIds.current!.add(event.id));
     if (!fresh.length) return;
     activityTimers.current.forEach((timer) => window.clearTimeout(timer));
+    const replayDelay = machineReplayDelay(roomName);
     activityTimers.current = fresh.map((event, index) => window.setTimeout(() => {
       const diceValue = event.type === 'DICE_ROLLED'
         ? Number(event.message.match(/rolled\s+(\d+)/i)?.[1] || 0)
         : undefined;
       setLiveActivity({ ...event, diceValue: diceValue || undefined });
-    }, index * 1500));
+    }, index * replayDelay));
     return () => {
       activityTimers.current.forEach((timer) => window.clearTimeout(timer));
       activityTimers.current = [];
     };
-  }, [state]);
+  }, [roomName, state]);
 
   useEffect(() => {
     if (!state) return;
@@ -363,6 +370,9 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <PlayerStrip state={state} userId={userId} />
+          {myTurn && liveActivity?.playerId && liveActivity.playerId !== userId && (
+            <OpponentTurnPanel state={state} activity={liveActivity} secondsLeft={secondsLeft} replay />
+          )}
           {latestMoveEvent && (
             <div key={latestMoveEvent.id} className="flex items-center gap-2 rounded-lg border border-gold/30 bg-surface/92 px-3 py-2 text-xs text-stone animate-fade-in" aria-live="polite">
               <Sparkles size={14} className="flex-shrink-0 text-gold" />
@@ -489,7 +499,7 @@ function Dice({ value, rolling = false }: { value: number; rolling?: boolean }) 
   return <div className={cn('grid h-10 w-10 flex-shrink-0 grid-cols-3 rounded-lg border border-gold/50 bg-surface p-1 shadow-inner animate-scale-in', rolling && 'animate-bounce')}>{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto h-1.5 w-1.5 rounded-full', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
 }
 
-function OpponentTurnPanel({ state, activity, secondsLeft }: { state: RoadHomeState; activity: TurnActivity | null; secondsLeft: number }) {
+function OpponentTurnPanel({ state, activity, secondsLeft, replay = false }: { state: RoadHomeState; activity: TurnActivity | null; secondsLeft: number; replay?: boolean }) {
   const active = state.players[state.activePlayerIndex];
   const actor = activity?.playerId ? state.players.find((player) => player.id === activity.playerId) || active : active;
   const copy: Record<string, string> = {
@@ -510,7 +520,7 @@ function OpponentTurnPanel({ state, activity, secondsLeft }: { state: RoadHomeSt
   const message = activity
     ? activity.type.startsWith('QUESTION_') ? activity.message : `${actor?.name || 'A player'} ${copy[activity.type] || activity.message}`
     : `${active?.name || 'A player'} is taking a turn.`;
-  return <div className="rounded-lg border border-royal/35 bg-surface/95 p-4" aria-live="polite">
+  return <div className={cn('rounded-lg border border-royal/35 bg-surface/95 p-4', replay && 'animate-slide-up shadow-lg')} aria-live="polite">
     <div className="flex items-center gap-3">
       {actor && <PlayerAvatar player={actor} size="lg" />}
       <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase text-royal">Live opponent turn</p><p className="mt-0.5 text-sm font-bold text-ink">{message}</p></div>

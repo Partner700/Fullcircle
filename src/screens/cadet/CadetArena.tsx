@@ -16,6 +16,7 @@ import {
   heartbeatArenaParticipant,
   finishArenaGame,
   submitArenaTriviaAnswer,
+  prepareArenaQuestionSet,
   fetchArenaTriviaFeed,
   fetchArenaRoomMessages,
   sendArenaRoomMessage,
@@ -61,6 +62,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [arenaTopic, setArenaTopic] = useState('');
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
   const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo'>('standard');
+  const [arenaDifficulty, setArenaDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -169,7 +171,11 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       try {
         const active = await heartbeatArenaParticipant(activeRoomId, profile.id);
         if (!active && !cancelled) {
-          setError('You were away from this Arena match for three minutes and forfeited your place.');
+          const freshRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
+          const participant = freshRoom?.arena_participants?.find((item: any) => item.user_id === profile.id);
+          setError(participant?.forfeit_reason === 'manual'
+            ? 'You forfeited this Arena match.'
+            : 'You were away from this Arena match for three minutes and forfeited your place.');
           clearActiveRoom(true);
         }
       } catch { /* Realtime room state handles matches that have just completed. */ }
@@ -260,7 +266,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       const topicSuffix = arenaTopicType === 'narrative' || !arenaTopic.trim()
         ? ''
         : ` [${arenaTopicType}: ${arenaTopic.trim()}]`;
-      const fullRoomName = `${roomName}${topicSuffix} [arena:${arenaGameType}]`;
+      const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
+      const fullRoomName = `${roomName}${topicSuffix} [arena:${arenaGameType}]${difficultySuffix}`;
       const roomId = arenaOpponent === 'machine'
         ? await createMachineArenaRoom(profile.id, fullRoomName, selectedNarrativeDate || undefined)
         : await createArenaRoom(profile.id, fullRoomName, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
@@ -346,14 +353,16 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             const narrative = narrativeDate
               ? narratives.find((item) => item.narrative_date === narrativeDate)
               : narratives[0];
-            await generateArenaQuestionsWithAI({
+            const generated = await generateArenaQuestionsWithAI({
               roomId: activeRoomId,
               roomName: activeRoomName,
               gameType: 'ludo',
               topicType: topic?.type || 'narrative',
               topic: topic?.value || null,
               narrative: narrative || null,
+              difficulty: parseArenaDifficulty(activeRoomName),
             });
+            await prepareArenaQuestionSet(activeRoomId, profile!.id, generated);
           }}
           onExit={() => clearActiveRoom(true)}
           onStateChanged={async () => {
@@ -593,6 +602,14 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               </select>
             </div>
           </div>
+          {arenaOpponent === 'machine' && <div>
+            <label className="text-xs text-stone block mb-1">Machine Difficulty</label>
+            <select className="input-field" value={arenaDifficulty} onChange={(event) => setArenaDifficulty(event.target.value as 'easy' | 'medium' | 'hard')}>
+              <option value="easy">Easy · slower and less accurate</option>
+              <option value="medium">Medium · balanced</option>
+              <option value="hard">Hard · fast and highly accurate</option>
+            </select>
+          </div>}
           <p className="rounded-lg border border-brass/25 bg-brass-soft p-3 text-xs text-stone">
             {arenaGameType === 'standard' ? 'Standard Trivia: answer random Bible narrative questions; the highest score wins.' : 'Ludo Trivia: correct answers move tokens around the board, with surprise spaces and relic effects.'}
             {arenaOpponent === 'machine' && ' Machine matches cost a fixed 50 Ð.'}
@@ -781,6 +798,11 @@ function parseArenaGameType(roomName: string) {
   return /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
 
+function parseArenaDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
+  const match = roomName.match(/\[difficulty:(easy|medium|hard)\]/i);
+  return (match?.[1]?.toLowerCase() as 'easy' | 'medium' | 'hard') || 'medium';
+}
+
 function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [body, setBody] = useState('');
@@ -871,7 +893,7 @@ function getArenaRoundForIndex(questionIndex: number) {
   return ARENA_ROUND_LENGTHS.length - 1;
 }
 
-function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
+function buildArenaQuestionSet(sourceQuestions: QuestionPayload[], fixedDifficulty?: 'easy' | 'medium' | 'hard') {
   const seen = new Set<string>();
   const cleaned = sourceQuestions.filter((q) => {
     if (!q.question || !q.correct_answer) return false;
@@ -887,11 +909,12 @@ function buildArenaQuestionSet(sourceQuestions: QuestionPayload[]) {
   for (let i = 0; i < targetCount; i += 1) {
     const q = pool[i];
     if (!q) break;
+    const difficulty = fixedDifficulty === 'medium' ? 'moderate' : fixedDifficulty || getArenaDifficulty(i);
     questions.push({
       ...toStandardTriviaQuestion(q),
       game_round: getArenaRoundForIndex(i) + 1,
-      difficulty_tag: getArenaDifficulty(i),
-      round_timer_seconds: getArenaQuestionSeconds({ ...q, difficulty_tag: getArenaDifficulty(i) }),
+      difficulty_tag: difficulty,
+      round_timer_seconds: getArenaQuestionSeconds({ ...q, difficulty_tag: difficulty }),
       is_bonus: targetCount === 19 && i === 18,
     });
   }
@@ -967,6 +990,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
@@ -1001,7 +1025,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     let cancelled = false;
     (async () => {
       if (Array.isArray(roomQuestionSet) && roomQuestionSet.length >= 19) {
-        setQuestions(buildArenaQuestionSet(roomQuestionSet));
+        setQuestions(roomQuestionSet);
         setReady(true);
         return;
       }
@@ -1010,6 +1034,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         ? narratives.find((n) => n.narrative_date === narrativeDate)
         : narratives[0];
       try {
+        const difficulty = parseArenaDifficulty(roomName);
         const aiQuestions = await generateArenaQuestionsWithAI({
           roomId,
           roomName,
@@ -1017,9 +1042,11 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           topicType: topic?.type || 'narrative',
           topic: topic?.value || null,
           narrative: narrative || null,
+          difficulty,
         });
         if (!cancelled) {
-          setQuestions(buildArenaQuestionSet(aiQuestions));
+          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(aiQuestions, difficulty));
+          setQuestions(stored);
           setReady(true);
         }
         return;
@@ -1028,17 +1055,25 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       }
       const topicQuestions = generateArenaTopicQuestions(roomName);
       if (topicQuestions.length > 0) {
-        if (!cancelled) setQuestions(buildArenaQuestionSet(topicQuestions));
+        const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(topicQuestions, parseArenaDifficulty(roomName)));
+        if (!cancelled) setQuestions(stored);
         if (!cancelled) setReady(true);
         return;
       }
       if (narrative) {
-        const seed = narrative.game_seed_data as GameSeedData;
-        const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
-        if (!cancelled) setQuestions(buildArenaQuestionSet(qs));
-      } else if (!cancelled) {
-        setQuestions([]);
+        try {
+          const seed = narrative.game_seed_data as GameSeedData;
+          const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
+          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(qs, parseArenaDifficulty(roomName)));
+          if (!cancelled) setQuestions(stored);
+          if (!cancelled) setReady(true);
+          return;
+        } catch (fallbackError) {
+          console.warn('Narrative packet arena generation unavailable, using the verified Bible deck.', fallbackError);
+        }
       }
+      const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(buildFallbackArenaQuestions(), parseArenaDifficulty(roomName)));
+      if (!cancelled) setQuestions(stored);
       if (!cancelled) setReady(true);
     })();
     return () => { cancelled = true; };
@@ -1047,11 +1082,13 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const handleAnswer = useCallback(async (answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ]) return;
     setSubmittingAnswer(true);
+    setAnswerError(null);
     let result: { correct: boolean; totalFigs: number; correctCount: number };
     try {
       result = await submitArenaTriviaAnswer(roomId, userId, currentQ, answer);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Arena answer verification failed', error);
+      setAnswerError(error?.message || 'That answer could not be submitted. Please try again.');
       setSubmittingAnswer(false);
       return;
     }
@@ -1160,6 +1197,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       </div>
 
       <div className="card p-5">
+        {answerError && <div className="mb-4 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
         <div className="mb-3 flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2 text-sm font-bold text-ink">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</div>
           <div><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>

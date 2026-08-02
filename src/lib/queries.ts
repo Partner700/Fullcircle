@@ -1384,6 +1384,17 @@ export async function submitArenaTriviaAnswer(roomId: string, userId: string, qu
   };
 }
 
+export async function prepareArenaQuestionSet(roomId: string, userId: string, questions: QuestionPayload[]) {
+  const { data, error } = await supabase.rpc('prepare_arena_question_set', {
+    p_room_id: roomId,
+    p_user_id: userId,
+    p_questions: questions,
+  });
+  if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) throw new Error('The Arena could not store its question deck.');
+  return data as QuestionPayload[];
+}
+
 export type ArenaTriviaFeedItem = {
   user_id: string;
   display_name: string;
@@ -1447,6 +1458,7 @@ export async function generateArenaQuestionsWithAI(payload: {
   topic?: string | null;
   narrative?: DailyNarrative | null;
   gameType?: 'standard' | 'ludo';
+  difficulty?: 'easy' | 'medium' | 'hard';
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -1461,7 +1473,7 @@ export async function generateArenaQuestionsWithAI(payload: {
       apikey: supabaseAnonKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, persist: payload.gameType === 'ludo' }),
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();

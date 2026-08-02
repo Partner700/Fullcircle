@@ -873,7 +873,12 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
   return state;
 }
 
-export function runRoadHomeBots(stateInput: RoadHomeState, questionsInput: unknown[], random: RandomFn = Math.random) {
+export function runRoadHomeBots(
+  stateInput: RoadHomeState,
+  questionsInput: unknown[],
+  random: RandomFn = Math.random,
+  machineDifficulty: 'easy' | 'medium' | 'hard' = 'medium',
+) {
   let state = stateInput;
   let guard = 0;
   while (state.phase !== 'GAME_OVER' && activePlayer(state).isBot && guard < 80) {
@@ -888,7 +893,7 @@ export function runRoadHomeBots(stateInput: RoadHomeState, questionsInput: unkno
     } else if (state.phase === 'AWAITING_ROLL') {
       state = applyRoadHomeCommand(state, bot.id, { action: 'ROLL' }, questionsInput, random);
     } else if (state.phase === 'QUESTION') {
-      const chance = state.currentQuestion?.difficulty === 'easy' ? 0.78 : state.currentQuestion?.difficulty === 'medium' ? 0.68 : state.currentQuestion?.difficulty === 'hard' ? 0.56 : 0.46;
+      const chance = machineDifficulty === 'easy' ? 0.46 : machineDifficulty === 'hard' ? 0.88 : 0.68;
       const answer = random() < chance ? state.currentQuestion?.correctAnswer || '' : '__machine_missed__';
       state = applyRoadHomeCommand(state, bot.id, { action: 'ANSWER', answer }, questionsInput, random);
     } else if (state.phase === 'SELECTING_PAWN') {

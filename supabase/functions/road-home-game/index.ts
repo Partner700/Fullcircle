@@ -244,6 +244,11 @@ function secureRandom() {
   return values[0] / 4294967296;
 }
 
+function machineDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
+  const match = roomName.match(/\[difficulty:(easy|medium|hard)\]/i);
+  return (match?.[1]?.toLowerCase() as 'easy' | 'medium' | 'hard') || 'medium';
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -272,7 +277,7 @@ Deno.serve(async (request) => {
       const existing = await publicGame(roomId);
       if (existing) return json({ state: existing.public_state, version: existing.version });
       let state = createRoadHomeGame(roomId, context.participants, context.questions, secureRandom);
-      state = runRoadHomeBots(state, context.questions, secureRandom);
+      state = runRoadHomeBots(state, context.questions, secureRandom, machineDifficulty(String(context.room.room_name || '')));
       const publicState = await createGame(roomId, state);
       return json({ state: publicState, version: state.version });
     }
@@ -304,7 +309,7 @@ Deno.serve(async (request) => {
     }
     const questionPool = commandState.questionPool?.length ? commandState.questionPool : context.questions;
     let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom);
-    next = runRoadHomeBots(next, questionPool, secureRandom);
+    next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')));
     const publicState = await saveGame(roomId, previous, next, commandId, actorId);
     await finishArenaRoom(context.room, next);
     return json({ state: publicState, version: next.version });

@@ -79,7 +79,7 @@ async function fetchRoomQuestions(roomId: string, minimumCount: number) {
 async function saveRoomQuestions(roomId: string, questions: QuestionPayload[]) {
   const supabaseUrl = env("SUPABASE_URL");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  await fetch(`${supabaseUrl}/rest/v1/arena_rooms?id=eq.${roomId}`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/arena_rooms?id=eq.${roomId}`, {
     method: "PATCH",
     headers: {
       apikey: serviceKey,
@@ -89,6 +89,7 @@ async function saveRoomQuestions(roomId: string, questions: QuestionPayload[]) {
     },
     body: JSON.stringify({ question_set: questions, question_generated_at: new Date().toISOString() }),
   });
+  if (!response.ok) throw new Error(`Could not save the Arena question deck: ${await response.text()}`);
 }
 
 Deno.serve(async (req) => {
@@ -110,6 +111,7 @@ Deno.serve(async (req) => {
     if (existing) return json({ questions: existing });
 
     const topicType = String(body.topicType || "narrative");
+    const difficulty = ["easy", "medium", "hard"].includes(String(body.difficulty)) ? String(body.difficulty) : "mixed";
     const topic = String(body.topic || "");
     const narrative = body.narrative || {};
     const source = topicType === "book" || topicType === "character"
@@ -127,6 +129,7 @@ ${formatRule}
 - Every multiple_choice question must have 4 options and one exact correct_answer from the options.
 - Do not reveal answers inside the question.
 - Questions must be intelligible, scholarly, and challenging.
+- Requested machine difficulty: ${difficulty}. When it is not mixed, make every question genuinely ${difficulty}.
 - Source focus: ${source}
 Return only JSON in this shape: {"questions":[{"type":"multiple_choice","question":"...","options":["..."],"correct_answer":"...","explanation":"...","reference":"..."}]}`;
 
@@ -163,7 +166,7 @@ Return only JSON in this shape: {"questions":[{"type":"multiple_choice","questio
       .slice(0, targetCount);
 
     if (questions.length < targetCount) return json({ error: "AI returned too few valid unique arena questions." }, 502);
-    await saveRoomQuestions(roomId, questions);
+    if (body.persist !== false) await saveRoomQuestions(roomId, questions);
     return json({ questions });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
