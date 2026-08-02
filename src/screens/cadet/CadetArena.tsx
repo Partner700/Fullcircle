@@ -982,6 +982,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const { profile } = useAuth();
   const [questions, setQuestions] = useState<QuestionPayload[]>([]);
   const [answerFeed, setAnswerFeed] = useState<ArenaTriviaFeedItem[]>([]);
+  const [machineAnswerFeed, setMachineAnswerFeed] = useState<ArenaTriviaFeedItem[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
@@ -1013,6 +1014,38 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   useEffect(() => {
     if (ready && questions.length > 0) void playSoundEffect('sound_arena_round', 0.62);
   }, [activeRoundIndex, questions.length, ready]);
+
+  useEffect(() => {
+    if (!ready || questions.length === 0 || !/\[difficulty:(easy|medium|hard)\]/i.test(roomName)) return;
+    let cancelled = false;
+    const difficulty = parseArenaDifficulty(roomName);
+    const delay = difficulty === 'easy' ? 6200 : difficulty === 'hard' ? 2600 : 4200;
+    const accuracy = difficulty === 'easy' ? 46 : difficulty === 'hard' ? 88 : 68;
+    setMachineAnswerFeed([]);
+    const run = async () => {
+      for (let index = 0; index < questions.length && !cancelled; index += 1) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+        if (cancelled) return;
+        const question = questions[index];
+        const seed = `${roomId}:${question.question}:${index}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        const correct = seed % 100 < accuracy;
+        const wrongOptions = (question.options || []).filter((option) => option !== question.correct_answer);
+        const selected = String(correct ? question.correct_answer : wrongOptions[seed % Math.max(1, wrongOptions.length)] || 'No answer');
+        setMachineAnswerFeed((current) => [...current, {
+          user_id: 'arena-machine',
+          display_name: difficulty === 'hard' ? 'The Scribe · Hard' : difficulty === 'easy' ? 'The Scribe · Easy' : 'The Scribe · Medium',
+          avatar_url: null,
+          question_index: index,
+          submitted_answer: selected,
+          is_correct: correct,
+          figs_earned: correct ? (question.is_bonus ? 2 : 1) : 0,
+          created_at: new Date().toISOString(),
+        }]);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [questions, ready, roomId, roomName]);
 
   const completeGame = useCallback((finalScore = scoreRef.current, finalCorrectCount = correctCountRef.current) => {
     if (completedRef.current) return;
@@ -1077,7 +1110,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       if (!cancelled) setReady(true);
     })();
     return () => { cancelled = true; };
-  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet]);
+  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId]);
 
   const handleAnswer = useCallback(async (answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ]) return;
@@ -1166,6 +1199,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const isCurrentAnswered = answeredIds.has(currentQ);
   const nextQuestionWouldStartNewRound = getArenaRoundForIndex(currentQ + 1) !== currentRound;
   const waitingForNextRound = isCurrentAnswered && nextQuestionWouldStartNewRound && currentQ + 1 < questions.length;
+  const visibleAnswerFeed = [...answerFeed, ...machineAnswerFeed].sort((left, right) => left.created_at.localeCompare(right.created_at));
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
@@ -1265,10 +1299,10 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
 
       <div className="card p-4">
         <div className="mb-3 flex items-center justify-between gap-2"><div><p className="text-sm font-bold text-ink">Live Answers</p><p className="text-[11px] text-stone">Every player’s question, choice, and outcome</p></div><Users size={18} className="text-royal" /></div>
-        {answerFeed.length === 0 ? <p className="text-xs text-stone">Answers will appear here as players submit them.</p> : <div className="max-h-72 space-y-2 overflow-y-auto">{answerFeed.map((item) => {
+        {visibleAnswerFeed.length === 0 ? <p className="text-xs text-stone">Answers will appear here as players submit them.</p> : <div className="max-h-72 space-y-2 overflow-y-auto">{visibleAnswerFeed.map((item) => {
           const feedQuestion = questions[item.question_index];
           return <div key={`${item.user_id}-${item.question_index}`} className={cn('rounded-lg border p-3 animate-fade-in', item.is_correct ? 'border-sage/35 bg-sage/10' : 'border-coral/30 bg-coral/8')}>
-            <div className="flex items-start gap-2.5"><div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-[10px] font-bold">{item.avatar_url ? <img src={item.avatar_url} alt={item.display_name} className="h-full w-full object-cover" /> : item.display_name.charAt(0)}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-ink">{item.display_name}</p><span className={cn('text-[10px] font-bold', item.is_correct ? 'text-sage' : 'text-coral')}>{item.is_correct ? 'Correct' : 'Incorrect'}</span></div><p className="mt-1 text-xs leading-relaxed text-stone">{feedQuestion?.question || `Question ${item.question_index + 1}`}</p><p className="mt-1 text-xs font-semibold text-ink">Selected: {item.submitted_answer || 'No answer'}</p></div></div>
+            <div className="flex items-start gap-2.5"><div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-[10px] font-bold">{item.avatar_url ? <img src={item.avatar_url} alt={item.display_name} className="h-full w-full object-cover" /> : item.user_id === 'arena-machine' ? <Zap size={15} className="text-gold" /> : item.display_name.charAt(0)}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-ink">{item.display_name}</p><span className={cn('text-[10px] font-bold', item.is_correct ? 'text-sage' : 'text-coral')}>{item.is_correct ? 'Correct' : 'Incorrect'}</span></div><p className="mt-1 text-xs leading-relaxed text-stone">{feedQuestion?.question || `Question ${item.question_index + 1}`}</p><p className="mt-1 text-xs font-semibold text-ink">Selected: {item.submitted_answer || 'No answer'}</p></div></div>
           </div>;
         })}</div>}
       </div>

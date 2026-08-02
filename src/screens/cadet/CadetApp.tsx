@@ -797,7 +797,7 @@ export function CadetApp() {
             <button onClick={() => setShowNotifications(s => !s)} className="relative flex items-center justify-center w-9 h-9 rounded-full bg-surface-2 border border-border hover:border-border-bright transition-colors">
               <Bell size={16} className="text-ink" />
               {unreadNotificationCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                   {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                 </span>
               )}

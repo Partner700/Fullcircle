@@ -24,7 +24,7 @@ type RoadHomeCommandError = Error & { state?: RoadHomeState | null };
 type RollOutcome = { value: number; message: string };
 type TurnActivity = RoadHomeState['eventLog'][number] & { diceValue?: number };
 
-const PAWN_STEP_MS = 170;
+const PAWN_STEP_MS = 260;
 
 function machineReplayDelay(roomName: string) {
   if (/\[difficulty:hard\]/i.test(roomName)) return 850;
@@ -227,6 +227,11 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const latestMoveEvent = useMemo(() => state ? [...state.eventLog].reverse().find((event) => [
     'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED', 'PAWN_RELEASED',
   ].includes(event.type)) || null : null, [state]);
+  const opponentPlay = useMemo(() => state ? state.eventLog.filter((event) => event.playerId && event.playerId !== userId && [
+    'TURN_STARTED', 'DICE_ROLLED', 'QUESTION_DRAWN', 'QUESTION_CORRECT', 'QUESTION_INCORRECT',
+    'NO_LEGAL_MOVE', 'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED',
+    'PAWN_RELEASED', 'SURPRISE_DRAWN',
+  ].includes(event.type)).slice(-8).reverse() : [], [state, userId]);
 
   useEffect(() => {
     if (!state) return;
@@ -370,6 +375,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <PlayerStrip state={state} userId={userId} />
+          <OpponentPlayFeed state={state} events={opponentPlay} />
           {myTurn && liveActivity?.playerId && liveActivity.playerId !== userId && (
             <OpponentTurnPanel state={state} activity={liveActivity} secondsLeft={secondsLeft} replay />
           )}
@@ -419,6 +425,19 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       {showLog && <EventLog state={state} onClose={() => setShowLog(false)} />}
     </div>
   );
+}
+
+function OpponentPlayFeed({ state, events }: { state: RoadHomeState; events: RoadHomeState['eventLog'] }) {
+  return <div className="rounded-lg border border-royal/30 bg-surface/92 p-3" aria-live="polite">
+    <div className="mb-2 flex items-center justify-between gap-2"><div><p className="text-xs font-bold text-ink">Opponent Live Play</p><p className="text-[10px] text-stone">Rolls, questions, selected answers, results, and moves</p></div><Users size={17} className="text-royal" /></div>
+    {events.length === 0 ? <p className="text-xs text-stone">Your opponent's next action will appear here.</p> : <div className="max-h-56 space-y-2 overflow-y-auto">{events.map((event) => {
+      const player = state.players.find((item) => item.id === event.playerId);
+      return <div key={event.id} className="flex items-start gap-2 rounded-md border border-border bg-surface-2/90 p-2 animate-fade-in">
+        {player && <PlayerAvatar player={player} />}
+        <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-[11px] font-bold text-ink">{player?.name || 'Opponent'}</p><span className="text-[8px] font-bold uppercase text-royal">{event.type.replace(/_/g, ' ')}</span></div><p className="mt-0.5 text-xs leading-relaxed text-stone">{event.message}</p></div>
+      </div>;
+    })}</div>}
+  </div>;
 }
 
 function PlayerAvatar({ player, size = 'sm' }: { player: RoadHomePlayer; size?: 'sm' | 'lg' }) {

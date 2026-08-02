@@ -158,9 +158,7 @@ export function calcLevelReward(score: number, maxScore: number, perfectReward =
 export function isGamePausedNow(): boolean {
   const now = new Date();
   const dow = now.getDay();
-  if (dow === 0) return true;
   if (dow === 6 && now.getHours() >= 17) return true;
-  if (dow === 1 && now.getHours() < 7) return true;
   return false;
 }
 
