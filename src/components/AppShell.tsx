@@ -301,7 +301,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
                 )}
               </div>
             </div>
-            <div className="flex max-w-full items-center gap-2 overflow-x-auto overscroll-x-contain pb-0.5 md:flex-shrink-0 md:justify-end md:overflow-visible md:pb-0">
+            <div className="flex max-w-full items-center gap-2 overflow-x-auto overscroll-x-contain pb-1 pt-2 md:flex-shrink-0 md:justify-end md:overflow-visible md:py-0">
               <div className="hidden md:block">
                 <ThemeToggle />
               </div>

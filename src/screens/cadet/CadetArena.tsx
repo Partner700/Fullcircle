@@ -1003,6 +1003,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const [machineScore, setMachineScore] = useState(0);
   const [turnPhase, setTurnPhase] = useState<'user' | 'user-feedback' | 'machine-thinking' | 'machine-feedback'>('user');
   const [answerFeedback, setAnswerFeedback] = useState<{ correct: boolean; answer: string } | null>(null);
+  const [matchPlayers, setMatchPlayers] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
@@ -1014,7 +1015,9 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
   const machineMatch = /\[difficulty:(easy|medium|hard)\]/i.test(roomName);
   const machineDifficulty = parseArenaDifficulty(roomName);
-  const machineTarget = machineDifficulty === 'easy' ? 7 : machineDifficulty === 'hard' ? 17 : 12;
+  const machineTarget = machineDifficulty === 'easy' ? 3 : machineDifficulty === 'hard' ? 8 : 5;
+  const activeRealPlayer = !machineMatch && matchPlayers.length > 0 ? matchPlayers[currentQ % matchPlayers.length] : null;
+  const isMyTurn = machineMatch || !activeRealPlayer || activeRealPlayer.user_id === userId;
 
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
@@ -1030,6 +1033,19 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   }, [refreshAnswerFeed]);
 
   useEffect(() => {
+    if (machineMatch) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: rows } = await supabase.from('arena_participants').select('user_id,joined_at').eq('room_id', roomId).is('forfeited_at', null).order('joined_at');
+      const ids = (rows || []).map((row) => row.user_id);
+      const { data: profiles } = ids.length ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', ids) : { data: [] as any[] };
+      const byId = new Map((profiles || []).map((item) => [item.id, item]));
+      if (!cancelled) setMatchPlayers(ids.map((id) => ({ user_id: id, display_name: byId.get(id)?.display_name || 'Arena player', avatar_url: byId.get(id)?.avatar_url || null })));
+    })();
+    return () => { cancelled = true; };
+  }, [machineMatch, roomId]);
+
+  useEffect(() => {
     if (ready && questions.length > 0) void playSoundEffect('sound_arena_round', 0.62);
   }, [activeRoundIndex, questions.length, ready]);
 
@@ -1039,6 +1055,19 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     if (timerRef.current) clearInterval(timerRef.current);
     onComplete(finalScore, finalCorrectCount);
   }, [onComplete]);
+
+  useEffect(() => {
+    if (machineMatch || !ready || questions.length === 0 || matchPlayers.length === 0) return;
+    const nextIndex = Math.min(answerFeed.length, questions.length);
+    if (nextIndex >= questions.length) {
+      completeGame(scoreRef.current, correctCountRef.current);
+      return;
+    }
+    setCurrentQ(nextIndex);
+    setTypedAnswer('');
+    setAnswerFeedback(null);
+    setTurnPhase(matchPlayers[nextIndex % matchPlayers.length]?.user_id === userId ? 'user' : 'machine-thinking');
+  }, [answerFeed.length, machineMatch, matchPlayers, questions.length, ready, userId, completeGame]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1099,7 +1128,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId]);
 
   const handleAnswer = useCallback(async (answer: string | null) => {
-    if (answeredIds.has(currentQ) || !questions[currentQ] || turnPhase !== 'user') return;
+    if (answeredIds.has(currentQ) || !questions[currentQ] || turnPhase !== 'user' || !isMyTurn) return;
     setSubmittingAnswer(true);
     setAnswerError(null);
     let result: { correct: boolean; totalFigs: number; correctCount: number };
@@ -1125,8 +1154,8 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     void refreshAnswerFeed();
     setSubmittingAnswer(false);
 
-    const advance = (finalMachineScore: number) => {
-      const nextIndex = currentQ + 1;
+    const advance = (finalMachineScore: number, questionsAdvanced = 1) => {
+      const nextIndex = currentQ + questionsAdvanced;
       if (nextIndex >= questions.length) {
         setMachineScore(finalMachineScore);
         completeGame(nextScore, nextCorrectCount);
@@ -1140,19 +1169,27 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
 
     await new Promise<void>((resolve) => window.setTimeout(resolve, 900));
     if (!machineMatch) {
-      advance(machineScore);
+      setTurnPhase('machine-thinking');
+      await refreshAnswerFeed();
       return;
     }
 
+    const machineQuestionIndex = currentQ + 1;
+    if (machineQuestionIndex >= questions.length) {
+      completeGame(nextScore, nextCorrectCount);
+      return;
+    }
     setTurnPhase('machine-thinking');
     const delay = machineDifficulty === 'easy' ? 2600 : machineDifficulty === 'hard' ? 1250 : 1850;
     await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
-    const question = questions[currentQ];
-    const expectedCorrectThroughTurn = Math.round(((currentQ + 1) * machineTarget) / questions.length);
-    const expectedCorrectBeforeTurn = Math.round((currentQ * machineTarget) / questions.length);
+    const question = questions[machineQuestionIndex];
+    const machineTurnNumber = Math.floor(machineQuestionIndex / 2) + 1;
+    const machineTurnCount = Math.floor(questions.length / 2);
+    const expectedCorrectThroughTurn = Math.round((machineTurnNumber * machineTarget) / machineTurnCount);
+    const expectedCorrectBeforeTurn = Math.round(((machineTurnNumber - 1) * machineTarget) / machineTurnCount);
     const machineCorrect = expectedCorrectThroughTurn > expectedCorrectBeforeTurn;
     const wrongOptions = (question.options || []).filter((option) => option !== question.correct_answer);
-    const seed = `${roomId}:${currentQ}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const seed = `${roomId}:${machineQuestionIndex}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const selected = String(machineCorrect ? question.correct_answer : wrongOptions[seed % Math.max(1, wrongOptions.length)] || 'No answer');
     const earned = machineCorrect ? (question.is_bonus ? 2 : 1) : 0;
     const nextMachineScore = machineScore + earned;
@@ -1161,7 +1198,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       user_id: 'arena-machine',
       display_name: `The Scribe · ${machineDifficulty.charAt(0).toUpperCase()}${machineDifficulty.slice(1)}`,
       avatar_url: null,
-      question_index: currentQ,
+      question_index: machineQuestionIndex,
       submitted_answer: selected,
       is_correct: machineCorrect,
       figs_earned: earned,
@@ -1169,14 +1206,14 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     }]);
     setTurnPhase('machine-feedback');
     await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
-    advance(nextMachineScore);
-  }, [answeredIds, questions, currentQ, turnPhase, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, machineTarget, machineScore, completeGame]);
+    advance(nextMachineScore, 2);
+  }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, machineTarget, machineScore, completeGame]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     const activeQuestion = questions[currentQ];
     if (!ready || !activeQuestion) return;
-    if (answeredIds.has(currentQ) || turnPhase !== 'user') return;
+    if (answeredIds.has(currentQ) || turnPhase !== 'user' || !isMyTurn) return;
 
     const seconds = getArenaQuestionSeconds(activeQuestion);
     const deadline = Date.now() + seconds * 1000;
@@ -1193,7 +1230,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       }
     }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase]);
+  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase, isMyTurn]);
 
   const moveToNextRound = () => {
     const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
@@ -1226,6 +1263,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const nextQuestionWouldStartNewRound = getArenaRoundForIndex(currentQ + 1) !== currentRound;
   const waitingForNextRound = isCurrentAnswered && nextQuestionWouldStartNewRound && currentQ + 1 < questions.length;
   const visibleAnswerFeed = [...answerFeed, ...machineAnswerFeed].sort((left, right) => left.created_at.localeCompare(right.created_at));
+  const latestMachineAnswer = machineAnswerFeed[machineAnswerFeed.length - 1];
   const opponentScores = Array.from(answerFeed.reduce((scores, item) => {
     if (item.user_id === userId) return scores;
     const current = scores.get(item.user_id) || { name: item.display_name, figs: 0 };
@@ -1264,14 +1302,25 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       </div>
 
       {machineMatch && turnPhase.startsWith('machine') && (
-        <div className={cn('card border-2 p-4 transition-all', turnPhase === 'machine-thinking' ? 'border-gold/45' : machineAnswerFeed.at(-1)?.is_correct ? 'border-sage/45' : 'border-coral/45')}>
+        <div className={cn('card border-2 p-4 transition-all', turnPhase === 'machine-thinking' ? 'border-gold/45' : latestMachineAnswer?.is_correct ? 'border-sage/45' : 'border-coral/45')}>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold-soft"><Zap size={20} className="text-gold" /></div>
-            <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">The Scribe’s turn</p><p className="text-xs text-stone">{turnPhase === 'machine-thinking' ? 'Reading the question and choosing…' : machineAnswerFeed.at(-1)?.is_correct ? 'Right answer' : 'Wrong answer'}</p></div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">The Scribe’s turn</p><p className="text-xs text-stone">{turnPhase === 'machine-thinking' ? 'Reading the question and choosing…' : latestMachineAnswer?.is_correct ? 'Right answer' : 'Wrong answer'}</p></div>
             {turnPhase === 'machine-thinking' && <Loader2 size={18} className="animate-spin text-gold" />}
           </div>
+          <p className="mt-3 text-sm font-semibold text-ink">{questions[currentQ + 1]?.question}</p>
+          {turnPhase === 'machine-feedback' && <p className="mt-2 text-sm text-stone">Selected: <span className="font-bold text-ink">{latestMachineAnswer?.submitted_answer}</span></p>}
+        </div>
+      )}
+
+      {!machineMatch && activeRealPlayer && !isMyTurn && (
+        <div className="card border-2 border-royal/45 p-4 transition-all">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-royal-soft font-bold text-royal">{activeRealPlayer.avatar_url ? <img src={activeRealPlayer.avatar_url} alt="" className="h-full w-full object-cover" /> : activeRealPlayer.display_name.charAt(0)}</div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{activeRealPlayer.display_name}’s turn</p><p className="text-xs text-stone">Their question, answer, and outcome are visible to everyone.</p></div>
+            <Loader2 size={18} className="animate-spin text-royal" />
+          </div>
           <p className="mt-3 text-sm font-semibold text-ink">{q.question}</p>
-          {turnPhase === 'machine-feedback' && <p className="mt-2 text-sm text-stone">Selected: <span className="font-bold text-ink">{machineAnswerFeed.at(-1)?.submitted_answer}</span></p>}
         </div>
       )}
 
@@ -1279,7 +1328,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         {answerError && <div className="mb-4 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
         <div className="mb-3 flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2 text-sm font-bold text-ink">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</div>
-          <div><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
+          <div><p className="text-xs font-bold text-ink">{isMyTurn ? profile?.display_name || 'Your question' : activeRealPlayer?.display_name || 'Opponent question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
         </div>
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
         {answerFeedback && (
@@ -1292,12 +1341,12 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         {/* True/False */}
         {q.type === 'true_false' && (
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'}
+            <button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user' || !isMyTurn}
               className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-sage hover:bg-sage-soft text-sage')}>
               <CheckCircle2 size={24} className="mx-auto mb-1" /> True
             </button>
-            <button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'}
+            <button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user' || !isMyTurn}
               className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                 'border-coral hover:bg-coral-soft text-coral')}>
               <XCircle size={24} className="mx-auto mb-1" /> False
@@ -1310,7 +1359,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           <div className="space-y-2">
             {q.options.map((opt, i) => {
               return (
-                <button key={i} onClick={() => void handleAnswer(opt)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'}
+                <button key={i} onClick={() => void handleAnswer(opt)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user' || !isMyTurn}
                   className={cn('w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
                     'border-border hover:border-gold text-ink')}>
                   {opt}

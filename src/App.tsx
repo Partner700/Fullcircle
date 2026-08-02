@@ -5,6 +5,7 @@ import { Dove } from './components/Dove';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
+import { ProfileOnboarding } from './components/ProfileOnboarding';
 
 // Role applications are large, independent experiences. Load only the one the
 // signed-in person needs instead of making every user download all three.
@@ -37,6 +38,10 @@ export default function App() {
     }, 3000);
     return () => clearInterval(interval);
   }, [loading]);
+
+  useEffect(() => {
+    document.documentElement.lang = profile?.language_code || 'en';
+  }, [profile?.language_code]);
 
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
@@ -105,6 +110,10 @@ export default function App() {
         <AuthScreen />
       </>
     );
+  }
+
+  if (profile.onboarding_completed === false) {
+    return <>{overlays}<ProfileOnboarding /></>;
   }
 
   const app = role === 'instructor'

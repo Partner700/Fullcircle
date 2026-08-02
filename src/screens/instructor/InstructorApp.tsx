@@ -248,7 +248,7 @@ export function InstructorApp() {
         />
       )}
       {tab === 'announcements' && <AnnouncementManager />}
-      {tab === 'tents' && <TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} />}
+      {tab === 'tents' && <><TentJoinRequests onRefresh={loadAll} /><TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} /></>}
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
@@ -1400,6 +1400,36 @@ function StatBox({ icon: Icon, label, value, tint }: { icon: any; label: string;
       <p className="text-xs text-stone">{label}</p>
     </div>
   );
+}
+
+function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from('tent_join_requests')
+      .select('id,created_at,user_id,tent_id,profiles(display_name,avatar_url),tents(name)')
+      .eq('status', 'pending').order('created_at');
+    if (!error) setRequests(data || []);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const review = async (id: string, approve: boolean) => {
+    setReviewing(id);
+    const { error } = await supabase.rpc('review_tent_join_request', { p_request_id: id, p_approve: approve });
+    setReviewing(null);
+    if (error) return alert(error.message);
+    await load();
+    onRefresh();
+  };
+  if (requests.length === 0) return null;
+  return <section className="card mb-5 p-5">
+    <SectionHeader title="Tent Join Requests" subtitle="Approve cadets until each tent reaches ten cadets plus its sentry." />
+    <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
+      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-bold text-ink">{request.profiles?.avatar_url ? <img src={request.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : request.profiles?.display_name?.charAt(0)}</div>
+      <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
+      <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
+      <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
+    </div>)}</div>
+  </section>;
 }
 
 function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {

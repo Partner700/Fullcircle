@@ -9,6 +9,20 @@ import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../l
 
 type RecentAward = AwardWithRecipient;
 
+function weeklyPublishedAwards(awards: RecentAward[]) {
+  const now = new Date();
+  // Cameroon is UTC+1 year-round. Calculate its Saturday boundary without
+  // depending on the viewer's device timezone.
+  const doualaClock = new Date(now.getTime() + 60 * 60 * 1000);
+  const saturdayDoualaClock = Date.UTC(
+    doualaClock.getUTCFullYear(),
+    doualaClock.getUTCMonth(),
+    doualaClock.getUTCDate() - ((doualaClock.getUTCDay() + 1) % 7),
+  );
+  const saturdayUtc = saturdayDoualaClock - 60 * 60 * 1000;
+  return awards.filter((award) => new Date(award.created_at).getTime() >= saturdayUtc);
+}
+
 export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   const { profile } = useAuth();
   const [awards, setAwards] = useState<RecentAward[]>([]);
@@ -22,7 +36,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
       fetchAwards(),
       fetchPanelImageSetting('recent_awards'),
     ]);
-    const allAwards = awardResult.status === 'fulfilled' ? awardResult.value as RecentAward[] : [];
+    const allAwards = weeklyPublishedAwards(awardResult.status === 'fulfilled' ? awardResult.value as RecentAward[] : []);
     setAwards(allAwards);
     setImage(imageResult.status === 'fulfilled' ? imageResult.value : null);
     if (profile && allAwards.length > 0) {

@@ -9,7 +9,7 @@ import { TentAvatar } from '../../components/TentMessenger';
 import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import type { PanelImageSetting } from '../../lib/types';
-import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon } from 'lucide-react';
+import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -41,6 +41,9 @@ export function CadetTent() {
   const [awardsImage, setAwardsImage] = useState<PanelImageSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
+  const [availableTents, setAvailableTents] = useState<any[]>([]);
+  const [pendingTentId, setPendingTentId] = useState<string | null>(null);
+  const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -50,6 +53,16 @@ export function CadetTent() {
       if (!member) {
         setTent(null);
         setMembers([]);
+        const [{ data: tentRows }, { data: requestRow }] = await Promise.all([
+          supabase.from('tents').select('id,name,max_cadets,profile_image_url,tent_houses(name)').order('name'),
+          supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
+        ]);
+        const tentsWithCounts = await Promise.all((tentRows || []).map(async (row: any) => {
+          const { count } = await supabase.from('tent_members').select('id', { count: 'exact', head: true }).eq('tent_id', row.id).eq('role', 'cadet');
+          return { ...row, cadet_count: count || 0 };
+        }));
+        setAvailableTents(tentsWithCounts);
+        setPendingTentId(requestRow?.tent_id || null);
         return;
       }
 
@@ -90,6 +103,14 @@ export function CadetTent() {
 
   useEffect(() => { load(); }, [load]);
 
+  const requestTent = async (tentId: string) => {
+    setRequestingTentId(tentId);
+    const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: tentId });
+    setRequestingTentId(null);
+    if (error) return alert(error.message);
+    setPendingTentId(tentId);
+  };
+
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
     if (!profile || !tent) return;
     setReactingTo(targetUserId);
@@ -124,11 +145,24 @@ export function CadetTent() {
 
   if (!tent) {
     return (
-      <EmptyState
-        icon={Users}
-        title="You're not in a tent yet"
-        message="Your sentry will assign you to a tent soon. Check back later!"
-      />
+      <div className="space-y-5 animate-fade-in">
+        <EmptyState icon={Users} title="You're not in a tent yet" message="Choose a tent below and request to join its family." />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {availableTents.map((item) => {
+            const full = item.cadet_count >= (item.max_cadets || 10);
+            const pending = pendingTentId === item.id;
+            return <article key={item.id} className="card flex items-center gap-3 p-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
+              </div>
+              <div className="min-w-0 flex-1"><p className="font-bold text-ink">{item.name}</p><p className="text-xs text-stone">{item.tent_houses?.name} · {item.cadet_count}/{item.max_cadets || 10} cadets</p></div>
+              <button type="button" disabled={full || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
+                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : <><UserPlus size={14} /> Join</>}
+              </button>
+            </article>;
+          })}
+        </div>
+      </div>
     );
   }
 
