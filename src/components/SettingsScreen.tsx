@@ -18,8 +18,18 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const { profile, role } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [language, setLanguage] = useState(profile?.language || '');
+  const [country, setCountry] = useState(profile?.country || '');
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    setDisplayName(profile.display_name || '');
+    setWhatsapp(profile.whatsapp_number || '');
+    setLanguage(profile.language || '');
+    setCountry(profile.country || '');
+  }, [profile]);
   const [tentInfo, setTentInfo] = useState<{ name: string; houseId: string; sentryName?: string } | null>(null);
   const [stats, setStats] = useState<{ denarii: number; streak: number; longestStreak: number; awards: Award[]; relics: number }>({
     denarii: 0, streak: 0, longestStreak: 0, awards: [], relics: 0,
@@ -87,7 +97,12 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ display_name: displayName, whatsapp_number: whatsapp || null }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      display_name: displayName,
+      whatsapp_number: whatsapp || null,
+      language: language || null,
+      country: country || null,
+    }).eq('id', profile.id);
     setSaving(false);
     if (!error) {
       setSavedMsg(true);
@@ -198,7 +213,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         <div className="border-t border-border pt-4 mt-4">
           <label className="block text-sm font-bold text-peri mb-1.5">WhatsApp Number</label>
           <p className="text-xs text-peri-dim mb-2">For your sentry/instructor to contact you, and (if you're a sentry) for cadets to reach you.</p>
-          <div className="flex gap-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="relative flex-1">
               <MessageCircle size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
               <input
@@ -209,6 +224,20 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
                 placeholder="+1234567890"
               />
             </div>
+            <input
+              type="text"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="input-field"
+              placeholder="Language"
+            />
+            <input
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="input-field"
+              placeholder="Country"
+            />
             <button onClick={handleSave} disabled={saving} className="btn-primary">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Save

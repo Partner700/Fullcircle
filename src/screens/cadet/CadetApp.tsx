@@ -759,8 +759,15 @@ export function CadetApp() {
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-1rem)] rounded-xl border border-border bg-surface shadow-lg z-50 overflow-hidden animate-fade-in">
-                <div className="px-4 py-2.5 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 bg-ink/40 z-40"
+                  onClick={() => setShowNotifications(false)}
+                  aria-label="Dismiss notifications"
+                />
+                <div className="absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-1rem)] rounded-xl border border-border bg-surface shadow-lg z-50 overflow-hidden animate-fade-in">
+                  <div className="px-4 py-2.5 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
                   <div>
                     <span className="text-xs font-display font-semibold text-ink">Notifications</span>
                     <p className="text-[10px] text-stone mt-0.5">

@@ -29,7 +29,17 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   const { profile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [language, setLanguage] = useState(profile?.language || '');
+  const [country, setCountry] = useState(profile?.country || '');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    setDisplayName(profile.display_name || '');
+    setWhatsapp(profile.whatsapp_number || '');
+    setLanguage(profile.language || '');
+    setCountry(profile.country || '');
+  }, [profile]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState({
     denarii: 0, currentStreak: 0, longestStreak: 0, awardsCount: 0,
@@ -120,7 +130,12 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   const saveWhatsapp = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() || profile.display_name, whatsapp_number: whatsapp }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      display_name: displayName.trim() || profile.display_name,
+      whatsapp_number: whatsapp || null,
+      language: language || null,
+      country: country || null,
+    }).eq('id', profile.id);
     if (error) alert(error.message);
     else await refreshProfile();
     setSaving(false);
@@ -227,8 +242,10 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           <label className="text-xs text-stone block mb-1 flex items-center gap-1">
             <Phone size={12} /> WhatsApp Number (so your sentry and instructor can contact you)
           </label>
-          <div className="flex gap-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+            <input className="input-field" placeholder="Language (e.g. English)" value={language} onChange={(e) => setLanguage(e.target.value)} />
+            <input className="input-field" placeholder="Country (e.g. Kenya)" value={country} onChange={(e) => setCountry(e.target.value)} />
             <button onClick={saveWhatsapp} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>

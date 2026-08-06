@@ -22,6 +22,8 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   whatsapp_number: string | null;
+  language: string | null;
+  country: string | null;
   created_at: string;
 }
 
