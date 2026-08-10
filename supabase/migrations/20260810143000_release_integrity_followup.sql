@@ -5,7 +5,7 @@
 -- are resolved by preserving the highest-authority active assignment.
 WITH ranked_roles AS (
   SELECT
-    assignment.ctid AS row_locator,
+    assignment.id,
     assignment.role,
     row_number() OVER (
       PARTITION BY assignment.user_id
@@ -23,7 +23,7 @@ SET
   status = CASE WHEN assignment.role IN ('cadet', 'sentry') THEN 'promoted' ELSE 'removed' END,
   end_date = COALESCE(assignment.end_date, CURRENT_DATE)
 FROM ranked_roles ranked
-WHERE assignment.ctid = ranked.row_locator
+WHERE assignment.id = ranked.id
   AND ranked.position > 1;
 
 CREATE UNIQUE INDEX IF NOT EXISTS role_assignments_one_active_role_per_user
