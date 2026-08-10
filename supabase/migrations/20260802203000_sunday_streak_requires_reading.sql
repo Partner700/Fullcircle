@@ -53,10 +53,12 @@ BEGIN
     E'    v_complete := false;\n    IF extract(dow FROM v_check) = 0 THEN\n      SELECT EXISTS (\n        SELECT 1 FROM public.daily_records sunday_record\n        WHERE sunday_record.user_id = p_user_id\n          AND sunday_record.record_date = v_check\n          AND sunday_record.sunday_reading_opened_at IS NOT NULL\n      ) INTO v_complete;\n    END IF;'
   );
 
-  IF v_definition IS DISTINCT FROM v_original
-    AND position('sunday_reading_opened_at IS NOT NULL' in v_definition) > 0 THEN
-    EXECUTE v_definition;
+  IF v_definition = v_original
+    OR position('sunday_reading_opened_at IS NOT NULL' in v_definition) = 0 THEN
+    RAISE EXCEPTION 'The Sunday reading requirement could not safely update compute_strict_streak.';
   END IF;
+
+  EXECUTE v_definition;
 END;
 $$;
 

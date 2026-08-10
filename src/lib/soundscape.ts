@@ -38,13 +38,6 @@ export function invalidateSoundAsset(type?: string) {
   else assetCache.clear();
 }
 
-/** Keep role-scoped uploads correct when a shared device changes accounts. */
-export function setSoundscapeAudience(audience: 'cadets' | 'sentries' | 'instructors') {
-  if (soundAudience === audience) return;
-  soundAudience = audience;
-  assetCache.clear();
-}
-
 function getAudioContext() {
   if (typeof window === 'undefined') return null;
   if (!audioContext) audioContext = new AudioContext();
@@ -126,18 +119,12 @@ async function getSoundUrl(type: string) {
   return (await getSoundAsset(type))?.url || null;
 }
 
-function applySoundCrop(audio: HTMLAudioElement, asset: SoundAsset, repeat = true) {
+function applySoundCrop(audio: HTMLAudioElement, asset: SoundAsset) {
   if (asset.start <= 0 && !asset.end) return;
   const seekToStart = () => { if (asset.start > 0) audio.currentTime = asset.start; };
-  if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) seekToStart();
-  else audio.addEventListener('loadedmetadata', seekToStart, { once: true });
+  audio.addEventListener('loadedmetadata', seekToStart, { once: true });
   audio.addEventListener('timeupdate', () => {
-    if (!asset.end || audio.currentTime < asset.end) return;
-    if (repeat) audio.currentTime = asset.start;
-    else {
-      audio.pause();
-      audio.currentTime = asset.start;
-    }
+    if (asset.end && audio.currentTime >= asset.end) audio.currentTime = asset.start;
   });
 }
 
@@ -165,13 +152,9 @@ function fadeVolume(audio: HTMLAudioElement, target: number, duration = DASHBOAR
   });
 }
 
-async function stopDashboardSound(fadeMs = 0) {
+async function stopDashboardSound() {
   dashboardAudio = null;
-  const loops = [...dashboardLoops];
-  if (fadeMs > 0) {
-    await Promise.all(loops.filter((audio) => !audio.paused).map((audio) => fadeVolume(audio, 0, fadeMs)));
-  }
-  loops.forEach((audio) => {
+  dashboardLoops.forEach((audio) => {
     audio.pause();
     audio.currentTime = 0;
     audio.volume = 0;
@@ -180,13 +163,9 @@ async function stopDashboardSound(fadeMs = 0) {
   emitSoundState();
 }
 
-async function stopScenarioSound(fadeMs = 0) {
+async function stopScenarioSound() {
   scenarioAudio = null;
-  const loops = [...scenarioLoops];
-  if (fadeMs > 0) {
-    await Promise.all(loops.filter((audio) => !audio.paused).map((audio) => fadeVolume(audio, 0, fadeMs)));
-  }
-  loops.forEach((audio) => {
+  scenarioLoops.forEach((audio) => {
     audio.pause();
     audio.currentTime = 0;
     audio.volume = 0;
@@ -234,8 +213,8 @@ async function syncDashboardSound() {
 }
 
 /**
- * Enables only real Instructor-uploaded ambient tracks. We deliberately do
- * not synthesize background drones: those read as electronic noise.
+ * Reserved for real, licensed ambient tracks. We deliberately do not use
+ * synthetic drones here: they read as electronic noise rather than music.
  */
 export async function setSoundscapeEnabled(enabled: boolean) {
   if (typeof window === 'undefined') return;
@@ -254,13 +233,14 @@ export async function setSoundscapeEnabled(enabled: boolean) {
 
 export async function setSoundscapeMood(mood: SoundMood) {
   currentMood = mood;
+  // Change loops in sequence. The old screen must be silent before its
+  // successor is allowed to begin, otherwise slow asset loading can overlap.
   if (mood === 'home') {
-    // Bring the dashboard bed in before releasing the focused screen so the
-    // transition has no dead-air gap.
+    await setScenarioSound(null);
     await syncDashboardSound();
-    await stopScenarioSound(620);
     return;
   }
+  await syncDashboardSound();
   await setScenarioSound(moodSoundSlots[mood] || null);
 }
 
@@ -268,29 +248,21 @@ export async function setSoundscapeMood(mood: SoundMood) {
 export async function setScenarioSound(type: string | null) {
   const version = ++scenarioSyncVersion;
   if (!type || !isSoundscapeEnabled()) {
-    await stopScenarioSound(type ? 0 : 360);
+    await stopScenarioSound();
     return;
   }
-  // A focused screen always owns the atmosphere. Versioning prevents a slow,
-  // stale asset request from reviving a track after another tab has opened.
+  // A focused screen always owns the atmosphere. Invalidating and stopping a
+  // pending dashboard loop prevents two tracks from surviving a tab change.
   soundSyncVersion += 1;
+  await stopDashboardSound();
   const asset = await getSoundAsset(type);
-  if (version !== scenarioSyncVersion || !isSoundscapeEnabled()) return;
-  if (!asset) {
-    const previous = scenarioAudio;
-    if (previous && !previous.paused) await fadeVolume(previous, 0, 360);
-    if (version === scenarioSyncVersion) {
-      await Promise.all([stopScenarioSound(), stopDashboardSound(360)]);
-    }
-    return;
-  }
-  if (scenarioAudio?.dataset.soundUrl === asset.url) {
-    await stopDashboardSound(360);
-    return;
-  }
+  if (version !== scenarioSyncVersion || !asset || !isSoundscapeEnabled()) return;
+  if (scenarioAudio?.dataset.soundUrl === asset.url) return;
 
-  const previous = scenarioAudio;
-  const previousDashboard = dashboardAudio;
+  // A screen transition must never leave a previous loop playing beneath the
+  // next screen. Stop all tracked loops before starting the new scenario.
+  await stopScenarioSound();
+  if (version !== scenarioSyncVersion || !isSoundscapeEnabled()) return;
   const audio = new Audio(asset.url);
   audio.loop = true;
   audio.preload = 'auto';
@@ -307,17 +279,7 @@ export async function setScenarioSound(type: string | null) {
       scenarioLoops.delete(audio);
       return;
     }
-    await Promise.all([
-      fadeVolume(audio, 0.2),
-      previous && previous !== audio && !previous.paused ? fadeVolume(previous, 0, 620) : Promise.resolve(),
-      previousDashboard && !previousDashboard.paused ? fadeVolume(previousDashboard, 0, 620) : Promise.resolve(),
-    ]);
-    if (previous && previous !== audio) {
-      previous.pause();
-      previous.currentTime = 0;
-      scenarioLoops.delete(previous);
-    }
-    if (previousDashboard) await stopDashboardSound();
+    void fadeVolume(audio, 0.2);
     emitSoundState();
   } catch {
     scenarioLoops.delete(audio);
@@ -341,11 +303,10 @@ export async function playInterfaceTone() {
   if (!context) return;
   if (context.state === 'suspended') await context.resume();
 
-  const customAsset = await getSoundAsset('sound_button');
-  if (customAsset) {
-    const audio = new Audio(customAsset.url);
+  const customUrl = await getSoundUrl('sound_button');
+  if (customUrl) {
+    const audio = new Audio(customUrl);
     audio.volume = 0.8;
-    applySoundCrop(audio, customAsset, false);
     try { await audio.play(); return; } catch { /* Fall back to the built-in tactile click. */ }
   }
 
@@ -380,30 +341,11 @@ export async function playInterfaceTone() {
 /** Plays an instructor-uploaded event sound. No synthetic fallback is used. */
 export async function playSoundEffect(type: string, volume = 0.68) {
   if (!isSoundscapeEnabled()) return;
-  const asset = await getSoundAsset(type);
-  if (!asset) return;
-  const audio = new Audio(asset.url);
+  const url = await getSoundUrl(type);
+  if (!url) return;
+  const audio = new Audio(url);
   audio.volume = Math.max(0, Math.min(1, volume));
-  applySoundCrop(audio, asset, false);
   try { await audio.play(); } catch { /* A browser may require the original user gesture. */ }
-}
-
-/** Route server notifications to their instructor-managed event sound. */
-export function playNotificationSound(notificationType: string, status?: string) {
-  const normalizedType = String(notificationType || '').toLowerCase();
-  const normalizedStatus = String(status || '').toLowerCase();
-  if (normalizedType === 'message') return playSoundEffect('sound_message', 0.62);
-  if (normalizedType === 'challenge') return playSoundEffect('sound_challenge', 0.64);
-  if (normalizedType === 'streak') return playSoundEffect('sound_streak', 0.66);
-  if (normalizedType === 'award') return playSoundEffect('sound_award', 0.66);
-  if (normalizedType === 'payment' && ['rejected', 'failed', 'cancelled', 'expired'].includes(normalizedStatus)) {
-    return playSoundEffect('sound_purchase_failed', 0.66);
-  }
-  if (normalizedType === 'payment' && ['confirmed', 'successful', 'success', 'completed'].includes(normalizedStatus)) {
-    return playSoundEffect('sound_purchase_success', 0.66);
-  }
-  if (['purchase', 'relic', 'economy'].includes(normalizedType)) return Promise.resolve();
-  return playSoundEffect('sound_notification', 0.62);
 }
 
 /** A restrained timer cue; it only runs during the final red seconds of a round. */

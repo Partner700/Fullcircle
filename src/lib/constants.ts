@@ -49,11 +49,6 @@ export const TALENTS_TO_DENARII = 6000;
 export const FULL_QUIZ_TALENTS = 5;
 export const FULL_QUIZ_DENARII = TALENTS_TO_DENARII * FULL_QUIZ_TALENTS;
 
-// All daily activities and release windows follow the Full Circle home clock.
-// Keeping this explicit prevents a user's device timezone from changing which
-// narrative, streak day, quiz, or leaderboard period the app loads.
-export const APP_TIME_ZONE = 'Africa/Douala';
-
 export const ATTENDANCE_CUTOFF_HOUR = 12;
 export const MEDITATION_CUTOFF_HOUR = 21;
 export const MEDITATION_CUTOFF_MINUTE = 0;

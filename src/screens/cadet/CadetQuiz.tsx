@@ -5,14 +5,14 @@ import { Dove } from '../../components/Dove';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
-  fetchLatestQuizSession, fetchPlayableQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
-  fetchNarratives, fetchRelicInventory, resetQuizAttemptWithLazarus, startQuizAttempt,
-  saveQuizResponse, consumeQuizQuestionRelic, completeQuizAttempt, forfeitQuizAttempt,
+  fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
+  fetchNarratives, useRelic as deployRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
   fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
-import { formatCountdown, formatDate, formatDenarii, getAppDateTimeMs, getTodayISODate, cn } from '../../lib/utils';
+import { formatCountdown, formatDenarii, cn } from '../../lib/utils';
+import { generateQuizQuestions } from '../../lib/questionGenerator';
 import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
 import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
@@ -34,15 +34,18 @@ const SCRIPTURE_FACTS = [
 ];
 
 function localQuizDeadline(sessionDate: string) {
-  return getAppDateTimeMs(sessionDate, 14, 45);
+  const [year, month, day] = sessionDate.split('-').map(Number);
+  return new Date(year, month - 1, day, 14, 45, 0, 0).getTime();
 }
 
 function localQuizDayStart(sessionDate: string) {
-  return getAppDateTimeMs(sessionDate, 0, 0);
+  const [year, month, day] = sessionDate.split('-').map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
 }
 
 function localQuizResultsRelease(sessionDate: string) {
-  return getAppDateTimeMs(sessionDate, 15, 0);
+  const [year, month, day] = sessionDate.split('-').map(Number);
+  return new Date(year, month - 1, day, 15, 0, 0, 0).getTime();
 }
 
 function hasUsedLazarus(attempt: QuizAttempt | null) {
@@ -74,6 +77,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [responses, setResponses] = useState<QuestionResponse[]>([]);
+  const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [inQuiz, setInQuiz] = useState(false);
@@ -97,7 +101,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setSession(sess);
     if (sess) {
       const [qs, att, relics, image] = await Promise.allSettled([
-        fetchPlayableQuestionsForSession(sess.id),
+        fetchQuestionsForSession(sess.id),
         fetchQuizAttempt(profile.id, sess.id),
         fetchRelicInventory(profile.id),
         fetchPanelImageSetting('quiz'),
@@ -118,10 +122,11 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     }
     try {
       const narrs = await fetchNarratives(90);
+      setNarratives(narrs);
       const { data: records } = await supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id);
       const recordsByDate = new Map((records || []).map((record: any) => [record.record_date, record]));
-      setReadingArchive(narrs.filter((item) => item.narrative_date < getTodayISODate()).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
-    } catch { setReadingArchive([]); }
+      setReadingArchive(narrs.filter((item) => item.narrative_date < new Date().toISOString().slice(0, 10)).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
+    } catch { setNarratives([]); setReadingArchive([]); }
     } catch (e) { console.error('Quiz load error:', e); }
     setLoading(false);
   }, [profile]);
@@ -133,6 +138,35 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Generate questions if session is live and has none
+  const ensureQuestions = useCallback(async () => {
+    if (!session) return [];
+    if (questions.length > 0) return questions;
+    const generated = generateQuizQuestions(narratives);
+    if (generated.length === 0) return [];
+    const rows = generated.map((g, i) => ({
+      quiz_session_id: session.id,
+      question_index: i + 1,
+      source_narrative_date: g.source_date === 'recycled' ? null : g.source_date,
+      difficulty_tag: g.difficulty,
+      mechanic_type: g.mechanic,
+      recycled_from_game: g.recycled,
+      question_payload: g.payload,
+    }));
+    const { error } = await supabase.from('generated_questions').insert(rows);
+    if (!error) {
+      const qs = await fetchQuestionsForSession(session.id);
+      setQuestions(qs);
+      return qs;
+    }
+    const existing = await fetchQuestionsForSession(session.id).catch(() => []);
+    if (existing.length > 0) {
+      setQuestions(existing);
+      return existing;
+    }
+    return [];
+  }, [session, questions, narratives]);
 
   if (loading) {
     return (
@@ -171,25 +205,32 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   else phase = 'closed';
 
   const startStandardAttempt = async () => {
-    if (questions.length === 0) {
-      alert('This quiz has no approved questions yet. Please wait for the instructor.');
-      return;
+    await ensureQuestions();
+    setLazarusMode(false);
+    if (!attempt) {
+      const { data: newAttempt } = await supabase
+        .from('quiz_attempts')
+        .insert({
+          user_id: profile!.id,
+          quiz_session_id: session.id,
+          status: 'in_progress',
+          highest_question_reached: 1,
+        })
+        .select()
+        .maybeSingle();
+      setAttempt(newAttempt as QuizAttempt);
+    } else if (attempt.status === 'not_started') {
+      await supabase.from('quiz_attempts').update({ status: 'in_progress' }).eq('id', attempt.id);
+      setAttempt({ ...attempt, status: 'in_progress' });
     }
-    try {
-      const activeAttempt = await startQuizAttempt(session.id);
-      setAttempt(activeAttempt);
-      setLazarusMode(false);
-      setInQuiz(true);
-    } catch (error: any) {
-      alert(error.message || 'The quiz could not be started.');
-    }
+    setInQuiz(true);
   };
 
   const startWithLazarus = async () => {
     if (!profile || !session || usingLazarus) return;
     setUsingLazarus(true);
     try {
-      if (questions.length === 0) throw new Error('This quiz has no approved questions yet.');
+      await ensureQuestions();
       const reopened = await resetQuizAttemptWithLazarus(profile.id, session.id);
       setAttempt(reopened);
       setResponses([]);
@@ -220,7 +261,6 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     return (
       <QuizPlay
         questions={questions}
-        initialResponses={responses}
         attempt={attempt}
         userId={profile!.id}
         liveCloses={phase === 'live' && !lazarusMode ? liveCloses : lazarusDeadline}
@@ -247,7 +287,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           </div>
           <h2 className="font-display text-xl font-semibold text-ink">{session.title}</h2>
           <p className="text-sm text-stone mt-1">
-            {formatDate(session.session_date)}
+            {new Date(session.session_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
       </div>
@@ -444,9 +484,8 @@ function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
   );
 }
 
-function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, onSubmit, onForfeit }: {
+function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit }: {
   questions: GeneratedQuestion[];
-  initialResponses: QuestionResponse[];
   attempt: QuizAttempt;
   userId: string;
   liveCloses: number;
@@ -454,9 +493,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   onForfeit: () => void;
 }) {
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [localResponses, setLocalResponses] = useState<Map<string, any>>(
-    () => new Map(initialResponses.map((response) => [response.question_id, response.answer])),
-  );
+  const [localResponses, setLocalResponses] = useState<Map<string, any>>(new Map());
   const [selectedAnswer, setSelectedAnswer] = useState<any>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor((liveCloses - Date.now()) / 1000)));
@@ -466,24 +503,8 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
   const [relicNotice, setRelicNotice] = useState<string | null>(null);
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
+  const [donkeyActive, setDonkeyActive] = useState(false);
   const forfeitedRef = useRef(false);
-  const submissionStartedRef = useRef(false);
-
-  const handleSubmit = useCallback(async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
-    if (submissionStartedRef.current) return;
-    submissionStartedRef.current = true;
-    setSubmitting(true);
-    try {
-      await completeQuizAttempt(attempt.id, status, forcePerfect);
-      void playSoundEffect('sound_quiz_finish', 0.62);
-      onSubmit();
-    } catch (error: any) {
-      submissionStartedRef.current = false;
-      setRelicNotice(error.message || 'The quiz could not be submitted. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  }, [attempt.id, onSubmit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -513,14 +534,17 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [handleSubmit, liveCloses]);
+  }, [liveCloses]);
 
   // App-exit forfeiture detection (visibility change + blur)
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.hidden && !forfeitedRef.current) {
         forfeitedRef.current = true;
-        await forfeitQuizAttempt(attempt.id);
+        await supabase.from('quiz_attempts').update({
+          status: 'forfeited',
+          forfeited_at: new Date().toISOString(),
+        }).eq('id', attempt.id);
         onForfeit();
       }
     };
@@ -547,26 +571,42 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   const isLastQuestion = currentIdx === questions.length - 1;
 
   const saveResponse = async (answer: any) => {
-    const result = await saveQuizResponse(attempt.id, q.id, answer);
-    if (!result.accepted) {
-      setRelicNotice(result.warning || 'That answer was not saved.');
-      return false;
+    const existing = localResponses.get(q.id);
+    const now = new Date().toISOString();
+
+    if (existing) {
+      await supabase.from('question_responses').update({
+        answer,
+        last_edited_at: now,
+      }).eq('quiz_attempt_id', attempt.id).eq('question_id', q.id);
+    } else {
+      await supabase.from('question_responses').insert({
+        quiz_attempt_id: attempt.id,
+        question_id: q.id,
+        answer,
+        submitted_at: now,
+        last_edited_at: now,
+      });
     }
-    setLocalResponses((previous) => new Map(previous).set(q.id, answer));
-    return true;
+    setLocalResponses((prev) => new Map(prev).set(q.id, answer));
+
+    if (currentIdx + 1 > attempt.highest_question_reached) {
+      await supabase.from('quiz_attempts').update({
+        highest_question_reached: currentIdx + 1,
+      }).eq('id', attempt.id);
+    }
   };
 
-  const handleAnswer = async (answer: any) => {
+  const handleAnswer = (answer: any) => {
     if (showFeedback) return;
-    try {
-      const accepted = await saveResponse(answer);
-      if (!accepted) return;
-      setSelectedAnswer(answer);
-      setShowFeedback(true);
-      setRelicNotice('Answer saved. Results remain sealed until the quiz is released.');
-    } catch (error: any) {
-      setRelicNotice(error.message || 'Your answer could not be saved. Please try again.');
+    if (donkeyActive && answer !== payload.correct_answer) {
+      setDonkeyActive(false);
+      setRelicNotice('The Talking Donkey warns that this answer is not right. Try another answer.');
+      return;
     }
+    setSelectedAnswer(answer);
+    setShowFeedback(true);
+    saveResponse(answer);
   };
 
   const goNext = () => {
@@ -576,6 +616,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
       setShowFeedback(localResponses.has(questions[currentIdx + 1].id));
       setRelicNotice(null);
       setEliminatedOptions([]);
+      setDonkeyActive(false);
     }
   };
 
@@ -587,10 +628,90 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
     }
   };
 
+  const handleSubmit = async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
+    setSubmitting(true);
+    let correctCount = 0;
+    let figs = 0;
+    const figValue = (difficulty: string | null | undefined) => {
+      if (difficulty === 'hard') return 5;
+      if (difficulty === 'moderate' || difficulty === 'medium') return 3;
+      return 1;
+    };
+    if (forcePerfect) {
+      correctCount = questions.length;
+      figs = questions.reduce((sum, question) => sum + figValue(question.difficulty_tag), 0);
+      const now = new Date().toISOString();
+      const perfectResponses = questions.map((question) => ({
+        quiz_attempt_id: attempt.id,
+        question_id: question.id,
+        answer: question.question_payload.correct_answer,
+        submitted_at: now,
+        last_edited_at: now,
+      }));
+      await supabase
+        .from('question_responses')
+        .upsert(perfectResponses, { onConflict: 'quiz_attempt_id,question_id' });
+      setLocalResponses(new Map(questions.map((question) => [question.id, question.question_payload.correct_answer])));
+    } else {
+      for (const [qId, ans] of localResponses) {
+        const question = questions.find((q) => q.id === qId);
+        if (question && ans === question.question_payload.correct_answer) {
+          correctCount++;
+          figs += figValue(question.difficulty_tag);
+        }
+      }
+    }
+    const talents = figs;
+    const perfectScore = correctCount === questions.length && questions.length > 0;
+    const denarii = perfectScore ? 6000 : correctCount > 0 ? 1000 : 0;
+
+    await supabase.from('quiz_attempts').update({
+      status,
+      talents_scored: talents,
+      submitted_at: new Date().toISOString(),
+    }).eq('id', attempt.id);
+
+    if (denarii > 0) {
+      await supabase.from('denarii_ledger_entries').insert({
+        user_id: userId,
+        amount: denarii,
+        source_type: 'quiz_reward',
+        source_reference: attempt.id,
+        description: forcePerfect
+          ? `Quiz: perfect score by Sword of Goliath · ${figs} figs`
+          : `Quiz: ${correctCount}/${questions.length} correct · ${figs} figs`,
+      });
+    }
+
+    // Link the daily record for today's Saturday
+    const today = new Date().toISOString().split('T')[0];
+    const { data: record } = await supabase
+      .from('daily_records')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('record_date', today)
+      .maybeSingle();
+    if (record) {
+      await supabase.from('daily_records').update({ quiz_attempt_id: attempt.id }).eq('id', record.id);
+    } else {
+      await supabase.from('daily_records').insert({
+        user_id: userId,
+        record_date: today,
+        day_type: 'saturday',
+        quiz_attempt_id: attempt.id,
+      });
+    }
+
+    setSubmitting(false);
+    void playSoundEffect('sound_quiz_finish', 0.62);
+    onSubmit();
+  };
+
   const useGoliathSword = async () => {
     if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
     setUsingGoliath(true);
     try {
+      await deployRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
       setRelicInventory((prev) => ({
         ...prev,
         [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),
@@ -603,22 +724,16 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
     setUsingGoliath(false);
   };
 
-  const consumeQuestionRelic = async (slug: string) => {
+  const consumeQuestionRelic = async (slug: string, action: () => void) => {
     if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
     setUsingQuestionRelic(slug);
     try {
-      const result = await consumeQuizQuestionRelic(attempt.id, q.id, slug);
+      await deployRelic(userId, slug);
       setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
-      if (result.notice) setRelicNotice(result.notice);
-      if (result.eliminated_options) setEliminatedOptions(result.eliminated_options);
-      if (result.skipped || result.auto_answered) {
-        setLocalResponses((previous) => new Map(previous).set(q.id, null));
-        setSelectedAnswer(null);
-        setShowFeedback(true);
-      }
+      action();
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
     } finally {
@@ -626,12 +741,27 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
     }
   };
 
-  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT);
-  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE);
-  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP);
-  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE);
-  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL);
-  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY);
+  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT, () =>
+    setRelicNotice(payload.explanation || 'Look closely at the wording, the passage, and the details that distinguish the choices.'),
+  );
+  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE, () => {
+    const wrongAnswers = cleanQuizOptions(payload.options, payload.correct_answer)
+      .filter((option) => option !== payload.correct_answer);
+    setEliminatedOptions(wrongAnswers.slice(0, Math.max(1, Math.floor(wrongAnswers.length / 2))));
+    setRelicNotice('Two wrong options have been removed.');
+  });
+  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP, () => {
+    setRelicNotice('Question skipped. It will not add to your score.');
+    handleAnswer(null);
+  });
+  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE, () =>
+    setRelicNotice(payload.reference ? `Reference: ${payload.reference}` : 'This question has no additional reference.'),
+  );
+  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL, () => handleAnswer(payload.correct_answer));
+  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY, () => {
+    setDonkeyActive(true);
+    setRelicNotice('The Talking Donkey is listening. A wrong answer will be stopped before it is saved.');
+  });
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -790,7 +920,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
         )}
 
         {/* Multiple choice / True-false */}
-        {['multiple_choice', 'true_false', 'fill_blank', 'spot_error'].includes(payload.type) && payload.options && (
+        {payload.type !== 'scriptorium' && payload.type !== 'standard_text' && payload.options && (
           <div className="space-y-2">
             {cleanQuizOptions(payload.options, payload.correct_answer).filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
               const isSelected = selectedAnswer === opt;
@@ -818,12 +948,8 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
           <div className="space-y-2">
             <p className="text-xs text-stone">Click items in the correct order:</p>
             {payload.items.map((item) => {
-              const savedOrder = localResponses.get(q.id);
-              const userOrder = Array.isArray(selectedAnswer)
-                ? selectedAnswer as string[]
-                : typeof savedOrder === 'string' && savedOrder
-                  ? savedOrder.split('|')
-                  : [];
+              const order = Array.from(localResponses.entries()).find(([qid]) => qid === q.id);
+              const userOrder = order ? (order[1] as string).split('|') : [];
               const idx = userOrder.indexOf(item);
               return (
                 <button
@@ -833,7 +959,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                     const newOrder = userOrder.includes(item)
                       ? userOrder.filter((x) => x !== item)
                       : [...userOrder, item];
-                    setSelectedAnswer(newOrder);
+                    handleAnswer(newOrder.join('|'));
                   }}
                   className={cn(
                     'btn-ghost w-full text-left justify-between',
@@ -846,16 +972,6 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                 </button>
               );
             })}
-            {!showFeedback && (
-              <button
-                type="button"
-                className="btn-primary mt-3 w-full disabled:opacity-50"
-                disabled={!Array.isArray(selectedAnswer) || selectedAnswer.length !== payload.items.length}
-                onClick={() => void handleAnswer((selectedAnswer as string[]).join('|'))}
-              >
-                Save Order
-              </button>
-            )}
           </div>
         )}
 
@@ -1032,21 +1148,12 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
   usingLazarus: boolean;
   onUseLazarus: () => void;
 }) {
-  const correctByQuestion = questions.map((q) => {
+  const figs = questions.filter((q) => {
     const resp = responses.find((r) => r.question_id === q.id);
-    const expected = q.question_payload.correct_answer;
-    if (!resp || expected == null) return false;
-    if (['standard_text', 'scriptorium'].includes(q.question_payload.type)) {
-      return String(resp.answer).trim() === String(expected).trim();
-    }
-    return String(resp.answer).trim().toLowerCase() === String(expected).trim().toLowerCase();
-  });
-  const maxFigs = questions.reduce((total, question) => total + (
-    question.difficulty_tag === 'hard' ? 5 : question.difficulty_tag === 'moderate' ? 3 : 1
-  ), 0);
-  const figs = Number(attempt.talents_scored) || 0;
-  const perfect = maxFigs > 0 && figs === maxFigs;
-  const denarii = perfect ? 6000 : figs > 0 ? 1000 : 0;
+    return resp && String(resp.answer) === String(q.question_payload.correct_answer);
+  }).length;
+  const perfect = questions.length > 0 && figs === questions.length;
+  const denarii = perfect ? 6000 : 1000;
 
   return (
     <div className="max-w-2xl mx-auto animate-fade-in space-y-4">
@@ -1059,13 +1166,13 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink mb-1">Quiz Complete</h2>
           <p className="text-sm text-stone mb-4">
-            {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {figs}/{maxFigs} figs
+            {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {figs}/{questions.length} figs
           </p>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="rounded-lg border border-border bg-surface-2 p-3">
               <p className="text-xs text-stone uppercase tracking-wider">Figs</p>
-              <p className="font-display text-xl font-semibold text-brass">{figs}/{maxFigs}</p>
+              <p className="font-display text-xl font-semibold text-brass">{figs}/{questions.length}</p>
             </div>
             <div className="rounded-lg border border-border bg-surface-2 p-3">
               <p className="text-xs text-stone uppercase tracking-wider">Denarii</p>
@@ -1074,13 +1181,13 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
           </div>
 
           <p className="text-xs text-stone mb-3">
-            {perfect ? 'Perfect score reward: 1 talent' : figs > 0 ? 'Imperfect score reward: 1,000 denarii' : 'No reward was earned this time'}
+            {perfect ? 'Perfect score reward: 1 talent' : 'Imperfect score reward: 1,000 denarii'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-1">
             {Array.from({ length: questions.length }, (_, i) => (
               <div key={i} className={cn(
                 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold',
-                (perfect || correctByQuestion[i]) ? 'bg-brass text-bg' : 'bg-surface-2 text-stone/40 border border-border',
+                i < figs ? 'bg-brass text-bg' : 'bg-surface-2 text-stone/40 border border-border',
               )}>
                 {i + 1}
               </div>

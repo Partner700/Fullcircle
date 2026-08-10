@@ -402,9 +402,10 @@ BEGIN
     'IF NOT v_complete AND v_current > 0 THEN',
     E'IF NOT v_complete AND (\n      v_current > 0\n      OR EXISTS (\n        SELECT 1 FROM public.streak_freezers redemption\n        WHERE redemption.user_id = p_user_id\n          AND redemption.source = ''redemption''\n          AND redemption.used_at IS NULL\n          AND redemption.applied_to_date = v_check\n      )\n    ) THEN'
   );
-  IF v_definition IS DISTINCT FROM v_original THEN
-    EXECUTE v_definition;
+  IF v_definition = v_original THEN
+    RAISE EXCEPTION 'Redemption Coin could not safely extend the streak calculator.';
   END IF;
+  EXECUTE v_definition;
 END;
 $$;
 

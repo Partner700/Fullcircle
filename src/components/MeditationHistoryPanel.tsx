@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronDown, Loader2, Search, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getDateDaysAgoISO } from '../lib/utils';
 
 type Person = { id: string; display_name: string; avatar_url: string | null };
 type MeditationRow = {
@@ -43,12 +42,14 @@ export function MeditationHistoryPanel({ userIds, title = 'Meditation History', 
       setPeople(Object.fromEntries(((profiles || []) as Person[]).map((person) => [person.id, person])));
     }
     setLoading(false);
-  }, [userIds]);
+  }, [userIds?.join(',')]);
 
   useEffect(() => { if (open || showWeeklyVerse) void load(); }, [load, open, showWeeklyVerse]);
 
   const weeklyBestVerse = useMemo(() => {
-    const date = getDateDaysAgoISO(6);
+    const since = new Date();
+    since.setDate(since.getDate() - 6);
+    const date = since.toISOString().slice(0, 10);
     const counts = new Map<string, number>();
     rows.filter((row) => row.record_date >= date && row.best_verse?.trim()).forEach((row) => {
       const verse = row.best_verse!.trim();

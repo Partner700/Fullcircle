@@ -6,7 +6,7 @@ import { LogOut, Sun, Moon, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
-import { isSoundscapeEnabled, isSoundscapePlaying, playInterfaceTone, setSoundscapeAudience, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, subscribeToSoundscape, type SoundMood } from '../lib/soundscape';
+import { isSoundscapeEnabled, isSoundscapePlaying, playInterfaceTone, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, subscribeToSoundscape, type SoundMood } from '../lib/soundscape';
 
 type Theme = 'night' | 'day';
 
@@ -164,10 +164,6 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, []);
-
-  useEffect(() => {
-    setSoundscapeAudience(role === 'instructor' ? 'instructors' : role === 'sentry' ? 'sentries' : 'cadets');
-  }, [role]);
 
   useEffect(() => {
     const key = `${activeKey} ${headerTitle}`.toLowerCase();

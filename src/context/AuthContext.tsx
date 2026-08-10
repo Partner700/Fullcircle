@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // its access token/profile query is ready. Retry briefly instead of
     // sending a valid user back to the sign-in screen.
     for (let attempt = 0; attempt < 3; attempt += 1) {
+<<<<<<< HEAD
       try {
         const data = await fetchOwnProfile(userId);
         if (data) {
@@ -71,6 +72,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileError = error instanceof Error ? error : new Error('Profile loading failed.');
       }
       if (prof) {
+=======
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) {
+        prof = data as Profile;
+>>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
         profileError = null;
         break;
       }
@@ -103,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let active = true;
-    let listenerSession: Session | null | undefined;
     const initialise = async () => {
       try {
         const { data } = await waitFor(supabase.auth.getSession(), 8_000, 'Session check');
@@ -115,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         // A slow/offline Supabase request must not strand the app on its loading screen.
         console.warn('Auth initialisation could not complete:', error);
-        if (active && !listenerSession) {
+        if (active) {
           setSession(null);
           setProfile(null);
           setRoleAssignment(null);
@@ -127,34 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void initialise();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, sess) => {
-      listenerSession = sess;
-      if (event === 'INITIAL_SESSION') {
-        if (!active) return;
-        if (!sess) {
-          setSession(null);
-          setProfile(null);
-          setRoleAssignment(null);
-          setLoading(false);
-          return;
-        }
-        setSession(sess);
-        // Supabase warns against starting another Supabase request inside an
-        // auth callback. Deferring avoids a mobile session-restoration deadlock.
-        window.setTimeout(() => {
-          if (!active) return;
-          void waitFor(loadProfile(sess.user.id), 8_000, 'Profile loading')
-            .catch((error) => console.warn('Initial mobile session profile could not load:', error))
-            .finally(() => { if (active) setLoading(false); });
-        }, 0);
-        return;
-      }
+      // getSession above is the single source of truth for the initial restore.
+      // Handling INITIAL_SESSION here as well caused a second profile request and
+      // made installed copies appear to load twice.
+      if (event === 'INITIAL_SESSION') return;
       setSession(sess);
       // A refreshed token does not change the profile or role. Avoid turning a
       // quick token refresh into a full-screen loading state.
       if (event === 'TOKEN_REFRESHED') return;
       if (sess) {
-        window.setTimeout(() => void (async () => {
-          if (!active) return;
+        (async () => {
           setLoading(true);
           try {
             await waitFor(loadProfile(sess.user.id), 8_000, 'Profile loading');
@@ -163,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } finally {
             if (active) setLoading(false);
           }
-        })(), 0);
+        })();
       } else {
         setProfile(null);
         setRoleAssignment(null);

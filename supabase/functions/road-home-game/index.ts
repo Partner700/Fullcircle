@@ -57,7 +57,7 @@ async function authenticatedUserId(request: Request) {
 }
 
 async function roomContext(roomId: string) {
-  const rooms = await rest(`arena_rooms?id=eq.${roomId}&select=id,creator_id,room_name,status,play_mode,stake_amount`);
+  const rooms = await rest(`arena_rooms?id=eq.${roomId}&select=id,creator_id,room_name,status,play_mode,stake_amount,question_set`);
   const room = rooms?.[0];
   if (!room) throw new Error("Arena room not found.");
   if (!/\[arena:ludo\]/i.test(room.room_name || "")) throw new Error("This room is not a Road Home match.");
@@ -73,13 +73,12 @@ async function roomContext(roomId: string) {
     avatarUrl: byId.get(item.user_id)?.avatar_url || null,
   }));
   if (room.play_mode === "machine") participants.push({ id: "machine", name: "The Scribe", isBot: true });
-  const deckRows = await rest(`arena_question_decks?room_id=eq.${roomId}&select=questions`);
   return {
     room,
     participants,
     participantIds: ids,
     forfeitedIds: (participantRows || []).filter((item: any) => item.forfeited_at).map((item: any) => item.user_id),
-    questions: Array.isArray(deckRows?.[0]?.questions) ? deckRows[0].questions : [],
+    questions: Array.isArray(room.question_set) ? room.question_set : [],
   };
 }
 
@@ -189,20 +188,34 @@ async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeS
 async function finishArenaRoom(room: any, state: RoadHomeState) {
   if (state.phase !== "GAME_OVER" || room.status === "completed") return;
   const realPlayers = state.players.filter((player) => !player.isBot);
+  for (const player of realPlayers) {
+    await rest(`arena_participants?room_id=eq.${room.id}&user_id=eq.${player.id}`, {
+      method: "PATCH",
+      headers: serviceHeaders(),
+      body: JSON.stringify({ score: player.stats.totalMovement + player.stats.correct, correct_count: player.stats.correct, finished_at: new Date().toISOString() }),
+    });
+  }
   const winner = state.players.find((player) => player.id === state.winnerId);
   const realWinnerId = winner && !winner.isBot ? winner.id : null;
-  await rest("rpc/settle_road_home_arena", {
-    method: "POST",
+  const reward = Number(room.stake_amount || 0) * realPlayers.length * 10;
+  if (realWinnerId && reward > 0) {
+    const existing = await rest(`denarii_ledger_entries?user_id=eq.${realWinnerId}&source_type=eq.arena_reward&source_reference=eq.${room.id}&description=like.Road%20Home%25&select=id&limit=1`);
+    if (!existing?.length) {
+      await rest("denarii_ledger_entries", {
+        method: "POST",
+        headers: serviceHeaders(),
+        body: JSON.stringify({ user_id: realWinnerId, amount: reward, source_type: "arena_reward", source_reference: room.id, description: `Road Home tenfold winner reward for ${room.room_name}` }),
+      });
+    }
+  }
+  await rest(`arena_rooms?id=eq.${room.id}`, {
+    method: "PATCH",
     headers: serviceHeaders(),
     body: JSON.stringify({
-      p_room_id: room.id,
-      p_winner_id: realWinnerId,
-      p_results: realPlayers.map((player) => ({
-        user_id: player.id,
-        score: player.stats.totalMovement + player.stats.correct,
-        correct_count: player.stats.correct,
-      })),
-      p_completion_reason: state.eventLog.some((event) => event.type === "PLAYER_FORFEITED") ? "forfeit" : "finished",
+      status: "completed",
+      winner_id: realWinnerId,
+      completed_at: new Date().toISOString(),
+      completion_reason: state.eventLog.some((event) => event.type === "PLAYER_FORFEITED") ? "forfeit" : "finished",
     }),
   });
 }

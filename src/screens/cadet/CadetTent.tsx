@@ -68,7 +68,7 @@ export function CadetTent() {
 
       const [tentResult, membersResult, reactionsResult, unreadResult, awardsResult, awardsImageResult] = await Promise.all([
         supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
-        supabase.from('tent_members').select('*, profiles(id,display_name,avatar_url,created_at)').eq('tent_id', member.tent_id).order('joined_at'),
+        supabase.from('tent_members').select('*, profiles(*)').eq('tent_id', member.tent_id).order('joined_at'),
         supabase.from('tent_reactions').select('*').eq('tent_id', member.tent_id).order('created_at', { ascending: false }).limit(50),
         supabase.from('user_notifications').select('actor_id').eq('recipient_id', profile.id).is('read_at', null).eq('action_key', 'tent'),
         fetchAwards(),
@@ -128,6 +128,21 @@ export function CadetTent() {
       target_type: targetType,
       target_reference: ref || null,
     });
+    if (targetUserId !== profile.id) {
+      try {
+        await supabase.rpc('notify_user', {
+          p_recipient_id: targetUserId,
+          p_actor_id: profile.id,
+          p_notification_type: 'info',
+          p_title: 'Tent reaction',
+          p_body: `${profile.display_name} reacted to you in ${tent.name}.`,
+          p_action_key: 'tent',
+          p_metadata: { tent_id: tent.id, reaction_type: reactionType, target_type: targetType },
+        });
+      } catch {
+        // A reaction should still save even if its optional notification fails.
+      }
+    }
     await load();
     setReactingTo(null);
   };

@@ -4,7 +4,7 @@ import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
 import { fetchDailyRecords, fetchStrictStreak } from '../../lib/queries';
-import { getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid } from '../../lib/utils';
+import { getRemovalState, getDayType, formatShortDate, cn, isWeekdayValid } from '../../lib/utils';
 import type { DailyRecord, RemovalState, StreakInfo } from '../../lib/types';
 import {
   Flame, Calendar, TrendingUp, AlertTriangle, ShieldCheck, XCircle,
@@ -64,16 +64,6 @@ const REMOVAL_STATE_INFO: Record<
   },
 };
 
-const SUNDAY_READING_STREAK_START = '2026-08-02';
-
-function displayedRecordValidity(record: DailyRecord, today: string, currentHour: number): boolean | null {
-  if (record.day_type !== 'sunday') return isWeekdayValid(record);
-  if (record.sunday_reading_opened_at) return true;
-  if (record.record_date < SUNDAY_READING_STREAK_START) return null;
-  if (record.record_date < today || (record.record_date === today && currentHour >= 21)) return false;
-  return null;
-}
-
 export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
   const { profile, role } = useAuth();
   const [records, setRecords] = useState<DailyRecord[]>([]);
@@ -99,11 +89,11 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
     } catch (e) { console.error('Streak load error:', e); }
     setLoading(false);
-  }, [profile]);
+  }, [profile, refreshKey]);
 
   useEffect(() => {
-    void load();
-  }, [load, refreshKey]);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -116,10 +106,11 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
     );
   }
 
-  const appClock = getAppClock();
-  const monthPrefix = appClock.date.slice(0, 7);
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const volumeThisMonth = records.filter((r) => {
-    return r.record_date.startsWith(monthPrefix) && r.streak_valid === true;
+    const d = new Date(r.record_date);
+    return d >= monthStart && r.streak_valid === true;
   }).length;
   const streak: StreakInfo = {
     current_streak: streakData?.current_streak ?? 0,
@@ -137,28 +128,26 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
 
   // Build last 14 days view
   const last14: {
-    date: string;
+    date: Date;
     record?: DailyRecord;
     dayType: string;
     valid: boolean | null;
   }[] = [];
   for (let i = 13; i >= 0; i--) {
-    const date = getDateDaysAgoISO(i);
-    const dt = getDayType(date);
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dt = getDayType(d);
     const rec = records.find(
-      (r) => r.record_date === date,
+      (r) => r.record_date === d.toISOString().split('T')[0],
     );
     let valid: boolean | null = null;
-    if (dt === 'sunday') {
-      if (rec) valid = displayedRecordValidity(rec, appClock.date, appClock.hour);
-      else if (date >= SUNDAY_READING_STREAK_START && (date < appClock.date || appClock.hour >= 21)) valid = false;
-    }
+    if (dt === 'sunday') valid = null;
     else if (rec) valid = isWeekdayValid(rec);
-    last14.push({ date, record: rec, dayType: dt, valid });
+    last14.push({ date: d, record: rec, dayType: dt, valid });
   }
 
   // Determine if a day is in the future (for cell styling)
-  const todayISO = getTodayISODate();
+  const todayISO = new Date().toISOString().split('T')[0];
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -243,11 +232,11 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
       <div className="card p-5">
 	        <SectionHeader
 	          title="Last 14 Days"
-	          subtitle="Brass = complete, roman = missed, stone = Sunday reading not opened"
+	          subtitle="Brass = complete, roman = missed, stone = Sunday (frozen)"
 	        />
         <div className="grid grid-cols-7 gap-2">
           {last14.map((day, i) => {
-            const isFuture = day.date > todayISO;
+            const isFuture = day.date.toISOString().split('T')[0] > todayISO;
             return (
               <div key={i} className="text-center">
                 <div
@@ -276,7 +265,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
                     {formatShortDate(day.date).split(' ')[0]}
                   </span>
                   <span className="font-display font-semibold">
-                    {Number(day.date.slice(-2))}
+                    {day.date.getDate()}
                   </span>
                 </div>
                 <span className="text-[10px] text-stone mt-0.5 block">
@@ -410,9 +399,8 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
               className="text-stone flex-shrink-0 mt-0.5"
             />
             <p>
-              <strong className="text-ink">Sundays:</strong> Open Today&apos;s
-              Reading before 9:00 PM to receive the Sunday streak. No meditation
-              or attendance is required.
+              <strong className="text-ink">Sundays:</strong> Frozen — no
+              requirement, no streak change. The day is excluded entirely.
             </p>
           </div>
           <div className="flex gap-3">
@@ -464,8 +452,8 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
           />
           <div className="space-y-1 max-h-60 overflow-y-auto">
             {[...records].reverse().map((rec) => {
-              const dt = getDayType(rec.record_date);
-	              const valid = displayedRecordValidity(rec, appClock.date, appClock.hour);
+              const dt = getDayType(new Date(rec.record_date));
+	              const valid = isWeekdayValid(rec);
               return (
                 <div
                   key={rec.id}
@@ -485,7 +473,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
                           : 'text-roman',
                     )}
                   >
-                    {valid === null ? (dt === 'sunday' ? 'Rest day' : 'Pending') : valid ? 'Valid' : 'Missed'}
+                    {valid === null ? 'Frozen' : valid ? 'Valid' : 'Missed'}
                   </span>
                 </div>
               );

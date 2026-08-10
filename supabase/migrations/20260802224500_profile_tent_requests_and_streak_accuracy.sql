@@ -120,12 +120,12 @@ BEGIN
   definition := replace(definition,
     E'      IF EXISTS (\n        SELECT 1 FROM public.streak_freezers sf',
     E'      IF extract(dow FROM v_check) BETWEEN 1 AND 5 AND EXISTS (\n        SELECT 1 FROM public.streak_freezers sf');
-  IF definition IS DISTINCT FROM original
-    AND position('v_simons_purse := false' in definition) > 0
-    AND position('v_available_freezers := 0' in definition) > 0
-    AND position('Sunday requires an actual' in definition) > 0 THEN
-    EXECUTE definition;
+  IF definition = original OR position('v_simons_purse := false' in definition) = 0
+    OR position('v_available_freezers := 0' in definition) = 0
+    OR position('Sunday requires an actual' in definition) = 0 THEN
+    RAISE EXCEPTION 'Streak accuracy update did not match the deployed function safely.';
   END IF;
+  EXECUTE definition;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.compute_strict_streak(uuid) TO authenticated;

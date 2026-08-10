@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, X-Campay-Webhook-Key, X-Webhook-Key, Webhook-Key",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
 type CampayWebhookPayload = {
@@ -13,8 +13,6 @@ type CampayWebhookPayload = {
   status?: string;
   state?: string;
   webhook_key?: string;
-  amount?: string | number;
-  currency?: string;
 };
 
 type MobileMoneySettings = {
@@ -89,68 +87,12 @@ function isFailed(status: string): boolean {
   return ["failed", "cancelled", "canceled", "expired"].includes(status.toLowerCase());
 }
 
-type StoredPayment = {
-  id: string;
-  user_id: string;
-  relic_slug: string;
-  status: string;
-  amount_local: number;
-  currency_code: string;
-  created_at: string;
-};
-
-type PaymentFinalization = {
-  payment_id: string;
-  status: string;
-  newly_granted?: boolean;
-};
-
-function firstPositiveNumber(...values: unknown[]): number | null {
-  for (const value of values) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return null;
-}
-
-async function getAuthenticatedUserId(req: Request): Promise<string | null> {
-  const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) return null;
-
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      apikey: supabaseServiceKey,
-      Authorization: authorization,
-    },
-  });
-  if (!response.ok) return null;
-  const user = await response.json() as { id?: string };
-  return user.id || null;
-}
-
-async function callPaymentRpc(name: string, args: Record<string, unknown>): Promise<PaymentFinalization> {
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
-    method: "POST",
-    headers: {
-      apikey: supabaseServiceKey,
-      Authorization: `Bearer ${supabaseServiceKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(args),
-  });
-  if (!response.ok) {
-    const responseBody = await response.text();
-    throw new Error(`${name} failed: ${response.status} ${responseBody}`);
-  }
-  return await response.json();
-}
-
-async function fetchPaymentByReference(reference: string): Promise<StoredPayment | null> {
+async function fetchPaymentByReference(reference: string): Promise<{ id: string; user_id: string; relic_slug: string; status: string; amount_local: number } | null> {
   const columns = ["reference", "provider_reference", "external_reference"];
 
   for (const column of columns) {
     const payRes = await fetch(
-      `${supabaseUrl}/rest/v1/mobile_money_payments?${column}=eq.${encodeURIComponent(reference)}&select=id,user_id,relic_slug,relic_name,status,amount_local,currency_code,created_at`,
+      `${supabaseUrl}/rest/v1/mobile_money_payments?${column}=eq.${encodeURIComponent(reference)}&select=id,user_id,relic_slug,relic_name,status,amount_local`,
       {
         headers: {
           apikey: supabaseServiceKey,
@@ -160,33 +102,10 @@ async function fetchPaymentByReference(reference: string): Promise<StoredPayment
       },
     );
     if (!payRes.ok) throw new Error(`Failed to fetch payment: ${payRes.status}`);
-    const payments: StoredPayment[] = await payRes.json();
+    const payments: Array<{ id: string; user_id: string; relic_slug: string; status: string; amount_local: number }> = await payRes.json();
     if (payments[0]) return payments[0];
   }
 
-  return null;
-}
-
-async function fetchPaymentFromVerification(
-  webhookReference: string,
-  payload: CampayWebhookPayload,
-  verification: Record<string, unknown>,
-  details: Record<string, unknown>,
-): Promise<StoredPayment | null> {
-  const candidates = Array.from(new Set([
-    webhookReference,
-    payload.external_reference,
-    payload.tx_ref,
-    verification.external_reference,
-    verification.tx_ref,
-    details.external_reference,
-    details.tx_ref,
-  ].map((value) => String(value || "").trim()).filter(Boolean)));
-
-  for (const candidate of candidates) {
-    const payment = await fetchPaymentByReference(candidate);
-    if (payment) return payment;
-  }
   return null;
 }
 
@@ -285,14 +204,8 @@ Deno.serve(async (req: Request) => {
     const payload: CampayWebhookPayload = body ? JSON.parse(body) : {};
 
     const incomingWebhookKey = getIncomingWebhookKey(req, payload);
-    if (!campayWebhookKey) {
-      throw new Error("Missing required environment variable: CAMPAY_WEBHOOK_KEY");
-    }
-
-    const isTrustedWebhook = incomingWebhookKey === campayWebhookKey;
-    const authenticatedUserId = isTrustedWebhook ? null : await getAuthenticatedUserId(req);
-    if (!isTrustedWebhook && !authenticatedUserId) {
-      return new Response(JSON.stringify({ error: "A valid webhook key or signed-in user is required." }), {
+    if (campayWebhookKey && incomingWebhookKey && incomingWebhookKey !== campayWebhookKey) {
+      return new Response(JSON.stringify({ error: "Invalid webhook key" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -308,16 +221,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Browser polling is deliberately limited to the signed-in user's own
-    // checkout. CamPay webhooks are authenticated separately by their key.
-    const requestedPayment = await fetchPaymentByReference(reference);
-    if (authenticatedUserId && (!requestedPayment || requestedPayment.user_id !== authenticatedUserId)) {
-      return new Response(JSON.stringify({ error: "Payment not found for this account." }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const token = await getCampayToken();
     const verifyRes = await fetch(`${campayBaseUrl}/api/transaction/${encodeURIComponent(reference)}/`, {
       headers: { "Authorization": `Token ${token}` },
@@ -328,85 +231,67 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Campay verification failed: ${verifyRes.status} ${body}`);
     }
 
-    const verifyData: Record<string, unknown> = await verifyRes.json();
-    const verifyDetails = verifyData.data && typeof verifyData.data === "object"
-      ? verifyData.data as Record<string, unknown>
-      : {};
-    const paymentStatus = String(verifyData.status || verifyData.state || status || "").toLowerCase();
+    const verifyData = await verifyRes.json();
+    const paymentStatus = (verifyData.status || verifyData.state || status || "").toLowerCase();
 
     if (isSuccessful(paymentStatus)) {
-      const payment = requestedPayment
-        || await fetchPaymentFromVerification(reference, payload, verifyData, verifyDetails);
+      const payment = await fetchPaymentByReference(reference);
       if (!payment) throw new Error("Payment not found for reference: " + reference);
-      if (authenticatedUserId && payment.user_id !== authenticatedUserId) {
-        throw new Error("Payment does not belong to the signed-in account.");
+
+      if (payment.status === "confirmed") {
+        return new Response(JSON.stringify({ received: true, reference, status: "already_confirmed" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
-      const verifiedAmount = firstPositiveNumber(
-        verifyData.amount,
-        verifyData.amount_received,
-        verifyData.amount_local,
-        verifyDetails.amount,
-        payload.amount,
-      );
-      const verifiedCurrency = String(
-        verifyData.currency || verifyData.currency_code || verifyDetails.currency || payload.currency || "",
-      ).toUpperCase();
-      const providerReference = String(verifyData.reference || verifyDetails.reference || reference);
-
-      const finalization = await callPaymentRpc("finalize_campay_payment", {
-        p_payment_id: payment.id,
-        p_provider_reference: providerReference,
-        p_verified_amount: verifiedAmount,
-        p_verified_currency: verifiedCurrency,
-        p_verification: verifyData,
+      await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments?id=eq.${payment.id}`, {
+        method: "PATCH",
+        headers: {
+          apikey: supabaseServiceKey,
+          Authorization: `Bearer ${supabaseServiceKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ status: "confirmed" }),
       });
 
-      if (finalization.newly_granted) {
-        await attemptCampayPayout(payment.id, Number(payment.amount_local), reference, token);
+      const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/purchase_relic`, {
+        method: "POST",
+        headers: {
+          apikey: supabaseServiceKey,
+          Authorization: `Bearer ${supabaseServiceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_user_id: payment.user_id,
+          p_relic_slug: payment.relic_slug,
+          p_currency: "campay",
+        }),
+      });
+      if (!rpcRes.ok) {
+        const errBody = await rpcRes.text();
+        throw new Error(`purchase_relic failed: ${rpcRes.status} ${errBody}`);
       }
 
-      return new Response(JSON.stringify({
-        received: true,
-        reference,
-        status: finalization.newly_granted ? "granted" : "already_confirmed",
-      }), {
+      await attemptCampayPayout(payment.id, Number(payment.amount_local), reference, token);
+
+      return new Response(JSON.stringify({ received: true, reference, status: "granted" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (isFailed(paymentStatus)) {
-      const payment = requestedPayment
-        || await fetchPaymentFromVerification(reference, payload, verifyData, verifyDetails);
+      const payment = await fetchPaymentByReference(reference);
       if (payment) {
-        if (authenticatedUserId && payment.user_id !== authenticatedUserId) {
-          throw new Error("Payment does not belong to the signed-in account.");
-        }
-        await callPaymentRpc("reject_campay_payment", {
-          p_payment_id: payment.id,
-          p_provider_reference: String(verifyData.reference || verifyDetails.reference || reference),
-          p_reason: paymentStatus,
-          p_verification: verifyData,
-        });
-      }
-    }
-
-    const pendingPayment = requestedPayment
-      || await fetchPaymentFromVerification(reference, payload, verifyData, verifyDetails);
-    if (pendingPayment) {
-      if (authenticatedUserId && pendingPayment.user_id !== authenticatedUserId) {
-        throw new Error("Payment does not belong to the signed-in account.");
-      }
-      const ageMs = Date.now() - Date.parse(pendingPayment.created_at);
-      if (Number.isFinite(ageMs) && ageMs >= 35_000) {
-        await callPaymentRpc("reject_campay_payment", {
-          p_payment_id: pendingPayment.id,
-          p_provider_reference: String(verifyData.reference || verifyDetails.reference || reference),
-          p_reason: "Payment was not confirmed within 35 seconds.",
-          p_verification: verifyData,
-        });
-        return new Response(JSON.stringify({ received: true, reference, status: "rejected" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments?id=eq.${payment.id}`, {
+          method: "PATCH",
+          headers: {
+            apikey: supabaseServiceKey,
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({ status: "rejected", rejection_reason: paymentStatus }),
         });
       }
     }

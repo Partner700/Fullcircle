@@ -14,8 +14,7 @@ import {
   fetchLedgerEntries,
   fetchArenaRooms,
 } from '../../lib/queries';
-import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
-import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
+import { formatDenarii, getDayType, getTodayISODate } from '../../lib/utils';
 import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
@@ -133,6 +132,12 @@ function persistedNotificationTone(notification: UserNotification): CadetNotific
   return 'info';
 }
 
+function daysAgoISO(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().split('T')[0];
+}
+
 const READ_NOTIFICATION_STORAGE_LIMIT = 300;
 
 function readNotificationStorageKey(userId: string) {
@@ -184,24 +189,13 @@ export function CadetApp() {
   const [walletRefreshKey, setWalletRefreshKey] = useState(0);
   const [cadetRefreshKey, setCadetRefreshKey] = useState(0);
   const [subStatus, setSubStatus] = useState<{ status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null>(null);
-  const streakLoadedRef = useRef(false);
 
   const isExpired = subStatus?.status === 'expired';
   const trialCountdown = getCountdownParts(subStatus?.trial_ends_at);
   const trialDaysLeft = trialCountdown.days;
 
-  useEffect(() => {
-    streakLoadedRef.current = false;
-    setStreakCount(0);
-    setDenariiTotal(0);
-    setTentInfo({ tent: null, members: [] });
-  }, [profile?.id]);
-
   const loadTentInfo = useCallback(async () => {
-    if (!profile) {
-      setTentInfo({ tent: null, members: [] });
-      return;
-    }
+    if (!profile) return;
     const { data: member } = await supabase
       .from('tent_members')
       .select('tent_id')
@@ -215,12 +209,10 @@ export function CadetApp() {
         .maybeSingle();
       const { data: members } = await supabase
         .from('tent_members')
-        .select('*, profiles(id,display_name,avatar_url,created_at)')
+        .select('*, profiles(*)')
         .eq('tent_id', member.tent_id)
         .order('joined_at');
       setTentInfo({ tent: tent as any, members: (members || []) as any });
-    } else {
-      setTentInfo({ tent: null, members: [] });
     }
   }, [profile]);
 
@@ -238,19 +230,10 @@ export function CadetApp() {
   }, [loadDenarii]);
 
   const loadStreak = useCallback(async () => {
-    if (!profile) {
-      streakLoadedRef.current = false;
-      setStreakCount(0);
-      return;
-    }
+    if (!profile) return;
     try {
       const s = await fetchStrictStreak(profile.id);
-      const nextStreak = s.current_streak || 0;
-      setStreakCount((previous) => {
-        if (streakLoadedRef.current && nextStreak > previous) void playSoundEffect('sound_streak', 0.66);
-        streakLoadedRef.current = true;
-        return nextStreak;
-      });
+      setStreakCount(s.current_streak || 0);
     } catch { setStreakCount(0); }
   }, [profile]);
 
@@ -500,7 +483,7 @@ export function CadetApp() {
           .from('daily_records')
           .select('user_id,record_date,meditation_submitted')
           .in('user_id', memberIds)
-          .gte('record_date', getDateDaysAgoISO(2))
+          .gte('record_date', daysAgoISO(2))
           .order('record_date', { ascending: false });
 
         const latestByUser = new Map<string, any>();
@@ -596,7 +579,7 @@ export function CadetApp() {
       return;
     }
     setReadNotificationIds(loadStoredReadNotificationIds(profile.id));
-  }, [profile]);
+  }, [profile?.id]);
 
   useEffect(() => {
     const refreshVisibleState = () => {
@@ -628,11 +611,7 @@ export function CadetApp() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const notification = payload.new as UserNotification;
-            void showDeviceNotification(notification);
-            void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
-          }
+          if (payload.eventType === 'INSERT') void showDeviceNotification(payload.new as UserNotification);
           void loadNotifications();
         },
       )
@@ -951,8 +930,9 @@ function SubscribeScreen({ subStatus }: { subStatus: { status: string; trial_end
     setLoading(true);
     setError(null);
     try {
-      const method = paymentMethods.find((item) => item.id === selectedMethod)?.label || 'this method';
-      setError(`${method} subscription checkout is not connected yet. No payment was taken.`);
+      // In production, this would call a payment edge function
+      // For now, we simulate a successful payment
+      setError('Payment processing is being set up. Your instructor will contact you to complete payment via ' + paymentMethods.find(m => m.id === selectedMethod)?.label);
     } catch (e: any) {
       setError(e.message);
     }

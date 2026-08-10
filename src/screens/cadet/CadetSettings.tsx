@@ -110,9 +110,9 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
       setSubStatus(sub);
     } catch {}
     setLoading(false);
-  }, [profile, currentStreak]);
+  }, [profile, refreshKey, currentStreak]);
 
-  useEffect(() => { void load(); }, [load, refreshKey]);
+  useEffect(() => { load(); }, [load]);
 
   const saveProfile = async () => {
     if (!profile) return;

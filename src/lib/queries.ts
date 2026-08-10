@@ -10,9 +10,12 @@ import type {
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
+<<<<<<< HEAD
 import { prepareImageUpload } from './uploads';
 import { getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
+=======
+>>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -21,9 +24,16 @@ export async function fetchTentHouses() {
 }
 
 export async function fetchProfile(userId: string) {
+<<<<<<< HEAD
   const { data: authData } = await supabase.auth.getUser();
   if (authData.user?.id !== userId) throw new Error('You can only load your own private profile.');
   return fetchOwnProfile(userId);
+=======
+  const { data, error } = await supabase
+    .from('profiles').select('*').eq('id', userId).maybeSingle();
+  if (error) throw error;
+  return data as Profile | null;
+>>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
 }
 
 export async function fetchRoleAssignment(userId: string) {
@@ -39,7 +49,7 @@ export async function fetchRoleAssignment(userId: string) {
 }
 
 export async function fetchAllProfiles() {
-  const { data, error } = await supabase.rpc('get_profiles_for_instructor');
+  const { data, error } = await supabase.from('profiles').select('*').order('display_name');
   if (error) throw error;
   return data as Profile[];
 }
@@ -53,7 +63,7 @@ export async function fetchAllRoleAssignments() {
 export async function fetchActiveCadets() {
   const { data, error } = await supabase
     .from('role_assignments')
-    .select('*, profiles!role_assignments_user_id_fkey(id,display_name,avatar_url,created_at)')
+    .select('*, profiles!role_assignments_user_id_fkey(*)')
     .eq('role', 'cadet')
     .in('status', ['active', 'approved'])
     .order('created_at', { ascending: false });
@@ -73,7 +83,7 @@ export async function fetchTents() {
 export async function fetchTentMembers() {
   const { data, error } = await supabase
     .from('tent_members')
-    .select('*, profiles(id,display_name,avatar_url,created_at)')
+    .select('*, profiles(*)')
     .order('joined_at');
   if (error) throw error;
   return data as (TentMember & { profiles: Profile })[];
@@ -82,7 +92,7 @@ export async function fetchTentMembers() {
 export async function fetchTentMembersForTent(tentId: string) {
   const { data, error } = await supabase
     .from('tent_members')
-    .select('*, profiles(id,display_name,avatar_url,created_at)')
+    .select('*, profiles(*)')
     .eq('tent_id', tentId)
     .order('joined_at');
   if (error) throw error;
@@ -142,7 +152,7 @@ export async function fetchNarratives(days = 7, includeFuture = false) {
     .from('daily_narratives')
     .select('*');
   if (!includeFuture) {
-    query = query.lte('narrative_date', getTodayISODate());
+    query = query.lte('narrative_date', new Date().toISOString().split('T')[0]);
   }
   const { data, error } = await query
     .order('narrative_date', { ascending: false })
@@ -223,79 +233,6 @@ export async function fetchQuestionsForSession(sessionId: string) {
   return data as GeneratedQuestion[];
 }
 
-export async function fetchPlayableQuestionsForSession(sessionId: string) {
-  const { data, error } = await supabase.rpc('get_quiz_questions_for_play', {
-    p_quiz_session_id: sessionId,
-  });
-  if (error) throw error;
-  return (data || []) as GeneratedQuestion[];
-}
-
-export async function startQuizAttempt(sessionId: string) {
-  const { data, error } = await supabase.rpc('start_quiz_attempt', {
-    p_quiz_session_id: sessionId,
-  });
-  if (error) throw error;
-  return data as QuizAttempt;
-}
-
-export async function saveQuizResponse(attemptId: string, questionId: string, answer: unknown) {
-  const { data, error } = await supabase.rpc('save_quiz_response', {
-    p_attempt_id: attemptId,
-    p_question_id: questionId,
-    p_answer: answer,
-  });
-  if (error) throw error;
-  return data as { accepted: boolean; warning?: string };
-}
-
-export async function consumeQuizQuestionRelic(attemptId: string, questionId: string, relicSlug: string) {
-  const { data, error } = await supabase.rpc('use_quiz_question_relic', {
-    p_attempt_id: attemptId,
-    p_question_id: questionId,
-    p_relic_slug: relicSlug,
-  });
-  if (error) throw error;
-  return data as {
-    success: boolean;
-    notice?: string;
-    eliminated_options?: string[];
-    skipped?: boolean;
-    auto_answered?: boolean;
-    donkey_active?: boolean;
-  };
-}
-
-export async function completeQuizAttempt(
-  attemptId: string,
-  status: 'submitted' | 'timed_out',
-  useGoliath = false,
-) {
-  const { data, error } = await supabase.rpc('submit_quiz_attempt_secure', {
-    p_attempt_id: attemptId,
-    p_status: status,
-    p_use_goliath: useGoliath,
-  });
-  if (error) throw error;
-  return data as {
-    success: boolean;
-    attempt: QuizAttempt;
-    correct_count?: number;
-    question_count?: number;
-    figs?: number;
-    perfect?: boolean;
-    denarii_awarded?: number;
-  };
-}
-
-export async function forfeitQuizAttempt(attemptId: string) {
-  const { data, error } = await supabase.rpc('forfeit_quiz_attempt', {
-    p_attempt_id: attemptId,
-  });
-  if (error) throw error;
-  return Boolean(data);
-}
-
 export async function insertQuestions(questions: Partial<GeneratedQuestion>[]) {
   const { error } = await supabase.from('generated_questions').insert(questions);
   if (error) throw error;
@@ -311,10 +248,13 @@ export async function updateGeneratedQuestion(questionId: string, patch: Partial
   if (error) throw error;
 }
 
-export async function fetchQuizAttempt(_userId: string, sessionId: string) {
-  const { data, error } = await supabase.rpc('get_my_quiz_attempt', {
-    p_quiz_session_id: sessionId,
-  });
+export async function fetchQuizAttempt(userId: string, sessionId: string) {
+  const { data, error } = await supabase
+    .from('quiz_attempts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('quiz_session_id', sessionId)
+    .maybeSingle();
   if (error) throw error;
   return data as QuizAttempt | null;
 }
@@ -331,16 +271,11 @@ export async function fetchResponsesForAttempt(attemptId: string) {
 export async function fetchQuizAnswerSheets(sessionId: string) {
   const { data, error } = await supabase
     .from('quiz_attempts')
-    .select('*, question_responses(*)')
+    .select('*, profiles!quiz_attempts_user_id_fkey(display_name,email,avatar_url), question_responses(*)')
     .eq('quiz_session_id', sessionId)
     .order('submitted_at', { ascending: false, nullsFirst: false });
   if (error) throw error;
-  const profiles = await fetchAllProfiles();
-  const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
-  return (data || []).map((attempt: any) => ({
-    ...attempt,
-    profiles: profileMap.get(attempt.user_id) || null,
-  })) as (QuizAttempt & {
+  return data as (QuizAttempt & {
     profiles: { display_name: string; email: string; avatar_url: string | null } | null;
     question_responses: QuestionResponse[];
   })[];
@@ -374,6 +309,11 @@ export async function fetchLedgerTotal(userId: string): Promise<number> {
   }
 }
 
+export async function insertLedgerEntry(entry: Partial<DenariiLedgerEntry>) {
+  const { error } = await supabase.from('denarii_ledger_entries').insert(entry);
+  if (error) throw error;
+}
+
 export async function fetchGameAttempts(userId: string, narrativeDate?: string) {
   let query = supabase.from('game_attempts').select('*').eq('user_id', userId);
   if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
@@ -393,6 +333,21 @@ export async function recordSundayReadingOpen(userId: string, recordDate: string
   });
   if (error) throw error;
   return Boolean(data);
+}
+
+export async function insertGameAttempt(attempt: Partial<GameAttempt>) {
+  const { data, error } = await supabase
+    .from('game_attempts')
+    .insert(attempt)
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  return data as GameAttempt;
+}
+
+export async function updateGameAttempt(id: string, updates: Partial<GameAttempt>) {
+  const { error } = await supabase.from('game_attempts').update(updates).eq('id', id);
+  if (error) throw error;
 }
 
 export async function fetchRelicTypes() {
@@ -710,79 +665,27 @@ export async function fetchStreakFreezers(userId: string) {
 }
 
 export async function purchaseDailyFreezer(userId: string) {
-  void userId;
-  const { error } = await supabase.rpc('purchase_daily_freezer_secure');
-  if (error) throw error;
-}
-
-export type DailyGameAnswerResult = {
-  correct: boolean;
-  protected?: boolean;
-  figs_earned?: number;
-  total_figs?: number;
-  correct_count?: number;
-  answer_payload?: QuestionPayload;
-  notice?: string;
-};
-
-export async function startDailyGameLevel(narrativeDate: string, level: number, mode: string) {
-  const { data, error } = await supabase.rpc('start_daily_game_level', {
-    p_narrative_date: narrativeDate,
-    p_level: level,
-    p_mode: mode,
+  const { error: ledgerError } = await supabase.from('denarii_ledger_entries').insert({
+    user_id: userId,
+    amount: -500,
+    source_type: 'freezer_daily' as any,
+    description: 'Daily streak freezer purchased',
   });
-  if (error) throw error;
-  const result = data as { run_id?: string; questions?: QuestionPayload[] } | null;
-  if (!result?.run_id || !Array.isArray(result.questions) || result.questions.length === 0) {
-    throw new Error('This level does not have an approved question set.');
-  }
-  return { runId: result.run_id, questions: result.questions };
-}
+  if (ledgerError) throw ledgerError;
 
-export async function submitDailyGameAnswer(runId: string, questionId: string, answer: string | null) {
-  const { data, error } = await supabase.rpc('submit_daily_game_answer', {
-    p_run_id: runId,
-    p_question_id: questionId,
-    p_answer: answer || '',
+  const { error: freezerError } = await supabase.from('streak_freezers').insert({
+    user_id: userId,
+    freezer_type: 'daily',
+    source: 'denarii',
   });
-  if (error) throw error;
-  return data as DailyGameAnswerResult;
-}
+  if (freezerError) throw freezerError;
 
-export async function applyDailyGameQuestionAid(runId: string, questionId: string, aidType: string) {
-  const { data, error } = await supabase.rpc('use_daily_game_question_aid', {
-    p_run_id: runId,
-    p_question_id: questionId,
-    p_aid_type: aidType,
+  const { error: purchaseError } = await supabase.from('denarii_purchases').insert({
+    user_id: userId,
+    purchase_type: 'freezer_daily',
+    amount: 500,
   });
-  if (error) throw error;
-  return data as DailyGameAnswerResult & {
-    hint?: string;
-    eliminated_options?: string[];
-    extra_seconds?: number;
-    auto_answered?: boolean;
-    skipped?: boolean;
-    donkey_active?: boolean;
-    reference?: string;
-    cost?: number;
-  };
-}
-
-export async function completeDailyGameRun(runId: string, useGoliath = false) {
-  const { data, error } = await supabase.rpc('complete_daily_game_run', {
-    p_run_id: runId,
-    p_use_goliath: useGoliath,
-  });
-  if (error) throw error;
-  return data as {
-    success: boolean;
-    passed: boolean;
-    score: number;
-    max_score: number;
-    correct_count: number;
-    question_count: number;
-    reward: number;
-  };
+  if (purchaseError) throw purchaseError;
 }
 
 export async function fetchAllChallengeSubmissions() {
@@ -1116,6 +1019,34 @@ export async function saveMobileMoneySettings(settings: Partial<MobileMoneySetti
   if (error) throw error;
 }
 
+export async function createMobileMoneyPayment(
+  userId: string,
+  relicSlug: string,
+  relicName: string,
+  amountUsd: number,
+  amountLocal: number,
+  currencyCode: string,
+  provider: string,
+  senderPhone: string,
+): Promise<string> {
+  const { data, error } = await supabase
+    .from('mobile_money_payments')
+    .insert({
+      user_id: userId,
+      relic_slug: relicSlug,
+      relic_name: relicName,
+      amount_usd: amountUsd,
+      amount_local: amountLocal,
+      currency_code: currencyCode,
+      provider,
+      sender_phone: senderPhone,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id;
+}
+
 export async function fetchUserMobileMoneyPayments(userId: string): Promise<MobileMoneyPayment[]> {
   const { data, error } = await supabase
     .from('mobile_money_payments')
@@ -1129,25 +1060,31 @@ export async function fetchUserMobileMoneyPayments(userId: string): Promise<Mobi
 export async function fetchPendingMobileMoneyPayments(): Promise<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]> {
   const { data, error } = await supabase
     .from('mobile_money_payments')
-    .select('*')
+    .select('*, profiles!mobile_money_payments_user_id_fkey(display_name, email)')
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  const profiles = await fetchAllProfiles();
-  const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
-  return (data || []).map((payment) => ({ ...payment, profiles: profileMap.get(payment.user_id) || null })) as any;
+  return data as any;
 }
 
 export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]> {
   const { data, error } = await supabase
     .from('mobile_money_payments')
-    .select('*')
+    .select('*, profiles!mobile_money_payments_user_id_fkey(display_name, email)')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  const profiles = await fetchAllProfiles();
-  const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
-  return (data || []).map((payment) => ({ ...payment, profiles: profileMap.get(payment.user_id) || null })) as any;
+  return data as any;
+}
+
+export async function confirmMobileMoneyPayment(paymentId: string) {
+  const { error } = await supabase.rpc('confirm_mobile_money_payment', { p_payment_id: paymentId });
+  if (error) throw error;
+}
+
+export async function rejectMobileMoneyPayment(paymentId: string, reason?: string) {
+  const { error } = await supabase.rpc('reject_mobile_money_payment', { p_payment_id: paymentId, p_reason: reason || null });
+  if (error) throw error;
 }
 
 export type CampayPaymentResult = {
@@ -1349,10 +1286,10 @@ export async function fetchFortuneQuizSession() {
 // ── Avatar upload ──
 
 export async function uploadAvatar(userId: string, file: File) {
-  const prepared = await prepareImageUpload(file, { maxDimension: 1024, maxBytes: 8 * 1024 * 1024 });
+  const ext = file.name.split('.').pop() || 'jpg';
   const version = Date.now();
-  const path = `${userId}/avatar-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, { upsert: true, contentType: prepared.file.type });
+  const path = `${userId}/avatar-${version}.${ext}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const publicUrl = `${data.publicUrl}?v=${version}`;
@@ -1362,10 +1299,10 @@ export async function uploadAvatar(userId: string, file: File) {
 }
 
 export async function uploadTentProfileImage(userId: string, tentId: string, file: File) {
-  const prepared = await prepareImageUpload(file, { maxDimension: 1600, maxBytes: 10 * 1024 * 1024 });
+  const ext = file.name.split('.').pop() || 'jpg';
   const version = Date.now();
-  const path = `${userId}/tents/${tentId}/profile-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, { upsert: true, contentType: prepared.file.type });
+  const path = `${userId}/tents/${tentId}/profile-${version}.${ext}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const publicUrl = `${data.publicUrl}?v=${version}`;
@@ -1465,12 +1402,18 @@ export async function submitArenaTriviaAnswer(roomId: string, userId: string, qu
     figsEarned: Number(result.figs_earned) || 0,
     totalFigs: Number(result.total_figs) || 0,
     correctCount: Number(result.correct_count) || 0,
-    machineQuestionIndex: result.machine_question_index == null ? null : Number(result.machine_question_index),
-    machineAnswer: result.machine_answer == null ? null : String(result.machine_answer),
-    machineCorrect: result.machine_correct == null ? null : Boolean(result.machine_correct),
-    machineFigs: Number(result.machine_figs) || 0,
-    machineTotalFigs: Number(result.machine_total_figs) || 0,
   };
+}
+
+export async function prepareArenaQuestionSet(roomId: string, userId: string, questions: QuestionPayload[]) {
+  const { data, error } = await supabase.rpc('prepare_arena_question_set', {
+    p_room_id: roomId,
+    p_user_id: userId,
+    p_questions: questions,
+  });
+  if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) throw new Error('The Arena could not store its question deck.');
+  return data as QuestionPayload[];
 }
 
 export type ArenaTriviaFeedItem = {
@@ -1559,36 +1502,6 @@ export async function generateArenaQuestionsWithAI(payload: {
   return data.questions as QuestionPayload[];
 }
 
-export async function generateInstructorQuestionsWithAI(payload: {
-  mode: 'quiz' | 'game';
-  narrativeDates: string[];
-  count: number;
-  level?: number;
-  questionTypes?: Record<number, string>;
-  passages?: Record<number, string>;
-}) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before generating questions.');
-  const response = await fetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: supabaseAnonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const raw = await response.text();
-  let result: { questions?: QuestionPayload[]; error?: string } = {};
-  try { result = raw ? JSON.parse(raw) : {}; } catch { /* Use the HTTP fallback below. */ }
-  if (!response.ok) throw new Error(result.error || raw || 'AI question generation failed.');
-  if (!Array.isArray(result.questions)) throw new Error('The AI generator returned no questions.');
-  return result.questions;
-}
-
 async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHomeResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -1656,7 +1569,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id,display_name,avatar_url')
+      .select('id,display_name,avatar_url,email')
       .in('id', userIds);
     (profiles || []).forEach((profile: any) => profileMap.set(profile.id, profile));
   }
