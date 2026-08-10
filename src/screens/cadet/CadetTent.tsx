@@ -3,10 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { supabase } from '../../lib/supabase';
-import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
-import type { Tent, TentMember, Profile } from '../../lib/types';
+import { fetchAwards } from '../../lib/queries';
+import { cn, whatsappUrl, formatDenarii, formatShortDate } from '../../lib/utils';
+import type { Tent, TentMember, Profile, Award } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
-import { MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon } from 'lucide-react';
+import { MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Award as AwardIcon } from 'lucide-react';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -31,6 +32,7 @@ export function CadetTent() {
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  const [tentAwards, setTentAwards] = useState<(Award & { profiles?: { display_name: string } })[]>([]);
   const [denariiMap, setDenariiMap] = useState<Record<string, number>>({});
   const [streakMap, setStreakMap] = useState<Record<string, number>>({});
   const [unreadBySender, setUnreadBySender] = useState<Record<string, number>>({});
@@ -52,29 +54,39 @@ export function CadetTent() {
       return;
     }
 
-    const { data: tentData } = await supabase
-      .from('tents')
-      .select('*, tent_houses(*)')
-      .eq('id', member.tent_id)
-      .maybeSingle();
+    const [{ data: tentData }, { data: memberData }, { data: reactData }, awardsResult] = await Promise.all([
+      supabase
+        .from('tents')
+        .select('*, tent_houses(*)')
+        .eq('id', member.tent_id)
+        .maybeSingle(),
+      supabase
+        .from('tent_members')
+        .select('*, profiles(*)')
+        .eq('tent_id', member.tent_id)
+        .order('joined_at'),
+      supabase
+        .from('tent_reactions')
+        .select('*')
+        .eq('tent_id', member.tent_id)
+        .order('created_at', { ascending: false })
+        .limit(50),
+      fetchAwards().catch(() => []),
+    ]);
     setTent(tentData as any);
-
-    const { data: memberData } = await supabase
-      .from('tent_members')
-      .select('*, profiles(*)')
-      .eq('tent_id', member.tent_id)
-      .order('joined_at');
     setMembers((memberData || []) as any);
-
-    const { data: reactData } = await supabase
-      .from('tent_reactions')
-      .select('*')
-      .eq('tent_id', member.tent_id)
-      .order('created_at', { ascending: false })
-      .limit(50);
     setReactions((reactData || []) as any);
 
     const memberIds = (memberData || []).map((m: any) => m.user_id);
+    const memberIdSet = new Set(memberIds);
+    if ((tentData as any)?.sentry_id) memberIdSet.add((tentData as any).sentry_id);
+    setTentAwards(((awardsResult || []) as (Award & { profiles?: { display_name: string } })[])
+      .filter((award) => (
+        award.award_target_type === 'tent'
+          ? award.award_target_id === member.tent_id
+          : memberIdSet.has(award.user_id) || (!!award.award_target_id && memberIdSet.has(award.award_target_id))
+      ))
+      .slice(0, 12));
     if (memberIds.length > 0) {
       const denMap: Record<string, number> = {};
       await Promise.all(memberIds.map(async (uid: string) => {
@@ -120,7 +132,7 @@ export function CadetTent() {
       target_reference: ref || null,
     });
     if (targetUserId !== profile.id) {
-      await supabase.rpc('notify_user', {
+      const { error } = await supabase.rpc('notify_user', {
         p_recipient_id: targetUserId,
         p_actor_id: profile.id,
         p_notification_type: 'info',
@@ -128,7 +140,8 @@ export function CadetTent() {
         p_body: `${profile.display_name} reacted to you in ${tent.name}.`,
         p_action_key: 'tent',
         p_metadata: { tent_id: tent.id, reaction_type: reactionType, target_type: targetType },
-      }).catch(() => null);
+      });
+      if (error) console.warn('Tent notification failed:', error.message);
     }
     await load();
     setReactingTo(null);
@@ -139,7 +152,7 @@ export function CadetTent() {
   if (!tent) {
     return (
       <EmptyState
-        icon={Users}
+        icon={(props) => <Users {...props} />}
         title="You're not in a tent yet"
         message="Your sentry will assign you to a tent soon. Check back later!"
       />
@@ -149,6 +162,7 @@ export function CadetTent() {
   const sentry = members.find((m) => m.role === 'sentry');
   const cadets = members.filter((m) => m.role === 'cadet');
   const visibleMembers = [...(sentry ? [sentry] : []), ...cadets];
+  const memberById = new Map(visibleMembers.map((m) => [m.user_id, m]));
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -185,6 +199,43 @@ export function CadetTent() {
           <p className="text-xs text-stone text-center py-2">Your sentry hasn't added a WhatsApp number yet.</p>
         )}
       </div>
+
+      {tentAwards.length > 0 && (
+        <>
+          <SectionHeader title="Tent Honors" subtitle="Awards carried by this tent family" />
+          <div className="card p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {tentAwards.map((award) => {
+                const isTentAward = award.award_target_type === 'tent';
+                const recipient = !isTentAward ? memberById.get(award.user_id) || memberById.get(award.award_target_id || '') : null;
+                const sentryName = sentry?.profiles.display_name || 'Sentry pending';
+                return (
+                  <div key={award.id} className="rounded-xl border border-border bg-surface-2/85 p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gold/15 border border-gold/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {recipient?.profiles.avatar_url ? (
+                          <img src={recipient.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <AwardIcon size={18} className="text-gold" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-ink leading-tight">{award.title}</p>
+                        <p className="text-xs text-stone mt-0.5">
+                          {isTentAward ? `${tent.name} · Sentry: ${sentryName}` : `${recipient?.profiles.display_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
+                        </p>
+                        {award.description && <p className="text-xs text-stone mt-1 line-clamp-2">{award.description}</p>}
+                      </div>
+                      <Trophy size={16} className="text-gold flex-shrink-0" />
+                    </div>
+                    <p className="text-[10px] text-stone mt-2">{formatShortDate(award.award_month)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Tent members */}
       <SectionHeader title="Your Tent" subtitle="React to your sentry and tent mates" />

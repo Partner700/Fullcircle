@@ -1,13 +1,13 @@
 {
-  "_icons-MHw9vXSK.js": {
-    "file": "assets/icons-MHw9vXSK.js",
+  "_icons-jfEFbE9Q.js": {
+    "file": "assets/icons-jfEFbE9Q.js",
     "name": "icons"
   },
-  "_react-vendor-D0d-J6x1.js": {
-    "file": "assets/react-vendor-D0d-J6x1.js",
+  "_react-vendor-B9REZYs3.js": {
+    "file": "assets/react-vendor-B9REZYs3.js",
     "name": "react-vendor",
     "imports": [
-      "_icons-MHw9vXSK.js"
+      "_icons-jfEFbE9Q.js"
     ]
   },
   "_supabase-wIXNjVJv.js": {
@@ -15,17 +15,17 @@
     "name": "supabase"
   },
   "index.html": {
-    "file": "assets/index-VKTOTvyj.js",
+    "file": "assets/index-CVdksDD4.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "imports": [
-      "_icons-MHw9vXSK.js",
-      "_react-vendor-D0d-J6x1.js",
+      "_icons-jfEFbE9Q.js",
+      "_react-vendor-B9REZYs3.js",
       "_supabase-wIXNjVJv.js"
     ],
     "css": [
-      "assets/index-CwVvwP9g.css"
+      "assets/index-CUUijqBk.css"
     ],
     "assets": [
       "assets/dove-DuNTTTjh.png",

@@ -100,11 +100,14 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
-    ...announcements.filter((announcement) => !announcement.announcement_type?.startsWith('panel_image_') && announcement.announcement_type !== 'weekly_background').map((announcement) => ({
+    ...announcements
+      .filter((announcement) => !announcement.announcement_type?.startsWith('panel_image_') && announcement.announcement_type !== 'weekly_background')
+      .slice(0, 5)
+      .map((announcement) => ({
       id: `announcement-${announcement.id}`,
       kind: 'announcement' as const,
       announcement,
-    })),
+      })),
     ...quotes.map((quote) => ({
       id: `quote-${quote.user_id}-${quote.record_date}`,
       kind: 'quote' as const,
@@ -208,10 +211,10 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Flame} label="Current Streak" value={`${streak.current_streak}`} sublabel={`Best: ${streak.longest_streak}`} color="#B8553E" />
-        <StatCard icon={Coins} label="Denarii" value={formatDenarii(denariiTotal)} sublabel={`+${todayDenarii} today`} color="#C9A227" />
-        <StatCard icon={Calendar} label="Valid Days" value={streak.volume_this_month} sublabel="This month" color="#6B8E5A" />
-        <StatCard icon={Gamepad2} label="Levels Done" value={`${completedLevels}/10`} sublabel="Today" color="#C9A227" />
+        <StatCard icon={(props) => <Flame {...props} />} label="Current Streak" value={`${streak.current_streak}`} sublabel={`Best: ${streak.longest_streak}`} color="#B8553E" />
+        <StatCard icon={(props) => <Coins {...props} />} label="Denarii" value={formatDenarii(denariiTotal)} sublabel={`+${todayDenarii} today`} color="#C9A227" />
+        <StatCard icon={(props) => <Calendar {...props} />} label="Valid Days" value={streak.volume_this_month} sublabel="This month" color="#6B8E5A" />
+        <StatCard icon={(props) => <Gamepad2 {...props} />} label="Levels Done" value={`${completedLevels}/10`} sublabel="Today" color="#C9A227" />
       </div>
 
       {/* Today's status bar */}
@@ -283,7 +286,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
                 <span className="text-xs text-brass mt-2 inline-block font-medium">Read & meditate →</span>
               </button>
             ) : (
-              <EmptyState icon={BookOpen} title="No reading yet" message="Today's narrative hasn't been published. Check back soon." />
+              <EmptyState icon={(props) => <BookOpen {...props} />} title="No reading yet" message="Today's narrative hasn't been published. Check back soon." />
             )}
           </div>
         </div>
@@ -305,7 +308,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
               ))}
             </div>
           ) : (
-            <EmptyState icon={TrendingUp} title="No denarii yet" message="Play the daily game or take the Saturday quiz to start earning." />
+            <EmptyState icon={(props) => <TrendingUp {...props} />} title="No denarii yet" message="Play the daily game or take the Saturday quiz to start earning." />
           )}
         </div>
       </div>
@@ -392,9 +395,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         quoteRecordDate={slide.narrative.narrative_date}
                         currentUserId={currentUserId || undefined}
                         fetchComments={(_quoteUserId, quoteRecordDate) => fetchDailyVerseComments(quoteRecordDate)}
-                        onComment={(body) => currentUserId
-                          ? commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body)
-                          : Promise.reject(new Error('Sign in to comment.'))}
+                        onComment={async (body) => {
+                          if (!currentUserId) throw new Error('Sign in to comment.');
+                          await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
+                        }}
                         onCommentOpenChange={onCommentOpenChange}
                       />
                     </>

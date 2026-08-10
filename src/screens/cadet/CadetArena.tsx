@@ -527,7 +527,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       <div className="space-y-2">
         <h4 className="font-display font-semibold text-ink text-sm">Open Rooms</h4>
         {rooms.filter((r) => r.status === 'waiting').length === 0 ? (
-          <EmptyState icon={Swords} title="No open rooms" message="Create a room and invite other cadets to battle." />
+          <EmptyState icon={(props) => <Swords {...props} />} title="No open rooms" message="Create a room and invite other cadets to battle." />
         ) : (
           rooms.filter((r) => r.status === 'waiting').map((room) => {
             const participants = room.arena_participants || [];

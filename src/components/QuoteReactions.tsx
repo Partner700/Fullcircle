@@ -132,6 +132,8 @@ export function QuoteReactions({
                     email: null,
                     avatar_url: comment.avatar_url,
                     whatsapp_number: null,
+                    language: null,
+                    country: null,
                     created_at: comment.created_at,
                   }}
                   currentUserId={currentUserId}

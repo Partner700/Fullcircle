@@ -6,7 +6,7 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow, QuestionPayload,
+  QuizScoreboardRow, QuestionPayload, PanelImageSetting,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 
@@ -403,8 +403,10 @@ export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']
     .lte('publish_at', now)
     .eq('is_active', true)
     .in('audience', audiences)
+    // Panel images are stored as announcements too. Keep enough active rows for
+    // those settings as well as the small set of announcements shown to users.
     .order('publish_at', { ascending: false })
-    .limit(5);
+    .limit(60);
   if (error) throw error;
   return data as ScheduledAnnouncement[];
 }

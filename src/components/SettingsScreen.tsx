@@ -281,10 +281,10 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-slide-up">
-        <StatCard icon={CoinIcon} label="Denarii" value={formatDenarii(stats.denarii)} color="#F5B731" />
-        <StatCard icon={FlameIcon} label="Streak" value={stats.streak} sublabel={`Best: ${stats.longestStreak}`} color="#E05252" />
-        <StatCard icon={AwardIcon} label="Awards" value={stats.awards.length} color="#5BAD7F" />
-        <StatCard icon={TrophyIcon} label="Relics" value={stats.relics} color="#DDE3FF" />
+        <StatCard icon={(props) => <CoinIcon {...props} />} label="Denarii" value={formatDenarii(stats.denarii)} color="#F5B731" />
+        <StatCard icon={(props) => <FlameIcon {...props} />} label="Streak" value={stats.streak} sublabel={`Best: ${stats.longestStreak}`} color="#E05252" />
+        <StatCard icon={(props) => <AwardIcon {...props} />} label="Awards" value={stats.awards.length} color="#5BAD7F" />
+        <StatCard icon={(props) => <TrophyIcon {...props} />} label="Relics" value={stats.relics} color="#DDE3FF" />
       </div>
 
       {/* Tent info */}

@@ -17,16 +17,17 @@ import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, ScheduledAnnouncement, StreakInfo, PanelImageSetting } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { CadetGame } from '../cadet/CadetGame';
+import { CadetArena } from '../cadet/CadetArena';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
-  Coins, Moon, Camera, ImagePlus, Quote, ShoppingBag,
+  Coins, Moon, Camera, ImagePlus, Quote, ShoppingBag, Swords,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'store' | 'settings';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'arena' | 'reading' | 'streak' | 'store' | 'settings';
 
 type StrictStreakData = {
   current_streak: number;
@@ -41,8 +42,9 @@ const NAV_ITEMS = [
   { key: 'cadets', label: 'My Cadets', icon: CadetIcon },
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
   { key: 'game', label: 'Daily Game', icon: GamepadIcon },
-  { key: 'streak', label: 'My Streak', icon: Shield },
-  { key: 'store', label: 'Market', icon: ShoppingBag },
+  { key: 'arena', label: 'The Arena', icon: (props: any) => <Swords {...props} /> },
+  { key: 'streak', label: 'My Streak', icon: (props: any) => <Shield {...props} /> },
+  { key: 'store', label: 'Market', icon: (props: any) => <ShoppingBag {...props} /> },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
@@ -222,6 +224,7 @@ export function SentryApp() {
     cadets: 'My Cadets',
     reading: "Today's Reading",
     game: 'Daily Game',
+    arena: 'The Arena',
     streak: 'My Streak',
     store: 'The Market',
     settings: 'Settings',
@@ -276,6 +279,7 @@ export function SentryApp() {
       {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'game' && <CadetGame onRewardEarned={load} />}
+      {tab === 'arena' && <CadetArena onBalanceChanged={load} />}
       {tab === 'streak' && <CadetStreak />}
       {tab === 'store' && (
         <CadetStore
@@ -302,7 +306,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <EmptyState icon={TentIcon} title={title} message={message} />
+      <EmptyState icon={(props) => <TentIcon {...props} />} title={title} message={message} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
@@ -397,10 +401,10 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Users} label="Cadets" value={members.length} color="#C9A227" />
-        <StatCard icon={UserCheck} label="Marked Today" value={todayMarked} sublabel={`of ${members.length}`} color="#6B8E5A" />
-        <StatCard icon={AlertTriangle} label="At Risk" value={atRiskCount} sublabel="need attention" color="#B8553E" />
-        <StatCard icon={Sunrise} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
+        <StatCard icon={(props) => <Users {...props} />} label="Cadets" value={members.length} color="#C9A227" />
+        <StatCard icon={(props) => <UserCheck {...props} />} label="Marked Today" value={todayMarked} sublabel={`of ${members.length}`} color="#6B8E5A" />
+        <StatCard icon={(props) => <AlertTriangle {...props} />} label="At Risk" value={atRiskCount} sublabel="need attention" color="#B8553E" />
+        <StatCard icon={(props) => <Sunrise {...props} />} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
       </div>
 
       {quote && (

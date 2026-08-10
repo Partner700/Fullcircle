@@ -145,7 +145,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   if (paused) {
     return (
       <EmptyState
-        icon={Pause}
+        icon={(props) => <Pause {...props} />}
         title="Games Paused"
         message="The Daily Game is paused from Saturday 5 PM to Monday 7 AM. Games resume Monday at 7 AM."
       />
@@ -153,7 +153,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   }
 
   if (!narrative) {
-    return <EmptyState icon={Gamepad2} title="No game today" message="Today's narrative hasn't been published yet." />;
+    return <EmptyState icon={(props) => <Gamepad2 {...props} />} title="No game today" message="Today's narrative hasn't been published yet." />;
   }
 
   if (activeLevel !== null) {

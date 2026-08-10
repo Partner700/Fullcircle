@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
-import { ChallengeEvidenceList } from '../../components/ChallengeEvidenceList';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchChallengeSubmission, fetchPanelImageSetting, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
@@ -155,7 +154,7 @@ export function CadetNarrative({
   if (!narrative) {
     return (
       <EmptyState
-        icon={BookOpen}
+        icon={(props) => <BookOpen {...props} />}
         title="No reading published"
         message="Today's narrative hasn't been published yet. Check back soon."
       />

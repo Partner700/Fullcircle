@@ -93,9 +93,9 @@ export function customQuestionToPayload(cq: CustomQuestion): QuestionPayload {
     explanation: cq.explanation || undefined,
     passage: cq.passage || undefined,
     game_round: cq.game_round || null,
-    round_timer_seconds: cq.round_timer_seconds || null,
-    passage_display_seconds: cq.passage_display_seconds || null,
-    is_bonus: cq.is_bonus || null,
+    round_timer_seconds: cq.round_timer_seconds ?? undefined,
+    passage_display_seconds: cq.passage_display_seconds ?? undefined,
+    is_bonus: cq.is_bonus ?? undefined,
   };
 
   if (type === 'true_false') {

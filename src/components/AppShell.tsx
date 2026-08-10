@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect, useCallback } from 'react';
+import { type ElementType, type ReactNode, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { DoveMark } from './Dove';
@@ -43,7 +43,7 @@ function ThemeToggle() {
 interface NavItem {
   key: string;
   label: string;
-  icon: typeof DoveMark;
+  icon: ElementType;
 }
 
 interface ShellProps {
@@ -276,7 +276,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
 }
 
 export function StatCard({ icon: Icon, label, value, sublabel, color }: {
-  icon: React.ComponentType<{ size?: string | number; color?: string; className?: string }>; label: string; value: ReactNode; sublabel?: string; color?: string;
+  icon: ElementType; label: string; value: ReactNode; sublabel?: string; color?: string;
 }) {
   return (
     <div className="card p-4 card-hover">
@@ -306,7 +306,7 @@ export function SectionHeader({ title, subtitle, action }: { title: string; subt
   );
 }
 
-export function EmptyState({ icon: Icon, title, message }: { icon: typeof DoveMark; title: string; message: string }) {
+export function EmptyState({ icon: Icon, title, message }: { icon: ElementType; title: string; message: string }) {
   return (
     <div className="card p-8 text-center">
       <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-navy-3 mb-3">

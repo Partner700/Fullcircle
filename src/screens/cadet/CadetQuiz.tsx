@@ -11,7 +11,7 @@ import {
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
-import { formatCountdown, cn } from '../../lib/utils';
+import { formatCountdown, cn, formatDenarii } from '../../lib/utils';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
 import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
@@ -168,7 +168,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   if (!session) {
     return (
       <EmptyState
-        icon={FileQuestion}
+        icon={(props) => <FileQuestion {...props} />}
         title="No quiz scheduled"
         message="Your instructor hasn't scheduled a quiz session yet. Quizzes run on Saturdays."
       />

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'full-circle-v2';
+const CACHE_VERSION = 'full-circle-v5';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -11,6 +11,21 @@ const LEGACY_CACHES = [
   'full-circle-v1-runtime',
   'full-circle-v1-static',
   'full-circle-v1-fonts',
+  'full-circle-v2-app',
+  'full-circle-v2-runtime',
+  'full-circle-v2-static',
+  'full-circle-v2-fonts',
+  'full-circle-v2-images',
+  'full-circle-v3-app',
+  'full-circle-v3-runtime',
+  'full-circle-v3-static',
+  'full-circle-v3-fonts',
+  'full-circle-v3-images',
+  'full-circle-v4-app',
+  'full-circle-v4-runtime',
+  'full-circle-v4-static',
+  'full-circle-v4-fonts',
+  'full-circle-v4-images',
 ];
 
 const APP_SHELL = [
@@ -20,7 +35,6 @@ const APP_SHELL = [
   '/manifest.webmanifest',
   '/robots.txt',
   '/browserconfig.xml',
-  '/icons/fullcircle-icon.svg',
   '/icons/apple-touch-icon.png',
   '/icons/icon-72.png',
   '/icons/icon-96.png',

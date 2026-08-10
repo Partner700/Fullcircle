@@ -56,7 +56,7 @@ export function CadetLeaderboard() {
         fetchLeaderboardSnapshots(),
       ]);
       setStreakRows(streaks.status === 'fulfilled' ? streaks.value : []);
-      setLeaderRows(leaders.status === 'fulfilled' ? leaders.value : []);
+      setLeaderRows((leaders.status === 'fulfilled' ? leaders.value : []) as any);
 
 	      const [live, tents, quizBoard] = await Promise.allSettled([
 	        supabase.rpc('get_leaderboard_live'),
@@ -167,7 +167,7 @@ export function CadetLeaderboard() {
               </BoardList>
             </div>
           ) : (
-            <EmptyState icon={Trophy} title="No data yet" message="Play the daily game or take the Saturday quiz to appear on the board." />
+            <EmptyState icon={(props) => <Trophy {...props} />} title="No data yet" message="Play the daily game or take the Saturday quiz to appear on the board." />
           )}
 
           {leaderRows.length > 0 && (
@@ -293,7 +293,7 @@ export function CadetLeaderboard() {
               </ul>
             </div>
           ) : (
-            <EmptyState icon={Crown} title="No streak data yet" message="The live streak board is on. Complete today's streak actions to appear here." />
+            <EmptyState icon={(props) => <Crown {...props} />} title="No streak data yet" message="The live streak board is on. Complete today's streak actions to appear here." />
           )}
         </div>
       )}
@@ -370,7 +370,7 @@ export function CadetLeaderboard() {
             </div>
           ) : (
             <EmptyState
-              icon={FileQuestion}
+              icon={(props) => <FileQuestion {...props} />}
               title="Quiz board ready"
               message="Cadets appear here once assigned. Daily game, arena, and fortune quiz figs update live; Saturday quiz figs join at 3:00 PM."
             />
@@ -446,7 +446,7 @@ export function CadetLeaderboard() {
               </BoardList>
             </div>
           ) : (
-            <EmptyState icon={TentIcon} title="No tent data yet" message="Assign cadets to tents to see aggregate rankings here." />
+            <EmptyState icon={(props) => <TentIcon {...props} />} title="No tent data yet" message="Assign cadets to tents to see aggregate rankings here." />
           )}
         </div>
       )}

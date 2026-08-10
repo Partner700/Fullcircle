@@ -49,17 +49,17 @@ type CadetNotification = {
 };
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: Home },
-  { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
-  { key: 'streak', label: 'My Streak', icon: Flame },
-  { key: 'game', label: 'Daily Game', icon: Gamepad2 },
-  { key: 'arena', label: 'The Arena', icon: Swords },
-  { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
-  { key: 'tent', label: 'My Tent', icon: TentIcon },
-  { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
-  { key: 'awards', label: 'Awards Hub', icon: Award },
-  { key: 'store', label: 'The Market', icon: ShoppingBag },
-  { key: 'settings', label: 'Settings', icon: SettingsIcon },
+  { key: 'dashboard', label: 'Dashboard', icon: (props: any) => <Home {...props} /> },
+  { key: 'narrative', label: 'Today\'s Reading', icon: (props: any) => <BookOpen {...props} /> },
+  { key: 'streak', label: 'My Streak', icon: (props: any) => <Flame {...props} /> },
+  { key: 'game', label: 'Daily Game', icon: (props: any) => <Gamepad2 {...props} /> },
+  { key: 'arena', label: 'The Arena', icon: (props: any) => <Swords {...props} /> },
+  { key: 'quiz', label: 'Weekly Quiz', icon: (props: any) => <FileQuestion {...props} /> },
+  { key: 'tent', label: 'My Tent', icon: (props: any) => <TentIcon {...props} /> },
+  { key: 'leaderboard', label: 'Challenge Boards', icon: (props: any) => <Trophy {...props} /> },
+  { key: 'awards', label: 'Awards Hub', icon: (props: any) => <Award {...props} /> },
+  { key: 'store', label: 'The Market', icon: (props: any) => <ShoppingBag {...props} /> },
+  { key: 'settings', label: 'Settings', icon: (props: any) => <SettingsIcon {...props} /> },
 ];
 
 function actionKeyToTab(actionKey: string | null | undefined): Tab | undefined {
@@ -245,14 +245,14 @@ export function CadetApp() {
 
       const attendanceStatus = rec?.attendance_status || 'unmarked';
       if (attendanceStatus === 'present') {
-        notifs.push({
-          id: `attendance-${today}`,
-          title: rec?.attendance_late ? 'Morning call marked late' : 'Morning call confirmed',
-          text: `Your sentry marked you present for morning call. +${formatDenarii(200)} Ð awarded.`,
-          type: 'success',
-          actionTab: 'dashboard',
-          actionLabel: 'Open Dashboard',
-        });
+      notifs.push({
+        id: `attendance-${today}`,
+        title: rec?.attendance_late ? 'Morning call marked late' : 'Morning call confirmed',
+        text: `Your sentry marked you present for morning call. +${formatDenarii(200)} Ð awarded.`,
+        type: 'success',
+        actionTab: 'dashboard',
+        actionLabel: 'Open Dashboard',
+      });
       } else if (attendanceStatus === 'absent') {
         notifs.push({
           id: `attendance-absent-${today}`,
@@ -324,12 +324,12 @@ export function CadetApp() {
 
     try {
       const { data: reactions } = await supabase
-        .from('tent_reactions')
-        .select('id,tent_id,reactor_user_id,reaction_type,target_type,target_reference,created_at')
-        .eq('target_user_id', profile.id)
-        .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
-        .order('created_at', { ascending: false })
-        .limit(8);
+      .from('tent_reactions')
+      .select('id,tent_id,reactor_user_id,reaction_type,target_type,target_reference,created_at')
+      .eq('target_user_id', profile.id)
+      .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(8);
       const visibleReactions = (reactions || []).filter((reaction: any) => !persistedReactionIds.has(String(reaction.id)));
       const reactorIds = Array.from(new Set(visibleReactions.map((reaction: any) => reaction.reactor_user_id).filter(Boolean)));
       let reactorNames = new Map<string, string>();
@@ -381,12 +381,12 @@ export function CadetApp() {
 
     try {
       const { data: challengeUpdates } = await supabase
-        .from('challenge_submissions')
-        .select('id,narrative_date,status,rejection_reason,reviewed_at,submitted_at')
-        .eq('user_id', profile.id)
-        .in('status', ['approved', 'rejected'])
-        .order('reviewed_at', { ascending: false, nullsFirst: false })
-        .limit(3);
+      .from('challenge_submissions')
+      .select('id,narrative_date,status,rejection_reason,reviewed_at,submitted_at')
+      .eq('user_id', profile.id)
+      .in('status', ['approved', 'rejected'])
+      .order('reviewed_at', { ascending: false, nullsFirst: false })
+      .limit(3);
       (challengeUpdates || [])
         .filter((challenge: any) => challenge.reviewed_at && new Date(challenge.reviewed_at).getTime() >= Date.now() - 7 * 86400000)
         .forEach((challenge: any) => {
@@ -822,6 +822,7 @@ export function CadetApp() {
                   ))}
                 </div>
               </div>
+            </>
             )}
           </div>
           {/* Denarii */}
@@ -868,7 +869,7 @@ function SubscribeGate({ onSubscribe }: { onSubscribe: () => void }) {
   );
 }
 
-function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: string; trial_ends_at: string; current_period_end: string | null; is_paid: boolean } | null; onSubscribed: () => void }) {
+function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null; onSubscribed: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<string>('mobile_money');
@@ -893,7 +894,7 @@ function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: str
     setLoading(false);
   };
 
-  const trialDaysLeft = subStatus ? Math.max(0, Math.ceil((new Date(subStatus.trial_ends_at).getTime() - Date.now()) / 86400000)) : 0;
+  const trialDaysLeft = subStatus?.trial_ends_at ? Math.max(0, Math.ceil((new Date(subStatus.trial_ends_at).getTime() - Date.now()) / 86400000)) : 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">

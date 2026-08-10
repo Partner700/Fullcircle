@@ -149,20 +149,20 @@ function MultiSelectDropdown({ options, selected, onToggle, placeholder, label }
 }
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: Home },
-  { key: 'narratives', label: 'Narratives', icon: BookOpen },
-  { key: 'announcements', label: 'Announcements', icon: Megaphone },
-  { key: 'quiz', label: 'Quiz Builder', icon: FileQuestion },
-  { key: 'game_questions', label: 'Game Questions', icon: Gamepad2 },
-  { key: 'tents', label: 'Tents', icon: TentIcon },
-  { key: 'cadets', label: 'Cadets', icon: Users },
-  { key: 'sentries', label: 'Sentries', icon: Shield },
-  { key: 'unassigned', label: 'Unassigned', icon: UserPlus },
-  { key: 'challenges', label: 'Challenges', icon: Target },
-  { key: 'mobile_money', label: 'Mobile Money', icon: Smartphone },
-  { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
-  { key: 'awards', label: 'Awards', icon: AwardIcon },
-  { key: 'settings', label: 'Settings', icon: Shield },
+  { key: 'dashboard', label: 'Dashboard', icon: (props: any) => <Home {...props} /> },
+  { key: 'narratives', label: 'Narratives', icon: (props: any) => <BookOpen {...props} /> },
+  { key: 'announcements', label: 'Announcements', icon: (props: any) => <Megaphone {...props} /> },
+  { key: 'quiz', label: 'Quiz Builder', icon: (props: any) => <FileQuestion {...props} /> },
+  { key: 'game_questions', label: 'Game Questions', icon: (props: any) => <Gamepad2 {...props} /> },
+  { key: 'tents', label: 'Tents', icon: (props: any) => <TentIcon {...props} /> },
+  { key: 'cadets', label: 'Cadets', icon: (props: any) => <Users {...props} /> },
+  { key: 'sentries', label: 'Sentries', icon: (props: any) => <Shield {...props} /> },
+  { key: 'unassigned', label: 'Unassigned', icon: (props: any) => <UserPlus {...props} /> },
+  { key: 'challenges', label: 'Challenges', icon: (props: any) => <Target {...props} /> },
+  { key: 'mobile_money', label: 'Mobile Money', icon: (props: any) => <Smartphone {...props} /> },
+  { key: 'leaderboard', label: 'Challenge Boards', icon: (props: any) => <Trophy {...props} /> },
+  { key: 'awards', label: 'Awards', icon: (props: any) => <AwardIcon {...props} /> },
+  { key: 'settings', label: 'Settings', icon: (props: any) => <Shield {...props} /> },
 ];
 
 export function InstructorApp() {
@@ -676,7 +676,7 @@ function AnnouncementManager() {
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
         ) : standardAnnouncements.length === 0 ? (
-          <EmptyState icon={Megaphone} title="No announcements yet" message="Create one above to place it in the dashboard slideshow." />
+          <EmptyState icon={(props) => <Megaphone {...props} />} title="No announcements yet" message="Create one above to place it in the dashboard slideshow." />
         ) : (
           <div className="space-y-2">
             {standardAnnouncements.map((announcement) => {
@@ -914,7 +914,7 @@ function NarrativesTab({ narratives, editingNarrative, onSelectNarrative, onDone
         </button>
       </div>
       {narratives.length === 0 ? (
-        <EmptyState icon={BookOpen} title="No narratives yet" message="Create the first daily narrative to unlock games and readings for cadets." />
+        <EmptyState icon={(props) => <BookOpen {...props} />} title="No narratives yet" message="Create the first daily narrative to unlock games and readings for cadets." />
       ) : (
         <div className="space-y-2">
           {narratives.map((n) => {
@@ -1170,7 +1170,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
       )}
 
       {tents.length === 0 ? (
-        <EmptyState icon={TentIcon} title="No tents yet" message="Create a tent and assign a sentry to get started." />
+        <EmptyState icon={(props) => <TentIcon {...props} />} title="No tents yet" message="Create a tent and assign a sentry to get started." />
       ) : (
         <div className="space-y-4">
           {tents.map((t) => {
@@ -1467,7 +1467,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
           );
         })}
         {filtered.length === 0 && (
-          <EmptyState icon={Users} title="No cadets found" message="No active cadets match your search." />
+          <EmptyState icon={(props) => <Users {...props} />} title="No cadets found" message="No active cadets match your search." />
         )}
       </div>
     </div>
@@ -1714,7 +1714,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
           );
         })}
         {filtered.length === 0 && (
-          <EmptyState icon={Shield} title="No sentries found" message="No active sentries match your search." />
+          <EmptyState icon={(props) => <Shield {...props} />} title="No sentries found" message="No active sentries match your search." />
         )}
       </div>
     </div>
@@ -1758,7 +1758,7 @@ function InstructorLeaderboard() {
       {boardTab === 'denarii' && (
         <div className="space-y-2">
           {liveData.length === 0 ? (
-            <EmptyState icon={Trophy} title="No data yet" message="Denarii rankings will appear here once cadets start earning." />
+            <EmptyState icon={(props) => <Trophy {...props} />} title="No data yet" message="Denarii rankings will appear here once cadets start earning." />
           ) : (
             liveData.map((row: any, i: number) => (
 	              <div key={row.user_id || i} className="card p-3 flex items-center gap-3">
@@ -1777,13 +1777,13 @@ function InstructorLeaderboard() {
       )}
 
       {boardTab === 'streak' && (
-        <EmptyState icon={Flame} title="Streak Board" message="Streak snapshots update daily at 9 PM. Check back for the latest rankings." />
+        <EmptyState icon={(props) => <Flame {...props} />} title="Streak Board" message="Streak snapshots update daily at 9 PM. Check back for the latest rankings." />
       )}
 
       {boardTab === 'houses' && (
         <div className="space-y-3">
           {houseData.length === 0 ? (
-            <EmptyState icon={Home} title="No house data yet" message="House competition standings will appear once cadets join tents and start participating." />
+            <EmptyState icon={(props) => <Home {...props} />} title="No house data yet" message="House competition standings will appear once cadets join tents and start participating." />
           ) : (
 	            houseData.map((house: any) => {
 	              const sentryNames = Array.isArray(house.sentry_names) ? house.sentry_names : [];
@@ -1871,7 +1871,7 @@ function MatriculesManagement() {
       {loading ? (
         <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-brass" /></div>
       ) : matricules.length === 0 ? (
-        <EmptyState icon={KeyRound} title="No matricules yet" message="Generate codes above to enable sentry signup." />
+        <EmptyState icon={(props) => <KeyRound {...props} />} title="No matricules yet" message="Generate codes above to enable sentry signup." />
       ) : (
         <div className="space-y-2">
           {matricules.map((m) => (
@@ -2255,7 +2255,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       <div className="space-y-2">
         <h4 className="font-display font-semibold text-ink text-sm">Recent Awards</h4>
         {awards.length === 0 ? (
-          <EmptyState icon={AwardIcon} title="No awards yet" message="Recognize your first cadet, sentry, or tent above." />
+          <EmptyState icon={(props) => <AwardIcon {...props} />} title="No awards yet" message="Recognize your first cadet, sentry, or tent above." />
         ) : (
           awards.slice(0, 20).map((a) => (
             <div key={a.id} className="card p-3 flex items-center gap-3">
@@ -2580,7 +2580,7 @@ function QuizBuilder() {
       )}
 
       {sessions.length === 0 ? (
-        <EmptyState icon={FileQuestion} title="No quiz sessions yet" message="Create a new quiz session and generate questions from your narratives." />
+        <EmptyState icon={(props) => <FileQuestion {...props} />} title="No quiz sessions yet" message="Create a new quiz session and generate questions from your narratives." />
       ) : (
         <div className="space-y-2">
           {sessions.map((s) => (
@@ -2597,7 +2597,7 @@ function QuizBuilder() {
                     <Rocket size={12} /> Launch
                   </button>
                 )}
-                {(s.status === 'completed' || s.status === 'closed') && (
+                {s.status === 'closed' && (
                   <button onClick={() => relaunchQuiz(s)} className="btn-primary text-xs">
                     <RotateCcw size={12} /> Republish
                   </button>
@@ -2942,7 +2942,7 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
       <SectionHeader title="Challenge Review" subtitle="Approve or reject cadet challenge submissions" />
 
       {pending.length === 0 && reviewed.length === 0 ? (
-        <EmptyState icon={Target} title="No submissions yet" message="Cadet challenge submissions will appear here for your review." />
+        <EmptyState icon={(props) => <Target {...props} />} title="No submissions yet" message="Cadet challenge submissions will appear here for your review." />
       ) : (
         <>
           {pending.length > 0 && (
@@ -3866,7 +3866,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
       <SectionHeader title="Unassigned Users" subtitle="New accounts that haven't been assigned a role yet. Assign them as cadet or sentry and optionally place them in a tent." />
 
       {users.length === 0 ? (
-        <EmptyState icon={UserPlus} title="Everyone is assigned" message="All users have active role assignments. New signups will appear here." />
+        <EmptyState icon={(props) => <UserPlus {...props} />} title="Everyone is assigned" message="All users have active role assignments. New signups will appear here." />
       ) : (
         <div className="space-y-3">
           {users.map((u) => (
@@ -3931,7 +3931,7 @@ function MobileMoneyManager() {
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>
       ) : payments.length === 0 ? (
-        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="When the app confirms or rejects a payment through CamPay, it will appear here." />
+        <EmptyState icon={(props) => <Smartphone {...props} />} title="No confirmed or rejected payments yet" message="When the app confirms or rejects a payment through CamPay, it will appear here." />
       ) : (
         <div className="space-y-3">
           {payments.map((pay) => {
