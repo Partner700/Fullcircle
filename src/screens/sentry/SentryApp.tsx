@@ -13,7 +13,7 @@ import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements } from '../../lib/queries';
+import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement } from '../../lib/types';
@@ -27,7 +27,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone, Trophy,
-  Swords,
+  Swords, Flame, Coins,
 } from 'lucide-react';
 
 const CadetArena = lazy(() => import('../cadet/CadetArena').then((module) => ({ default: module.CadetArena })));
@@ -99,6 +99,8 @@ export function SentryApp() {
   const [quotePaused, setQuotePaused] = useState(false);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
+  const [sentryStreak, setSentryStreak] = useState(0);
+  const [sentryDenarii, setSentryDenarii] = useState(0);
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
 
@@ -109,6 +111,13 @@ export function SentryApp() {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
+      const [ownStreak, ownDenarii] = await Promise.all([
+        fetchStrictStreak(profile.id).catch(() => null),
+        fetchLedgerTotal(profile.id).catch(() => 0),
+      ]);
+      setSentryStreak(ownStreak?.current_streak || 0);
+      setSentryDenarii(ownDenarii);
+
       const { data: member } = await supabase
         .from('tent_members')
         .select('tent_id')
@@ -249,10 +258,25 @@ export function SentryApp() {
       onNavigate={(k) => setTab(k as Tab)}
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
-      rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
-        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets' };
-        if (destination[key]) setTab(destination[key]);
-      }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
+      rightHeader={
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${sentryStreak} day streak`}>
+            <Flame size={15} className="text-coral" />
+            <span className="font-display font-bold text-coral text-[13px]">{sentryStreak}</span>
+          </div>
+          <NotificationCenter onNavigate={(key) => {
+            const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets' };
+            if (destination[key]) setTab(destination[key]);
+          }} />
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
+            <Coins size={16} className="text-gold" />
+            <span className="font-display font-bold text-gold text-[13px]">
+              {sentryDenarii >= 1000 ? `${(sentryDenarii / 1000).toFixed(1)}K` : sentryDenarii}
+            </span>
+          </div>
+          {tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}
+        </div>
+      }
     >
       {!tent && TENT_REQUIRED_TABS.has(tab) && <UnassignedSentryState activeTab={tab} onNavigate={setTab} />}
       {tent && tab === 'overview' && (
