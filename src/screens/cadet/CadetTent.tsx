@@ -77,7 +77,13 @@ export function CadetTent() {
       setTent(tentResult.data as any);
       setMembers((membersResult.data || []) as any);
       setReactions((reactionsResult.data || []) as any);
-      setTentAwards(awardsResult.filter((award) => award.award_target_type === 'tent' && award.award_target_id === member.tent_id));
+      const tentMemberIds = new Set((membersResult.data || []).map((m: any) => m.user_id));
+      if (tentResult.data?.sentry_id) tentMemberIds.add(tentResult.data.sentry_id);
+      setTentAwards(awardsResult.filter((award) => (
+        award.award_target_type === 'tent'
+          ? award.award_target_id === member.tent_id
+          : tentMemberIds.has(award.user_id) || (!!award.award_target_id && tentMemberIds.has(award.award_target_id))
+      )));
       setAwardsImage(awardsImageResult);
 
       const memberIds = (membersResult.data || []).map((m: any) => m.user_id);
@@ -169,6 +175,7 @@ export function CadetTent() {
   const sentry = members.find((m) => m.role === 'sentry');
   const cadets = members.filter((m) => m.role === 'cadet');
   const visibleMembers = [...(sentry ? [sentry] : []), ...cadets];
+  const memberById = new Map(visibleMembers.map((m) => [m.user_id, m]));
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -220,19 +227,34 @@ export function CadetTent() {
         </div>
         {tentAwards.length > 0 ? (
           <div className="relative grid gap-3 p-4 sm:grid-cols-2">
-            {tentAwards.map((award) => (
-              <article key={award.id} className="flex items-center gap-3 rounded-lg border border-gold/30 bg-surface/80 p-3 backdrop-blur-sm">
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold">
-                  <Trophy size={21} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-ink">{award.title}</p>
-                  <p className="text-xs text-stone">{award.award_month}</p>
-                  {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
-                </div>
-                <Award size={17} className="flex-shrink-0 text-gold" />
-              </article>
-            ))}
+            {tentAwards.map((award) => {
+              const isTentAward = award.award_target_type === 'tent';
+              const recipient = !isTentAward
+                ? memberById.get(award.user_id) || memberById.get(award.award_target_id || '')
+                : null;
+              return (
+                <article key={award.id} className="flex items-center gap-3 rounded-lg border border-gold/30 bg-surface/80 p-3 backdrop-blur-sm">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gold-soft text-gold">
+                    {recipient?.profiles.avatar_url ? (
+                      <img src={recipient.profiles.avatar_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Trophy size={21} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-ink">{award.title}</p>
+                    <p className="text-xs text-stone">
+                      {isTentAward
+                        ? `${tent.name}${sentry ? ` · Sentry: ${sentry.profiles.display_name}` : ''}`
+                        : `${recipient?.profiles.display_name || award.recipient_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
+                    </p>
+                    <p className="text-[10px] text-stone/80">{award.award_month}</p>
+                    {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
+                  </div>
+                  <Award size={17} className="flex-shrink-0 text-gold" />
+                </article>
+              );
+            })}
           </div>
         ) : (
           <p className="relative px-4 py-5 text-sm text-stone">The trophies your tent wins will remain here as part of its family history.</p>
