@@ -423,8 +423,9 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
             <p>
               <strong className="text-ink">Freezers:</strong> A daily freezer
               (500 denarii) or weekly freezer (real money) protects your streak
-              after an absent day. Simon's Purse relic (from the store) protects
-              your streak for 5 days of absence and supersedes freezers.
+              after an absent day. Simon's Purse grants the streak immediately
+              when activated, then at the beginning of each protected weekday
+              until Saturday, for up to 5 weekdays.
             </p>
           </div>
           <div className="flex gap-3">

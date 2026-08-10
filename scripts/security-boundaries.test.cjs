@@ -9,6 +9,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 const closure = read('supabase/migrations/20260810144000_final_rpc_security_closure.sql');
 const release = read('supabase/migrations/20260810143000_release_integrity_followup.sql');
 const streakIntegrity = read('supabase/migrations/20260810145000_deterministic_streak_calculator.sql');
+const simonsPurse = read('supabase/migrations/20260810150000_simons_purse_immediate_streak.sql');
 const serviceWorker = read('public/sw.js');
 const supabaseConfig = read('supabase/config.toml');
 const campayWebhook = read('supabase/functions/campay-webhook/index.ts');
@@ -73,7 +74,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(!installHandler.includes('skipWaiting'), 'Service worker must not force an update during install.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v20'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v21'/);
 
 for (const required of [
   "v_user_id IS NULL OR v_user_id IS DISTINCT FROM p_user_id",
@@ -85,6 +86,17 @@ for (const required of [
   'relic_recovery_repairs',
 ]) {
   assert.ok(streakIntegrity.includes(required), `Missing deterministic streak boundary: ${required}`);
+}
+
+for (const required of [
+  'activate_simons_purse',
+  "source = 'simons_purse'",
+  'v_protected_date := v_today',
+  "extract(dow FROM v_protected_date) BETWEEN 1 AND 5",
+  "IF p_relic_slug = ''simons-purse''",
+  "redemption.source IN (''redemption'', ''simons_purse'')",
+]) {
+  assert.ok(simonsPurse.includes(required), `Missing Simon's Purse behavior: ${required}`);
 }
 
 assert.match(supabaseConfig, /\[functions\.campay-webhook\][\s\S]*?verify_jwt = false/);
@@ -129,6 +141,7 @@ for (const migrationName of [
   '20260810143000_release_integrity_followup.sql',
   '20260810144000_final_rpc_security_closure.sql',
   '20260810145000_deterministic_streak_calculator.sql',
+  '20260810150000_simons_purse_immediate_streak.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
