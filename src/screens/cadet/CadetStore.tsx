@@ -22,6 +22,7 @@ const RELIC_ICONS: Record<string, any> = {
   'thieves-request': Cross,
   'masters-reward': Trophy,
   'lazarus-coin': Coins,
+  'redemption-coin': Coins,
 };
 
 const RELIC_COLORS: Record<string, string> = {
@@ -32,12 +33,14 @@ const RELIC_COLORS: Record<string, string> = {
   'thieves-request': '#3D52C8',
   'masters-reward': '#8F6A2A',
   'lazarus-coin': '#6B8E5A',
+  'redemption-coin': '#C9A227',
 };
 
 const STORE_USABLE_RELICS = new Set<string>([
   RELIC_SLUGS.MASTERS_REWARD,
   RELIC_SLUGS.THIEVES_REQUEST,
   RELIC_SLUGS.SIMONS_PURSE,
+  RELIC_SLUGS.REDEMPTION_COIN,
 ]);
 
 type StorePaymentMethod = 'mtn_momo' | 'orange_money' | 'other';

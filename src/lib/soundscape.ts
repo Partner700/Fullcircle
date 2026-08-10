@@ -1,7 +1,7 @@
 const SOUND_ENABLED_KEY = 'full-circle-sound-enabled';
 import { supabase } from './supabase';
 
-export type SoundMood = 'home' | 'reading' | 'tent' | 'game' | 'quiz' | 'board' | 'awards' | 'market' | 'default';
+export type SoundMood = 'home' | 'sentry_overview' | 'reading' | 'tent' | 'game' | 'quiz' | 'board' | 'awards' | 'market' | 'default';
 
 let audioContext: AudioContext | null = null;
 let currentMood: SoundMood = 'default';
@@ -19,6 +19,7 @@ const DASHBOARD_FADE_MS = 850;
 const SOUND_STATE_EVENT = 'full-circle-sound-state';
 
 const moodSoundSlots: Partial<Record<SoundMood, string>> = {
+  sentry_overview: 'sound_sentry_overview',
   reading: 'sound_reading',
   tent: 'sound_tent',
   game: 'sound_game_lobby',

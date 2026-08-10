@@ -14,7 +14,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
-  fetchAllNarratives, fetchAwards, insertAward,
+  fetchAllNarratives, fetchAwards,
   fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
 } from '../../lib/queries';
@@ -335,6 +335,7 @@ const PANEL_IMAGE_SLOTS = [
 
 const SOUND_SLOTS = [
   { type: 'sound_dashboard', label: 'Dashboard Atmosphere', description: 'A low-volume looping track for the Home dashboard only.', audience: 'all' },
+  { type: 'sound_sentry_overview', label: 'Sentry Overview Atmosphere', description: 'A low-volume looping track for the Sentry Overview dashboard.', audience: 'sentries' },
   { type: 'sound_button', label: 'Button Feedback', description: 'A short sound played when someone presses an app button.', audience: 'all' },
   { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Reserved for a future welcome moment.', audience: 'all' },
   { type: 'sound_reading', label: "Today's Reading", description: 'Reserved for scripture and meditation spaces.', audience: 'all' },
@@ -819,7 +820,7 @@ function AnnouncementManager() {
                 <div className="flex items-start gap-2">
                   <Volume2 size={17} className="mt-0.5 flex-shrink-0 text-peri" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
+                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_sentry_overview', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
                     <p className="mt-0.5 text-[10px] leading-relaxed text-stone">{setting.description}</p>
                     {setting.item && <audio className="mt-2 h-8 w-full" controls src={setting.item.content} />}
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -1866,9 +1867,14 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
 
   const giveAwards = async (userId: string) => {
     if (selectedAwards.size === 0) return;
-    for (const title of selectedAwards) {
-      const def = AWARD_CATALOG.flatMap((g) => g.awards).find((a) => a.title === title);
-      await insertAward({ user_id: userId, title, description: def?.description || null, award_month: awardMonth });
+    try {
+      for (const title of selectedAwards) {
+        const def = AWARD_CATALOG.flatMap((g) => g.awards).find((a) => a.title === title);
+        await giveAwardRPC(userId, title, def?.description || null, 'leadership', awardMonth, 'sentry', userId);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Failed to give sentry award');
+      return;
     }
     setSelectedAwards(new Set()); setAwardingId(null); onRefresh();
   };
@@ -2347,7 +2353,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }, { data: gameAttempts }] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
@@ -2367,6 +2373,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               .in('winner_id', trackedUserIds)
               .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
             : Promise.resolve({ data: [], error: null }),
+          supabase
+            .from('game_attempts')
+            .select('user_id,narrative_date,score')
+            .in('user_id', trackedUserIds)
+            .gte('narrative_date', AWARD_MEASUREMENT_START),
         ]);
 
         const consistency = new Map<string, number>();
@@ -2382,22 +2393,6 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             candidate: profileName(topConsistent[0]),
             detail: `${topConsistent[1]} qualifying daily action(s) since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
             runnersUp: consistentRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} qualifying daily action(s).` })),
-          });
-        }
-
-        const quizTotals = new Map<string, number>();
-        (quizAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id)).forEach((attempt: any) => {
-          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
-          quizTotals.set(attempt.user_id, (quizTotals.get(attempt.user_id) || 0) + figs);
-        });
-        const quizRanking = [...quizTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-        const topQuiz = quizRanking[0];
-        if (topQuiz) {
-          next.push({
-            title: 'The Valediction Crown Watch',
-            candidate: profileName(topQuiz[0]),
-            detail: `${topQuiz[1]} fig(s) recorded from quizzes since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
-            runnersUp: quizRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} quiz fig(s).` })),
           });
         }
 
@@ -2464,23 +2459,45 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           })),
         });
 
-        const cadetOverall = new Map<string, number>();
-        weeklyRecords.filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
-          const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
-          cadetOverall.set(record.user_id, (cadetOverall.get(record.user_id) || 0) + credit);
-        });
-        (quizAttempts || []).filter((attempt: any) => attempt.submitted_at?.slice(0, 10) >= weeklyStartIso).forEach((attempt: any) => {
-          if (!cadetIds.includes(attempt.user_id)) return;
-          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
-          cadetOverall.set(attempt.user_id, (cadetOverall.get(attempt.user_id) || 0) + figs);
-        });
-        const cadetRanking = [...cadetOverall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const allRoundRanking = (from: string) => {
+          const score = new Map<string, number>();
+          const add = (userId: string, points: number) => score.set(userId, (score.get(userId) || 0) + points);
+          (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id) && record.record_date >= from).forEach((record: any) => {
+            if (record.streak_valid) add(record.user_id, 5);
+            else if (record.meditation_submitted) add(record.user_id, 3);
+            else if (record.attendance_status === 'present') add(record.user_id, 1);
+          });
+          (quizAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id) && attempt.submitted_at?.slice(0, 10) >= from).forEach((attempt: any) => {
+            add(attempt.user_id, Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0));
+          });
+          (gameAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id) && attempt.narrative_date >= from).forEach((attempt: any) => {
+            add(attempt.user_id, Number(attempt.score || 0));
+          });
+          (arenaWins || []).filter((room: any) => room.completed_at?.slice(0, 10) >= from && cadetIds.includes(room.winner_id)).forEach((room: any) => {
+            add(room.winner_id, 10);
+          });
+          return [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        };
+
+        const cadetRanking = allRoundRanking(weeklyStartIso);
         const topCadet = cadetRanking[0];
         if (topCadet) next.push({
           title: 'Rumor Award',
           candidate: profileName(topCadet[0]),
-          detail: `${topCadet[1]} combined weekly point(s) from faithful daily work and quizzes.`,
-          runnersUp: cadetRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} combined point(s).` })),
+          candidateId: topCadet[0],
+          detail: `${topCadet[1]} all-round point(s) this week from faithful daily work, quizzes, daily games, and Arena victories.`,
+          runnersUp: cadetRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} all-round point(s) this week.` })),
+        });
+
+        const monthStartIso = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+        const vallumRanking = allRoundRanking(monthStartIso);
+        const topVallum = vallumRanking[0];
+        if (topVallum) next.push({
+          title: 'The Valediction Crown (Vallum)',
+          candidate: profileName(topVallum[0]),
+          candidateId: topVallum[0],
+          detail: `${topVallum[1]} all-round point(s) this month from daily faithfulness, quizzes, daily games, and Arena victories.`,
+          runnersUp: vallumRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} all-round point(s) this month.` })),
         });
 
         const priorWeekStart = new Date(weeklyStart);

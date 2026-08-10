@@ -168,7 +168,8 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
   useEffect(() => {
     const key = `${activeKey} ${headerTitle}`.toLowerCase();
     let mood: SoundMood = 'default';
-    if (key.includes('dashboard') || key.includes('home')) mood = 'home';
+    if (role === 'sentry' && activeKey === 'overview') mood = 'sentry_overview';
+    else if (key.includes('dashboard') || key.includes('home')) mood = 'home';
     else if (key.includes('reading') || key.includes('narrative') || key.includes('devotion')) mood = 'reading';
     else if (key.includes('tent')) mood = 'tent';
     else if (key.includes('arena') || key.includes('daily game') || key.includes('game')) mood = 'game';
@@ -177,7 +178,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     else if (key.includes('award')) mood = 'awards';
     else if (key.includes('market') || key.includes('store')) mood = 'market';
     void setSoundscapeMood(mood);
-  }, [activeKey, headerTitle]);
+  }, [activeKey, headerTitle, role]);
 
   useEffect(() => () => { void stopSoundscape(); }, []);
 
