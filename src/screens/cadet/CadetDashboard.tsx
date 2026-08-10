@@ -5,8 +5,8 @@ import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
-import { panelImageFromAnnouncement } from '../../lib/panelImages';
+import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
 import {
@@ -42,6 +42,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const [streakData, setStreakData] = useState<{ current_streak: number; longest_streak: number; consecutive_inactive: number; cumulative_inactive: number } | null>(null);
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
+  const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [verseReactions, setVerseReactions] = useState<Record<string, QuoteReactionState>>({});
   const [reactingQuote, setReactingQuote] = useState<string | null>(null);
@@ -58,15 +59,16 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements] = await Promise.allSettled([
+      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activePanelImages] = await Promise.allSettled([
         fetchNarrative(today),
         fetchDailyRecords(profile.id),
-        fetchLedgerEntries(profile.id),
+        fetchLedgerEntries(profile.id, 100),
         fetchGameAttempts(profile.id, today),
         fetchChallengeSubmission(profile.id, today),
         fetchStrictStreak(profile.id),
         fetchDailyQuoteFeed(12),
         fetchAnnouncements(),
+        fetchPanelImageSettings(['welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links']),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
       const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
@@ -77,20 +79,30 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
       setQuotes(quoteFeed.status === 'fulfilled' ? quoteFeed.value : []);
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
-      if (quoteItems.length > 0) {
-        const reactions = await fetchDailyQuoteReactions(quoteItems, profile.id).catch(() => ({}));
-        setQuoteReactions(reactions as Record<string, QuoteReactionState>);
-      } else {
-        setQuoteReactions({});
-      }
-      if (activeNarrative?.verse_of_day) {
-        const reactions = await fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id).catch(() => ({}));
-        setVerseReactions(reactions as Record<string, QuoteReactionState>);
-      } else {
-        setVerseReactions({});
-      }
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
+      setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
       setHeroIndex(0);
+      // Reactions enrich the slideshow, but they should never hold the entire
+      // dashboard behind a loading screen on a slow mobile connection.
+      setLoading(false);
+      const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
+        quoteItems.length > 0
+          ? fetchDailyQuoteReactions(quoteItems, profile.id)
+          : Promise.resolve({}),
+        activeNarrative?.verse_of_day
+          ? fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id)
+          : Promise.resolve({}),
+      ]);
+      setQuoteReactions(
+        quoteReactionResult.status === 'fulfilled'
+          ? quoteReactionResult.value as Record<string, QuoteReactionState>
+          : {},
+      );
+      setVerseReactions(
+        verseReactionResult.status === 'fulfilled'
+          ? verseReactionResult.value as Record<string, QuoteReactionState>
+          : {},
+      );
     } catch (e) { console.error('Dashboard load error:', e); }
     setLoading(false);
   }, [profile, today, refreshKey]);
@@ -100,7 +112,11 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
-    ...announcements.filter((announcement) => !announcement.announcement_type?.startsWith('panel_image_') && announcement.announcement_type !== 'weekly_background').map((announcement) => ({
+    ...announcements.filter((announcement) =>
+      !announcement.announcement_type?.startsWith('panel_image_')
+      && !announcement.announcement_type?.startsWith('sound_')
+      && announcement.announcement_type !== 'weekly_background',
+    ).map((announcement) => ({
       id: `announcement-${announcement.id}`,
       kind: 'announcement' as const,
       announcement,
@@ -112,12 +128,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
     })),
   ];
   const heroSlideCount = heroSlides.length;
-  const panelImages = announcements
-    .filter((announcement) => announcement.announcement_type?.startsWith('panel_image_'))
-    .reduce<Record<string, PanelImageSetting>>((map, announcement) => {
-      map[announcement.announcement_type.replace('panel_image_', '')] = panelImageFromAnnouncement(announcement);
-      return map;
-    }, {});
   useEffect(() => {
     if (heroSlideCount <= 1 || heroPaused) return;
     const interval = window.setInterval(() => {
@@ -206,6 +216,8 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         onCommentOpenChange={setHeroPaused}
       />
 
+      <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
+
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Flame} label="Current Streak" value={`${streak.current_streak}`} sublabel={`Best: ${streak.longest_streak}`} color="#B8553E" />
@@ -288,7 +300,9 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
           </div>
         </div>
 
-        <div className="card p-4">
+        <div className="card relative overflow-hidden p-4">
+          <PanelImageBackdrop image={panelImages.recent_denarii} />
+          <div className="relative">
           <SectionHeader title="Recent Denarii" subtitle={`${formatDenarii(denariiTotal)} total`} />
           {recentLedger.length > 0 ? (
             <div className="space-y-2">
@@ -307,19 +321,23 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
           ) : (
             <EmptyState icon={TrendingUp} title="No denarii yet" message="Play the daily game or take the Saturday quiz to start earning." />
           )}
+          </div>
         </div>
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <QuickLink icon={dayType === 'saturday' ? FileQuestion : BookOpen} label={dayType === 'saturday' ? 'Take Quiz' : 'Read Today'} badge={notificationBadges[dayType === 'saturday' ? 'quiz' : 'narrative'] || 0} onClick={() => onNavigate(dayType === 'saturday' ? 'quiz' : 'narrative')} />
-        <QuickLink icon={Gamepad2} label="Play Game" badge={notificationBadges.game || 0} onClick={() => onNavigate('game')} />
-        <QuickLink icon={TentIcon} label="My Tent" badge={notificationBadges.tent || 0} onClick={() => onNavigate('tent')} />
-        <QuickLink icon={Award} label="Awards Hub" badge={notificationBadges.awards || 0} onClick={() => onNavigate('awards')} />
-        <QuickLink icon={Flame} label="My Streak" badge={notificationBadges.streak || 0} onClick={() => onNavigate('streak')} />
-        <QuickLink icon={ShoppingBag} label="Market" badge={notificationBadges.store || 0} onClick={() => onNavigate('store')} />
-        <QuickLink icon={FileQuestion} label="Quiz" badge={notificationBadges.quiz || 0} onClick={() => onNavigate('quiz')} />
-        <QuickLink icon={Trophy} label="Leaderboard" badge={notificationBadges.leaderboard || 0} onClick={() => onNavigate('leaderboard')} />
+      <div className="relative overflow-hidden rounded-2xl">
+        <PanelImageBackdrop image={panelImages.quick_links} />
+        <div className="relative grid grid-cols-2 gap-3 md:grid-cols-4">
+          <QuickLink icon={dayType === 'saturday' ? FileQuestion : BookOpen} label={dayType === 'saturday' ? 'Take Quiz' : 'Read Today'} badge={notificationBadges[dayType === 'saturday' ? 'quiz' : 'narrative'] || 0} onClick={() => onNavigate(dayType === 'saturday' ? 'quiz' : 'narrative')} />
+          <QuickLink icon={Gamepad2} label="Play Game" badge={notificationBadges.game || 0} onClick={() => onNavigate('game')} />
+          <QuickLink icon={TentIcon} label="My Tent" badge={notificationBadges.tent || 0} onClick={() => onNavigate('tent')} />
+          <QuickLink icon={Award} label="Awards Hub" badge={notificationBadges.awards || 0} onClick={() => onNavigate('awards')} />
+          <QuickLink icon={Flame} label="My Streak" badge={notificationBadges.streak || 0} onClick={() => onNavigate('streak')} />
+          <QuickLink icon={ShoppingBag} label="Market" badge={notificationBadges.store || 0} onClick={() => onNavigate('store')} />
+          <QuickLink icon={FileQuestion} label="Quiz" badge={notificationBadges.quiz || 0} onClick={() => onNavigate('quiz')} />
+          <QuickLink icon={Trophy} label="Leaderboard" badge={notificationBadges.leaderboard || 0} onClick={() => onNavigate('leaderboard')} />
+        </div>
       </div>
     </div>
   );
@@ -349,9 +367,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   const dayLabel = dayType === 'saturday' ? 'Quiz Day' : dayType === 'sunday' ? 'Day of Rest' : 'Reading Day';
 
   return (
-    <div className="card relative overflow-hidden min-h-[180px] animate-slide-up">
+    <div className="card relative overflow-hidden animate-slide-up">
       <div
-        className="flex transition-transform duration-700 ease-out"
+        className="flex min-h-[220px] transition-transform duration-700 ease-out sm:min-h-[190px]"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {slides.map((slide) => {
@@ -363,9 +381,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
             : panelImages[slide.kind];
 
           return (
-            <div key={slide.id} className="relative min-w-full p-5 pb-16 overflow-hidden">
+            <div key={slide.id} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
               {slideImage && (
-                <PanelImageBackdrop image={slideImage} opacityFallback={16} />
+                <PanelImageBackdrop image={slideImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
               )}
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -392,9 +410,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         quoteRecordDate={slide.narrative.narrative_date}
                         currentUserId={currentUserId || undefined}
                         fetchComments={(_quoteUserId, quoteRecordDate) => fetchDailyVerseComments(quoteRecordDate)}
-                        onComment={(body) => currentUserId
-                          ? commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body)
-                          : Promise.reject(new Error('Sign in to comment.'))}
+                        onComment={async (body) => {
+                          if (!currentUserId) throw new Error('Sign in to comment.');
+                          await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
+                        }}
                         onCommentOpenChange={onCommentOpenChange}
                       />
                     </>
@@ -404,7 +423,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Megaphone size={14} /> {announcementTitle}</p>
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Upcoming Notice</h2>
-                      <p className="text-sm text-stone mt-2 leading-relaxed max-w-2xl">{slide.announcement.content}</p>
+                      <p className="text-sm text-stone mt-2 leading-relaxed max-w-2xl whitespace-pre-wrap">{slide.announcement.content}</p>
                       <p className="text-[10px] text-stone-dim mt-2">
                         Posted {new Date(slide.announcement.publish_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
@@ -415,7 +434,12 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
                       <p className="font-display text-2xl text-ink leading-snug italic">"{slide.quote.daily_quote}"</p>
-                      <p className="text-sm text-stone mt-3">{slide.quote.display_name} · {slide.quote.record_date}</p>
+                      <div className="mt-3 flex items-center gap-2 text-sm text-stone">
+                        <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
+                          {slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" /> : slide.quote.display_name.charAt(0)}
+                        </div>
+                        <span>{slide.quote.display_name} · {slide.quote.record_date}</span>
+                      </div>
                       <QuoteReactions
                         state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
                         disabled={!!reactingQuote?.startsWith(`${slide.quote.user_id}:${slide.quote.record_date}:`)}
@@ -486,7 +510,7 @@ function QuickLink({ icon: Icon, label, badge = 0, onClick }: { icon: typeof Fla
   return (
     <button onClick={onClick} className="card p-4 card-hover flex flex-col items-center gap-2 text-center relative">
       {badge > 0 && (
-        <span className="absolute right-2 top-2 min-w-5 h-5 px-1 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center">
+        <span className="notification-badge-ring absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
           {badge > 9 ? '9+' : badge}
         </span>
       )}

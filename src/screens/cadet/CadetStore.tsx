@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
+import { playSoundEffect } from '../../lib/soundscape';
 import type { CampayPaymentResult } from '../../lib/queries';
 import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
@@ -94,6 +95,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const paymentConfirmed = paymentResult
     ? ['confirmed', 'successful', 'success', 'completed'].includes(String(paymentResult.status).toLowerCase())
     : false;
+
+  useEffect(() => {
+    if (!paymentResult?.status) return;
+    const status = String(paymentResult.status).toLowerCase();
+    if (['confirmed', 'successful', 'success', 'completed'].includes(status)) {
+      void playSoundEffect('sound_purchase_success', 0.68);
+    } else if (['rejected', 'failed', 'cancelled', 'expired'].includes(status)) {
+      void playSoundEffect('sound_purchase_failed', 0.68);
+    }
+  }, [paymentResult?.reference, paymentResult?.status]);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -406,7 +417,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
       {/* Balance bar */}
       <div className="card relative flex flex-col items-start justify-between gap-2 overflow-hidden p-4 min-[460px]:flex-row min-[460px]:items-center">
-        <PanelImageBackdrop image={marketImage} opacityFallback={10} veilClassName="bg-surface/80" />
+        <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/78" />
         <div className="relative z-10 flex items-center gap-2">
           <Coins size={20} className="text-gold" />
           <span className="font-display font-bold text-gold text-lg">{formatDenarii(denarii)} Ð</span>
@@ -417,7 +428,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
       {/* Streak Freezers */}
       <div className="card p-5 relative overflow-hidden">
-        <PanelImageBackdrop image={marketImage} opacityFallback={10} veilClassName="bg-surface/85" />
+        <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
         <div className="relative z-10 flex items-center gap-2 mb-3">
           <Snowflake size={20} className="text-brass" />
           <h4 className="font-display font-semibold text-ink">Streak Freezers</h4>
@@ -509,8 +520,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                         {relic.rarity}
                       </span>
                       {owned > 0 && (
-                        <span className="badge badge-sage text-[9px]">
-                          <CheckCircle2 size={8} className="mr-0.5" /> {owned} owned
+                        <span className="badge badge-sage text-[10px] gap-1" title={`${owned} owned`}>
+                          <CheckCircle2 size={10} /> {owned}
                         </span>
                       )}
                     </div>
@@ -593,8 +604,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
             {paymentResult ? (
               <div className="space-y-4">
-                <div className={cn(
-                  'p-4 rounded-lg border',
+                <div key={`${paymentResult.reference}:${paymentResult.status}`} className={cn(
+                  'status-surface p-4 rounded-lg border animate-soft-reveal',
                   paymentConfirmed
                     ? 'bg-sage-soft border-sage/30'
                     : paymentResult.status === 'rejected'

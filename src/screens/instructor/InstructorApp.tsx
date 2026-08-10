@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { NotificationCenter } from '../../components/NotificationCenter';
+import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
+import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
+import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
+import { invalidateSoundAsset } from '../../lib/soundscape';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../../lib/profileOptions';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -12,17 +18,17 @@ import {
   fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
 } from '../../lib/queries';
-import { cn, whatsappUrl, formatShortDate, getTodayISODate, formatXaf } from '../../lib/utils';
+import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
-import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, Award, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
-  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus,
-  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye, EyeOff,
-  Image as ImageIcon, Upload, X, Move,
+  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
+  RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
+  Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
 } from 'lucide-react';
 import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -34,7 +40,7 @@ import {
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
-  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary,
+  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
@@ -49,11 +55,12 @@ function isRepublishSelection(selection: NarrativeSelection): selection is { mod
 }
 
 function isSentryAward(a: { title: string; forSentry?: boolean }) {
-  return !!a.forSentry || a.title === 'Century Badge (Centurion)' || a.title === 'Right Hand Badge';
+  return !!a.forSentry || a.title === 'Reputation Award' || a.title === 'Valley Champion';
 }
 
 function awardVisibleForTarget(a: { title: string; forTent?: boolean; forSentry?: boolean }, target: AwardCatalogTarget) {
   if (target === 'tent') return !!a.forTent;
+  if (a.title === 'Valley Champion') return target === 'cadet' || target === 'sentry';
   if (target === 'sentry') return isSentryAward(a);
   return !a.forTent && !isSentryAward(a);
 }
@@ -173,8 +180,20 @@ export function InstructorApp() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<RoleAssignment[]>([]);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
-  const [awards, setAwards] = useState<(Award & { profiles: { display_name: string } })[]>([]);
+  const [awards, setAwards] = useState<AwardWithRecipient[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const loadDashboardData = useCallback(async () => {
+    setLoading(true);
+    const [t, m, r, n] = await Promise.allSettled([
+      fetchTents(), fetchTentMembers(), fetchAllRoleAssignments(), fetchAllNarratives(),
+    ]);
+    setTents(t.status === 'fulfilled' ? t.value : []);
+    setMembers(m.status === 'fulfilled' ? m.value : []);
+    setRoles(r.status === 'fulfilled' ? r.value : []);
+    setNarratives(n.status === 'fulfilled' ? n.value : []);
+    setLoading(false);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -191,7 +210,9 @@ export function InstructorApp() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // The landing dashboard does not need every profile or historical award.
+  // Defer those larger management datasets until a management screen is opened.
+  useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', quiz: 'Quiz Builder',
@@ -207,9 +228,16 @@ export function InstructorApp() {
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
-      onNavigate={(k) => { setTab(k as Tab); if (k === 'narratives') setEditingNarrative('new'); }}
+      onNavigate={(k) => {
+        setTab(k as Tab);
+        if (k === 'narratives') setEditingNarrative('new');
+        if (['tents', 'cadets', 'sentries', 'awards'].includes(k) && profiles.length === 0) void loadAll();
+      }}
       headerTitle={tabLabels[tab]}
       headerSubtitle="Instructor"
+      rightHeader={<NotificationCenter onNavigate={(key) => {
+        if (NAV_ITEMS.some((item) => item.key === key)) setTab(key as Tab);
+      }} />}
     >
       {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} instructorId={profile?.id || null} onNavigate={setTab as (k: string) => void} />}
       {tab === 'narratives' && (
@@ -221,7 +249,7 @@ export function InstructorApp() {
         />
       )}
       {tab === 'announcements' && <AnnouncementManager />}
-      {tab === 'tents' && <TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} />}
+      {tab === 'tents' && <><TentJoinRequests onRefresh={loadAll} /><TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} /></>}
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
@@ -286,7 +314,9 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
   { type: 'panel_image_awards', label: 'Awards Hub', audience: 'all' },
+  { type: 'panel_image_recent_awards', label: 'Recent Awards Dashboard Panel', audience: 'all' },
   { type: 'panel_image_settings', label: 'Settings', audience: 'all' },
+  { type: 'panel_image_password_update', label: 'Password Update', audience: 'all' },
   { type: 'panel_image_subscription', label: 'Subscription', audience: 'all' },
   { type: 'panel_image_sentry_overview', label: 'Sentry Overview', audience: 'sentries' },
   { type: 'panel_image_sentry_attendance', label: 'Sentry Attendance', audience: 'sentries' },
@@ -301,6 +331,44 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_instructor_awards', label: 'Instructor Awards', audience: 'instructors' },
   { type: 'panel_image_instructor_challenges', label: 'Challenges', audience: 'instructors' },
   { type: 'panel_image_instructor_mobile_money', label: 'Mobile Money', audience: 'instructors' },
+];
+
+const SOUND_SLOTS = [
+  { type: 'sound_dashboard', label: 'Dashboard Atmosphere', description: 'A low-volume looping track for the Home dashboard only.', audience: 'all' },
+  { type: 'sound_button', label: 'Button Feedback', description: 'A short sound played when someone presses an app button.', audience: 'all' },
+  { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Reserved for a future welcome moment.', audience: 'all' },
+  { type: 'sound_reading', label: "Today's Reading", description: 'Reserved for scripture and meditation spaces.', audience: 'all' },
+  { type: 'sound_tent', label: 'Tent Space', description: 'Reserved for tent conversations and activity.', audience: 'all' },
+  { type: 'sound_game_lobby', label: 'Daily Game Lobby', description: 'Reserved for the daily game landing space.', audience: 'all' },
+  { type: 'sound_game_start', label: 'Daily Game Start', description: 'Reserved for when a daily game begins.', audience: 'all' },
+  { type: 'sound_game_correct', label: 'Correct Answer', description: 'Reserved for a correct daily-game answer.', audience: 'all' },
+  { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Reserved for a missed daily-game answer.', audience: 'all' },
+  { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Reserved for completing a daily game.', audience: 'all' },
+  ...Array.from({ length: DAILY_GAME_LEVELS }, (_, index) => ({
+    type: `sound_game_level_${index + 1}`,
+    label: `Daily Game Level ${index + 1}`,
+    description: `Looping soundtrack for Level ${index + 1} only.`,
+    audience: 'all',
+  })),
+  { type: 'sound_round_timeout', label: 'Round Time Elapsed', description: 'Plays when a daily-game round closes.', audience: 'all' },
+  { type: 'sound_relic_deploy', label: 'Relic Deployed', description: 'Plays when a player uses a game or quiz relic.', audience: 'all' },
+  { type: 'sound_relic_reveal', label: 'Relic Reveal', description: 'Plays when a relic reveals an answer or reference.', audience: 'all' },
+  { type: 'sound_arena_lobby', label: 'Arena Lobby', description: 'Reserved for the Arena room space.', audience: 'all' },
+  { type: 'sound_arena_start', label: 'Arena Start', description: 'Reserved for an Arena battle start.', audience: 'all' },
+  { type: 'sound_arena_round', label: 'Arena Round', description: 'Reserved for a new Arena round.', audience: 'all' },
+  { type: 'sound_arena_finish', label: 'Arena Finish', description: 'Reserved for an Arena result.', audience: 'all' },
+  { type: 'sound_quiz_waiting', label: 'Quiz Waiting Room', description: 'Reserved while waiting for a quiz.', audience: 'all' },
+  { type: 'sound_quiz_start', label: 'Quiz Start', description: 'Reserved for a quiz beginning.', audience: 'all' },
+  { type: 'sound_quiz_finish', label: 'Quiz Finish', description: 'Reserved for a quiz submission/result.', audience: 'all' },
+  { type: 'sound_streak', label: 'Streak Update', description: 'Reserved for a streak gained or protected.', audience: 'all' },
+  { type: 'sound_challenge', label: 'Challenge Update', description: 'Reserved for challenge approval and progress.', audience: 'all' },
+  { type: 'sound_board', label: 'Challenge Boards', description: 'Reserved for board visits and rank movement.', audience: 'all' },
+  { type: 'sound_award', label: 'Award Received', description: 'Reserved for awards and achievements.', audience: 'all' },
+  { type: 'sound_market', label: 'Market', description: 'Reserved for market browsing.', audience: 'all' },
+  { type: 'sound_purchase_success', label: 'Purchase Confirmed', description: 'Reserved for successful purchases.', audience: 'all' },
+  { type: 'sound_purchase_failed', label: 'Purchase Needs Retry', description: 'Reserved for unsuccessful purchases.', audience: 'all' },
+  { type: 'sound_notification', label: 'Notification', description: 'Reserved for a new notification.', audience: 'all' },
+  { type: 'sound_message', label: 'Tent Message', description: 'Reserved for a new direct or tent message.', audience: 'all' },
 ];
 
 const IMAGE_ADJUSTMENT_CONTROLS: {
@@ -370,6 +438,7 @@ function AnnouncementManager() {
   const [imagePositionX, setImagePositionX] = useState(50);
   const [imagePositionY, setImagePositionY] = useState(50);
   const [uploadingImageType, setUploadingImageType] = useState<string | null>(null);
+  const [uploadingSoundType, setUploadingSoundType] = useState<string | null>(null);
   const [savingImagePosition, setSavingImagePosition] = useState(false);
   const [imageAdjustments, setImageAdjustments] = useState<PanelImageAdjustments>(DEFAULT_PANEL_IMAGE_ADJUSTMENTS);
 
@@ -441,11 +510,14 @@ function AnnouncementManager() {
       image_position_x: positionX,
       image_position_y: positionY,
     };
-    const existing = announcements.find((announcement) =>
-      announcement.announcement_type === type && announcement.audience === targetAudience && announcement.is_active !== false
-    );
-    if (existing) await updateAnnouncement(existing.id, payload);
-    else await createAnnouncement(payload);
+    await savePanelImageSetting({
+      announcementType: type,
+      audience: targetAudience,
+      content: payload.content,
+      publishAt: payload.publish_at,
+      positionX,
+      positionY,
+    });
     setAnnouncementType(type);
     setAudience(targetAudience);
     setPublishAt(toDateTimeLocal(payload.publish_at));
@@ -486,7 +558,18 @@ function AnnouncementManager() {
   const standardAnnouncements = announcements.filter((announcement) =>
     announcement.announcement_type !== 'weekly_background'
     && !announcement.announcement_type?.startsWith('panel_image_')
+    && !announcement.announcement_type?.startsWith('sound_')
   );
+
+  const activeSoundSettings = SOUND_SLOTS.map((slot) => ({
+    ...slot,
+    item: announcements.find((announcement) =>
+      announcement.announcement_type === slot.type
+      && announcement.audience === slot.audience
+      && announcement.is_active !== false
+      && !!announcement.content
+    ),
+  }));
 
   const openImageEditor = (type: string) => {
     const setting = activeImageSettings.find((candidate) => candidate.type === type);
@@ -502,8 +585,10 @@ function AnnouncementManager() {
       const ext = file.name.split('.').pop() || 'jpg';
       const version = Date.now();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) throw authError || new Error('Please sign in again before uploading an image.');
       const folder = type === 'weekly_background' ? 'weekly-backgrounds' : 'panel-images';
-      const path = `${folder}/${safeType}-${version}.${ext}`;
+      const path = `${authData.user.id}/${folder}/${safeType}-${version}.${ext}`;
       const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -512,6 +597,70 @@ function AnnouncementManager() {
       alert(e.message || 'Failed to upload panel image');
     }
     setUploadingImageType(null);
+  };
+
+  const uploadSound = async (file: File, type: string, targetAudience = 'all') => {
+    setUploadingSoundType(type);
+    try {
+      if (!file.type.startsWith('audio/')) throw new Error('Please choose an audio file.');
+      if (file.size > 15 * 1024 * 1024) throw new Error('Sound files must be 15 MB or smaller.');
+      const ext = file.name.split('.').pop() || 'mp3';
+      const version = Date.now();
+      const path = `sound-assets/${type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase()}-${version}.${ext}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      const payload = {
+        announcement_type: type,
+        audience: targetAudience,
+        publish_at: new Date().toISOString(),
+        content: `${data.publicUrl}?v=${version}`,
+        is_active: true,
+      };
+      const existing = announcements.find((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
+      if (existing) await updateAnnouncement(existing.id, payload);
+      else await createAnnouncement(payload);
+      if (type.startsWith('sound_')) invalidateSoundAsset(type);
+      await load();
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload sound');
+    }
+    setUploadingSoundType(null);
+  };
+
+  const deleteSound = async (type: string, targetAudience = 'all') => {
+    const rows = announcements.filter((announcement) => announcement.announcement_type === type && announcement.audience === targetAudience);
+    if (rows.length === 0 || !window.confirm('Remove this sound from the app?')) return;
+    try {
+      await Promise.all(rows.map((row) => deleteAnnouncement(row.id)));
+      if (type.startsWith('sound_')) invalidateSoundAsset(type);
+      await load();
+    }
+    catch (e: any) { alert(e.message || 'Failed to remove sound'); }
+  };
+
+  const cropSound = async (setting: { type: string; audience: string; item?: ScheduledAnnouncement }) => {
+    if (!setting.item) return;
+    const startInput = window.prompt('Start at which second?', String(setting.item.audio_start_seconds || 0));
+    if (startInput === null) return;
+    const endInput = window.prompt('End at which second? Leave blank to play to the end.', setting.item.audio_end_seconds == null ? '' : String(setting.item.audio_end_seconds));
+    if (endInput === null) return;
+    const start = Math.max(0, Number(startInput) || 0);
+    const end = endInput.trim() ? Number(endInput) : null;
+    if (end !== null && (!Number.isFinite(end) || end <= start)) {
+      alert('The end must be a number greater than the start.');
+      return;
+    }
+    try {
+      await updateAnnouncement(setting.item.id, {
+        audio_start_seconds: start,
+        audio_end_seconds: end,
+      } as Partial<ScheduledAnnouncement>);
+      invalidateSoundAsset(setting.type);
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Could not save the sound crop.');
+    }
   };
 
   const saveImageFraming = async () => {
@@ -654,6 +803,42 @@ function AnnouncementManager() {
           <p className="text-[10px] text-stone mt-2">
             Images appear almost translucent behind text. Uploading a new image creates an editable active image setting you can update any time.
           </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-surface-2 p-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <label className="text-xs font-semibold text-ink">Sound Assignments</label>
+              <p className="text-[10px] text-stone">Instructor-only audio library. Dashboard and button feedback are live; the other slots are ready for their matching scenario. Upload MP3, M4A, WAV, or OGG.</p>
+            </div>
+            <Music2 size={17} className="text-brass" />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {activeSoundSettings.map((setting) => (
+              <div key={setting.type} className="rounded-lg border border-border bg-surface p-3">
+                <div className="flex items-start gap-2">
+                  <Volume2 size={17} className="mt-0.5 flex-shrink-0 text-peri" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-stone">{setting.description}</p>
+                    {setting.item && <audio className="mt-2 h-8 w-full" controls src={setting.item.content} />}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <label className={cn('btn-secondary cursor-pointer px-2 py-1 text-[11px]', uploadingSoundType === setting.type && 'pointer-events-none opacity-60')}>
+                        {uploadingSoundType === setting.type ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                        {setting.item ? 'Replace' : 'Upload'}
+                        <input type="file" accept="audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/*" className="hidden" onChange={(event) => {
+                          const file = event.target.files?.[0]; event.target.value = '';
+                          if (file) void uploadSound(file, setting.type, setting.audience);
+                        }} />
+                      </label>
+                      {setting.item && <button type="button" onClick={() => cropSound(setting)} className="btn-ghost px-2 py-1 text-[11px]"><Clock size={13} /> Trim</button>}
+                      {setting.item && <button type="button" onClick={() => deleteSound(setting.type, setting.audience)} className="btn-ghost px-2 py-1 text-[11px] text-coral"><Trash2 size={13} /> Remove</button>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -963,6 +1148,8 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
+  const [endOfDayStats, setEndOfDayStats] = useState<{ records: number; attendance: number; meditations: number; streaks: number; challenges: number } | null>(null);
+  const [morningCall, setMorningCall] = useState<{ userId: string; name: string; avatarUrl: string | null; tentName: string; status: 'present' | 'absent' | 'unmarked'; late: boolean }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -988,7 +1175,63 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
     return () => window.clearInterval(interval);
   }, [quotePaused, quotes.length]);
 
+  useEffect(() => {
+    const cadetIds = roles.filter((role) => role.role === 'cadet' && role.status === 'active').map((role) => role.user_id);
+    if (cadetIds.length === 0) { setMorningCall([]); return; }
+    let cancelled = false;
+    const loadMorningCall = async () => {
+      const today = getTodayISODate();
+      const { data } = await supabase
+        .from('daily_records')
+        .select('user_id,attendance_status,attendance_late')
+        .eq('record_date', today)
+        .in('user_id', cadetIds);
+      if (cancelled) return;
+      const records = new Map((data || []).map((record: any) => [record.user_id, record]));
+      setMorningCall(cadetIds.map((userId) => {
+        const member = members.find((item) => item.user_id === userId && item.role === 'cadet');
+        const record = records.get(userId);
+        return {
+          userId,
+          name: member?.profiles?.display_name || 'Cadet',
+          avatarUrl: member?.profiles?.avatar_url || null,
+          tentName: tents.find((tent) => tent.id === member?.tent_id)?.name || 'Unassigned tent',
+          status: record?.attendance_status === 'present' || record?.attendance_status === 'absent' ? record.attendance_status : 'unmarked',
+          late: Boolean(record?.attendance_late),
+        };
+      }));
+    };
+    void loadMorningCall();
+    const interval = window.setInterval(loadMorningCall, 30_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [members, roles, tents]);
+
+  useEffect(() => {
+    const loadEndOfDayStats = async () => {
+      const now = new Date();
+      if (now.getHours() < 20) return;
+      const today = getTodayISODate();
+      const [{ data: records }, { data: challenges }] = await Promise.all([
+        supabase.from('daily_records').select('attendance_status, meditation_submitted, streak_valid').eq('record_date', today),
+        supabase.from('challenge_submissions').select('id').eq('narrative_date', today),
+      ]);
+      const dailyRecords = records || [];
+      setEndOfDayStats({
+        records: dailyRecords.length,
+        attendance: dailyRecords.filter((record) => record.attendance_status === 'present').length,
+        meditations: dailyRecords.filter((record) => record.meditation_submitted).length,
+        streaks: dailyRecords.filter((record) => record.streak_valid).length,
+        challenges: (challenges || []).length,
+      });
+    };
+    loadEndOfDayStats().catch(() => setEndOfDayStats(null));
+  }, []);
+
   const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
+  const markedMorningCall = morningCall.filter((item) => item.status !== 'unmarked');
+  const presentMorningCall = markedMorningCall.filter((item) => item.status === 'present');
+  const absentMorningCall = markedMorningCall.filter((item) => item.status === 'absent');
+  const isWeekday = getDayType(new Date()) === 'weekday';
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -997,6 +1240,70 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />
         <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
         <StatBox icon={BookOpen} label="Narratives" value={narratives.length} tint="text-roman" />
+      </div>
+
+      <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
+
+      <MeditationHistoryPanel
+        title="Everyone’s Meditation History"
+        showWeeklyVerse
+      />
+
+      <div className="card p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="eyebrow">End-of-Day Summary</p>
+            <p className="text-xs text-stone mt-1">Available from 8:00 PM</p>
+          </div>
+          <CheckCircle2 size={20} className="text-moss" />
+        </div>
+        {endOfDayStats ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <SummaryMetric label="Records" value={endOfDayStats.records} />
+            <SummaryMetric label="Present" value={endOfDayStats.attendance} />
+            <SummaryMetric label="Meditations" value={endOfDayStats.meditations} />
+            <SummaryMetric label="Streaks" value={endOfDayStats.streaks} />
+            <SummaryMetric label="Challenges" value={endOfDayStats.challenges} />
+          </div>
+        ) : (
+          <p className="text-sm text-stone">Today’s summary will appear here at 8:00 PM.</p>
+        )}
+      </div>
+
+      <div className="card p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display font-semibold text-ink">Morning Call</h3>
+            <p className="mt-1 text-xs text-stone">Live attendance for {formatShortDate(getTodayISODate())}</p>
+          </div>
+          <UserCheck size={20} className="text-moss" />
+        </div>
+        {!isWeekday ? (
+          <p className="text-sm text-stone">Morning call attendance is not required today.</p>
+        ) : (
+          <>
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              <SummaryMetric label="Present" value={presentMorningCall.length} />
+              <SummaryMetric label="Absent" value={absentMorningCall.length} />
+              <SummaryMetric label="Unmarked" value={morningCall.length - markedMorningCall.length} />
+            </div>
+            {markedMorningCall.length === 0 ? <p className="text-sm text-stone">No cadets have been marked yet.</p> : (
+              <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-2">
+                {markedMorningCall.map((item) => (
+                  <div key={item.userId} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-peri-soft text-xs font-bold text-peri">
+                      {item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : item.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{item.name}</p><p className="truncate text-xs text-stone">{item.tentName}</p></div>
+                    <span className={cn('badge text-[10px]', item.status === 'present' ? 'badge-moss' : 'badge-roman')}>
+                      {item.status === 'present' ? `Present${item.late ? ' · late' : ''}` : 'Absent'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="card p-4">
@@ -1077,6 +1384,15 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   );
 }
 
+function SummaryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+      <p className="text-lg font-bold text-ink">{value}</p>
+      <p className="text-[10px] text-stone">{label}</p>
+    </div>
+  );
+}
+
 function StatBox({ icon: Icon, label, value, tint }: { icon: any; label: string; value: number; tint: string }) {
   return (
     <div className="card p-4">
@@ -1085,6 +1401,36 @@ function StatBox({ icon: Icon, label, value, tint }: { icon: any; label: string;
       <p className="text-xs text-stone">{label}</p>
     </div>
   );
+}
+
+function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from('tent_join_requests')
+      .select('id,created_at,user_id,tent_id,profiles(display_name,avatar_url),tents(name)')
+      .eq('status', 'pending').order('created_at');
+    if (!error) setRequests(data || []);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const review = async (id: string, approve: boolean) => {
+    setReviewing(id);
+    const { error } = await supabase.rpc('review_tent_join_request', { p_request_id: id, p_approve: approve });
+    setReviewing(null);
+    if (error) return alert(error.message);
+    await load();
+    onRefresh();
+  };
+  if (requests.length === 0) return null;
+  return <section className="card mb-5 p-5">
+    <SectionHeader title="Tent Join Requests" subtitle="Approve cadets until each tent reaches ten cadets plus its sentry." />
+    <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
+      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-bold text-ink">{request.profiles?.avatar_url ? <img src={request.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : request.profiles?.display_name?.charAt(0)}</div>
+      <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
+      <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
+      <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
+    </div>)}</div>
+  </section>;
 }
 
 function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {
@@ -1289,7 +1635,7 @@ function AddCadetRow({ tentId, availableCadets, profiles, onRefresh }: {
 
 function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, instructorId }: {
   profiles: Profile[]; roles: RoleAssignment[]; members: any[]; tents: any[];
-  awards: (Award & { profiles: { display_name: string } })[]; onRefresh: () => void; instructorId: string;
+  awards: AwardWithRecipient[]; onRefresh: () => void; instructorId: string;
 }) {
   const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
   const [search, setSearch] = useState('');
@@ -1476,7 +1822,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
 
 function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, instructorId }: {
   profiles: Profile[]; roles: RoleAssignment[]; members: any[]; tents: any[];
-  awards: (Award & { profiles: { display_name: string } })[]; onRefresh: () => void; instructorId: string;
+  awards: AwardWithRecipient[]; onRefresh: () => void; instructorId: string;
 }) {
   const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
   const [search, setSearch] = useState('');
@@ -1841,7 +2187,7 @@ function MatriculesManagement() {
 
   const generate = async () => {
     setGenerating(true);
-    const { data, error } = await supabase.rpc('generate_matricules', { p_count: count });
+    const { error } = await supabase.rpc('generate_matricules', { p_count: count });
     if (error) { alert(error.message); setGenerating(false); return; }
     setGenerating(false);
     load();
@@ -1905,6 +2251,12 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     awards: [
       { title: 'Rhetoric Award (Orator)', description: 'Best Quote of the Week' },
       { title: 'Messenger Award (Nuncio)', description: 'Best Meditation of the Week' },
+      { title: 'Rumor Award', description: 'Overall Best Cadet of the Week' },
+      { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
+      { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
+      { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
+      { title: 'Tutorix', description: 'Highest Sentry Quiz Score and Most Quiz Figs of the Week', forSentry: true },
+      { title: 'Valley Champion', description: 'Most Arena Victories of the Week', forSentry: true },
     ],
   },
   {
@@ -1919,10 +2271,8 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'monthly',
     awards: [
       { title: 'Most Consistent Cadet', description: 'Faithfulness & Consistency' },
-      { title: 'Most Improved Cadet', description: 'Greatest growth this month' },
       { title: 'Rudis Award (Muralis)', description: 'Best Challenger Cadet – Challenge & Courage' },
       { title: 'The Valediction Crown (Vallum)', description: 'Overall Best Cadet – Overall Excellence' },
-      { title: 'Century Badge (Centurion)', description: "Centurion's Award – Faithfulness & Consistency", forSentry: true },
     ],
   },
   {
@@ -1939,7 +2289,6 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Grand Orator', description: 'Most Rhetoric Awards during the year' },
       { title: 'Grand Nuncio', description: 'Most Messenger Awards during the year' },
       { title: 'The Great Muralis Crown', description: 'Grand Muralis / Grand Challenger' },
-      { title: 'Right Hand Badge', description: 'Grand Centurion – for Sentries', forSentry: true },
       { title: 'The Parting Valediction Crown', description: "Heaven's Kiss / Grand Vallum" },
     ],
   },
@@ -1957,11 +2306,14 @@ const AWARD_MEASUREMENT_START = '2026-07-27';
 type AwardRecommendation = {
   title: string;
   candidate: string;
+  candidateId?: string;
   detail: string;
+  quote?: string;
+  runnersUp: { candidate: string; candidateId?: string; detail: string; quote?: string }[];
 };
 
 function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
-  awards: (Award & { profiles: { display_name: string } })[];
+  awards: AwardWithRecipient[];
   profiles: Profile[];
   roles: RoleAssignment[];
   tents: any[];
@@ -1978,69 +2330,212 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [recommendations, setRecommendations] = useState<AwardRecommendation[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
-  const cadets = roles.filter((r) => r.role === 'cadet' && r.status === 'active');
-  const sentries = roles.filter((r) => r.role === 'sentry' && r.status === 'active');
+  const cadets = roles.filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved'));
+  const sentries = roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved'));
   const cadetIds = cadets.map((r) => r.user_id);
+  const sentryIds = sentries.map((r) => r.user_id);
   const profileName = (userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet';
 
   useEffect(() => {
     let cancelled = false;
     const loadRecommendations = async () => {
-      if (cadetIds.length === 0) {
+      const trackedUserIds = Array.from(new Set([...cadetIds, ...sentryIds]));
+      if (trackedUserIds.length === 0) {
         setRecommendations([]);
         return;
       }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
-            .in('user_id', cadetIds)
+            .in('user_id', trackedUserIds)
             .gte('record_date', AWARD_MEASUREMENT_START),
           supabase
             .from('quiz_attempts')
             .select('*')
-            .in('user_id', cadetIds)
+            .in('user_id', trackedUserIds)
             .gte('submitted_at', `${AWARD_MEASUREMENT_START}T00:00:00`),
           fetchDailyQuoteInteractionSummary(25).then((data) => ({ data })).catch(() => ({ data: [] })),
+          trackedUserIds.length > 0
+            ? supabase
+              .from('arena_rooms')
+              .select('winner_id,completed_at')
+              .eq('status', 'completed')
+              .in('winner_id', trackedUserIds)
+              .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
+            : Promise.resolve({ data: [], error: null }),
         ]);
 
         const consistency = new Map<string, number>();
-        (dailyRecords || []).forEach((record: any) => {
+        (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
           consistency.set(record.user_id, (consistency.get(record.user_id) || 0) + credit);
         });
-        const topConsistent = [...consistency.entries()].sort((a, b) => b[1] - a[1])[0];
+        const consistentRanking = [...consistency.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topConsistent = consistentRanking[0];
         if (topConsistent) {
           next.push({
             title: 'Most Consistent Cadet',
             candidate: profileName(topConsistent[0]),
             detail: `${topConsistent[1]} qualifying daily action(s) since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
+            runnersUp: consistentRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} qualifying daily action(s).` })),
           });
         }
 
         const quizTotals = new Map<string, number>();
-        (quizAttempts || []).forEach((attempt: any) => {
+        (quizAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id)).forEach((attempt: any) => {
           const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
           quizTotals.set(attempt.user_id, (quizTotals.get(attempt.user_id) || 0) + figs);
         });
-        const topQuiz = [...quizTotals.entries()].sort((a, b) => b[1] - a[1])[0];
+        const quizRanking = [...quizTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topQuiz = quizRanking[0];
         if (topQuiz) {
           next.push({
             title: 'The Valediction Crown Watch',
             candidate: profileName(topQuiz[0]),
             detail: `${topQuiz[1]} fig(s) recorded from quizzes since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
+            runnersUp: quizRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} quiz fig(s).` })),
           });
         }
 
-        const quoteLeader = (quoteSummaryResult.data || []).filter((item) => cadetIds.includes(item.quote_user_id))[0];
+        const weeklyStart = new Date();
+        weeklyStart.setHours(0, 0, 0, 0);
+        weeklyStart.setDate(weeklyStart.getDate() - ((weeklyStart.getDay() + 6) % 7));
+        const weeklyStartIso = weeklyStart.toISOString().slice(0, 10);
+        const weeklyRecords = (dailyRecords || []).filter((record: any) => record.record_date >= weeklyStartIso);
+        const sentryScores = new Map<string, number>();
+        weeklyRecords.filter((record: any) => sentryIds.includes(record.user_id)).forEach((record: any) => {
+          const credit = record.attendance_status === 'present' ? 1 : 0;
+          const meditation = record.meditation_submitted ? 1 : 0;
+          sentryScores.set(record.user_id, (sentryScores.get(record.user_id) || 0) + credit + meditation);
+        });
+        const sentryRanking = [...sentryScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topSentry = sentryRanking[0];
+        if (topSentry) next.push({
+          title: 'Reputation Award',
+          candidate: profileName(topSentry[0]),
+          detail: `${topSentry[1]} leadership action(s) this week: morning attendance and daily meditation.`,
+          runnersUp: sentryRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} leadership action(s).` })),
+        });
+
+        const tutorixScores = new Map<string, { bestScore: number; totalFigs: number }>();
+        (quizAttempts || []).filter((attempt: any) => (
+          sentryIds.includes(attempt.user_id)
+          && attempt.submitted_at?.slice(0, 10) >= weeklyStartIso
+        )).forEach((attempt: any) => {
+          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          const current = tutorixScores.get(attempt.user_id) || { bestScore: 0, totalFigs: 0 };
+          tutorixScores.set(attempt.user_id, {
+            bestScore: Math.max(current.bestScore, figs),
+            totalFigs: current.totalFigs + figs,
+          });
+        });
+        const tutorixRanking = [...tutorixScores.entries()]
+          .sort((a, b) => b[1].bestScore - a[1].bestScore || b[1].totalFigs - a[1].totalFigs)
+          .slice(0, 4);
+        const topTutorix = tutorixRanking[0];
+        if (topTutorix) next.push({
+          title: 'Tutorix',
+          candidate: profileName(topTutorix[0]),
+          candidateId: topTutorix[0],
+          detail: `${topTutorix[1].bestScore} figs in their highest quiz score and ${topTutorix[1].totalFigs} quiz figs overall this week.`,
+          runnersUp: tutorixRanking.slice(1).map(([userId, result]) => ({
+            candidate: profileName(userId),
+            candidateId: userId,
+            detail: `${result.bestScore} figs in their highest quiz score; ${result.totalFigs} quiz figs overall.`,
+          })),
+        });
+
+        const arenaVictoryScores = new Map<string, number>();
+        (arenaWins || []).filter((room: any) => room.completed_at?.slice(0, 10) >= weeklyStartIso).forEach((room: any) => {
+          if (room.winner_id) arenaVictoryScores.set(room.winner_id, (arenaVictoryScores.get(room.winner_id) || 0) + 1);
+        });
+        const valleyRanking = [...arenaVictoryScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        if (valleyRanking[0]) next.push({
+          title: 'Valley Champion',
+          candidate: profileName(valleyRanking[0][0]),
+          detail: `${valleyRanking[0][1]} Arena victor${valleyRanking[0][1] === 1 ? 'y' : 'ies'} this week across cadets and sentries.`,
+          runnersUp: valleyRanking.slice(1).map(([userId, wins]) => ({
+            candidate: profileName(userId),
+            detail: `${wins} Arena victor${wins === 1 ? 'y' : 'ies'} this week.`,
+          })),
+        });
+
+        const cadetOverall = new Map<string, number>();
+        weeklyRecords.filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
+          const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
+          cadetOverall.set(record.user_id, (cadetOverall.get(record.user_id) || 0) + credit);
+        });
+        (quizAttempts || []).filter((attempt: any) => attempt.submitted_at?.slice(0, 10) >= weeklyStartIso).forEach((attempt: any) => {
+          if (!cadetIds.includes(attempt.user_id)) return;
+          const figs = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          cadetOverall.set(attempt.user_id, (cadetOverall.get(attempt.user_id) || 0) + figs);
+        });
+        const cadetRanking = [...cadetOverall.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topCadet = cadetRanking[0];
+        if (topCadet) next.push({
+          title: 'Rumor Award',
+          candidate: profileName(topCadet[0]),
+          detail: `${topCadet[1]} combined weekly point(s) from faithful daily work and quizzes.`,
+          runnersUp: cadetRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} combined point(s).` })),
+        });
+
+        const priorWeekStart = new Date(weeklyStart);
+        priorWeekStart.setDate(priorWeekStart.getDate() - 7);
+        const priorWeekIso = priorWeekStart.toISOString().slice(0, 10);
+        const improvement = cadetIds.map((userId) => {
+          const scoreForRange = (from: string, to?: string) => (dailyRecords || [])
+            .filter((record: any) => record.user_id === userId && record.record_date >= from && (!to || record.record_date < to))
+            .reduce((sum: number, record: any) => sum + (record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0), 0);
+          const current = scoreForRange(weeklyStartIso);
+          const previous = scoreForRange(priorWeekIso, weeklyStartIso);
+          return [userId, current - previous, current, previous] as const;
+        }).filter(([, gain]) => gain > 0).sort((a, b) => b[1] - a[1] || b[2] - a[2]).slice(0, 4);
+        if (improvement[0]) next.push({
+          title: 'The Sprout',
+          candidate: profileName(improvement[0][0]),
+          detail: `Improved by ${improvement[0][1]} action(s): ${improvement[0][3]} last week to ${improvement[0][2]} this week.`,
+          runnersUp: improvement.slice(1).map(([userId, gain, current, previous]) => ({
+            candidate: profileName(userId),
+            detail: `+${gain}: ${previous} last week to ${current} this week.`,
+          })),
+        });
+
+        const scribeScores = new Map<string, number>();
+        (quizAttempts || []).filter((attempt: any) => (
+          cadetIds.includes(attempt.user_id)
+          && attempt.submitted_at?.slice(0, 10) >= weeklyStartIso
+        )).forEach((attempt: any) => {
+          const score = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
+          scribeScores.set(attempt.user_id, Math.max(scribeScores.get(attempt.user_id) || 0, score));
+        });
+        const scribeRanking = [...scribeScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topScribe = scribeRanking[0];
+        if (topScribe) next.push({
+          title: 'Scribe Award',
+          candidate: profileName(topScribe[0]),
+          detail: `${topScribe[1]} figs in their best quiz attempt this week.`,
+          runnersUp: scribeRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} figs in their best attempt.` })),
+        });
+
+        const quoteRanking = (quoteSummaryResult.data || []).filter((item) => (
+          cadetIds.includes(item.quote_user_id) && item.quote_record_date >= weeklyStartIso
+        )).slice(0, 4);
+        const quoteLeader = quoteRanking[0];
         if (quoteLeader) {
           next.push({
             title: 'Rhetoric Award (Orator)',
             candidate: quoteLeader.display_name,
             detail: `${quoteLeader.interaction_count} quote interaction(s) from reactions and comments.`,
+            quote: quoteLeader.daily_quote,
+            runnersUp: quoteRanking.slice(1).map((item) => ({
+              candidate: item.display_name,
+              detail: `${item.interaction_count} interaction(s).`,
+              quote: item.daily_quote,
+            })),
           });
         }
 
@@ -2051,12 +2546,14 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
           tentScores.set(membership.tent_id, (tentScores.get(membership.tent_id) || 0) + credit);
         });
-        const topTent = [...tentScores.entries()].sort((a, b) => b[1] - a[1])[0];
+        const tentRanking = [...tentScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const topTent = tentRanking[0];
         if (topTent) {
           next.push({
             title: "The Lord's Secret",
             candidate: tents.find((tent) => tent.id === topTent[0])?.name || 'Leading tent',
             detail: `${topTent[1]} aggregate daily action(s). Tent awards are given to tents, not tent houses.`,
+            runnersUp: tentRanking.slice(1).map(([tentId, score]) => ({ candidate: tents.find((tent) => tent.id === tentId)?.name || 'Tent', detail: `${score} aggregate daily action(s).` })),
           });
         }
       } catch (error) {
@@ -2069,7 +2566,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     };
     void loadRecommendations();
     return () => { cancelled = true; };
-  }, [cadetIds.join('|'), members, profiles, tents]);
+  }, [cadetIds.join('|'), sentryIds.join('|'), members, profiles, tents]);
 
   const visibleCatalog = AWARD_CATALOG.map((group) => ({
     ...group,
@@ -2082,6 +2579,16 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       next.has(title) ? next.delete(title) : next.add(title);
       return next;
     });
+  };
+
+  const prepareRecommendedAward = (title: string, candidateId: string) => {
+    const definition = AWARD_CATALOG.flatMap((group) => group.awards).find((award) => award.title === title);
+    const nextTarget: 'cadet' | 'sentry' = definition && isSentryAward(definition) ? 'sentry' : 'cadet';
+    setTargetType(nextTarget);
+    setSelectedTentId('');
+    setSelectedUserIds(new Set([candidateId]));
+    setSelectedAwards(new Set([title]));
+    window.setTimeout(() => document.getElementById('give-award')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   };
 
   const toggleUserId = (id: string) => {
@@ -2142,19 +2649,41 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         {recommendations.length === 0 ? (
           <p className="text-sm text-stone">No award signals yet. The app starts measuring from today.</p>
         ) : (
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {recommendations.map((item) => (
               <div key={`${item.title}:${item.candidate}`} className="rounded-lg border border-border-bright bg-surface-2 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-brass">{item.title}</p>
-                <p className="mt-1 text-sm font-semibold text-ink">{item.candidate}</p>
+                <p className="mt-1 text-[10px] font-semibold uppercase text-gold">Recommended winner</p>
+                <p className="text-sm font-semibold text-ink">{item.candidate}</p>
                 <p className="mt-1 text-xs text-stone">{item.detail}</p>
+                {item.candidateId && (
+                  <button type="button" onClick={() => prepareRecommendedAward(item.title, item.candidateId!)} className="btn-secondary mt-2 text-xs">
+                    Select winner
+                  </button>
+                )}
+                {item.quote && <blockquote className="mt-2 border-l-2 border-brass/50 pl-3 text-sm italic text-ink">“{item.quote}”</blockquote>}
+                <div className="mt-3 border-t border-border pt-2">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase text-stone">Runners-up</p>
+                  {item.runnersUp.length > 0 ? item.runnersUp.map((runner, index) => (
+                    <div key={`${runner.candidate}:${index}`} className="mb-2 last:mb-0">
+                      <p className="text-xs font-semibold text-ink">{index + 2}. {runner.candidate}</p>
+                      <p className="text-[11px] text-stone">{runner.detail}</p>
+                      {runner.candidateId && (
+                        <button type="button" onClick={() => prepareRecommendedAward(item.title, runner.candidateId!)} className="mt-1 text-[11px] font-semibold text-brass hover:text-gold">
+                          Select this sentry
+                        </button>
+                      )}
+                      {runner.quote && <p className="mt-0.5 line-clamp-2 text-xs italic text-stone">“{runner.quote}”</p>}
+                    </div>
+                  )) : <p className="text-xs text-stone">No other qualifying candidate yet.</p>}
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="card p-5 space-y-5">
+      <div id="give-award" className="card scroll-mt-20 p-5 space-y-5">
         <h4 className="font-display font-semibold text-ink">Give an Award</h4>
 
         {/* Target type */}
@@ -2263,10 +2792,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{a.title}</p>
                 <p className="text-xs text-stone">
-                  {a.profiles.display_name}
+                  {a.target_tent?.name || a.profiles?.display_name || 'Full Circle member'}
                   {a.award_target_type === 'tent' && ' · Tent Award'}
                   {' · '}{a.award_month}
                 </p>
+                {a.target_tent && <p className="text-xs text-stone">Sentry: {a.target_tent.sentry?.display_name || 'Not assigned'}</p>}
                 {a.description && <p className="text-xs text-stone mt-0.5 line-clamp-1">{a.description}</p>}
               </div>
             </div>
@@ -2277,6 +2807,51 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   );
 }
 
+function isQuizRelaunchDraft(session: QuizSession) {
+  return Boolean(session.relaunch_of_id) || /\(Relaunch\)/i.test(session.title);
+}
+
+function buildQuizSchedule(date: string, time: string, countdownMinutes: number, durationMinutes: number) {
+  const start = new Date(`${date}T${time}:00`);
+  if (Number.isNaN(start.getTime())) throw new Error('Choose a valid quiz date and start time.');
+  return {
+    scheduledStart: start.toISOString(),
+    countdownOpens: new Date(start.getTime() - countdownMinutes * 60_000).toISOString(),
+    liveOpens: start.toISOString(),
+    liveCloses: new Date(start.getTime() + durationMinutes * 60_000).toISOString(),
+  };
+}
+
+function quizLocalTime(value: string | null | undefined) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '09:00';
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function customQuestionsAsPlayableRows(sessionId: string, questions: CustomQuestion[]): Partial<GeneratedQuestion>[] {
+  return questions.map((question, index) => ({
+    quiz_session_id: sessionId,
+    question_index: index + 1,
+    source_narrative_date: question.narrative_date || null,
+    difficulty_tag: (['easy', 'moderate', 'hard'].includes(question.difficulty_tag) ? question.difficulty_tag : 'moderate') as GeneratedQuestion['difficulty_tag'],
+    mechanic_type: `custom_${question.question_type}`,
+    recycled_from_game: false,
+    question_payload: cleanQuestionPayload(customQuestionToPayload(question)),
+  }));
+}
+
+function generatedQuestionsAsPlayableRows(sessionId: string, questions: GeneratedQuestion[]): Partial<GeneratedQuestion>[] {
+  return questions.map((question, index) => ({
+    quiz_session_id: sessionId,
+    question_index: index + 1,
+    source_narrative_date: question.source_narrative_date,
+    difficulty_tag: question.difficulty_tag,
+    mechanic_type: question.mechanic_type,
+    recycled_from_game: question.recycled_from_game,
+    question_payload: question.question_payload,
+  }));
+}
+
 function QuizBuilder() {
   const [sessions, setSessions] = useState<QuizSession[]>([]);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
@@ -2284,6 +2859,7 @@ function QuizBuilder() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(getTodayISODate());
+  const [newStartTime, setNewStartTime] = useState('09:00');
   const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune'>('saturday');
   const [waitTime, setWaitTime] = useState(15);
   const [quizDuration, setQuizDuration] = useState(30);
@@ -2291,6 +2867,13 @@ function QuizBuilder() {
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [generating, setGenerating] = useState(false);
   const [satScheduled, setSatScheduled] = useState(false);
+  const [editingSessionDetails, setEditingSessionDetails] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessionDate, setSessionDate] = useState(getTodayISODate());
+  const [sessionStartTime, setSessionStartTime] = useState('09:00');
+  const [sessionType, setSessionType] = useState<'saturday' | 'fortune'>('saturday');
+  const [savingSessionDetails, setSavingSessionDetails] = useState(false);
+  const [launchingSessionId, setLaunchingSessionId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2309,20 +2892,15 @@ function QuizBuilder() {
 
   const createSession = async () => {
     if (!newTitle.trim()) return;
-    const sessionDate = new Date(newDate);
-    const startTime = new Date(sessionDate);
-    startTime.setHours(9, 0, 0, 0);
-    const liveOpens = startTime.toISOString();
-    const countdownOpens = new Date(startTime.getTime() - waitTime * 60 * 1000).toISOString();
-    const liveCloses = new Date(startTime.getTime() + quizDuration * 60 * 1000).toISOString();
     try {
+      const schedule = buildQuizSchedule(newDate, newStartTime, waitTime, quizDuration);
       await createQuizSession({
         session_date: newDate,
         title: newTitle,
-        scheduled_start_time: liveOpens,
-        countdown_opens_at: countdownOpens,
-        live_opens_at: liveOpens,
-        live_closes_at: liveCloses,
+        scheduled_start_time: schedule.scheduledStart,
+        countdown_opens_at: schedule.countdownOpens,
+        live_opens_at: schedule.liveOpens,
+        live_closes_at: schedule.liveCloses,
         status: 'scheduled',
         quiz_type: newQuizType,
         reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
@@ -2336,34 +2914,91 @@ function QuizBuilder() {
     load();
   };
 
-  const launchQuiz = async (session: QuizSession) => {
-    const now = new Date();
-    const countdownOpens = now.toISOString();
-    const liveOpens = new Date(now.getTime() + waitTime * 60 * 1000).toISOString();
-    const liveCloses = new Date(now.getTime() + (waitTime + quizDuration) * 60 * 1000).toISOString();
-    const { error } = await supabase.from('quiz_sessions').update({
-      status: 'countdown',
-      countdown_opens_at: countdownOpens,
-      live_opens_at: liveOpens,
-      live_closes_at: liveCloses,
-    }).eq('id', session.id);
-    if (error) { alert(error.message); return; }
-    load();
+  const copyQuestionsIntoSession = async (sourceSessionId: string, targetSessionId: string) => {
+    const existingTargetQuestions = await fetchQuestionsForSession(targetSessionId);
+    if (existingTargetQuestions.length > 0) return existingTargetQuestions;
+
+    const sourceGeneratedQuestions = sourceSessionId === targetSessionId
+      ? existingTargetQuestions
+      : await fetchQuestionsForSession(sourceSessionId);
+    const rows = sourceGeneratedQuestions.length > 0
+      ? generatedQuestionsAsPlayableRows(targetSessionId, sourceGeneratedQuestions)
+      : customQuestionsAsPlayableRows(targetSessionId, await fetchCustomQuestions(sourceSessionId));
+    if (rows.length === 0) return [];
+
+    await insertQuestions(rows);
+    return fetchQuestionsForSession(targetSessionId);
   };
 
-  const relaunchQuiz = async (session: QuizSession) => {
-    const now = new Date();
-    const countdownOpens = now.toISOString();
-    const liveOpens = new Date(now.getTime() + waitTime * 60 * 1000).toISOString();
-    const liveCloses = new Date(now.getTime() + (waitTime + quizDuration) * 60 * 1000).toISOString();
-    const { error } = await supabase.from('quiz_sessions').update({
-      status: 'countdown',
-      countdown_opens_at: countdownOpens,
-      live_opens_at: liveOpens,
-      live_closes_at: liveCloses,
-    }).eq('id', session.id);
-    if (error) { alert(error.message); return; }
-    load();
+  const launchQuiz = async (session: QuizSession) => {
+    if (launchingSessionId) return;
+    setLaunchingSessionId(session.id);
+    try {
+      const questions = await copyQuestionsIntoSession(session.id, session.id);
+      if (selectedSession?.id === session.id) setGeneratedQuestions(questions);
+      if (questions.length === 0) {
+        alert('This quiz cannot be launched because it has no questions. Add, generate, or sync at least one question first.');
+        return;
+      }
+
+      const now = Date.now();
+      const liveOpensAt = new Date(session.live_opens_at).getTime();
+      const liveClosesAt = new Date(session.live_closes_at).getTime();
+      if (!Number.isFinite(liveOpensAt) || !Number.isFinite(liveClosesAt)) {
+        alert('Save a valid quiz start time and duration before launching.');
+        return;
+      }
+      if (liveClosesAt <= now) {
+        alert('This quiz schedule has already ended. Edit the quiz and choose a future start time before launching.');
+        return;
+      }
+
+      const { error } = await supabase.from('quiz_sessions').update({
+        status: now >= liveOpensAt ? 'live' : 'countdown',
+      }).eq('id', session.id);
+      if (error) throw error;
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'This quiz could not be launched.');
+    } finally {
+      setLaunchingSessionId(null);
+    }
+  };
+
+  const prepareQuizRelaunch = async (session: QuizSession) => {
+    setGenerating(true);
+    try {
+      const existingDraft = sessions.find((candidate) => candidate.status === 'scheduled' && candidate.relaunch_of_id === session.id);
+      if (existingDraft) {
+        await copyQuestionsIntoSession(session.id, existingDraft.id);
+        await openSession(existingDraft, true);
+        return;
+      }
+      const now = new Date();
+      const freshSession = await createQuizSession({
+        session_date: getTodayISODate(),
+        title: `${session.title.replace(/\s*\(Relaunch\)$/i, '')} (Relaunch)`,
+        scheduled_start_time: now.toISOString(),
+        countdown_opens_at: now.toISOString(),
+        live_opens_at: now.toISOString(),
+        live_closes_at: new Date(now.getTime() + quizDuration * 60 * 1000).toISOString(),
+        status: 'scheduled',
+        quiz_type: session.quiz_type,
+        reward_perfect: session.reward_perfect,
+        reward_partial: session.reward_partial,
+        relaunch_of_id: session.id,
+        relaunch_ready: false,
+      } as Partial<QuizSession>);
+
+      await copyQuestionsIntoSession(session.id, freshSession.id);
+
+      await load();
+      await openSession(freshSession, true);
+    } catch (error: any) {
+      alert(error.message || 'Could not prepare this quiz for relaunch.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const generateQuestions = async (session: QuizSession) => {
@@ -2394,6 +3029,7 @@ function QuizBuilder() {
       await insertQuestions(questionsToInsert);
       const qs = await fetchQuestionsForSession(session.id);
       setGeneratedQuestions(qs);
+      await markRelaunchReady(session);
     } catch (e: any) {
       alert(`Failed to generate: ${e.message}`);
     }
@@ -2434,16 +3070,64 @@ function QuizBuilder() {
       })));
       const qs = await fetchQuestionsForSession(session.id);
       setGeneratedQuestions(qs);
+      await markRelaunchReady(session);
     } catch (e: any) {
       alert(`Failed to sync tagged questions: ${e.message}`);
     }
     setGenerating(false);
   };
 
-  const openSession = async (session: QuizSession) => {
+  const openSession = async (session: QuizSession, beginEditing = false) => {
     setSelectedSession(session);
+    setSessionTitle(session.title);
+    setSessionDate(session.session_date);
+    setSessionStartTime(quizLocalTime(session.live_opens_at || session.scheduled_start_time));
+    setSessionType(session.quiz_type || 'saturday');
+    setEditingSessionDetails(beginEditing);
+    const countdownMinutes = Math.round((new Date(session.live_opens_at).getTime() - new Date(session.countdown_opens_at).getTime()) / 60_000);
+    const durationMinutes = Math.round((new Date(session.live_closes_at).getTime() - new Date(session.live_opens_at).getTime()) / 60_000);
+    if (countdownMinutes > 0) setWaitTime(countdownMinutes);
+    if (durationMinutes > 0) setQuizDuration(durationMinutes);
     const qs = await fetchQuestionsForSession(session.id);
     setGeneratedQuestions(qs);
+  };
+
+  const saveSessionDetails = async () => {
+    if (!selectedSession || !sessionTitle.trim()) return;
+    setSavingSessionDetails(true);
+    try {
+      const schedule = buildQuizSchedule(sessionDate, sessionStartTime, waitTime, quizDuration);
+      const { data, error } = await supabase.from('quiz_sessions').update({
+        title: sessionTitle.trim(),
+        session_date: sessionDate,
+        quiz_type: sessionType,
+        scheduled_start_time: schedule.scheduledStart,
+        countdown_opens_at: schedule.countdownOpens,
+        live_opens_at: schedule.liveOpens,
+        live_closes_at: schedule.liveCloses,
+        ...(isQuizRelaunchDraft(selectedSession) ? { relaunch_ready: true } : {}),
+      }).eq('id', selectedSession.id).select().maybeSingle();
+      if (error) throw error;
+      if (data) setSelectedSession(data as QuizSession);
+      setEditingSessionDetails(false);
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Could not save quiz details.');
+    } finally {
+      setSavingSessionDetails(false);
+    }
+  };
+
+  const markRelaunchReady = async (session: QuizSession) => {
+    if (!isQuizRelaunchDraft(session) || session.relaunch_ready) return;
+    const { data, error } = await supabase.from('quiz_sessions')
+      .update({ relaunch_ready: true })
+      .eq('id', session.id)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (data) setSelectedSession(data as QuizSession);
+    await load();
   };
 
   const editGeneratedQuestion = async (question: GeneratedQuestion) => {
@@ -2463,31 +3147,94 @@ function QuizBuilder() {
       },
     } as any);
     setGeneratedQuestions(await fetchQuestionsForSession(question.quiz_session_id));
+    if (selectedSession?.id === question.quiz_session_id) await markRelaunchReady(selectedSession);
   };
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
   if (selectedSession) {
+    const selectedEditable = selectedSession.status === 'scheduled';
+    const selectedIsRelaunch = isQuizRelaunchDraft(selectedSession);
     return (
       <div className="space-y-4 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <SectionHeader title={selectedSession.title} subtitle={`${formatShortDate(selectedSession.session_date)} · ${selectedSession.status}`} />
+            <SectionHeader title={selectedSession.title} subtitle={`${formatShortDate(selectedSession.session_date)} at ${quizLocalTime(selectedSession.live_opens_at)} · ${selectedSession.status}`} />
           </div>
           <button onClick={() => setSelectedSession(null)} className="btn-secondary text-sm">Back</button>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => generateQuestions(selectedSession)} disabled={generating} className="btn-primary text-sm">
-            {generating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            {generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
-          </button>
-          <button onClick={() => syncTaggedQuestions(selectedSession)} disabled={generating} className="btn-secondary text-sm">
-            {generating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            Sync Tagged Questions
-          </button>
+          {selectedEditable ? <>
+            <button onClick={() => setEditingSessionDetails(!editingSessionDetails)} className="btn-secondary text-sm">
+              <FileQuestion size={14} /> Edit Quiz
+            </button>
+            <button onClick={() => launchQuiz(selectedSession)} disabled={generating || launchingSessionId === selectedSession.id || (selectedIsRelaunch && !selectedSession.relaunch_ready)} className="btn-primary text-sm">
+              {launchingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />} {selectedIsRelaunch ? 'Relaunch' : 'Launch'}
+            </button>
+            <button onClick={() => generateQuestions(selectedSession)} disabled={generating} className="btn-primary text-sm">
+              {generating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              {generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
+            </button>
+            <button onClick={() => syncTaggedQuestions(selectedSession)} disabled={generating} className="btn-secondary text-sm">
+              {generating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              Sync Tagged Questions
+            </button>
+          </> : (
+            <button onClick={() => prepareQuizRelaunch(selectedSession)} disabled={generating} className="btn-secondary text-sm">
+              {generating ? <Loader2 size={14} className="animate-spin" /> : <FileQuestion size={14} />} Edit for Relaunch
+            </button>
+          )}
           <span className="text-xs text-stone">{generatedQuestions.length} questions</span>
         </div>
+
+        {selectedIsRelaunch && selectedEditable && !selectedSession.relaunch_ready && (
+          <p className="rounded-lg border border-gold/35 bg-gold-soft px-3 py-2 text-xs text-stone">Review the quiz and save an edit. Relaunch becomes available immediately after it is saved.</p>
+        )}
+
+        {selectedEditable && generatedQuestions.length === 0 && (
+          <p className="rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-xs text-coral">Add, generate, or sync at least one question before launch. Instructor-written custom questions are converted into the playable set automatically.</p>
+        )}
+
+        {editingSessionDetails && (
+          <div className="card p-4 space-y-3 bg-surface-2">
+            <div>
+              <label className="text-xs text-stone block mb-1">Quiz Title</label>
+              <input className="input-field" value={sessionTitle} onChange={(event) => setSessionTitle(event.target.value)} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Date</label>
+                <input type="date" className="input-field" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Start Time</label>
+                <input type="time" className="input-field" value={sessionStartTime} onChange={(event) => setSessionStartTime(event.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Type</label>
+                <select className="input-field" value={sessionType} onChange={(event) => setSessionType(event.target.value as 'saturday' | 'fortune')}>
+                  <option value="saturday">Saturday Quiz</option>
+                  <option value="fortune">Fortune Quiz</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Countdown (minutes)</label>
+                <input type="number" min={1} max={180} className="input-field" value={waitTime} onChange={(event) => setWaitTime(Number(event.target.value) || 1)} />
+              </div>
+              <div>
+                <label className="text-xs text-stone block mb-1">Quiz Duration (minutes)</label>
+                <input type="number" min={5} max={300} className="input-field" value={quizDuration} onChange={(event) => setQuizDuration(Number(event.target.value) || 5)} />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={saveSessionDetails} disabled={savingSessionDetails} className="btn-primary text-sm">
+                {savingSessionDetails ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Quiz Changes
+              </button>
+              <button onClick={() => setEditingSessionDetails(false)} className="btn-secondary text-sm">Cancel</button>
+            </div>
+          </div>
+        )}
 
         {generatedQuestions.length > 0 && (
           <div className="space-y-2">
@@ -2513,9 +3260,9 @@ function QuizBuilder() {
                     {!q.question_payload.options && (
                       <p className="text-xs text-moss mt-1">Answer: {q.question_payload.correct_answer}</p>
                     )}
-                    <button onClick={() => editGeneratedQuestion(q)} className="btn-secondary text-xs mt-3">
+                    {selectedEditable && <button onClick={() => editGeneratedQuestion(q)} className="btn-secondary text-xs mt-3">
                       Edit Question
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </div>
@@ -2523,7 +3270,7 @@ function QuizBuilder() {
           </div>
         )}
 
-        <CustomQuestionsEditor sessionId={selectedSession.id} />
+        {selectedEditable && <CustomQuestionsEditor sessionId={selectedSession.id} />}
         <QuizAnswerSheets session={selectedSession} questions={generatedQuestions} />
       </div>
     );
@@ -2551,9 +3298,15 @@ function QuizBuilder() {
             <label className="text-xs text-stone block mb-1">Quiz Title</label>
             <input className="input-field" placeholder="e.g. Week 3 Saturday Quiz" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
           </div>
-          <div>
-            <label className="text-xs text-stone block mb-1">Session Date</label>
-            <input type="date" className="input-field" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-stone block mb-1">Session Date</label>
+              <input type="date" className="input-field" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs text-stone block mb-1">Quiz Start Time</label>
+              <input type="time" className="input-field" value={newStartTime} onChange={(e) => setNewStartTime(e.target.value)} />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -2567,7 +3320,7 @@ function QuizBuilder() {
           </div>
           <p className="text-xs text-stone">
             {newQuizType === 'saturday'
-              ? `Saturday quiz: 9:00–9:30 AM with ${waitTime}-min buffer. Sole streak validation for that Saturday — annuls Simon's Purse and freezers.`
+              ? `Saturday quiz begins at ${newStartTime} after a ${waitTime}-minute waiting room and remains open for ${quizDuration} minutes. It is the sole streak validation for that Saturday.`
               : `Fortune quiz: 1 talent (6,000 Ð) for perfect score, 1,000 Ð for anything less. ${!satScheduled ? '⚠ You must schedule a Saturday quiz first!' : 'Ready to launch — Saturday quiz is scheduled.'}`}
           </p>
           <button onClick={createSession} disabled={newQuizType === 'fortune' && !satScheduled} className="btn-primary text-sm">
@@ -2583,29 +3336,42 @@ function QuizBuilder() {
         <EmptyState icon={FileQuestion} title="No quiz sessions yet" message="Create a new quiz session and generate questions from your narratives." />
       ) : (
         <div className="space-y-2">
-          {sessions.map((s) => (
+          {sessions.map((s) => {
+            const relaunchDraft = isQuizRelaunchDraft(s);
+            const launched = s.status !== 'scheduled';
+            return (
             <div key={s.id} className="card p-4 flex items-center justify-between card-hover bg-surface">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{s.title}</p>
                 <p className="text-xs text-stone">
-                  {formatShortDate(s.session_date)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
+                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {s.status === 'scheduled' && (
-                  <button onClick={() => launchQuiz(s)} className="btn-primary text-xs">
-                    <Rocket size={12} /> Launch
+                {s.status === 'scheduled' && !relaunchDraft && (
+                  <button onClick={() => launchQuiz(s)} disabled={launchingSessionId === s.id} className="btn-primary text-xs">
+                    {launchingSessionId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Launch
                   </button>
                 )}
-                {(s.status === 'completed' || s.status === 'closed') && (
-                  <button onClick={() => relaunchQuiz(s)} className="btn-primary text-xs">
-                    <RotateCcw size={12} /> Republish
+                {s.status === 'scheduled' && relaunchDraft && s.relaunch_ready && (
+                  <button onClick={() => launchQuiz(s)} disabled={launchingSessionId === s.id} className="btn-primary text-xs">
+                    {launchingSessionId === s.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Relaunch
+                  </button>
+                )}
+                {s.status === 'scheduled' && relaunchDraft && !s.relaunch_ready && (
+                  <button onClick={() => openSession(s, true)} className="btn-secondary text-xs">
+                    <FileQuestion size={12} /> Edit
+                  </button>
+                )}
+                {launched && (
+                  <button onClick={() => prepareQuizRelaunch(s)} disabled={generating} className="btn-secondary text-xs">
+                    <FileQuestion size={12} /> Edit
                   </button>
                 )}
                 <button onClick={() => openSession(s)} className="btn-secondary text-xs">Open</button>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
     </div>
@@ -2615,8 +3381,10 @@ function QuizBuilder() {
 function InstructorSettings({ profile, tents, members }: {
   profile: Profile | null; tents: any[]; members: any[];
 }) {
-  const { signOut } = useAuth();
+  const { signOut, refreshProfile } = useAuth();
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [mmSettings, setMmSettings] = useState<MobileMoneySettings | null>(null);
   const [mmForm, setMmForm] = useState<Partial<MobileMoneySettings>>({
@@ -2631,13 +3399,6 @@ function InstructorSettings({ profile, tents, members }: {
     payout_max_amount_xaf: null,
   });
   const [mmSaving, setMmSaving] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
 
   useEffect(() => {
@@ -2665,7 +3426,16 @@ function InstructorSettings({ profile, tents, members }: {
   const save = async () => {
     if (!profile) return;
     setSaving(true);
-    await supabase.from('profiles').update({ whatsapp_number: whatsapp }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      whatsapp_number: whatsapp,
+      country_code: country,
+      language_code: language,
+      timezone: timezoneForCountry(country),
+    }).eq('id', profile.id);
+    if (!error) {
+      document.documentElement.lang = language;
+      await refreshProfile();
+    }
     setSaving(false);
   };
 
@@ -2680,32 +3450,9 @@ function InstructorSettings({ profile, tents, members }: {
     setMmSaving(false);
   };
 
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
-  };
-
   return (
     passwordPage && profile?.email ? (
-      <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />
+      <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />
     ) : (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences" />
@@ -2717,6 +3464,20 @@ function InstructorSettings({ profile, tents, members }: {
         <div>
           <label className="text-xs text-stone block mb-1">WhatsApp Number (for cadets/sentries to contact you)</label>
           <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs text-stone">
+            <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
+            <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
+              {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-stone">
+            <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+            <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+              {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+            </select>
+          </label>
         </div>
         <button onClick={save} disabled={saving} className="btn-primary text-sm">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
@@ -2753,6 +3514,8 @@ function InstructorSettings({ profile, tents, members }: {
           <KeyRound size={14} /> Update Password
         </button>
       </div>
+
+      <BrowserNotificationSettings />
 
       <div className="card p-4 space-y-3">
         <div className="flex items-center gap-2">
@@ -2858,38 +3621,6 @@ function InstructorSettings({ profile, tents, members }: {
   );
 }
 
-function InstructorPasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-stone block mb-1">{label}</label>
-      <div className="relative">
-        <input
-          className="input-field text-sm pr-10"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          minLength={6}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; onRefresh: () => void }) {
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -3520,6 +4251,26 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     }
   };
 
+  const toggleApproval = async (question: CustomQuestion) => {
+    try {
+      await updateCustomQuestion(question.id, { is_approved: !question.is_approved });
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Failed to update publishing approval.');
+    }
+  };
+
+  const approveVisibleQuestions = async () => {
+    try {
+      await Promise.all(rows.filter((question) => !question.is_approved).map((question) =>
+        updateCustomQuestion(question.id, { is_approved: true }),
+      ));
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Failed to approve these questions.');
+    }
+  };
+
   const updateRoundTimer = async (round: number, seconds: number) => {
     setRoundTimers((prev) => ({ ...prev, [round]: seconds }));
     const impacted = questions.filter((q) => (q.game_round || 1) === round);
@@ -3762,9 +4513,17 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
 
       {/* Existing questions */}
       <div className="card p-5">
-        <h4 className="font-display font-semibold text-ink mb-3">
-          {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
-        </h4>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="font-display font-semibold text-ink">
+              {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
+            </h4>
+            <p className="mt-1 text-xs text-stone">Only approved questions are available to cadets in the Daily Game.</p>
+          </div>
+          <button onClick={approveVisibleQuestions} disabled={!rows.some((question) => !question.is_approved)} className="btn-primary text-xs disabled:opacity-50">
+            <CheckCircle2 size={12} /> Approve visible
+          </button>
+        </div>
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-brass" /></div>
         ) : rows.length === 0 ? (
@@ -3782,6 +4541,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                     {q.passage_display_seconds && <span className="badge badge-neutral text-[10px]">{q.passage_display_seconds}s passage</span>}
                     {q.is_bonus && <span className="badge badge-roman text-[10px]">Bonus</span>}
                     {q.use_for_quiz && <span className="badge badge-moss text-[10px]">Quiz tagged</span>}
+                    <span className={cn('badge text-[10px]', q.is_approved ? 'badge-moss' : 'badge-neutral')}>{q.is_approved ? 'Approved' : 'Draft'}</span>
                   </div>
                   <p className="text-sm text-ink font-medium">{q.question_text}</p>
                   <p className="text-xs text-sage mt-0.5">Answer: {q.correct_answer}</p>
@@ -3790,6 +4550,9 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
                   <button onClick={() => editQuestion(q)} className="btn-ghost text-[10px] px-2 py-1">Edit</button>
+                  <button onClick={() => toggleApproval(q)} className={cn('btn-ghost text-[10px] px-2 py-1', q.is_approved && 'text-moss')}>
+                    {q.is_approved ? 'Unpublish' : 'Approve'}
+                  </button>
                   <button onClick={() => toggleQuizTag(q)} className="btn-ghost text-[10px] px-2 py-1">{q.use_for_quiz ? 'Untag' : 'Use quiz'}</button>
                   <button onClick={() => removeQuestion(q.id)} className="text-stone hover:text-coral transition-colors">
                     <Trash2 size={16} />

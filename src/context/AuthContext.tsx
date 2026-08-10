@@ -33,6 +33,17 @@ function clearLocalAuthStorage() {
   });
 }
 
+function waitFor<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds)),
+  ]);
+}
+
+function pause(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -42,15 +53,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (userId: string) => {
     if (supabaseConfigError) return;
 
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+    let prof: Profile | null = null;
+    let profileError: Error | null = null;
+    // A freshly restored mobile session can reach the database a beat before
+    // its access token/profile query is ready. Retry briefly instead of
+    // sending a valid user back to the sign-in screen.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) {
+        prof = data as Profile;
+        profileError = null;
+        break;
+      }
+      profileError = error ? new Error(error.message) : null;
+      if (attempt < 2) await pause(500 * (attempt + 1));
+    }
+
+    if (!prof && profileError) throw profileError;
     setProfile(prof as Profile | null);
 
     if (prof) {
-      const { data: ra } = await supabase
+      const { data: ra, error: roleError } = await supabase
         .from('role_assignments')
         .select('*')
         .eq('user_id', userId)
@@ -58,7 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (roleError) throw new Error(roleError.message);
       setRoleAssignment(ra as RoleAssignment | null);
+    } else {
+      setRoleAssignment(null);
     }
   }, []);
 
@@ -68,20 +98,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) {
-        loadProfile(data.session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
+    let active = true;
+    const initialise = async () => {
+      try {
+        const { data } = await waitFor(supabase.auth.getSession(), 8_000, 'Session check');
+        if (!active) return;
+        setSession(data.session);
+        if (data.session) {
+          await waitFor(loadProfile(data.session.user.id), 8_000, 'Profile loading');
+        }
+      } catch (error) {
+        // A slow/offline Supabase request must not strand the app on its loading screen.
+        console.warn('Auth initialisation could not complete:', error);
+        if (active) {
+          setSession(null);
+          setProfile(null);
+          setRoleAssignment(null);
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-    });
+    };
+    void initialise();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, sess) => {
+      // getSession above is the single source of truth for the initial restore.
+      // Handling INITIAL_SESSION here as well caused a second profile request and
+      // made installed copies appear to load twice.
+      if (event === 'INITIAL_SESSION') return;
       setSession(sess);
+      // A refreshed token does not change the profile or role. Avoid turning a
+      // quick token refresh into a full-screen loading state.
+      if (event === 'TOKEN_REFRESHED') return;
       if (sess) {
         (async () => {
-          await loadProfile(sess.user.id);
+          setLoading(true);
+          try {
+            await waitFor(loadProfile(sess.user.id), 8_000, 'Profile loading');
+          } catch (error) {
+            console.warn('Profile refresh could not complete:', error);
+          } finally {
+            if (active) setLoading(false);
+          }
         })();
       } else {
         setProfile(null);
@@ -89,15 +147,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => authListener.subscription.unsubscribe();
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     if (supabaseConfigError) return { error: supabaseConfigError };
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message || null };
-  }, []);
+    // Installed mobile copies can retain a valid Supabase session even after
+    // the UI has returned to sign in. End it before accepting another account.
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.warn('Previous mobile session could not be closed cleanly:', error);
+    }
+    clearLocalAuthStorage();
+    setSession(null);
+    setLoading(true);
+    setProfile(null);
+    setRoleAssignment(null);
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    if (error) {
+      setLoading(false);
+      return { error: error.message };
+    }
+
+    const signedInSession = data.session;
+    if (!signedInSession) {
+      setLoading(false);
+      return { error: 'Sign-in did not return a session. Please try again.' };
+    }
+
+    setSession(signedInSession);
+    try {
+      await waitFor(loadProfile(signedInSession.user.id), 8_000, 'Profile loading');
+      return { error: null };
+    } catch (profileError) {
+      console.warn('Sign-in profile handoff failed:', profileError);
+      return { error: 'Your account signed in, but could not finish loading. Please try again.' };
+    } finally {
+      setLoading(false);
+    }
+  }, [loadProfile]);
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string, role: Role, matricule?: string) => {

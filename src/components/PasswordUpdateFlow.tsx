@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { fetchPanelImageSetting } from '../lib/queries';
 import { supabase } from '../lib/supabase';
+import type { PanelImageSetting } from '../lib/types';
 
 const SECRET_SCRIPTURES = [
   'The secret things belong to the Lord our God. — Deuteronomy 29:29',
@@ -10,15 +13,25 @@ const SECRET_SCRIPTURES = [
 ];
 
 type Step = 'verify' | 'new';
+const PASSWORD_VERIFY_KEY = 'full-circle-password-verified-at';
+const PASSWORD_VERIFY_WINDOW_MS = 10 * 60 * 1000;
+
+function hasRecentPasswordVerification() {
+  if (typeof window === 'undefined') return false;
+  const verifiedAt = Number(sessionStorage.getItem(PASSWORD_VERIFY_KEY));
+  return Number.isFinite(verifiedAt) && Date.now() - verifiedAt < PASSWORD_VERIFY_WINDOW_MS;
+}
 
 export function PasswordUpdateFlow({
   email,
   onDone,
+  recoveryMode = false,
 }: {
   email: string;
   onDone: () => void;
+  recoveryMode?: boolean;
 }) {
-  const [step, setStep] = useState<Step>('verify');
+  const [step, setStep] = useState<Step>(() => recoveryMode || hasRecentPasswordVerification() ? 'new' : 'verify');
   const [scriptureIdx, setScriptureIdx] = useState(0);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -29,17 +42,30 @@ export function PasswordUpdateFlow({
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [accountEmail, setAccountEmail] = useState(email);
+  const [passwordImage, setPasswordImage] = useState<PanelImageSetting | null>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setScriptureIdx((idx) => (idx + 1) % SECRET_SCRIPTURES.length), 3500);
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setAccountEmail(data.user.email);
+    });
+    fetchPanelImageSetting('password_update').then(setPasswordImage).catch(() => setPasswordImage(null));
+  }, []);
+
   const verifyOldPassword = async () => {
     setError(null);
     setSuccess(null);
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!oldPassword || !normalizedEmail) return;
+    const normalizedEmail = accountEmail.trim().toLowerCase();
+    if (!oldPassword) return;
+    if (!normalizedEmail) {
+      setError('We could not find the email for this signed-in account. Please sign out and sign in again.');
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: oldPassword });
     setBusy(false);
@@ -47,6 +73,7 @@ export function PasswordUpdateFlow({
       setError('That old password was not correct.');
       return;
     }
+    sessionStorage.setItem(PASSWORD_VERIFY_KEY, String(Date.now()));
     setOldPassword('');
     setStep('new');
   };
@@ -62,7 +89,6 @@ export function PasswordUpdateFlow({
       setError('Passwords do not match.');
       return;
     }
-    const normalizedEmail = email.trim().toLowerCase();
     setBusy(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
@@ -70,8 +96,7 @@ export function PasswordUpdateFlow({
       setError(error.message);
       return;
     }
-    await supabase.auth.signInWithPassword({ email: normalizedEmail, password: newPassword });
-    await supabase.auth.refreshSession();
+    sessionStorage.removeItem(PASSWORD_VERIFY_KEY);
     setBusy(false);
     setNewPassword('');
     setConfirmPassword('');
@@ -79,24 +104,22 @@ export function PasswordUpdateFlow({
     window.setTimeout(onDone, 800);
   };
 
+  const returnToSettings = () => {
+    sessionStorage.removeItem(PASSWORD_VERIFY_KEY);
+    onDone();
+  };
+
   return (
     <div className="max-w-lg mx-auto space-y-5 animate-fade-in">
       <div className="card p-6 text-center overflow-hidden relative">
-        <div className="absolute inset-0 pointer-events-none opacity-20">
-          <svg viewBox="0 0 420 180" className="w-full h-full">
-            <polygon points="0,120 120,20 210,80 330,10 420,70 420,180 0,180" fill="#3D52C8" />
-            <polygon points="20,160 130,55 230,160" fill="#FFCF33" />
-            <polygon points="190,170 290,38 398,170" fill="#2EC4B6" />
-            <polygon points="70,150 152,86 225,150" fill="#F15A40" />
-          </svg>
-        </div>
+        <PanelImageBackdrop image={passwordImage} opacityFallback={35} veilClassName="bg-navy-2/54" />
         <div className="relative">
           <div className="w-14 h-14 rounded-2xl mx-auto mb-3 bg-surface-2 border border-border flex items-center justify-center">
             {step === 'verify' ? <Lock size={26} className="text-brass" /> : <ShieldCheck size={26} className="text-sage" />}
           </div>
           <p className="eyebrow text-brass mb-2">Password Security</p>
           <h2 className="font-display text-xl font-semibold text-ink">
-            {step === 'verify' ? 'Confirm Old Password' : 'Choose New Password'}
+            {step === 'verify' ? 'Confirm Old Password' : recoveryMode ? 'Reset Your Password' : 'Choose New Password'}
           </h2>
           <p key={scriptureIdx} className="text-sm text-stone mt-3 min-h-10 animate-fade-in">
             {SECRET_SCRIPTURES[scriptureIdx]}
@@ -123,7 +146,7 @@ export function PasswordUpdateFlow({
         )}
         {error && <p className="text-xs text-coral">{error}</p>}
         {success && <p className="text-xs text-sage">{success}</p>}
-        <button onClick={onDone} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>
+        {!recoveryMode && <button onClick={returnToSettings} disabled={busy} className="btn-ghost w-full justify-center text-sm disabled:opacity-50">Back to Settings</button>}
       </div>
     </div>
   );

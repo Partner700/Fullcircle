@@ -299,9 +299,12 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
       if (!form.verse_of_day.trim()) {
         update('verse_of_day', data.verses[0]?.text.trim() || '');
       }
-      // Preserve highlights/meditations whose reference still matches the new fetch.
-      const newRefs = new Set(data.verses.map(verseRef));
-      setHighlightedVerses((prev) => prev.filter((hv) => newRefs.has(hv.reference)));
+      // Store every fetched verse so readers can open the instructor's note below it.
+      setHighlightedVerses((prev) => data.verses.map((verse) => {
+        const reference = verseRef(verse);
+        const existing = prev.find((item) => item.reference === reference);
+        return { reference, text: verse.text.trim(), meditation: existing?.meditation || '' };
+      }));
     } catch (e: any) {
       setFetchError(
         e?.message || 'Failed to fetch scripture. Check the reference and try again.',

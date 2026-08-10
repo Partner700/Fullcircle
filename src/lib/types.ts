@@ -22,6 +22,10 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   whatsapp_number: string | null;
+  country_code?: string | null;
+  language_code?: string | null;
+  timezone?: string | null;
+  onboarding_completed?: boolean;
   created_at: string;
 }
 
@@ -163,6 +167,8 @@ export interface QuizSession {
   quiz_type: 'saturday' | 'fortune';
   reward_perfect: number;
   reward_partial: number;
+  relaunch_of_id?: string | null;
+  relaunch_ready?: boolean;
 }
 
 export interface GeneratedQuestion {
@@ -192,6 +198,7 @@ export interface QuestionPayload {
   passage_display_seconds?: number;
   game_round?: number | null;
   round_timer_seconds?: number | null;
+  difficulty_tag?: 'easy' | 'moderate' | 'hard';
   is_bonus?: boolean | null;
   // Matching game
   pairs?: { left: string; right: string }[];
@@ -326,6 +333,17 @@ export interface Award {
   created_at: string;
 }
 
+export type AwardWithRecipient = Award & {
+  profiles: { display_name: string; avatar_url: string | null } | null;
+  target_tent?: {
+    id: string;
+    name: string;
+    profile_image_url: string | null;
+    sentry_id: string | null;
+    sentry: { id: string; display_name: string; avatar_url: string | null } | null;
+  } | null;
+};
+
 export interface ScheduledAnnouncement {
   id: string;
   announcement_type: string;
@@ -335,6 +353,8 @@ export interface ScheduledAnnouncement {
   is_active: boolean;
   image_position_x?: number;
   image_position_y?: number;
+  audio_start_seconds?: number;
+  audio_end_seconds?: number | null;
 }
 
 export interface PanelImageSetting {
@@ -439,6 +459,7 @@ export interface CustomQuestion {
   use_for_quiz?: boolean | null;
   generated_from_packet?: boolean | null;
   packet_section?: string | null;
+  is_approved?: boolean | null;
 }
 
 export interface DailyQuoteFeedItem {

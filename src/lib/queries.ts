@@ -6,9 +6,10 @@ import type {
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
-  QuizScoreboardRow, QuestionPayload,
+  QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
+import type { RoadHomeResponse } from './roadHomeTypes';
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -194,6 +195,7 @@ export async function fetchLatestQuizSession() {
     .from('quiz_sessions')
     .select('*')
     .order('session_date', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1).maybeSingle();
   if (error) throw error;
   return data as QuizSession | null;
@@ -267,12 +269,14 @@ export async function fetchQuizAnswerSheets(sessionId: string) {
   })[];
 }
 
-export async function fetchLedgerEntries(userId: string) {
-  const { data, error } = await supabase
+export async function fetchLedgerEntries(userId: string, limit?: number) {
+  let query = supabase
     .from('denarii_ledger_entries')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
+  if (limit && limit > 0) query = query.limit(limit);
+  const { data, error } = await query;
   if (error) throw error;
   return data as DenariiLedgerEntry[];
 }
@@ -308,6 +312,15 @@ export async function fetchGameAttempts(userId: string, narrativeDate?: string) 
 
 export async function fetchGameAttemptsForDate(userId: string, date: string) {
   return fetchGameAttempts(userId, date);
+}
+
+export async function recordSundayReadingOpen(userId: string, recordDate: string) {
+  const { data, error } = await supabase.rpc('record_sunday_reading_open', {
+    p_user_id: userId,
+    p_record_date: recordDate,
+  });
+  if (error) throw error;
+  return Boolean(data);
 }
 
 export async function insertGameAttempt(attempt: Partial<GameAttempt>) {
@@ -381,13 +394,40 @@ export async function fetchLeaderboardSnapshots() {
   return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string } })[];
 }
 
-export async function fetchAwards() {
+export async function fetchAwards(): Promise<AwardWithRecipient[]> {
   const { data, error } = await supabase
     .from('awards')
-    .select('*, profiles(display_name)')
-    .order('award_month', { ascending: false });
+    .select('*, profiles(display_name, avatar_url)')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return data as (Award & { profiles: { display_name: string } })[];
+  const awards = data as AwardWithRecipient[];
+  const tentIds = Array.from(new Set(awards
+    .filter((award) => award.award_target_type === 'tent' && award.award_target_id)
+    .map((award) => award.award_target_id as string)));
+  if (tentIds.length === 0) return awards;
+
+  const { data: tentRows, error: tentError } = await supabase
+    .from('tents')
+    .select('id, name, profile_image_url, sentry_id')
+    .in('id', tentIds);
+  if (tentError) throw tentError;
+  const sentryIds = Array.from(new Set((tentRows || []).map((tent) => tent.sentry_id).filter(Boolean))) as string[];
+  const { data: sentryRows, error: sentryError } = sentryIds.length
+    ? await supabase.from('profiles').select('id, display_name, avatar_url').in('id', sentryIds)
+    : { data: [], error: null };
+  if (sentryError) throw sentryError;
+  const sentries = new Map((sentryRows || []).map((profile) => [profile.id, profile]));
+  const tents = new Map((tentRows || []).map((tent) => [tent.id, {
+    ...tent,
+    sentry: tent.sentry_id ? sentries.get(tent.sentry_id) || null : null,
+  }]));
+
+  return awards.map((award) => ({
+    ...award,
+    target_tent: award.award_target_type === 'tent' && award.award_target_id
+      ? tents.get(award.award_target_id) || null
+      : null,
+  })) as AwardWithRecipient[];
 }
 
 export async function insertAward(award: Partial<Award>) {
@@ -395,18 +435,50 @@ export async function insertAward(award: Partial<Award>) {
   if (error) throw error;
 }
 
+export type AwardReactionState = Record<string, { count: number; reacted: boolean }>;
+
+export async function fetchAwardReactions(awardIds: string[], reactorId?: string) {
+  if (awardIds.length === 0) return {} as Record<string, AwardReactionState>;
+  const { data, error } = await supabase
+    .from('award_reactions')
+    .select('award_id, reactor_id, reaction_type')
+    .in('award_id', awardIds);
+  if (error) throw error;
+  const result: Record<string, AwardReactionState> = {};
+  (data || []).forEach((row: any) => {
+    result[row.award_id] ||= {};
+    result[row.award_id][row.reaction_type] ||= { count: 0, reacted: false };
+    result[row.award_id][row.reaction_type].count += 1;
+    if (reactorId && row.reactor_id === reactorId) result[row.award_id][row.reaction_type].reacted = true;
+  });
+  return result;
+}
+
+export async function reactToAward(awardId: string, reactorId: string, reactionType: string) {
+  const { error } = await supabase.rpc('react_to_award', {
+    p_award_id: awardId,
+    p_reactor_id: reactorId,
+    p_reaction_type: reactionType,
+  });
+  if (error) throw error;
+}
+
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  const announcementResult = await supabase
     .from('scheduled_announcements')
     .select('*')
     .lte('publish_at', now)
     .eq('is_active', true)
     .in('audience', audiences)
+    .not('announcement_type', 'like', 'panel_image_%')
+    .not('announcement_type', 'like', 'sound_%')
+    .neq('announcement_type', 'weekly_background')
     .order('publish_at', { ascending: false })
-    .limit(5);
-  if (error) throw error;
-  return data as ScheduledAnnouncement[];
+    .limit(12);
+
+  if (announcementResult.error) throw announcementResult.error;
+  return (announcementResult.data || []) as ScheduledAnnouncement[];
 }
 
 export async function fetchPanelImage(
@@ -421,24 +493,45 @@ export async function fetchPanelImageSetting(
   panelType: string,
   audiences: string[] = ['all', 'cadets'],
 ): Promise<PanelImageSetting | null> {
-  const announcementType = panelType === 'weekly_background' || panelType.startsWith('panel_image_')
-    ? panelType
-    : `panel_image_${panelType}`;
+  const images = await fetchPanelImageSettings([panelType], audiences);
+  const normalizedType = panelType === 'weekly_background' || panelType.startsWith('panel_image_')
+    ? panelType.replace('panel_image_', '')
+    : panelType;
+  return images[normalizedType] || null;
+}
+
+export async function fetchPanelImageSettings(
+  panelTypes: string[],
+  audiences: string[] = ['all', 'cadets'],
+): Promise<Record<string, PanelImageSetting>> {
+  const announcementTypes = Array.from(new Set(panelTypes.map((panelType) => (
+    panelType === 'weekly_background' || panelType.startsWith('panel_image_')
+      ? panelType
+      : `panel_image_${panelType}`
+  ))));
+  if (announcementTypes.length === 0) return {};
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('scheduled_announcements')
-    .select('content, image_position_x, image_position_y')
-    .eq('announcement_type', announcementType)
+    .select('announcement_type, content, image_position_x, image_position_y, audience, publish_at')
+    .in('announcement_type', announcementTypes)
     .lte('publish_at', now)
     .eq('is_active', true)
     .in('audience', audiences)
     .order('publish_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(Math.max(20, announcementTypes.length * 6));
   if (error) throw error;
-  return data?.content && isPanelImageContent(data.content)
-    ? panelImageFromAnnouncement(data)
-    : null;
+  const rows = ((data || []) as (ScheduledAnnouncement & { audience: string })[])
+    .filter((row) => row.content && isPanelImageContent(row.content));
+  const images: Record<string, PanelImageSetting> = {};
+
+  announcementTypes.forEach((type) => {
+    const candidates = rows.filter((row) => row.announcement_type === type);
+    const preferred = candidates.find((row) => row.audience !== 'all') || candidates[0];
+    if (preferred) images[type.replace('panel_image_', '')] = panelImageFromAnnouncement(preferred);
+  });
+
+  return images;
 }
 
 export async function fetchAllAnnouncements() {
@@ -454,6 +547,26 @@ export async function fetchAllAnnouncements() {
 export async function createAnnouncement(announcement: Omit<ScheduledAnnouncement, 'id'>) {
   const { error } = await supabase.from('scheduled_announcements').insert(announcement);
   if (error) throw error;
+}
+
+export async function savePanelImageSetting(setting: {
+  announcementType: string;
+  audience: string;
+  content: string;
+  publishAt: string;
+  positionX: number;
+  positionY: number;
+}) {
+  const { data, error } = await supabase.rpc('save_panel_image_setting', {
+    p_announcement_type: setting.announcementType,
+    p_audience: setting.audience,
+    p_content: setting.content,
+    p_publish_at: setting.publishAt,
+    p_position_x: setting.positionX,
+    p_position_y: setting.positionY,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function updateAnnouncement(id: string, patch: Partial<Omit<ScheduledAnnouncement, 'id'>>) {
@@ -707,7 +820,7 @@ export async function deleteCustomQuestion(id: string) {
   if (error) throw error;
 }
 
-export async function fetchCustomGameQuestions(level: number, narrativeDate?: string) {
+export async function fetchCustomGameQuestions(level: number, narrativeDate?: string, approvedOnly = false) {
   let query = supabase
     .from('custom_questions')
     .select('*')
@@ -715,6 +828,7 @@ export async function fetchCustomGameQuestions(level: number, narrativeDate?: st
     .eq('game_level', level)
     .order('question_index');
   if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
+  if (approvedOnly) query = query.eq('is_approved', true);
   const { data, error } = await query;
   if (error) throw error;
   return data as import('./types').CustomQuestion[];
@@ -1201,6 +1315,16 @@ export async function createArenaRoom(creatorId: string, roomName: string, stake
   return data as string;
 }
 
+export async function createMachineArenaRoom(creatorId: string, roomName: string, narrativeDate?: string) {
+  const { data, error } = await supabase.rpc('create_machine_arena_room', {
+    p_creator_id: creatorId,
+    p_room_name: roomName,
+    p_narrative_date: narrativeDate || null,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
 export async function inviteArenaPlayers(roomId: string, inviterId: string, inviteeIds: string[]) {
   if (inviteeIds.length === 0) return 0;
   const { data, error } = await supabase.rpc('invite_arena_players', {
@@ -1227,10 +1351,112 @@ export async function closeArenaRoom(roomId: string, userId: string) {
   if (error) throw error;
 }
 
+export async function heartbeatArenaParticipant(roomId: string, userId: string) {
+  const { data, error } = await supabase.rpc('heartbeat_arena_participant', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function forfeitArenaGame(roomId: string, userId: string) {
+  const { error } = await supabase.rpc('forfeit_arena_game', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  });
+  if (error) throw error;
+}
+
 export async function finishArenaGame(roomId: string, userId: string, score: number, correctCount: number) {
   const { error } = await supabase.rpc('finish_arena_game', {
     p_room_id: roomId, p_user_id: userId, p_score: score, p_correct_count: correctCount,
   });
+  if (error) throw error;
+}
+
+export async function submitArenaTriviaAnswer(roomId: string, userId: string, questionIndex: number, answer: string | null) {
+  const { data, error } = await supabase.rpc('submit_arena_trivia_answer', {
+    p_room_id: roomId,
+    p_user_id: userId,
+    p_question_index: questionIndex,
+    p_answer: answer || '',
+  });
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) throw new Error('The arena could not verify that answer.');
+  return {
+    correct: Boolean(result.is_correct),
+    figsEarned: Number(result.figs_earned) || 0,
+    totalFigs: Number(result.total_figs) || 0,
+    correctCount: Number(result.correct_count) || 0,
+  };
+}
+
+export async function prepareArenaQuestionSet(roomId: string, userId: string, questions: QuestionPayload[]) {
+  const { data, error } = await supabase.rpc('prepare_arena_question_set', {
+    p_room_id: roomId,
+    p_user_id: userId,
+    p_questions: questions,
+  });
+  if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) throw new Error('The Arena could not store its question deck.');
+  return data as QuestionPayload[];
+}
+
+export type ArenaTriviaFeedItem = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  question_index: number;
+  submitted_answer: string;
+  is_correct: boolean;
+  figs_earned: number;
+  created_at: string;
+};
+
+export async function fetchArenaTriviaFeed(roomId: string) {
+  const { data, error } = await supabase.rpc('get_arena_trivia_feed', { p_room_id: roomId });
+  if (error) throw error;
+  return (data || []) as ArenaTriviaFeedItem[];
+}
+
+export async function fetchArenaRoomMessages(roomId: string) {
+  const { data, error } = await supabase
+    .from('arena_room_messages')
+    .select('id,room_id,sender_id,body,created_at')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: true })
+    .limit(100);
+  if (error) throw error;
+  const senderIds = Array.from(new Set((data || []).map((message: any) => message.sender_id)));
+  const { data: profiles } = senderIds.length
+    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds)
+    : { data: [] as any[] };
+  const byId = new Map((profiles || []).map((item: any) => [item.id, item]));
+  return (data || []).map((message: any) => ({ ...message, sender: byId.get(message.sender_id) || null }));
+}
+
+export async function sendArenaRoomMessage(roomId: string, senderId: string, body: string) {
+  const { error } = await supabase.from('arena_room_messages').insert({
+    room_id: roomId,
+    sender_id: senderId,
+    body: body.trim(),
+  });
+  if (error) throw error;
+}
+
+export async function fetchQuizWaitingMessages(sessionId: string) {
+  const { data, error } = await supabase.from('quiz_waiting_messages').select('id,quiz_session_id,sender_id,body,created_at').eq('quiz_session_id', sessionId).order('created_at', { ascending: true }).limit(100);
+  if (error) throw error;
+  const senderIds = Array.from(new Set((data || []).map((message: any) => message.sender_id)));
+  const { data: profiles } = senderIds.length ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds) : { data: [] as any[] };
+  const byId = new Map((profiles || []).map((item: any) => [item.id, item]));
+  return (data || []).map((message: any) => ({ ...message, sender: byId.get(message.sender_id) || null }));
+}
+
+export async function sendQuizWaitingMessage(sessionId: string, senderId: string, body: string) {
+  const { error } = await supabase.from('quiz_waiting_messages').insert({ quiz_session_id: sessionId, sender_id: senderId, body: body.trim() });
   if (error) throw error;
 }
 
@@ -1240,6 +1466,8 @@ export async function generateArenaQuestionsWithAI(payload: {
   topicType?: string | null;
   topic?: string | null;
   narrative?: DailyNarrative | null;
+  gameType?: 'standard' | 'ludo';
+  difficulty?: 'easy' | 'medium' | 'hard';
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -1254,12 +1482,63 @@ export async function generateArenaQuestionsWithAI(payload: {
       apikey: supabaseAnonKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, persist: payload.gameType === 'ludo' }),
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   if (!Array.isArray(data.questions)) throw new Error('AI arena generation returned no questions.');
   return data.questions as QuestionPayload[];
+}
+
+async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHomeResponse> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again to continue The Road Home.');
+  const response = await fetch(`${supabaseUrl}/functions/v1/road-home-game`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await response.text();
+  let payload: RoadHomeResponse & { error?: string };
+  try { payload = raw ? JSON.parse(raw) : { state: null }; } catch { payload = { state: null, error: raw || 'The Road Home server returned an invalid response.' }; }
+  if (!response.ok) {
+    const error = new Error(payload.error || 'The Road Home command failed.') as Error & { state?: RoadHomeResponse['state']; version?: number; needsInitialization?: boolean };
+    error.state = payload.state;
+    error.version = payload.version;
+    error.needsInitialization = payload.needsInitialization;
+    throw error;
+  }
+  return payload;
+}
+
+export function fetchRoadHomeState(roomId: string) {
+  return callRoadHomeServer({ roomId, action: 'GET' });
+}
+
+export function initializeRoadHome(roomId: string) {
+  return callRoadHomeServer({ roomId, action: 'INIT', commandId: crypto.randomUUID() });
+}
+
+export function sendRoadHomeCommand(
+  roomId: string,
+  action: string,
+  payload: Record<string, unknown>,
+  expectedVersion: number,
+) {
+  return callRoadHomeServer({
+    roomId,
+    action,
+    payload,
+    expectedVersion,
+    commandId: crypto.randomUUID(),
+  });
 }
 
 async function mergeArenaRoomsWithParticipants(rooms: any[]) {

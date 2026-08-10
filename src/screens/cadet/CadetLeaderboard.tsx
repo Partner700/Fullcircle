@@ -42,7 +42,7 @@ export function CadetLeaderboard() {
   const { profile } = useAuth();
   const [tab, setTab] = useState<BoardTab>('leader');
   const [streakRows, setStreakRows] = useState<(StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
-  const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
+  const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
   const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
   const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
@@ -92,7 +92,7 @@ export function CadetLeaderboard() {
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Board tabs */}
-      <div className="flex gap-1 p-1 bg-surface-2 rounded-lg w-fit border border-border">
+      <div className="grid grid-cols-2 gap-1 p-1 bg-surface-2 rounded-lg w-full border border-border sm:flex sm:w-fit">
         <BoardTabButton active={tab === 'leader'} onClick={() => setTab('leader')} icon={<CoinIcon size={16} />} label="Denarii Board" />
         <BoardTabButton active={tab === 'streak'} onClick={() => setTab('streak')} icon={<Flame size={16} />} label="Streak Board" />
         <BoardTabButton active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<FileQuestion size={16} />} label="Quiz Board" />
@@ -469,7 +469,7 @@ function BoardTabButton({ active, onClick, icon, label }: {
     <button
       onClick={onClick}
       className={cn(
-        'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
+        'flex min-w-0 items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-all whitespace-nowrap sm:justify-start sm:gap-2 sm:px-3 sm:text-sm',
         active ? 'bg-surface text-ink shadow-sm border border-border' : 'text-stone hover:text-ink',
       )}
     >

@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 type QuestionPayload = {
-  type: "multiple_choice" | "true_false" | "standard_text";
+  type: "multiple_choice" | "true_false";
   question: string;
   options?: string[];
   correct_answer: string;
@@ -32,9 +32,9 @@ function json(body: unknown, status = 200) {
 function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
   const q = raw as Partial<QuestionPayload>;
   if (!q?.question || !q.correct_answer) return null;
-  const type = ["multiple_choice", "true_false", "standard_text"].includes(String(q.type))
+  const type = ["multiple_choice", "true_false"].includes(String(q.type))
     ? q.type as QuestionPayload["type"]
-    : "standard_text";
+    : "multiple_choice";
   const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
   const seconds = round === 1 ? 90 : round === 2 ? 72 : round === 3 ? 54 : 10;
   const options = type === "multiple_choice"
@@ -64,7 +64,7 @@ async function authenticate(req: Request) {
   if (!res.ok) throw new Error("Invalid user token.");
 }
 
-async function fetchRoomQuestions(roomId: string) {
+async function fetchRoomQuestions(roomId: string, minimumCount: number) {
   const supabaseUrl = env("SUPABASE_URL");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   const res = await fetch(`${supabaseUrl}/rest/v1/arena_rooms?id=eq.${roomId}&select=question_set`, {
@@ -73,13 +73,13 @@ async function fetchRoomQuestions(roomId: string) {
   if (!res.ok) return null;
   const rows = await res.json();
   const existing = rows?.[0]?.question_set;
-  return Array.isArray(existing) && existing.length >= 19 ? existing : null;
+  return Array.isArray(existing) && existing.length >= minimumCount ? existing : null;
 }
 
 async function saveRoomQuestions(roomId: string, questions: QuestionPayload[]) {
   const supabaseUrl = env("SUPABASE_URL");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  await fetch(`${supabaseUrl}/rest/v1/arena_rooms?id=eq.${roomId}`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/arena_rooms?id=eq.${roomId}`, {
     method: "PATCH",
     headers: {
       apikey: serviceKey,
@@ -89,6 +89,7 @@ async function saveRoomQuestions(roomId: string, questions: QuestionPayload[]) {
     },
     body: JSON.stringify({ question_set: questions, question_generated_at: new Date().toISOString() }),
   });
+  if (!response.ok) throw new Error(`Could not save the Arena question deck: ${await response.text()}`);
 }
 
 Deno.serve(async (req) => {
@@ -104,25 +105,31 @@ Deno.serve(async (req) => {
     const roomId = String(body.roomId || "");
     if (!roomId) return json({ error: "roomId is required." }, 400);
 
-    const existing = await fetchRoomQuestions(roomId);
+    const gameType = String(body.gameType || (String(body.roomName || '').includes('[arena:ludo]') ? 'ludo' : 'standard'));
+    const targetCount = gameType === 'ludo' ? 120 : 19;
+    const existing = await fetchRoomQuestions(roomId, targetCount);
     if (existing) return json({ questions: existing });
 
     const topicType = String(body.topicType || "narrative");
+    const difficulty = ["easy", "medium", "hard"].includes(String(body.difficulty)) ? String(body.difficulty) : "mixed";
     const topic = String(body.topic || "");
     const narrative = body.narrative || {};
     const source = topicType === "book" || topicType === "character"
       ? `${topicType}: ${topic}`
       : `weekly narrative: ${narrative.title || "Untitled"}; theme: ${narrative.theme || ""}; scripture: ${narrative.scripture_reference || ""}; main text: ${narrative.main_text || ""}`;
 
-    const prompt = `Create exactly 19 difficult but fair Bible arena questions for Full Circle.
+    const formatRule = gameType === 'ludo'
+      ? '- This is a long four-pawn Ludo match. Create one broad, varied question deck with no round grouping.'
+      : '- Three rounds of six questions, then one final bonus question.';
+    const prompt = `Create exactly ${targetCount} difficult but fair Bible arena questions for Full Circle.
 Rules:
-- Three rounds of six questions, then one final bonus question.
+${formatRule}
 - No repeated questions, no vague trivia, no incomplete wording.
-- Use only these types: multiple_choice, true_false, standard_text.
+- Use only these types: multiple_choice and true_false. Standard Trivia must always be answerable by tapping a choice, never by typing free text.
 - Every multiple_choice question must have 4 options and one exact correct_answer from the options.
-- Standard_text answers must be short enough for exact checking.
 - Do not reveal answers inside the question.
 - Questions must be intelligible, scholarly, and challenging.
+- Requested machine difficulty: ${difficulty}. When it is not mixed, make every question genuinely ${difficulty}.
 - Source focus: ${source}
 Return only JSON in this shape: {"questions":[{"type":"multiple_choice","question":"...","options":["..."],"correct_answer":"...","explanation":"...","reference":"..."}]}`;
 
@@ -156,10 +163,10 @@ Return only JSON in this shape: {"questions":[{"type":"multiple_choice","questio
         seen.add(key);
         return true;
       })
-      .slice(0, 19);
+      .slice(0, targetCount);
 
-    if (questions.length < 19) return json({ error: "AI returned too few valid unique arena questions." }, 502);
-    await saveRoomQuestions(roomId, questions);
+    if (questions.length < targetCount) return json({ error: "AI returned too few valid unique arena questions." }, 502);
+    if (body.persist !== false) await saveRoomQuestions(roomId, questions);
     return json({ questions });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";

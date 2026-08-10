@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Dove, FullCircleWordmark } from '../components/Dove';
 import { Loader2, Mail, Lock, User as UserIcon, Info, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const VERSE_FRAGMENTS = [
   { text: 'In the beginning…', top: '8%', left: '12%', delay: '0s' },
@@ -14,17 +15,22 @@ const VERSE_FRAGMENTS = [
 
 export function AuthScreen() {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
     if (mode === 'signin') {
       const { error } = await signIn(email, password);
@@ -35,12 +41,38 @@ export function AuthScreen() {
         setLoading(false);
         return;
       }
+      if (password !== confirmPassword) {
+        setError('The passwords do not match. Please enter them again.');
+        setLoading(false);
+        return;
+      }
       // New accounts are always created as cadet. Instructors promote cadets to sentry,
       // and the current instructor can hand over to a sentry.
       const { error } = await signUp(email, password, displayName, 'cadet');
       if (error) setError(error);
     }
     setLoading(false);
+  };
+
+  const handlePasswordReset = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    setError(null);
+    setNotice(null);
+    if (!normalizedEmail) {
+      setError('Enter your email first, then press Reset Password.');
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      // The recovery session returns to the dedicated Full Circle password form.
+      redirectTo: `${window.location.origin}/?reset-password=1`,
+    });
+    setResetLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setNotice('Password reset sent. Open the email link to choose a new password in Full Circle.');
   };
 
   return (
@@ -92,7 +124,7 @@ export function AuthScreen() {
                 <label className="block text-sm font-bold text-peri mb-1.5">Display Name</label>
                 <div className="relative">
                   <UserIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
-                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input-field pl-10" placeholder="Your name" required />
+                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input-field pl-10" placeholder="Your name" autoComplete="name" required />
                 </div>
               </div>
             )}
@@ -101,12 +133,12 @@ export function AuthScreen() {
               <label className="block text-sm font-bold text-peri mb-1.5">Email</label>
               <div className="relative">
                 <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field pl-10" placeholder="you@example.com" required />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field pl-10" placeholder="you@example.com" autoComplete="email" required />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-peri mb-1.5">Password</label>
+              <label className="block text-sm font-bold text-peri mb-1.5">{mode === 'signup' ? 'Create Password' : 'Password'}</label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
                 <input
@@ -117,6 +149,7 @@ export function AuthScreen() {
                   placeholder="••••••••"
                   required
                   minLength={6}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 />
                 <button
                   type="button"
@@ -130,6 +163,33 @@ export function AuthScreen() {
             </div>
 
             {mode === 'signup' && (
+              <div>
+                <label className="block text-sm font-bold text-peri mb-1.5">Confirm Password</label>
+                <div className="relative">
+                  <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="input-field pl-10 pr-10"
+                    placeholder="Enter your new password again"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((visible) => !visible)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors flex items-center justify-center w-9 h-9"
+                    aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mode === 'signup' && (
               <div className="flex items-start gap-2 p-3 rounded-lg bg-peri-soft border border-border">
                 <Info size={16} className="flex-shrink-0 text-peri mt-0.5" />
                 <p className="text-xs text-peri-dim">
@@ -138,7 +198,19 @@ export function AuthScreen() {
               </div>
             )}
 
+            {mode === 'signin' && (
+              <button
+                type="button"
+                onClick={handlePasswordReset}
+                disabled={resetLoading || loading}
+                className="text-xs font-bold text-peri-dim hover:text-peri transition-colors disabled:opacity-60"
+              >
+                {resetLoading ? 'Sending reset link...' : 'Reset Password'}
+              </button>
+            )}
+
             {error && <div className="text-sm text-coral bg-coral-soft rounded-lg p-3">{error}</div>}
+            {notice && <div className="text-sm text-sage bg-sage/10 rounded-lg p-3">{notice}</div>}
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? <Loader2 size={18} className="animate-spin" /> : null}

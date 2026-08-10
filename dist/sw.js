@@ -1,4 +1,6 @@
-const CACHE_VERSION = 'full-circle-v2';
+// Bump this whenever the bundle-loading strategy changes. It forces installed
+// copies to discard any old HTML/chunk pairing left by a previous deployment.
+const CACHE_VERSION = 'full-circle-v16';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -20,13 +22,14 @@ const APP_SHELL = [
   '/manifest.webmanifest',
   '/robots.txt',
   '/browserconfig.xml',
-  '/icons/fullcircle-icon.svg',
+  '/icons/fullcircle-dove-clean.png',
   '/icons/apple-touch-icon.png',
   '/icons/icon-72.png',
   '/icons/icon-96.png',
   '/icons/icon-128.png',
   '/icons/icon-144.png',
   '/icons/icon-152.png',
+  '/icons/icon-167.png',
   '/icons/icon-192.png',
   '/icons/icon-384.png',
   '/icons/icon-512.png',
@@ -144,9 +147,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets: cache-first
+  // Vite gives application chunks content-hashed filenames. Reusing an already
+  // downloaded chunk is safe and makes installed-app reloads dramatically
+  // faster; new HTML automatically points at new filenames after a deployment.
   if (url.origin === self.location.origin && isStaticAsset(url)) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    event.respondWith(cacheFirstStaticAsset(request));
     return;
   }
 
@@ -272,11 +277,13 @@ function isGoogleFont(url) {
 
 async function networkFirstNavigation(request) {
   const cache = await caches.open(RUNTIME_CACHE);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
     const networkResponse = await fetch(request, {
-      // Don't send credentials for same-origin navigations to avoid issues
       credentials: 'same-origin',
+      signal: controller.signal,
     });
 
     if (networkResponse.ok && networkResponse.type === 'basic') {
@@ -307,6 +314,8 @@ async function networkFirstNavigation(request) {
         }),
       },
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -334,6 +343,35 @@ async function cacheFirst(request, cacheName) {
     }
     throw error;
   }
+}
+
+function isValidStaticAssetResponse(request, response) {
+  if (!response.ok) return false;
+  const contentType = response.headers.get('content-type') || '';
+  if (request.destination === 'script') return /javascript|ecmascript|text\/plain/i.test(contentType);
+  if (request.destination === 'style') return /text\/css/i.test(contentType);
+  return true;
+}
+
+async function cacheFirstStaticAsset(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const cachedResponse = await cache.match(request);
+  if (cachedResponse && isValidStaticAssetResponse(request, cachedResponse)) {
+    return cachedResponse;
+  }
+
+  try {
+    const response = await fetch(request);
+    // Some static hosts return index.html with a 200 status for a missing old
+    // chunk. Never serve that HTML as JavaScript/CSS.
+    if (isValidStaticAssetResponse(request, response)) {
+      await cache.put(request, response.clone());
+      return response;
+    }
+  } catch {
+    // Return the controlled error below so the app never executes stale code.
+  }
+  return new Response('', { status: 404, statusText: 'App asset unavailable' });
 }
 
 async function cacheFirstWithTTL(request, cacheName, ttl) {
@@ -375,7 +413,7 @@ async function cacheFirstWithTTL(request, cacheName, ttl) {
       await cache.put(request, newResponse);
     }
     return response;
-  } catch {
+  } catch (error) {
     // If fetch fails, return expired cached version rather than nothing
     if (cachedResponse) return cachedResponse;
     throw error;

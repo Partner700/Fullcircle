@@ -1,28 +1,38 @@
 export function registerServiceWorker() {
-  if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
+  if (!('serviceWorker' in navigator)) return;
 
-  let refreshing = false;
+  // A previously installed production worker can otherwise keep serving an
+  // outdated bundle while the local Vite server is running on the same origin.
+  // Development should always use the files Vite is serving right now.
+  if (import.meta.env.DEV) {
+    void navigator.serviceWorker
+      .getRegistrations()
+      .then(async (registrations) => {
+        await Promise.all(registrations.map((registration) => registration.unregister()));
 
-  // Handle service worker updates - this fires when SKIP_WAITING is sent
-  // and the new SW takes control. The PWAUpdateNotification component
-  // triggers this via user action ("Refresh Now").
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    // Reload to get new content from the updated service worker
-    window.location.reload();
-  });
+        if (!('caches' in window)) return;
+        const cacheNames = await window.caches.keys();
+        await Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith('full-circle-'))
+            .map((cacheName) => window.caches.delete(cacheName)),
+        );
+      })
+      .catch(() => undefined);
+    return;
+  }
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
-        // Check for updates on page load
-        registration.update();
+        // Check for a new worker at launch. The worker itself activates safely;
+        // this client never forces a mid-session reload.
+        void registration.update().catch(() => undefined);
 
         // Periodically check for updates (every hour)
         setInterval(() => {
-          registration.update();
+          void registration.update().catch(() => undefined);
         }, 60 * 60 * 1000);
 
         // Listen for messages from the service worker

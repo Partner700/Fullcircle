@@ -1,10 +1,8 @@
 import { cn } from '../lib/utils';
-import doveAsset from '../assets/brand-real/dove.png';
+import doveArtwork from '../assets/brand-real/dove-clean.png';
 
 /**
- * Dove — exact SVG replica of the branding illustration.
- * White circle head, dark navy eye, tan beak, white body,
- * slate-blue back wing, blue foot, small cloud.
+ * Dove — the supplied Full Circle dove artwork, including its cloud.
  */
 export function Dove({ size = 120, className }: {
   size?: number;
@@ -12,33 +10,31 @@ export function Dove({ size = 120, className }: {
 }) {
   return (
     <img
-      src={doveAsset}
-      alt="Full Circle dove"
+      src={doveArtwork}
       width={size}
       height={size}
-      className={cn('object-contain', className)}
-      style={{ width: size, height: size }}
+      className={cn('block object-contain', className)}
+      alt="Full Circle dove"
     />
   );
 }
 
 /**
- * DoveMark — compact dove for nav/sidebar. Uses the SVG dove in a rounded tile.
+ * DoveMark — compact transparent dove for navigation and branding.
  */
 export function DoveMark({ size = 44, className }: { size?: number; className?: string }) {
   return (
     <div
-      className={cn('inline-flex items-center justify-center rounded-2xl flex-shrink-0', className)}
-      style={{ width: size, height: size, background: 'var(--color-peri)', borderRadius: 14 }}
+      className={cn('inline-flex items-center justify-center flex-shrink-0', className)}
+      style={{ width: size, height: size }}
     >
-      <Dove size={size * 0.82} />
+      <Dove size={size} />
     </div>
   );
 }
 
 /**
- * FullCircleWordmark — "FULL CIRCLE" wordmark matching the branding.
- * Uses Baloo 2 ExtraBold (800) for the chunky rounded letterforms.
+ * FullCircleWordmark — compact brand text using the app's standard typeface.
  */
 export function FullCircleWordmark({ size = 'md', className, color }: {
   size?: 'sm' | 'md' | 'lg';
@@ -53,14 +49,14 @@ export function FullCircleWordmark({ size = 'md', className, color }: {
     <div className={cn('flex flex-col items-center leading-none', className)}>
       <span
         className={cn('font-display font-extrabold text-peri', fullSizes[size])}
-        style={{ fontFamily: '"Baloo 2", system-ui', fontWeight: 800, letterSpacing: '0.01em', color: color || 'var(--color-peri)' }}
+        style={{ fontFamily: 'Nunito, system-ui, sans-serif', fontWeight: 800, letterSpacing: '0.01em', color: color || 'var(--color-peri)' }}
       >
         FULL
       </span>
       <span
         className={cn('font-display font-bold text-peri', circleSizes[size])}
         style={{
-          fontFamily: '"Baloo 2", system-ui',
+          fontFamily: 'Nunito, system-ui, sans-serif',
           fontWeight: 600,
           letterSpacing: circleSpacing[size],
           marginTop: size === 'lg' ? '2px' : '0px',

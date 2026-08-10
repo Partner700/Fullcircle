@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
-import { fetchAwards } from '../../lib/queries';
+import { fetchAwardReactions, fetchAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
 import { formatShortDate, cn } from '../../lib/utils';
-import type { Award } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, Star, Flame, Coins, Target, Zap, BookOpen, Medal, TrendingUp } from 'lucide-react';
+import type { AwardWithRecipient } from '../../lib/types';
+import { Award as AwardIcon, Trophy, Crown, Flame, Coins, Target, Zap, BookOpen, TrendingUp } from 'lucide-react';
+import { AwardReactions } from '../../components/AwardReactions';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   cadet_of_month: Crown,
@@ -50,19 +51,33 @@ const AWARD_LABEL_MAP: Record<string, string> = {
 
 export function CadetAwards() {
   const { profile } = useAuth();
-  const [awards, setAwards] = useState<(Award & { profiles: { display_name: string } })[]>([]);
+  const [awards, setAwards] = useState<AwardWithRecipient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reactions, setReactions] = useState<Record<string, AwardReactionState>>({});
+  const [reacting, setReacting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     const data = await fetchAwards();
     setAwards(data);
+    if (profile) setReactions(await fetchAwardReactions(data.map((award) => award.id), profile.id).catch(() => ({})));
     setLoading(false);
-  }, []);
+  }, [profile]);
+
+  const handleReaction = async (awardId: string, reactionType: string) => {
+    if (!profile || reacting) return;
+    setReacting(`${awardId}:${reactionType}`);
+    try {
+      await reactToAward(awardId, profile.id, reactionType);
+      setReactions(await fetchAwardReactions(awards.map((award) => award.id), profile.id));
+    } finally {
+      setReacting(null);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
-  const myAwards = awards.filter((a) => a.user_id === profile?.id);
+  const myAwards = awards.filter((a) => a.award_target_type !== 'tent' && a.user_id === profile?.id);
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading awards…</div>;
 
@@ -124,11 +139,11 @@ export function CadetAwards() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <LaurelWreath size={22} className="text-brass" />
-          <SectionHeader title="All Awards" subtitle="Recent honors across all cadets" />
+          <SectionHeader title="All Awards" subtitle="Honors across every cadet, sentry, and tent" />
         </div>
         {awards.length > 0 ? (
           <div className="space-y-2">
-            {awards.slice(0, 20).map((award) => {
+            {awards.map((award) => {
               const Icon = AWARD_ICON_MAP[award.award_type] || Trophy;
               const color = AWARD_COLOR_MAP[award.award_type] || '#C9A227';
               return (
@@ -143,8 +158,12 @@ export function CadetAwards() {
                     <Icon size={18} color={color} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-ink">{award.profiles.display_name}</span>
+                    <span className="text-sm font-medium text-ink">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</span>
                     <span className="text-stone text-sm"> · {award.title}</span>
+                    {award.target_tent && (
+                      <p className="text-xs text-stone">Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>
+                    )}
+                    <AwardReactions state={reactions[award.id]} disabled={!!reacting?.startsWith(`${award.id}:`)} onReact={(type) => void handleReaction(award.id, type)} />
                   </div>
                   <span className="text-xs text-stone flex-shrink-0">{formatShortDate(award.award_month)}</span>
                 </div>

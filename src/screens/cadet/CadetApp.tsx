@@ -1,17 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/AppShell';
 import { CadetDashboard } from './CadetDashboard';
-import { CadetNarrative } from './CadetNarrative';
-import { CadetGame } from './CadetGame';
-import { CadetQuiz } from './CadetQuiz';
-import { CadetLeaderboard } from './CadetLeaderboard';
-import { CadetAwards } from './CadetAwards';
-import { CadetTent } from './CadetTent';
-import { CadetSettings } from './CadetSettings';
-import { CadetStore } from './CadetStore';
-import { CadetArena } from './CadetArena';
-import { CadetStreak } from './CadetStreak';
 import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
@@ -28,9 +18,22 @@ import { formatDenarii, getDayType, getTodayISODate } from '../../lib/utils';
 import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
-  Lock, Clock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
+  Lock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
 } from 'lucide-react';
+
+// Keep the first dashboard paint light. Each sizeable workspace is downloaded
+// only when the cadet actually opens it.
+const CadetNarrative = lazy(() => import('./CadetNarrative').then((module) => ({ default: module.CadetNarrative })));
+const CadetGame = lazy(() => import('./CadetGame').then((module) => ({ default: module.CadetGame })));
+const CadetQuiz = lazy(() => import('./CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
+const CadetLeaderboard = lazy(() => import('./CadetLeaderboard').then((module) => ({ default: module.CadetLeaderboard })));
+const CadetAwards = lazy(() => import('./CadetAwards').then((module) => ({ default: module.CadetAwards })));
+const CadetTent = lazy(() => import('./CadetTent').then((module) => ({ default: module.CadetTent })));
+const CadetSettings = lazy(() => import('./CadetSettings').then((module) => ({ default: module.CadetSettings })));
+const CadetStore = lazy(() => import('./CadetStore').then((module) => ({ default: module.CadetStore })));
+const CadetArena = lazy(() => import('./CadetArena').then((module) => ({ default: module.CadetArena })));
+const CadetStreak = lazy(() => import('./CadetStreak').then((module) => ({ default: module.CadetStreak })));
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
@@ -48,6 +51,32 @@ type CadetNotification = {
   createdAt?: string;
 };
 
+const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
+
+async function showDeviceNotification(notification: UserNotification) {
+  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
+  if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
+  try {
+    const registration = await navigator.serviceWorker?.ready;
+    const options = {
+      body: notification.body || 'You have a new update.',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-96.png',
+      tag: `full-circle-${notification.id}`,
+      data: { url: '/' },
+    };
+    if (registration) {
+      await registration.showNotification(notification.title || 'Full Circle', options);
+    } else {
+      // Vite development and some embedded browsers have no active service worker.
+      // Permission still allows a foreground device notification while the app is open.
+      new Notification(notification.title || 'Full Circle', options);
+    }
+  } catch {
+    // The in-app bell and destination badges still update when the device blocks a foreground toast.
+  }
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
   { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
@@ -61,6 +90,13 @@ const NAV_ITEMS = [
   { key: 'store', label: 'The Market', icon: ShoppingBag },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
+
+function getInitialCadetTab(): Tab {
+  if (typeof window === 'undefined') return 'dashboard';
+  const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
+  const tabs: Tab[] = ['dashboard', 'narrative', 'streak', 'game', 'arena', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+  return tabs.includes(key as Tab) ? key as Tab : 'dashboard';
+}
 
 function actionKeyToTab(actionKey: string | null | undefined): Tab | undefined {
   if (!actionKey) return undefined;
@@ -141,7 +177,7 @@ function getCountdownParts(target?: string | null) {
 
 export function CadetApp() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>(getInitialCadetTab);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
@@ -243,64 +279,65 @@ export function CadetApp() {
         .eq('record_date', today)
         .maybeSingle();
 
-      const attendanceStatus = rec?.attendance_status || 'unmarked';
-      if (attendanceStatus === 'present') {
-        notifs.push({
-          id: `attendance-${today}`,
-          title: rec?.attendance_late ? 'Morning call marked late' : 'Morning call confirmed',
-          text: `Your sentry marked you present for morning call. +${formatDenarii(200)} Ð awarded.`,
-          type: 'success',
-          actionTab: 'dashboard',
-          actionLabel: 'Open Dashboard',
-        });
-      } else if (attendanceStatus === 'absent') {
-        notifs.push({
-          id: `attendance-absent-${today}`,
-          title: 'Morning call marked absent',
-          text: 'Your sentry marked you absent for today\'s morning call.',
-          type: 'warning',
-          actionTab: 'tent',
-          actionLabel: 'Open Tent',
-        });
-      } else {
-        notifs.push({
-          id: `attendance-unmarked-${today}`,
-          title: 'Morning call not marked yet',
-          text: 'Your sentry has not marked your morning call attendance yet.',
-          type: 'warning',
-          actionTab: 'tent',
-          actionLabel: 'Open Tent',
-        });
-      }
+      if (getDayType(new Date()) === 'weekday') {
+        const attendanceStatus = rec?.attendance_status || 'unmarked';
+        if (attendanceStatus === 'present') {
+          notifs.push({
+            id: `attendance-${today}`,
+            title: rec?.attendance_late ? 'Morning call marked late' : 'Morning call confirmed',
+            text: `Your sentry marked you present for morning call. +${formatDenarii(200)} Ð awarded.`,
+            type: 'success',
+            actionTab: 'dashboard',
+            actionLabel: 'Open Dashboard',
+          });
+        } else if (attendanceStatus === 'absent') {
+          notifs.push({
+            id: `attendance-absent-${today}`,
+            title: 'Morning call marked absent',
+            text: 'Your sentry marked you absent for today\'s morning call.',
+            type: 'warning',
+            actionTab: 'tent',
+            actionLabel: 'Open Tent',
+          });
+        } else {
+          notifs.push({
+            id: `attendance-unmarked-${today}`,
+            title: 'Morning call not marked yet',
+            text: 'Your sentry has not marked your morning call attendance yet.',
+            type: 'warning',
+            actionTab: 'tent',
+            actionLabel: 'Open Tent',
+          });
+        }
 
-      if (!rec?.meditation_submitted) {
-        notifs.push({
-          id: `devotion-${today}`,
-          title: 'Devotion pending',
-          text: 'Submit today\'s devotion to complete the second part of your streak.',
-          type: 'warning',
-          actionTab: 'narrative',
-          actionLabel: 'Open Reading',
-        });
-      }
-      if (rec?.meditation_submitted) {
-        notifs.push({
-          id: `devotion-done-${today}`,
-          title: 'Devotion submitted',
-          text: 'Today\'s devotion is in.',
-          type: 'success',
-          actionTab: 'dashboard',
-        });
-      }
-      if (attendanceStatus === 'present' && rec?.meditation_submitted) {
-        notifs.push({
-          id: `streak-complete-${today}`,
-          title: 'Streak day complete',
-          text: 'Morning call and devotion are both complete for today.',
-          type: 'success',
-          actionTab: 'dashboard',
-          actionLabel: 'Open Dashboard',
-        });
+        if (!rec?.meditation_submitted) {
+          notifs.push({
+            id: `devotion-${today}`,
+            title: 'Devotion pending',
+            text: 'Submit today\'s devotion to complete the second part of your streak.',
+            type: 'warning',
+            actionTab: 'narrative',
+            actionLabel: 'Open Reading',
+          });
+        } else {
+          notifs.push({
+            id: `devotion-done-${today}`,
+            title: 'Devotion submitted',
+            text: 'Today\'s devotion is in.',
+            type: 'success',
+            actionTab: 'dashboard',
+          });
+        }
+        if (attendanceStatus === 'present' && rec?.meditation_submitted) {
+          notifs.push({
+            id: `streak-complete-${today}`,
+            title: 'Streak day complete',
+            text: 'Morning call and devotion are both complete for today.',
+            type: 'success',
+            actionTab: 'dashboard',
+            actionLabel: 'Open Dashboard',
+          });
+        }
       }
     } catch {}
 
@@ -354,7 +391,7 @@ export function CadetApp() {
     } catch {}
 
     try {
-      const ledgerEntries = await fetchLedgerEntries(profile.id);
+      const ledgerEntries = await fetchLedgerEntries(profile.id, 60);
       ledgerEntries
         .filter((entry) => !persistedLedgerIds.has(entry.id))
         .filter((entry) => new Date(entry.created_at).getTime() >= Date.now() - 3 * 86400000)
@@ -548,15 +585,19 @@ export function CadetApp() {
     const refreshVisibleState = () => {
       if (document.visibilityState === 'visible') void refreshCadetState();
     };
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadNotifications();
+    }, 30_000);
 
     window.addEventListener('focus', refreshCadetState);
     document.addEventListener('visibilitychange', refreshVisibleState);
 
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener('focus', refreshCadetState);
       document.removeEventListener('visibilitychange', refreshVisibleState);
     };
-  }, [refreshCadetState]);
+  }, [loadNotifications, refreshCadetState]);
 
   useEffect(() => {
     loadNotifications();
@@ -569,7 +610,10 @@ export function CadetApp() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
-        () => loadNotifications(),
+        (payload) => {
+          if (payload.eventType === 'INSERT') void showDeviceNotification(payload.new as UserNotification);
+          void loadNotifications();
+        },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -735,31 +779,33 @@ export function CadetApp() {
       onNavigate={handleNavigate}
       headerTitle={tabLabels[tab]}
       headerSubtitle={houseName ? `${tentName} · ${houseName}` : 'Cadet'}
-      showTopSignOut={false}
+      showTopSignOut
       rightHeader={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {isExpired && (
             <button onClick={() => setTab('subscribe')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-coral-soft text-coral border border-coral/30 hover:bg-coral/10 transition-colors">
               <Lock size={14} /> Subscribe
             </button>
           )}
           {/* Streak icon */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
-            <Flame size={16} className="text-coral" />
-            <span className="font-display font-bold text-coral text-sm">{streakCount}</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
+            <Flame size={15} className="text-coral" />
+            <span className="font-display font-bold text-coral text-[13px]">{streakCount}</span>
           </div>
           {/* Notification bell */}
-          <div className="relative" ref={notificationsRef}>
-            <button onClick={() => setShowNotifications(s => !s)} className="relative flex items-center justify-center w-9 h-9 rounded-full bg-surface-2 border border-border hover:border-border-bright transition-colors">
-              <Bell size={16} className="text-ink" />
+          <div className="relative z-[70]" ref={notificationsRef}>
+            <button onClick={() => setShowNotifications(s => !s)} className="relative z-[90] flex h-8 w-8 items-center justify-center overflow-visible rounded-full border border-border bg-surface-2 transition-colors hover:border-border-bright">
+              <Bell size={15} className="text-ink" />
               {unreadNotificationCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="notification-badge-ring absolute right-0 top-0 z-[100] flex h-5 w-5 shrink-0 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                   {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                 </span>
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-1rem)] rounded-xl border border-border bg-surface shadow-lg z-50 overflow-hidden animate-fade-in">
+              <>
+                <button type="button" aria-label="Close notifications" onClick={() => setShowNotifications(false)} className="fixed inset-0 z-[80] cursor-default bg-ink/45" />
+                <div className="fixed right-3 top-[7.1rem] z-[100] w-[calc(100vw-1.5rem)] max-w-sm rounded-xl border border-border bg-surface shadow-2xl overflow-hidden animate-fade-in md:absolute md:right-0 md:top-full md:mt-2 md:w-[22rem]">
                 <div className="px-4 py-2.5 border-b border-border bg-surface-2 flex items-center justify-between gap-3">
                   <div>
                     <span className="text-xs font-display font-semibold text-ink">Notifications</span>
@@ -814,13 +860,14 @@ export function CadetApp() {
                     </div>
                   ))}
                 </div>
-              </div>
+                </div>
+              </>
             )}
           </div>
           {/* Denarii */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-peri-soft border border-border-bright">
-            <Coins size={18} className="text-gold" />
-            <span className="font-display font-bold text-gold text-sm">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright">
+            <Coins size={16} className="text-gold" />
+            <span className="font-display font-bold text-gold text-[13px]">
               {denariiTotal >= 1000 ? `${(denariiTotal / 1000).toFixed(1)}K` : denariiTotal}
             </span>
           </div>
@@ -828,20 +875,26 @@ export function CadetApp() {
       }
       navBadges={notificationBadges}
     >
-      {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-      {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
-      {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
-      {tab === 'game' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
-      {tab === 'arena' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
-      {tab === 'quiz' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
-      {tab === 'tent' && <CadetTent />}
-      {tab === 'leaderboard' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
-      {tab === 'awards' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
-      {tab === 'store' && <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />}
-      {tab === 'settings' && <CadetSettings refreshKey={cadetRefreshKey} currentStreak={streakCount} />}
-      {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} onSubscribed={loadSubStatus} />}
+      <Suspense fallback={<TabLoading />}>
+        {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
+        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
+        {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
+        {tab === 'game' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
+        {tab === 'arena' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
+        {tab === 'quiz' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
+        {tab === 'tent' && <CadetTent />}
+        {tab === 'leaderboard' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
+        {tab === 'awards' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
+        {tab === 'store' && <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />}
+        {tab === 'settings' && <CadetSettings refreshKey={cadetRefreshKey} currentStreak={streakCount} />}
+      {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} />}
+      </Suspense>
     </AppShell>
   );
+}
+
+function TabLoading() {
+  return <div className="py-16 text-center text-sm text-stone animate-fade-in">Loading this space...</div>;
 }
 
 function SubscribeGate({ onSubscribe }: { onSubscribe: () => void }) {
@@ -861,7 +914,7 @@ function SubscribeGate({ onSubscribe }: { onSubscribe: () => void }) {
   );
 }
 
-function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: string; trial_ends_at: string; current_period_end: string | null; is_paid: boolean } | null; onSubscribed: () => void }) {
+function SubscribeScreen({ subStatus }: { subStatus: { status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<string>('mobile_money');
@@ -886,7 +939,8 @@ function SubscribeScreen({ subStatus, onSubscribed }: { subStatus: { status: str
     setLoading(false);
   };
 
-  const trialDaysLeft = subStatus ? Math.max(0, Math.ceil((new Date(subStatus.trial_ends_at).getTime() - Date.now()) / 86400000)) : 0;
+  const trialEndsAt = subStatus?.trial_ends_at ? new Date(subStatus.trial_ends_at).getTime() : NaN;
+  const trialDaysLeft = Number.isFinite(trialEndsAt) ? Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000)) : 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">

@@ -68,7 +68,7 @@ export function serializePanelImageSetting(url: string, adjustments?: Partial<Pa
 }
 
 export function isPanelImageContent(content: string | null | undefined) {
-  return /^https?:\/\//i.test(String(content || '').trim()) || /^(\{|\[)/.test(String(content || '').trim());
+  return /^https?:\/\//i.test(parsePanelImageContent(content).url);
 }
 
 export function normaliseAdjustments(input?: Partial<PanelImageAdjustments> | null): PanelImageAdjustments {

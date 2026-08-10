@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { SectionHeader, EmptyState } from '../../components/AppShell';
+import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
+import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getCurrencyForUser, getSubscriptionStatus } from '../../lib/queries';
-import { cn, formatDenarii, getTodayISODate } from '../../lib/utils';
+import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getSubscriptionStatus } from '../../lib/queries';
+import { cn, formatDenarii } from '../../lib/utils';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../../lib/profileOptions';
 import {
-  User, Phone, Camera, Loader2, Save, Flame, Coins, Trophy, Award,
+  User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
-  KeyRound, Eye, EyeOff,
+  Globe2, KeyRound, Languages,
 } from 'lucide-react';
 
 interface CadetSettingsProps {
@@ -29,6 +31,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   const { profile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState({
@@ -37,13 +41,6 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   });
   const [subStatus, setSubStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,12 +114,21 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
 
   useEffect(() => { load(); }, [load]);
 
-  const saveWhatsapp = async () => {
+  const saveProfile = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() || profile.display_name, whatsapp_number: whatsapp }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      display_name: displayName.trim() || profile.display_name,
+      whatsapp_number: whatsapp,
+      country_code: country,
+      language_code: language,
+      timezone: timezoneForCountry(country),
+    }).eq('id', profile.id);
     if (error) alert(error.message);
-    else await refreshProfile();
+    else {
+      document.documentElement.lang = language;
+      await refreshProfile();
+    }
     setSaving(false);
   };
 
@@ -139,31 +145,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
     setUploadingAvatar(false);
   };
 
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
-  };
-
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
-  if (passwordPage && profile?.email) return <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />;
+  if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
 
   const trialCountdown = getCountdownParts(subStatus?.trial_ends_at);
   const periodCountdown = getCountdownParts(subStatus?.current_period_end);
@@ -220,7 +203,7 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           </label>
           <div className="flex gap-2 mb-3">
             <input className="input-field" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            <button onClick={saveWhatsapp} disabled={saving || !displayName.trim()} className="btn-secondary text-sm whitespace-nowrap">
+            <button onClick={saveProfile} disabled={saving || !displayName.trim()} className="btn-secondary text-sm whitespace-nowrap">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>
           </div>
@@ -229,9 +212,23 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           </label>
           <div className="flex gap-2">
             <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-            <button onClick={saveWhatsapp} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
+            <button onClick={saveProfile} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs text-stone">
+              <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
+              <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
+                {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs text-stone">
+              <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+              <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
           </div>
         </div>
       </div>
@@ -263,6 +260,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           <KeyRound size={14} /> Update Password
         </button>
       </div>
+
+      <BrowserNotificationSettings />
 
       {/* Subscription */}
       <div className="card p-5">
@@ -301,39 +300,6 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
             ? `You have an active paid subscription${subStatus?.current_period_end ? ` until ${new Date(subStatus.current_period_end).toLocaleDateString()}` : ''}.`
             : <>You are on the free trial with <span className="font-semibold text-coral">{trialCountdown.label}</span> remaining. Upgrade to keep playing after the trial ends.</>}
         </p>
-      </div>
-    </div>
-  );
-}
-
-function PasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-stone block mb-1">{label}</label>
-      <div className="relative">
-        <input
-          className="input-field pr-10"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          minLength={6}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone hover:text-ink transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
       </div>
     </div>
   );

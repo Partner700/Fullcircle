@@ -6,18 +6,21 @@ import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
-  fetchNarratives, fetchFortuneQuizSession, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
-  fetchPanelImageSetting,
+  fetchNarratives, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
+  fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
-import { formatCountdown, cn } from '../../lib/utils';
+import { formatCountdown, formatDenarii, cn } from '../../lib/utils';
 import { generateQuizQuestions } from '../../lib/questionGenerator';
+import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
 import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
 import {
-  FileQuestion, Clock, CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
-  Trophy, Zap, Lock, Ban, Timer, BookOpen, Swords, RefreshCw,
+  FileQuestion, Clock, CheckCircle2, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
+  Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw, Lightbulb, Wand2,
+  SkipForward, Volume2, Eye, Sparkles,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
 
@@ -82,6 +85,13 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [usingLazarus, setUsingLazarus] = useState(false);
   const [lazarusMode, setLazarusMode] = useState(false);
   const [quizImage, setQuizImage] = useState<PanelImageSetting | null>(null);
+  const [readingArchive, setReadingArchive] = useState<(DailyNarrative & { meditation_text?: string | null; best_verse?: string | null })[]>([]);
+  const [reviewVerseIndex, setReviewVerseIndex] = useState(0);
+
+  useEffect(() => {
+    void setScenarioSound(inQuiz ? 'sound_quiz_start' : 'sound_quiz_waiting');
+    return () => { void setScenarioSound(null); };
+  }, [inQuiz]);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -111,9 +121,12 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       }
     }
     try {
-      const narrs = await fetchNarratives(7);
+      const narrs = await fetchNarratives(90);
       setNarratives(narrs);
-    } catch { setNarratives([]); }
+      const { data: records } = await supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id);
+      const recordsByDate = new Map((records || []).map((record: any) => [record.record_date, record]));
+      setReadingArchive(narrs.filter((item) => item.narrative_date < new Date().toISOString().slice(0, 10)).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
+    } catch { setNarratives([]); setReadingArchive([]); }
     } catch (e) { console.error('Quiz load error:', e); }
     setLoading(false);
   }, [profile]);
@@ -234,13 +247,13 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
 
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+      return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
     }
-    return <ResultsView attempt={attempt} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} />;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ResultsView attempt={attempt} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
 
   // In quiz
@@ -266,7 +279,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     <div className="space-y-5 animate-fade-in max-w-2xl mx-auto">
       {/* Quiz card — session header */}
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
-        <PanelImageBackdrop image={quizImage} opacityFallback={20} veilClassName="bg-surface/75" />
+        <PanelImageBackdrop image={quizImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
         <div className="relative text-center">
           <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
@@ -279,29 +292,33 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         </div>
       </div>
 
+      <QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />
+
       {/* Phase-specific content */}
       {phase === 'scheduled' && (
         <WaitingRoom
           eyebrow="Not Yet Open"
-          icon={Clock}
           title="Quiz Not Yet Open"
           description="The waiting room opens in:"
           countdownMs={timeToCountdown}
           footnote={`Waiting room opens at ${new Date(session.countdown_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Live at ${new Date(session.live_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
           progressLabel="Time to waiting room"
+          sessionId={session.id}
+          userId={profile!.id}
         />
       )}
 
       {phase === 'countdown' && (
         <WaitingRoom
           eyebrow="Waiting Room"
-          icon={Timer}
           title="Waiting Room"
           description="Quiz starts in:"
           countdownMs={timeToLive}
           footnote="Get ready — 10 questions, 15 minutes, no skips forward."
           progressLabel="Countdown to live"
           pulse
+          sessionId={session.id}
+          userId={profile!.id}
         />
       )}
 
@@ -370,22 +387,34 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           />
         </div>
       </div>
+
     </div>
   );
 }
 
+function QuizReadingReview({ archive, verseIndex, onNext }: { archive: (DailyNarrative & { meditation_text?: string | null; best_verse?: string | null })[]; verseIndex: number; onNext: () => void }) {
+  const verses = archive.flatMap((item) => (item.highlighted_verses || []).map((verse) => ({ ...verse, date: item.narrative_date, title: item.title, bestVerse: item.best_verse })));
+  const verse = verses.length ? verses[verseIndex % verses.length] : null;
+  return <section className="card relative overflow-hidden p-5 animate-slide-up">
+    <div className="flex items-center justify-between gap-3"><div><p className="eyebrow text-stone">Quiz Reading Review</p><p className="mt-1 text-sm text-ink">Previous readings and verses to carry into the quiz</p></div><BookOpen size={20} className="text-brass" /></div>
+    {!verse ? <p className="mt-4 text-sm text-stone">Your previous readings will appear here once narratives have been published.</p> : <div className="mt-4 rounded-lg border border-brass/25 bg-brass-soft p-4"><p className="text-xs font-semibold text-brass">{verse.reference} · {verse.title}</p><p className="mt-2 text-sm leading-relaxed text-ink">{verse.text}</p>{verse.bestVerse === verse.reference && <p className="mt-2 text-xs text-sage">Your selected best verse</p>}<button type="button" onClick={onNext} className="btn-secondary mt-3 text-xs">Next verse</button></div>}
+    <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-xs font-semibold text-ink">Open previous readings and my meditations</summary><div className="mt-3 space-y-2">{archive.map((item) => <details key={item.id} className="rounded-md border border-border bg-surface-2 p-3"><summary className="cursor-pointer text-sm text-ink">{item.title} · {item.narrative_date}</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.main_text}</p>{item.meditation_text && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-ink">{item.meditation_text}</p>}</details>)}</div></details>
+  </section>;
+}
+
 // ── Waiting / countdown room — Dove + rotating scripture + thin progress bar ──
 function WaitingRoom({
-  eyebrow, icon: Icon, title, description, countdownMs, footnote, progressLabel, pulse,
+  eyebrow, title, description, countdownMs, footnote, progressLabel, pulse, sessionId, userId,
 }: {
   eyebrow: string;
-  icon: typeof Clock;
   title: string;
   description: string;
   countdownMs: number;
   footnote: string;
   progressLabel: string;
   pulse?: boolean;
+  sessionId: string;
+  userId: string;
 }) {
   const [factIdx, setFactIdx] = useState(0);
   const totalSec = Math.max(1, Math.floor(countdownMs / 1000));
@@ -432,8 +461,18 @@ function WaitingRoom({
       </p>
 
       <p className="text-xs text-stone mt-3">{footnote}</p>
+      <QuizWaitingChat sessionId={sessionId} userId={userId} />
     </div>
   );
+}
+
+function QuizWaitingChat({ sessionId, userId }: { sessionId: string; userId: string }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [body, setBody] = useState('');
+  const load = useCallback(async () => { try { setMessages(await fetchQuizWaitingMessages(sessionId)); } catch (error) { console.error('Quiz chat load failed', error); } }, [sessionId]);
+  useEffect(() => { void load(); const channel = supabase.channel(`quiz-waiting-chat-${sessionId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quiz_waiting_messages', filter: `quiz_session_id=eq.${sessionId}` }, () => void load()).subscribe(); return () => { void supabase.removeChannel(channel); }; }, [sessionId, load]);
+  const send = async () => { if (!body.trim()) return; try { await sendQuizWaitingMessage(sessionId, userId, body); setBody(''); } catch (error) { console.error('Quiz chat send failed', error); } };
+  return <div className="mt-5 border-t border-border pt-4 text-left"><p className="mb-2 text-xs font-semibold text-ink">Waiting room chat</p><div className="max-h-28 space-y-1.5 overflow-y-auto">{messages.length === 0 ? <p className="py-2 text-center text-xs text-stone">Say hello while you wait.</p> : messages.map((message) => <p key={message.id} className="rounded-md bg-surface-2 px-2 py-1.5 text-xs text-ink"><b>{message.sender_id === userId ? 'You' : message.sender?.display_name || 'Cadet'}:</b> {message.body}</p>)}</div><div className="mt-2 flex gap-2"><input className="input-field min-w-0 flex-1 text-xs" value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void send(); } }} placeholder="Message the waiting room..." /><button type="button" onClick={() => void send()} className="btn-primary px-3 text-xs">Send</button></div></div>;
 }
 
 function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
@@ -461,6 +500,10 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
   const [submitting, setSubmitting] = useState(false);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [usingGoliath, setUsingGoliath] = useState(false);
+  const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
+  const [relicNotice, setRelicNotice] = useState<string | null>(null);
+  const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
+  const [donkeyActive, setDonkeyActive] = useState(false);
   const forfeitedRef = useRef(false);
 
   useEffect(() => {
@@ -556,6 +599,11 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
 
   const handleAnswer = (answer: any) => {
     if (showFeedback) return;
+    if (donkeyActive && answer !== payload.correct_answer) {
+      setDonkeyActive(false);
+      setRelicNotice('The Talking Donkey warns that this answer is not right. Try another answer.');
+      return;
+    }
     setSelectedAnswer(answer);
     setShowFeedback(true);
     saveResponse(answer);
@@ -566,6 +614,9 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
       setCurrentIdx(currentIdx + 1);
       setSelectedAnswer(localResponses.get(questions[currentIdx + 1].id) ?? null);
       setShowFeedback(localResponses.has(questions[currentIdx + 1].id));
+      setRelicNotice(null);
+      setEliminatedOptions([]);
+      setDonkeyActive(false);
     }
   };
 
@@ -652,6 +703,7 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     }
 
     setSubmitting(false);
+    void playSoundEffect('sound_quiz_finish', 0.62);
     onSubmit();
   };
 
@@ -672,7 +724,45 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     setUsingGoliath(false);
   };
 
-  const correct = selectedAnswer === payload.correct_answer;
+  const consumeQuestionRelic = async (slug: string, action: () => void) => {
+    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+    setUsingQuestionRelic(slug);
+    try {
+      await useRelic(userId, slug);
+      setRelicInventory((previous) => ({
+        ...previous,
+        [slug]: Math.max(0, (previous[slug] || 0) - 1),
+      }));
+      action();
+    } catch (error: any) {
+      setRelicNotice(error.message || 'This relic could not be used.');
+    } finally {
+      setUsingQuestionRelic(null);
+    }
+  };
+
+  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT, () =>
+    setRelicNotice(payload.explanation || 'Look closely at the wording, the passage, and the details that distinguish the choices.'),
+  );
+  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE, () => {
+    const wrongAnswers = cleanQuizOptions(payload.options, payload.correct_answer)
+      .filter((option) => option !== payload.correct_answer);
+    setEliminatedOptions(wrongAnswers.slice(0, Math.max(1, Math.floor(wrongAnswers.length / 2))));
+    setRelicNotice('Two wrong options have been removed.');
+  });
+  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP, () => {
+    setRelicNotice('Question skipped. It will not add to your score.');
+    handleAnswer(null);
+  });
+  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE, () =>
+    setRelicNotice(payload.reference ? `Reference: ${payload.reference}` : 'This question has no additional reference.'),
+  );
+  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL, () => handleAnswer(payload.correct_answer));
+  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY, () => {
+    setDonkeyActive(true);
+    setRelicNotice('The Talking Donkey is listening. A wrong answer will be stopped before it is saved.');
+  });
+
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const lowTime = timeLeft <= 60;
@@ -717,6 +807,36 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         />
       </div>
 
+      {!showFeedback && (
+        <div className="flex flex-wrap gap-1.5">
+          {( [
+            [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
+            [RELIC_SLUGS.ELIMINATE, 'Eliminate', Wand2, useEliminate, !!payload.options?.length],
+            [RELIC_SLUGS.SKIP, 'Skip', SkipForward, useSkip, true],
+            [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
+            [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
+            [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
+          ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
+            const amount = relicInventory[slug as string] || 0;
+            if (!amount || !applicable) return null;
+            const isUsing = usingQuestionRelic === slug;
+            return (
+              <button
+                key={slug}
+                type="button"
+                onClick={onClick}
+                disabled={!!usingQuestionRelic}
+                className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
+                title={`Use ${label} relic`}
+              >
+                {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                <span>{label}</span> ({amount})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Question card with scroll-edge motif */}
       <div className="card p-5 relative animate-slide-up">
         <ScrollEdge position="top" className="text-stone mb-2" />
@@ -735,6 +855,12 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         </div>
 
         <h3 className="font-display font-medium text-ink text-lg mb-4 mt-1">{payload.question}</h3>
+
+        {relicNotice && (
+          <div className="mb-4 flex items-start gap-1.5 rounded-lg border border-royal/20 bg-royal-soft p-2.5 text-xs text-royal animate-fade-in">
+            <Sparkles size={14} className="mt-0.5 flex-shrink-0" /> {relicNotice}
+          </div>
+        )}
 
         {/* Scriptorium */}
         {payload.type === 'scriptorium' && payload.blanked_text && (
@@ -796,7 +922,7 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
         {/* Multiple choice / True-false */}
         {payload.type !== 'scriptorium' && payload.type !== 'standard_text' && payload.options && (
           <div className="space-y-2">
-            {cleanQuizOptions(payload.options, payload.correct_answer).map((opt, i) => {
+            {cleanQuizOptions(payload.options, payload.correct_answer).filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
               const isSelected = selectedAnswer === opt;
               return (
                 <button

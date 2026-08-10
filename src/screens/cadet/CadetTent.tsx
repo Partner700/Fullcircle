@@ -3,11 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { supabase } from '../../lib/supabase';
-import { fetchAwards } from '../../lib/queries';
+import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
 import { cn, whatsappUrl, formatDenarii, formatShortDate } from '../../lib/utils';
-import type { Tent, TentMember, Profile, Award } from '../../lib/types';
+import type { AwardWithRecipient, Tent, TentMember, Profile, PanelImageSetting, Award } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
-import { MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Award as AwardIcon } from 'lucide-react';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus, Award as AwardIcon } from 'lucide-react';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -36,23 +37,75 @@ export function CadetTent() {
   const [denariiMap, setDenariiMap] = useState<Record<string, number>>({});
   const [streakMap, setStreakMap] = useState<Record<string, number>>({});
   const [unreadBySender, setUnreadBySender] = useState<Record<string, number>>({});
+  const [tentAwards, setTentAwards] = useState<AwardWithRecipient[]>([]);
+  const [awardsImage, setAwardsImage] = useState<PanelImageSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
+  const [availableTents, setAvailableTents] = useState<any[]>([]);
+  const [pendingTentId, setPendingTentId] = useState<string | null>(null);
+  const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
+    try {
+      const { data: member } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).maybeSingle();
+      if (!member) {
+        setTent(null);
+        setMembers([]);
+        const [{ data: tentRows }, { data: requestRow }] = await Promise.all([
+          supabase.from('tents').select('id,name,max_cadets,profile_image_url,tent_houses(name)').order('name'),
+          supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
+        ]);
+        const tentsWithCounts = await Promise.all((tentRows || []).map(async (row: any) => {
+          const { count } = await supabase.from('tent_members').select('id', { count: 'exact', head: true }).eq('tent_id', row.id).eq('role', 'cadet');
+          return { ...row, cadet_count: count || 0 };
+        }));
+        setAvailableTents(tentsWithCounts);
+        setPendingTentId(requestRow?.tent_id || null);
+        return;
+      }
 
-    const { data: member } = await supabase
-      .from('tent_members')
-      .select('tent_id')
-      .eq('user_id', profile.id)
-      .maybeSingle();
+      const [tentResult, membersResult, reactionsResult, unreadResult, awardsResult, awardsImageResult] = await Promise.all([
+        supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
+        supabase.from('tent_members').select('*, profiles(*)').eq('tent_id', member.tent_id).order('joined_at'),
+        supabase.from('tent_reactions').select('*').eq('tent_id', member.tent_id).order('created_at', { ascending: false }).limit(50),
+        supabase.from('user_notifications').select('actor_id').eq('recipient_id', profile.id).is('read_at', null).eq('action_key', 'tent'),
+        fetchAwards(),
+        fetchPanelImageSetting('recent_awards'),
+      ]);
+      setTent(tentResult.data as any);
+      setMembers((membersResult.data || []) as any);
+      setReactions((reactionsResult.data || []) as any);
+      const tentMemberIds = new Set((membersResult.data || []).map((m: any) => m.user_id));
+      if (tentResult.data?.sentry_id) tentMemberIds.add(tentResult.data.sentry_id);
+      setTentAwards(awardsResult.filter((award) => (
+        award.award_target_type === 'tent'
+          ? award.award_target_id === member.tent_id
+          : tentMemberIds.has(award.user_id) || (!!award.award_target_id && tentMemberIds.has(award.award_target_id))
+      )));
+      setAwardsImage(awardsImageResult);
 
-    if (!member) {
+      const memberIds = (membersResult.data || []).map((m: any) => m.user_id);
+      const [denariiResults, streakResults] = await Promise.all([
+        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('get_user_denarii_total', { p_user_id: uid })).data }))),
+        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('compute_strict_streak', { p_user_id: uid })).data }))),
+      ]);
+      setDenariiMap(Object.fromEntries(denariiResults.map(({ uid, data }) => [uid, Number(data) || 0])));
+      setStreakMap(Object.fromEntries(streakResults.flatMap(({ uid, data }: any) => data?.[0] ? [[uid, data[0].current_streak]] : [])));
+
+      const unreadMap: Record<string, number> = {};
+      (unreadResult.data || []).forEach((n: any) => {
+        if (n.actor_id) unreadMap[n.actor_id] = (unreadMap[n.actor_id] || 0) + 1;
+      });
+      setUnreadBySender(unreadMap);
+    } catch (error) {
+      console.error('Tent load error:', error);
+      setTent(null);
+    } finally {
       setLoading(false);
-      return;
     }
+
 
     const [{ data: tentData }, { data: memberData }, { data: reactData }, awardsResult] = await Promise.all([
       supabase
@@ -121,6 +174,14 @@ export function CadetTent() {
 
   useEffect(() => { load(); }, [load]);
 
+  const requestTent = async (tentId: string) => {
+    setRequestingTentId(tentId);
+    const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: tentId });
+    setRequestingTentId(null);
+    if (error) return alert(error.message);
+    setPendingTentId(tentId);
+  };
+
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
     if (!profile || !tent) return;
     setReactingTo(targetUserId);
@@ -144,7 +205,7 @@ export function CadetTent() {
           p_metadata: { tent_id: tent.id, reaction_type: reactionType, target_type: targetType },
         });
       } catch {
-        // Reactions should still save even if a notification insert is rejected.
+        // A reaction should still save even if its optional notification fails.
       }
     }
     await load();
@@ -155,11 +216,24 @@ export function CadetTent() {
 
   if (!tent) {
     return (
-      <EmptyState
-        icon={Users}
-        title="You're not in a tent yet"
-        message="Your sentry will assign you to a tent soon. Check back later!"
-      />
+      <div className="space-y-5 animate-fade-in">
+        <EmptyState icon={Users} title="You're not in a tent yet" message="Choose a tent below and request to join its family." />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {availableTents.map((item) => {
+            const full = item.cadet_count >= (item.max_cadets || 10);
+            const pending = pendingTentId === item.id;
+            return <article key={item.id} className="card flex items-center gap-3 p-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
+              </div>
+              <div className="min-w-0 flex-1"><p className="font-bold text-ink">{item.name}</p><p className="text-xs text-stone">{item.tent_houses?.name} · {item.cadet_count}/{item.max_cadets || 10} cadets</p></div>
+              <button type="button" disabled={full || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
+                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : <><UserPlus size={14} /> Join</>}
+              </button>
+            </article>;
+          })}
+        </div>
+      </div>
     );
   }
 
@@ -204,42 +278,53 @@ export function CadetTent() {
         )}
       </div>
 
-      {tentAwards.length > 0 && (
-        <>
-          <SectionHeader title="Tent Honors" subtitle="Awards carried by this tent family" />
-          <div className="card p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {tentAwards.map((award) => {
-                const isTentAward = award.award_target_type === 'tent';
-                const recipient = !isTentAward ? memberById.get(award.user_id) || memberById.get(award.award_target_id || '') : null;
-                const sentryName = sentry?.profiles.display_name || 'Sentry pending';
-                return (
-                  <div key={award.id} className="rounded-xl border border-border bg-surface-2/85 p-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gold/15 border border-gold/25 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {recipient?.profiles.avatar_url ? (
-                          <img src={recipient.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <AwardIcon size={18} className="text-gold" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-ink leading-tight">{award.title}</p>
-                        <p className="text-xs text-stone mt-0.5">
-                          {isTentAward ? `${tent.name} · Sentry: ${sentryName}` : `${recipient?.profiles.display_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
-                        </p>
-                        {award.description && <p className="text-xs text-stone mt-1 line-clamp-2">{award.description}</p>}
-                      </div>
-                      <Trophy size={16} className="text-gold flex-shrink-0" />
-                    </div>
-                    <p className="text-[10px] text-stone mt-2">{formatShortDate(award.award_month)}</p>
-                  </div>
-                );
-              })}
+      {/* Awards belong to the tent as a family. */}
+      <section className="card relative overflow-hidden border-gold/35">
+        <PanelImageBackdrop image={awardsImage} opacityFallback={34} veilClassName="bg-surface/76" />
+        <div className="relative border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Trophy size={18} className="text-gold" />
+            <div>
+              <h3 className="font-display text-base font-semibold text-ink">Our Family Trophies</h3>
+              <p className="text-xs text-stone">Awards won together by {tent.name}</p>
             </div>
           </div>
-        </>
-      )}
+        </div>
+        {tentAwards.length > 0 ? (
+          <div className="relative grid gap-3 p-4 sm:grid-cols-2">
+            {tentAwards.map((award) => {
+              const isTentAward = award.award_target_type === 'tent';
+              const recipient = !isTentAward
+                ? memberById.get(award.user_id) || memberById.get(award.award_target_id || '')
+                : null;
+              return (
+                <article key={award.id} className="flex items-center gap-3 rounded-lg border border-gold/30 bg-surface/80 p-3 backdrop-blur-sm">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gold-soft text-gold">
+                    {recipient?.profiles.avatar_url ? (
+                      <img src={recipient.profiles.avatar_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Trophy size={21} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-ink">{award.title}</p>
+                    <p className="text-xs text-stone">
+                      {isTentAward
+                        ? `${tent.name}${sentry ? ` · Sentry: ${sentry.profiles.display_name}` : ''}`
+                        : `${recipient?.profiles.display_name || award.recipient_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
+                    </p>
+                    <p className="text-[10px] text-stone/80">{award.award_month}</p>
+                    {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
+                  </div>
+                  <AwardIcon size={17} className="flex-shrink-0 text-gold" />
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="relative px-4 py-5 text-sm text-stone">The trophies your tent wins will remain here as part of its family history.</p>
+        )}
+      </section>
 
       {/* Tent members */}
       <SectionHeader title="Your Tent" subtitle="React to your sentry and tent mates" />
@@ -258,7 +343,7 @@ export function CadetTent() {
                 <div className="relative flex-shrink-0">
                   <TentAvatar member={m} currentUserId={profile!.id} tentId={tent.id} size="md" />
                   {(unreadBySender[m.user_id] || 0) > 0 && (
-                    <span className="absolute -right-1 -top-1 min-w-5 h-5 px-1 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center border-2 border-surface">
+                    <span className="notification-badge-ring absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-coral p-0 text-[9px] font-bold leading-none text-white shadow-sm">
                       {unreadBySender[m.user_id]}
                     </span>
                   )}

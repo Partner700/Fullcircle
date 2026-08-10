@@ -2,16 +2,21 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../../components/AppShell';
-import { fetchNarrative, fetchGameAttempts, insertGameAttempt, insertLedgerEntry, fetchLedgerTotal, useRelic } from '../../lib/queries';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { Dove } from '../../components/Dove';
+import { fetchNarrative, fetchNarratives, fetchGameAttempts, insertGameAttempt, insertLedgerEntry, fetchLedgerTotal, useRelic, fetchPanelImageSetting } from '../../lib/queries';
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
 import { generateLevelQuestionsWithCustom, getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
 import { isGamePausedNow, getTodayISODate, cn, formatDenarii } from '../../lib/utils';
+import { playRoundWarningBeep, playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_PER_ROUND } from '../../lib/constants';
-import type { DailyNarrative, GameAttempt, GameSeedData, QuestionPayload } from '../../lib/types';
+import type { DailyNarrative, GameAttempt, GameSeedData, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
   Gamepad2, Lock, CheckCircle2, XCircle, Trophy, Coins, RotateCcw,
-  Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords,
+  Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
+  SkipForward, BookOpen, Volume2, Wand2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 const PASS_THRESHOLD = GAME_PASS_THRESHOLD; // 0.6 = 60%
 const DEFAULT_PASSAGE_DISPLAY_SECONDS = 30;
@@ -26,41 +31,6 @@ function calcGameReward(level: number, score: number, maxScore: number): number 
 
 function levelMaxReward(level: number): number {
   return level <= 3 ? 50 : level <= 6 ? 100 : 200;
-}
-
-function GameVectorArt({ variant = 'campaign', className = '' }: { variant?: string; className?: string }) {
-  const palette = ['#FFCF33', '#2EC4B6', '#F15A40', '#3D52C8', '#8B5CF6', '#22C55E'];
-  const isComprehension = variant === 'comprehension';
-  const isFinal = variant === 'final';
-  return (
-    <svg viewBox="0 0 220 150" className={className} aria-hidden="true">
-      <polygon points="0,105 64,36 142,62 220,12 220,150 0,150" fill={palette[3]} opacity="0.18" />
-      <polygon points="18,130 78,34 123,130" fill={palette[0]} />
-      <polygon points="92,130 148,50 198,130" fill={palette[1]} />
-      <polygon points="0,150 54,94 112,150" fill={palette[2]} />
-      <polygon points="126,150 170,78 220,150" fill={palette[4]} />
-      {isComprehension ? (
-        <>
-          <rect x="58" y="42" width="106" height="66" rx="4" fill="#FFF7D6" stroke="#8F6A2A" strokeWidth="5" />
-          <path d="M75 62h72M75 80h58M75 98h68" stroke="#6B4A1F" strokeWidth="6" strokeLinecap="square" />
-          <polygon points="42,108 58,88 74,108" fill={palette[5]} />
-        </>
-      ) : isFinal ? (
-        <>
-          <polygon points="76,96 96,48 112,82 130,42 150,96" fill="#FFCF33" stroke="#8F6A2A" strokeWidth="5" />
-          <rect x="76" y="96" width="74" height="18" fill="#8F6A2A" />
-          <polygon points="45,125 110,84 176,125" fill={palette[5]} />
-        </>
-      ) : (
-        <>
-          <polygon points="68,118 98,72 128,118" fill="#FFF7D6" stroke="#6B4A1F" strokeWidth="5" />
-          <rect x="90" y="94" width="16" height="24" fill="#6B4A1F" />
-          <polygon points="132,116 162,66 190,116" fill="#DDE3FF" stroke="#3D52C8" strokeWidth="5" />
-          <circle cx="152" cy="92" r="9" fill="#FFCF33" />
-        </>
-      )}
-    </svg>
-  );
 }
 
 function getQuestionRound(question: QuestionPayload | undefined, index: number): number {
@@ -96,6 +66,13 @@ interface GameOverResult {
   nextLevel: number | null;
 }
 
+type RoundTimeout = {
+  round: number;
+  correct: number;
+  total: number;
+  nextIndex: number | null;
+};
+
 export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   const { profile } = useAuth();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
@@ -104,25 +81,48 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   const [activeLevel, setActiveLevel] = useState<number | null>(null);
   const [gameOver, setGameOver] = useState<GameOverResult | null>(null);
   const [denariiBalance, setDenariiBalance] = useState(0);
+  const [gameImage, setGameImage] = useState<PanelImageSetting | null>(null);
 
   const today = getTodayISODate();
+  const isSunday = new Date(`${today}T12:00:00`).getDay() === 0;
+  const [gameDate, setGameDate] = useState(today);
+  const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
   const paused = isGamePausedNow();
 
   const load = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
-    const [narr, atts, balance] = await Promise.all([
-      fetchNarrative(today),
-      fetchGameAttempts(profile.id, today),
+    const weekly = isSunday ? await fetchNarratives(8) : [];
+    const weekStart = new Date(`${today}T12:00:00`);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const weekStartDate = weekStart.toISOString().slice(0, 10);
+    const playable = weekly.filter((item) => item.narrative_date >= weekStartDate && item.narrative_date < today);
+    const effectiveDate = isSunday && (!playable.some((item) => item.narrative_date === gameDate) || gameDate === today)
+      ? playable[0]?.narrative_date || gameDate
+      : gameDate;
+    const [narr, atts, balance, image] = await Promise.all([
+      isSunday ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(today),
+      fetchGameAttempts(profile.id, isSunday ? effectiveDate : today),
       fetchLedgerTotal(profile.id),
+      fetchPanelImageSetting('game').catch(() => null),
     ]);
+    if (isSunday) {
+      setSundayGames(playable);
+      if (effectiveDate !== gameDate) setGameDate(effectiveDate);
+    }
     setNarrative(narr);
     setAttempts(atts);
     setDenariiBalance(balance);
+    setGameImage(image);
     setLoading(false);
-  }, [profile, today]);
+  }, [gameDate, isSunday, profile, today]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (activeLevel === null) void setScenarioSound('sound_game_lobby');
+    return () => { void setScenarioSound(null); };
+  }, [activeLevel]);
 
   const hasEarnedFromLevel = (level: number) =>
     attempts.some((a) => a.level === level && a.reward > 0);
@@ -147,7 +147,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
       <EmptyState
         icon={Pause}
         title="Games Paused"
-        message="The Daily Game is paused from Saturday 5 PM to Monday 7 AM. Games resume Monday at 7 AM."
+        message="The Daily Game pauses after Saturday's quiz. The week's games reopen on Sunday."
       />
     );
   }
@@ -155,6 +155,16 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   if (!narrative) {
     return <EmptyState icon={Gamepad2} title="No game today" message="Today's narrative hasn't been published yet." />;
   }
+
+  const sundayGamePicker = isSunday && sundayGames.length > 0 ? (
+    <div className="card mb-4 p-4">
+      <label className="mb-1.5 block text-xs font-bold text-stone">Sunday Game Archive</label>
+      <select className="input-field" value={gameDate} onChange={(event) => { setActiveLevel(null); setGameOver(null); setGameDate(event.target.value); }}>
+        {sundayGames.map((item) => <option key={item.narrative_date} value={item.narrative_date}>{item.narrative_date} · {item.title}</option>)}
+      </select>
+      <p className="mt-2 text-xs text-stone">Replay any published game from this week. Sunday also grants everyone a fresh streak day automatically.</p>
+    </div>
+  ) : null;
 
   if (activeLevel !== null) {
     const earned = hasEarnedFromLevel(activeLevel);
@@ -201,9 +211,9 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {sundayGamePicker}
       <div className="card p-5 relative overflow-hidden animate-slide-up">
-        <GameVectorArt variant="campaign" className="pointer-events-none absolute right-0 top-0 h-full w-56 opacity-80" />
-        <div className="relative z-10 flex items-center justify-between flex-wrap gap-3 pr-20 sm:pr-36">
+        <div className="relative z-10 flex items-center justify-between gap-3">
           <div>
             <p className="eyebrow mb-1">Daily Campaign</p>
             <h2 className="font-display text-xl font-semibold text-ink">
@@ -248,10 +258,14 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
               )}
               onClick={() => { if (unlocked) { resetUsedQuestions(); setActiveLevel(level); } }}
             >
-              <GameVectorArt
-                variant={level === DAILY_GAME_LEVELS ? 'final' : gameType}
-                className="pointer-events-none absolute -right-8 top-0 h-full w-36 opacity-35"
-              />
+              {(unlocked || passed) && (
+                <PanelImageBackdrop
+                  image={gameImage}
+                  opacityFallback={passed ? 24 : 18}
+                  imageClassName={passed ? 'grayscale' : undefined}
+                  veilClassName={passed ? 'bg-navy-2/74' : 'bg-navy-2/82'}
+                />
+              )}
               <div className={cn(
                 'relative z-10 w-12 h-12 rounded-xl flex items-center justify-center font-display font-bold text-lg flex-shrink-0',
                 passed ? 'bg-gold-soft text-gold' : unlocked ? 'bg-surface-2 text-ink' : 'bg-surface-2 text-stone',
@@ -312,12 +326,19 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const [hintShown, setHintShown] = useState(false);
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [hintText, setHintText] = useState<string | null>(null);
+  const [relicNotice, setRelicNotice] = useState<string | null>(null);
+  const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
+  const [donkeyActive, setDonkeyActive] = useState(false);
+  const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
+  const [relicBurst, setRelicBurst] = useState<string | null>(null);
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(getLevelTimer(level));
+  const [roundCorrect, setRoundCorrect] = useState(0);
+  const [roundTimeout, setRoundTimeout] = useState<RoundTimeout | null>(null);
   const [passageIntroRound, setPassageIntroRound] = useState<number | null>(null);
   const [passageTimeLeft, setPassageTimeLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -327,6 +348,12 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const passageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPractice = mode === 'practice';
+
+  useEffect(() => {
+    void setScenarioSound(`sound_game_level_${level}`);
+    void playSoundEffect('sound_game_start', 0.62);
+    return () => { void setScenarioSound(null); };
+  }, [level]);
 
   useEffect(() => {
     let cancelled = false;
@@ -341,6 +368,8 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     setRepeatQueue([]);
     setPassageIntroRound(null);
     setPassageTimeLeft(0);
+    setRoundCorrect(0);
+    setRoundTimeout(null);
     generateLevelQuestionsWithCustom(narrative.game_seed_data as GameSeedData, level, narrative.narrative_date)
       .then((qs) => {
         if (!cancelled) {
@@ -376,32 +405,49 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const handleAnswer = useCallback((answer: string | null) => {
     if (showFeedback) return;
     const q = questions[currentQ];
+    if (donkeyActive && answer !== q.correct_answer) {
+      setDonkeyActive(false);
+      setRelicNotice('The Talking Donkey warns that this answer is not right. Try another answer.');
+      return;
+    }
     const correct = answer === q.correct_answer;
     setSelectedAnswer(answer);
     setShowFeedback(true);
-    if (timerRef.current) clearInterval(timerRef.current);
     if (correct) {
       setScore((s) => s + 1);
+      setRoundCorrect((value) => value + 1);
+      void playSoundEffect('sound_game_correct', 0.58);
     } else {
       setFailedQuestions((prev) => [...prev, q]);
+      void playSoundEffect('sound_game_incorrect', 0.52);
     }
-  }, [showFeedback, questions, currentQ]);
+  }, [showFeedback, questions, currentQ, donkeyActive]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (showFeedback || passageIntroRound !== null) return;
+    if (showFeedback || roundTimeout || passageIntroRound !== null) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
           if (timerRef.current) clearInterval(timerRef.current);
-          handleAnswer(null);
+          const round = getQuestionRound(questions[currentQ], currentQ);
+          const nextIndex = questions.findIndex((question, index) => index > currentQ && getQuestionRound(question, index) !== round);
+          const total = questions.filter((question, index) => getQuestionRound(question, index) === round).length;
+          setRoundTimeout({ round, correct: roundCorrect, total, nextIndex: nextIndex === -1 ? null : nextIndex });
+          void playSoundEffect('sound_round_timeout');
           return 0;
         }
         return t - 1;
       });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [currentQ, showFeedback, passageIntroRound, handleAnswer]);
+  }, [currentQ, passageIntroRound, questions, roundCorrect, roundTimeout, showFeedback]);
+
+  useEffect(() => {
+    if (timeLeft > 0 && timeLeft <= 10 && !roundTimeout && passageIntroRound === null) {
+      playRoundWarningBeep();
+    }
+  }, [timeLeft, roundTimeout, passageIntroRound]);
 
   useEffect(() => {
     if (passageTimerRef.current) clearInterval(passageTimerRef.current);
@@ -448,6 +494,67 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     handleAnswer(questions[currentQ].correct_answer as string);
   };
 
+  const consumeQuestionRelic = async (slug: string, action: () => void) => {
+    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+    setUsingQuestionRelic(slug);
+    try {
+      await useRelic(userId, slug);
+      setRelicInventory((previous) => ({
+        ...previous,
+        [slug]: Math.max(0, (previous[slug] || 0) - 1),
+      }));
+      setRelicBurst(slug);
+      void playSoundEffect(
+        slug === RELIC_SLUGS.WITCH_BALL || slug === RELIC_SLUGS.REVEAL_REFERENCE
+          ? 'sound_relic_reveal'
+          : 'sound_relic_deploy',
+      );
+      action();
+      window.setTimeout(() => setRelicBurst(null), 650);
+    } catch (error: any) {
+      setRelicNotice(error.message || 'This relic could not be used.');
+    } finally {
+      setUsingQuestionRelic(null);
+    }
+  };
+
+  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT, () => {
+    setHintShown(true);
+    const question = questions[currentQ];
+    setHintText(question.explanation || 'Read the question and passage again for the detail that changes the answer.');
+  });
+
+  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE, () => {
+    const question = questions[currentQ];
+    const wrongAnswers = (question.options || []).filter((option) => option !== question.correct_answer);
+    setEliminatedOptions(wrongAnswers.slice(0, Math.max(1, Math.floor(wrongAnswers.length / 2))));
+    setRelicNotice('Two wrong options have been removed.');
+  });
+
+  const useFreezeTimer = () => consumeQuestionRelic(RELIC_SLUGS.FREEZE_TIMER, () => {
+    setTimeLeft((seconds) => seconds + 60);
+    setRelicNotice('Your current round received 60 extra seconds.');
+  });
+
+  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP, () => {
+    setRelicNotice('Question skipped. It will not add to your score.');
+    handleAnswer(null);
+  });
+
+  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE, () => {
+    setRelicNotice(questions[currentQ].reference ? `Reference: ${questions[currentQ].reference}` : 'This question has no additional reference.');
+  });
+
+  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL, () => {
+    setAnswerRevealed(true);
+    handleAnswer(questions[currentQ].correct_answer as string);
+  });
+
+  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY, () => {
+    setDonkeyActive(true);
+    setRelicNotice('The Talking Donkey is listening. A wrong answer will be stopped before it is submitted.');
+  });
+
   const finishLevel = async (forcePerfect = false) => {
     setSubmitting(true);
     const maxScore = questions.length;
@@ -486,6 +593,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     }
 
     setSubmitting(false);
+    void playSoundEffect('sound_game_finish', 0.62);
     onComplete({ passed, score: finalScore, maxScore, reward: actualReward, level, mode, nextLevel: passed ? level + 1 : null });
   };
 
@@ -498,12 +606,15 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         ...prev,
         [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),
       }));
+      setRelicBurst(RELIC_SLUGS.SWORD_GOLIATH);
+      void playSoundEffect('sound_relic_reveal');
       await finishLevel(true);
     } catch (e: any) {
       alert(e.message || 'Failed to use Sword of Goliath');
       setSubmitting(false);
     }
     setUsingGoliath(false);
+    window.setTimeout(() => setRelicBurst(null), 650);
   };
 
   const showRoundPassage = (questionList: QuestionPayload[], round: number) => {
@@ -534,13 +645,43 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
       setCurrentQ((c) => c + 1);
       setSelectedAnswer(null);
       setShowFeedback(false);
+      setHintShown(false);
+      setAnswerRevealed(false);
+      setHintText(null);
+      setRelicNotice(null);
+      setEliminatedOptions([]);
+      setDonkeyActive(false);
       if (nextRound !== currentRound) {
+        setRoundCorrect(0);
         setTimeLeft(getRoundTimer(questions, level, nextIndex));
         showRoundPassage(questions, nextRound);
       }
     } else {
       await finishLevel(false);
     }
+  };
+
+  const continueAfterRoundTimeout = async () => {
+    if (!roundTimeout) return;
+    const nextIndex = roundTimeout.nextIndex;
+    setRoundTimeout(null);
+    if (nextIndex === null) {
+      await finishLevel(false);
+      return;
+    }
+    const nextRound = getQuestionRound(questions[nextIndex], nextIndex);
+    setCurrentQ(nextIndex);
+    setSelectedAnswer(null);
+    setShowFeedback(false);
+    setHintShown(false);
+    setAnswerRevealed(false);
+    setHintText(null);
+    setRelicNotice(null);
+    setEliminatedOptions([]);
+    setDonkeyActive(false);
+    setRoundCorrect(0);
+    setTimeLeft(getRoundTimer(questions, level, nextIndex));
+    showRoundPassage(questions, nextRound);
   };
 
   if (questionsLoading || questions.length === 0) {
@@ -562,6 +703,27 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const activePassageQuestion = passageIntroRound !== null
     ? getRoundPassageQuestion(questions, passageIntroRound)
     : undefined;
+
+  if (roundTimeout) {
+    const qualified = roundTimeout.correct >= Math.ceil(roundTimeout.total * PASS_THRESHOLD);
+    return (
+      <div className="mx-auto max-w-md space-y-4 animate-fade-in">
+        <div className="card overflow-hidden p-6 text-center">
+          <Dove size={112} className="mx-auto mb-3 animate-pulse grayscale opacity-70" />
+          <p className="eyebrow mb-1">Round {roundTimeout.round} complete</p>
+          <h3 className="font-display text-2xl font-semibold text-ink">Time has elapsed</h3>
+          <p className="mt-2 text-sm text-stone">{roundTimeout.correct} of {roundTimeout.total} answers correct this round.</p>
+          <p className={cn('mt-2 text-xs font-semibold', qualified ? 'text-sage' : 'text-coral')}>
+            {qualified ? 'You qualified to move forward.' : 'The remaining questions are closed. Keep going.'}
+          </p>
+          <button onClick={continueAfterRoundTimeout} className="btn-primary mt-5 w-full">
+            {roundTimeout.nextIndex === null ? 'Finish Level' : `Start Round ${roundTimeout.round + 1}`}
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (activePassageQuestion && passageIntroRound !== null) {
     return (
@@ -593,11 +755,15 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
           <button
             onClick={() => setPassageIntroRound(null)}
-            disabled={passageTimeLeft > 0}
-            className="btn-primary mt-4 w-full disabled:opacity-45 disabled:cursor-not-allowed"
+            className="btn-primary mt-4 w-full"
           >
-            {passageTimeLeft > 0 ? `Questions unlock in ${passageTimeLeft}s` : 'Start Round Questions'}
+            {passageTimeLeft > 0 ? 'Skip and begin now' : 'Start Round Questions'}
           </button>
+          {passageTimeLeft > 0 && (
+            <p className="mt-2 text-center text-xs text-stone">
+              Or keep reading. The round begins automatically in {passageTimeLeft}s.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -605,19 +771,19 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
-      <div className="flex items-center justify-between">
-        <button onClick={onExit} className="btn-ghost text-sm">← Exit</button>
-        <div className="flex items-center gap-2">
-          <span className={cn('badge', isPractice ? 'badge-neutral' : 'badge-gold')}>
-            {isPractice ? <><Star size={10} /> Practice</> : 'Normal'} · Level {level}
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:flex sm:justify-between">
+        <button onClick={onExit} className="btn-ghost px-3 py-2 text-xs sm:text-sm">← <span className="hidden sm:inline">Exit</span></button>
+        <div className="flex min-w-0 flex-wrap justify-center gap-1.5">
+          <span className={cn('badge max-w-full text-[10px] sm:text-xs', isPractice ? 'badge-neutral' : 'badge-gold')}>
+            {isPractice ? <><Star size={10} /> Practice</> : 'Normal'} · L{level}
           </span>
-          <span className="badge badge-neutral text-[10px]">{GAME_TYPE_LABELS[gameType]}</span>
+          <span className="badge badge-neutral max-w-[8.5rem] truncate text-[9px] sm:max-w-none sm:text-[10px]" title={GAME_TYPE_LABELS[gameType]}>{GAME_TYPE_LABELS[gameType]}</span>
         </div>
         <div className={cn(
-          'px-3 py-1.5 rounded-lg font-display font-semibold text-sm flex items-center gap-1.5',
+          'justify-self-end px-2 py-1.5 rounded-lg font-display font-semibold text-xs flex items-center gap-1 sm:px-3 sm:text-sm',
           timeLeft <= 10 ? 'bg-coral-soft text-coral' : 'bg-gold-soft text-gold',
         )}>
-          <Clock size={14} /> R{currentRound} · {timeLeft}s
+          <Clock size={13} /> <span className="hidden sm:inline">Round </span>{currentRound} · {timeLeft}s
         </div>
       </div>
 
@@ -630,49 +796,83 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         ))}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-stone">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-stone">
         <span>Score: <span className="text-ink font-semibold">{score}</span> / {questions.length}</span>
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="eyebrow mb-0">Round {currentRound} · Question {currentQ + 1} of {questions.length}</p>
+      <div className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>
           {!showFeedback && !answerRevealed && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-end gap-1.5">
               {goliathCount > 0 && (
                 <button
                   onClick={useGoliathSword}
                   disabled={submitting || usingGoliath}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-coral/30 bg-coral-soft text-coral hover:bg-coral/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-coral/30 bg-coral-soft text-coral hover:bg-coral/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Use Sword of Goliath for a perfect score on this level"
                 >
-                  {usingGoliath ? <Loader2 size={12} className="animate-spin" /> : <Swords size={12} />}
-                  Perfect ({goliathCount})
+                  {usingGoliath ? <Loader2 size={12} className="animate-spin" /> : <Swords size={12} />} <span className="hidden sm:inline">Perfect</span> ({goliathCount})
                 </button>
               )}
               <button
                 onClick={useHint}
                 disabled={hintShown || localDenarii < HINT_COST}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-gold/30 bg-gold-soft text-gold hover:bg-gold/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-gold/30 bg-gold-soft text-gold hover:bg-gold/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title={`Use hint (${HINT_COST} Ð)`}
               >
-                <Lightbulb size={12} /> Hint ({HINT_COST} Ð)
+                  <Lightbulb size={12} /> <span className="hidden sm:inline">Hint </span>{HINT_COST}Ð
               </button>
               <button
                 onClick={useAnswerReveal}
                 disabled={localDenarii < ANSWER_REVEAL_COST}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-royal/30 bg-royal-soft text-royal hover:bg-royal/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-royal/30 bg-royal-soft text-royal hover:bg-royal/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title={`Reveal answer (${ANSWER_REVEAL_COST} Ð)`}
               >
-                <Eye size={12} /> Reveal ({ANSWER_REVEAL_COST} Ð)
+                  <Eye size={12} /> <span className="hidden sm:inline">Reveal </span>{ANSWER_REVEAL_COST}Ð
               </button>
             </div>
           )}
         </div>
+        {!showFeedback && (
+          <div className="mb-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
+            {( [
+              [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
+              [RELIC_SLUGS.ELIMINATE, 'Eliminate', Wand2, useEliminate, !!q.options?.length],
+              [RELIC_SLUGS.FREEZE_TIMER, '+60s', TimerOff, useFreezeTimer, true],
+              [RELIC_SLUGS.SKIP, 'Skip', SkipForward, useSkip, true],
+              [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
+              [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
+              [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
+            ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
+              const amount = relicInventory[slug as string] || 0;
+              if (!amount || !applicable) return null;
+              const isUsing = usingQuestionRelic === slug;
+              return (
+                <button
+                  key={slug}
+                  type="button"
+                  onClick={onClick}
+                  disabled={!!usingQuestionRelic}
+                  className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
+                  title={`Use ${label} relic`}
+                >
+                  {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                  <span>{label}</span> ({amount})
+                </button>
+              );
+            })}
+          </div>
+        )}
         {hintText && (
           <div className="mb-3 p-2.5 rounded-lg bg-gold-soft border border-gold/20 text-xs text-gold flex items-center gap-1.5 animate-fade-in">
             <Sparkles size={14} /> {hintText}
+          </div>
+        )}
+        {relicNotice && (
+          <div className="mb-3 flex items-start gap-1.5 rounded-lg border border-royal/20 bg-royal-soft p-2.5 text-xs text-royal animate-fade-in">
+            <Sparkles size={14} className="mt-0.5 flex-shrink-0" /> {relicNotice}
           </div>
         )}
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
@@ -798,7 +998,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {/* Multiple choice */}
         {q.type === 'multiple_choice' && q.options && (
           <div className="space-y-2">
-            {q.options.map((opt, i) => {
+            {q.options.filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
               const isCorrect = opt === q.correct_answer;
               const isSelected = selectedAnswer === opt;
               return (
@@ -859,7 +1059,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
               </div>
             )}
             <div className="space-y-2">
-              {q.options.map((opt, i) => {
+              {q.options.filter((opt) => !eliminatedOptions.includes(opt)).map((opt, i) => {
                 const isCorrect = opt === q.correct_answer;
                 const isSelected = selectedAnswer === opt;
                 return (

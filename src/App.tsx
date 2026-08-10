@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { AuthScreen } from './screens/AuthScreen';
-import { CadetApp } from './screens/cadet/CadetApp';
-import { SentryApp } from './screens/sentry/SentryApp';
-import { InstructorApp } from './screens/instructor/InstructorApp';
 import { Dove } from './components/Dove';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
+import { ProfileOnboarding } from './components/ProfileOnboarding';
+
+// Role applications are large, independent experiences. Load only the one the
+// signed-in person needs instead of making every user download all three.
+const CadetApp = lazy(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp })));
+const SentryApp = lazy(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp })));
+const InstructorApp = lazy(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp })));
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -21,6 +26,10 @@ const SCRIPTURE_FACTS = [
 export default function App() {
   const { session, profile, role, configError, loading } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
+  const passwordRecovery = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('reset-password') === '1';
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -30,15 +39,18 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loading]);
 
-  // The PWA update notification must be rendered globally so it can
-  // detect service worker updates regardless of which screen is shown.
-  // It conditionally renders itself only when an update is available.
-  const updateNotification = <PWAUpdateNotification />;
+  useEffect(() => {
+    document.documentElement.lang = profile?.language_code || 'en';
+  }, [profile?.language_code]);
+
+  // Installation remains user-directed, while service-worker updates are
+  // applied automatically by registerServiceWorker.
+  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /></>;
 
   if (loading) {
     return (
       <>
-        {updateNotification}
+        {overlays}
         <div className="min-h-screen flex flex-col items-center justify-center bg-navy gap-6">
           <Dove size={80} className="animate-float" />
           <div className="text-center max-w-sm px-4">
@@ -57,7 +69,7 @@ export default function App() {
   if (configError) {
     return (
       <>
-        {updateNotification}
+        {overlays}
         <div className="min-h-screen flex items-center justify-center bg-navy px-4">
           <div className="card max-w-lg p-6 text-center space-y-3">
             <Dove size={64} className="mx-auto" />
@@ -73,18 +85,57 @@ export default function App() {
     );
   }
 
-  if (!session || !profile) {
+  if (passwordRecovery && session) {
     return (
       <>
-        {updateNotification}
-        <AuthScreen />
-        <PWAInstallPrompt />
+        {overlays}
+        <main className="min-h-screen bg-navy px-4 py-10 flex items-center justify-center">
+          <PasswordUpdateFlow
+            email={profile?.email || session.user.email || ''}
+            recoveryMode
+            onDone={() => {
+              window.history.replaceState({}, '', window.location.pathname);
+              window.location.reload();
+            }}
+          />
+        </main>
       </>
     );
   }
 
-  if (role === 'instructor') return <>{updateNotification}<InstructorApp /></>;
-  if (role === 'sentry') return <>{updateNotification}<SentryApp /></>;
-  // Default: cadet (includes unassigned users with limited access)
-  return <>{updateNotification}<CadetApp /></>;
+  if (!session || !profile) {
+    return (
+      <>
+        {overlays}
+        <AuthScreen />
+      </>
+    );
+  }
+
+  const profileSetupComplete = profile.onboarding_completed === true
+    && Boolean(profile.country_code?.trim())
+    && Boolean(profile.whatsapp_number?.trim())
+    && Boolean(profile.language_code?.trim())
+    && Boolean(profile.timezone?.trim());
+
+  if (!profileSetupComplete) {
+    return <>{overlays}<ProfileOnboarding /></>;
+  }
+
+  const app = role === 'instructor'
+    ? <InstructorApp />
+    : role === 'sentry'
+      ? <SentryApp />
+      : <CadetApp />;
+
+  return <>{overlays}<Suspense fallback={<RoleLoading />}>{app}</Suspense></>;
+}
+
+function RoleLoading() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-navy gap-4">
+      <Dove size={64} className="animate-float" />
+      <p className="text-peri-dim text-sm">Preparing your Full Circle...</p>
+    </div>
+  );
 }

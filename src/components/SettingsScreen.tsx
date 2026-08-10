@@ -5,19 +5,23 @@ import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, uploadAvatar, fetch
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
+import { BrowserNotificationSettings } from './BrowserNotificationSettings';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../lib/profileOptions';
 import { StatCard, SectionHeader } from './AppShell';
 import {
   CadetIcon, SentryIcon, InstructorIcon,
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
-import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
-  const { profile, role } = useAuth();
+  const { profile, role, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
+  const [country, setCountry] = useState(profile?.country_code || 'CM');
+  const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tentInfo, setTentInfo] = useState<{ name: string; houseId: string; sentryName?: string } | null>(null);
@@ -28,15 +32,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showWaMsg, setShowWaMsg] = useState(false);
   const [waMsg, setWaMsg] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordPage, setPasswordPage] = useState(false);
-  const { refreshProfile } = useAuth();
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -51,12 +47,15 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
     ]);
 
-    const awardsList = awards.status === 'fulfilled' ? awards.value : [];
-    const myAwards = awardsList.filter((a) => (
-      a.user_id === profile.id || (a as any).award_target_id === profile.id
-    ));
     const memberRow = memberData.status === 'fulfilled' ? memberData.value.data : null;
     const sentryTentRow = sentryTentData.status === 'fulfilled' ? sentryTentData.value.data : null;
+    const awardsList = awards.status === 'fulfilled' ? awards.value : [];
+    const ownTentId = (memberRow as any)?.tent_id || (sentryTentRow as any)?.id || null;
+    const myAwards = awardsList.filter((award) => (
+      award.award_target_type === 'tent'
+        ? !!ownTentId && award.award_target_id === ownTentId
+        : award.user_id === profile.id
+    ));
 
     let tent: { name: string; houseId: string; sentryName?: string } | null = null;
     const tentRow = (memberRow as any)?.tents || sentryTentRow;
@@ -87,35 +86,20 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ display_name: displayName, whatsapp_number: whatsapp || null }).eq('id', profile.id);
+    const { error } = await supabase.from('profiles').update({
+      display_name: displayName,
+      whatsapp_number: whatsapp || null,
+      country_code: country,
+      language_code: language,
+      timezone: timezoneForCountry(country),
+    }).eq('id', profile.id);
     setSaving(false);
     if (!error) {
+      document.documentElement.lang = language;
+      await refreshProfile();
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     }
-  };
-
-  const changePassword = async () => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.');
-      return;
-    }
-    setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setChangingPassword(false);
-    if (error) {
-      setPasswordError(error.message);
-      return;
-    }
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Password changed successfully.');
   };
 
   const roleIcon = role === 'cadet' ? CadetIcon : role === 'sentry' ? SentryIcon : InstructorIcon;
@@ -128,7 +112,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       </div>
     );
   }
-  if (passwordPage && profile?.email) return <PasswordUpdateFlow email={profile.email} onDone={() => setPasswordPage(false)} />;
+  if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
@@ -219,6 +203,20 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <MessageCircle size={12} /> Send WhatsApp message
             </button>
           )}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-bold text-peri">
+              <span className="mb-1.5 flex items-center gap-1"><Globe2 size={13} /> Country</span>
+              <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
+                {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs font-bold text-peri">
+              <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> Language</span>
+              <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -302,6 +300,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         </button>
       </div>
 
+      <BrowserNotificationSettings />
+
       {/* Account section */}
       <div className="card p-5 animate-slide-up">
         <SectionHeader title="Account" />
@@ -336,39 +336,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       {/* Dove footer */}
       <div className="flex justify-center py-4">
         <Dove size={56} className="opacity-30" />
-      </div>
-    </div>
-  );
-}
-
-function SettingsPasswordField({
-  label, value, visible, onToggle, onChange,
-}: {
-  label: string;
-  value: string;
-  visible: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-bold text-peri mb-1.5">{label}</label>
-      <div className="relative">
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="input-field pr-10"
-          minLength={6}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-peri-dim hover:text-peri transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
       </div>
     </div>
   );
