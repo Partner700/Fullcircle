@@ -435,11 +435,14 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
                       <p className="font-display text-2xl text-ink leading-snug italic">"{slide.quote.daily_quote}"</p>
-                      <div className="mt-3 flex items-center gap-2 text-sm text-stone">
-                        <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
-                          {slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" /> : slide.quote.display_name.charAt(0)}
+                      <div className="mt-3 flex flex-col gap-1 text-sm text-stone">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
+                            {slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" /> : slide.quote.display_name.charAt(0)}
+                          </div>
+                          <span>{slide.quote.display_name}</span>
                         </div>
-                        <span>{slide.quote.display_name} · {slide.quote.record_date}</span>
+                        <span className="text-xs text-stone">{slide.quote.record_date} · Streak {slide.quote.current_streak}</span>
                       </div>
                       <QuoteReactions
                         state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}

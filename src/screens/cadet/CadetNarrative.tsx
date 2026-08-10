@@ -247,6 +247,9 @@ export function CadetNarrative({
             {narrative.title}
           </h2>
           <p className="text-sm text-stone mt-1.5">{narrative.theme}</p>
+          {streakCount > 0 && (
+            <p className="mt-3 text-sm font-semibold text-moss">Your current streak: {streakCount} day{streakCount === 1 ? '' : 's'}</p>
+          )}
         </div>
       </div>
 
