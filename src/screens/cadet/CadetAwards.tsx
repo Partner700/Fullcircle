@@ -126,7 +126,7 @@ export function CadetAwards() {
             })}
           </div>
         ) : (
-          <EmptyState icon={AwardIcon} title="No awards yet" message="Awards are computed monthly from your streak, quiz, game, and challenge performance. Keep going!" />
+          <EmptyState icon={(props) => <AwardIcon {...props} />} title="No awards yet" message="Awards are computed monthly from your streak, quiz, game, and challenge performance. Keep going!" />
         )}
       </div>
 
@@ -171,7 +171,7 @@ export function CadetAwards() {
             })}
           </div>
         ) : (
-          <EmptyState icon={Trophy} title="No awards announced" message="Awards are computed at month-end from a frozen snapshot of the month's data." />
+          <EmptyState icon={(props) => <Trophy {...props} />} title="No awards announced" message="Awards are computed at month-end from a frozen snapshot of the month's data." />
         )}
       </div>
 

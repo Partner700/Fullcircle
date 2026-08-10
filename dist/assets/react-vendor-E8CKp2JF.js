@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:dist/assets/react-vendor-E8CKp2JF.js
 import{r as _a}from"./icons-BNThJLs3.js";var Co={exports:{}},ve={},xo={exports:{}},_o={};/**
+========
+import{r as _a}from"./icons-jfEFbE9Q.js";var Co={exports:{}},ve={},xo={exports:{}},_o={};/**
+>>>>>>>> main:dist/assets/react-vendor-B9REZYs3.js
  * @license React
  * scheduler.production.min.js
  *

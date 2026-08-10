@@ -265,11 +265,24 @@
     background: var(--color-navy-3);
     color: var(--color-peri);
     font-family: 'Nunito', sans-serif;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
   }
   .input-field::placeholder { color: var(--color-stone-dim); }
   .input-field:focus {
     border-color: var(--color-peri-2);
     box-shadow: 0 0 0 3px rgba(221, 227, 255, 0.08);
+  }
+  select.input-field {
+    padding-right: 3rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23DDE3FF' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 0.75rem 0.75rem;
+  }
+  select.input-field::-ms-expand {
+    display: none;
   }
 
   select.input-field {
