@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { Dove } from '../../components/Dove';
-import { fetchNarrative, fetchNarratives, fetchGameAttempts, insertGameAttempt, insertLedgerEntry, fetchLedgerTotal, useRelic, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchNarrative, fetchNarratives, fetchGameAttempts, insertGameAttempt, insertLedgerEntry, fetchLedgerTotal, useRelic as deployRelic, fetchPanelImageSetting } from '../../lib/queries';
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
 import { generateLevelQuestionsWithCustom, getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
 import { isGamePausedNow, getTodayISODate, cn, formatDenarii } from '../../lib/utils';
@@ -498,7 +498,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
     setUsingQuestionRelic(slug);
     try {
-      await useRelic(userId, slug);
+      await deployRelic(userId, slug);
       setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
@@ -601,7 +601,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
     setUsingGoliath(true);
     try {
-      await useRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
+      await deployRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
       setRelicInventory((prev) => ({
         ...prev,
         [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),

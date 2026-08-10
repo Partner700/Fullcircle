@@ -6,7 +6,7 @@ import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import {
   fetchLatestQuizSession, fetchQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
-  fetchNarratives, useRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
+  fetchNarratives, useRelic as deployRelic, fetchRelicInventory, resetQuizAttemptWithLazarus,
   fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
@@ -711,7 +711,7 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
     setUsingGoliath(true);
     try {
-      await useRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
+      await deployRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
       setRelicInventory((prev) => ({
         ...prev,
         [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),
@@ -728,7 +728,7 @@ function QuizPlay({ questions, attempt, userId, liveCloses, onSubmit, onForfeit 
     if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
     setUsingQuestionRelic(slug);
     try {
-      await useRelic(userId, slug);
+      await deployRelic(userId, slug);
       setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),

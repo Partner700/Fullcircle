@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
@@ -154,11 +154,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setPurchasing(null);
   };
 
-  const useOwnedRelic = async (slug: string) => {
+  const activateOwnedRelic = async (slug: string) => {
     if (!profile) return;
     setUsingRelic(slug);
     try {
-      const result = await useRelic(profile.id, slug);
+      const result = await deployRelic(profile.id, slug);
       await refreshPurchaseState();
       const awarded = Number(result?.denarii_awarded || 0);
       alert(result?.message || (awarded > 0 ? `Relic used. +${formatDenarii(awarded)} Ð awarded.` : 'Relic used.'));
@@ -553,7 +553,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       </button>
                       {giftRecipientId === 'self' && canUseFromStore && (
                         <button
-                          onClick={() => useOwnedRelic(slug)}
+                          onClick={() => activateOwnedRelic(slug)}
                           disabled={usingRelic === slug}
                           className="btn-secondary text-xs"
                         >
