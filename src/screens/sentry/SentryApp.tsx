@@ -27,12 +27,14 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone, Trophy,
+  Swords,
 } from 'lucide-react';
 
+const CadetArena = lazy(() => import('../cadet/CadetArena').then((module) => ({ default: module.CadetArena })));
 const CadetQuiz = lazy(() => import('../cadet/CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
 const CadetAwards = lazy(() => import('../cadet/CadetAwards').then((module) => ({ default: module.CadetAwards })));
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'arena' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings';
 
 type StrictStreakData = {
   current_streak: number;
@@ -47,6 +49,7 @@ const NAV_ITEMS = [
   { key: 'cadets', label: 'My Cadets', icon: CadetIcon },
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
   { key: 'game', label: 'Daily Game', icon: GamepadIcon },
+  { key: 'arena', label: 'The Arena', icon: Swords },
   { key: 'streak', label: 'My Streak', icon: Shield },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
   { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
@@ -58,7 +61,7 @@ const NAV_ITEMS = [
 function getInitialSentryTab(): Tab {
   if (typeof window === 'undefined') return 'overview';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings'];
+  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'arena', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings'];
   return tabs.includes(key as Tab) ? key as Tab : 'overview';
 }
 
@@ -230,6 +233,7 @@ export function SentryApp() {
     cadets: 'My Cadets',
     reading: "Today's Reading",
     game: 'Daily Game',
+    arena: 'The Arena',
     streak: 'My Streak',
     quiz: 'Weekly Quiz',
     leaderboard: 'Challenge Boards',
@@ -246,7 +250,7 @@ export function SentryApp() {
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
       rightHeader={<div className="flex items-center gap-2"><NotificationCenter onNavigate={(key) => {
-        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets' };
+        const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets' };
         if (destination[key]) setTab(destination[key]);
       }} />{tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}</div>}
     >
@@ -291,6 +295,11 @@ export function SentryApp() {
       {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'game' && <CadetGame onRewardEarned={load} />}
+      {tab === 'arena' && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
+          <CadetArena onBalanceChanged={load} />
+        </Suspense>
+      )}
       {tab === 'streak' && <CadetStreak />}
       {tab === 'quiz' && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
@@ -329,12 +338,15 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   return (
     <div className="space-y-5 animate-fade-in">
       <EmptyState icon={TentIcon} title={title} message={message} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
         </button>
         <button onClick={() => onNavigate('game')} className="btn-secondary">
           <GamepadIcon size={18} /> Game
+        </button>
+        <button onClick={() => onNavigate('arena')} className="btn-secondary">
+          <Swords size={18} /> Arena
         </button>
         <button onClick={() => onNavigate('streak')} className="btn-secondary">
           <Shield size={18} /> Streak

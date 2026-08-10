@@ -246,7 +246,7 @@ export function CadetTent() {
                     <p className="text-xs text-stone">
                       {isTentAward
                         ? `${tent.name}${sentry ? ` · Sentry: ${sentry.profiles.display_name}` : ''}`
-                        : `${recipient?.profiles.display_name || award.recipient_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
+                        : `${recipient?.profiles.display_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
                     </p>
                     <p className="text-[10px] text-stone/80">{award.award_month}</p>
                     {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
