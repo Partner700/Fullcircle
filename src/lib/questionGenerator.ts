@@ -501,8 +501,8 @@ export function generateQuizQuestions(
     .sort((a, b) => {
       const aDate = new Date(a.date);
       const bDate = new Date(b.date);
-      const aDow = aDate.getDay();
-      const bDow = bDate.getDay();
+      const aDow = aDate.getUTCDay();
+      const bDow = bDate.getUTCDay();
       const priority = (dow: number) => (dow === 1 ? 0 : dow === 5 ? 1 : 2);
       return priority(aDow) - priority(bDow);
     });

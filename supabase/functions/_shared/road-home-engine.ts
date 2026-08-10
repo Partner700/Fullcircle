@@ -612,7 +612,7 @@ function continueAfterPrison(state: RoadHomeState) {
   }
 }
 
-function resolveAnswer(state: RoadHomeState, questions: RoadHomeQuestion[], answer: string, random: RandomFn) {
+function resolveAnswer(state: RoadHomeState, answer: string) {
   const player = activePlayer(state);
   const question = state.currentQuestion;
   const purpose = state.questionPurpose;
@@ -768,7 +768,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     }
   } else if (command.action === 'ANSWER') {
     if (state.phase !== 'QUESTION') throw new Error('There is no question to answer.');
-    resolveAnswer(state, questions, command.answer, random);
+    resolveAnswer(state, command.answer);
   } else if (command.action === 'MOVE') {
     if (state.phase !== 'SELECTING_PAWN') throw new Error('A pawn cannot be moved now.');
     movePawn(state, command.pawnId, random);
@@ -849,7 +849,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
       setQuestion(state, drawQuestion(state, questions, state.currentQuestion.difficulty, random), state.questionPurpose || 'own');
     } else if (command.relic === 'Golden Scroll') {
       if (state.phase !== 'QUESTION' || state.questionPurpose !== 'own' || !state.currentQuestion) throw new Error('The Golden Scroll only answers a normal movement question.');
-      resolveAnswer(state, questions, state.currentQuestion.correctAnswer, random);
+      resolveAnswer(state, state.currentQuestion.correctAnswer);
     } else if (command.relic === "Shepherd's Staff") {
       if (state.phase !== 'INHERITED_OFFER') throw new Error("The Shepherd's Staff is used on an inherited offer.");
       const challenge = state.challengeQueue.find((item) => item.id === state.activeChallengeId);

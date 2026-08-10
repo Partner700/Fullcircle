@@ -16,7 +16,6 @@ import {
   heartbeatArenaParticipant,
   finishArenaGame,
   submitArenaTriviaAnswer,
-  prepareArenaQuestionSet,
   fetchArenaTriviaFeed,
   fetchArenaRoomMessages,
   sendArenaRoomMessage,
@@ -27,11 +26,10 @@ import {
   generateArenaQuestionsWithAI,
   fetchPanelImageSetting,
 } from '../../lib/queries';
-import { generateLevelQuestionsWithCustom } from '../../lib/gameEngines';
 import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
-import type { DailyNarrative, GameSeedData, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
+import type { DailyNarrative, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
@@ -94,12 +92,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     const dismissed = new Set(JSON.parse(window.localStorage.getItem(dismissedArenaRoomsKey(profile.id)) || '[]'));
     if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
     if (savedRoomId && dismissed.has(savedRoomId)) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
-  }, [profile?.id]);
+  }, [profile]);
 
   useEffect(() => {
     if (!profile || !activeRoomId) return;
     window.localStorage.setItem(activeArenaRoomKey(profile.id), activeRoomId);
-  }, [profile?.id, activeRoomId]);
+  }, [profile, activeRoomId]);
 
   const clearActiveRoom = useCallback((dismiss = false) => {
     if (profile && activeRoomId) {
@@ -229,7 +227,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
       }
     }
-  }, [activeRoomId, phase, rooms, profile]);
+  }, [activeRoomId, phase, rooms, profile, clearActiveRoom]);
 
   const forfeitStandardMatch = async () => {
     if (!profile || !activeRoomId || forfeiting) return;
@@ -362,7 +360,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               narrative: narrative || null,
               difficulty: parseArenaDifficulty(activeRoomName),
             });
-            await prepareArenaQuestionSet(activeRoomId, profile!.id, generated);
+            if (!generated.length) throw new Error('The Arena question deck is empty.');
           }}
           onExit={() => clearActiveRoom(true)}
           onStateChanged={async () => {
@@ -515,7 +513,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                         <input type="checkbox" checked={checked} onChange={() => {
                           setTaggedIds((prev) => {
                             const n = new Set(prev);
-                            n.has(cadet.user_id) ? n.delete(cadet.user_id) : n.add(cadet.user_id);
+                            if (n.has(cadet.user_id)) n.delete(cadet.user_id);
+                            else n.add(cadet.user_id);
                             return n;
                           });
                         }} className="accent-gold flex-shrink-0" />
@@ -693,7 +692,8 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                       <input type="checkbox" checked={checked} disabled={full} onChange={() => {
                         setTaggedIds((prev) => {
                           const n = new Set(prev);
-                          n.has(cadet.user_id) ? n.delete(cadet.user_id) : n.add(cadet.user_id);
+                          if (n.has(cadet.user_id)) n.delete(cadet.user_id);
+                          else n.add(cadet.user_id);
                           return n;
                         });
                       }} className="accent-gold flex-shrink-0" />
@@ -842,39 +842,7 @@ function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }
   );
 }
 
-function generateArenaTopicQuestions(roomName: string): QuestionPayload[] {
-  const topic = parseArenaTopic(roomName);
-  if (!topic) return [];
-  const label = topic.value;
-  return [
-    {
-      type: 'multiple_choice',
-      question: `Which subject is this battle testing?`,
-      correct_answer: label,
-      options: [label, 'Moses', 'Romans', 'Esther'].filter((value, index, arr) => arr.indexOf(value) === index),
-    },
-    {
-      type: 'multiple_choice',
-      question: `This arena focuses on which ${topic.type === 'book' ? 'book' : 'character'}?`,
-      options: [label, 'Moses', 'Romans', 'Esther'].filter((value, index, arr) => arr.indexOf(value) === index),
-      correct_answer: label,
-    },
-    {
-      type: 'multiple_choice',
-      question: `The questions in this battle are drawn from which ${topic.type}?`,
-      correct_answer: label,
-      options: [label, 'Genesis', 'Paul', 'Jerusalem'].filter((value, index, arr) => arr.indexOf(value) === index),
-    },
-  ];
-}
-
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
-function getArenaDifficulty(questionIndex: number): 'easy' | 'moderate' | 'hard' {
-  if (questionIndex < 6) return 'easy';
-  if (questionIndex < 12) return 'moderate';
-  return 'hard';
-}
-
 function getArenaQuestionSeconds(question: QuestionPayload | undefined) {
   if (question?.difficulty_tag === 'easy') return 40;
   if (question?.difficulty_tag === 'hard') return 15;
@@ -889,94 +857,6 @@ function getArenaRoundForIndex(questionIndex: number) {
     start = end;
   }
   return ARENA_ROUND_LENGTHS.length - 1;
-}
-
-function seededShuffle<T>(values: T[], seedText: string) {
-  let seed = Array.from(seedText).reduce((value, char) => Math.imul(value ^ char.charCodeAt(0), 16777619), 2166136261) >>> 0;
-  const shuffled = [...values];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const target = seed % (index + 1);
-    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
-  }
-  return shuffled;
-}
-
-function buildArenaQuestionSet(sourceQuestions: QuestionPayload[], fixedDifficulty?: 'easy' | 'medium' | 'hard', roomSeed = '') {
-  const seen = new Set<string>();
-  const cleaned = sourceQuestions.filter((q) => {
-    if (!q.question || !q.correct_answer) return false;
-    const key = q.question.trim().toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  const fallback = buildFallbackArenaQuestions();
-  const pool = seededShuffle(
-    [...cleaned, ...fallback.filter((fallbackQuestion) => !seen.has(fallbackQuestion.question.trim().toLowerCase()))],
-    roomSeed || `${Date.now()}`,
-  );
-  const targetCount = sourceQuestions.length >= 60 ? 60 : Math.min(19, pool.length);
-  const questions: QuestionPayload[] = [];
-  for (let i = 0; i < targetCount; i += 1) {
-    const q = pool[i];
-    if (!q) break;
-    const difficulty = fixedDifficulty === 'medium' ? 'moderate' : fixedDifficulty || getArenaDifficulty(i);
-    questions.push({
-      ...toStandardTriviaQuestion(q),
-      game_round: getArenaRoundForIndex(i) + 1,
-      difficulty_tag: difficulty,
-      round_timer_seconds: getArenaQuestionSeconds({ ...q, difficulty_tag: difficulty }),
-      is_bonus: targetCount === 19 && i === 18,
-    });
-  }
-  return questions;
-}
-
-function toStandardTriviaQuestion(question: QuestionPayload): QuestionPayload {
-  if (question.type === 'true_false') return { ...question, options: ['True', 'False'] };
-  const answer = String(question.correct_answer).trim();
-  const supplied = (question.options || []).map((option) => String(option).trim()).filter(Boolean);
-  const filler = ['Moses', 'Paul', 'Jerusalem', 'The Philistines', 'A different account in Scripture'];
-  const options = Array.from(new Set([answer, ...supplied, ...filler]))
-    .filter((option) => option.toLowerCase() !== answer.toLowerCase() || option === answer)
-    .slice(0, 4);
-  const stableOrder = [...options].sort((left, right) => {
-    const seed = `${question.question}:${left}`.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
-    const otherSeed = `${question.question}:${right}`.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
-    return seed - otherSeed;
-  });
-  return { ...question, type: 'multiple_choice', options: stableOrder };
-}
-
-function buildFallbackArenaQuestions(): QuestionPayload[] {
-  const stems = [
-    ['multiple_choice', 'Which brother was sold by his brothers and later became governor in Egypt?', 'Joseph', ['Joseph', 'Benjamin', 'Reuben', 'Judah']],
-    ['multiple_choice', 'What sign did Gideon ask God to give with a fleece before battle?', 'Dew on the fleece only', ['Dew on the fleece only', 'Fire from the fleece', 'A rainbow over the camp', 'Oil on the ground']],
-    ['multiple_choice', 'Who interpreted Pharaoh\'s dreams about seven years of plenty and seven years of famine?', 'Joseph', ['Joseph', 'Daniel', 'Moses', 'Aaron']],
-    ['multiple_choice', 'Which judge defeated Midian with three hundred men carrying trumpets, jars, and torches?', 'Gideon', ['Gideon', 'Samson', 'Jephthah', 'Barak']],
-    ['true_false', 'Ruth was a Moabite who chose to remain with Naomi.', 'True', ['True', 'False']],
-    ['multiple_choice', 'Before David faced Goliath, what did Saul try to give him?', 'His armor', ['His armor', 'A chariot', 'A spear', 'A crown']],
-    ['multiple_choice', 'Which prophet confronted David after his sin involving Bathsheba?', 'Nathan', ['Nathan', 'Samuel', 'Elijah', 'Elisha']],
-    ['multiple_choice', 'What did Esther ask the Jews in Susa to do before she approached the king?', 'Fast for three days', ['Fast for three days', 'Build the wall', 'Leave the city', 'Prepare sacrifices']],
-    ['multiple_choice', 'Who was thrown into a lions\' den for praying to God?', 'Daniel', ['Daniel', 'Jeremiah', 'Ezekiel', 'Nehemiah']],
-    ['true_false', 'Jonah fled in the direction of Nineveh before the storm at sea.', 'False', ['True', 'False']],
-    ['multiple_choice', 'What city did Joshua and Israel march around before its walls fell?', 'Jericho', ['Jericho', 'Ai', 'Jerusalem', 'Hebron']],
-    ['multiple_choice', 'Which apostle denied knowing Jesus three times before the rooster crowed?', 'Peter', ['Peter', 'John', 'Thomas', 'Andrew']],
-    ['multiple_choice', 'Who baptized the Ethiopian official on the road from Jerusalem to Gaza?', 'Philip', ['Philip', 'Paul', 'Peter', 'Stephen']],
-    ['true_false', 'Paul and Silas sang hymns while imprisoned in Philippi.', 'True', ['True', 'False']],
-    ['multiple_choice', 'Who saw a vision of a sheet with animals before visiting Cornelius?', 'Peter', ['Peter', 'Paul', 'Philip', 'John']],
-    ['multiple_choice', 'Which woman opened her home to Paul after believing in Philippi?', 'Lydia', ['Lydia', 'Priscilla', 'Martha', 'Dorcas']],
-    ['multiple_choice', 'Who replaced Judas Iscariot among the twelve apostles?', 'Matthias', ['Matthias', 'Barnabas', 'Silas', 'Timothy']],
-    ['true_false', 'The prodigal son asked to be restored as his father\'s son before he returned home.', 'False', ['True', 'False']],
-    ['multiple_choice', 'Bonus: who raised Lazarus after he had been in the tomb four days?', 'Jesus', ['Jesus', 'Peter', 'Elijah', 'Martha']],
-  ] as const;
-  return stems.map(([type, question, correct_answer, options]) => ({
-    type: type as QuestionPayload['type'],
-    question,
-    correct_answer,
-    options: options ? [...options] : undefined,
-  }));
 }
 
 function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit }: {
@@ -1015,7 +895,6 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const activeRoundIndex = getArenaRoundForIndex(currentQ);
   const machineMatch = /\[difficulty:(easy|medium|hard)\]/i.test(roomName);
   const machineDifficulty = parseArenaDifficulty(roomName);
-  const machineTarget = machineDifficulty === 'easy' ? 3 : machineDifficulty === 'hard' ? 8 : 5;
   const activeRealPlayer = !machineMatch && matchPlayers.length > 0 ? matchPlayers[currentQ % matchPlayers.length] : null;
   const isMyTurn = machineMatch || !activeRealPlayer || activeRealPlayer.user_id === userId;
 
@@ -1093,36 +972,17 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           difficulty,
         });
         if (!cancelled) {
-          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(aiQuestions, difficulty, roomId));
-          setQuestions(stored);
+          setQuestions(aiQuestions);
           setReady(true);
         }
         return;
       } catch (e) {
-        console.warn('AI arena generation unavailable, using local packet fallback.', e);
-      }
-      const topicQuestions = generateArenaTopicQuestions(roomName);
-      if (topicQuestions.length > 0) {
-        const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(topicQuestions, parseArenaDifficulty(roomName), roomId));
-        if (!cancelled) setQuestions(stored);
-        if (!cancelled) setReady(true);
-        return;
-      }
-      if (narrative) {
-        try {
-          const seed = narrative.game_seed_data as GameSeedData;
-          const qs = await generateLevelQuestionsWithCustom(seed, 5, narrative.narrative_date);
-          const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(qs, parseArenaDifficulty(roomName), roomId));
-          if (!cancelled) setQuestions(stored);
-          if (!cancelled) setReady(true);
-          return;
-        } catch (fallbackError) {
-          console.warn('Narrative packet arena generation unavailable, using the verified Bible deck.', fallbackError);
+        console.error('AI Arena generation failed.', e);
+        if (!cancelled) {
+          setAnswerError(e instanceof Error ? e.message : 'The Arena could not prepare its questions.');
+          setReady(true);
         }
       }
-      const stored = await prepareArenaQuestionSet(roomId, userId, buildArenaQuestionSet(buildFallbackArenaQuestions(), parseArenaDifficulty(roomName), roomId));
-      if (!cancelled) setQuestions(stored);
-      if (!cancelled) setReady(true);
     })();
     return () => { cancelled = true; };
   }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId]);
@@ -1131,7 +991,16 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     if (answeredIds.has(currentQ) || !questions[currentQ] || turnPhase !== 'user' || !isMyTurn) return;
     setSubmittingAnswer(true);
     setAnswerError(null);
-    let result: { correct: boolean; totalFigs: number; correctCount: number };
+    let result: {
+      correct: boolean;
+      totalFigs: number;
+      correctCount: number;
+      machineQuestionIndex: number | null;
+      machineAnswer: string | null;
+      machineCorrect: boolean | null;
+      machineFigs: number;
+      machineTotalFigs: number;
+    };
     try {
       result = await submitArenaTriviaAnswer(roomId, userId, currentQ, answer);
     } catch (error: any) {
@@ -1174,7 +1043,11 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       return;
     }
 
-    const machineQuestionIndex = currentQ + 1;
+    const machineQuestionIndex = result.machineQuestionIndex;
+    if (machineQuestionIndex == null) {
+      completeGame(nextScore, nextCorrectCount);
+      return;
+    }
     if (machineQuestionIndex >= questions.length) {
       completeGame(nextScore, nextCorrectCount);
       return;
@@ -1182,17 +1055,10 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     setTurnPhase('machine-thinking');
     const delay = machineDifficulty === 'easy' ? 2600 : machineDifficulty === 'hard' ? 1250 : 1850;
     await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
-    const question = questions[machineQuestionIndex];
-    const machineTurnNumber = Math.floor(machineQuestionIndex / 2) + 1;
-    const machineTurnCount = Math.floor(questions.length / 2);
-    const expectedCorrectThroughTurn = Math.round((machineTurnNumber * machineTarget) / machineTurnCount);
-    const expectedCorrectBeforeTurn = Math.round(((machineTurnNumber - 1) * machineTarget) / machineTurnCount);
-    const machineCorrect = expectedCorrectThroughTurn > expectedCorrectBeforeTurn;
-    const wrongOptions = (question.options || []).filter((option) => option !== question.correct_answer);
-    const seed = `${roomId}:${machineQuestionIndex}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const selected = String(machineCorrect ? question.correct_answer : wrongOptions[seed % Math.max(1, wrongOptions.length)] || 'No answer');
-    const earned = machineCorrect ? (question.is_bonus ? 2 : 1) : 0;
-    const nextMachineScore = machineScore + earned;
+    const machineCorrect = Boolean(result.machineCorrect);
+    const selected = result.machineAnswer || 'No answer';
+    const earned = result.machineFigs;
+    const nextMachineScore = result.machineTotalFigs;
     setMachineScore(nextMachineScore);
     setMachineAnswerFeed((current) => [...current, {
       user_id: 'arena-machine',
@@ -1207,7 +1073,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     setTurnPhase('machine-feedback');
     await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
     advance(nextMachineScore, 2);
-  }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, machineTarget, machineScore, completeGame]);
+  }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, completeGame]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -1249,7 +1115,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   if (questions.length === 0) {
     return (
       <div className="text-center py-8 space-y-4">
-        <p className="text-stone">No narrative content available for this arena game.</p>
+        <p className="text-stone">{answerError || 'No verified questions are available for this Arena game.'}</p>
         <button onClick={onExit} className="btn-primary">Back to Arena</button>
       </div>
     );

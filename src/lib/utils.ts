@@ -6,22 +6,52 @@ import {
   AT_RISK_CONSECUTIVE_THRESHOLD,
   REMOVAL_CONSECUTIVE_THRESHOLD,
   REMOVAL_CUMULATIVE_THRESHOLD,
+  APP_TIME_ZONE,
 } from './constants';
 
-export function getDayType(date: Date): DayType {
-  const dow = date.getDay();
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseCalendarDate(date: string): Date {
+  if (ISO_DATE_PATTERN.test(date)) {
+    return new Date(`${date}T12:00:00.000Z`);
+  }
+  return new Date(date);
+}
+
+function appDateParts(date: Date = new Date()): Record<string, string> {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: APP_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date).map((part) => [part.type, part.value]),
+  );
+}
+
+export function getDayType(date: Date | string): DayType {
+  const weekday = typeof date === 'string' && ISO_DATE_PATTERN.test(date)
+    ? new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(parseCalendarDate(date))
+    : appDateParts(typeof date === 'string' ? new Date(date) : date).weekday;
+  const dow = weekday === 'Sat' ? 6 : weekday === 'Sun' ? 0 : 1;
   if (dow === 6) return 'saturday';
   if (dow === 0) return 'sunday';
   return 'weekday';
 }
 
 export function isAttendanceOnTime(markedAt: Date): boolean {
-  return markedAt.getHours() < ATTENDANCE_CUTOFF_HOUR;
+  const { hour } = appDateParts(markedAt);
+  return Number(hour) < ATTENDANCE_CUTOFF_HOUR;
 }
 
 export function isMeditationOnTime(submittedAt: Date): boolean {
-  const h = submittedAt.getHours();
-  const m = submittedAt.getMinutes();
+  const { hour, minute } = appDateParts(submittedAt);
+  const h = Number(hour);
+  const m = Number(minute);
   return h < MEDITATION_CUTOFF_HOUR || (h === MEDITATION_CUTOFF_HOUR && m <= MEDITATION_CUTOFF_MINUTE);
 }
 
@@ -38,19 +68,17 @@ export function isWeekdayValid(record: DailyRecord): boolean | null {
 
 export function computeStreak(records: DailyRecord[]): StreakInfo {
   const sorted = [...records].sort(
-    (a, b) => new Date(a.record_date).getTime() - new Date(b.record_date).getTime(),
+    (a, b) => a.record_date.localeCompare(b.record_date),
   );
 
   let currentStreak = 0;
   let longestStreak = 0;
   let consecutiveInactive = 0;
   let cumulativeInactive = 0;
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthPrefix = getTodayISODate().slice(0, 7);
   let volumeThisMonth = 0;
 
   for (const record of sorted) {
-    const recordDate = new Date(record.record_date);
     if (record.day_type === 'sunday') continue;
 
     const valid = isWeekdayValid(record);
@@ -60,7 +88,7 @@ export function computeStreak(records: DailyRecord[]): StreakInfo {
       currentStreak += 1;
       longestStreak = Math.max(longestStreak, currentStreak);
       consecutiveInactive = 0;
-      if (recordDate >= monthStart) {
+      if (record.record_date.startsWith(monthPrefix)) {
         volumeThisMonth += 1;
       }
     } else {
@@ -114,8 +142,9 @@ export function formatXaf(amount: number | string | null | undefined): string {
 }
 
 export function formatDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  const d = typeof date === 'string' ? parseCalendarDate(date) : date;
   return d.toLocaleDateString('en-US', {
+    timeZone: typeof date === 'string' && ISO_DATE_PATTERN.test(date) ? 'UTC' : APP_TIME_ZONE,
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -124,13 +153,21 @@ export function formatDate(date: string | Date): string {
 }
 
 export function formatShortDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const d = typeof date === 'string' ? parseCalendarDate(date) : date;
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: typeof date === 'string' && ISO_DATE_PATTERN.test(date) ? 'UTC' : APP_TIME_ZONE,
+  });
 }
 
 export function formatTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: APP_TIME_ZONE,
+  });
 }
 
 export function talentsToDenarii(talents: number): number {
@@ -157,8 +194,8 @@ export function calcLevelReward(score: number, maxScore: number, perfectReward =
 
 export function isGamePausedNow(): boolean {
   const now = new Date();
-  const dow = now.getDay();
-  if (dow === 6 && now.getHours() >= 17) return true;
+  const { weekday, hour } = appDateParts(now);
+  if (weekday === 'Sat' && Number(hour) >= 17) return true;
   return false;
 }
 
@@ -171,7 +208,54 @@ export function formatCountdown(ms: number): string {
 }
 
 export function getTodayISODate(): string {
-  return new Date().toISOString().split('T')[0];
+  const { year, month, day } = appDateParts();
+  return `${year}-${month}-${day}`;
+}
+
+export function shiftISODate(date: string, days: number): string {
+  if (!ISO_DATE_PATTERN.test(date)) throw new Error(`Invalid ISO calendar date: ${date}`);
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
+}
+
+export function getDateDaysAgoISO(days: number): string {
+  return shiftISODate(getTodayISODate(), -days);
+}
+
+export function getAppClock(): { date: string; weekday: string; hour: number; minute: number } {
+  const parts = appDateParts();
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    weekday: parts.weekday,
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+  };
+}
+
+export function getAppDateTimeMs(date: string, hour = 0, minute = 0): number {
+  if (!ISO_DATE_PATTERN.test(date)) throw new Error(`Invalid ISO calendar date: ${date}`);
+  const [year, month, day] = date.split('-').map(Number);
+  const desiredWallClock = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  let candidate = desiredWallClock;
+
+  // Resolve the wall-clock value through Intl instead of assuming a fixed UTC
+  // offset. The second pass also keeps this correct if the configured timezone
+  // ever adopts daylight-saving rules.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const parts = appDateParts(new Date(candidate));
+    const representedWallClock = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      0,
+      0,
+    );
+    candidate -= representedWallClock - desiredWallClock;
+  }
+
+  return candidate;
 }
 
 export function cn(...classes: (string | false | undefined | null)[]): string {

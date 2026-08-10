@@ -1,73 +1,41 @@
 {
-<<<<<<< HEAD
   "_AncientMotifs-CRaoH8y8.js": {
     "file": "assets/AncientMotifs-CRaoH8y8.js",
-=======
-  "_AncientMotifs-DYHBqyfV.js": {
-    "file": "assets/AncientMotifs-DYHBqyfV.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "AncientMotifs",
     "imports": [
       "index.html"
     ]
   },
-<<<<<<< HEAD
   "_BrowserNotificationSettings-CZH7V8mo.js": {
     "file": "assets/BrowserNotificationSettings-CZH7V8mo.js",
-=======
-  "_BrowserNotificationSettings-B6DPyQjJ.js": {
-    "file": "assets/BrowserNotificationSettings-B6DPyQjJ.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "BrowserNotificationSettings",
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js"
     ]
   },
-<<<<<<< HEAD
   "_CadetLeaderboard-a-2drNEU.js": {
     "file": "assets/CadetLeaderboard-a-2drNEU.js",
-=======
-  "_CadetLeaderboard-BF_I6u-J.js": {
-    "file": "assets/CadetLeaderboard-BF_I6u-J.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetLeaderboard",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_AncientMotifs-CRaoH8y8.js"
     ]
   },
   "_MeditationHistoryPanel-BmLnCAKh.js": {
     "file": "assets/MeditationHistoryPanel-BmLnCAKh.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_AncientMotifs-DYHBqyfV.js"
-    ]
-  },
-  "_MeditationHistoryPanel-DHmkM1Pc.js": {
-    "file": "assets/MeditationHistoryPanel-DHmkM1Pc.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "MeditationHistoryPanel",
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js"
     ]
   },
   "_RecentAwardsPanel-gxmHRfX8.js": {
     "file": "assets/RecentAwardsPanel-gxmHRfX8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js"
-    ]
-  },
-  "_RecentAwardsPanel-DhHgNVrA.js": {
-    "file": "assets/RecentAwardsPanel-DhHgNVrA.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "RecentAwardsPanel",
     "imports": [
       "index.html",
@@ -81,13 +49,8 @@
       "assets/laureats-CQlp2eDZ.png"
     ]
   },
-<<<<<<< HEAD
   "_gameEngines-DSXqOUAQ.js": {
     "file": "assets/gameEngines-DSXqOUAQ.js",
-=======
-  "_gameEngines-DRD5p3lD.js": {
-    "file": "assets/gameEngines-DRD5p3lD.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "gameEngines",
     "imports": [
       "index.html"
@@ -96,10 +59,6 @@
   "_icons-BNThJLs3.js": {
     "file": "assets/icons-BNThJLs3.js",
     "name": "icons"
-  },
-  "_questionGenerator-Bha6NnmT.js": {
-    "file": "assets/questionGenerator-Bha6NnmT.js",
-    "name": "questionGenerator"
   },
   "_react-vendor-E8CKp2JF.js": {
     "file": "assets/react-vendor-E8CKp2JF.js",
@@ -113,11 +72,7 @@
     "name": "supabase"
   },
   "index.html": {
-<<<<<<< HEAD
     "file": "assets/index-BhbnSoiI.js",
-=======
-    "file": "assets/index-Cew2C6-Y.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -163,24 +118,15 @@
     "src": "src/assets/brand-real/sword.png"
   },
   "src/screens/cadet/CadetApp.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetApp-DTvlL-Vn.js",
-=======
-    "file": "assets/CadetApp-ClvXQda_.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetApp",
     "src": "src/screens/cadet/CadetApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_AncientMotifs-CRaoH8y8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_AncientMotifs-DYHBqyfV.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ],
@@ -188,11 +134,7 @@
       "src/screens/cadet/CadetNarrative.tsx",
       "src/screens/cadet/CadetGame.tsx",
       "src/screens/cadet/CadetQuiz.tsx",
-<<<<<<< HEAD
       "_CadetLeaderboard-a-2drNEU.js",
-=======
-      "_CadetLeaderboard-BF_I6u-J.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "src/screens/cadet/CadetAwards.tsx",
       "src/screens/cadet/CadetTent.tsx",
       "src/screens/cadet/CadetSettings.tsx",
@@ -202,272 +144,164 @@
     ]
   },
   "src/screens/cadet/CadetArena.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetArena-BwvTX9gD.js",
-=======
-    "file": "assets/CadetArena-CJf7CSeI.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetArena",
     "src": "src/screens/cadet/CadetArena.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_gameEngines-DRD5p3lD.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetAwards.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetAwards-EbxxCnyJ.js",
-=======
-    "file": "assets/CadetAwards-kjG4ih1t.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetAwards",
     "src": "src/screens/cadet/CadetAwards.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_AncientMotifs-CRaoH8y8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_AncientMotifs-DYHBqyfV.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetGame.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetGame-Drl7aQv7.js",
-=======
-    "file": "assets/CadetGame-BNK_lyfM.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetGame",
     "src": "src/screens/cadet/CadetGame.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_gameEngines-DSXqOUAQ.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_gameEngines-DRD5p3lD.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetNarrative.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetNarrative-DXtImI3e.js",
-=======
-    "file": "assets/CadetNarrative-CWAiKEL9.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetNarrative",
     "src": "src/screens/cadet/CadetNarrative.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_AncientMotifs-CRaoH8y8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_AncientMotifs-DYHBqyfV.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetQuiz.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetQuiz-DXy3mauk.js",
-=======
-    "file": "assets/CadetQuiz-BJLBXgWh.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetQuiz",
     "src": "src/screens/cadet/CadetQuiz.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_AncientMotifs-CRaoH8y8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_AncientMotifs-DYHBqyfV.js",
-      "_questionGenerator-Bha6NnmT.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetSettings.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetSettings-CMtY5hT-.js",
-=======
-    "file": "assets/CadetSettings-CDoDOZC4.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetSettings",
     "src": "src/screens/cadet/CadetSettings.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_BrowserNotificationSettings-CZH7V8mo.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_BrowserNotificationSettings-B6DPyQjJ.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetStore.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetStore-BOfuuX7H.js",
-=======
-    "file": "assets/CadetStore-DNROKWCa.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetStore",
     "src": "src/screens/cadet/CadetStore.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetStreak.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetStreak-CLYX81jV.js",
-=======
-    "file": "assets/CadetStreak-DDhPcx4v.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetStreak",
     "src": "src/screens/cadet/CadetStreak.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_AncientMotifs-CRaoH8y8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_AncientMotifs-DYHBqyfV.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetTent.tsx": {
-<<<<<<< HEAD
     "file": "assets/CadetTent-vjsbNgX_.js",
-=======
-    "file": "assets/CadetTent-CLQr4mGA.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "CadetTent",
     "src": "src/screens/cadet/CadetTent.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/instructor/InstructorApp.tsx": {
-<<<<<<< HEAD
     "file": "assets/InstructorApp-CkNT-7j9.js",
-=======
-    "file": "assets/InstructorApp-BSudW20-.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "InstructorApp",
     "src": "src/screens/instructor/InstructorApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_MeditationHistoryPanel-BmLnCAKh.js",
       "_BrowserNotificationSettings-CZH7V8mo.js",
       "_gameEngines-DSXqOUAQ.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_MeditationHistoryPanel-DHmkM1Pc.js",
-      "_BrowserNotificationSettings-B6DPyQjJ.js",
-      "_questionGenerator-Bha6NnmT.js",
-      "_gameEngines-DRD5p3lD.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/sentry/SentryApp.tsx": {
-<<<<<<< HEAD
     "file": "assets/SentryApp-nesyqmzf.js",
-=======
-    "file": "assets/SentryApp-eff7zz1H.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     "name": "SentryApp",
     "src": "src/screens/sentry/SentryApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-BNThJLs3.js",
-<<<<<<< HEAD
       "_RecentAwardsPanel-gxmHRfX8.js",
       "_BrowserNotificationSettings-CZH7V8mo.js",
       "_CadetLeaderboard-a-2drNEU.js",
       "_MeditationHistoryPanel-BmLnCAKh.js",
       "_AncientMotifs-CRaoH8y8.js",
-=======
-      "_RecentAwardsPanel-DhHgNVrA.js",
-      "_BrowserNotificationSettings-B6DPyQjJ.js",
-      "_CadetLeaderboard-BF_I6u-J.js",
-      "_MeditationHistoryPanel-DHmkM1Pc.js",
-      "_AncientMotifs-DYHBqyfV.js",
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
       "src/screens/cadet/CadetGame.tsx",
       "src/screens/cadet/CadetStreak.tsx",
       "src/screens/cadet/CadetNarrative.tsx",
       "src/screens/cadet/CadetStore.tsx",
       "_react-vendor-E8CKp2JF.js",
       "_supabase-wIXNjVJv.js",
-<<<<<<< HEAD
       "_gameEngines-DSXqOUAQ.js"
-=======
-      "_gameEngines-DRD5p3lD.js"
->>>>>>> parent of 0625897 (Harden Fullcircle release integrity and performance)
     ],
     "dynamicImports": [
       "src/screens/cadet/CadetArena.tsx",

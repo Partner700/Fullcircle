@@ -5,7 +5,7 @@ import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, recordSundayReadingOpen, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
-import { getDayType, getTodayISODate, cn } from '../../lib/utils';
+import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
 import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
 import {
@@ -155,10 +155,10 @@ export function CadetNarrative({
 
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
-  const now = new Date();
+  const appClock = getAppClock();
   const afterMeditationCutoff =
-    now.getHours() > MEDITATION_CUTOFF_HOUR ||
-    (now.getHours() === MEDITATION_CUTOFF_HOUR && now.getMinutes() >= MEDITATION_CUTOFF_MINUTE);
+    appClock.hour > MEDITATION_CUTOFF_HOUR ||
+    (appClock.hour === MEDITATION_CUTOFF_HOUR && appClock.minute >= MEDITATION_CUTOFF_MINUTE);
   const canSubmitMeditation =
     !afterMeditationCutoff &&
     bestVerse.trim().length > 0 &&
@@ -169,28 +169,16 @@ export function CadetNarrative({
   const saveMeditation = async () => {
     if (!profile || !canSubmitMeditation) return;
     setSaving(true);
-    const { error } = await supabase.rpc('record_meditation_streak', {
-      p_user_id: profile.id,
-      p_date: today,
-      p_text: meditation.trim(),
+    const { error } = await supabase.rpc('submit_daily_meditation', {
+      p_record_date: today,
+      p_meditation_text: meditation.trim(),
+      p_best_verse: bestVerse.trim(),
+      p_daily_quote: dailyQuote.trim(),
     });
     if (error) {
       alert(error.message || 'Meditation could not be saved.');
       setSaving(false);
       return;
-    }
-    // Save best_verse and daily_quote alongside meditation
-    const { data: existing } = await supabase
-      .from('daily_records')
-      .select('id')
-      .eq('user_id', profile.id)
-      .eq('record_date', today)
-      .maybeSingle();
-    if (existing) {
-      await supabase.from('daily_records').update({
-        best_verse: bestVerse.trim(),
-        daily_quote: dailyQuote.trim(),
-      }).eq('id', existing.id);
     }
     setSavedMeditation(true);
     setSaving(false);

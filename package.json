@@ -9,7 +9,9 @@
     "postbuild": "node scripts/copy-hostinger-fallback.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "test": "node --experimental-strip-types scripts/road-home-engine.test.ts && node scripts/security-boundaries.test.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "check": "npm run typecheck && npm run test && npm run lint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

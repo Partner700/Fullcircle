@@ -14,7 +14,7 @@ import {
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements } from '../../lib/queries';
-import { computeStreak, getDayType, getTodayISODate, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
+import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
@@ -147,7 +147,7 @@ export function SentryApp() {
       if (sentryTent) {
         const { data: mems } = await supabase
           .from('tent_members')
-          .select('*, profiles(*)')
+          .select('*, profiles(id,display_name,avatar_url,created_at)')
           .eq('tent_id', sentryTent.id)
           .eq('role', 'cadet')
           .order('joined_at');
@@ -638,13 +638,12 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
       <EmptyState
         icon={Clock}
         title="No attendance today"
-        message={dayType === 'saturday' ? 'Attendance is only marked on weekdays. Saturdays require the quiz instead.' : 'Sundays are frozen — no attendance is needed.'}
+        message={dayType === 'saturday' ? 'Attendance is only marked on weekdays. Saturdays require the quiz instead.' : 'Sunday is the day of rest — no attendance is needed.'}
       />
     );
   }
 
-  const now = new Date();
-  const pastCutoff = now.getHours() >= ATTENDANCE_CUTOFF_HOUR;
+  const pastCutoff = getAppClock().hour >= ATTENDANCE_CUTOFF_HOUR;
   const attendance = members.map((member) => {
     const records = allRecords[member.user_id] || [];
     const todayRecord = records.find((record) => record.record_date === today);
@@ -769,7 +768,6 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
                   <SealBullet className="text-stone flex-shrink-0" />
                   {m.profiles.display_name}
                 </h4>
-                <p className="text-xs text-stone">{m.profiles.email}</p>
               </div>
               <span className={cn('badge text-xs', streak.removal_state === 'flagged' ? 'badge-roman' : streak.removal_state === 'at_risk' ? 'badge-brass' : 'badge-moss')}>
                 <StateIcon size={12} /> {streak.removal_state.replace('_', ' ')}
