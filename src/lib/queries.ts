@@ -12,6 +12,7 @@ import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
 import { prepareImageUpload } from './uploads';
 import { getTodayISODate } from './utils';
+import { fetchOwnProfile } from './profileAccess';
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -22,9 +23,7 @@ export async function fetchTentHouses() {
 export async function fetchProfile(userId: string) {
   const { data: authData } = await supabase.auth.getUser();
   if (authData.user?.id !== userId) throw new Error('You can only load your own private profile.');
-  const { data, error } = await supabase.rpc('get_my_profile');
-  if (error) throw error;
-  return data as Profile | null;
+  return fetchOwnProfile(userId);
 }
 
 export async function fetchRoleAssignment(userId: string) {

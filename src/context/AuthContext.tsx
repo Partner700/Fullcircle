@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigError } from '../lib/supabase';
+import { fetchOwnProfile } from '../lib/profileAccess';
 import type { Profile, Role, RoleAssignment } from '../lib/types';
 
 interface AuthContextValue {
@@ -59,13 +60,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // its access token/profile query is ready. Retry briefly instead of
     // sending a valid user back to the sign-in screen.
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const { data, error } = await supabase.rpc('get_my_profile');
-      if (data) {
-        prof = data as Profile;
+      try {
+        const data = await fetchOwnProfile(userId);
+        if (data) {
+          prof = data;
+          profileError = null;
+          break;
+        }
+      } catch (error) {
+        profileError = error instanceof Error ? error : new Error('Profile loading failed.');
+      }
+      if (prof) {
         profileError = null;
         break;
       }
-      profileError = error ? new Error(error.message) : null;
       if (attempt < 2) await pause(500 * (attempt + 1));
     }
 
