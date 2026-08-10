@@ -3,7 +3,7 @@ import { AlertTriangle, Bell, CheckCheck, CheckCircle2, Loader2, MessageCircle }
 import { useAuth } from '../context/AuthContext';
 import { fetchUserNotifications, markAllNotificationsRead, markNotificationRead } from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import { playSoundEffect } from '../lib/soundscape';
+import { playNotificationSound } from '../lib/soundscape';
 import type { UserNotification } from '../lib/types';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
@@ -63,13 +63,7 @@ export function NotificationCenter({ onNavigate }: Props) {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
           void showDeviceNotification(notification);
-          // Purchases and awards already have their own intentional completion
-          // feedback. A second generic notification sound makes the UI feel as
-          // though the action fired twice.
-          const quietlyHandledTypes = new Set(['payment', 'purchase', 'relic', 'economy', 'award']);
-          if (!quietlyHandledTypes.has(notification.notification_type)) {
-            void playSoundEffect(notification.notification_type === 'message' ? 'sound_message' : 'sound_notification', 0.62);
-          }
+          void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
         }
         void load();
       },

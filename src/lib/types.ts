@@ -105,6 +105,7 @@ export interface DailyRecord {
   daily_quote: string | null;
   quiz_attempt_id: string | null;
   streak_valid: boolean | null;
+  sunday_reading_opened_at?: string | null;
   created_at: string;
 }
 

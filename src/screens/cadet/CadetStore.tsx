@@ -138,10 +138,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
-  const refreshPurchaseState = async () => {
+  const refreshPurchaseState = useCallback(async () => {
     await load();
     await onBalanceChanged?.();
-  };
+  }, [load, onBalanceChanged]);
 
   const buyWithDenarii = async (slug: string) => {
     if (!profile) return;
@@ -327,7 +327,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [paymentResult, paymentConfirmed, profile]);
+  }, [paymentResult, paymentConfirmed, profile, refreshPurchaseState]);
 
   useEffect(() => {
     if (!profile || !paymentResult || paymentConfirmed) return;
@@ -365,7 +365,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile, paymentResult, paymentConfirmed]);
+  }, [profile, paymentResult, paymentConfirmed, refreshPurchaseState]);
 
   const buyFreezer = async () => {
     if (!profile) return;
@@ -385,7 +385,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
   const selectedPaymentLabel = PAYMENT_METHODS.find((method) => method.id === paymentMethod)?.label || 'Payment';
   const canSubmitPayment = paymentMethod === 'other'
-    ? otherProvider.trim().length > 0 && otherAccountName.trim().length > 0 && otherContact.trim().length > 0 && otherTransactionReference.trim().length > 0
+    ? false
     : payPhone.trim().length > 0;
   const lazarusMarketDescription = 'Take or retake the Saturday quiz late and submit before 2:45 PM. Denarii only.';
   const readyDailyFreezers = freezers.filter((f) => f.freezer_type === 'daily' && !f.used_at).length;
@@ -688,6 +688,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
                 {paymentMethod === 'other' ? (
                   <div className="space-y-3">
+                    <div className="rounded-lg border border-brass/30 bg-brass/10 p-3 text-xs leading-relaxed text-stone">
+                      Other providers are not available yet because the app cannot verify them automatically. No request will be recorded and no relic will be granted until a verified provider integration is added.
+                    </div>
                     <div>
                       <label className="text-xs text-stone block mb-1">Specify payment method</label>
                       <input
@@ -753,7 +756,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   className="btn-primary w-full text-sm disabled:opacity-50"
                 >
                   {paySubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  {paymentMethod === 'other' ? 'Submit Request' : `Request ${selectedPaymentLabel} Payment`}
+                  {paymentMethod === 'other' ? 'Provider Not Available' : `Request ${selectedPaymentLabel} Payment`}
                 </button>
               </div>
             )}

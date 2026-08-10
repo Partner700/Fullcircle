@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
@@ -16,13 +16,13 @@ import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
   fetchAllNarratives, fetchAwards,
   fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
-  fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent,
+  fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
-import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, formatXaf } from '../../lib/utils';
+import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
+import { prepareImageUpload } from '../../lib/uploads';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
-import { generateQuizQuestions } from '../../lib/questionGenerator';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
@@ -30,8 +30,8 @@ import {
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
 } from 'lucide-react';
-import { DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
-import { customQuestionToPayload, generateLevelQuestions, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
+import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
+import { customQuestionToPayload, GAME_TYPE_LABELS } from '../../lib/gameEngines';
 import {
   fetchAllChallengeSubmissions, reviewChallengeSubmission, promoteCadetToSentry, promoteSentryToInstructor,
   giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, updateCustomQuestion, deleteCustomQuestion,
@@ -267,8 +267,22 @@ export function InstructorApp() {
 
 function toDateTimeLocal(value: string) {
   const date = value ? new Date(value) : new Date();
-  const offsetMs = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+function appDateTimeLocalToISOString(value: string) {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) throw new Error('Choose a valid publication date and time.');
+  return new Date(getAppDateTimeMs(match[1], Number(match[2]), Number(match[3]))).toISOString();
 }
 
 function looksLikeGeneratorLeak(option: string) {
@@ -338,14 +352,14 @@ const SOUND_SLOTS = [
   { type: 'sound_instructor_overview', label: 'Instructor Overview Atmosphere', description: 'A low-volume looping track for the Instructor Dashboard only.', audience: 'instructors' },
   { type: 'sound_sentry_overview', label: 'Sentry Overview Atmosphere', description: 'A low-volume looping track for the Sentry Overview dashboard.', audience: 'sentries' },
   { type: 'sound_button', label: 'Button Feedback', description: 'A short sound played when someone presses an app button.', audience: 'all' },
-  { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Reserved for a future welcome moment.', audience: 'all' },
-  { type: 'sound_reading', label: "Today's Reading", description: 'Reserved for scripture and meditation spaces.', audience: 'all' },
-  { type: 'sound_tent', label: 'Tent Space', description: 'Reserved for tent conversations and activity.', audience: 'all' },
-  { type: 'sound_game_lobby', label: 'Daily Game Lobby', description: 'Reserved for the daily game landing space.', audience: 'all' },
-  { type: 'sound_game_start', label: 'Daily Game Start', description: 'Reserved for when a daily game begins.', audience: 'all' },
-  { type: 'sound_game_correct', label: 'Correct Answer', description: 'Reserved for a correct daily-game answer.', audience: 'all' },
-  { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Reserved for a missed daily-game answer.', audience: 'all' },
-  { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Reserved for completing a daily game.', audience: 'all' },
+  { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Plays during the welcome and sign-in experience.', audience: 'all' },
+  { type: 'sound_reading', label: "Today's Reading", description: 'Loops in scripture and meditation spaces.', audience: 'all' },
+  { type: 'sound_tent', label: 'Tent Space', description: 'Loops during tent conversations and activity.', audience: 'all' },
+  { type: 'sound_game_lobby', label: 'Daily Game Lobby', description: 'Loops on the daily-game landing space.', audience: 'all' },
+  { type: 'sound_game_start', label: 'Daily Game Start', description: 'Plays when a daily game begins.', audience: 'all' },
+  { type: 'sound_game_correct', label: 'Correct Answer', description: 'Plays after a correct daily-game answer.', audience: 'all' },
+  { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Plays after a missed daily-game answer.', audience: 'all' },
+  { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Plays when a daily game is completed.', audience: 'all' },
   ...Array.from({ length: DAILY_GAME_LEVELS }, (_, index) => ({
     type: `sound_game_level_${index + 1}`,
     label: `Daily Game Level ${index + 1}`,
@@ -355,22 +369,22 @@ const SOUND_SLOTS = [
   { type: 'sound_round_timeout', label: 'Round Time Elapsed', description: 'Plays when a daily-game round closes.', audience: 'all' },
   { type: 'sound_relic_deploy', label: 'Relic Deployed', description: 'Plays when a player uses a game or quiz relic.', audience: 'all' },
   { type: 'sound_relic_reveal', label: 'Relic Reveal', description: 'Plays when a relic reveals an answer or reference.', audience: 'all' },
-  { type: 'sound_arena_lobby', label: 'Arena Lobby', description: 'Reserved for the Arena room space.', audience: 'all' },
-  { type: 'sound_arena_start', label: 'Arena Start', description: 'Reserved for an Arena battle start.', audience: 'all' },
-  { type: 'sound_arena_round', label: 'Arena Round', description: 'Reserved for a new Arena round.', audience: 'all' },
-  { type: 'sound_arena_finish', label: 'Arena Finish', description: 'Reserved for an Arena result.', audience: 'all' },
-  { type: 'sound_quiz_waiting', label: 'Quiz Waiting Room', description: 'Reserved while waiting for a quiz.', audience: 'all' },
-  { type: 'sound_quiz_start', label: 'Quiz Start', description: 'Reserved for a quiz beginning.', audience: 'all' },
-  { type: 'sound_quiz_finish', label: 'Quiz Finish', description: 'Reserved for a quiz submission/result.', audience: 'all' },
-  { type: 'sound_streak', label: 'Streak Update', description: 'Reserved for a streak gained or protected.', audience: 'all' },
-  { type: 'sound_challenge', label: 'Challenge Update', description: 'Reserved for challenge approval and progress.', audience: 'all' },
-  { type: 'sound_board', label: 'Challenge Boards', description: 'Reserved for board visits and rank movement.', audience: 'all' },
-  { type: 'sound_award', label: 'Award Received', description: 'Reserved for awards and achievements.', audience: 'all' },
-  { type: 'sound_market', label: 'Market', description: 'Reserved for market browsing.', audience: 'all' },
-  { type: 'sound_purchase_success', label: 'Purchase Confirmed', description: 'Reserved for successful purchases.', audience: 'all' },
-  { type: 'sound_purchase_failed', label: 'Purchase Needs Retry', description: 'Reserved for unsuccessful purchases.', audience: 'all' },
-  { type: 'sound_notification', label: 'Notification', description: 'Reserved for a new notification.', audience: 'all' },
-  { type: 'sound_message', label: 'Tent Message', description: 'Reserved for a new direct or tent message.', audience: 'all' },
+  { type: 'sound_arena_lobby', label: 'Arena Lobby', description: 'Loops in the Arena room space.', audience: 'all' },
+  { type: 'sound_arena_start', label: 'Arena Start', description: 'Plays when an Arena battle starts.', audience: 'all' },
+  { type: 'sound_arena_round', label: 'Arena Round', description: 'Plays as a new Arena round begins.', audience: 'all' },
+  { type: 'sound_arena_finish', label: 'Arena Finish', description: 'Plays when an Arena result is ready.', audience: 'all' },
+  { type: 'sound_quiz_waiting', label: 'Quiz Waiting Room', description: 'Loops while waiting for a quiz.', audience: 'all' },
+  { type: 'sound_quiz_start', label: 'Quiz Start', description: 'Plays when a quiz begins.', audience: 'all' },
+  { type: 'sound_quiz_finish', label: 'Quiz Finish', description: 'Plays after quiz submission or completion.', audience: 'all' },
+  { type: 'sound_streak', label: 'Streak Update', description: 'Plays when a streak increases or is protected.', audience: 'all' },
+  { type: 'sound_challenge', label: 'Challenge Update', description: 'Plays for challenge approval and progress notifications.', audience: 'all' },
+  { type: 'sound_board', label: 'Challenge Boards', description: 'Loops during board visits and rank viewing.', audience: 'all' },
+  { type: 'sound_award', label: 'Award Received', description: 'Plays for awards and achievements.', audience: 'all' },
+  { type: 'sound_market', label: 'Market', description: 'Loops while browsing the market.', audience: 'all' },
+  { type: 'sound_purchase_success', label: 'Purchase Confirmed', description: 'Plays after a confirmed purchase.', audience: 'all' },
+  { type: 'sound_purchase_failed', label: 'Purchase Needs Retry', description: 'Plays when a purchase is rejected or fails.', audience: 'all' },
+  { type: 'sound_notification', label: 'Notification', description: 'Plays for a new general notification.', audience: 'all' },
+  { type: 'sound_message', label: 'Tent Message', description: 'Plays for a new direct or tent message.', audience: 'all' },
 ];
 
 const IMAGE_ADJUSTMENT_CONTROLS: {
@@ -480,7 +494,7 @@ function AnnouncementManager() {
     const payload = {
       announcement_type: announcementType,
       audience,
-      publish_at: new Date(publishAt).toISOString(),
+      publish_at: appDateTimeLocalToISOString(publishAt),
       content: content.trim(),
       is_active: isActive,
     };
@@ -584,14 +598,17 @@ function AnnouncementManager() {
   const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
     setUploadingImageType(type);
     try {
-      const ext = file.name.split('.').pop() || 'jpg';
+      const prepared = await prepareImageUpload(file, { maxDimension: 2400, maxBytes: 12 * 1024 * 1024 });
       const version = Date.now();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) throw authError || new Error('Please sign in again before uploading an image.');
       const folder = type === 'weekly_background' ? 'weekly-backgrounds' : 'panel-images';
-      const path = `${authData.user.id}/${folder}/${safeType}-${version}.${ext}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      // Shared panel assets use a dedicated top-level folder. Storage RLS
+      // deliberately distinguishes these instructor-managed files from the
+      // user's personal avatar folder.
+      const path = `${folder}/${authData.user.id}/${safeType}-${version}.${prepared.extension}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, { upsert: true, contentType: prepared.file.type });
       if (error) throw error;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
       await publishImageSetting(type, `${data.publicUrl}?v=${version}`, targetAudience, imagePositionX, imagePositionY, imageAdjustments);
@@ -811,7 +828,7 @@ function AnnouncementManager() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <label className="text-xs font-semibold text-ink">Sound Assignments</label>
-              <p className="text-[10px] text-stone">Instructor-only audio library. Dashboard and button feedback are live; the other slots are ready for their matching scenario. Upload MP3, M4A, WAV, or OGG.</p>
+              <p className="text-[10px] text-stone">Instructor-only audio library. Each sound is connected to its matching screen or event. Upload MP3, M4A, WAV, or OGG.</p>
             </div>
             <Music2 size={17} className="text-brass" />
           </div>
@@ -821,7 +838,7 @@ function AnnouncementManager() {
                 <div className="flex items-start gap-2">
                   <Volume2 size={17} className="mt-0.5 flex-shrink-0 text-peri" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_instructor_overview', 'sound_sentry_overview', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
+                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p><span className="badge badge-moss text-[9px]">Live</span></div>
                     <p className="mt-0.5 text-[10px] leading-relaxed text-stone">{setting.description}</p>
                     {setting.item && <audio className="mt-2 h-8 w-full" controls src={setting.item.content} />}
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -1145,7 +1162,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
 }) {
   const cadetCount = roles.filter((r) => r.role === 'cadet' && r.status === 'active').length;
   const sentryCount = roles.filter((r) => r.role === 'sentry' && r.status === 'active').length;
-  const todayNarrative = narratives.find((n) => n.narrative_date === new Date().toISOString().slice(0, 10));
+  const todayNarrative = narratives.find((n) => n.narrative_date === getTodayISODate());
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -1210,8 +1227,10 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
 
   useEffect(() => {
     const loadEndOfDayStats = async () => {
-      const now = new Date();
-      if (now.getHours() < 20) return;
+      if (getAppClock().hour < 20) {
+        setEndOfDayStats(null);
+        return;
+      }
       const today = getTodayISODate();
       const [{ data: records }, { data: challenges }] = await Promise.all([
         supabase.from('daily_records').select('attendance_status, meditation_submitted, streak_valid').eq('record_date', today),
@@ -1226,7 +1245,11 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         challenges: (challenges || []).length,
       });
     };
-    loadEndOfDayStats().catch(() => setEndOfDayStats(null));
+    void loadEndOfDayStats().catch(() => setEndOfDayStats(null));
+    const interval = window.setInterval(() => {
+      void loadEndOfDayStats().catch(() => setEndOfDayStats(null));
+    }, 60_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
@@ -1644,7 +1667,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [awardingId, setAwardingId] = useState<string | null>(null);
-  const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [awardMonth, setAwardMonth] = useState(getTodayISODate().slice(0, 7));
   const [streaks, setStreaks] = useState<Record<string, { current: number; longest: number }>>({});
   const [denarii, setDenarii] = useState<Record<string, number>>({});
   const [selectedAwards, setSelectedAwards] = useState<Set<string>>(new Set());
@@ -1833,7 +1856,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
   const [busy, setBusy] = useState(false);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [awardingId, setAwardingId] = useState<string | null>(null);
-  const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [awardMonth, setAwardMonth] = useState(getTodayISODate().slice(0, 7));
   const [streaks, setStreaks] = useState<Record<string, { current: number; longest: number }>>({});
   const [denarii, setDenarii] = useState<Record<string, number>>({});
   const [selectedAwards, setSelectedAwards] = useState<Set<string>>(new Set());
@@ -2332,16 +2355,16 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [selectedTentId, setSelectedTentId] = useState('');
   const [selectedAwards, setSelectedAwards] = useState<Set<string>>(new Set());
   const [awardDescription, setAwardDescription] = useState('');
-  const [awardMonth, setAwardMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [awardMonth, setAwardMonth] = useState(getTodayISODate().slice(0, 7));
   const [saving, setSaving] = useState(false);
   const [recommendations, setRecommendations] = useState<AwardRecommendation[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
-  const cadets = roles.filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved'));
-  const sentries = roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved'));
-  const cadetIds = cadets.map((r) => r.user_id);
-  const sentryIds = sentries.map((r) => r.user_id);
-  const profileName = (userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet';
+  const cadets = useMemo(() => roles.filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved')), [roles]);
+  const sentries = useMemo(() => roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved')), [roles]);
+  const cadetIds = useMemo(() => cadets.map((r) => r.user_id), [cadets]);
+  const sentryIds = useMemo(() => sentries.map((r) => r.user_id), [sentries]);
+  const profileName = useCallback((userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet', [profiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2397,10 +2420,9 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           });
         }
 
-        const weeklyStart = new Date();
-        weeklyStart.setHours(0, 0, 0, 0);
-        weeklyStart.setDate(weeklyStart.getDate() - ((weeklyStart.getDay() + 6) % 7));
-        const weeklyStartIso = weeklyStart.toISOString().slice(0, 10);
+        const todayIso = getTodayISODate();
+        const todayDay = new Date(`${todayIso}T12:00:00.000Z`).getUTCDay();
+        const weeklyStartIso = shiftISODate(todayIso, -((todayDay + 6) % 7));
         const weeklyRecords = (dailyRecords || []).filter((record: any) => record.record_date >= weeklyStartIso);
         const sentryScores = new Map<string, number>();
         weeklyRecords.filter((record: any) => sentryIds.includes(record.user_id)).forEach((record: any) => {
@@ -2490,7 +2512,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           runnersUp: cadetRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} all-round point(s) this week.` })),
         });
 
-        const monthStartIso = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+        const monthStartIso = `${todayIso.slice(0, 7)}-01`;
         const vallumRanking = allRoundRanking(monthStartIso);
         const topVallum = vallumRanking[0];
         if (topVallum) next.push({
@@ -2501,9 +2523,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           runnersUp: vallumRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} all-round point(s) this month.` })),
         });
 
-        const priorWeekStart = new Date(weeklyStart);
-        priorWeekStart.setDate(priorWeekStart.getDate() - 7);
-        const priorWeekIso = priorWeekStart.toISOString().slice(0, 10);
+        const priorWeekIso = shiftISODate(weeklyStartIso, -7);
         const improvement = cadetIds.map((userId) => {
           const scoreForRange = (from: string, to?: string) => (dailyRecords || [])
             .filter((record: any) => record.user_id === userId && record.record_date >= from && (!to || record.record_date < to))
@@ -2584,7 +2604,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     };
     void loadRecommendations();
     return () => { cancelled = true; };
-  }, [cadetIds.join('|'), sentryIds.join('|'), members, profiles, tents]);
+  }, [cadetIds, sentryIds, members, profiles, tents, profileName]);
 
   const visibleCatalog = AWARD_CATALOG.map((group) => ({
     ...group,
@@ -2594,7 +2614,8 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const toggleAward = (title: string) => {
     setSelectedAwards((prev) => {
       const next = new Set(prev);
-      next.has(title) ? next.delete(title) : next.add(title);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
       return next;
     });
   };
@@ -2612,7 +2633,8 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const toggleUserId = (id: string) => {
     setSelectedUserIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -2830,20 +2852,29 @@ function isQuizRelaunchDraft(session: QuizSession) {
 }
 
 function buildQuizSchedule(date: string, time: string, countdownMinutes: number, durationMinutes: number) {
-  const start = new Date(`${date}T${time}:00`);
-  if (Number.isNaN(start.getTime())) throw new Error('Choose a valid quiz date and start time.');
+  const [hour, minute] = time.split(':').map(Number);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+    throw new Error('Choose a valid quiz date and start time.');
+  }
+  const startMs = getAppDateTimeMs(date, hour, minute);
+  if (!Number.isFinite(startMs)) throw new Error('Choose a valid quiz date and start time.');
   return {
-    scheduledStart: start.toISOString(),
-    countdownOpens: new Date(start.getTime() - countdownMinutes * 60_000).toISOString(),
-    liveOpens: start.toISOString(),
-    liveCloses: new Date(start.getTime() + durationMinutes * 60_000).toISOString(),
+    scheduledStart: new Date(startMs).toISOString(),
+    countdownOpens: new Date(startMs - countdownMinutes * 60_000).toISOString(),
+    liveOpens: new Date(startMs).toISOString(),
+    liveCloses: new Date(startMs + durationMinutes * 60_000).toISOString(),
   };
 }
 
 function quizLocalTime(value: string | null | undefined) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return '09:00';
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
 }
 
 function customQuestionsAsPlayableRows(sessionId: string, questions: CustomQuestion[]): Partial<GeneratedQuestion>[] {
@@ -3022,27 +3053,27 @@ function QuizBuilder() {
   const generateQuestions = async (session: QuizSession) => {
     setGenerating(true);
     try {
-      const sessionDate = new Date(`${session.session_date}T12:00:00`);
-      const day = sessionDate.getDay();
-      const saturday = new Date(sessionDate);
-      saturday.setDate(sessionDate.getDate() - ((day - 6 + 7) % 7));
-      const weekEnd = new Date(saturday);
-      weekEnd.setDate(saturday.getDate() + 6);
+      const day = new Date(`${session.session_date}T12:00:00.000Z`).getUTCDay();
+      const saturday = shiftISODate(session.session_date, -((day - 6 + 7) % 7));
+      const weekEnd = shiftISODate(saturday, 6);
       const weekNarratives = narratives.filter((narrative) => {
-        const date = new Date(`${narrative.narrative_date}T12:00:00`);
-        return date >= saturday && date <= weekEnd;
+        return narrative.narrative_date >= saturday && narrative.narrative_date <= weekEnd;
       });
-      const generated = generateQuizQuestions(weekNarratives);
+      const generated = await generateInstructorQuestionsWithAI({
+        mode: 'quiz',
+        narrativeDates: weekNarratives.map((narrative) => narrative.narrative_date),
+        count: 10,
+      });
       if (generated.length === 0) throw new Error('No narrative scripture content found for this quiz week.');
       await deleteQuestionsForSession(session.id);
       const questionsToInsert = generated.slice(0, 10).map((q, i) => ({
         quiz_session_id: session.id,
         question_index: i + 1,
-        source_narrative_date: q.source_date,
-        difficulty_tag: q.difficulty,
-        mechanic_type: q.mechanic,
-        recycled_from_game: q.recycled,
-        question_payload: cleanQuestionPayload(q.payload),
+        source_narrative_date: weekNarratives[i % weekNarratives.length]?.narrative_date || null,
+        difficulty_tag: q.difficulty_tag || (i < 3 ? 'easy' : i < 7 ? 'moderate' : 'hard'),
+        mechanic_type: `ai_${q.type}`,
+        recycled_from_game: false,
+        question_payload: cleanQuestionPayload(q),
       }));
       await insertQuestions(questionsToInsert);
       const qs = await fetchQuestionsForSession(session.id);
@@ -4107,7 +4138,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
         3: selectedNarrative.main_text,
       });
     }
-  }, [selectedNarrativeDate]);
+  }, [selectedNarrative]);
 
   useEffect(() => {
     if (questions.length === 0) return;
@@ -4155,23 +4186,29 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     if (!selectedNarrative || !profile) return;
     setSyncing(true);
     try {
+      const generated = await generateInstructorQuestionsWithAI({
+        mode: 'game',
+        narrativeDates: [selectedNarrative.narrative_date],
+        count: GAME_QUESTIONS_PER_ROUND * GAME_ROUNDS_PER_LEVEL,
+        level: selectedLevel,
+        questionTypes: isComprehensionLevel
+          ? roundQuestionTypes
+          : { 1: levelQuestionType, 2: levelQuestionType, 3: levelQuestionType },
+        passages: roundPassages,
+      });
       await Promise.all(
         questions
           .filter((q) => q.generated_from_packet)
           .map((q) => deleteCustomQuestion(q.id)),
       );
-      resetUsedQuestions();
-      const generated = generateLevelQuestions(selectedNarrative.game_seed_data, selectedLevel, []);
       for (const [i, payload] of generated.entries()) {
-        const round = Math.min(Math.floor(i / GAME_QUESTIONS_PER_ROUND) + 1, GAME_ROUNDS_PER_LEVEL);
+        const round = payload.game_round || Math.min(Math.floor(i / GAME_QUESTIONS_PER_ROUND) + 1, GAME_ROUNDS_PER_LEVEL);
         const rowOptions = payload.type === 'category_sort' && payload.sort_items
           ? payload.sort_items.map((item) => `${item.text} | ${item.bucket}`)
           : payload.type === 'matching' && payload.pairs
             ? payload.pairs.map((pair) => `${pair.left} | ${pair.right}`)
             : payload.options || payload.items || null;
-        const questionType = isComprehensionLevel
-          ? roundQuestionTypes[round] || payload.type
-          : levelQuestionType || payload.type;
+        const questionType = payload.type;
         await insertCustomQuestion({
           instructor_id: profile.id,
           quiz_session_id: null,
@@ -4185,7 +4222,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
           is_bonus: false,
           use_for_quiz: false,
           generated_from_packet: true,
-          packet_section: payload.engine || GAME_TYPE_LABELS[gameType] || payload.type,
+          packet_section: `AI · ${GAME_TYPE_LABELS[gameType] || payload.type}`,
           question_text: payload.question,
           question_type: questionType,
           options: rowOptions,
@@ -4614,11 +4651,9 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
     try {
       const role = assignRole[userId] || 'cadet';
       const tentId = assignTent[userId];
-      const { error: roleError } = await supabase.from('role_assignments').insert({
-        user_id: userId,
-        role,
-        status: 'active',
-        start_date: new Date().toISOString().split('T')[0],
+      const { error: roleError } = await supabase.rpc('promote_user', {
+        p_user_id: userId,
+        p_new_role: role,
       });
       if (roleError) throw roleError;
       if (tentId) {

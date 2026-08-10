@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v17';
+const CACHE_VERSION = 'full-circle-v20';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -71,8 +71,7 @@ self.addEventListener('install', (event) => {
             caches.delete(name).catch(() => false)
           )
         );
-      })
-      .then(() => self.skipWaiting()),
+      }),
   );
 });
 
@@ -105,7 +104,12 @@ self.addEventListener('activate', (event) => {
           }),
         ),
       )
-      .then(() => self.clients.claim()),
+      .then(async () => {
+        if (self.registration.navigationPreload) {
+          await self.registration.navigationPreload.enable().catch(() => undefined);
+        }
+        await self.clients.claim();
+      }),
   );
 });
 
@@ -143,7 +147,7 @@ self.addEventListener('fetch', (event) => {
 
   // Navigation requests: network-first with offline fallback
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(request));
+    event.respondWith(networkFirstNavigation(request, event.preloadResponse));
     return;
   }
 
@@ -275,16 +279,17 @@ function isGoogleFont(url) {
   return url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
 }
 
-async function networkFirstNavigation(request) {
+async function networkFirstNavigation(request, preloadResponsePromise) {
   const cache = await caches.open(RUNTIME_CACHE);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const networkResponse = await fetch(request, {
-      credentials: 'same-origin',
-      signal: controller.signal,
-    });
+    const preloadedResponse = preloadResponsePromise ? await preloadResponsePromise : null;
+    const networkResponse = preloadedResponse || await fetch(request, {
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
 
     if (networkResponse.ok && networkResponse.type === 'basic') {
       cache.put('/index.html', networkResponse.clone());

@@ -1,6 +1,5 @@
 import type { GameSeedData, QuestionPayload, CustomQuestion } from './types';
 import { LEVEL_GAME_TYPES, LEVEL_TIMERS, GAME_QUESTIONS_PER_LEVEL, GAME_QUESTIONS_PER_ROUND } from './constants';
-import { fetchCustomGameQuestions } from './queries';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -179,6 +178,7 @@ function track(q: QuestionPayload): QuestionPayload {
 
 // ── Level 1: True or False — ONE statement, True/False buttons ──
 function engineTrueFalse(seed: GameSeedData, _difficulty: number): QuestionPayload {
+  void _difficulty;
   const bank = seed.true_false_bank || [];
   const available = bank.filter((b) => !usedQuestions.has(b.statement));
 
@@ -441,7 +441,10 @@ export function generateLevelQuestions(seed: GameSeedData, level: number, custom
       usedQuestions.add(qText);
       questions.push(customQuestionToPayload(cq));
     }
-    if (generatedBank && questions.length >= numQuestions) return questions;
+    // Never fill a reviewed set with unapproved fallback questions. If an
+    // instructor publishes fewer questions, the level deliberately uses that
+    // smaller set until more are approved.
+    return questions;
   }
 
   if (gameType === 'final_mixed') {
@@ -487,19 +490,6 @@ export function generateLevelQuestions(seed: GameSeedData, level: number, custom
     if (q) questions.push(q);
   }
   return questions;
-}
-
-export async function generateLevelQuestionsWithCustom(seed: GameSeedData, level: number, narrativeDate?: string): Promise<QuestionPayload[]> {
-  let customQuestions: CustomQuestion[] = [];
-  try {
-    customQuestions = narrativeDate
-      ? await fetchCustomGameQuestions(level, narrativeDate, true)
-      : await fetchCustomGameQuestions(level, undefined, true);
-  } catch {}
-  // A daily game is published only from questions the instructor has approved.
-  // Returning no questions makes the unavailable state explicit rather than
-  // silently substituting unreviewed generated material.
-  return customQuestions.length > 0 ? generateLevelQuestions(seed, level, customQuestions) : [];
 }
 
 export function getLevelTimer(level: number): number {

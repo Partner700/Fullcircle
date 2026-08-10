@@ -26,6 +26,12 @@ type CampayCollectResponse = {
   operator_reference?: string;
 };
 
+type PaymentFinalization = {
+  payment_id: string;
+  status: string;
+  newly_granted?: boolean;
+};
+
 type MobileMoneySettings = {
   payout_enabled?: boolean;
   payout_phone_number?: string | null;
@@ -132,8 +138,13 @@ function isSuccessful(status?: string): boolean {
   return normalizeStatus(status) === "confirmed";
 }
 
-async function grantRelic(userId: string, relicSlug: string, currency: string): Promise<void> {
-  const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/purchase_relic`, {
+async function finalizePayment(
+  paymentId: string,
+  providerReference: string | null,
+  amountXaf: number,
+  verification: Record<string, unknown>,
+): Promise<PaymentFinalization> {
+  const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/finalize_campay_payment`, {
     method: "POST",
     headers: {
       apikey: supabaseServiceKey,
@@ -141,15 +152,18 @@ async function grantRelic(userId: string, relicSlug: string, currency: string): 
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      p_user_id: userId,
-      p_relic_slug: relicSlug,
-      p_currency: currency,
+      p_payment_id: paymentId,
+      p_provider_reference: providerReference,
+      p_verified_amount: amountXaf,
+      p_verified_currency: checkoutCurrency,
+      p_verification: verification,
     }),
   });
   if (!rpcRes.ok) {
     const body = await rpcRes.text();
-    throw new Error(`purchase_relic failed: ${rpcRes.status} ${body}`);
+    throw new Error(`finalize_campay_payment failed: ${rpcRes.status} ${body}`);
   }
+  return await rpcRes.json();
 }
 
 async function fetchMobileMoneySettings(): Promise<MobileMoneySettings | null> {
@@ -182,6 +196,67 @@ async function updatePaymentPayout(
     },
     body: JSON.stringify({ ...patch, payout_attempted_at: new Date().toISOString() }),
   });
+}
+
+async function createPaymentRecord(payload: Record<string, unknown>): Promise<string> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments`, {
+    method: "POST",
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to record payment: ${response.status} ${await response.text()}`);
+  }
+  const rows: Array<{ id?: string }> = await response.json();
+  const id = rows[0]?.id;
+  if (!id) throw new Error("Payment record was created without an identifier.");
+  return id;
+}
+
+async function updatePaymentRecord(paymentId: string, patch: Record<string, unknown>): Promise<void> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments?id=eq.${paymentId}`, {
+    method: "PATCH",
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update payment: ${response.status} ${await response.text()}`);
+  }
+}
+
+async function rejectPayment(
+  paymentId: string,
+  providerReference: string | null,
+  reason: string,
+  verification: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/reject_campay_payment`, {
+    method: "POST",
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      p_payment_id: paymentId,
+      p_provider_reference: providerReference,
+      p_reason: reason,
+      p_verification: verification,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`reject_campay_payment failed: ${response.status} ${await response.text()}`);
+  }
 }
 
 async function attemptCampayPayout(
@@ -334,57 +409,10 @@ Deno.serve(async (req: Request) => {
     const localAmount = amountXaf.toString();
 
     if (payment_method === "other") {
-      if (!other_provider?.trim()) {
-        return new Response(JSON.stringify({ error: "Specify the other payment method." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!payment_note?.trim()) {
-        return new Response(JSON.stringify({ error: "Verification details are required for other payment methods." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const insertRes = await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments`, {
-        method: "POST",
-        headers: {
-          apikey: supabaseServiceKey,
-          Authorization: `Bearer ${supabaseServiceKey}`,
-          "Content-Type": "application/json",
-          Prefer: "return=representation",
-        },
-        body: JSON.stringify({
-          user_id,
-          relic_slug: relic.slug,
-          relic_name: relic.name,
-          amount_usd: amountUsd,
-          amount_local: amountXaf,
-          currency_code: checkoutCurrency,
-          provider,
-          sender_phone: customer_phone || "not_provided",
-          status: "pending",
-          reference: externalReference,
-          external_reference: externalReference,
-          payment_method,
-          payment_details: payment_note || null,
-        }),
-      });
-      if (!insertRes.ok) {
-        const body = await insertRes.text();
-        throw new Error(`Failed to record payment: ${insertRes.status} ${body}`);
-      }
-
       return new Response(JSON.stringify({
-        status: "manual_pending",
-        reference: externalReference,
-        amount_local: amountXaf,
-        currency_code: checkoutCurrency,
-        amount_display: formatXaf(amountXaf),
-        provider,
-        message: "Payment request submitted for instructor review.",
+        error: "This payment provider is not connected for automatic verification yet. Choose MTN MoMo or Orange Money.",
       }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -407,6 +435,26 @@ Deno.serve(async (req: Request) => {
         external_reference: externalReference,
       };
 
+      // Persist the expected amount and our external reference before asking
+      // CamPay to collect. This guarantees that even an immediate webhook has
+      // a transaction to verify and settle.
+      const paymentId = await createPaymentRecord({
+        user_id,
+        relic_slug: relic.slug,
+        relic_name: relic.name,
+        amount_usd: amountUsd,
+        amount_local: amountXaf,
+        currency_code: checkoutCurrency,
+        provider,
+        sender_phone: customer_phone,
+        status: "pending",
+        reference: externalReference,
+        external_reference: externalReference,
+        provider_reference: null,
+        payment_method,
+        payment_details: payment_note || null,
+      });
+
       const collectRes = await fetch(`${campayBaseUrl}/api/collect/`, {
         method: "POST",
         headers: {
@@ -425,55 +473,53 @@ Deno.serve(async (req: Request) => {
       }
 
       if (!collectRes.ok) {
-        throw new Error(`Campay collect error: ${collectRes.status} ${collectBody}`);
+        await rejectPayment(
+          paymentId,
+          String(collectJson.reference || "") || null,
+          `Campay collect error: ${collectRes.status}`,
+          collectJson as Record<string, unknown>,
+        );
+        return new Response(JSON.stringify({
+          error: collectJson.message || "CamPay could not start this payment. Please try again.",
+          status: "rejected",
+          reference: externalReference,
+        }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const providerReference = collectJson.reference || null;
       const collectPaymentStatus = normalizeStatus(collectJson.status);
 
-      const insertRes = await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments`, {
-        method: "POST",
-        headers: {
-          apikey: supabaseServiceKey,
-          Authorization: `Bearer ${supabaseServiceKey}`,
-          "Content-Type": "application/json",
-          Prefer: "return=representation",
-        },
-        body: JSON.stringify({
-          user_id,
-          relic_slug: relic.slug,
-          relic_name: relic.name,
-          amount_usd: amountUsd,
-          amount_local: amountXaf,
-          currency_code: checkoutCurrency,
-          provider,
-          sender_phone: customer_phone,
-          status: collectPaymentStatus,
-          reference: externalReference,
-          external_reference: externalReference,
-          provider_reference: providerReference,
-          payment_method,
-          payment_details: payment_note || null,
-          operator: collectJson.operator || null,
-          ussd_code: collectJson.ussd_code || null,
-        }),
+      await updatePaymentRecord(paymentId, {
+        provider_reference: providerReference,
+        operator: collectJson.operator || null,
+        ussd_code: collectJson.ussd_code || null,
       });
-      if (!insertRes.ok) {
-        const body = await insertRes.text();
-        throw new Error(`Failed to record payment: ${insertRes.status} ${body}`);
-      }
-      const insertedPayments: Array<{ id: string }> = await insertRes.json();
-      const paymentId = insertedPayments[0]?.id;
 
+      let finalization: PaymentFinalization | null = null;
       if (isSuccessful(collectJson.status)) {
-        await grantRelic(user_id, relic.slug, "campay");
-      }
-      if (isSuccessful(collectJson.status) && paymentId) {
-        await attemptCampayPayout(paymentId, amountXaf, externalReference, token);
+        finalization = await finalizePayment(
+          paymentId,
+          providerReference,
+          amountXaf,
+          collectJson as Record<string, unknown>,
+        );
+        if (finalization.newly_granted) {
+          await attemptCampayPayout(paymentId, amountXaf, externalReference, token);
+        }
+      } else if (collectPaymentStatus === "rejected") {
+        await rejectPayment(
+          paymentId,
+          providerReference,
+          String(collectJson.status || collectJson.message || "Payment was rejected."),
+          collectJson as Record<string, unknown>,
+        );
       }
 
       return new Response(JSON.stringify({
-        status: collectJson.status || collectPaymentStatus || "pending",
+        status: finalization?.status || collectJson.status || collectPaymentStatus || "pending",
         reference: externalReference,
         amount_local: amountXaf,
         currency_code: checkoutCurrency,
@@ -490,45 +536,10 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const insertRes = await fetch(`${supabaseUrl}/rest/v1/mobile_money_payments`, {
-      method: "POST",
-      headers: {
-        apikey: supabaseServiceKey,
-        Authorization: `Bearer ${supabaseServiceKey}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        user_id,
-        relic_slug: relic.slug,
-        relic_name: relic.name,
-        amount_usd: amountUsd,
-        amount_local: amountXaf,
-        currency_code: checkoutCurrency,
-        provider,
-        sender_phone: customer_phone || "not_provided",
-        status: "pending",
-        reference: externalReference,
-        external_reference: externalReference,
-        provider_reference: null,
-        payment_method,
-        payment_details: payment_note || `Payment method: ${payment_method || "other"}`,
-      }),
-    });
-    if (!insertRes.ok) {
-      const body = await insertRes.text();
-      throw new Error(`Failed to record payment: ${insertRes.status} ${body}`);
-    }
-
     return new Response(JSON.stringify({
-      status: "manual_pending",
-      reference: externalReference,
-      amount_local: amountXaf,
-      currency_code: checkoutCurrency,
-      amount_display: formatXaf(amountXaf),
-      provider,
-      message: "Payment request submitted for instructor review.",
+      error: "This payment method is not connected for automatic verification.",
     }), {
+      status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

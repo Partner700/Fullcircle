@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { upsertNarrative } from '../lib/queries';
-import { getTodayISODate, getDayType, cn } from '../lib/utils';
+import { getTodayISODate, getDayType, getAppClock, shiftISODate, cn } from '../lib/utils';
 import { CHALLENGE_PROOF_FORMATS } from '../lib/constants';
 import type { DailyNarrative, GameSeedData, ChallengeProofFormat } from '../lib/types';
 import { Loader2, Save, X, BookOpen, Sparkles, CalendarDays, KeyRound, Wand2 } from 'lucide-react';
@@ -243,7 +243,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
     : isScheduledDate
       ? 'Schedule Narrative'
       : 'Publish Narrative';
-  const selectedDayType = getDayType(new Date(`${form.narrative_date}T12:00:00`));
+  const selectedDayType = getDayType(form.narrative_date);
   const isSundayRest = selectedDayType === 'sunday';
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
@@ -319,7 +319,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
   const save = async () => {
     setSaving(true);
     setSaveError(null);
-    const selectedDayType = getDayType(new Date(`${form.narrative_date}T12:00:00`));
+    const selectedDayType = getDayType(form.narrative_date);
     const isSundayRest = selectedDayType === 'sunday';
 
     if (isSundayRest) {
@@ -432,9 +432,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
                 { label: '+3 days', offset: 3 },
                 { label: '+7 days', offset: 7 },
               ].map((item) => {
-                const date = new Date();
-                date.setDate(date.getDate() + item.offset);
-                const iso = date.toISOString().split('T')[0];
+                const iso = shiftISODate(getTodayISODate(), item.offset);
                 return (
                   <button
                     key={item.label}
@@ -448,10 +446,12 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
                 );
               })}
               {(() => {
-                const date = new Date();
-                const daysUntilSunday = (7 - date.getDay()) % 7 || 7;
-                date.setDate(date.getDate() + daysUntilSunday);
-                const iso = date.toISOString().split('T')[0];
+                const weekdayIndex: Record<string, number> = {
+                  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+                };
+                const currentDay = weekdayIndex[getAppClock().weekday] ?? 0;
+                const daysUntilSunday = (7 - currentDay) % 7 || 7;
+                const iso = shiftISODate(getTodayISODate(), daysUntilSunday);
                 return (
                   <button
                     type="button"
@@ -788,15 +788,15 @@ function ContentPacketEditor({ value, onChange, source }: { value: string; onCha
     try { return JSON.parse(value) as GameSeedData; } catch { return {}; }
   });
 
-  const replaceData = (next: GameSeedData) => {
+  const replaceData = useCallback((next: GameSeedData) => {
     setData(next);
     onChange(JSON.stringify(next, null, 2));
-  };
+  }, [onChange]);
 
   const update = useCallback((patch: Partial<GameSeedData>) => {
     const next = { ...data, ...patch };
     replaceData(next);
-  }, [data, onChange]);
+  }, [data, replaceData]);
 
   const updateArray = (key: keyof GameSeedData, text: string) => {
     const arr = text.split('\n').map((s) => s.trim()).filter(Boolean);

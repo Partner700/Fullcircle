@@ -1,0 +1,11 @@
+project_id = "fullcircle"
+
+# CamPay authenticates callbacks with CAMPAY_WEBHOOK_KEY. Signed-in users may
+# also poll their own reference; both paths are verified inside the function.
+[functions.campay-webhook]
+verify_jwt = false
+
+# PostgreSQL queues push delivery with a private per-project secret. The Edge
+# Function verifies that secret before reading or sending any notification.
+[functions.send-push-notification]
+verify_jwt = false

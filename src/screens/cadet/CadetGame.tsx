@@ -4,13 +4,17 @@ import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { Dove } from '../../components/Dove';
-import { fetchNarrative, fetchNarratives, fetchGameAttempts, insertGameAttempt, insertLedgerEntry, fetchLedgerTotal, useRelic as deployRelic, fetchPanelImageSetting } from '../../lib/queries';
+import {
+  fetchNarrative, fetchNarratives, fetchGameAttempts, fetchLedgerTotal,
+  fetchPanelImageSetting, startDailyGameLevel, submitDailyGameAnswer,
+  applyDailyGameQuestionAid, completeDailyGameRun, type DailyGameAnswerResult,
+} from '../../lib/queries';
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
-import { generateLevelQuestionsWithCustom, getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
-import { isGamePausedNow, getTodayISODate, cn, formatDenarii } from '../../lib/utils';
+import { getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
+import { isGamePausedNow, getTodayISODate, getDayType, shiftISODate, cn, formatDenarii } from '../../lib/utils';
 import { playRoundWarningBeep, playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_PER_ROUND } from '../../lib/constants';
-import type { DailyNarrative, GameAttempt, GameSeedData, QuestionPayload, PanelImageSetting } from '../../lib/types';
+import type { DailyNarrative, GameAttempt, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
   Gamepad2, Lock, CheckCircle2, XCircle, Trophy, Coins, RotateCcw,
   Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
@@ -20,14 +24,6 @@ import type { LucideIcon } from 'lucide-react';
 
 const PASS_THRESHOLD = GAME_PASS_THRESHOLD; // 0.6 = 60%
 const DEFAULT_PASSAGE_DISPLAY_SECONDS = 30;
-
-function calcGameReward(level: number, score: number, maxScore: number): number {
-  if (maxScore === 0) return 0;
-  const ratio = score / maxScore;
-  if (ratio < PASS_THRESHOLD) return 0;
-  const levelMax = level <= 3 ? 50 : level <= 6 ? 100 : 200;
-  return Math.round(levelMax * ratio);
-}
 
 function levelMaxReward(level: number): number {
   return level <= 3 ? 50 : level <= 6 ? 100 : 200;
@@ -84,7 +80,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   const [gameImage, setGameImage] = useState<PanelImageSetting | null>(null);
 
   const today = getTodayISODate();
-  const isSunday = new Date(`${today}T12:00:00`).getDay() === 0;
+  const isSunday = getDayType(today) === 'sunday';
   const [gameDate, setGameDate] = useState(today);
   const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
   const paused = isGamePausedNow();
@@ -93,9 +89,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
     if (!profile) return;
     setLoading(true);
     const weekly = isSunday ? await fetchNarratives(8) : [];
-    const weekStart = new Date(`${today}T12:00:00`);
-    weekStart.setDate(weekStart.getDate() - 6);
-    const weekStartDate = weekStart.toISOString().slice(0, 10);
+    const weekStartDate = shiftISODate(today, -6);
     const playable = weekly.filter((item) => item.narrative_date >= weekStartDate && item.narrative_date < today);
     const effectiveDate = isSunday && (!playable.some((item) => item.narrative_date === gameDate) || gameDate === today)
       ? playable[0]?.narrative_date || gameDate
@@ -137,7 +131,6 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
 
   const totalEarned = attempts.reduce((sum, a) => sum + a.reward, 0);
   const inPracticeMode = totalEarned >= DAILY_GAME_CAP;
-  const remainingToCap = Math.max(0, DAILY_GAME_CAP - totalEarned);
   const passedCount = Array.from({ length: DAILY_GAME_LEVELS }, (_, i) => i + 1).filter(levelPassed).length;
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading game…</div>;
@@ -175,9 +168,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
         mode={mode}
         narrative={narrative}
         userId={profile!.id}
-        remainingToCap={remainingToCap}
         denariiBalance={denariiBalance}
-        hasEarnedFromLevel={earned}
         onExit={() => setActiveLevel(null)}
         onComplete={async (result) => {
           const nextLevel = result.passed && activeLevel < DAILY_GAME_LEVELS ? activeLevel + 1 : null;
@@ -308,19 +299,19 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   );
 }
 
-function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalance, hasEarnedFromLevel, onExit, onComplete }: {
+function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onComplete }: {
   level: number;
   mode: string;
   narrative: DailyNarrative;
   userId: string;
-  remainingToCap: number;
   denariiBalance: number;
-  hasEarnedFromLevel: boolean;
   onExit: () => void;
   onComplete: (result: GameOverResult) => void;
 }) {
   const [questions, setQuestions] = useState<QuestionPayload[]>([]);
+  const [runId, setRunId] = useState<string | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [localDenarii, setLocalDenarii] = useState(denariiBalance);
   const [hintShown, setHintShown] = useState(false);
@@ -328,13 +319,14 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const [hintText, setHintText] = useState<string | null>(null);
   const [relicNotice, setRelicNotice] = useState<string | null>(null);
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
-  const [donkeyActive, setDonkeyActive] = useState(false);
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
   const [relicBurst, setRelicBurst] = useState<string | null>(null);
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [answerCorrect, setAnswerCorrect] = useState(false);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(getLevelTimer(level));
   const [roundCorrect, setRoundCorrect] = useState(0);
@@ -342,9 +334,6 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   const [passageIntroRound, setPassageIntroRound] = useState<number | null>(null);
   const [passageTimeLeft, setPassageTimeLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [failedQuestions, setFailedQuestions] = useState<QuestionPayload[]>([]);
-  const [hasRepeatedFailed, setHasRepeatedFailed] = useState(false);
-  const [repeatQueue, setRepeatQueue] = useState<QuestionPayload[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const passageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPractice = mode === 'practice';
@@ -360,19 +349,20 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     resetUsedQuestions();
     setQuestionsLoading(true);
     setCurrentQ(0);
+    setRunId(null);
+    setQuestionLoadError(null);
     setSelectedAnswer(null);
     setShowFeedback(false);
+    setAnswerCorrect(false);
     setScore(0);
-    setFailedQuestions([]);
-    setHasRepeatedFailed(false);
-    setRepeatQueue([]);
     setPassageIntroRound(null);
     setPassageTimeLeft(0);
     setRoundCorrect(0);
     setRoundTimeout(null);
-    generateLevelQuestionsWithCustom(narrative.game_seed_data as GameSeedData, level, narrative.narrative_date)
-      .then((qs) => {
+    startDailyGameLevel(narrative.narrative_date, level, mode)
+      .then(({ runId: nextRunId, questions: qs }) => {
         if (!cancelled) {
+          setRunId(nextRunId);
           setQuestions(qs);
           setTimeLeft(getRoundTimer(qs, level, 0));
           const firstRound = getQuestionRound(qs[0], 0);
@@ -384,7 +374,12 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
           setQuestionsLoading(false);
         }
       })
-      .catch(() => { if (!cancelled) setQuestionsLoading(false); });
+      .catch((error: any) => {
+        if (!cancelled) {
+          setQuestionLoadError(error.message || 'This level could not be prepared.');
+          setQuestionsLoading(false);
+        }
+      });
     // Fetch relic inventory
     supabase
       .from('relic_inventory')
@@ -400,28 +395,44 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         setRelicInventory(map);
     });
     return () => { cancelled = true; };
-  }, [narrative, level, userId]);
+  }, [narrative.narrative_date, level, mode, userId]);
 
-  const handleAnswer = useCallback((answer: string | null) => {
-    if (showFeedback) return;
-    const q = questions[currentQ];
-    if (donkeyActive && answer !== q.correct_answer) {
-      setDonkeyActive(false);
-      setRelicNotice('The Talking Donkey warns that this answer is not right. Try another answer.');
-      return;
+  const applyAnswerResult = useCallback((result: DailyGameAnswerResult, submittedAnswer: string | null) => {
+    if (result.protected) {
+      setRelicNotice(result.notice || 'That answer was stopped. Try again.');
+      return false;
     }
-    const correct = answer === q.correct_answer;
-    setSelectedAnswer(answer);
+    if (result.answer_payload) {
+      setQuestions((previous) => previous.map((question, index) =>
+        index === currentQ ? { ...question, ...result.answer_payload } : question,
+      ));
+    }
+    setSelectedAnswer(submittedAnswer);
+    setAnswerCorrect(Boolean(result.correct));
     setShowFeedback(true);
-    if (correct) {
-      setScore((s) => s + 1);
+    setScore(Number(result.total_figs) || 0);
+    if (result.correct) {
       setRoundCorrect((value) => value + 1);
       void playSoundEffect('sound_game_correct', 0.58);
     } else {
-      setFailedQuestions((prev) => [...prev, q]);
       void playSoundEffect('sound_game_incorrect', 0.52);
     }
-  }, [showFeedback, questions, currentQ, donkeyActive]);
+    return true;
+  }, [currentQ]);
+
+  const handleAnswer = useCallback(async (answer: string | null) => {
+    const question = questions[currentQ];
+    if (showFeedback || submittingAnswer || !runId || !question?.id) return;
+    setSubmittingAnswer(true);
+    try {
+      const result = await submitDailyGameAnswer(runId, question.id, answer);
+      applyAnswerResult(result, answer);
+    } catch (error: any) {
+      setRelicNotice(error.message || 'That answer could not be verified. Please try again.');
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  }, [applyAnswerResult, currentQ, questions, runId, showFeedback, submittingAnswer]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -466,39 +477,40 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   }, [passageIntroRound]);
 
   const useHint = async () => {
-    if (hintShown || showFeedback || localDenarii < HINT_COST) return;
+    const question = questions[currentQ];
+    if (hintShown || showFeedback || localDenarii < HINT_COST || !runId || !question?.id) return;
     setHintShown(true);
-    setLocalDenarii((d) => d - HINT_COST);
-    await insertLedgerEntry({
-      user_id: userId, amount: -HINT_COST, source_type: 'hint',
-      description: `Hint used on Level ${level}`,
-    } as any);
-    const q = questions[currentQ];
-    if (q.options && q.options.length > 0) {
-      const wrong = q.options.filter((o) => o !== q.correct_answer);
-      const removed = wrong.slice(0, Math.max(1, Math.floor(wrong.length / 2)));
-      setHintText(`Eliminated: ${removed.join(', ')}`);
-    } else {
-      setHintText(q.explanation || 'Look carefully at the passage for clues.');
+    try {
+      const result = await applyDailyGameQuestionAid(runId, question.id, 'paid-hint');
+      setLocalDenarii((balance) => balance - (result.cost || HINT_COST));
+      setHintText(result.hint || 'Look carefully at the passage for clues.');
+    } catch (error: any) {
+      setHintShown(false);
+      setRelicNotice(error.message || 'The hint could not be purchased.');
     }
   };
 
   const useAnswerReveal = async () => {
-    if (answerRevealed || showFeedback || localDenarii < ANSWER_REVEAL_COST) return;
+    const question = questions[currentQ];
+    if (answerRevealed || showFeedback || localDenarii < ANSWER_REVEAL_COST || !runId || !question?.id) return;
     setAnswerRevealed(true);
-    setLocalDenarii((d) => d - ANSWER_REVEAL_COST);
-    await insertLedgerEntry({
-      user_id: userId, amount: -ANSWER_REVEAL_COST, source_type: 'answer_reveal',
-      description: `Answer revealed on Level ${level}`,
-    } as any);
-    handleAnswer(questions[currentQ].correct_answer as string);
+    try {
+      const result = await applyDailyGameQuestionAid(runId, question.id, 'paid-reveal');
+      setLocalDenarii((balance) => balance - (result.cost || ANSWER_REVEAL_COST));
+      const revealedAnswer = result.answer_payload?.correct_answer;
+      applyAnswerResult(result, revealedAnswer == null ? null : String(revealedAnswer));
+    } catch (error: any) {
+      setAnswerRevealed(false);
+      setRelicNotice(error.message || 'The answer reveal could not be purchased.');
+    }
   };
 
-  const consumeQuestionRelic = async (slug: string, action: () => void) => {
-    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+  const consumeQuestionRelic = async (slug: string) => {
+    const question = questions[currentQ];
+    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0 || !runId || !question?.id) return;
     setUsingQuestionRelic(slug);
     try {
-      await deployRelic(userId, slug);
+      const result = await applyDailyGameQuestionAid(runId, question.id, slug);
       setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
@@ -509,7 +521,20 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
           ? 'sound_relic_reveal'
           : 'sound_relic_deploy',
       );
-      action();
+      if (result.hint) {
+        setHintShown(true);
+        setHintText(result.hint);
+      }
+      if (result.eliminated_options) setEliminatedOptions(result.eliminated_options);
+      if (result.extra_seconds) setTimeLeft((seconds) => seconds + result.extra_seconds!);
+      if (result.notice) setRelicNotice(result.notice);
+      if (result.answer_payload || result.skipped || result.auto_answered) {
+        const answer = result.auto_answered && result.answer_payload?.correct_answer != null
+          ? String(result.answer_payload.correct_answer)
+          : null;
+        applyAnswerResult(result, answer);
+        if (result.auto_answered) setAnswerRevealed(true);
+      }
       window.setTimeout(() => setRelicBurst(null), 650);
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
@@ -518,90 +543,40 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     }
   };
 
-  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT, () => {
-    setHintShown(true);
-    const question = questions[currentQ];
-    setHintText(question.explanation || 'Read the question and passage again for the detail that changes the answer.');
-  });
-
-  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE, () => {
-    const question = questions[currentQ];
-    const wrongAnswers = (question.options || []).filter((option) => option !== question.correct_answer);
-    setEliminatedOptions(wrongAnswers.slice(0, Math.max(1, Math.floor(wrongAnswers.length / 2))));
-    setRelicNotice('Two wrong options have been removed.');
-  });
-
-  const useFreezeTimer = () => consumeQuestionRelic(RELIC_SLUGS.FREEZE_TIMER, () => {
-    setTimeLeft((seconds) => seconds + 60);
-    setRelicNotice('Your current round received 60 extra seconds.');
-  });
-
-  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP, () => {
-    setRelicNotice('Question skipped. It will not add to your score.');
-    handleAnswer(null);
-  });
-
-  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE, () => {
-    setRelicNotice(questions[currentQ].reference ? `Reference: ${questions[currentQ].reference}` : 'This question has no additional reference.');
-  });
-
-  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL, () => {
-    setAnswerRevealed(true);
-    handleAnswer(questions[currentQ].correct_answer as string);
-  });
-
-  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY, () => {
-    setDonkeyActive(true);
-    setRelicNotice('The Talking Donkey is listening. A wrong answer will be stopped before it is submitted.');
-  });
+  const useRelicHint = () => consumeQuestionRelic(RELIC_SLUGS.HINT);
+  const useEliminate = () => consumeQuestionRelic(RELIC_SLUGS.ELIMINATE);
+  const useFreezeTimer = () => consumeQuestionRelic(RELIC_SLUGS.FREEZE_TIMER);
+  const useSkip = () => consumeQuestionRelic(RELIC_SLUGS.SKIP);
+  const useReference = () => consumeQuestionRelic(RELIC_SLUGS.REVEAL_REFERENCE);
+  const useWitchBall = () => consumeQuestionRelic(RELIC_SLUGS.WITCH_BALL);
+  const useTalkingDonkey = () => consumeQuestionRelic(RELIC_SLUGS.TALKING_DONKEY);
 
   const finishLevel = async (forcePerfect = false) => {
+    if (!runId) return;
     setSubmitting(true);
-    const maxScore = questions.length;
-    const finalScore = forcePerfect ? maxScore : score;
-    const passed = forcePerfect || finalScore >= Math.ceil(maxScore * PASS_THRESHOLD);
-    const reward = calcGameReward(level, finalScore, maxScore);
-    const actualReward = passed && !hasEarnedFromLevel ? Math.min(reward, remainingToCap) : 0;
-
-    if (!forcePerfect && !passed && failedQuestions.length > 0 && !hasRepeatedFailed) {
-      setHasRepeatedFailed(true);
-      setRepeatQueue(failedQuestions);
+    try {
+      const result = await completeDailyGameRun(runId, forcePerfect);
       setSubmitting(false);
-      return;
-    }
-
-    const attempt = await insertGameAttempt({
-      user_id: userId,
-      narrative_date: narrative.narrative_date,
-      level, mode: mode as any, score: finalScore,
-      max_score: maxScore,
-      reward: actualReward,
-      status: passed ? 'passed' : 'failed',
-      completed_at: new Date().toISOString(),
-    } as any);
-
-    if (passed && actualReward > 0) {
-      await insertLedgerEntry({
-        user_id: userId,
-        amount: actualReward,
-        source_type: 'game_level',
-        source_reference: attempt.id,
-        description: forcePerfect
-          ? `Level ${level} — perfect score by Sword of Goliath`
-          : `Level ${level} — ${finalScore}/${maxScore} correct`,
+      void playSoundEffect('sound_game_finish', 0.62);
+      onComplete({
+        passed: result.passed,
+        score: result.score,
+        maxScore: result.max_score,
+        reward: result.reward,
+        level,
+        mode,
+        nextLevel: result.passed ? level + 1 : null,
       });
+    } catch (error: any) {
+      setSubmitting(false);
+      setRelicNotice(error.message || 'The level result could not be saved. Please reload and try again.');
     }
-
-    setSubmitting(false);
-    void playSoundEffect('sound_game_finish', 0.62);
-    onComplete({ passed, score: finalScore, maxScore, reward: actualReward, level, mode, nextLevel: passed ? level + 1 : null });
   };
 
   const useGoliathSword = async () => {
     if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
     setUsingGoliath(true);
     try {
-      await deployRelic(userId, RELIC_SLUGS.SWORD_GOLIATH);
       setRelicInventory((prev) => ({
         ...prev,
         [RELIC_SLUGS.SWORD_GOLIATH]: Math.max(0, (prev[RELIC_SLUGS.SWORD_GOLIATH] || 0) - 1),
@@ -625,19 +600,6 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
   };
 
   const handleNext = async () => {
-    // If we have a repeat queue (failed questions), process those first
-    if (repeatQueue.length > 0 && currentQ + 1 >= questions.length) {
-      // Replace questions with the repeat queue
-      setQuestions(repeatQueue);
-      setRepeatQueue([]);
-      setCurrentQ(0);
-      setSelectedAnswer(null);
-      setShowFeedback(false);
-      setTimeLeft(getRoundTimer(repeatQueue, level, 0));
-      showRoundPassage(repeatQueue, getQuestionRound(repeatQueue[0], 0));
-      return;
-    }
-
     if (currentQ + 1 < questions.length) {
       const nextIndex = currentQ + 1;
       const currentRound = getQuestionRound(questions[currentQ], currentQ);
@@ -645,12 +607,12 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
       setCurrentQ((c) => c + 1);
       setSelectedAnswer(null);
       setShowFeedback(false);
+      setAnswerCorrect(false);
       setHintShown(false);
       setAnswerRevealed(false);
       setHintText(null);
       setRelicNotice(null);
       setEliminatedOptions([]);
-      setDonkeyActive(false);
       if (nextRound !== currentRound) {
         setRoundCorrect(0);
         setTimeLeft(getRoundTimer(questions, level, nextIndex));
@@ -673,18 +635,18 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     setCurrentQ(nextIndex);
     setSelectedAnswer(null);
     setShowFeedback(false);
+    setAnswerCorrect(false);
     setHintShown(false);
     setAnswerRevealed(false);
     setHintText(null);
     setRelicNotice(null);
     setEliminatedOptions([]);
-    setDonkeyActive(false);
     setRoundCorrect(0);
     setTimeLeft(getRoundTimer(questions, level, nextIndex));
     showRoundPassage(questions, nextRound);
   };
 
-  if (questionsLoading || questions.length === 0) {
+  if (questionsLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
         <Loader2 size={24} className="animate-spin text-brass mb-3" />
@@ -693,8 +655,19 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
     );
   }
 
+  if (questionLoadError || questions.length === 0) {
+    return (
+      <div className="mx-auto max-w-md card p-6 text-center animate-fade-in">
+        <XCircle size={28} className="mx-auto mb-3 text-coral" />
+        <h3 className="font-display text-lg font-semibold text-ink">Level unavailable</h3>
+        <p className="mt-2 text-sm text-stone">{questionLoadError || 'The instructor has not approved questions for this level yet.'}</p>
+        <button type="button" onClick={onExit} className="btn-primary mt-4 w-full">Back to levels</button>
+      </div>
+    );
+  }
+
   const q = questions[currentQ];
-  const correct = selectedAnswer === q.correct_answer;
+  const correct = answerCorrect;
   const gameType = getLevelGameType(level);
   const showInlinePassage = gameType !== 'comprehension';
   const goliathCount = relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0;
@@ -797,7 +770,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-stone">
-        <span>Score: <span className="text-ink font-semibold">{score}</span> / {questions.length}</span>
+        <span>Figs: <span className="text-ink font-semibold">{score}</span></span>
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
@@ -900,7 +873,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
                   const el = document.querySelector('input[type="text"]') as HTMLInputElement;
                   const val = el?.value?.trim();
                   if (val) handleAnswer(val);
-                }}>Submit Answer</button>
+                }} disabled={submittingAnswer}>Submit Answer</button>
               </div>
             ) : (
               <div className="p-3 rounded-lg bg-surface-2 font-serif text-ink text-center border border-border">
@@ -935,7 +908,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
                   const el = document.querySelector('input[type="text"]') as HTMLInputElement;
                   const val = el?.value?.trim();
                   if (val) handleAnswer(val);
-                }}>Submit Answer</button>
+                }} disabled={submittingAnswer}>Submit Answer</button>
               </div>
             ) : (
               <div className="p-3 rounded-lg bg-surface-2 font-serif text-ink text-center border border-border">
@@ -965,7 +938,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => !showFeedback && handleAnswer('True')}
-                disabled={showFeedback}
+                disabled={showFeedback || submittingAnswer}
                 className={cn(
                   'py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                   !showFeedback && 'border-sage hover:bg-sage-soft text-sage',
@@ -979,7 +952,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
               </button>
               <button
                 onClick={() => !showFeedback && handleAnswer('False')}
-                disabled={showFeedback}
+                disabled={showFeedback || submittingAnswer}
                 className={cn(
                   'py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
                   !showFeedback && 'border-coral hover:bg-coral-soft text-coral',
@@ -1002,7 +975,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
               const isCorrect = opt === q.correct_answer;
               const isSelected = selectedAnswer === opt;
               return (
-                <button key={i} onClick={() => !showFeedback && handleAnswer(opt)} disabled={showFeedback}
+                <button key={i} onClick={() => !showFeedback && handleAnswer(opt)} disabled={showFeedback || submittingAnswer}
                   className={cn(
                     'w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
                     !showFeedback && 'border-border hover:border-gold text-ink',
@@ -1022,6 +995,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {/* Order sequence / Build Verse */}
         {q.type === 'order_sequence' && q.items && (
           <OrderSequenceQuestion
+            key={q.id}
             items={q.items}
             correctOrder={String(q.correct_answer).split('|')}
             showFeedback={showFeedback}
@@ -1032,6 +1006,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {/* Matching / Word to Meaning */}
         {q.type === 'matching' && q.pairs && (
           <MatchingQuestion
+            key={q.id}
             pairs={q.pairs}
             shuffledOptions={q.options || []}
             showFeedback={showFeedback}
@@ -1042,6 +1017,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
         {/* Category Sort */}
         {q.type === 'category_sort' && q.sort_items && q.buckets && (
           <CategorySortQuestion
+            key={q.id}
             items={q.sort_items}
             buckets={q.buckets}
             showFeedback={showFeedback}
@@ -1063,7 +1039,7 @@ function GamePlay({ level, mode, narrative, userId, remainingToCap, denariiBalan
                 const isCorrect = opt === q.correct_answer;
                 const isSelected = selectedAnswer === opt;
                 return (
-                  <button key={i} onClick={() => !showFeedback && handleAnswer(opt)} disabled={showFeedback}
+                  <button key={i} onClick={() => !showFeedback && handleAnswer(opt)} disabled={showFeedback || submittingAnswer}
                     className={cn(
                       'w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
                       !showFeedback && 'border-border hover:border-gold text-ink',

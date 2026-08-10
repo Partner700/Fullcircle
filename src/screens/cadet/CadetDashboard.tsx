@@ -68,7 +68,10 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         fetchStrictStreak(profile.id),
         fetchDailyQuoteFeed(12),
         fetchAnnouncements(),
-        fetchPanelImageSettings(['welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links']),
+        fetchPanelImageSettings([
+          'welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'quote_of_day', 'streakboard_release',
+        ]),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
       const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
@@ -105,9 +108,9 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       );
     } catch (e) { console.error('Dashboard load error:', e); }
     setLoading(false);
-  }, [profile, today, refreshKey]);
+  }, [profile, today]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load, refreshKey]);
 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
@@ -136,11 +139,9 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
     return () => window.clearInterval(interval);
   }, [heroPaused, heroSlideCount]);
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthPrefix = today.slice(0, 7);
   const volumeThisMonth = records.filter((r) => {
-    const d = new Date(r.record_date);
-    return d >= monthStart && r.streak_valid === true;
+    return r.record_date.startsWith(monthPrefix) && r.streak_valid === true;
   }).length;
   const streak: StreakInfo = {
     current_streak: streakData?.current_streak ?? 0,

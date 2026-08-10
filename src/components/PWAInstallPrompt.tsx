@@ -16,6 +16,8 @@ declare global {
 }
 
 const SESSION_KEY = 'pwa_install_prompt_seen';
+const DISMISSED_KEY = 'pwa_install_prompt_dismissed_at';
+const DISMISSAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
@@ -38,23 +40,32 @@ export function PWAInstallPrompt() {
   const [installed, setInstalled] = useState(false);
   const [iosGuide, setIosGuide] = useState(false);
   const installButtonRef = useRef<HTMLButtonElement>(null);
+  const showTimerRef = useRef<number | null>(null);
 
-  const canShow = useCallback(() => !isStandalone()
-    && !window.sessionStorage.getItem(SESSION_KEY), []);
+  const canShow = useCallback(() => {
+    if (isStandalone() || window.sessionStorage.getItem(SESSION_KEY)) return false;
+    const dismissedAt = Number(window.localStorage.getItem(DISMISSED_KEY));
+    return !Number.isFinite(dismissedAt) || Date.now() - dismissedAt >= DISMISSAL_WINDOW_MS;
+  }, []);
 
   const showSoon = useCallback(() => {
     if (!canShow()) return;
-    window.setTimeout(() => {
+    if (showTimerRef.current !== null) window.clearTimeout(showTimerRef.current);
+    showTimerRef.current = window.setTimeout(() => {
       if (canShow() && !isStandalone()) {
         window.sessionStorage.setItem(SESSION_KEY, '1');
         setVisible(true);
       }
+      showTimerRef.current = null;
     }, 2600);
   }, [canShow]);
 
   useEffect(() => {
     setInstalled(isStandalone());
     if (!isStandalone() && isIOSDevice()) showSoon();
+    return () => {
+      if (showTimerRef.current !== null) window.clearTimeout(showTimerRef.current);
+    };
   }, [showSoon]);
 
   useEffect(() => {
@@ -90,6 +101,7 @@ export function PWAInstallPrompt() {
   }, [visible]);
 
   const dismiss = useCallback(() => {
+    window.localStorage.setItem(DISMISSED_KEY, String(Date.now()));
     setVisible(false);
     setIosGuide(false);
   }, []);
@@ -104,14 +116,19 @@ export function PWAInstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice;
     setDeferredPrompt(null);
     setVisible(false);
-    if (outcome === 'accepted') window.localStorage.setItem('pwa_install_completed', String(Date.now()));
+    if (outcome === 'accepted') {
+      window.localStorage.setItem('pwa_install_completed', String(Date.now()));
+      window.localStorage.removeItem(DISMISSED_KEY);
+    } else {
+      window.localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+    }
   }, [deferredPrompt]);
 
   if (!visible || installed || (!deferredPrompt && !isIOSDevice())) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-3 sm:items-center" role="presentation">
-      <section className="card w-full max-w-sm border-border-bright p-5 shadow-2xl animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="install-app-title">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-3 sm:items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) dismiss(); }}>
+      <section className="card relative w-full max-w-sm border-border-bright p-5 shadow-2xl animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="install-app-title">
         <button onClick={dismiss} className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-stone hover:bg-surface-2 hover:text-ink" aria-label="Close install prompt">
           <X size={17} />
         </button>
