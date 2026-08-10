@@ -159,11 +159,6 @@ BEGIN
 END;
 $$;
 
--- PostgreSQL cannot change the OUT columns of an existing function with
--- CREATE OR REPLACE. Drop the four-column version before installing the
--- authoritative response that also returns the machine turn.
-DROP FUNCTION IF EXISTS public.submit_arena_trivia_answer(uuid, uuid, integer, text);
-
 CREATE OR REPLACE FUNCTION public.submit_arena_trivia_answer(
   p_room_id uuid,
   p_user_id uuid,
