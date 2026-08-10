@@ -335,6 +335,7 @@ const PANEL_IMAGE_SLOTS = [
 
 const SOUND_SLOTS = [
   { type: 'sound_dashboard', label: 'Dashboard Atmosphere', description: 'A low-volume looping track for the Home dashboard only.', audience: 'all' },
+  { type: 'sound_instructor_overview', label: 'Instructor Overview Atmosphere', description: 'A low-volume looping track for the Instructor Dashboard only.', audience: 'instructors' },
   { type: 'sound_sentry_overview', label: 'Sentry Overview Atmosphere', description: 'A low-volume looping track for the Sentry Overview dashboard.', audience: 'sentries' },
   { type: 'sound_button', label: 'Button Feedback', description: 'A short sound played when someone presses an app button.', audience: 'all' },
   { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Reserved for a future welcome moment.', audience: 'all' },
@@ -820,7 +821,7 @@ function AnnouncementManager() {
                 <div className="flex items-start gap-2">
                   <Volume2 size={17} className="mt-0.5 flex-shrink-0 text-peri" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_sentry_overview', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
+                    <div className="flex items-center gap-1.5"><p className="text-xs font-semibold text-ink">{setting.label}</p>{['sound_dashboard', 'sound_instructor_overview', 'sound_sentry_overview', 'sound_button'].includes(setting.type) && <span className="badge badge-moss text-[9px]">Live</span>}</div>
                     <p className="mt-0.5 text-[10px] leading-relaxed text-stone">{setting.description}</p>
                     {setting.item && <audio className="mt-2 h-8 w-full" controls src={setting.item.content} />}
                     <div className="mt-3 flex flex-wrap gap-2">
