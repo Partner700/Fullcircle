@@ -436,8 +436,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           <Snowflake size={20} className="text-brass" />
           <h4 className="font-display font-semibold text-ink">Streak Freezers</h4>
         </div>
-        <p className="text-xs text-stone mb-4">Protect your streak after a missed day. Without a freezer, one miss = full streak reset.</p>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <p className="relative z-10 text-xs text-stone mb-4">Protect your streak after a missed day. Without a freezer, one miss = full streak reset.</p>
+        <div className="relative z-10 grid grid-cols-2 gap-2 mb-3">
           <div className="rounded-lg border border-border bg-surface-2 p-3">
             <p className="text-[10px] text-stone uppercase font-bold tracking-wide">Daily Ready</p>
             <p className="font-display text-xl text-ink font-bold">{readyDailyFreezers}</p>
@@ -448,7 +448,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="relative z-10 grid sm:grid-cols-2 gap-3">
           <div className="p-4 rounded-lg border border-border bg-surface-2">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-ink text-sm">Daily Freezer</span>
@@ -476,7 +476,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         </div>
 
         {freezers.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="relative z-10 mt-3 flex flex-wrap gap-1.5">
             {freezers.map((f) => (
               <span key={f.id} className={cn('badge text-[10px]', f.used_at ? 'badge-neutral' : 'badge-brass')}>
                 <Snowflake size={10} className="mr-1" />
