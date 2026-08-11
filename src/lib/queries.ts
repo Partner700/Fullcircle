@@ -61,6 +61,17 @@ export async function fetchActiveCadets() {
   return data as (RoleAssignment & { profiles: Profile })[];
 }
 
+export async function fetchArenaInvitees() {
+  const { data, error } = await supabase
+    .from('role_assignments')
+    .select('*, profiles!role_assignments_user_id_fkey(id,display_name,avatar_url,created_at)')
+    .in('role', ['cadet', 'sentry'])
+    .in('status', ['active', 'approved'])
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as (RoleAssignment & { profiles: Profile })[];
+}
+
 export async function fetchTents() {
   const { data, error } = await supabase
     .from('tents')

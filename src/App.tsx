@@ -23,12 +23,20 @@ const SCRIPTURE_FACTS = [
   'The book of Isaiah spans over 700 years of prophetic tradition.',
 ];
 
+function isPasswordRecoveryUrl() {
+  if (typeof window === 'undefined') return false;
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  return search.get('reset-password') === '1'
+    || search.get('type') === 'recovery'
+    || hash.get('type') === 'recovery';
+}
+
 export default function App() {
   const { session, profile, role, configError, loading } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
   const passwordRecovery = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    return new URLSearchParams(window.location.search).get('reset-password') === '1';
+    return isPasswordRecoveryUrl();
   }, []);
 
   useEffect(() => {
@@ -107,7 +115,10 @@ export default function App() {
     return (
       <>
         {overlays}
-        <AuthScreen />
+        <AuthScreen
+          initialMode={passwordRecovery ? 'signin' : 'signup'}
+          initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+        />
       </>
     );
   }

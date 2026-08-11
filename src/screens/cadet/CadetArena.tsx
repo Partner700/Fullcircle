@@ -22,7 +22,7 @@ import {
   fetchArenaRooms,
   fetchArenaRoom,
   fetchNarratives,
-  fetchActiveCadets,
+  fetchArenaInvitees,
   generateArenaQuestionsWithAI,
   fetchPanelImageSetting,
 } from '../../lib/queries';
@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
-type InviteCadet = RoleAssignment & { profiles: Profile };
+type InvitePlayer = RoleAssignment & { profiles: Profile };
 const activeArenaRoomKey = (userId: string) => `full-circle-active-arena-room-${userId}`;
 const dismissedArenaRoomsKey = (userId: string) => `full-circle-dismissed-arena-rooms-${userId}`;
 
@@ -68,9 +68,9 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [forfeiting, setForfeiting] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [allCadets, setAllCadets] = useState<InviteCadet[]>([]);
+  const [allInvitees, setAllInvitees] = useState<InvitePlayer[]>([]);
   const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set());
-  const [cadetSearch, setCadetSearch] = useState('');
+  const [playerSearch, setPlayerSearch] = useState('');
   const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
   const previousSoundPhase = useRef<ArenaPhase | null>(null);
 
@@ -129,17 +129,17 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [roomsData, balance, narrs, cadets, panelImage] = await Promise.allSettled([
+      const [roomsData, balance, narrs, invitees, panelImage] = await Promise.allSettled([
         fetchArenaRooms(),
         fetchLedgerTotal(profile.id),
         fetchNarratives(30),
-        fetchActiveCadets(),
+        fetchArenaInvitees(),
         fetchPanelImageSetting('arena'),
       ]);
       setRooms(roomsData.status === 'fulfilled' ? roomsData.value : []);
       setDenarii(balance.status === 'fulfilled' ? balance.value : 0);
       setNarratives(narrs.status === 'fulfilled' ? narrs.value : []);
-      setAllCadets((cadets.status === 'fulfilled' ? cadets.value : []).filter((c) => c.user_id !== profile.id));
+      setAllInvitees((invitees.status === 'fulfilled' ? invitees.value : []).filter((c) => c.user_id !== profile.id));
       setArenaImage(panelImage.status === 'fulfilled' ? panelImage.value : null);
       if (narrs.status === 'fulfilled' && narrs.value && narrs.value.length > 0 && !selectedNarrativeDate) setSelectedNarrativeDate(narrs.value[0].narrative_date);
     } catch (e) { console.error('Arena load error:', e); }
@@ -229,6 +229,28 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
   }, [activeRoomId, phase, rooms, profile, clearActiveRoom]);
 
+  useEffect(() => {
+    if (!activeRoomId || phase !== 'waiting') return;
+    let cancelled = false;
+    const refreshActiveRoom = async () => {
+      try {
+        const freshRoom = await fetchArenaRoom(activeRoomId);
+        if (cancelled || !freshRoom) return;
+        setRooms((prev) => [freshRoom, ...prev.filter((item) => item.id !== freshRoom.id)]);
+        if (freshRoom.status === 'playing') setPhase('playing');
+        if (['cancelled', 'expired'].includes(freshRoom.status)) clearActiveRoom(false);
+      } catch {
+        // Realtime/polling will try again; keep the waiting room mounted.
+      }
+    };
+    void refreshActiveRoom();
+    const interval = window.setInterval(() => { void refreshActiveRoom(); }, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [activeRoomId, clearActiveRoom, phase]);
+
   const forfeitStandardMatch = async () => {
     if (!profile || !activeRoomId || forfeiting) return;
     if (!window.confirm('Forfeit this Arena match? Your stake remains in the prize pool and this cannot be undone.')) return;
@@ -272,7 +294,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       activateRoom(roomId, 'waiting');
       setShowCreate(false);
       setTaggedIds(new Set());
-      setCadetSearch('');
+      setPlayerSearch('');
       await load();
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to create room'); }
@@ -325,9 +347,9 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     try {
       const invited = await inviteArenaPlayers(activeRoomId, profile.id, Array.from(taggedIds));
       setTaggedIds(new Set());
-      setCadetSearch('');
+      setPlayerSearch('');
       await load();
-      if (invited === 0) setError('No new cadets were invited.');
+      if (invited === 0) setError('No new players were invited.');
     } catch (e: any) {
       setError(e.message || 'Failed to send invites');
     }
@@ -437,7 +459,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     const pot = (room?.stake_amount || 0) * participants.length * 10;
     const expiresAt = room?.expires_at ? new Date(room.expires_at).getTime() : null;
     const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
-    const availableInviteCadets = allCadets.filter((cadet) => !participants.some((p: any) => p.user_id === cadet.user_id));
+    const availableInvitees = allInvitees.filter((player) => !participants.some((p: any) => p.user_id === player.user_id));
 
     return (
       <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
@@ -456,12 +478,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             <span className="flex items-center gap-1"><Coins size={14} className="text-gold" /> {formatDenarii(room?.stake_amount || 0)} Ð stake</span>
             <span className="flex items-center gap-1"><Users size={14} /> {participants.length}/{room?.max_players || 4}</span>
             <span className="flex items-center gap-1"><Trophy size={14} className="text-gold" /> {formatDenarii(pot)} Ð pot</span>
-            {minutesUntilExpiry !== null && participants.length <= 1 && (
+            {minutesUntilExpiry !== null && (
               <span className="flex items-center gap-1"><Clock size={14} /> closes in {minutesUntilExpiry}m</span>
             )}
           </div>
           <p className="text-xs text-stone mb-4">
-            {machineMatch ? `Machine target: ${room?.machine_score || 10} figs. Win to receive ten times your 50 denarii stake.` : 'The stake stays locked in this room. Signing out does not close it; only the host can close it, or it expires after six hours if no one else joins.'}
+            {machineMatch ? `Machine target: ${room?.machine_score || 10} figs. Win to receive ten times your 50 denarii stake.` : 'The stake stays locked in this room. Empty rooms close after 15 minutes; once another player joins, the host has 10 minutes to launch before it closes.'}
           </p>
 
           <div className="space-y-2 mb-4">
@@ -482,20 +504,20 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           {isCreator && !machineMatch && (
             <div className="p-3 rounded-lg border border-border bg-surface-2 mb-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h4 className="text-xs font-display font-semibold text-ink">Invite Cadets</h4>
+                <h4 className="text-xs font-display font-semibold text-ink">Invite Players</h4>
                 <span className="text-[10px] text-stone">Only the host can invite or close</span>
               </div>
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone" />
-                <input className="input-field pl-9 text-sm" placeholder="Search cadets..." value={cadetSearch} onChange={(e) => setCadetSearch(e.target.value)} />
+                <input className="input-field pl-9 text-sm" placeholder="Search cadets and sentries..." value={playerSearch} onChange={(e) => setPlayerSearch(e.target.value)} />
               </div>
               {taggedIds.size > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {Array.from(taggedIds).map((id) => {
-                    const cadet = allCadets.find((c) => c.user_id === id);
+                    const player = allInvitees.find((c) => c.user_id === id);
                     return (
                       <span key={id} className="badge badge-gold text-[10px] flex items-center gap-1">
-                        {cadet?.profiles?.display_name || 'Unknown'}
+                        {player?.profiles?.display_name || 'Unknown'}
                         <button onClick={() => { setTaggedIds((prev) => { const n = new Set(prev); n.delete(id); return n; }); }} className="hover:text-coral">×</button>
                       </span>
                     );
@@ -503,26 +525,27 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                 </div>
               )}
               <div className="max-h-32 overflow-y-auto space-y-1">
-                {availableInviteCadets
-                  .filter((cadet) => !cadetSearch || cadet.profiles?.display_name?.toLowerCase().includes(cadetSearch.toLowerCase()))
+                {availableInvitees
+                  .filter((player) => !playerSearch || player.profiles?.display_name?.toLowerCase().includes(playerSearch.toLowerCase()))
                   .slice(0, 12)
-                  .map((cadet) => {
-                    const checked = taggedIds.has(cadet.user_id);
+                  .map((player) => {
+                    const checked = taggedIds.has(player.user_id);
                     return (
-                      <label key={cadet.user_id} className={cn('flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
+                      <label key={player.user_id} className={cn('flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
                         <input type="checkbox" checked={checked} onChange={() => {
                           setTaggedIds((prev) => {
                             const n = new Set(prev);
-                            if (n.has(cadet.user_id)) n.delete(cadet.user_id);
-                            else n.add(cadet.user_id);
+                            if (n.has(player.user_id)) n.delete(player.user_id);
+                            else n.add(player.user_id);
                             return n;
                           });
                         }} className="accent-gold flex-shrink-0" />
-                        <span className="text-sm text-ink truncate">{cadet.profiles?.display_name || 'Unknown'}</span>
+                        <span className="text-sm text-ink truncate">{player.profiles?.display_name || 'Unknown'}</span>
+                        <span className="badge badge-brass text-[9px] capitalize">{player.role}</span>
                       </label>
                     );
                   })}
-                {availableInviteCadets.length === 0 && <p className="text-xs text-stone text-center py-2">No more cadets available to invite.</p>}
+                {availableInvitees.length === 0 && <p className="text-xs text-stone text-center py-2">No more players available to invite.</p>}
               </div>
               <button onClick={sendInvites} disabled={inviting || taggedIds.size === 0} className="btn-secondary text-xs w-full disabled:opacity-50">
                 {inviting ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
@@ -557,7 +580,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       <div className="card relative overflow-hidden p-4 sm:p-5">
         <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="bg-navy-2/78" />
         <div className="relative">
-          <SectionHeader title="The Arena" subtitle="Challenge other cadets to real-time quiz battles. Stake denarii, winner takes all." />
+          <SectionHeader title="The Arena" subtitle="Challenge cadets and sentries to real-time quiz battles. Stake denarii, winner takes all." />
         </div>
       </div>
 
@@ -662,18 +685,18 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             </div>
           </div>
           <div>
-            <label className="text-xs text-stone block mb-1.5">Tag Cadets <span className="text-stone/60">({taggedIds.size}/{maxPlayers - 1} spaces — they still choose whether to join)</span></label>
+            <label className="text-xs text-stone block mb-1.5">Tag Players <span className="text-stone/60">({taggedIds.size}/{maxPlayers - 1} spaces — they still choose whether to join)</span></label>
             <div className="relative mb-2">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone" />
-              <input className="input-field pl-9 text-sm" placeholder="Search cadets across tents..." value={cadetSearch} onChange={(e) => setCadetSearch(e.target.value)} />
+              <input className="input-field pl-9 text-sm" placeholder="Search cadets and sentries..." value={playerSearch} onChange={(e) => setPlayerSearch(e.target.value)} />
             </div>
             {taggedIds.size > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {Array.from(taggedIds).map((id) => {
-                  const cadet = allCadets.find((c) => c.user_id === id);
+                  const player = allInvitees.find((c) => c.user_id === id);
                   return (
                     <span key={id} className="badge badge-gold text-[10px] flex items-center gap-1">
-                      {cadet?.profiles?.display_name || 'Unknown'}
+                      {player?.profiles?.display_name || 'Unknown'}
                       <button onClick={() => { setTaggedIds((prev) => { const n = new Set(prev); n.delete(id); return n; }); }} className="hover:text-coral">×</button>
                     </span>
                   );
@@ -681,30 +704,31 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               </div>
             )}
             <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-border bg-surface-2 p-2">
-              {allCadets
-                .filter((c) => !cadetSearch || c.profiles?.display_name?.toLowerCase().includes(cadetSearch.toLowerCase()))
+              {allInvitees
+                .filter((c) => !playerSearch || c.profiles?.display_name?.toLowerCase().includes(playerSearch.toLowerCase()))
                 .slice(0, 20)
-                .map((cadet) => {
-                  const checked = taggedIds.has(cadet.user_id);
+                .map((player) => {
+                  const checked = taggedIds.has(player.user_id);
                   const full = !checked && taggedIds.size >= maxPlayers - 1;
                   return (
-                    <label key={cadet.user_id} className={cn('flex items-center gap-2 p-2 rounded-md transition-colors', full ? 'cursor-not-allowed opacity-45' : 'cursor-pointer', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
+                    <label key={player.user_id} className={cn('flex items-center gap-2 p-2 rounded-md transition-colors', full ? 'cursor-not-allowed opacity-45' : 'cursor-pointer', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
                       <input type="checkbox" checked={checked} disabled={full} onChange={() => {
                         setTaggedIds((prev) => {
                           const n = new Set(prev);
-                          if (n.has(cadet.user_id)) n.delete(cadet.user_id);
-                          else n.add(cadet.user_id);
+                          if (n.has(player.user_id)) n.delete(player.user_id);
+                          else n.add(player.user_id);
                           return n;
                         });
                       }} className="accent-gold flex-shrink-0" />
                       <div className="w-6 h-6 rounded-full bg-gold-soft overflow-hidden flex items-center justify-center font-display font-bold text-[10px] text-gold flex-shrink-0">
-                        {cadet.profiles?.avatar_url ? <img src={cadet.profiles.avatar_url} alt={cadet.profiles?.display_name || ''} className="w-full h-full object-cover" /> : (cadet.profiles?.display_name?.charAt(0) || '?')}
+                        {player.profiles?.avatar_url ? <img src={player.profiles.avatar_url} alt={player.profiles?.display_name || ''} className="w-full h-full object-cover" /> : (player.profiles?.display_name?.charAt(0) || '?')}
                       </div>
-                      <span className="text-sm text-ink truncate flex-1">{cadet.profiles?.display_name || 'Unknown'}</span>
+                      <span className="text-sm text-ink truncate flex-1">{player.profiles?.display_name || 'Unknown'}</span>
+                      <span className="badge badge-brass text-[9px] capitalize">{player.role}</span>
                     </label>
                   );
                 })}
-              {allCadets.length === 0 && <p className="text-xs text-stone text-center py-2">No other cadets available.</p>}
+              {allInvitees.length === 0 && <p className="text-xs text-stone text-center py-2">No other players available.</p>}
             </div>
           </div>
           </>}
@@ -721,7 +745,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       <div className="space-y-2">
         <h4 className="font-display font-semibold text-ink text-sm">Open Rooms</h4>
         {rooms.filter((r) => r.status === 'waiting').length === 0 ? (
-          <EmptyState icon={(props) => <Swords {...props} />} title="No open rooms" message="Create a room and invite other cadets to battle." />
+          <EmptyState icon={(props) => <Swords {...props} />} title="No open rooms" message="Create a room and invite other players to battle." />
         ) : (
           rooms.filter((r) => r.status === 'waiting').map((room) => {
             const participants = room.arena_participants || [];
@@ -729,7 +753,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             const host = participants.find((p: any) => p.user_id === room.creator_id)?.profiles;
             const invited = Array.isArray(room.tagged_user_ids) && profile?.id ? room.tagged_user_ids.includes(profile.id) : false;
             const expiresAt = room.expires_at ? new Date(room.expires_at).getTime() : null;
-            const minutesUntilExpiry = expiresAt && participants.length <= 1 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
+            const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
             const pot = room.stake_amount * participants.length * 10;
             return (
               <div key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">

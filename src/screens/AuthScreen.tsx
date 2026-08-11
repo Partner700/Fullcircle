@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Dove, FullCircleWordmark } from '../components/Dove';
 import { Loader2, Mail, Lock, User as UserIcon, Info, Eye, EyeOff } from 'lucide-react';
@@ -13,19 +13,30 @@ const VERSE_FRAGMENTS = [
   { text: 'In the beginning was the Word', top: '35%', left: '55%', delay: '3s' },
 ];
 
-export function AuthScreen() {
+export function AuthScreen({
+  initialMode = 'signup',
+  initialNotice,
+}: {
+  initialMode?: 'signin' | 'signup';
+  initialNotice?: string;
+}) {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(initialNotice || null);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    setMode(initialMode);
+    setNotice(initialNotice || null);
+  }, [initialMode, initialNotice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,9 +74,12 @@ export function AuthScreen() {
       return;
     }
     setResetLoading(true);
+    const recoveryUrl = new URL(window.location.href);
+    recoveryUrl.search = '?reset-password=1';
+    recoveryUrl.hash = '';
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       // The recovery session returns to the dedicated Full Circle password form.
-      redirectTo: `${window.location.origin}/?reset-password=1`,
+      redirectTo: recoveryUrl.toString(),
     });
     setResetLoading(false);
     if (error) {
