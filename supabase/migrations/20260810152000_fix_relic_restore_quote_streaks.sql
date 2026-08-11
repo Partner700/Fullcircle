@@ -1,5 +1,7 @@
 -- Fix relic restoration logic and enrich quote feed with streak data.
 
+DROP FUNCTION IF EXISTS public.get_daily_quote_feed(integer);
+
 CREATE OR REPLACE FUNCTION public.get_daily_quote_feed(p_limit integer DEFAULT 12)
 RETURNS TABLE (
   record_date date,
@@ -320,6 +322,7 @@ DECLARE
   v_saturday_date date;
   v_protected_date date;
   v_inserted_days integer := 0;
+  v_row_count integer := 0;
 BEGIN
   IF auth.uid() IS NULL OR auth.uid() IS DISTINCT FROM p_user_id THEN
     RAISE EXCEPTION 'You can only use your own relics.';
