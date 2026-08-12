@@ -20,12 +20,33 @@ type QuestionPayload = {
 };
 
 type FallbackFact = {
+  bank: string;
   reference: string;
   prompt: string;
   answer: string;
   options: string[];
   explanation: string;
 };
+
+const ARENA_BANKS = {
+  characters: [
+    "Adam and Eve", "Noah", "Abraham", "Joseph", "Moses", "Rahab", "Gideon", "David", "Elijah", "Daniel",
+  ],
+  books: [
+    "Genesis", "Exodus", "Joshua", "Judges", "Ruth", "1 Samuel", "1 Kings", "Daniel", "Luke", "Acts",
+  ],
+  themes: [
+    "creation", "fall and exile", "covenant", "deliverance", "faith under pressure", "kingdom and leadership", "wisdom and folly", "repentance", "salvation", "resurrection hope",
+  ],
+} as const;
+
+function bankFocus(seed: string) {
+  const categories = Object.keys(ARENA_BANKS) as Array<keyof typeof ARENA_BANKS>;
+  const seedValue = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const category = categories[seedValue % categories.length];
+  const bank = ARENA_BANKS[category][Math.floor(seedValue / categories.length) % ARENA_BANKS[category].length];
+  return { category, bank };
+}
 
 function env(name: string) {
   return Deno.env.get(name)?.trim() || "";
@@ -45,7 +66,7 @@ function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
     ? q.type as QuestionPayload["type"]
     : "multiple_choice";
   const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
-  const seconds = round === 1 ? 90 : round === 2 ? 72 : round === 3 ? 54 : 10;
+  const seconds = round === 1 ? 12 : round === 2 ? 9 : 6;
   const options = type === "multiple_choice"
     ? Array.from(new Set((q.options || []).map((item) => String(item).trim()).filter(Boolean))).slice(0, 4)
     : type === "true_false" ? ["True", "False"] : undefined;
@@ -59,7 +80,7 @@ function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
     correct_answer: canonicalAnswer,
     explanation: q.explanation ? String(q.explanation).trim() : undefined,
     reference: q.reference ? String(q.reference).trim() : undefined,
-    difficulty_tag: round === 1 ? "easy" : round === 2 ? "moderate" : "hard",
+    difficulty_tag: "hard",
     game_round: round,
     round_timer_seconds: seconds,
     is_bonus: index === 18,
@@ -183,55 +204,55 @@ function roomDifficulty(roomName: string) {
 }
 
 function packetLevel(difficulty: string) {
-  if (difficulty === "easy") return "Level 1 packet: clear narrative memory, direct sequence, visible contrasts, and exact speaker/action details.";
-  if (difficulty === "medium") return "Level 2 packet: layered chronology, motives, cause-and-effect, comparisons, and plausible distractors.";
-  if (difficulty === "hard") return "Level 3 packet: close-reading traps, cross-scene reasoning, quiet details, and options that strongly resemble the right answer.";
-  return "Mixed packet: escalate steadily from direct memory to close-reading reasoning.";
+  if (difficulty === "easy") return "Fast Arena packet: every question is hard but the machine is weaker; use 12-second player turns.";
+  if (difficulty === "medium") return "Fast Arena packet: every question is hard and denser; use 9-second player turns.";
+  if (difficulty === "hard") return "Fast Arena packet: every question is hard, close-reading based, and tense; use 6-second player turns.";
+  return "Fast Arena packet: all questions are hard, varied, and built for speed plus accuracy.";
 }
 
 const FALLBACK_FACTS: FallbackFact[] = [
-  { reference: "Genesis 3", prompt: "After Adam and Eve ate the forbidden fruit, what did they make for themselves?", answer: "Coverings from fig leaves", options: ["Coverings from fig leaves", "A stone altar", "A wooden ark", "A bronze serpent"], explanation: "Genesis says they sewed fig leaves together after their eyes were opened." },
-  { reference: "Genesis 4", prompt: "What was Abel's occupation?", answer: "Keeper of sheep", options: ["Keeper of sheep", "Builder of cities", "Cupbearer", "Tax collector"], explanation: "Abel kept sheep while Cain worked the ground." },
-  { reference: "Genesis 6", prompt: "What kind of wood was Noah told to use for the ark?", answer: "Gopher wood", options: ["Gopher wood", "Cedar of Lebanon", "Acacia wood", "Olive wood"], explanation: "Genesis 6 names gopher wood in the ark command." },
-  { reference: "Genesis 12", prompt: "What land did God call Abram to leave for?", answer: "The land God would show him", options: ["The land God would show him", "Egypt", "Moab", "Babylon"], explanation: "Abram was called to go to the land God would show him." },
-  { reference: "Genesis 22", prompt: "On which mountain region was Abraham tested with Isaac?", answer: "Moriah", options: ["Moriah", "Sinai", "Carmel", "Nebo"], explanation: "Genesis 22 places the test in the land of Moriah." },
-  { reference: "Genesis 37", prompt: "What did Joseph's brothers dip his robe in?", answer: "Goat's blood", options: ["Goat's blood", "Wine", "Oil", "River water"], explanation: "They dipped Joseph's robe in goat's blood before showing it to Jacob." },
-  { reference: "Exodus 3", prompt: "What did Moses see burning without being consumed?", answer: "A bush", options: ["A bush", "A mountain", "A scroll", "A pillar"], explanation: "Moses saw the bush burning, yet it was not consumed." },
-  { reference: "Exodus 12", prompt: "What marked Israelite doors during Passover?", answer: "Blood on the doorposts", options: ["Blood on the doorposts", "Gold dust", "A blue cord", "Manna"], explanation: "The Passover sign was blood on the doorposts and lintel." },
-  { reference: "Exodus 14", prompt: "Through what did Israel pass on dry ground?", answer: "The Red Sea", options: ["The Red Sea", "The Jordan", "The Nile", "The Sea of Galilee"], explanation: "Israel crossed through the Red Sea on dry ground." },
-  { reference: "Exodus 16", prompt: "What bread-like provision did Israel receive in the wilderness?", answer: "Manna", options: ["Manna", "Barley cakes", "Figs", "Locusts"], explanation: "God gave manna as daily bread in the wilderness." },
-  { reference: "Joshua 2", prompt: "What sign did Rahab place in her window?", answer: "A scarlet cord", options: ["A scarlet cord", "A palm branch", "A lamp", "A silver chain"], explanation: "Rahab tied a scarlet cord in the window as the sign." },
-  { reference: "Joshua 6", prompt: "How many times did Israel march around Jericho on the seventh day?", answer: "Seven times", options: ["Seven times", "Three times", "Twelve times", "Forty times"], explanation: "On the seventh day they circled Jericho seven times." },
-  { reference: "Judges 7", prompt: "What did Gideon's men carry with trumpets during the night attack?", answer: "Jars with torches", options: ["Jars with torches", "Bows with arrows", "Scrolls", "Fishing nets"], explanation: "Gideon's men used trumpets, jars, and torches." },
-  { reference: "Ruth 1", prompt: "Who said, 'Your people shall be my people'?", answer: "Ruth", options: ["Ruth", "Naomi", "Orpah", "Boaz"], explanation: "Ruth spoke those words to Naomi." },
-  { reference: "1 Samuel 3", prompt: "Who helped Samuel understand that the Lord was calling him?", answer: "Eli", options: ["Eli", "Saul", "David", "Nathan"], explanation: "Eli instructed Samuel to answer the Lord's call." },
-  { reference: "1 Samuel 17", prompt: "What weapon did David use to strike Goliath first?", answer: "A sling and stone", options: ["A sling and stone", "Saul's sword", "A spear", "A bow"], explanation: "David struck Goliath with a stone from his sling." },
-  { reference: "1 Kings 18", prompt: "On which mountain did Elijah confront the prophets of Baal?", answer: "Mount Carmel", options: ["Mount Carmel", "Mount Sinai", "Mount Zion", "Mount Hermon"], explanation: "Elijah's contest with Baal's prophets happened on Mount Carmel." },
-  { reference: "2 Kings 5", prompt: "Where did Elisha tell Naaman to wash seven times?", answer: "The Jordan", options: ["The Jordan", "The Nile", "The Red Sea", "The Pool of Siloam"], explanation: "Naaman was told to wash in the Jordan seven times." },
-  { reference: "Esther 4", prompt: "Who told Esther she may have come to royalty for such a time as this?", answer: "Mordecai", options: ["Mordecai", "Haman", "Ahasuerus", "Daniel"], explanation: "Mordecai challenged Esther about her royal position." },
-  { reference: "Daniel 3", prompt: "Who refused to bow to Nebuchadnezzar's image?", answer: "Shadrach, Meshach, and Abednego", options: ["Shadrach, Meshach, and Abednego", "Peter, James, and John", "Cain, Abel, and Seth", "Eli, Hophni, and Phinehas"], explanation: "The three Hebrew men refused to worship the image." },
-  { reference: "Daniel 6", prompt: "Why was Daniel thrown into the lions' den?", answer: "He continued praying to God", options: ["He continued praying to God", "He stole temple gold", "He refused to interpret a dream", "He broke the Sabbath"], explanation: "Daniel kept praying despite the king's decree." },
-  { reference: "Jonah 1", prompt: "Where was Jonah trying to flee instead of going to Nineveh?", answer: "Tarshish", options: ["Tarshish", "Jericho", "Damascus", "Bethlehem"], explanation: "Jonah boarded a ship bound for Tarshish." },
-  { reference: "Matthew 2", prompt: "What gifts did the wise men bring Jesus?", answer: "Gold, frankincense, and myrrh", options: ["Gold, frankincense, and myrrh", "Silver, oil, and bread", "Figs, wine, and wool", "Spices, linen, and salt"], explanation: "Matthew names gold, frankincense, and myrrh." },
-  { reference: "Matthew 4", prompt: "What did Jesus answer when tempted to turn stones into bread?", answer: "Man shall not live by bread alone", options: ["Man shall not live by bread alone", "My hour has not yet come", "Peace, be still", "I am the bread of life"], explanation: "Jesus quoted Scripture about living by every word from God." },
-  { reference: "Matthew 14", prompt: "Who walked on water toward Jesus?", answer: "Peter", options: ["Peter", "John", "Thomas", "Andrew"], explanation: "Peter came down from the boat and walked on the water toward Jesus." },
-  { reference: "Mark 5", prompt: "What was the name given by the demon-possessed man because they were many?", answer: "Legion", options: ["Legion", "Barabbas", "Mammon", "Beelzebul"], explanation: "He answered, 'My name is Legion, for we are many.'" },
-  { reference: "Luke 10", prompt: "Who stopped to help the wounded man in Jesus' parable?", answer: "A Samaritan", options: ["A Samaritan", "A priest", "A Levite", "A tax collector"], explanation: "The Samaritan had compassion and cared for the wounded man." },
-  { reference: "Luke 15", prompt: "What did the father put on the returned son's hand?", answer: "A ring", options: ["A ring", "A sword", "A scroll", "A chain"], explanation: "The father ordered a ring for his son's hand." },
-  { reference: "John 2", prompt: "At Cana, what did Jesus turn into wine?", answer: "Water", options: ["Water", "Oil", "Milk", "Vinegar"], explanation: "Jesus turned water in stone jars into wine." },
-  { reference: "John 11", prompt: "Who did Jesus call out of the tomb?", answer: "Lazarus", options: ["Lazarus", "Jairus", "Stephen", "Joseph"], explanation: "Jesus cried, 'Lazarus, come out.'" },
-  { reference: "Acts 9", prompt: "On the road to which city was Saul confronted by Jesus?", answer: "Damascus", options: ["Damascus", "Jerusalem", "Antioch", "Tarsus"], explanation: "Saul was going to Damascus when the light from heaven flashed around him." },
-  { reference: "Acts 16", prompt: "What happened while Paul and Silas prayed and sang in prison?", answer: "An earthquake opened the prison", options: ["An earthquake opened the prison", "Fire fell from heaven", "A whale appeared", "The Jordan parted"], explanation: "An earthquake shook the prison and opened doors and chains." },
+  { bank: "Bible Characters", reference: "Genesis 3", prompt: "Adam blamed Eve, but what did his answer also imply about God?", answer: "That the woman God gave him was involved", options: ["That the woman God gave him was involved", "That the serpent forced him physically", "That the tree was wrongly named", "That Eve ate after he refused"], explanation: "Adam says, 'The woman whom you gave to be with me, she gave me fruit...'" },
+  { bank: "Bible Characters", reference: "Genesis 22", prompt: "What phrase shows Abraham expected to return with Isaac despite the command to sacrifice him?", answer: "We will come again to you", options: ["We will come again to you", "The boy will remain here", "I alone will worship", "God has rejected the lad"], explanation: "Abraham tells the servants, 'I and the boy will go... and come again to you.'" },
+  { bank: "Bible Characters", reference: "Genesis 45", prompt: "Joseph's interpretation of his betrayal centers on which claim?", answer: "God sent him before them to preserve life", options: ["God sent him before them to preserve life", "His brothers had acted without guilt", "Egypt was his permanent inheritance", "Jacob planned the famine"], explanation: "Joseph says God sent him before them to preserve life." },
+  { bank: "Bible Characters", reference: "Exodus 4", prompt: "Which objection from Moses did God's anger answer by appointing Aaron?", answer: "That Moses was not eloquent", options: ["That Moses was not eloquent", "That Pharaoh was already dead", "That Israel had no elders", "That the signs were forbidden"], explanation: "Moses objects about speech; God appoints Aaron as spokesman." },
+  { bank: "Bible Characters", reference: "Joshua 2", prompt: "Rahab's confession proves she acted from what conviction before Israel arrived?", answer: "The Lord had given Israel the land", options: ["The Lord had given Israel the land", "Jericho had invited Israel peacefully", "The spies were her relatives", "The king had already surrendered"], explanation: "Rahab says she knew the Lord had given them the land." },
+  { bank: "Bible Characters", reference: "Judges 7", prompt: "Why did God reduce Gideon's army before battle?", answer: "So Israel would not boast that its own hand saved it", options: ["So Israel would not boast that its own hand saved it", "Because the Midianites requested equal numbers", "Because Gideon had no weapons", "So the battle could be postponed"], explanation: "God says the people are too many lest Israel boast against Him." },
+  { bank: "Bible Characters", reference: "1 Samuel 24", prompt: "What kept David from killing Saul in the cave?", answer: "Saul was the Lord's anointed", options: ["Saul was the Lord's anointed", "Jonathan was standing between them", "David had no blade", "Samuel forbade all cave battles"], explanation: "David refuses to put out his hand against the Lord's anointed." },
+  { bank: "Bible Characters", reference: "1 Kings 19", prompt: "What corrected Elijah's assumption that he alone remained faithful?", answer: "God had preserved seven thousand in Israel", options: ["God had preserved seven thousand in Israel", "Jezebel had secretly repented", "Ahab had destroyed Baal", "Obadiah became king"], explanation: "God says He left seven thousand who had not bowed to Baal." },
+  { bank: "Bible Characters", reference: "Daniel 6", prompt: "Daniel's enemies targeted him through which predictable habit?", answer: "His faithfulness in prayer to God", options: ["His faithfulness in prayer to God", "His refusal to interpret dreams", "His habit of eating royal food", "His fear of lions"], explanation: "They knew they would find ground against him only in relation to God's law." },
+  { bank: "Bible Characters", reference: "Acts 9", prompt: "What reversed Ananias's fear of Saul?", answer: "The Lord said Saul was a chosen instrument", options: ["The Lord said Saul was a chosen instrument", "Saul had already healed Ananias", "The high priest cancelled every letter", "Barnabas arrived first"], explanation: "The Lord tells Ananias Saul is a chosen instrument." },
+  { bank: "Books of the Bible", reference: "Genesis 50", prompt: "Which theme closes Genesis through Joseph's words to his brothers?", answer: "Human evil being overruled by God's saving purpose", options: ["Human evil being overruled by God's saving purpose", "Egypt replacing Canaan as the promise", "Jacob's sons being declared sinless", "Famine ending the covenant"], explanation: "Joseph says they meant evil, but God meant it for good to save many." },
+  { bank: "Books of the Bible", reference: "Exodus 12", prompt: "Which Exodus detail ties deliverance to substitution rather than escape strategy?", answer: "The Passover blood marked the houses", options: ["The Passover blood marked the houses", "The Israelites mapped secret roads", "Moses bribed Pharaoh's servants", "The Nile dried before the plague"], explanation: "Judgment passed over houses marked by blood." },
+  { bank: "Books of the Bible", reference: "Joshua 7", prompt: "What makes Achan's sin affect the whole camp in Joshua?", answer: "Israel had broken faith over devoted things", options: ["Israel had broken faith over devoted things", "Joshua forgot the ark at Jericho", "Ai was stronger than Jericho", "Rahab betrayed the spies"], explanation: "The text speaks corporately: Israel had sinned by taking devoted things." },
+  { bank: "Books of the Bible", reference: "Judges 21", prompt: "Which repeated idea explains the moral collapse in Judges?", answer: "There was no king and everyone did what was right in his own eyes", options: ["There was no king and everyone did what was right in his own eyes", "The tabernacle had been destroyed by Philistines", "Moses was still alive but silent", "The land had no judges at all"], explanation: "Judges repeatedly frames chaos with this line." },
+  { bank: "Books of the Bible", reference: "Ruth 4", prompt: "Ruth's ending links ordinary faithfulness to which larger biblical line?", answer: "The line of David", options: ["The line of David", "The line of Pharaoh", "The priesthood of Aaron", "The fall of Jericho"], explanation: "Ruth ends with genealogy leading to David." },
+  { bank: "Books of the Bible", reference: "1 Samuel 15", prompt: "What does Samuel say is better than sacrifice?", answer: "Obedience", options: ["Obedience", "Silence", "Speed", "Victory songs"], explanation: "Samuel tells Saul obedience is better than sacrifice." },
+  { bank: "Books of the Bible", reference: "1 Kings 12", prompt: "What immediate result followed Rehoboam's harsh answer?", answer: "The kingdom divided", options: ["The kingdom divided", "The temple burned", "Elijah crowned Jeroboam", "Babylon invaded"], explanation: "Israel rebelled against the house of David after Rehoboam's answer." },
+  { bank: "Books of the Bible", reference: "Daniel 3", prompt: "What makes the furnace testimony more than private courage?", answer: "A pagan king publicly blesses their God", options: ["A pagan king publicly blesses their God", "The image turns into gold dust", "Daniel replaces Nebuchadnezzar", "The men escape before being thrown in"], explanation: "Nebuchadnezzar blesses the God who delivered them." },
+  { bank: "Books of the Bible", reference: "Luke 15", prompt: "What links the lost sheep, coin, and son in Luke 15?", answer: "Joy over what was lost being found", options: ["Joy over what was lost being found", "Anger that sinners cannot return", "A command to avoid feasts", "A warning against shepherds"], explanation: "Each parable ends with joy over recovery." },
+  { bank: "Books of the Bible", reference: "Acts 10", prompt: "What shift does Peter confess after Cornelius receives the word?", answer: "God shows no partiality", options: ["God shows no partiality", "Gentiles must first become Sadducees", "Caesarea replaces Jerusalem", "Visions cancel preaching"], explanation: "Peter says he understands God shows no partiality." },
+  { bank: "Themes of Scripture", reference: "Genesis 1", prompt: "Creation's repeated 'good' language primarily teaches what about the world?", answer: "It comes ordered and blessed from God", options: ["It comes ordered and blessed from God", "It is divine and should be worshiped", "It was made by human kings", "It is morally evil from the start"], explanation: "Genesis presents creation as ordered by God's word and repeatedly good." },
+  { bank: "Themes of Scripture", reference: "Genesis 3", prompt: "The fall begins not with open atheism but with what kind of distortion?", answer: "Questioning and contradicting God's word", options: ["Questioning and contradicting God's word", "A failed harvest sacrifice", "A dispute over city walls", "A refusal to name the animals"], explanation: "The serpent questions and contradicts God's command." },
+  { bank: "Themes of Scripture", reference: "Genesis 12", prompt: "The Abrahamic promise moves blessing toward whom?", answer: "All the families of the earth", options: ["All the families of the earth", "Only the kings of Egypt", "Only Abraham's servants", "The Nephilim alone"], explanation: "God says all families of the earth will be blessed in Abram." },
+  { bank: "Themes of Scripture", reference: "Exodus 6", prompt: "In Exodus, redemption is grounded first in what?", answer: "God remembering His covenant", options: ["God remembering His covenant", "Israel's military preparation", "Pharaoh's generosity", "Moses mastering Egyptian magic"], explanation: "God hears, remembers His covenant, and acts." },
+  { bank: "Themes of Scripture", reference: "Leviticus 16", prompt: "The Day of Atonement most directly addresses which problem?", answer: "Israel's uncleanness and sins before a holy God", options: ["Israel's uncleanness and sins before a holy God", "The need to elect a king", "The lack of rain in Egypt", "The building of Jericho"], explanation: "Leviticus 16 centers cleansing from sins and uncleannesses." },
+  { bank: "Themes of Scripture", reference: "2 Samuel 7", prompt: "The Davidic covenant turns kingship into a promise about what?", answer: "An enduring house, kingdom, and throne", options: ["An enduring house, kingdom, and throne", "A king without descendants", "A temple built by David that night", "A priesthood replacing Aaron"], explanation: "God promises David an enduring house and throne." },
+  { bank: "Themes of Scripture", reference: "Psalm 51", prompt: "David's repentance asks God for what inner restoration?", answer: "A clean heart and right spirit", options: ["A clean heart and right spirit", "A larger army", "A hidden throne", "A second crown"], explanation: "David prays, 'Create in me a clean heart... renew a right spirit.'" },
+  { bank: "Themes of Scripture", reference: "Isaiah 53", prompt: "The servant's suffering is portrayed as doing what for many?", answer: "Bearing sin and bringing healing", options: ["Bearing sin and bringing healing", "Escaping all pain by force", "Ending sacrifice by denying guilt", "Replacing Israel with Assyria"], explanation: "The servant bears griefs, transgressions, and brings healing." },
+  { bank: "Themes of Scripture", reference: "John 11", prompt: "Jesus' 'resurrection and life' claim is tested in the scene by what?", answer: "Calling Lazarus from the tomb", options: ["Calling Lazarus from the tomb", "Turning stones into bread", "Calming a storm in Galilee", "Writing on palace walls"], explanation: "The claim is followed by Lazarus being called out." },
+  { bank: "Themes of Scripture", reference: "Revelation 21", prompt: "The end-times hope is not escape into emptiness but what picture?", answer: "God dwelling with His people in a renewed creation", options: ["God dwelling with His people in a renewed creation", "The sea ruling over heaven", "A city without God's presence", "The serpent crowned over nations"], explanation: "Revelation shows the holy city and God dwelling with His people." },
 ];
 
 function fallbackQuestion(fact: FallbackFact, index: number, difficulty: string, gameType: string): QuestionPayload {
   const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
   const prefix = gameType === "ludo" ? `Road ${Math.floor(index / 6) + 1}` : `Arena ${index + 1}`;
-  const difficultyPrompt = difficulty === "hard"
-    ? "Read carefully:"
-    : difficulty === "medium"
-      ? "Think before answering:"
-      : "Choose the correct detail:";
+  const lenses = [
+    "Which detail best survives a close reading?",
+    "Which option fits the sequence without smuggling in a false detail?",
+    "Which answer explains the consequence most precisely?",
+    "Which choice sounds plausible but is actually the exact Scriptural detail?",
+  ];
+  const difficultyPrompt = lenses[index % lenses.length];
   return {
     type: "multiple_choice",
     question: `${prefix} · ${difficultyPrompt} ${fact.prompt}`,
@@ -239,17 +260,25 @@ function fallbackQuestion(fact: FallbackFact, index: number, difficulty: string,
     correct_answer: fact.answer,
     explanation: fact.explanation,
     reference: fact.reference,
-    difficulty_tag: round === 1 ? "easy" : round === 2 ? "moderate" : "hard",
+    difficulty_tag: "hard",
     game_round: round,
-    round_timer_seconds: round === 1 ? 90 : round === 2 ? 72 : round === 3 ? 54 : 10,
+    round_timer_seconds: round === 1 ? 12 : round === 2 ? 9 : 6,
     is_bonus: index === 18,
   };
 }
 
 function buildFallbackDeck(targetCount: number, difficulty: string, gameType: string, seed: string) {
   const seedValue = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const focus = bankFocus(seed);
+  const sortedFacts = [...FALLBACK_FACTS].sort((left, right) => {
+    const leftScore = [...`${seed}|${left.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const rightScore = [...`${seed}|${right.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return leftScore - rightScore;
+  });
+  const preferredFacts = sortedFacts.filter((fact) => fact.bank.toLowerCase().includes(focus.category === "characters" ? "characters" : focus.category === "books" ? "books" : "themes"));
+  const facts = preferredFacts.length >= Math.min(targetCount, 10) ? [...preferredFacts, ...sortedFacts.filter((fact) => !preferredFacts.includes(fact))] : sortedFacts;
   return Array.from({ length: targetCount }, (_, index) => {
-    const fact = FALLBACK_FACTS[(index + seedValue) % FALLBACK_FACTS.length];
+    const fact = facts[(index * 7 + seedValue) % facts.length];
     return fallbackQuestion(fact, index, difficulty, gameType);
   });
 }
@@ -290,7 +319,7 @@ Rules:
 - Every multiple_choice question must have exactly 4 distinct, plausible options and one exact correct_answer copied from those options.
 - Include a precise Bible reference and a concise explanation for every answer. If a fact cannot be supported confidently from Scripture, omit it.
 - Require a balanced mix of memory, reasoning, attention to detail, chronology, inference, and textual comparison.
-- Requested difficulty: ${difficulty}. Difficulty must come from thought and close reading, not obscure wording.
+- Requested machine level: ${difficulty}. Every question must still be hard; the level only affects timer pressure and machine accuracy.
 - Question packet: ${packetLevel(difficulty)}
 - Packet seed: ${packetSeed}. Use this seed to vary angle, ordering, and detail focus; do not recreate a previous machine-match deck.
 - Source focus: ${source}

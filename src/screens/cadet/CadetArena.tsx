@@ -890,9 +890,10 @@ function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }
 
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
 function getArenaQuestionSeconds(question: QuestionPayload | undefined) {
-  if (question?.difficulty_tag === 'easy') return 40;
-  if (question?.difficulty_tag === 'hard') return 15;
-  return 25;
+  if (question?.round_timer_seconds) return question.round_timer_seconds;
+  if (question?.game_round === 1 || question?.difficulty_tag === 'easy') return 12;
+  if (question?.game_round === 2 || question?.difficulty_tag === 'moderate') return 9;
+  return 6;
 }
 
 function getArenaRoundForIndex(questionIndex: number) {
@@ -1240,7 +1241,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         {answerError && <div className="mb-4 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
         <div className="mb-3 flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2 text-sm font-bold text-ink">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</div>
-          <div><p className="text-xs font-bold text-ink">{isMyTurn ? profile?.display_name || 'Your question' : activeRealPlayer?.display_name || 'Opponent question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs · 15 seconds' : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
+          <div><p className="text-xs font-bold text-ink">{isMyTurn ? profile?.display_name || 'Your question' : activeRealPlayer?.display_name || 'Opponent question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? `Bonus · 2 figs · ${getArenaQuestionSeconds(q)} seconds` : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
         </div>
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
         {answerFeedback && (
