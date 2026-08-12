@@ -423,7 +423,26 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   {slide.kind === 'announcement' && (
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Megaphone size={14} /> {announcementTitle}</p>
-                      <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Upcoming Notice</h2>
+                      {slide.announcement.announcement_type === 'birthday' && (
+                        <div className="mb-3 flex items-center gap-3">
+                          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-brass/45 bg-brass/15 text-lg font-bold text-brass shadow-sm">
+                            {slide.announcement.metadata?.avatar_url ? (
+                              <img
+                                src={slide.announcement.metadata.avatar_url}
+                                alt={slide.announcement.metadata.display_name || 'Birthday celebrant'}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              String(slide.announcement.metadata?.display_name || 'B').charAt(0)
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-ink">{slide.announcement.metadata?.display_name || 'Birthday celebrant'}</p>
+                            <p className="text-xs text-stone">Birthday celebration</p>
+                          </div>
+                        </div>
+                      )}
+                      <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Hey Everyone</h2>
                       <p className="text-sm text-stone mt-2 leading-relaxed max-w-2xl whitespace-pre-wrap">{slide.announcement.content}</p>
                       <p className="text-[10px] text-stone-dim mt-2">
                         Posted {new Date(slide.announcement.publish_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

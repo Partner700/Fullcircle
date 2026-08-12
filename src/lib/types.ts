@@ -354,6 +354,7 @@ export interface ScheduledAnnouncement {
   audience: string;
   content: string;
   is_active: boolean;
+  metadata?: Record<string, any> | null;
   image_position_x?: number;
   image_position_y?: number;
   audio_start_seconds?: number;

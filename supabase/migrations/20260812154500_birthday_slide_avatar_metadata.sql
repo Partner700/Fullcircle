@@ -1,22 +1,12 @@
 /*
-# Profile birthdays and automatic birthday slides
+# Birthday slide avatar metadata
 
-- Stores birthdays as month/day without requiring a birth year.
-- Exposes today's birthday announcements as regular slideshow rows.
-- Seeds Linda Karen's birthday slide for August 12 so it appears tonight.
+Recreates the automatic birthday feed with avatar metadata so birthday slides
+can display the celebrant's profile picture even if the prior function shape
+was already applied remotely.
 */
 
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS birth_month integer,
-  ADD COLUMN IF NOT EXISTS birth_day integer;
-
-ALTER TABLE public.profiles
-  DROP CONSTRAINT IF EXISTS profiles_birth_month_check,
-  DROP CONSTRAINT IF EXISTS profiles_birth_day_check;
-
-ALTER TABLE public.profiles
-  ADD CONSTRAINT profiles_birth_month_check CHECK (birth_month IS NULL OR birth_month BETWEEN 1 AND 12),
-  ADD CONSTRAINT profiles_birth_day_check CHECK (birth_day IS NULL OR birth_day BETWEEN 1 AND 31);
+DROP FUNCTION IF EXISTS public.get_today_birthday_announcements();
 
 CREATE OR REPLACE FUNCTION public.get_today_birthday_announcements()
 RETURNS TABLE (
