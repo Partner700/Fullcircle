@@ -62,14 +62,101 @@ export async function fetchActiveCadets() {
 }
 
 export async function fetchArenaInvitees() {
+  const byUserId = new Map<string, RoleAssignment & { profiles: Profile }>();
+  const addInvitee = (invitee: RoleAssignment & { profiles: Profile }) => {
+    const existing = byUserId.get(invitee.user_id);
+    if (!existing || invitee.role === 'sentry') byUserId.set(invitee.user_id, invitee);
+  };
+
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_arena_invitees');
+  if (!rpcError && Array.isArray(rpcData)) {
+    rpcData.map((row: any) => ({
+      id: row.role_assignment_id,
+      user_id: row.user_id,
+      role: row.role,
+      status: row.status,
+      start_date: row.start_date || null,
+      end_date: row.end_date || null,
+      approver_id: row.approver_id || null,
+      created_at: row.created_at,
+      profiles: {
+        id: row.user_id,
+        display_name: row.display_name,
+        email: null,
+        avatar_url: row.avatar_url || null,
+        whatsapp_number: null,
+        created_at: row.profile_created_at || row.created_at,
+      },
+    }) as RoleAssignment & { profiles: Profile }).forEach(addInvitee);
+  }
+
   const { data, error } = await supabase
     .from('role_assignments')
     .select('*, profiles!role_assignments_user_id_fkey(id,display_name,avatar_url,created_at)')
     .in('role', ['cadet', 'sentry'])
     .in('status', ['active', 'approved'])
     .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data as (RoleAssignment & { profiles: Profile })[];
+  if (!error) (data as (RoleAssignment & { profiles: Profile })[]).forEach(addInvitee);
+
+  const { data: sentryTents } = await supabase
+    .from('tents')
+    .select('sentry_id, created_at, profiles!tents_sentry_id_fkey(id,display_name,avatar_url,created_at)')
+    .not('sentry_id', 'is', null);
+  (sentryTents || []).forEach((row: any) => {
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    if (!row.sentry_id || !profile) return;
+    addInvitee({
+      id: row.sentry_id,
+      user_id: row.sentry_id,
+      role: 'sentry',
+      status: 'active',
+      start_date: null,
+      end_date: null,
+      approver_id: null,
+      created_at: row.created_at || profile.created_at,
+      profiles: {
+        id: profile.id,
+        display_name: profile.display_name,
+        email: null,
+        avatar_url: profile.avatar_url || null,
+        whatsapp_number: null,
+        created_at: profile.created_at || row.created_at,
+      },
+    } as RoleAssignment & { profiles: Profile });
+  });
+
+  const { data: sentryMembers } = await supabase
+    .from('tent_members')
+    .select('user_id, joined_at, profiles(id,display_name,avatar_url,created_at)')
+    .eq('role', 'sentry');
+  (sentryMembers || []).forEach((row: any) => {
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    if (!row.user_id || !profile) return;
+    addInvitee({
+      id: row.user_id,
+      user_id: row.user_id,
+      role: 'sentry',
+      status: 'active',
+      start_date: null,
+      end_date: null,
+      approver_id: null,
+      created_at: row.joined_at || profile.created_at,
+      profiles: {
+        id: profile.id,
+        display_name: profile.display_name,
+        email: null,
+        avatar_url: profile.avatar_url || null,
+        whatsapp_number: null,
+        created_at: profile.created_at || row.joined_at,
+      },
+    } as RoleAssignment & { profiles: Profile });
+  });
+
+  if (byUserId.size === 0 && error) throw error;
+  return Array.from(byUserId.values()).sort((a, b) => {
+    if (a.role !== b.role) return a.role === 'sentry' ? -1 : 1;
+    return (a.profiles.display_name || '').localeCompare(b.profiles.display_name || '');
+  });
 }
 
 export async function fetchTents() {
@@ -996,6 +1083,12 @@ export async function fetchDailyQuoteFeed(limit = 12) {
   return data as import('./types').DailyQuoteFeedItem[];
 }
 
+export async function fetchBirthdayCelebrants() {
+  const { data, error } = await supabase.rpc('get_today_birthday_celebrants');
+  if (error) throw error;
+  return (data || []) as import('./types').BirthdayCelebrant[];
+}
+
 export async function fetchDailyQuoteReactions(quotes: { user_id: string; record_date: string }[], reactorId?: string) {
   if (quotes.length === 0) return {};
   const userIds = Array.from(new Set(quotes.map((q) => q.user_id)));
@@ -1762,4 +1855,16 @@ export async function fetchQuizScoreboard() {
   const { data, error } = await supabase.rpc('get_quiz_scoreboard');
   if (error) throw error;
   return (data || []) as QuizScoreboardRow[];
+}
+
+export async function fetchRhudeBoard() {
+  const { data, error } = await supabase.rpc('get_rhude_board_live');
+  if (error) throw error;
+  return (data || []) as import('./types').RhudeBoardRow[];
+}
+
+export async function fetchMarksBoard() {
+  const { data, error } = await supabase.rpc('get_marks_board_live');
+  if (error) throw error;
+  return (data || []) as import('./types').MarksBoardRow[];
 }

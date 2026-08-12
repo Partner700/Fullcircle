@@ -6,12 +6,12 @@ import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { CoinIcon } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots } from '../../lib/queries';
+import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
-import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame } from 'lucide-react';
+import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
+import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame, ShieldCheck, Medal } from 'lucide-react';
 
-type BoardTab = 'leader' | 'streak' | 'quiz' | 'tent_house';
+type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
 
 type TentLeaderboardRow = {
   tent_id: string;
@@ -46,6 +46,8 @@ export function CadetLeaderboard() {
   const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
   const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
+  const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
+  const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -58,14 +60,18 @@ export function CadetLeaderboard() {
       setStreakRows(streaks.status === 'fulfilled' ? streaks.value : []);
       setLeaderRows((leaders.status === 'fulfilled' ? leaders.value : []) as any);
 
-	      const [live, tents, quizBoard] = await Promise.allSettled([
+	      const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
 	        supabase.rpc('get_leaderboard_live'),
 	        supabase.rpc('get_tent_leaderboard'),
 	        fetchQuizScoreboard(),
+          fetchRhudeBoard(),
+          fetchMarksBoard(),
 	      ]);
 	      setLiveRows((live.status === 'fulfilled' && live.value.data ? live.value.data : []) as any);
 	      setTentRows((tents.status === 'fulfilled' && tents.value.data ? tents.value.data : []) as TentLeaderboardRow[]);
 	      setQuizRows(quizBoard.status === 'fulfilled' ? quizBoard.value : []);
+        setRhudeRows(rhudes.status === 'fulfilled' ? rhudes.value : []);
+        setMarksRows(marks.status === 'fulfilled' ? marks.value : []);
     } catch (e) { console.error('Leaderboard load error:', e); }
     setLoading(false);
   }, []);
@@ -77,6 +83,8 @@ export function CadetLeaderboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_attempts' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'relic_inventory' }, () => load())
       .subscribe();
@@ -96,6 +104,8 @@ export function CadetLeaderboard() {
         <BoardTabButton active={tab === 'leader'} onClick={() => setTab('leader')} icon={<CoinIcon size={16} />} label="Denarii Board" />
         <BoardTabButton active={tab === 'streak'} onClick={() => setTab('streak')} icon={<Flame size={16} />} label="Streak Board" />
         <BoardTabButton active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<FileQuestion size={16} />} label="Quiz Board" />
+        <BoardTabButton active={tab === 'rhude'} onClick={() => setTab('rhude')} icon={<ShieldCheck size={16} />} label="Rhude Board" />
+        <BoardTabButton active={tab === 'marks'} onClick={() => setTab('marks')} icon={<Medal size={16} />} label="Marks Board" />
         <BoardTabButton active={tab === 'tent_house'} onClick={() => setTab('tent_house')} icon={<TentIcon size={16} />} label="Tent Board" />
       </div>
 
@@ -374,6 +384,78 @@ export function CadetLeaderboard() {
               title="Quiz board ready"
               message="Cadets appear here once assigned. Daily game, arena, and fortune quiz figs update live; Saturday quiz figs join at 3:00 PM."
             />
+          )}
+        </div>
+      )}
+
+      {/* Rhude Board */}
+      {tab === 'rhude' && (
+        <div className="space-y-4">
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck size={20} className="text-sage" />
+              <h3 className="font-display font-semibold text-ink">Rhude Board</h3>
+              <span className="badge badge-moss text-[10px]">Arena Victories</span>
+            </div>
+            <p className="text-xs text-stone">
+              One Rhude equals one Arena victory. Cadets and sentries both appear here.
+            </p>
+          </div>
+
+          {rhudeRows.length > 0 ? (
+            <div className="card p-4">
+              <BoardList>
+                {rhudeRows.map((row) => (
+                  <BoardRow
+                    key={row.user_id}
+                    rank={row.rank}
+                    name={row.display_name}
+                    value={`${row.rhudes}`}
+                    houseId={row.tent_house_id || undefined}
+                    isCurrentUser={row.user_id === profile?.id}
+                    subtext={`${row.role} · ${row.tent_name || 'No tent yet'}${row.latest_victory_at ? ` · last victory ${formatShortDate(row.latest_victory_at.slice(0, 10))}` : ''}`}
+                  />
+                ))}
+              </BoardList>
+            </div>
+          ) : (
+            <EmptyState icon={(props) => <ShieldCheck {...props} />} title="No Rhudes yet" message="Arena victors appear here as soon as a match is settled." />
+          )}
+        </div>
+      )}
+
+      {/* Marks Board */}
+      {tab === 'marks' && (
+        <div className="space-y-4">
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Medal size={20} className="text-brass" />
+              <h3 className="font-display font-semibold text-ink">Marks Board</h3>
+              <span className="badge badge-brass text-[10px]">Grand Total</span>
+            </div>
+            <p className="text-xs text-stone">
+              Marks combine denarii, figs, streaks, and Rhudes. This powers Rumor, Vallum, and Grand Vallum tracking.
+            </p>
+          </div>
+
+          {marksRows.length > 0 ? (
+            <div className="card p-4">
+              <BoardList>
+                {marksRows.map((row) => (
+                  <BoardRow
+                    key={row.user_id}
+                    rank={row.rank}
+                    name={row.display_name}
+                    value={`${Math.round(Number(row.marks || 0))}`}
+                    houseId={row.tent_house_id || undefined}
+                    isCurrentUser={row.user_id === profile?.id}
+                    subtext={`${formatDenarii(row.total_denarii)}D · ${row.total_figs} figs · ${row.current_streak} streak · ${row.rhudes} rhudes`}
+                  />
+                ))}
+              </BoardList>
+            </div>
+          ) : (
+            <EmptyState icon={(props) => <Medal {...props} />} title="No marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
           )}
         </div>
       )}

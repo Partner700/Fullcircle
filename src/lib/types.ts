@@ -469,7 +469,12 @@ export interface DailyQuoteFeedItem {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
-  current_streak: number;
+}
+
+export interface BirthdayCelebrant {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
 }
 
 export interface DailyQuoteComment {
@@ -576,5 +581,34 @@ export interface QuizScoreboardRow {
   random_quiz_score: number;
   saturday_quiz_score: number;
   total_score: number;
+  rank: number;
+}
+
+export interface RhudeBoardRow {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: Role;
+  tent_id: string | null;
+  tent_name: string | null;
+  tent_house_id: string | null;
+  rhudes: number;
+  latest_victory_at: string | null;
+  rank: number;
+}
+
+export interface MarksBoardRow {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: Role;
+  tent_id: string | null;
+  tent_name: string | null;
+  tent_house_id: string | null;
+  total_denarii: number;
+  total_figs: number;
+  current_streak: number;
+  rhudes: number;
+  marks: number;
   rank: number;
 }

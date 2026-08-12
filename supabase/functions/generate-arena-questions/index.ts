@@ -174,6 +174,13 @@ function roomDifficulty(roomName: string) {
   return match?.[1]?.toLowerCase() || "mixed";
 }
 
+function packetLevel(difficulty: string) {
+  if (difficulty === "easy") return "Level 1 packet: clear narrative memory, direct sequence, visible contrasts, and exact speaker/action details.";
+  if (difficulty === "medium") return "Level 2 packet: layered chronology, motives, cause-and-effect, comparisons, and plausible distractors.";
+  if (difficulty === "hard") return "Level 3 packet: close-reading traps, cross-scene reasoning, quiet details, and options that strongly resemble the right answer.";
+  return "Mixed packet: escalate steadily from direct memory to close-reading reasoning.";
+}
+
 async function fetchNarrative(narrativeDate: string | null) {
   if (!narrativeDate) return null;
   const response = await fetch(
@@ -191,6 +198,7 @@ async function generateBatch(
   source: string,
   difficulty: string,
   gameType: string,
+  packetSeed: string,
   excludedPrompts: string[],
 ) {
   const formatRule = gameType === "ludo"
@@ -205,6 +213,8 @@ Rules:
 - Include a precise Bible reference and a concise explanation for every answer. If a fact cannot be supported confidently from Scripture, omit it.
 - Require a balanced mix of memory, reasoning, attention to detail, chronology, inference, and textual comparison.
 - Requested difficulty: ${difficulty}. Difficulty must come from thought and close reading, not obscure wording.
+- Question packet: ${packetLevel(difficulty)}
+- Packet seed: ${packetSeed}. Use this seed to vary angle, ordering, and detail focus; do not recreate a previous machine-match deck.
 - Source focus: ${source}
 - Do not repeat or paraphrase these existing prompts: ${excludedPrompts.slice(-160).join(" | ") || "none"}
 Return only JSON: {"questions":[{"type":"multiple_choice","question":"...","options":["..."],"correct_answer":"...","explanation":"...","reference":"..."}]}`;
@@ -269,6 +279,13 @@ Deno.serve(async (req) => {
       ? `${topic.type}: ${topic.value}`
       : `weekly narrative: ${narrative?.title || "Untitled"}; theme: ${narrative?.theme || ""}; scripture: ${narrative?.scripture_reference || ""}; main text: ${String(narrative?.main_text || "").slice(0, 14000)}`;
     const difficulty = roomDifficulty(room.room_name);
+    const packetSeed = [
+      roomId,
+      difficulty,
+      gameType,
+      topic ? `${topic.type}:${topic.value}` : room.narrative_date || "weekly",
+      new Date().toISOString().slice(0, 13),
+    ].join("|");
     const seen = new Set<string>();
     const questions: QuestionPayload[] = [];
     const batchSize = gameType === "ludo" ? 30 : targetCount;
@@ -280,6 +297,7 @@ Deno.serve(async (req) => {
         source,
         difficulty,
         gameType,
+        `${packetSeed}|batch:${attempt + 1}`,
         questions.map((question) => question.question),
       );
       for (const item of generated) {
