@@ -1,11 +1,10 @@
 /*
-# Rhudes, marks, today-only quote feed, and Linda Karen birthday feed
+# Rhudes, marks, and today-only quote feed
 
 - One Rhude equals one Arena victory.
 - Marks combine denarii, figs, streak, and Rhudes using the same weighted spirit
   as the tent board: denarii + figs*100 + streak*1000 + rhudes*5000.
 - The dashboard quote feed only returns today's meditation quotes.
-- Linda Karen's birthday is exposed as a temporary feed on August 12.
 */
 
 DROP FUNCTION IF EXISTS public.get_daily_quote_feed(integer);
@@ -42,34 +41,6 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_daily_quote_feed(integer) TO authenticated;
-
-CREATE OR REPLACE FUNCTION public.get_today_birthday_celebrants()
-RETURNS TABLE (
-  user_id uuid,
-  display_name text,
-  avatar_url text
-)
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  WITH clock AS (
-    SELECT timezone('Africa/Douala', now())::date AS today
-  )
-  SELECT
-    p.id AS user_id,
-    p.display_name,
-    p.avatar_url
-  FROM public.profiles p
-  CROSS JOIN clock c
-  WHERE EXTRACT(MONTH FROM c.today)::int = 8
-    AND EXTRACT(DAY FROM c.today)::int = 12
-    AND lower(regexp_replace(COALESCE(p.display_name, ''), '\s+', ' ', 'g')) LIKE '%linda karen%'
-  ORDER BY p.display_name ASC
-  LIMIT 3;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.get_today_birthday_celebrants() TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_rhude_board_live()
 RETURNS TABLE (

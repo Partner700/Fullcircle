@@ -527,7 +527,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               <div className="max-h-56 overflow-y-auto rounded-xl border border-border bg-surface/80 p-2 space-y-2">
                 {availableInvitees
                   .filter((player) => !playerSearch || player.profiles?.display_name?.toLowerCase().includes(playerSearch.toLowerCase()))
-                  .slice(0, 16)
                   .map((player) => {
                     const checked = taggedIds.has(player.user_id);
                     const initial = player.profiles?.display_name?.charAt(0)?.toUpperCase() || '?';
@@ -730,7 +729,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-border bg-surface-2 p-2">
               {allInvitees
                 .filter((c) => !playerSearch || c.profiles?.display_name?.toLowerCase().includes(playerSearch.toLowerCase()))
-                .slice(0, 20)
                 .map((player) => {
                   const checked = taggedIds.has(player.user_id);
                   const full = !checked && taggedIds.size >= maxPlayers - 1;

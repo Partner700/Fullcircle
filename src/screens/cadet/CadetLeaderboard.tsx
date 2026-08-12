@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame, ShieldCheck, Medal } from 'lucide-react';
+import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame, Swords, Medal } from 'lucide-react';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
 
@@ -104,7 +104,7 @@ export function CadetLeaderboard() {
         <BoardTabButton active={tab === 'leader'} onClick={() => setTab('leader')} icon={<CoinIcon size={16} />} label="Denarii Board" />
         <BoardTabButton active={tab === 'streak'} onClick={() => setTab('streak')} icon={<Flame size={16} />} label="Streak Board" />
         <BoardTabButton active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<FileQuestion size={16} />} label="Quiz Board" />
-        <BoardTabButton active={tab === 'rhude'} onClick={() => setTab('rhude')} icon={<ShieldCheck size={16} />} label="Rhude Board" />
+        <BoardTabButton active={tab === 'rhude'} onClick={() => setTab('rhude')} icon={<Swords size={16} className="-rotate-12" />} label="Rhude Board" />
         <BoardTabButton active={tab === 'marks'} onClick={() => setTab('marks')} icon={<Medal size={16} />} label="Marks Board" />
         <BoardTabButton active={tab === 'tent_house'} onClick={() => setTab('tent_house')} icon={<TentIcon size={16} />} label="Tent Board" />
       </div>
@@ -393,7 +393,7 @@ export function CadetLeaderboard() {
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
-              <ShieldCheck size={20} className="text-sage" />
+              <Swords size={20} className="-rotate-12 text-sage" />
               <h3 className="font-display font-semibold text-ink">Rhude Board</h3>
               <span className="badge badge-moss text-[10px]">Arena Victories</span>
             </div>
@@ -419,7 +419,7 @@ export function CadetLeaderboard() {
               </BoardList>
             </div>
           ) : (
-            <EmptyState icon={(props) => <ShieldCheck {...props} />} title="No Rhudes yet" message="Arena victors appear here as soon as a match is settled." />
+            <EmptyState icon={(props) => <Swords {...props} className={cn(props.className, '-rotate-12')} />} title="No Rhudes yet" message="One Rhude is added for every Arena victory. Victors appear here as soon as a match is settled." />
           )}
         </div>
       )}

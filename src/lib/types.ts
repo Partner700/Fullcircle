@@ -471,12 +471,6 @@ export interface DailyQuoteFeedItem {
   avatar_url: string | null;
 }
 
-export interface BirthdayCelebrant {
-  user_id: string;
-  display_name: string;
-  avatar_url: string | null;
-}
-
 export interface DailyQuoteComment {
   id: string;
   body: string;

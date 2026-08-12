@@ -1083,12 +1083,6 @@ export async function fetchDailyQuoteFeed(limit = 12) {
   return data as import('./types').DailyQuoteFeedItem[];
 }
 
-export async function fetchBirthdayCelebrants() {
-  const { data, error } = await supabase.rpc('get_today_birthday_celebrants');
-  if (error) throw error;
-  return (data || []) as import('./types').BirthdayCelebrant[];
-}
-
 export async function fetchDailyQuoteReactions(quotes: { user_id: string; record_date: string }[], reactorId?: string) {
   if (quotes.length === 0) return {};
   const userIds = Array.from(new Set(quotes.map((q) => q.user_id)));

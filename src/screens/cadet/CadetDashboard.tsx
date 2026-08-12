@@ -6,10 +6,9 @@ import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, fetchBirthdayCelebrants } from '../../lib/queries';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
-import { BirthdayAvatar } from '../../lib/birthday';
-import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, BirthdayCelebrant } from '../../lib/types';
+import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
@@ -20,7 +19,6 @@ type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 't
 
 type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
-  | { id: string; kind: 'birthday'; celebrant: BirthdayCelebrant }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
   | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem };
@@ -43,7 +41,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const [challenge, setChallenge] = useState<ChallengeSubmission | null>(null);
   const [streakData, setStreakData] = useState<{ current_streak: number; longest_streak: number; consecutive_inactive: number; cumulative_inactive: number } | null>(null);
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
-  const [birthdays, setBirthdays] = useState<BirthdayCelebrant[]>([]);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
@@ -62,7 +59,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activePanelImages, birthdayFeed] = await Promise.allSettled([
+      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activePanelImages] = await Promise.allSettled([
         fetchNarrative(today),
         fetchDailyRecords(profile.id),
         fetchLedgerEntries(profile.id, 100),
@@ -73,9 +70,8 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         fetchAnnouncements(),
         fetchPanelImageSettings([
           'welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
-          'morning_call', 'midday_reminder', 'evening_reminder', 'quote_of_day', 'streakboard_release',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
-        fetchBirthdayCelebrants(),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
       const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
@@ -86,7 +82,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
       setQuotes(quoteFeed.status === 'fulfilled' ? quoteFeed.value : []);
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
-      setBirthdays(birthdayFeed.status === 'fulfilled' ? birthdayFeed.value : []);
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
       setHeroIndex(0);
@@ -119,11 +114,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
-    ...birthdays.map((celebrant) => ({
-      id: `birthday-${celebrant.user_id}`,
-      kind: 'birthday' as const,
-      celebrant,
-    })),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
     ...announcements.filter((announcement) =>
       !announcement.announcement_type?.startsWith('panel_image_')
@@ -408,26 +398,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     </>
                   )}
 
-                  {slide.kind === 'birthday' && (
-                    <>
-                      <p className="eyebrow mb-1">Birthday Celebration</p>
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-14 w-14 overflow-visible rounded-full border border-brass bg-surface-2">
-                          <div className="h-full w-full overflow-hidden rounded-full">
-                            {slide.celebrant.avatar_url
-                              ? <img src={slide.celebrant.avatar_url} alt={slide.celebrant.display_name} className="h-full w-full object-cover" />
-                              : <span className="flex h-full w-full items-center justify-center font-display text-xl font-bold text-brass">{slide.celebrant.display_name.charAt(0)}</span>}
-                          </div>
-                          <BirthdayAvatar displayName={slide.celebrant.display_name} className="absolute -right-2 -top-2 text-xl" />
-                        </div>
-                        <div className="min-w-0">
-                          <h2 className="font-display text-2xl font-semibold text-ink leading-tight">Celebrate {slide.celebrant.display_name}</h2>
-                          <p className="text-sm text-stone mt-1">Full Circle is grateful for your life today.</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
                   {slide.kind === 'verse' && (
                     <>
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><BookOpen size={14} /> Verse of the Day</p>
@@ -466,11 +436,8 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
                       <p className="font-display text-2xl text-ink leading-snug italic">"{slide.quote.daily_quote}"</p>
                       <div className="mt-3 flex items-center gap-2 text-sm text-stone">
-                        <div className="relative h-7 w-7 overflow-visible rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
-                          <div className="h-full w-full overflow-hidden rounded-full">
-                            {slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" /> : slide.quote.display_name.charAt(0)}
-                          </div>
-                          <BirthdayAvatar displayName={slide.quote.display_name} className="absolute -right-1.5 -top-1.5 text-sm" />
+                        <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
+                          {slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" /> : slide.quote.display_name.charAt(0)}
                         </div>
                         <span>{slide.quote.display_name} · {slide.quote.record_date}</span>
                       </div>

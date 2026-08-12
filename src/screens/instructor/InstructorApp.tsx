@@ -312,6 +312,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
   { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
   { type: 'panel_image_announcement', label: 'General / Announcement Panel', audience: 'all' },
+  { type: 'panel_image_birthday', label: 'Birthday Announcement Panel', audience: 'all' },
   { type: 'panel_image_morning_call', label: 'Morning Call', audience: 'all' },
   { type: 'panel_image_midday_reminder', label: 'Midday Reminder', audience: 'all' },
   { type: 'panel_image_evening_reminder', label: 'Evening Reminder', audience: 'all' },
@@ -734,11 +735,13 @@ function AnnouncementManager() {
               <option value="midday_reminder">Midday Reminder</option>
               <option value="evening_reminder">Evening Reminder</option>
               <option value="quote_of_day">Quote of the Day</option>
+              <option value="birthday">Birthday</option>
               <option value="streakboard_release">Streakboard Release</option>
               <option value="weekly_background">Weekly Background Image</option>
               <option value="panel_image_welcome">Panel Image: Welcome</option>
               <option value="panel_image_verse">Panel Image: Verse</option>
               <option value="panel_image_announcement">Panel Image: Announcement</option>
+              <option value="panel_image_birthday">Panel Image: Birthday</option>
               <option value="panel_image_quote">Panel Image: Quote</option>
               <option value="panel_image_market">Panel Image: Market</option>
             </select>
