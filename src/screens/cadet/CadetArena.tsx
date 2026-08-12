@@ -524,25 +524,49 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                   })}
                 </div>
               )}
-              <div className="max-h-32 overflow-y-auto space-y-1">
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-border bg-surface/80 p-2 space-y-2">
                 {availableInvitees
                   .filter((player) => !playerSearch || player.profiles?.display_name?.toLowerCase().includes(playerSearch.toLowerCase()))
-                  .slice(0, 12)
+                  .slice(0, 16)
                   .map((player) => {
                     const checked = taggedIds.has(player.user_id);
+                    const initial = player.profiles?.display_name?.charAt(0)?.toUpperCase() || '?';
                     return (
-                      <label key={player.user_id} className={cn('flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors', checked ? 'bg-gold-soft' : 'hover:bg-surface-3')}>
-                        <input type="checkbox" checked={checked} onChange={() => {
+                      <button
+                        key={player.user_id}
+                        type="button"
+                        onClick={() => {
                           setTaggedIds((prev) => {
                             const n = new Set(prev);
                             if (n.has(player.user_id)) n.delete(player.user_id);
                             else n.add(player.user_id);
                             return n;
                           });
-                        }} className="accent-gold flex-shrink-0" />
-                        <span className="text-sm text-ink truncate">{player.profiles?.display_name || 'Unknown'}</span>
-                        <span className="badge badge-brass text-[9px] capitalize">{player.role}</span>
-                      </label>
+                        }}
+                        className={cn(
+                          'group flex w-full items-center gap-3 rounded-lg border p-2.5 text-left transition-all',
+                          checked
+                            ? 'border-gold/60 bg-gold-soft shadow-sm'
+                            : 'border-border bg-surface-2/80 hover:border-brass/45 hover:bg-surface-3',
+                        )}
+                        aria-pressed={checked}
+                      >
+                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border bg-brass-soft flex items-center justify-center font-display font-bold text-brass">
+                          {player.profiles?.avatar_url ? (
+                            <img src={player.profiles.avatar_url} alt="" className="h-full w-full object-cover" />
+                          ) : initial}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-ink">{player.profiles?.display_name || 'Unknown'}</p>
+                          <p className="text-[10px] uppercase tracking-[0.08em] text-stone">{player.role === 'sentry' ? 'Sentry' : 'Cadet'}</p>
+                        </div>
+                        <span className={cn(
+                          'flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold transition-colors',
+                          checked ? 'border-gold bg-gold text-navy' : 'border-border text-stone group-hover:border-brass group-hover:text-brass',
+                        )}>
+                          {checked ? '✓' : '+'}
+                        </span>
+                      </button>
                     );
                   })}
                 {availableInvitees.length === 0 && <p className="text-xs text-stone text-center py-2">No more players available to invite.</p>}

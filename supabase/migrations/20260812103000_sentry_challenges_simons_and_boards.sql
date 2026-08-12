@@ -288,25 +288,63 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT DISTINCT ON (assignment.user_id)
-    assignment.user_id AS role_assignment_id,
-    assignment.user_id,
-    assignment.role,
-    assignment.status,
-    assignment.start_date,
-    assignment.end_date,
-    assignment.approver_id,
-    assignment.created_at,
+  WITH invitee_sources AS (
+    SELECT
+      assignment.user_id,
+      assignment.role::text AS role,
+      assignment.status::text AS status,
+      assignment.start_date,
+      assignment.end_date,
+      assignment.approver_id,
+      assignment.created_at,
+      CASE assignment.role WHEN 'sentry' THEN 0 ELSE 1 END AS source_rank
+    FROM public.role_assignments assignment
+    WHERE assignment.role IN ('cadet', 'sentry')
+      AND assignment.status IN ('active', 'approved')
+
+    UNION ALL
+
+    SELECT
+      tent.sentry_id AS user_id,
+      'sentry'::text AS role,
+      'active'::text AS status,
+      NULL::date AS start_date,
+      NULL::date AS end_date,
+      NULL::uuid AS approver_id,
+      COALESCE(tent.created_at, now()) AS created_at,
+      0 AS source_rank
+    FROM public.tents tent
+    WHERE tent.sentry_id IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+      member.user_id,
+      'sentry'::text AS role,
+      'active'::text AS status,
+      NULL::date AS start_date,
+      NULL::date AS end_date,
+      NULL::uuid AS approver_id,
+      COALESCE(member.joined_at, now()) AS created_at,
+      0 AS source_rank
+    FROM public.tent_members member
+    WHERE member.role = 'sentry'
+  )
+  SELECT DISTINCT ON (source.user_id)
+    source.user_id AS role_assignment_id,
+    source.user_id,
+    source.role,
+    source.status,
+    source.start_date,
+    source.end_date,
+    source.approver_id,
+    source.created_at,
     profile.display_name,
     profile.avatar_url,
     profile.created_at
-  FROM public.role_assignments assignment
-  JOIN public.profiles profile ON profile.id = assignment.user_id
-  WHERE assignment.role IN ('cadet', 'sentry')
-    AND assignment.status IN ('active', 'approved')
-  ORDER BY assignment.user_id,
-    CASE assignment.role WHEN 'sentry' THEN 0 ELSE 1 END,
-    assignment.created_at DESC;
+  FROM invitee_sources source
+  JOIN public.profiles profile ON profile.id = source.user_id
+  ORDER BY source.user_id, source.source_rank, source.created_at DESC;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_arena_invitees() TO authenticated;
