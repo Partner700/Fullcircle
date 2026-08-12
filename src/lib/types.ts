@@ -25,6 +25,8 @@ export interface Profile {
   country_code?: string | null;
   language_code?: string | null;
   timezone?: string | null;
+  birth_month?: number | null;
+  birth_day?: number | null;
   onboarding_completed?: boolean;
   created_at: string;
 }

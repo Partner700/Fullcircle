@@ -628,20 +628,34 @@ export async function reactToAward(awardId: string, reactorId: string, reactionT
 
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
   const now = new Date().toISOString();
-  const announcementResult = await supabase
-    .from('scheduled_announcements')
-    .select('*')
-    .lte('publish_at', now)
-    .eq('is_active', true)
-    .in('audience', audiences)
-    .not('announcement_type', 'like', 'panel_image_%')
-    .not('announcement_type', 'like', 'sound_%')
-    .neq('announcement_type', 'weekly_background')
-    .order('publish_at', { ascending: false })
-    .limit(12);
+  const [announcementResult, birthdayResult] = await Promise.allSettled([
+    supabase
+      .from('scheduled_announcements')
+      .select('*')
+      .lte('publish_at', now)
+      .eq('is_active', true)
+      .in('audience', audiences)
+      .not('announcement_type', 'like', 'panel_image_%')
+      .not('announcement_type', 'like', 'sound_%')
+      .neq('announcement_type', 'weekly_background')
+      .order('publish_at', { ascending: false })
+      .limit(12),
+    audiences.includes('all') ? supabase.rpc('get_today_birthday_announcements') : Promise.resolve({ data: [], error: null }),
+  ]);
 
-  if (announcementResult.error) throw announcementResult.error;
-  return (announcementResult.data || []) as ScheduledAnnouncement[];
+  if (announcementResult.status === 'rejected') throw announcementResult.reason;
+  if (announcementResult.value.error) throw announcementResult.value.error;
+  const announcements = (announcementResult.value.data || []) as ScheduledAnnouncement[];
+  const birthdays = birthdayResult.status === 'fulfilled' && !birthdayResult.value.error
+    ? (birthdayResult.value.data || []) as ScheduledAnnouncement[]
+    : [];
+  const byId = new Map<string, ScheduledAnnouncement>();
+  [...birthdays, ...announcements].forEach((announcement) => {
+    byId.set(`${announcement.announcement_type}-${announcement.id}`, announcement);
+  });
+  return Array.from(byId.values())
+    .sort((left, right) => new Date(right.publish_at).getTime() - new Date(left.publish_at).getTime())
+    .slice(0, 14);
 }
 
 export async function fetchPanelImage(

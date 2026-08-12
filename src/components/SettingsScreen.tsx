@@ -13,7 +13,7 @@ import {
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
-import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages } from 'lucide-react';
+import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -22,6 +22,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [birthMonth, setBirthMonth] = useState(String(profile?.birth_month || ''));
+  const [birthDay, setBirthDay] = useState(String(profile?.birth_day || ''));
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tentInfo, setTentInfo] = useState<{ name: string; houseId: string; sentryName?: string } | null>(null);
@@ -92,6 +94,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       country_code: country,
       language_code: language,
       timezone: timezoneForCountry(country),
+      birth_month: birthMonth ? Number(birthMonth) : null,
+      birth_day: birthDay ? Number(birthDay) : null,
     }).eq('id', profile.id);
     setSaving(false);
     if (!error) {
@@ -214,6 +218,22 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> Language</span>
               <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
                 {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs font-bold text-peri">
+              <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday Month</span>
+              <select className="input-field" value={birthMonth} onChange={(event) => setBirthMonth(event.target.value)}>
+                <option value="">Not set</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <option key={month} value={month}>{new Date(2026, month - 1, 1).toLocaleString('en-US', { month: 'long' })}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs font-bold text-peri">
+              <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday Day</span>
+              <select className="input-field" value={birthDay} onChange={(event) => setBirthDay(event.target.value)}>
+                <option value="">Not set</option>
+                {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
               </select>
             </label>
           </div>

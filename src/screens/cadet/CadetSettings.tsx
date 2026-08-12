@@ -10,7 +10,7 @@ import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../../
 import {
   User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
-  Globe2, KeyRound, Languages,
+  Cake, Globe2, KeyRound, Languages,
 } from 'lucide-react';
 
 interface CadetSettingsProps {
@@ -33,6 +33,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [birthMonth, setBirthMonth] = useState(String(profile?.birth_month || ''));
+  const [birthDay, setBirthDay] = useState(String(profile?.birth_day || ''));
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState({
@@ -123,6 +125,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
       country_code: country,
       language_code: language,
       timezone: timezoneForCountry(country),
+      birth_month: birthMonth ? Number(birthMonth) : null,
+      birth_day: birthDay ? Number(birthDay) : null,
     }).eq('id', profile.id);
     if (error) alert(error.message);
     else {
@@ -227,6 +231,22 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
               <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
               <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
                 {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs text-stone">
+              <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday Month</span>
+              <select className="input-field" value={birthMonth} onChange={(event) => setBirthMonth(event.target.value)}>
+                <option value="">Not set</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <option key={month} value={month}>{new Date(2026, month - 1, 1).toLocaleString('en-US', { month: 'long' })}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-stone">
+              <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday Day</span>
+              <select className="input-field" value={birthDay} onChange={(event) => setBirthDay(event.target.value)}>
+                <option value="">Not set</option>
+                {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
               </select>
             </label>
           </div>
