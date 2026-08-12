@@ -41,6 +41,7 @@ import {
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
   fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting,
+  fetchStreakboardSnapshots,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
@@ -2100,17 +2101,20 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
 function InstructorLeaderboard() {
   const [boardTab, setBoardTab] = useState<'denarii' | 'streak' | 'houses'>('denarii');
   const [liveData, setLiveData] = useState<any[]>([]);
+  const [streakData, setStreakData] = useState<any[]>([]);
   const [houseData, setHouseData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [ld, hd] = await Promise.allSettled([
+      const [ld, sd, hd] = await Promise.allSettled([
         supabase.rpc('get_leaderboard_live'),
+        fetchStreakboardSnapshots(),
         supabase.rpc('get_house_standings'),
       ]);
       setLiveData(ld.status === 'fulfilled' && ld.value.data ? ld.value.data : []);
+      setStreakData(sd.status === 'fulfilled' ? sd.value || [] : []);
       setHouseData(hd.status === 'fulfilled' && hd.value.data ? hd.value.data : []);
       setLoading(false);
     })();
@@ -2153,7 +2157,40 @@ function InstructorLeaderboard() {
       )}
 
       {boardTab === 'streak' && (
-        <EmptyState icon={Flame} title="Streak Board" message="Streak snapshots update daily at 9 PM. Check back for the latest rankings." />
+        <div className="space-y-2">
+          {streakData.length === 0 ? (
+            <EmptyState icon={Flame} title="No streak data yet" message="Streak rankings will appear here once daily activity is recorded." />
+          ) : (
+            streakData.map((row: any, i: number) => (
+              <div key={row.user_id || i} className="card p-3">
+                <div className="flex items-center gap-3">
+                  <span className="font-display text-lg font-bold text-coral w-8 text-center">{row.rank || i + 1}</span>
+                  <div className="h-10 w-10 overflow-hidden rounded-full bg-coral-soft flex items-center justify-center font-display font-bold text-coral">
+                    {row.profiles?.avatar_url ? <img src={row.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : (row.profiles?.display_name || row.display_name || '?').charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-ink truncate">{row.profiles?.display_name || row.display_name || 'Unknown'}</p>
+                    <p className="text-xs text-stone">{row.tent_name || 'Streak board'}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg bg-surface-2 px-2 py-1">
+                      <p className="font-display font-bold text-coral">{row.current_streak || 0}</p>
+                      <p className="text-[9px] uppercase text-stone">Current</p>
+                    </div>
+                    <div className="rounded-lg bg-surface-2 px-2 py-1">
+                      <p className="font-display font-bold text-brass">{row.longest_streak || 0}</p>
+                      <p className="text-[9px] uppercase text-stone">Best</p>
+                    </div>
+                    <div className="rounded-lg bg-surface-2 px-2 py-1">
+                      <p className="font-display font-bold text-ink">{row.volume || row.volume_this_month || 0}</p>
+                      <p className="text-[9px] uppercase text-stone">Valid</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
 
       {boardTab === 'houses' && (
@@ -3681,7 +3718,7 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchAllChallengeSubmissions();
+      const data = await fetchAllChallengeSubmissions(instructorId);
       setSubmissions(data || []);
     } catch {}
     setLoading(false);

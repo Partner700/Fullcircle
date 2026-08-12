@@ -108,6 +108,14 @@ export async function assignCadetToTent(tentId: string, userId: string) {
   if (error) throw error;
 }
 
+export async function sentryAddCadetToTent(sentryId: string, cadetId: string) {
+  const { error } = await supabase.rpc('sentry_add_cadet_to_tent', {
+    p_sentry_id: sentryId,
+    p_cadet_id: cadetId,
+  });
+  if (error) throw error;
+}
+
 export async function fetchDailyRecords(userId: string) {
   const { data, error } = await supabase
     .from('daily_records')
@@ -796,10 +804,17 @@ export async function completeDailyGameRun(runId: string, useGoliath = false) {
   };
 }
 
-export async function fetchAllChallengeSubmissions() {
+export async function fetchAllChallengeSubmissions(reviewerId?: string) {
+  if (reviewerId) {
+    const { data, error } = await supabase.rpc('get_challenge_submissions_for_reviewer', {
+      p_reviewer_id: reviewerId,
+    });
+    if (!error) return data;
+  }
+
   const { data, error } = await supabase
     .from('challenge_submissions')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name,avatar_url)')
     .order('submitted_at', { ascending: false });
   if (error) throw error;
   return data;
@@ -811,6 +826,14 @@ export async function reviewChallengeSubmission(
   rejectionReason: string | null,
   reviewerId: string,
 ) {
+  const { error: rpcError } = await supabase.rpc('review_challenge_submission_as_reviewer', {
+    p_submission_id: id,
+    p_status: status,
+    p_rejection_reason: rejectionReason,
+    p_reviewer_id: reviewerId,
+  });
+  if (!rpcError) return;
+
   const { error } = await supabase
     .from('challenge_submissions')
     .update({

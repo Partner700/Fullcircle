@@ -59,13 +59,26 @@ function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
 }
 
 function isNearDuplicate(prompt: string, existing: string[]) {
-  const tokens = new Set(prompt.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter((token) => token.length > 2));
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const stopwords = new Set([
+    "what", "when", "where", "which", "who", "whom", "whose", "why", "how", "did", "does", "was", "were",
+    "the", "and", "for", "from", "that", "this", "with", "about", "according", "verse", "passage", "scripture",
+    "book", "character", "arena", "question", "answer",
+  ]);
+  const tokensFor = (value: string) => normalize(value)
+    .split(/\s+/)
+    .map((token) => token.replace(/(ing|ed|es|s)$/i, ""))
+    .filter((token) => token.length > 2 && !stopwords.has(token));
+  const signatureFor = (value: string) => Array.from(new Set(tokensFor(value))).sort().slice(0, 12).join(" ");
+  const signature = signatureFor(prompt);
+  const tokens = new Set(tokensFor(prompt));
   if (!tokens.size) return true;
   return existing.some((candidate) => {
-    const other = new Set(candidate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter((token) => token.length > 2));
+    if (signature && signature === signatureFor(candidate)) return true;
+    const other = new Set(tokensFor(candidate));
     const intersection = [...tokens].filter((token) => other.has(token)).length;
     const union = new Set([...tokens, ...other]).size;
-    return union > 0 && intersection / union >= 0.78;
+    return union > 0 && intersection / union >= 0.52;
   });
 }
 

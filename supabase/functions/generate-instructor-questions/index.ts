@@ -75,14 +75,33 @@ function normalizePrompt(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+const DUPLICATE_STOPWORDS = new Set([
+  "what", "when", "where", "which", "who", "whom", "whose", "why", "how", "did", "does", "was", "were",
+  "the", "and", "for", "from", "that", "this", "with", "about", "according", "verse", "passage", "scripture",
+  "day", "story", "question", "answer", "main", "theme",
+]);
+
+function contentTokens(value: string) {
+  return normalizePrompt(value)
+    .split(/\s+/)
+    .map((token) => token.replace(/(ing|ed|es|s)$/i, ""))
+    .filter((token) => token.length > 2 && !DUPLICATE_STOPWORDS.has(token));
+}
+
+function promptSignature(value: string) {
+  return Array.from(new Set(contentTokens(value))).sort().slice(0, 12).join(" ");
+}
+
 function isNearDuplicate(prompt: string, existing: string[]) {
-  const tokens = new Set(normalizePrompt(prompt).split(/\s+/).filter((token) => token.length > 2));
+  const signature = promptSignature(prompt);
+  const tokens = new Set(contentTokens(prompt));
   if (!tokens.size) return true;
   return existing.some((candidate) => {
-    const other = new Set(normalizePrompt(candidate).split(/\s+/).filter((token) => token.length > 2));
+    if (signature && signature === promptSignature(candidate)) return true;
+    const other = new Set(contentTokens(candidate));
     const intersection = [...tokens].filter((token) => other.has(token)).length;
     const union = new Set([...tokens, ...other]).size;
-    return union > 0 && intersection / union >= 0.78;
+    return union > 0 && intersection / union >= 0.52;
   });
 }
 
@@ -182,7 +201,7 @@ ${source}`;
       for (const item of raw) {
         const cleaned = cleanQuestion(item, questions.length, mode);
         if (!cleaned) continue;
-        const key = normalizePrompt(cleaned.question);
+        const key = promptSignature(cleaned.question) || normalizePrompt(cleaned.question);
         if (!key || seen.has(key) || isNearDuplicate(cleaned.question, questions.map((question) => question.question))) continue;
         seen.add(key);
         questions.push(cleaned);

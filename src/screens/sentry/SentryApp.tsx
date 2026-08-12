@@ -13,7 +13,11 @@ import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
-import { fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, uploadTentProfileImage, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements } from '../../lib/queries';
+import {
+  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, uploadTentProfileImage,
+  fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
+  fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchUnassignedUsers, sentryAddCadetToTent,
+} from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement } from '../../lib/types';
@@ -27,14 +31,14 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone, Trophy,
-  Swords, Flame, Coins,
+  Swords, Flame, Coins, Target, UserPlus, X,
 } from 'lucide-react';
 
 const CadetArena = lazy(() => import('../cadet/CadetArena').then((module) => ({ default: module.CadetArena })));
 const CadetQuiz = lazy(() => import('../cadet/CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
 const CadetAwards = lazy(() => import('../cadet/CadetAwards').then((module) => ({ default: module.CadetAwards })));
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'game' | 'arena' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'game' | 'arena' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings';
 
 type StrictStreakData = {
   current_streak: number;
@@ -47,6 +51,7 @@ const NAV_ITEMS = [
   { key: 'overview', label: 'Overview', icon: DashboardIcon },
   { key: 'attendance', label: 'Mark Attendance', icon: CalendarIcon },
   { key: 'cadets', label: 'My Cadets', icon: CadetIcon },
+  { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
   { key: 'game', label: 'Daily Game', icon: GamepadIcon },
   { key: 'arena', label: 'The Arena', icon: Swords },
@@ -61,11 +66,11 @@ const NAV_ITEMS = [
 function getInitialSentryTab(): Tab {
   if (typeof window === 'undefined') return 'overview';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'reading', 'game', 'arena', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings'];
+  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'game', 'arena', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings'];
   return tabs.includes(key as Tab) ? key as Tab : 'overview';
 }
 
-const TENT_REQUIRED_TABS = new Set<Tab>(['overview', 'attendance', 'cadets']);
+const TENT_REQUIRED_TABS = new Set<Tab>(['overview', 'attendance', 'cadets', 'challenges']);
 
 function streakForMember(
   userId: string,
@@ -240,6 +245,7 @@ export function SentryApp() {
     overview: 'Sentry Overview',
     attendance: 'Mark Attendance',
     cadets: 'My Cadets',
+    challenges: 'Challenge Review',
     reading: "Today's Reading",
     game: 'Daily Game',
     arena: 'The Arena',
@@ -265,7 +271,7 @@ export function SentryApp() {
             <span className="font-display font-bold text-coral text-[13px]">{sentryStreak}</span>
           </div>
           <NotificationCenter onNavigate={(key) => {
-            const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets' };
+            const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets', challenges: 'challenges' };
             if (destination[key]) setTab(destination[key]);
           }} />
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
@@ -316,7 +322,8 @@ export function SentryApp() {
         />
       )}
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
-      {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
+      {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} onChanged={load} />}
+      {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'game' && <CadetGame onRewardEarned={load} />}
       {tab === 'arena' && (
@@ -748,15 +755,71 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
   );
 }
 
-function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId }: {
+function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId, onChanged }: {
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
   strictStreaks: Record<string, StrictStreakData>;
   currentUserId: string;
   tentId: string;
+  onChanged: () => void;
 }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [unassigned, setUnassigned] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
+  const [selectedCadet, setSelectedCadet] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const loadUnassigned = useCallback(async () => {
+    const users = await fetchUnassignedUsers().catch(() => []);
+    setUnassigned(users);
+    setSelectedCadet(users[0]?.user_id || '');
+  }, []);
+
+  useEffect(() => {
+    if (showAdd) void loadUnassigned();
+  }, [loadUnassigned, showAdd]);
+
+  const addCadet = async () => {
+    if (!selectedCadet) return;
+    setAdding(true);
+    try {
+      await sentryAddCadetToTent(currentUserId, selectedCadet);
+      setShowAdd(false);
+      await onChanged();
+    } catch (error: any) {
+      alert(error.message || 'Could not add cadet to your tent.');
+    }
+    setAdding(false);
+  };
+
   return (
     <div className="space-y-3 animate-fade-in">
+      <div className="card p-4 bg-surface-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-display font-semibold text-ink">Tent Cadets</p>
+            <p className="text-xs text-stone">Sentries can add unassigned cadets. Only the instructor can remove or move cadets.</p>
+          </div>
+          <button onClick={() => setShowAdd((value) => !value)} className="btn-secondary text-xs">
+            {showAdd ? <X size={14} /> : <UserPlus size={14} />}
+            {showAdd ? 'Close' : 'Add Cadet'}
+          </button>
+        </div>
+        {showAdd && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <select className="input-field" value={selectedCadet} onChange={(event) => setSelectedCadet(event.target.value)}>
+              {unassigned.length === 0 ? (
+                <option value="">No unassigned cadets available</option>
+              ) : unassigned.map((cadet) => (
+                <option key={cadet.user_id} value={cadet.user_id}>{cadet.display_name}</option>
+              ))}
+            </select>
+            <button onClick={addCadet} disabled={!selectedCadet || adding} className="btn-primary text-xs disabled:opacity-50">
+              {adding ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              Add
+            </button>
+          </div>
+        )}
+      </div>
       {members.map((m) => {
         const streak = streakForMember(m.user_id, allRecords, strictStreaks);
         const stateColor = streak.removal_state === 'active' ? '#6B8E5A' : streak.removal_state === 'at_risk' ? '#C9A227' : '#B8553E';
@@ -812,6 +875,104 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
         userIds={members.map((member) => member.user_id)}
         title="My Cadets’ Meditation History"
       />
+    </div>
+  );
+}
+
+function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRefresh: () => void }) {
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setSubmissions(await fetchAllChallengeSubmissions(sentryId) || []);
+    } catch (error) {
+      console.error('Challenge review load error:', error);
+      setSubmissions([]);
+    }
+    setLoading(false);
+  }, [sentryId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const review = async (id: string, status: 'approved' | 'rejected') => {
+    if (status === 'rejected' && !rejectionReason.trim()) return;
+    setReviewingId(id);
+    try {
+      await reviewChallengeSubmission(id, status, status === 'rejected' ? rejectionReason.trim() : null, sentryId);
+      setRejectingId(null);
+      setRejectionReason('');
+      await load();
+      onRefresh();
+    } catch (error: any) {
+      alert(error.message || 'Could not review challenge.');
+    }
+    setReviewingId(null);
+  };
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+
+  const pending = submissions.filter((submission) => submission.status === 'pending');
+  const reviewed = submissions.filter((submission) => submission.status !== 'pending').slice(0, 8);
+  const renderSubmission = (submission: any, active = false) => (
+    <div key={submission.id} className={cn('card p-4', active ? 'border-gold/35' : 'bg-surface-2')}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-ink text-sm truncate">{submission.profiles?.display_name || 'Cadet'}</p>
+          <p className="text-xs text-stone">{formatShortDate(submission.narrative_date)} · {submission.proof_type || 'proof'}</p>
+        </div>
+        <span className={cn('badge text-[10px]', submission.status === 'approved' ? 'badge-moss' : submission.status === 'rejected' ? 'badge-roman' : 'badge-brass')}>
+          {submission.status}
+        </span>
+      </div>
+      {submission.proof_text && <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-stone">{submission.proof_text}</p>}
+      {active && (
+        <div className="mt-4 space-y-2">
+          {rejectingId === submission.id && (
+            <textarea className="input-field min-h-[5rem]" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Reason for rejection" />
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => review(submission.id, 'approved')} disabled={reviewingId === submission.id} className="btn-primary text-xs">
+              {reviewingId === submission.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Approve
+            </button>
+            {rejectingId === submission.id ? (
+              <button onClick={() => review(submission.id, 'rejected')} disabled={reviewingId === submission.id || !rejectionReason.trim()} className="btn-secondary text-xs text-coral disabled:opacity-50">
+                Reject
+              </button>
+            ) : (
+              <button onClick={() => setRejectingId(submission.id)} className="btn-secondary text-xs text-coral">
+                <XCircle size={13} /> Reject
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <SectionHeader title="Challenge Review" subtitle="Review evidence submitted by cadets in your tent" />
+      {pending.length === 0 && reviewed.length === 0 ? (
+        <EmptyState icon={Target} title="No challenge submissions" message="Your cadets’ submitted challenge evidence will appear here." />
+      ) : (
+        <>
+          <div className="space-y-3">
+            <h3 className="font-display font-semibold text-ink text-sm">Pending ({pending.length})</h3>
+            {pending.length ? pending.map((submission) => renderSubmission(submission, true)) : <p className="text-xs text-stone">No pending challenges.</p>}
+          </div>
+          {reviewed.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-display font-semibold text-ink text-sm">Recent Reviews</h3>
+              {reviewed.map((submission) => renderSubmission(submission))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

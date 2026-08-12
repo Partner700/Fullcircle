@@ -472,7 +472,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
         <div className="card relative overflow-hidden p-5">
           <PanelImageBackdrop image={arenaImage} opacityFallback={24} veilClassName="bg-navy-2/76" />
-          <div className="relative">
+          <div className="relative z-10">
           <h3 className="font-display text-lg font-semibold text-ink mb-1">{room?.room_name || 'Arena Room'}</h3>
           <div className="flex items-center gap-3 text-sm text-stone mb-4">
             <span className="flex items-center gap-1"><Coins size={14} className="text-gold" /> {formatDenarii(room?.stake_amount || 0)} Ð stake</span>
@@ -579,7 +579,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       <div className="card relative overflow-hidden p-4 sm:p-5">
         <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="bg-navy-2/78" />
-        <div className="relative">
+        <div className="relative z-10">
           <SectionHeader title="The Arena" subtitle="Challenge cadets and sentries to real-time quiz battles. Stake denarii, winner takes all." />
         </div>
       </div>
@@ -758,10 +758,10 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             return (
               <div key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={18} veilClassName="bg-navy-2/80" />
-                <div className="w-10 h-10 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
+                <div className="relative z-10 w-10 h-10 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
                   <Swords size={20} className="text-gold" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="relative z-10 flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
                     <p className="text-sm font-semibold text-ink truncate">{room.room_name}</p>
                     {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
@@ -776,12 +776,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
                   </div>
                 </div>
                 {isParticipant ? (
-                  <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary text-xs">
+                  <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary relative z-10 text-xs">
                     Enter Room
                   </button>
                 ) : (
                   <button onClick={() => joinRoom(room.id)} disabled={denarii < room.stake_amount || participants.length >= room.max_players}
-                    className="btn-primary text-xs disabled:opacity-40">
+                    className="btn-primary relative z-10 text-xs disabled:opacity-40">
                     {invited ? 'Join Invite' : `Join (${formatDenarii(room.stake_amount)} Ð)`}
                   </button>
                 )}
