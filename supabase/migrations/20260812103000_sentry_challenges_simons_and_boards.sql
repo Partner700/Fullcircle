@@ -289,7 +289,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT DISTINCT ON (assignment.user_id)
-    assignment.id,
+    assignment.user_id AS role_assignment_id,
     assignment.user_id,
     assignment.role,
     assignment.status,
