@@ -762,6 +762,32 @@ function AnnouncementManager() {
       </div>
 
       <div className="card p-5 space-y-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-brass/30 bg-brass/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Cake size={18} className="text-brass" />
+            <div>
+              <p className="text-sm font-semibold text-ink">Hey Everyone birthday slides</p>
+              <p className="text-xs text-stone">Birthdays post automatically; use these controls to set the birthday image or publish a special birthday announcement.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => openImageEditor('panel_image_birthday')} className="btn-secondary text-xs">
+              <ImageIcon size={14} />
+              Birthday Image
+            </button>
+            <button type="button" onClick={() => {
+              setEditingId(null);
+              setAnnouncementType('birthday');
+              setAudience('all');
+              setPublishAt(toDateTimeLocal(new Date().toISOString()));
+              setContent('');
+              setIsActive(true);
+            }} className="btn-primary text-xs">
+              <Megaphone size={14} />
+              Birthday Post
+            </button>
+          </div>
+        </div>
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">Type</label>

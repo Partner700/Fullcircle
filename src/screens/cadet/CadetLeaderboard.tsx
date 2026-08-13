@@ -4,12 +4,11 @@ import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { BoardRow, BoardList } from '../../components/BoardRow';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
-import { CoinIcon } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame, Shield, Medal } from 'lucide-react';
+import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross } from 'lucide-react';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
 
@@ -98,11 +97,11 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading challenge boards…</div>;
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = [
-    { key: 'leader', label: 'Denarii Board', icon: <CoinIcon size={16} /> },
+    { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
     { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
-    { key: 'quiz', label: 'Fig Board', icon: <FileQuestion size={16} /> },
+    { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
     { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
-    ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Medal size={16} /> }] : []),
+    ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Cross size={16} /> }] : []),
     { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
   ];
 
@@ -120,7 +119,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
-              <CoinIcon size={20} className="text-gold" />
+              <Coins size={20} className="text-gold" />
               <h3 className="font-display font-semibold text-ink">Denarii Challenge Board</h3>
               <span className="badge badge-brass text-[10px]">Live</span>
             </div>
@@ -319,7 +318,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
-              <FileQuestion size={20} className="text-royal" />
+              <BadgeCheck size={20} className="text-royal" />
               <h3 className="font-display font-semibold text-ink">Fig Board</h3>
               <span className="badge badge-neutral text-[10px] inline-flex items-center gap-1">
                 <Clock size={10} /> Saturday 3 PM
@@ -386,7 +385,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             </div>
           ) : (
             <EmptyState
-              icon={(props) => <FileQuestion {...props} />}
+              icon={(props) => <BadgeCheck {...props} />}
               title="Fig Board ready"
               message="Cadets appear here once assigned. Daily game, arena, and fortune quiz figs update live; Saturday quiz figs join at 3:00 PM."
             />
@@ -416,7 +415,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     key={row.user_id}
                     rank={row.rank}
                     name={row.display_name}
-                    value={`${row.rhudes}`}
+                    value={`${row.rhudes} ${Number(row.rhudes) === 1 ? 'Rhude' : 'Rhudes'}`}
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
                     subtext={`${row.role} · ${row.tent_name || 'No tent yet'}${row.latest_victory_at ? ` · last victory ${formatShortDate(row.latest_victory_at.slice(0, 10))}` : ''}`}
@@ -435,7 +434,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Medal size={20} className="text-brass" />
+              <Cross size={20} className="text-brass" />
               <h3 className="font-display font-semibold text-ink">Leaderboard</h3>
               <span className="badge badge-brass text-[10px]">Grand Total</span>
             </div>
@@ -461,7 +460,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
               </BoardList>
             </div>
           ) : (
-            <EmptyState icon={(props) => <Medal {...props} />} title="No Marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
+            <EmptyState icon={(props) => <Cross {...props} />} title="No Marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
           )}
         </div>
       )}

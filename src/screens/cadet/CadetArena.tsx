@@ -926,6 +926,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const [questionRetry, setQuestionRetry] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
@@ -1025,7 +1026,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       }
     })();
     return () => { cancelled = true; };
-  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId]);
+  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId, questionRetry]);
 
   const handleAnswer = useCallback(async (answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ] || turnPhase !== 'user' || !isMyTurn) return;
@@ -1156,9 +1157,32 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
 
   if (questions.length === 0) {
     return (
-      <div className="text-center py-8 space-y-4">
-        <p className="text-stone">{answerError || 'No verified questions are available for this Arena game.'}</p>
-        <button onClick={onExit} className="btn-primary">Back to Arena</button>
+      <div className="mx-auto max-w-md py-8">
+        <div className="card p-6 text-center space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-coral-soft text-coral">
+            <XCircle size={24} />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-semibold text-ink">Arena questions did not load</h3>
+            <p className="mt-1 text-sm text-stone">{answerError || 'No verified questions are available for this Arena game.'}</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setAnswerError(null);
+                setQuestions([]);
+                setReady(false);
+                setQuestionRetry((value) => value + 1);
+              }}
+              className="btn-primary"
+            >
+              <Loader2 size={14} className={cn(!ready && 'animate-spin')} />
+              Try Again
+            </button>
+            <button onClick={onExit} className="btn-secondary">Back to Arena</button>
+          </div>
+        </div>
       </div>
     );
   }
