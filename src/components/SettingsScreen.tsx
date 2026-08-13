@@ -6,7 +6,8 @@ import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
 import { BrowserNotificationSettings } from './BrowserNotificationSettings';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../lib/profileOptions';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
+import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 import { StatCard, SectionHeader } from './AppShell';
 import {
   CadetIcon, SentryIcon, InstructorIcon,
@@ -22,8 +23,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [language, setLanguage] = useState(profile?.language_code || 'en');
-  const [birthMonth, setBirthMonth] = useState(String(profile?.birth_month || ''));
-  const [birthDay, setBirthDay] = useState(String(profile?.birth_day || ''));
+  const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tentInfo, setTentInfo] = useState<{ name: string; houseId: string; sentryName?: string } | null>(null);
@@ -88,22 +88,24 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({
-      display_name: displayName,
-      whatsapp_number: whatsapp || null,
-      country_code: country,
-      language_code: language,
-      timezone: timezoneForCountry(country),
-      birth_month: birthMonth ? Number(birthMonth) : null,
-      birth_day: birthDay ? Number(birthDay) : null,
-    }).eq('id', profile.id);
-    setSaving(false);
-    if (!error) {
+    try {
+      const parsedBirthday = parseBirthdayInput(birthday);
+      await saveOwnProfilePreferences({
+        displayName,
+        whatsappNumber: whatsapp || null,
+        countryCode: country,
+        languageCode: language,
+        birthMonth: parsedBirthday.month,
+        birthDay: parsedBirthday.day,
+      });
       document.documentElement.lang = language;
       await refreshProfile();
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
+    } catch (error: any) {
+      alert(error.message || 'Could not save profile settings.');
     }
+    setSaving(false);
   };
 
   const roleIcon = role === 'cadet' ? CadetIcon : role === 'sentry' ? SentryIcon : InstructorIcon;
@@ -221,20 +223,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               </select>
             </label>
             <label className="block text-xs font-bold text-peri">
-              <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday Month</span>
-              <select className="input-field" value={birthMonth} onChange={(event) => setBirthMonth(event.target.value)}>
-                <option value="">Not set</option>
-                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                  <option key={month} value={month}>{new Date(2026, month - 1, 1).toLocaleString('en-US', { month: 'long' })}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-bold text-peri">
-              <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday Day</span>
-              <select className="input-field" value={birthDay} onChange={(event) => setBirthDay(event.target.value)}>
-                <option value="">Not set</option>
-                {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
-              </select>
+              <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday</span>
+              <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" />
             </label>
           </div>
         </div>

@@ -7,7 +7,8 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { invalidateSoundAsset } from '../../lib/soundscape';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../../lib/profileOptions';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
+import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -29,6 +30,7 @@ import {
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
+  Cake,
 } from 'lucide-react';
 import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, GAME_TYPE_LABELS } from '../../lib/gameEngines';
@@ -724,6 +726,39 @@ function AnnouncementManager() {
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Announcements" subtitle="Schedule dashboard slideshow notices for cadets, sentries, or everyone." />
+
+      <div className="card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brass/15 text-brass">
+              <Cake size={22} />
+            </div>
+            <div>
+              <h3 className="font-display text-lg font-semibold text-ink">Birthday Panel</h3>
+              <p className="text-sm text-stone">
+                The app automatically posts birthdays for the day. Add or replace the image here, or write a special birthday notice.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => openImageEditor('panel_image_birthday')} className="btn-secondary text-xs">
+              <ImageIcon size={14} />
+              Birthday Image
+            </button>
+            <button type="button" onClick={() => {
+              setEditingId(null);
+              setAnnouncementType('birthday');
+              setAudience('all');
+              setPublishAt(toDateTimeLocal(new Date().toISOString()));
+              setContent('');
+              setIsActive(true);
+            }} className="btn-primary text-xs">
+              <Megaphone size={14} />
+              Birthday Post
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="card p-5 space-y-4">
         <div className="grid md:grid-cols-3 gap-3">
@@ -3474,8 +3509,7 @@ function InstructorSettings({ profile, tents, members }: {
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [language, setLanguage] = useState(profile?.language_code || 'en');
-  const [birthMonth, setBirthMonth] = useState(String(profile?.birth_month || ''));
-  const [birthDay, setBirthDay] = useState(String(profile?.birth_day || ''));
+  const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [mmSettings, setMmSettings] = useState<MobileMoneySettings | null>(null);
   const [mmForm, setMmForm] = useState<Partial<MobileMoneySettings>>({
@@ -3517,17 +3551,19 @@ function InstructorSettings({ profile, tents, members }: {
   const save = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({
-      whatsapp_number: whatsapp,
-      country_code: country,
-      language_code: language,
-      timezone: timezoneForCountry(country),
-      birth_month: birthMonth ? Number(birthMonth) : null,
-      birth_day: birthDay ? Number(birthDay) : null,
-    }).eq('id', profile.id);
-    if (!error) {
+    try {
+      const parsedBirthday = parseBirthdayInput(birthday);
+      await saveOwnProfilePreferences({
+        whatsappNumber: whatsapp,
+        countryCode: country,
+        languageCode: language,
+        birthMonth: parsedBirthday.month,
+        birthDay: parsedBirthday.day,
+      });
       document.documentElement.lang = language;
       await refreshProfile();
+    } catch (error: any) {
+      alert(error.message || 'Could not save profile settings.');
     }
     setSaving(false);
   };
@@ -3572,20 +3608,8 @@ function InstructorSettings({ profile, tents, members }: {
             </select>
           </label>
           <label className="block text-xs text-stone">
-            <span className="mb-1 flex items-center gap-1"><Calendar size={12} /> Birthday Month</span>
-            <select className="input-field" value={birthMonth} onChange={(event) => setBirthMonth(event.target.value)}>
-              <option value="">Not set</option>
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <option key={month} value={month}>{new Date(2026, month - 1, 1).toLocaleString('en-US', { month: 'long' })}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-xs text-stone">
-            <span className="mb-1 flex items-center gap-1"><Calendar size={12} /> Birthday Day</span>
-            <select className="input-field" value={birthDay} onChange={(event) => setBirthDay(event.target.value)}>
-              <option value="">Not set</option>
-              {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
-            </select>
+            <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
+            <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" />
           </label>
         </div>
         <button onClick={save} disabled={saving} className="btn-primary text-sm">

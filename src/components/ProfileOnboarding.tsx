@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { Cake, Globe2, Languages, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES, timezoneForCountry } from '../lib/profileOptions';
+import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
+import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 
 export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
   const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [language, setLanguage] = useState(profile?.language_code || 'en');
-  const [birthMonth, setBirthMonth] = useState(String(profile?.birth_month || ''));
-  const [birthDay, setBirthDay] = useState(String(profile?.birth_day || ''));
+  const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,22 +21,25 @@ export function ProfileOnboarding() {
       setError('Enter a complete WhatsApp number, including the country code.');
       return;
     }
-    if (!birthMonth || !birthDay) {
-      setError('Choose your birthday month and day.');
+    let parsedBirthday;
+    try {
+      parsedBirthday = parseBirthdayInput(birthday, true);
+    } catch (birthdayError: any) {
+      setError(birthdayError.message || 'Enter your birthday as MM/DD.');
       return;
     }
     setSaving(true);
     setError(null);
-    const { error: updateError } = await supabase.from('profiles').update({
-      country_code: country,
-      whatsapp_number: phone,
-      language_code: language,
-      timezone: timezoneForCountry(country),
-      birth_month: Number(birthMonth),
-      birth_day: Number(birthDay),
-      onboarding_completed: true,
-    }).eq('id', profile.id);
-    if (updateError) {
+    try {
+      await saveOwnProfilePreferences({
+        whatsappNumber: phone,
+        countryCode: country,
+        languageCode: language,
+        birthMonth: parsedBirthday.month,
+        birthDay: parsedBirthday.day,
+        onboardingCompleted: true,
+      });
+    } catch (updateError: any) {
       setError(updateError.message);
       setSaving(false);
       return;
@@ -74,18 +76,7 @@ export function ProfileOnboarding() {
         </label>
         <div>
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Cake size={16} /> Birthday</span>
-          <div className="grid grid-cols-2 gap-3">
-            <select className="input-field" value={birthMonth} onChange={(event) => setBirthMonth(event.target.value)} required>
-              <option value="">Month</option>
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <option key={month} value={month}>{new Date(2026, month - 1, 1).toLocaleString('en-US', { month: 'long' })}</option>
-              ))}
-            </select>
-            <select className="input-field" value={birthDay} onChange={(event) => setBirthDay(event.target.value)} required>
-              <option value="">Day</option>
-              {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}
-            </select>
-          </div>
+          <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" required />
           <span className="mt-1 block text-xs text-stone">We only store the month and day, so the app can celebrate you.</span>
         </div>
         {error && <div className="rounded-lg bg-coral-soft p-3 text-sm text-coral">{error}</div>}

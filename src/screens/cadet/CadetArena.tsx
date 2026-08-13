@@ -930,6 +930,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const [machineScore, setMachineScore] = useState(0);
   const [turnPhase, setTurnPhase] = useState<'user' | 'user-feedback' | 'machine-thinking' | 'machine-feedback'>('user');
   const [answerFeedback, setAnswerFeedback] = useState<{ correct: boolean; answer: string } | null>(null);
+  const [latestOutcome, setLatestOutcome] = useState<{ player: string; correct: boolean; answer: string } | null>(null);
   const [matchPlayers, setMatchPlayers] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
@@ -992,8 +993,10 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     setCurrentQ(nextIndex);
     setTypedAnswer('');
     setAnswerFeedback(null);
+    const latest = answerFeed[answerFeed.length - 1];
+    if (latest) setLatestOutcome({ player: latest.display_name, correct: latest.is_correct, answer: latest.submitted_answer || 'No answer' });
     setTurnPhase(matchPlayers[nextIndex % matchPlayers.length]?.user_id === userId ? 'user' : 'machine-thinking');
-  }, [answerFeed.length, machineMatch, matchPlayers, questions.length, ready, userId, completeGame]);
+  }, [answerFeed, answerFeed.length, machineMatch, matchPlayers, questions.length, ready, userId, completeGame]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1066,6 +1069,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     setScore(nextScore);
     setCorrectCount(nextCorrectCount);
     setAnswerFeedback({ correct: result.correct, answer: answer || 'No answer' });
+    setLatestOutcome({ player: profile?.display_name || 'You', correct: result.correct, answer: answer || 'No answer' });
     setTurnPhase('user-feedback');
     void refreshAnswerFeed();
     setSubmittingAnswer(false);
@@ -1107,6 +1111,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     const earned = result.machineFigs;
     const nextMachineScore = result.machineTotalFigs;
     setMachineScore(nextMachineScore);
+    setLatestOutcome({ player: 'The Scribe', correct: machineCorrect, answer: selected });
     setMachineAnswerFeed((current) => [...current, {
       user_id: 'arena-machine',
       display_name: `The Scribe · ${machineDifficulty.charAt(0).toUpperCase()}${machineDifficulty.slice(1)}`,
@@ -1213,6 +1218,15 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         <span>Live score: <span className="text-ink font-semibold">You {score}</span>{machineMatch ? ` · The Scribe ${machineScore}` : opponentScores.map((opponent) => ` · ${opponent.name} ${opponent.figs}`).join('')}</span>
         <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
       </div>
+
+      {latestOutcome && (
+        <div className={cn('rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm',
+          latestOutcome.correct ? 'border-sage/35 bg-sage-soft text-sage' : 'border-coral/35 bg-coral-soft text-coral',
+        )}>
+          {latestOutcome.player}: {latestOutcome.correct ? 'Right answer' : 'Wrong answer'}
+          <span className="ml-1 font-medium opacity-80">({latestOutcome.answer})</span>
+        </div>
+      )}
 
       {machineMatch && turnPhase.startsWith('machine') && (
         <div className={cn('card border-2 p-4 transition-all', turnPhase === 'machine-thinking' ? 'border-gold/45' : latestMachineAnswer?.is_correct ? 'border-sage/45' : 'border-coral/45')}>
