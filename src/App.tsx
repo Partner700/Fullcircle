@@ -6,10 +6,10 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
+import { CadetApp } from './screens/cadet/CadetApp';
 
 // Role applications are large, independent experiences. Load only the one the
 // signed-in person needs instead of making every user download all three.
-const CadetApp = lazy(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp })));
 const SentryApp = lazy(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp })));
 const InstructorApp = lazy(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp })));
 
