@@ -13,6 +13,7 @@ import type { RoadHomeResponse } from './roadHomeTypes';
 import { prepareImageUpload } from './uploads';
 import { getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
+import { generateInstructorFallbackQuestions } from './questionGenerator';
 
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
@@ -1707,21 +1708,33 @@ export async function generateInstructorQuestionsWithAI(payload: {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before generating questions.');
-  const response = await fetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: supabaseAnonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const raw = await response.text();
-  let result: { questions?: QuestionPayload[]; error?: string } = {};
-  try { result = raw ? JSON.parse(raw) : {}; } catch { /* Use the HTTP fallback below. */ }
-  if (!response.ok) throw new Error(result.error || raw || 'AI question generation failed.');
-  if (!Array.isArray(result.questions)) throw new Error('The AI generator returned no questions.');
-  return result.questions;
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const raw = await response.text();
+    let result: { questions?: QuestionPayload[]; error?: string } = {};
+    try { result = raw ? JSON.parse(raw) : {}; } catch { /* Use the HTTP fallback below. */ }
+    if (!response.ok) throw new Error(result.error || raw || 'AI question generation failed.');
+    if (!Array.isArray(result.questions)) throw new Error('The AI generator returned no questions.');
+    return result.questions;
+  } catch (error: any) {
+    const { data, error: narrativeError } = await supabase
+      .from('daily_narratives')
+      .select('*')
+      .in('narrative_date', payload.narrativeDates)
+      .order('narrative_date', { ascending: true });
+    if (narrativeError) throw error;
+    const fallback = generateInstructorFallbackQuestions((data || []) as DailyNarrative[], payload.mode, payload.count);
+    if (fallback.length > 0) return fallback;
+    throw error;
+  }
 }
 
 async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHomeResponse> {

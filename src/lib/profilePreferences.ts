@@ -7,12 +7,12 @@ export function formatBirthdayInput(month?: number | null, day?: number | null) 
 }
 
 export function parseBirthdayInput(value: string, required = false) {
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/\s+/g, '');
   if (!trimmed) {
     if (required) throw new Error('Enter your birthday as MM/DD.');
     return { month: null as number | null, day: null as number | null };
   }
-  const match = trimmed.match(/^(\d{1,2})\s*\/\s*(\d{1,2})$/);
+  const match = trimmed.match(/^(\d{1,2})[\/.\-](\d{1,2})$/);
   if (!match) throw new Error('Enter your birthday as MM/DD, for example 08/12.');
   const month = Number(match[1]);
   const day = Number(match[2]);

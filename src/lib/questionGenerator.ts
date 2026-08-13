@@ -543,3 +543,169 @@ export function generateQuizQuestions(
 
   return final.slice(0, 10);
 }
+
+function sentenceBank(narrative: DailyNarrative): string[] {
+  const source = [
+    narrative.main_text,
+    narrative.game_seed_data?.passage,
+    narrative.highlighted_verses?.map((verse) => `${verse.reference}: ${verse.text}`).join(' '),
+  ].filter(Boolean).join(' ');
+  return source
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 35)
+    .slice(0, 18);
+}
+
+function ensureFourOptions(correct: string, pool: string[]) {
+  const fallback = [
+    'A detail that belongs to another part of the passage',
+    'A conclusion that sounds close but changes the meaning',
+    'A statement that ignores the main theme',
+    'A possible answer that is not supported by the scripture',
+  ];
+  return shuffle([correct, ...shuffle([...pool, ...fallback].filter((item) => item && item !== correct)).slice(0, 3)]).slice(0, 4);
+}
+
+function fallbackNarrativeQuestions(narrative: DailyNarrative, count: number, mode: 'quiz' | 'game'): QuestionPayload[] {
+  const seed = narrative.game_seed_data || {};
+  const sentences = sentenceBank(narrative);
+  const terms = seed.term_facts || [];
+  const plots = seed.plot_points || seed.ordered_units || [];
+  const chars = seed.characters || [];
+  const refs = seed.cross_reference_anchors || [];
+  const pool = [
+    narrative.theme,
+    narrative.title,
+    ...(seed.key_terms || []),
+    ...(seed.objects || []),
+    ...(seed.actions || []),
+    ...chars,
+    ...plots,
+    ...refs,
+  ].filter(Boolean);
+  const reference = seed.key_verse?.reference || narrative.scripture_reference;
+  const passage = passageExcerpt(narrative.main_text || seed.passage || seed.key_verse?.text, 520);
+  const questions: QuestionPayload[] = [];
+
+  if (seed.key_verse?.text) {
+    questions.push({
+      type: 'multiple_choice',
+      question: `Which option most faithfully preserves the key verse for "${narrative.title}"?`,
+      options: ensureFourOptions(seed.key_verse.text, pool),
+      correct_answer: seed.key_verse.text,
+      reference: seed.key_verse.reference,
+      passage,
+      explanation: `The correct answer keeps the wording and emphasis of ${seed.key_verse.reference}.`,
+    });
+  }
+
+  if (terms.length) {
+    for (const item of terms.slice(0, 4)) {
+      questions.push({
+        type: 'multiple_choice',
+        question: `Why does "${item.term}" matter to the theme "${narrative.theme}"?`,
+        options: ensureFourOptions(item.fact, terms.map((term) => term.fact).concat(pool)),
+        correct_answer: item.fact,
+        reference,
+        passage,
+        explanation: `This detail helps readers connect the passage to ${narrative.theme}.`,
+      });
+    }
+  }
+
+  if (plots.length >= 2) {
+    plots.slice(0, 6).forEach((plot, index) => {
+      const next = plots[index + 1] || plots[0];
+      questions.push({
+        type: 'multiple_choice',
+        question: `What detail follows after "${plot}" in the flow of the passage?`,
+        options: ensureFourOptions(next, plots.concat(pool)),
+        correct_answer: next,
+        reference,
+        passage,
+        explanation: 'This tests the order of thought or action in the scripture.',
+      });
+    });
+  }
+
+  if (chars.length) {
+    chars.slice(0, 4).forEach((name) => {
+      questions.push({
+        type: 'multiple_choice',
+        question: `Which observation best fits ${name}'s place in "${narrative.title}"?`,
+        options: ensureFourOptions(plots[0] || narrative.theme, pool.concat(sentences.slice(0, 4))),
+        correct_answer: plots[0] || narrative.theme,
+        reference,
+        passage,
+        explanation: `The answer should fit ${name}'s role without forcing a detail the passage does not give.`,
+      });
+    });
+  }
+
+  sentences.slice(0, 8).forEach((sentence, index) => {
+    questions.push({
+      type: index % 3 === 0 ? 'standard_text' : 'multiple_choice',
+      question: index % 3 === 0
+        ? `Write the key idea this sentence contributes to the passage: "${passageExcerpt(sentence, 120)}"`
+        : `Which sentence detail best supports the theme "${narrative.theme}"?`,
+      options: index % 3 === 0 ? undefined : ensureFourOptions(sentence, sentences.concat(pool)),
+      correct_answer: index % 3 === 0 ? narrative.theme : sentence,
+      reference,
+      passage,
+      explanation: 'The best answer is anchored in the wording of the scripture, not in a guess outside it.',
+    });
+  });
+
+  questions.push({
+    type: 'true_false',
+    question: `True or False: "${narrative.title}" should be interpreted with the theme "${narrative.theme}" in mind.`,
+    options: ['True', 'False'],
+    correct_answer: 'True',
+    reference,
+    passage,
+    explanation: 'The instructor-supplied title and theme are part of the intended teaching frame.',
+  });
+
+  const seen = new Set<string>();
+  return shuffle(questions).filter((question, index) => {
+    const key = `${question.type}:${String(question.question).toLowerCase().replace(/\s+/g, ' ').trim()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    if (mode === 'game') {
+      question.game_round = Math.min(3, Math.floor(index / 5) + 1);
+      question.difficulty_tag = question.game_round === 1 ? 'easy' : question.game_round === 2 ? 'moderate' : 'hard';
+    } else {
+      question.difficulty_tag = index < 3 ? 'easy' : index < 7 ? 'moderate' : 'hard';
+    }
+    return true;
+  }).slice(0, count);
+}
+
+export function generateInstructorFallbackQuestions(
+  narratives: DailyNarrative[],
+  mode: 'quiz' | 'game',
+  count: number,
+): QuestionPayload[] {
+  const safeNarratives = narratives.filter((narrative) => narrative.main_text || narrative.game_seed_data || narrative.theme);
+  if (!safeNarratives.length) return [];
+  const generated = safeNarratives.flatMap((narrative) => fallbackNarrativeQuestions(narrative, count, mode));
+  const seen = new Set<string>();
+  const unique = generated.filter((question) => {
+    const key = `${question.type}:${String(question.question || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const ordered = mode === 'game'
+    ? unique.sort((a, b) => (a.game_round || 1) - (b.game_round || 1))
+    : unique;
+  return ordered.slice(0, count).map((question, index) => ({
+    ...question,
+    game_round: mode === 'game' ? Math.min(3, Math.floor(index / 5) + 1) : question.game_round,
+    difficulty_tag: mode === 'game'
+      ? (index < 5 ? 'easy' : index < 10 ? 'moderate' : 'hard')
+      : (index < 3 ? 'easy' : index < 7 ? 'moderate' : 'hard'),
+  }));
+}
