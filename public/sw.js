@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v20';
+const CACHE_VERSION = 'full-circle-v22';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -16,8 +16,6 @@ const LEGACY_CACHES = [
 ];
 
 const APP_SHELL = [
-  '/',
-  '/index.html',
   '/offline.html',
   '/manifest.webmanifest',
   '/robots.txt',
@@ -282,7 +280,7 @@ function isGoogleFont(url) {
 async function networkFirstNavigation(request, preloadResponsePromise) {
   const cache = await caches.open(RUNTIME_CACHE);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const preloadedResponse = preloadResponsePromise ? await preloadResponsePromise : null;
@@ -291,20 +289,10 @@ async function networkFirstNavigation(request, preloadResponsePromise) {
         signal: controller.signal,
       });
 
-    if (networkResponse.ok && networkResponse.type === 'basic') {
-      cache.put('/index.html', networkResponse.clone());
-    }
     return networkResponse;
   } catch (error) {
-    // Try to serve cached index.html
-    const cachedResponse =
-      (await cache.match('/index.html')) ||
-      (await caches.match('/index.html')) ||
-      (await caches.match('/'));
-
-    if (cachedResponse) return cachedResponse;
-
-    // Last resort: serve offline page
+    // Do not serve stale app HTML. If the phone is online but the server is
+    // slow, failing loudly is better than booting an old instructor/cadet shell.
     const offlineResponse = await caches.match('/offline.html');
     if (offlineResponse) return offlineResponse;
 
