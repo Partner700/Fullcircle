@@ -247,17 +247,13 @@ export function CadetNarrative({
             {narrative.title}
           </h2>
           <p className="text-sm text-stone mt-1.5">{narrative.theme}</p>
-          {streakCount > 0 && (
-            <p className="mt-3 text-sm font-semibold text-moss">Your current streak: {streakCount} day{streakCount === 1 ? '' : 's'}</p>
-          )}
         </div>
       </div>
 
       {narrative.verse_of_day && (
         <div
-          className="card relative overflow-hidden p-5 animate-slide-up border-brass/30"
+          className="card reading-glass-panel relative overflow-hidden p-5 animate-slide-up border-brass/30"
           style={{
-            backgroundColor: 'transparent',
             backdropFilter: 'blur(14px) saturate(1.12)',
           }}
         >
@@ -277,9 +273,8 @@ export function CadetNarrative({
 
       {/* ── Scripture text ── */}
       <div
-        className="card p-5 animate-slide-up border-border"
+        className="card reading-glass-panel p-5 animate-slide-up border-border"
         style={{
-          backgroundColor: 'transparent',
           backdropFilter: 'blur(14px) saturate(1.12)',
         }}
       >

@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame, Swords, Medal } from 'lucide-react';
+import { Trophy, Clock, Crown, Tent as TentIcon, FileQuestion, Flame, Shield, Medal } from 'lucide-react';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
 
@@ -38,7 +38,7 @@ function sentryLine(names: string[] | null | undefined): string | undefined {
   return `Sentr${names.length === 1 ? 'y' : 'ies'}: ${names.join(', ')}`;
 }
 
-export function CadetLeaderboard() {
+export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: boolean } = {}) {
   const { profile } = useAuth();
   const [tab, setTab] = useState<BoardTab>('leader');
   const [streakRows, setStreakRows] = useState<(StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
@@ -97,16 +97,22 @@ export function CadetLeaderboard() {
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading challenge boards…</div>;
 
+  const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = [
+    { key: 'leader', label: 'Denarii Board', icon: <CoinIcon size={16} /> },
+    { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
+    { key: 'quiz', label: 'Fig Board', icon: <FileQuestion size={16} /> },
+    { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
+    ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Medal size={16} /> }] : []),
+    { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
+  ];
+
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Board tabs */}
       <div className="grid grid-cols-2 gap-1 p-1 bg-surface-2 rounded-lg w-full border border-border sm:flex sm:w-fit">
-        <BoardTabButton active={tab === 'leader'} onClick={() => setTab('leader')} icon={<CoinIcon size={16} />} label="Denarii Board" />
-        <BoardTabButton active={tab === 'streak'} onClick={() => setTab('streak')} icon={<Flame size={16} />} label="Streak Board" />
-        <BoardTabButton active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<FileQuestion size={16} />} label="Quiz Board" />
-        <BoardTabButton active={tab === 'rhude'} onClick={() => setTab('rhude')} icon={<Swords size={16} className="-rotate-12" />} label="Rhude Board" />
-        <BoardTabButton active={tab === 'marks'} onClick={() => setTab('marks')} icon={<Medal size={16} />} label="Marks Board" />
-        <BoardTabButton active={tab === 'tent_house'} onClick={() => setTab('tent_house')} icon={<TentIcon size={16} />} label="Tent Board" />
+        {tabs.map((item) => (
+          <BoardTabButton key={item.key} active={tab === item.key} onClick={() => setTab(item.key)} icon={item.icon} label={item.label} />
+        ))}
       </div>
 
       {/* Denarii Leaderboard (live) */}
@@ -381,24 +387,24 @@ export function CadetLeaderboard() {
           ) : (
             <EmptyState
               icon={(props) => <FileQuestion {...props} />}
-              title="Quiz board ready"
+              title="Fig Board ready"
               message="Cadets appear here once assigned. Daily game, arena, and fortune quiz figs update live; Saturday quiz figs join at 3:00 PM."
             />
           )}
         </div>
       )}
 
-      {/* Rhude Board */}
+      {/* Valley Board */}
       {tab === 'rhude' && (
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Swords size={20} className="-rotate-12 text-sage" />
-              <h3 className="font-display font-semibold text-ink">Rhude Board</h3>
+              <Shield size={20} className="text-sage" />
+              <h3 className="font-display font-semibold text-ink">Valley Board</h3>
               <span className="badge badge-moss text-[10px]">Arena Victories</span>
             </div>
             <p className="text-xs text-stone">
-              One Rhude equals one Arena victory. Cadets and sentries both appear here.
+              Rhudes measure Arena victories. Cadets and sentries both appear here.
             </p>
           </div>
 
@@ -419,18 +425,18 @@ export function CadetLeaderboard() {
               </BoardList>
             </div>
           ) : (
-            <EmptyState icon={(props) => <Swords {...props} className={cn(props.className, '-rotate-12')} />} title="No Rhudes yet" message="One Rhude is added for every Arena victory. Victors appear here as soon as a match is settled." />
+            <EmptyState icon={(props) => <Shield {...props} />} title="No Rhudes yet" message="One Rhude is added for every Arena victory. Victors appear here as soon as a match is settled." />
           )}
         </div>
       )}
 
-      {/* Marks Board */}
-      {tab === 'marks' && (
+      {/* Instructor Leaderboard */}
+      {instructorMode && tab === 'marks' && (
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-1">
               <Medal size={20} className="text-brass" />
-              <h3 className="font-display font-semibold text-ink">Marks Board</h3>
+              <h3 className="font-display font-semibold text-ink">Leaderboard</h3>
               <span className="badge badge-brass text-[10px]">Grand Total</span>
             </div>
             <p className="text-xs text-stone">
@@ -455,7 +461,7 @@ export function CadetLeaderboard() {
               </BoardList>
             </div>
           ) : (
-            <EmptyState icon={(props) => <Medal {...props} />} title="No marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
+            <EmptyState icon={(props) => <Medal {...props} />} title="No Marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
           )}
         </div>
       )}
@@ -470,7 +476,7 @@ export function CadetLeaderboard() {
               <span className="badge badge-brass text-[10px]">Live</span>
             </div>
             <p className="text-xs text-stone">
-              Actual tents ranked by aggregate denarii and streak days from their cadets. Sentry names and tent pictures appear here.
+              Actual tents ranked by aggregate Marks from their cadets. Sentry names and tent pictures appear here.
             </p>
           </div>
 
@@ -501,13 +507,13 @@ export function CadetLeaderboard() {
                             <p className="text-sm font-medium truncate text-ink">{row.tent_name}</p>
                             {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
                           </div>
-		                          <span className="text-xs text-stone">{row.cadet_count} cadets · streak {row.total_streak} · {tint.label} honor</span>
+		                          <span className="text-xs text-stone">{row.cadet_count} cadets · {Math.round(Number(row.combined_score || 0))} Marks · {tint.label} honor</span>
                               <p className="text-[11px] text-stone truncate mt-0.5">{Number(row.total_figs || 0)} figs · {formatDenarii(row.total_denarii)}D</p>
 		                          {sentries && <p className="text-[11px] text-stone truncate mt-0.5">{sentries}</p>}
 		                        </div>
                         <div className="text-right flex-shrink-0">
-	                          <span className="text-sm font-medium text-ink">{formatDenarii(row.combined_score)}</span>
-	                          <p className="text-[10px] text-stone">{Number(row.total_figs || 0)} figs · {row.total_streak} streak</p>
+	                          <span className="text-sm font-medium text-ink">{Math.round(Number(row.combined_score || 0))}</span>
+	                          <p className="text-[10px] text-stone">Marks</p>
                         </div>
                       </div>
                     );
@@ -518,10 +524,10 @@ export function CadetLeaderboard() {
 	                        key={row.tent_id}
 	                      rank={row.rank}
 	                      name={row.tent_name}
-		                      value={formatDenarii(row.combined_score)}
+		                      value={`${Math.round(Number(row.combined_score || 0))}`}
 		                      houseId={row.tent_house_id || undefined}
 		                      isCurrentUser={false}
-		                      subtext={[`${formatDenarii(row.total_denarii)}D`, `${Number(row.total_figs || 0)} figs`, `${row.total_streak} streak days`, sentries].filter(Boolean).join(' · ')}
+		                      subtext={[`Marks`, `${formatDenarii(row.total_denarii)}D`, `${Number(row.total_figs || 0)} figs`, `${row.total_streak} streaks`, sentries].filter(Boolean).join(' · ')}
 		                    />
                   );
                 })}

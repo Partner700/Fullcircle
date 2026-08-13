@@ -144,6 +144,21 @@
     background: var(--color-navy-3);
     color: var(--color-peri);
   }
+
+  .reading-glass-panel {
+    background: color-mix(in srgb, var(--color-navy-2) 18%, transparent);
+    box-shadow: 0 18px 55px rgba(7, 24, 43, 0.18);
+  }
+
+  [data-theme="day"] .reading-glass-panel {
+    background: color-mix(in srgb, #ffffff 86%, transparent);
+    border-color: rgba(13, 33, 55, 0.16);
+    box-shadow: 0 18px 55px rgba(13, 33, 55, 0.1);
+  }
+
+  [data-theme="night"] .reading-glass-panel {
+    background: color-mix(in srgb, var(--color-navy-2) 20%, transparent);
+  }
 }
 
 @layer components {

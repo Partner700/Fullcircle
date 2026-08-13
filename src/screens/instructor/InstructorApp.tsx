@@ -6,6 +6,7 @@ import { NotificationCenter } from '../../components/NotificationCenter';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
+import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -256,7 +257,7 @@ export function InstructorApp() {
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
-      {tab === 'leaderboard' && <InstructorLeaderboard />}
+      {tab === 'leaderboard' && <CadetLeaderboard instructorMode />}
       {tab === 'matricules' && <MatriculesManagement />}
       {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}
       {tab === 'quiz' && <QuizBuilder />}
@@ -734,9 +735,9 @@ function AnnouncementManager() {
               <Cake size={22} />
             </div>
             <div>
-              <h3 className="font-display text-lg font-semibold text-ink">Birthday Panel</h3>
+              <h3 className="font-display text-lg font-semibold text-ink">Hey Everyone Birthday Panel</h3>
               <p className="text-sm text-stone">
-                The app automatically posts birthdays for the day. Add or replace the image here, or write a special birthday notice.
+                The app automatically posts birthday slides for the day. Add or replace the birthday image here, or write a special Hey Everyone birthday notice.
               </p>
             </div>
           </div>

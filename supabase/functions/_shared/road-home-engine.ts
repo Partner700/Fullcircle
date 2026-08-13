@@ -16,11 +16,11 @@ export const ROAD_HOME_CONFIG = {
     roll: 15,
     pawn: 15,
     inheritedDecision: 10,
-    easy: 12,
-    medium: 9,
-    hard: 6,
-    expert: 6,
-    veryHard: 6,
+    easy: 17,
+    medium: 14,
+    hard: 11,
+    expert: 11,
+    veryHard: 11,
   },
   safeSpaces: [0, 8, 13, 21, 26, 34, 39, 47],
   prisonSpaces: [6, 19, 32, 45],
@@ -199,7 +199,7 @@ const FALLBACK_QUESTIONS: RoadHomeQuestion[] = [
   reference,
   explanation: `See ${reference}.`,
   difficulty: index < 5 ? 'easy' : index < 10 ? 'medium' : index < 15 ? 'hard' : 'expert',
-  timerSeconds: index < 5 ? 12 : index < 10 ? 9 : 6,
+  timerSeconds: index < 5 ? 17 : index < 10 ? 14 : 11,
 }));
 
 function nowIso() {

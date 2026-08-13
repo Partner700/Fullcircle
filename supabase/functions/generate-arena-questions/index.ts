@@ -66,7 +66,7 @@ function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
     ? q.type as QuestionPayload["type"]
     : "multiple_choice";
   const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
-  const seconds = round === 1 ? 12 : round === 2 ? 9 : 6;
+  const seconds = round === 1 ? 17 : round === 2 ? 14 : 11;
   const options = type === "multiple_choice"
     ? Array.from(new Set((q.options || []).map((item) => String(item).trim()).filter(Boolean))).slice(0, 4)
     : type === "true_false" ? ["True", "False"] : undefined;
@@ -194,7 +194,7 @@ async function waitForRoomQuestions(roomId: string, minimumCount: number) {
 }
 
 function parseRoomTopic(roomName: string) {
-  const match = roomName.match(/\[(book|character):\s*([^\]]+)\]/i);
+  const match = roomName.match(/\[(book|character|set):\s*([^\]]+)\]/i);
   return match ? { type: match[1].toLowerCase(), value: match[2].trim() } : null;
 }
 
@@ -204,10 +204,10 @@ function roomDifficulty(roomName: string) {
 }
 
 function packetLevel(difficulty: string) {
-  if (difficulty === "easy") return "Fast Arena packet: every question is hard but the machine is weaker; use 12-second player turns.";
-  if (difficulty === "medium") return "Fast Arena packet: every question is hard and denser; use 9-second player turns.";
-  if (difficulty === "hard") return "Fast Arena packet: every question is hard, close-reading based, and tense; use 6-second player turns.";
-  return "Fast Arena packet: all questions are hard, varied, and built for speed plus accuracy.";
+  if (difficulty === "easy") return "Fast Arena packet: question turns last 17 seconds; begin very easy, then climb steadily into difficult close-reading questions.";
+  if (difficulty === "medium") return "Fast Arena packet: question turns last 14 seconds; begin very easy, then climb steadily into difficult close-reading questions.";
+  if (difficulty === "hard") return "Fast Arena packet: question turns last 11 seconds; begin very easy, then climb steadily into very difficult close-reading questions.";
+  return "Fast Arena packet: varied, fair, and built for speed plus accuracy; begin very easy and end very difficult.";
 }
 
 const FALLBACK_FACTS: FallbackFact[] = [
@@ -246,6 +246,11 @@ const FALLBACK_FACTS: FallbackFact[] = [
 function fallbackQuestion(fact: FallbackFact, index: number, difficulty: string, gameType: string): QuestionPayload {
   const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
   const prefix = gameType === "ludo" ? `Road ${Math.floor(index / 6) + 1}` : `Arena ${index + 1}`;
+  const difficultyTag = index < Math.max(3, Math.floor((gameType === "ludo" ? 120 : 19) * 0.28))
+    ? "easy"
+    : index < Math.max(8, Math.floor((gameType === "ludo" ? 120 : 19) * 0.64))
+      ? "moderate"
+      : "hard";
   const lenses = [
     "Which detail best survives a close reading?",
     "Which option fits the sequence without smuggling in a false detail?",
@@ -260,17 +265,36 @@ function fallbackQuestion(fact: FallbackFact, index: number, difficulty: string,
     correct_answer: fact.answer,
     explanation: fact.explanation,
     reference: fact.reference,
-    difficulty_tag: "hard",
+    difficulty_tag: difficultyTag,
     game_round: round,
-    round_timer_seconds: round === 1 ? 12 : round === 2 ? 9 : 6,
+    round_timer_seconds: round === 1 ? 17 : round === 2 ? 14 : 11,
     is_bonus: index === 18,
   };
 }
 
-function buildFallbackDeck(targetCount: number, difficulty: string, gameType: string, seed: string) {
+function factSet(fact: FallbackFact) {
+  const value = fact.bank.toLowerCase();
+  if (value.includes("characters")) return "characters";
+  if (value.includes("books")) return "books";
+  return "themes";
+}
+
+function normaliseSet(value: string | null | undefined): keyof typeof ARENA_BANKS | "all" {
+  const clean = String(value || "").toLowerCase();
+  if (clean.includes("character")) return "characters";
+  if (clean.includes("book")) return "books";
+  if (clean.includes("theme")) return "themes";
+  return "all";
+}
+
+function buildFallbackDeck(targetCount: number, difficulty: string, gameType: string, seed: string, selectedSet: keyof typeof ARENA_BANKS | "all" = "all") {
   const seedValue = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const focus = bankFocus(seed);
-  const sortedFacts = [...FALLBACK_FACTS].sort((left, right) => {
+  const focus = selectedSet === "all" ? bankFocus(seed) : {
+    category: selectedSet,
+    bank: ARENA_BANKS[selectedSet][Math.floor(seedValue / 3) % ARENA_BANKS[selectedSet].length],
+  };
+  const availableFacts = selectedSet === "all" ? FALLBACK_FACTS : FALLBACK_FACTS.filter((fact) => factSet(fact) === selectedSet);
+  const sortedFacts = [...availableFacts].sort((left, right) => {
     const leftScore = [...`${seed}|${left.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const rightScore = [...`${seed}|${right.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     return leftScore - rightScore;
@@ -307,6 +331,8 @@ async function generateBatch(
   gameType: string,
   packetSeed: string,
   excludedPrompts: string[],
+  selectedSet: keyof typeof ARENA_BANKS | "all",
+  selectedBank: string | null,
 ) {
   const formatRule = gameType === "ludo"
     ? "This is a long four-pawn Ludo match. Vary chronology, speakers, motives, consequences, comparisons, and exact details."
@@ -322,6 +348,8 @@ Rules:
 - Requested machine level: ${difficulty}. Every question must still be hard; the level only affects timer pressure and machine accuracy.
 - Question packet: ${packetLevel(difficulty)}
 - Packet seed: ${packetSeed}. Use this seed to vary angle, ordering, and detail focus; do not recreate a previous machine-match deck.
+- Selected set: ${selectedSet === "all" ? "weekly narrative" : selectedSet}. ${selectedBank ? `Random bank for this match: ${selectedBank}.` : ""}
+- Difficulty arc: the first questions should be very easy and confidence-building, the middle questions should require reasoning and careful memory, and the final questions should be very difficult but still fair.
 - Source focus: ${source}
 - Do not repeat or paraphrase these existing prompts: ${excludedPrompts.slice(-160).join(" | ") || "none"}
 Return only JSON: {"questions":[{"type":"multiple_choice","question":"...","options":["..."],"correct_answer":"...","explanation":"...","reference":"..."}]}`;
@@ -381,8 +409,10 @@ Deno.serve(async (req) => {
 
     const topic = parseRoomTopic(room.room_name);
     const narrative = await fetchNarrative(room.narrative_date);
+    const selectedSet = topic?.type === "set" ? normaliseSet(topic.value) : normaliseSet(topic?.type);
+    const selectedBank = selectedSet === "all" ? null : ARENA_BANKS[selectedSet][[...`${roomId}|${topic?.value || selectedSet}`].reduce((sum, char) => sum + char.charCodeAt(0), 0) % ARENA_BANKS[selectedSet].length];
     const source = topic
-      ? `${topic.type}: ${topic.value}`
+      ? `${topic.type === "set" ? "arena set" : topic.type}: ${topic.value}${selectedBank ? `; selected bank: ${selectedBank}` : ""}`
       : `weekly narrative: ${narrative?.title || "Untitled"}; theme: ${narrative?.theme || ""}; scripture: ${narrative?.scripture_reference || ""}; main text: ${String(narrative?.main_text || "").slice(0, 14000)}`;
     const difficulty = roomDifficulty(room.room_name);
     const packetSeed = [
@@ -407,6 +437,8 @@ Deno.serve(async (req) => {
           gameType,
           `${packetSeed}|batch:${attempt + 1}`,
           questions.map((question) => question.question),
+          selectedSet,
+          selectedBank,
         );
         for (const item of generated) {
           const cleaned = cleanQuestion(item, questions.length);
@@ -420,10 +452,10 @@ Deno.serve(async (req) => {
       }
     } catch (error) {
       if (!isQuotaOrProviderFailure(error)) throw error;
-      questions = buildFallbackDeck(targetCount, difficulty, gameType, packetSeed);
+      questions = buildFallbackDeck(targetCount, difficulty, gameType, packetSeed, selectedSet);
     }
 
-    if (questions.length < targetCount) questions = buildFallbackDeck(targetCount, difficulty, gameType, `${packetSeed}|short`);
+    if (questions.length < targetCount) questions = buildFallbackDeck(targetCount, difficulty, gameType, `${packetSeed}|short`, selectedSet);
     const publicQuestions = await serviceRpc("store_arena_question_deck", {
       p_room_id: roomId,
       p_questions: questions,

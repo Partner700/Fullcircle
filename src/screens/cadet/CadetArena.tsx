@@ -56,8 +56,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
   const [selectedNarrativeDate, setSelectedNarrativeDate] = useState<string>('');
-  const [arenaTopicType, setArenaTopicType] = useState<'narrative' | 'book' | 'character'>('narrative');
-  const [arenaTopic, setArenaTopic] = useState('');
+  const [arenaTopicType, setArenaTopicType] = useState<'narrative' | 'characters' | 'books' | 'themes'>('characters');
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
   const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo'>('standard');
   const [arenaDifficulty, setArenaDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
@@ -283,9 +282,9 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     setCreating(true);
     setError(null);
     try {
-      const topicSuffix = arenaTopicType === 'narrative' || !arenaTopic.trim()
+      const topicSuffix = arenaTopicType === 'narrative'
         ? ''
-        : ` [${arenaTopicType}: ${arenaTopic.trim()}]`;
+        : ` [set:${arenaTopicType}]`;
       const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
       const fullRoomName = `${roomName}${topicSuffix} [arena:${arenaGameType}]${difficultySuffix}`;
       const roomId = arenaOpponent === 'machine'
@@ -656,7 +655,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             </select>
           </div>}
           <p className="rounded-lg border border-brass/25 bg-brass-soft p-3 text-xs text-stone">
-            {arenaGameType === 'standard' ? 'Standard Trivia: answer random Bible narrative questions; the highest score wins.' : 'Ludo Trivia: correct answers move tokens around the board, with surprise spaces and relic effects.'}
+            {arenaGameType === 'standard' ? 'Standard Trivia: answer random Bible narrative questions; the highest figs win.' : 'Ludo Trivia: correct answers move tokens around the board, with surprise spaces and relic effects.'}
             {arenaOpponent === 'machine' && ' Machine matches cost a fixed 50 Ð.'}
           </p>
           <div>
@@ -687,24 +686,15 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div>
             <div>
-              <label className="text-xs text-stone block mb-1">Arena Question Focus</label>
+              <label className="text-xs text-stone block mb-1">Arena Question Set</label>
               <select className="input-field" value={arenaTopicType} onChange={(e) => setArenaTopicType(e.target.value as any)}>
-                <option value="narrative">Narrative packet</option>
-                <option value="book">Book of the Bible</option>
-                <option value="character">Bible character</option>
+                <option value="characters">Bible Characters</option>
+                <option value="books">Books of the Bible</option>
+                <option value="themes">Themes of Scripture</option>
+                <option value="narrative">Weekly Narrative Packet</option>
               </select>
-            </div>
-            <div>
-              <label className="text-xs text-stone block mb-1">Book / Character</label>
-              <input
-                className="input-field"
-                disabled={arenaTopicType === 'narrative'}
-                placeholder={arenaTopicType === 'book' ? 'Romans' : arenaTopicType === 'character' ? 'David' : 'Uses packet'}
-                value={arenaTopic}
-                onChange={(e) => setArenaTopic(e.target.value)}
-              />
             </div>
           </div>
           <div>
@@ -836,7 +826,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 }
 
 function parseArenaTopic(roomName: string) {
-  const match = roomName.match(/\[(book|character):\s*([^\]]+)\]/i);
+  const match = roomName.match(/\[(book|character|set):\s*([^\]]+)\]/i);
   return match ? { type: match[1].toLowerCase(), value: match[2].trim() } : null;
 }
 
@@ -891,9 +881,9 @@ function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
 function getArenaQuestionSeconds(question: QuestionPayload | undefined) {
   if (question?.round_timer_seconds) return question.round_timer_seconds;
-  if (question?.game_round === 1 || question?.difficulty_tag === 'easy') return 12;
-  if (question?.game_round === 2 || question?.difficulty_tag === 'moderate') return 9;
-  return 6;
+  if (question?.game_round === 1 || question?.difficulty_tag === 'easy') return 17;
+  if (question?.game_round === 2 || question?.difficulty_tag === 'moderate') return 14;
+  return 11;
 }
 
 function getArenaRoundForIndex(questionIndex: number) {
@@ -1215,7 +1205,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       </div>
 
       <div className="flex items-center justify-between text-xs text-stone">
-        <span>Live score: <span className="text-ink font-semibold">You {score}</span>{machineMatch ? ` · The Scribe ${machineScore}` : opponentScores.map((opponent) => ` · ${opponent.name} ${opponent.figs}`).join('')}</span>
+        <span>Live figs: <span className="text-ink font-semibold">You {score}</span>{machineMatch ? ` · The Scribe ${machineScore}` : opponentScores.map((opponent) => ` · ${opponent.name} ${opponent.figs}`).join('')}</span>
         <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
       </div>
 
