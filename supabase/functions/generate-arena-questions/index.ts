@@ -210,6 +210,17 @@ function packetLevel(difficulty: string) {
   return "Fast Arena packet: varied, fair, and built for speed plus accuracy; begin very easy and end very difficult.";
 }
 
+function seededShuffle<T>(items: T[], seed: string): T[] {
+  const output = [...items];
+  let value = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 2166136261);
+  for (let index = output.length - 1; index > 0; index -= 1) {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    const swapIndex = value % (index + 1);
+    [output[index], output[swapIndex]] = [output[swapIndex], output[index]];
+  }
+  return output;
+}
+
 const FALLBACK_FACTS: FallbackFact[] = [
   { bank: "Bible Characters", reference: "Genesis 3", prompt: "Adam blamed Eve, but what did his answer also imply about God?", answer: "That the woman God gave him was involved", options: ["That the woman God gave him was involved", "That the serpent forced him physically", "That the tree was wrongly named", "That Eve ate after he refused"], explanation: "Adam says, 'The woman whom you gave to be with me, she gave me fruit...'" },
   { bank: "Bible Characters", reference: "Genesis 22", prompt: "What phrase shows Abraham expected to return with Isaac despite the command to sacrifice him?", answer: "We will come again to you", options: ["We will come again to you", "The boy will remain here", "I alone will worship", "God has rejected the lad"], explanation: "Abraham tells the servants, 'I and the boy will go... and come again to you.'" },
@@ -252,16 +263,17 @@ function fallbackQuestion(fact: FallbackFact, index: number, difficulty: string,
       ? "moderate"
       : "hard";
   const lenses = [
-    "Which detail best survives a close reading?",
-    "Which option fits the sequence without smuggling in a false detail?",
-    "Which answer explains the consequence most precisely?",
-    "Which choice sounds plausible but is actually the exact Scriptural detail?",
+    "Answer from the exact detail:",
+    "Choose the option that fits the passage:",
+    "What is the strongest answer?",
+    "Which answer is supported by the reference?",
   ];
   const difficultyPrompt = lenses[index % lenses.length];
+  const options = seededShuffle(fact.options, `${fact.reference}|${index}|${difficulty}|${gameType}`);
   return {
     type: "multiple_choice",
     question: `${prefix} · ${difficultyPrompt} ${fact.prompt}`,
-    options: fact.options,
+    options,
     correct_answer: fact.answer,
     explanation: fact.explanation,
     reference: fact.reference,

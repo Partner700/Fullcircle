@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { BoardRow, BoardList } from '../../components/BoardRow';
@@ -32,6 +32,15 @@ const RANK_HONOR_TINT: Record<number, { text: string; bg: string; border: string
   3: { text: 'text-roman', bg: 'bg-roman/10', border: 'border-roman/40', label: 'Aes' },
 };
 
+function withBoardTimeout<T>(promise: Promise<T>, label: string, milliseconds = 9_000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} took too long to load.`)), milliseconds);
+    }),
+  ]);
+}
+
 function sentryLine(names: string[] | null | undefined): string | undefined {
   if (!names || names.length === 0) return undefined;
   return `Sentr${names.length === 1 ? 'y' : 'ies'}: ${names.join(', ')}`;
@@ -48,51 +57,71 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
   const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
   const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const loadInFlightRef = useRef(false);
+  const refreshTimerRef = useRef<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
+    if (!silent) setLoading(true);
     try {
       const [streaks, leaders] = await Promise.allSettled([
-        fetchStreakboardSnapshots(),
-        fetchLeaderboardSnapshots(),
+        withBoardTimeout(fetchStreakboardSnapshots(), 'Streak board'),
+        withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
       ]);
       setStreakRows(streaks.status === 'fulfilled' ? streaks.value : []);
       setLeaderRows((leaders.status === 'fulfilled' ? leaders.value : []) as any);
 
 	      const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
-	        supabase.rpc('get_leaderboard_live'),
-	        supabase.rpc('get_tent_leaderboard'),
-	        fetchQuizScoreboard(),
-          fetchRhudeBoard(),
-          fetchMarksBoard(),
+	        withBoardTimeout(supabase.rpc('get_leaderboard_live'), 'Denarii board'),
+	        withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board'),
+	        withBoardTimeout(fetchQuizScoreboard(), 'Fig board'),
+          withBoardTimeout(fetchRhudeBoard(), 'Valley board'),
+          withBoardTimeout(fetchMarksBoard(), 'Marks board'),
 	      ]);
 	      setLiveRows((live.status === 'fulfilled' && live.value.data ? live.value.data : []) as any);
 	      setTentRows((tents.status === 'fulfilled' && tents.value.data ? tents.value.data : []) as TentLeaderboardRow[]);
 	      setQuizRows(quizBoard.status === 'fulfilled' ? quizBoard.value : []);
         setRhudeRows(rhudes.status === 'fulfilled' ? rhudes.value : []);
         setMarksRows(marks.status === 'fulfilled' ? marks.value : []);
+        setLastUpdatedAt(new Date());
     } catch (e) { console.error('Leaderboard load error:', e); }
-    setLoading(false);
+    finally {
+      loadInFlightRef.current = false;
+      setLoading(false);
+    }
   }, []);
+
+  const scheduleSilentRefresh = useCallback(() => {
+    if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      void load(true);
+    }, 1200);
+  }, [load]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     const channel = supabase
       .channel('cadet_quiz_scoreboard_live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_attempts' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'relic_inventory' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, scheduleSilentRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_attempts' }, scheduleSilentRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, scheduleSilentRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, scheduleSilentRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries' }, scheduleSilentRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers' }, scheduleSilentRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'relic_inventory' }, scheduleSilentRefresh)
       .subscribe();
-    const interval = window.setInterval(() => load(), 15_000);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load(true);
+    }, 60_000);
     return () => {
       supabase.removeChannel(channel);
       window.clearInterval(interval);
+      if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
     };
-  }, [load]);
+  }, [load, scheduleSilentRefresh]);
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading challenge boards…</div>;
 
@@ -229,7 +258,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
           {streakRows.length > 0 ? (
             <div className="card p-4">
-              <p className="text-xs text-stone mb-3">Live as of {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}</p>
+              <p className="text-xs text-stone mb-3">
+                Live as of {(lastUpdatedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}
+              </p>
               <BoardList>
                 {streakRows.map((row) => {
                   const isPodium = row.rank >= 1 && row.rank <= 3;
