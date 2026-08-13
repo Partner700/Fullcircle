@@ -17,8 +17,6 @@ export function PWAUpdateNotification() {
     if (!('serviceWorker' in navigator)) return;
 
     let hideTimeout: ReturnType<typeof setTimeout>;
-    const hadController = Boolean(navigator.serviceWorker.controller);
-
     const handleStateChange = (
       registration: ServiceWorkerRegistration,
       worker: ServiceWorker,
@@ -52,17 +50,8 @@ export function PWAUpdateNotification() {
       });
     });
 
-    // Listen for controller change to detect updates via periodic checks
-    const handleControllerChange = () => {
-      // Reload existing installations when a newly deployed worker takes over.
-      // The first-ever worker install should not interrupt a new visitor.
-      if (hadController) window.location.reload();
-    };
-    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-
     return () => {
       clearTimeout(hideTimeout);
-      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     };
   }, []);
 
@@ -73,8 +62,7 @@ export function PWAUpdateNotification() {
     // Send SKIP_WAITING message to activate the new service worker
     registration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
-    // The controllerchange event will trigger the reload
-    // But as a fallback, reload after a timeout
+    // Refresh only because the user explicitly pressed the update button.
     setTimeout(() => {
       window.location.reload();
     }, 1000);
