@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v22';
+const CACHE_VERSION = 'full-circle-v23';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -69,6 +69,9 @@ self.addEventListener('install', (event) => {
             caches.delete(name).catch(() => false)
           )
         );
+      })
+      .then(() => {
+        return self.skipWaiting();
       }),
   );
 });

@@ -38,31 +38,44 @@ export function AuthScreen({
     setNotice(initialNotice || null);
   }, [initialMode, initialNotice]);
 
+  useEffect(() => {
+    if (!loading) return;
+    const timeout = window.setTimeout(() => {
+      setLoading(false);
+      setError('The portal took too long to open. Please check your internet connection and try again.');
+    }, 30_000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setNotice(null);
     setLoading(true);
-    if (mode === 'signin') {
-      const { error } = await signIn(email, password);
-      if (error) setError(error);
-    } else {
-      if (!displayName.trim()) {
-        setError('Please enter your display name.');
-        setLoading(false);
-        return;
+    try {
+      if (mode === 'signin') {
+        const { error } = await signIn(email, password);
+        if (error) setError(error);
+      } else {
+        if (!displayName.trim()) {
+          setError('Please enter your display name.');
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError('The passwords do not match. Please enter them again.');
+          return;
+        }
+        // New accounts are always created as cadet. Instructors promote cadets to sentry,
+        // and the current instructor can hand over to a sentry.
+        const { error } = await signUp(email, password, displayName, 'cadet');
+        if (error) setError(error);
       }
-      if (password !== confirmPassword) {
-        setError('The passwords do not match. Please enter them again.');
-        setLoading(false);
-        return;
-      }
-      // New accounts are always created as cadet. Instructors promote cadets to sentry,
-      // and the current instructor can hand over to a sentry.
-      const { error } = await signUp(email, password, displayName, 'cadet');
-      if (error) setError(error);
+    } catch (submitError) {
+      console.warn('Authentication request failed:', submitError);
+      setError('The connection was interrupted. Please check your internet connection and try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handlePasswordReset = async () => {
