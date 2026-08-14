@@ -405,7 +405,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   image={slideImage}
                   opacityFallback={22}
                   veilClassName={slide.kind === 'quote' ? 'quote-panel-veil' : 'bg-navy-2/76'}
+                  modeFilter={slide.kind !== 'welcome'}
                   textGradient={slide.kind !== 'quote'}
+                  simple={slide.kind === 'quote'}
                 />
               )}
               <div className="relative flex items-start justify-between gap-3">
