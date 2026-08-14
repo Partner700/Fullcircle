@@ -16,7 +16,7 @@ import {
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import {
-  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, uploadTentProfileImage,
+  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
 } from '../../lib/queries';
@@ -120,12 +120,13 @@ export function SentryApp() {
     setLoading(true);
     try {
       const [ownStreak, ownDenarii, ownLedger] = await Promise.all([
-        fetchStrictStreak(profile.id).catch(() => null),
-        fetchLedgerTotal(profile.id).catch(() => 0),
+        fetchUserLiveStats(profile.id).catch(() => null),
+        fetchLedgerTotal(profile.id).catch(() => null),
         fetchLedgerEntries(profile.id, 80).catch(() => []),
       ]);
-      setSentryStreak(ownStreak?.current_streak || 0);
-      setSentryDenarii(ownDenarii);
+      const strictFallback = ownStreak ? null : await fetchStrictStreak(profile.id).catch(() => null);
+      setSentryStreak((previous) => ownStreak?.current_streak || strictFallback?.current_streak || previous);
+      setSentryDenarii((previous) => ownStreak?.total_denarii ?? ownDenarii ?? previous);
       setSentryLedger(ownLedger);
 
       const { data: member } = await supabase

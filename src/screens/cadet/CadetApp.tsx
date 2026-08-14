@@ -7,6 +7,7 @@ import {
   getSubscriptionStatus,
   fetchStrictStreak,
   fetchLedgerTotal,
+  fetchUserLiveStats,
   fetchUserNotifications,
   markNotificationRead,
   markAllNotificationsRead,
@@ -54,6 +55,33 @@ type CadetNotification = {
 };
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
+const TOPBAR_STATS_CACHE_PREFIX = 'full-circle-topbar-stats';
+
+function topbarStatsCacheKey(userId: string) {
+  return `${TOPBAR_STATS_CACHE_PREFIX}-${userId}`;
+}
+
+function readCachedTopbarStats(userId: string) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(topbarStatsCacheKey(userId)) || 'null');
+    return {
+      denarii: Number(parsed?.denarii) || 0,
+      streak: Number(parsed?.streak) || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number; streak: number }>) {
+  if (typeof window === 'undefined') return;
+  const current = readCachedTopbarStats(userId) || { denarii: 0, streak: 0 };
+  const next = { ...current, ...patch };
+  try {
+    window.localStorage.setItem(topbarStatsCacheKey(userId), JSON.stringify(next));
+  } catch {}
+}
 
 async function showDeviceNotification(notification: UserNotification) {
   if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
@@ -193,8 +221,9 @@ export function CadetApp() {
 
   useEffect(() => {
     streakLoadedRef.current = false;
-    setStreakCount(0);
-    setDenariiTotal(0);
+    const cached = profile?.id ? readCachedTopbarStats(profile.id) : null;
+    setStreakCount(cached?.streak || 0);
+    setDenariiTotal(cached?.denarii || 0);
     setTentInfo({ tent: null, members: [] });
   }, [profile?.id]);
 
@@ -227,11 +256,16 @@ export function CadetApp() {
 
   const loadDenarii = useCallback(async () => {
     if (!profile) return;
-    const total = await fetchLedgerTotal(profile.id).catch(async () => {
+    const liveStats = await fetchUserLiveStats(profile.id).catch(() => null);
+    const total = liveStats?.total_denarii ?? await fetchLedgerTotal(profile.id).catch(async () => {
       const entries = await fetchLedgerEntries(profile.id, 500).catch(() => []);
       return entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
     });
-    setDenariiTotal(Number.isFinite(total) ? total : 0);
+    setDenariiTotal((previous) => {
+      const next = Number.isFinite(total) ? total : previous;
+      writeCachedTopbarStats(profile.id, { denarii: next });
+      return next;
+    });
   }, [profile]);
 
   const refreshWallet = useCallback(async () => {
@@ -246,7 +280,15 @@ export function CadetApp() {
       return;
     }
     try {
-      const s = await fetchStrictStreak(profile.id);
+      const liveStats = await fetchUserLiveStats(profile.id).catch(() => null);
+      const s = liveStats
+        ? {
+            current_streak: liveStats.current_streak,
+            longest_streak: liveStats.longest_streak,
+            consecutive_inactive: liveStats.consecutive_inactive,
+            cumulative_inactive: liveStats.cumulative_inactive,
+          }
+        : await fetchStrictStreak(profile.id);
       let nextStreak = s.current_streak || 0;
       if (nextStreak === 0) {
         const { data: recentRecords } = await supabase
@@ -258,11 +300,15 @@ export function CadetApp() {
         nextStreak = computeStreak((recentRecords || []) as any).current_streak || 0;
       }
       setStreakCount((previous) => {
+        if (nextStreak === 0 && previous > 0) return previous;
         if (streakLoadedRef.current && nextStreak > previous) void playSoundEffect('sound_streak', 0.66);
         streakLoadedRef.current = true;
+        writeCachedTopbarStats(profile.id, { streak: nextStreak });
         return nextStreak;
       });
-    } catch { setStreakCount(0); }
+    } catch {
+      setStreakCount((previous) => previous);
+    }
   }, [profile]);
 
   const loadNotifications = useCallback(async () => {

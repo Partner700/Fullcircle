@@ -471,6 +471,12 @@
   [data-theme="day"] .quote-panel-veil {
     background-color: rgba(237, 246, 255, 0.76);
   }
+  .panel-picture-veil {
+    background-color: rgba(0, 0, 0, 0.12);
+  }
+  [data-theme="day"] .panel-picture-veil {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
   .animate-float { animation: float 4s ease-in-out infinite; }
   .animate-drift { animation: drift 8s ease-in-out infinite; }
   .animate-flicker { animation: flicker 3s ease-in-out infinite; }

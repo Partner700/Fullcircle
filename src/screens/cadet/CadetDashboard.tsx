@@ -404,9 +404,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityFallback={22}
-                  veilClassName={slide.kind === 'quote' ? 'quote-panel-veil' : 'bg-navy-2/76'}
+                  veilClassName={slide.kind === 'quote' ? 'quote-panel-veil' : 'panel-picture-veil'}
                   modeFilter={slide.kind !== 'welcome'}
-                  textGradient={slide.kind !== 'quote'}
+                  textGradient={false}
                   simple={slide.kind === 'quote'}
                 />
               )}
