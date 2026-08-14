@@ -1,5 +1,5 @@
 const RELEASE_CACHE_KEY = 'full-circle-release-cache-version';
-const RELEASE_CACHE_VERSION = '2026-08-13-v24';
+const RELEASE_CACHE_VERSION = '2026-08-14-v25';
 
 export function prepareFreshReleaseCache() {
   if (typeof window === 'undefined') return;
@@ -16,7 +16,7 @@ export function prepareFreshReleaseCache() {
     .then((cacheNames) =>
       Promise.all(
         cacheNames
-          .filter((cacheName) => cacheName.startsWith('full-circle-') && !cacheName.startsWith('full-circle-v24'))
+          .filter((cacheName) => cacheName.startsWith('full-circle-') && !cacheName.startsWith('full-circle-v25'))
           .map((cacheName) => window.caches.delete(cacheName)),
       ),
     )
