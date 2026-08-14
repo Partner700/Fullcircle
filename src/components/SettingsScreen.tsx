@@ -14,6 +14,7 @@ import {
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
+import { AppSelect } from './AppSelect';
 import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import type { Award } from '../lib/types';
 
@@ -245,15 +246,11 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-bold text-peri">
               <span className="mb-1.5 flex items-center gap-1"><Globe2 size={13} /> Country</span>
-              <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
-                {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-              </select>
+              <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name, description: item.timezone }))} />
             </label>
             <label className="block text-xs font-bold text-peri">
               <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> Language</span>
-              <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
-                {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-              </select>
+              <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
             </label>
             <label className="block text-xs font-bold text-peri">
               <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday</span>

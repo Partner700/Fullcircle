@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { AppSelect } from '../../components/AppSelect';
 import { RoadHomeGame } from './RoadHomeGame';
 import { supabase } from '../../lib/supabase';
 import {
@@ -679,26 +680,20 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-stone block mb-1">Opponent</label>
-              <select className="input-field" value={arenaOpponent} onChange={(event) => setArenaOpponent(event.target.value as 'players' | 'machine')}>
-                <option value="players">Other players</option>
-                <option value="machine">Machine</option>
-              </select>
+              <AppSelect value={arenaOpponent} onChange={(value) => setArenaOpponent(value as 'players' | 'machine')} options={[{ value: 'players', label: 'Other players' }, { value: 'machine', label: 'Machine' }]} />
             </div>
             <div>
               <label className="text-xs text-stone block mb-1">Game Play</label>
-              <select className="input-field" value={arenaGameType} onChange={(event) => setArenaGameType(event.target.value as 'standard' | 'ludo')}>
-                <option value="standard">Standard Trivia</option>
-                <option value="ludo">Ludo Trivia</option>
-              </select>
+              <AppSelect value={arenaGameType} onChange={(value) => setArenaGameType(value as 'standard' | 'ludo')} options={[{ value: 'standard', label: 'Standard Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} />
             </div>
           </div>
           {arenaOpponent === 'machine' && <div>
             <label className="text-xs text-stone block mb-1">Machine Difficulty</label>
-            <select className="input-field" value={arenaDifficulty} onChange={(event) => setArenaDifficulty(event.target.value as 'easy' | 'medium' | 'hard')}>
-              <option value="easy">Easy · slower and less accurate</option>
-              <option value="medium">Medium · balanced</option>
-              <option value="hard">Hard · fast and highly accurate</option>
-            </select>
+            <AppSelect value={arenaDifficulty} onChange={(value) => setArenaDifficulty(value as 'easy' | 'medium' | 'hard')} options={[
+              { value: 'easy', label: 'Easy', description: 'Slower and less accurate' },
+              { value: 'medium', label: 'Medium', description: 'Balanced' },
+              { value: 'hard', label: 'Hard', description: 'Fast and highly accurate' },
+            ]} />
           </div>}
           <p className="rounded-lg border border-brass/25 bg-brass-soft p-3 text-xs text-stone">
             {arenaGameType === 'standard' ? 'Standard Trivia: answer random Bible narrative questions; the highest figs win.' : 'Ludo Trivia: correct answers move tokens around the board, with surprise spaces and relic effects.'}
@@ -725,22 +720,17 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           {arenaOpponent === 'players' && <>
           <div>
             <label className="text-xs text-stone block mb-1">Content Source (narrative date)</label>
-            <select className="input-field" value={selectedNarrativeDate} onChange={(e) => setSelectedNarrativeDate(e.target.value)}>
-              <option value="">Any / Latest</option>
-              {narratives.map((n) => (
-                <option key={n.narrative_date} value={n.narrative_date}>{n.narrative_date}</option>
-              ))}
-            </select>
+            <AppSelect value={selectedNarrativeDate} onChange={setSelectedNarrativeDate} options={[{ value: '', label: 'Any / Latest' }, ...narratives.map((n) => ({ value: n.narrative_date, label: n.narrative_date, description: n.title }))]} />
           </div>
           <div>
             <div>
               <label className="text-xs text-stone block mb-1">Arena Question Set</label>
-              <select className="input-field" value={arenaTopicType} onChange={(e) => setArenaTopicType(e.target.value as any)}>
-                <option value="characters">Bible Characters</option>
-                <option value="books">Books of the Bible</option>
-                <option value="themes">Themes of Scripture</option>
-                <option value="narrative">Weekly Narrative Packet</option>
-              </select>
+              <AppSelect value={arenaTopicType} onChange={(value) => setArenaTopicType(value as any)} options={[
+                { value: 'characters', label: 'Bible Characters' },
+                { value: 'books', label: 'Books of the Bible' },
+                { value: 'themes', label: 'Themes of Scripture' },
+                { value: 'narrative', label: 'Weekly Narrative Packet' },
+              ]} />
             </div>
           </div>
           <div>

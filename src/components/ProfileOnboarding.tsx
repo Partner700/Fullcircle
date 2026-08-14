@@ -3,6 +3,7 @@ import { Cake, Globe2, Languages, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
+import { AppSelect } from './AppSelect';
 
 export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
@@ -59,9 +60,7 @@ export function ProfileOnboarding() {
         </div>
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Globe2 size={16} /> Country</span>
-          <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
-            {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-          </select>
+          <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name, description: item.timezone }))} />
         </label>
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><MessageCircle size={16} /> WhatsApp number</span>
@@ -70,9 +69,7 @@ export function ProfileOnboarding() {
         </label>
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Languages size={16} /> Language</span>
-          <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
-            {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-          </select>
+          <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
         </label>
         <div>
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Cake size={16} /> Birthday</span>

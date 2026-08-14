@@ -8,6 +8,7 @@ import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getSubscriptionStatu
 import { cn, formatDenarii } from '../../lib/utils';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
+import { AppSelect } from '../../components/AppSelect';
 import {
   User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
@@ -224,15 +225,11 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-xs text-stone">
               <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
-              <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
-                {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-              </select>
+              <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name, description: item.timezone }))} />
             </label>
             <label className="block text-xs text-stone">
               <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
-              <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
-                {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-              </select>
+              <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
             </label>
             <label className="block text-xs text-stone">
               <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>

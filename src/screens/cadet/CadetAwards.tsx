@@ -7,6 +7,7 @@ import { formatShortDate, getTodayISODate, cn } from '../../lib/utils';
 import type { AwardWithRecipient } from '../../lib/types';
 import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, Cross, BadgeCheck } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
+import { AppSelect } from '../../components/AppSelect';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   rhetoric: MessageCircle,
@@ -148,12 +149,15 @@ export function CadetAwards() {
             </label>
             <label className="block text-xs font-bold text-stone">
               <span className="mb-1 block">Award</span>
-              <select className="input-field text-xs" value={awardType} onChange={(event) => setAwardType(event.target.value)}>
-                <option value="all">All awards</option>
-                {awardTypeOptions.map((type) => (
-                  <option key={type} value={type}>{AWARD_LABEL_MAP[type] || type.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
+              <AppSelect
+                value={awardType}
+                onChange={setAwardType}
+                options={[
+                  { value: 'all', label: 'All awards' },
+                  ...awardTypeOptions.map((type) => ({ value: type, label: AWARD_LABEL_MAP[type] || type.replace(/_/g, ' ') })),
+                ]}
+                buttonClassName="text-xs"
+              />
             </label>
           </div>
         </div>

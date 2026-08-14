@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { AppSelect } from '../../components/AppSelect';
 import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
@@ -423,17 +424,15 @@ export function CadetNarrative({
         <div className="mb-4">
           <label className="text-sm font-medium text-ink mb-1.5 block">Best Verse</label>
           <p className="text-xs text-stone mb-2">Your best verse of the day</p>
-          <select
+          <AppSelect
             value={bestVerse}
-            onChange={(e) => { setBestVerse(e.target.value); setSavedMeditation(false); }}
-            className="input-field"
-          >
-            <option value="">Select a verse from today's reading</option>
-            {bestVerse && !verseChoices.some((choice) => choice.value === bestVerse) && (
-              <option value={bestVerse}>{bestVerse}</option>
-            )}
-            {verseChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-          </select>
+            onChange={(next) => { setBestVerse(next); setSavedMeditation(false); }}
+            placeholder="Select a verse from today's reading"
+            options={[
+              ...(bestVerse && !verseChoices.some((choice) => choice.value === bestVerse) ? [{ value: bestVerse, label: bestVerse }] : []),
+              ...verseChoices.map((choice) => ({ value: choice.value, label: choice.label })),
+            ]}
+          />
         </div>
 
         {/* Daily Meditation (50-100 words) */}

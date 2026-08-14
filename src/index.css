@@ -34,10 +34,10 @@
 
   [data-theme="day"] {
     /* Pale blue day mode — bright surfaces, dark navy text */
-    --color-navy: #F1F7FF;
-    --color-navy-2: #E8F2FC;
-    --color-navy-3: #DDEAF7;
-    --color-navy-4: #CFE0F2;
+    --color-navy: #EDF6FF;
+    --color-navy-2: #E3F0FC;
+    --color-navy-3: #D7E8F8;
+    --color-navy-4: #C8DDF1;
 
     --color-royal: #2B4A9A;
 

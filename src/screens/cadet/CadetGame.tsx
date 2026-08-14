@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { AppSelect } from '../../components/AppSelect';
 import { Dove } from '../../components/Dove';
 import {
   fetchNarrative, fetchNarratives, fetchGameAttempts, fetchLedgerTotal,
@@ -152,9 +153,7 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   const sundayGamePicker = isSunday && sundayGames.length > 0 ? (
     <div className="card mb-4 p-4">
       <label className="mb-1.5 block text-xs font-bold text-stone">Sunday Game Archive</label>
-      <select className="input-field" value={gameDate} onChange={(event) => { setActiveLevel(null); setGameOver(null); setGameDate(event.target.value); }}>
-        {sundayGames.map((item) => <option key={item.narrative_date} value={item.narrative_date}>{item.narrative_date} · {item.title}</option>)}
-      </select>
+      <AppSelect value={gameDate} onChange={(value) => { setActiveLevel(null); setGameOver(null); setGameDate(value); }} options={sundayGames.map((item) => ({ value: item.narrative_date, label: item.narrative_date, description: item.title }))} />
       <p className="mt-2 text-xs text-stone">Replay any published game from this week. Sunday also grants everyone a fresh streak day automatically.</p>
     </div>
   ) : null;
