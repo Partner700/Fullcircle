@@ -6,10 +6,10 @@
   :root,
   [data-theme="night"] {
     /* Background layers — night mode */
-    --color-navy: #17243C;
-    --color-navy-2: #1E2F4A;
-    --color-navy-3: #26395D;
-    --color-navy-4: #314779;
+    --color-navy: #1B2A43;
+    --color-navy-2: #243651;
+    --color-navy-3: #2C4168;
+    --color-navy-4: #3A5284;
 
     --color-royal: #3D52E8;
 
@@ -29,7 +29,7 @@
     --color-border: rgba(221, 227, 255, 0.10);
     --color-border-bright: rgba(221, 227, 255, 0.22);
     --color-stone-dim: rgba(136, 150, 204, 0.55);
-    --panel-image-mode-filter: brightness(0.34) saturate(0.76) contrast(1.12);
+    --panel-image-mode-filter: brightness(0.42) saturate(0.84) contrast(1.08);
   }
 
   [data-theme="day"] {

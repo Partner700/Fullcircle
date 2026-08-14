@@ -12,7 +12,7 @@ const REACTIONS = [
   { type: 'thoughtful', label: 'Think', icon: Lightbulb },
 ];
 
-const reactionButtonClass = 'inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-full border px-2 text-xs font-bold transition-colors';
+const reactionButtonClass = 'inline-flex h-7 min-w-7 items-center justify-center gap-1.5 rounded-full border px-1.5 text-[11px] font-bold transition-colors';
 
 export function QuoteReactions({
   state,
@@ -76,7 +76,7 @@ export function QuoteReactions({
   };
 
   return (
-    <div className="mt-5 space-y-3 pt-1">
+    <div className="mt-6 space-y-3 pt-2">
       <div className="flex flex-wrap items-center gap-1.5">
         {REACTIONS.map((reaction) => {
           const Icon = reaction.icon;
@@ -96,8 +96,8 @@ export function QuoteReactions({
               title={reaction.label}
               aria-label={`${reaction.label}: ${data.count} reactions`}
             >
-              <Icon size={14} />
-              <span className="text-[11px] opacity-85">{data.count}</span>
+              <Icon size={12} />
+              <span className="text-[10px] opacity-85">{data.count}</span>
             </button>
           );
         })}
@@ -109,7 +109,7 @@ export function QuoteReactions({
             title="Comments"
             aria-label={`${comments.length} comments`}
           >
-            <MessageCircle size={14} /> <span className="text-[11px] opacity-85">{comments.length}</span>
+            <MessageCircle size={12} /> <span className="text-[10px] opacity-85">{comments.length}</span>
           </button>
         )}
       </div>

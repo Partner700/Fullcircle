@@ -1,4 +1,4 @@
-import { BadgeCheck, Flame, Shield } from 'lucide-react';
+import { BadgeCheck, Crown, Flame, Shield, ShieldCheck, UserRound } from 'lucide-react';
 import type { DailyQuoteFeedItem } from '../lib/types';
 
 interface QuoteAuthorStatsProps {
@@ -9,15 +9,18 @@ interface QuoteAuthorStatsProps {
 
 const statClass = 'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-border bg-surface-2 px-2 text-[11px] font-bold text-ink shadow-sm';
 
-const formatRank = (role?: string | null) => {
-  if (!role) return 'Cadet';
-  return role.charAt(0).toUpperCase() + role.slice(1);
+const getRankSymbol = (role?: string | null) => {
+  if (role === 'instructor') return { Icon: Crown, label: 'Instructor', className: 'text-gold' };
+  if (role === 'sentry') return { Icon: ShieldCheck, label: 'Sentry', className: 'text-sage' };
+  return { Icon: UserRound, label: 'Cadet', className: 'text-royal' };
 };
 
 export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsProps) {
   const currentStreak = Number(quote.current_streak || 0);
   const totalFigs = Number(quote.total_figs || 0);
   const rhudes = Number(quote.rhudes || 0);
+  const rank = getRankSymbol(quote.role);
+  const RankIcon = rank.Icon;
 
   return (
     <div className="mt-3 flex min-w-0 items-center gap-2.5 text-xs text-stone">
@@ -29,10 +32,14 @@ export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsPro
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-extrabold text-ink">
-          {quote.display_name}
-          <span className="ml-2 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-stone">
-            {formatRank(quote.role)}
+        <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-ink">
+          <span className="truncate">{quote.display_name}</span>
+          <span
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 shadow-sm"
+            title={rank.label}
+            aria-label={rank.label}
+          >
+            <RankIcon size={13} className={rank.className} strokeWidth={2.6} />
           </span>
         </p>
         <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">

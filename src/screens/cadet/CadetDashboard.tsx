@@ -471,10 +471,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
                         {slide.quote.tent_house_id && (
-                          <TentHouseSymbol houseId={slide.quote.tent_house_id} size={30} className="-mt-1" />
+                          <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
                         )}
                       </div>
-                      <p className="font-display text-2xl text-ink leading-snug italic">"{slide.quote.daily_quote}"</p>
+                      <p className="mt-3 font-display text-xl font-bold text-ink leading-snug">"{slide.quote.daily_quote}"</p>
                       <QuoteAuthorStats quote={slide.quote} />
                       <QuoteReactions
                         state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
