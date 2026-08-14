@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross } from 'lucide-react';
+import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
 
@@ -32,9 +32,9 @@ const RANK_HONOR_TINT: Record<number, { text: string; bg: string; border: string
   3: { text: 'text-roman', bg: 'bg-roman/10', border: 'border-roman/40', label: 'Aes' },
 };
 
-function withBoardTimeout<T>(promise: Promise<T>, label: string, milliseconds = 9_000): Promise<T> {
+function withBoardTimeout<T>(promise: PromiseLike<T>, label: string, milliseconds = 9_000): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((_, reject) => {
       window.setTimeout(() => reject(new Error(`${label} took too long to load.`)), milliseconds);
     }),
@@ -44,6 +44,53 @@ function withBoardTimeout<T>(promise: Promise<T>, label: string, milliseconds = 
 function sentryLine(names: string[] | null | undefined): string | undefined {
   if (!names || names.length === 0) return undefined;
   return `Sentr${names.length === 1 ? 'y' : 'ies'}: ${names.join(', ')}`;
+}
+
+type CompetitiveRow = {
+  rank?: number | null;
+  previous_rank?: number | null;
+  rank_yesterday?: number | null;
+  movement?: number | null;
+  is_new_record?: boolean | null;
+  new_record?: boolean | null;
+  record_value?: number | null;
+  personal_best?: number | null;
+};
+
+function rankMovement(row: CompetitiveRow): number | null {
+  if (typeof row.movement === 'number') return row.movement;
+  const previous = Number(row.previous_rank ?? row.rank_yesterday);
+  const current = Number(row.rank);
+  if (!previous || !current) return null;
+  return previous - current;
+}
+
+function isNewRecord(row: CompetitiveRow, value?: number) {
+  if (row.is_new_record || row.new_record) return true;
+  const record = Number(row.record_value ?? row.personal_best);
+  return Boolean(record && typeof value === 'number' && value >= record);
+}
+
+function BoardMovementSummary({ rows }: { rows: CompetitiveRow[] }) {
+  const up = rows.filter((row) => Number(rankMovement(row)) > 0).length;
+  const down = rows.filter((row) => Number(rankMovement(row)) < 0).length;
+  const records = rows.filter((row) => isNewRecord(row)).length;
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <div className="rounded-lg border border-sage/25 bg-sage/10 px-3 py-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-sage"><ArrowUp size={12} /> Rising</p>
+        <p className="mt-1 font-display text-xl font-black text-ink">{up}</p>
+      </div>
+      <div className="rounded-lg border border-coral/25 bg-coral/10 px-3 py-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-coral"><ArrowDown size={12} /> Falling</p>
+        <p className="mt-1 font-display text-xl font-black text-ink">{down}</p>
+      </div>
+      <div className="rounded-lg border border-gold/25 bg-gold/10 px-3 py-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> Records</p>
+        <p className="mt-1 font-display text-xl font-black text-ink">{records}</p>
+      </div>
+    </div>
+  );
 }
 
 export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: boolean } = {}) {
@@ -80,8 +127,10 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
           withBoardTimeout(fetchRhudeBoard(), 'Valley board'),
           withBoardTimeout(fetchMarksBoard(), 'Marks board'),
 	      ]);
-	      setLiveRows((live.status === 'fulfilled' && live.value.data ? live.value.data : []) as any);
-	      setTentRows((tents.status === 'fulfilled' && tents.value.data ? tents.value.data : []) as TentLeaderboardRow[]);
+        const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
+        const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
+	      setLiveRows((liveResult?.data || []) as typeof liveRows);
+	      setTentRows((tentResult?.data || []) as TentLeaderboardRow[]);
 	      setQuizRows(quizBoard.status === 'fulfilled' ? quizBoard.value : []);
         setRhudeRows(rhudes.status === 'fulfilled' ? rhudes.value : []);
         setMarksRows(marks.status === 'fulfilled' ? marks.value : []);
@@ -136,11 +185,19 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Board tabs */}
-      <div className="grid grid-cols-2 gap-1 p-1 bg-surface-2 rounded-lg w-full border border-border sm:flex sm:w-fit">
+      <div className="card overflow-hidden p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="eyebrow">Challenge Boards</p>
+            <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
+          </div>
+          <span className="badge badge-brass text-[10px]">Club Stats</span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         {tabs.map((item) => (
           <BoardTabButton key={item.key} active={tab === item.key} onClick={() => setTab(item.key)} icon={item.icon} label={item.label} />
         ))}
+        </div>
       </div>
 
       {/* Denarii Leaderboard (live) */}
@@ -159,6 +216,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
           {liveRows.length > 0 ? (
             <div className="card p-4">
+              <BoardMovementSummary rows={liveRows as CompetitiveRow[]} />
+              <div className="mt-4" />
               <BoardList>
                 {liveRows.map((row, i) => {
                   const rank = row.rank || i + 1;
@@ -205,6 +264,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       value={formatDenarii(row.total_denarii)}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
+                      movement={rankMovement(row as CompetitiveRow)}
+                      isRecord={isNewRecord(row as CompetitiveRow, Number(row.total_denarii))}
+                      valueLabel="Denarii"
                     />
                   );
                 })}
@@ -258,6 +320,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
           {streakRows.length > 0 ? (
             <div className="card p-4">
+              <BoardMovementSummary rows={streakRows as unknown as CompetitiveRow[]} />
               <p className="text-xs text-stone mb-3">
                 Live as of {(lastUpdatedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}
               </p>
@@ -317,6 +380,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
                       subtext={streakSubtext}
+                      movement={rankMovement(row as unknown as CompetitiveRow)}
+                      isRecord={isNewRecord(row as unknown as CompetitiveRow, currentStreak)}
+                      valueLabel="Streak"
                     />
                   );
                 })}
@@ -362,6 +428,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
           {quizRows.length > 0 ? (
             <div className="card p-4">
+              <BoardMovementSummary rows={quizRows as unknown as CompetitiveRow[]} />
+              <div className="mt-4" />
               <BoardList>
                 {quizRows.map((row) => {
                   const isPodium = row.rank >= 1 && row.rank <= 3;
@@ -409,6 +477,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
                       subtext={subtext}
+                      movement={rankMovement(row as unknown as CompetitiveRow)}
+                      isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.total_score))}
+                      valueLabel="Figs"
                     />
                   );
                 })}
@@ -440,6 +511,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
           {rhudeRows.length > 0 ? (
             <div className="card p-4">
+              <BoardMovementSummary rows={rhudeRows as unknown as CompetitiveRow[]} />
+              <div className="mt-4" />
               <BoardList>
                 {rhudeRows.map((row) => (
                   <BoardRow
@@ -450,6 +523,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
                     subtext={`${row.role} · ${row.tent_name || 'No tent yet'}${row.latest_victory_at ? ` · last victory ${formatShortDate(row.latest_victory_at.slice(0, 10))}` : ''}`}
+                    movement={rankMovement(row as unknown as CompetitiveRow)}
+                    isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.rhudes))}
+                    valueLabel="Rhudes"
                   />
                 ))}
               </BoardList>
@@ -476,6 +552,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
           {marksRows.length > 0 ? (
             <div className="card p-4">
+              <BoardMovementSummary rows={marksRows as unknown as CompetitiveRow[]} />
+              <div className="mt-4" />
               <BoardList>
                 {marksRows.map((row) => (
                   <BoardRow
@@ -486,6 +564,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
                     subtext={`${formatDenarii(row.total_denarii)}D · ${row.total_figs} figs · ${row.current_streak} streak · ${row.rhudes} rhudes`}
+                    movement={rankMovement(row as unknown as CompetitiveRow)}
+                    isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.marks))}
+                    valueLabel="Marks"
                   />
                 ))}
               </BoardList>
@@ -512,6 +593,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
 	          {tentRows.length > 0 ? (
 	            <div className="card p-4">
+                <BoardMovementSummary rows={tentRows as unknown as CompetitiveRow[]} />
+                <div className="mt-4" />
 	              <BoardList>
 	                {tentRows.map((row) => {
 	                  const isPodium = row.rank >= 1 && row.rank <= 3;
@@ -558,6 +641,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 		                      houseId={row.tent_house_id || undefined}
 		                      isCurrentUser={false}
 		                      subtext={[`Marks`, `${formatDenarii(row.total_denarii)}D`, `${Number(row.total_figs || 0)} figs`, `${row.total_streak} streaks`, sentries].filter(Boolean).join(' · ')}
+                          movement={rankMovement(row as unknown as CompetitiveRow)}
+                          isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.combined_score))}
+                          valueLabel="Marks"
 		                    />
                   );
                 })}
@@ -587,8 +673,8 @@ function BoardTabButton({ active, onClick, icon, label }: {
     <button
       onClick={onClick}
       className={cn(
-        'flex min-w-0 items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-all whitespace-nowrap sm:justify-start sm:gap-2 sm:px-3 sm:text-sm',
-        active ? 'bg-surface text-ink shadow-sm border border-border' : 'text-stone hover:text-ink',
+        'flex min-w-max items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition-all whitespace-nowrap sm:justify-start sm:gap-2 sm:px-4 sm:text-sm',
+        active ? 'border-brass bg-brass-soft text-brass shadow-sm' : 'border-border bg-surface/70 text-stone hover:border-border-bright hover:text-ink',
       )}
     >
       {icon} {label}

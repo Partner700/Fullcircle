@@ -2257,9 +2257,9 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Monthly Individual',
     cadence: 'monthly',
     awards: [
-      { title: 'Most Consistent Cadet', description: 'Faithfulness & Consistency' },
-      { title: 'Rudis Award (Muralis)', description: 'Best Challenger Cadet – Challenge & Courage' },
-      { title: 'The Valediction Crown (Vallum)', description: 'Overall Best Cadet – Overall Excellence' },
+      { title: 'Vallum', description: 'Overall Best Cadet of the Month by Marks' },
+      { title: 'Monthly Scribe', description: 'Highest Monthly Fig Total' },
+      { title: 'Monthly Valley Champion', description: 'Most Monthly Arena Victories' },
     ],
   },
   {
@@ -2273,10 +2273,10 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Annual Individual',
     cadence: 'annual',
     awards: [
+      { title: 'Grand Vallum', description: 'Overall Best User of the Year by Marks' },
+      { title: 'Grand Scribe', description: 'Highest Yearly Fig Total' },
+      { title: 'Grand Valley Champion', description: 'Most Yearly Arena Victories' },
       { title: 'Grand Orator', description: 'Most Rhetoric Awards during the year' },
-      { title: 'Grand Nuncio', description: 'Most Messenger Awards during the year' },
-      { title: 'The Great Muralis Crown', description: 'Grand Muralis / Grand Challenger' },
-      { title: 'The Parting Valediction Crown', description: "Heaven's Kiss / Grand Vallum" },
     ],
   },
   {
@@ -2473,7 +2473,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         const vallumRanking = allRoundRanking(monthStartIso);
         const topVallum = vallumRanking[0];
         if (topVallum) next.push({
-          title: 'The Valediction Crown (Vallum)',
+          title: 'Vallum',
           candidate: profileName(topVallum[0]),
           candidateId: topVallum[0],
           detail: `${topVallum[1]} all-round point(s) this month from daily faithfulness, quizzes, daily games, and Arena victories.`,

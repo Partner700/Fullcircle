@@ -74,8 +74,8 @@ export function QuoteReactions({
   };
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="mt-5 space-y-3 pt-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         {REACTIONS.map((reaction) => {
           const Icon = reaction.icon;
           const data = state?.[reaction.type] || { count: 0, reacted: false };
@@ -86,15 +86,15 @@ export function QuoteReactions({
               disabled={disabled || data.reacted}
               onClick={() => onReact(reaction.type)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors',
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors',
                 data.reacted
                   ? 'border-brass/50 bg-brass-soft text-brass'
                   : 'border-border bg-surface-2 text-stone hover:border-brass/40 hover:text-brass',
               )}
             >
-              <Icon size={12} />
+              <Icon size={10} />
               {reaction.label}
-              {data.count > 0 && <span className="text-[10px] opacity-80">{data.count}</span>}
+              {data.count > 0 && <span className="text-[9px] opacity-80">{data.count}</span>}
             </button>
           );
         })}
@@ -102,9 +102,9 @@ export function QuoteReactions({
           <button
             type="button"
             onClick={() => setShowComments(true)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-stone hover:border-royal/40 hover:text-royal transition-colors"
+            className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-stone hover:border-royal/40 hover:text-royal transition-colors"
           >
-            <MessageCircle size={12} /> Comments {comments.length > 0 ? comments.length : ''}
+            <MessageCircle size={10} /> Comments {comments.length > 0 ? comments.length : ''}
           </button>
         )}
       </div>

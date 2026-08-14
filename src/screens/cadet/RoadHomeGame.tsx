@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign, Clock, Crown, Dices, Gift, History, Loader2,
-  Flag, LockKeyhole, RotateCw, Shield, Sparkles, Trophy, Users, X,
+  Flag, LockKeyhole, MessageCircle, RotateCw, Send, Shield, Sparkles, Trophy, Users, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
-import { fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
+import { fetchArenaRoomMessages, fetchRoadHomeState, initializeRoadHome, sendArenaRoomMessage, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 import type { RoadHomePawn, RoadHomePlayer, RoadHomeState } from '../../lib/roadHomeTypes';
@@ -57,7 +57,6 @@ const BASE_SLOTS: Coordinate[][] = [
   [[10, 2], [10, 4], [12, 2], [12, 4]],
 ];
 
-const FINISH_SLOTS: Coordinate[] = [[6, 6], [6, 8], [8, 8], [8, 6]];
 const SAFE_SPACES = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const PRISON_SPACES = new Set([6, 19, 32, 45]);
 const SURPRISE_SPACES = new Set([10, 23, 36, 49]);
@@ -82,7 +81,7 @@ function pawnCoordinate(player: RoadHomePlayer, playerIndex: number, pawn: RoadH
   if (pawn.progress < 0) return BASE_SLOTS[playerIndex][pawn.number - 1];
   if (pawn.progress < 52) return TRACK[(player.startOffset + pawn.progress) % 52];
   if (pawn.progress < 58) return HOME_LANES[playerIndex][pawn.progress - 52];
-  return FINISH_SLOTS[playerIndex];
+  return BASE_SLOTS[playerIndex][pawn.number - 1];
 }
 
 function baseOwner(row: number, col: number) {
@@ -126,6 +125,9 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const knownEventIds = useRef<Set<string> | null>(null);
   const activityTimers = useRef<number[]>([]);
   const [liveActivity, setLiveActivity] = useState<TurnActivity | null>(null);
+  const [homeCelebration, setHomeCelebration] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const previousHomeCountsRef = useRef<Record<string, number>>({});
 
   const load = useCallback(async () => {
     try {
@@ -324,6 +326,21 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [state?.phase, state?.questionDeadline, state?.version]);
 
   useEffect(() => {
+    if (!state) return;
+    const counts = Object.fromEntries(state.players.map((player) => [
+      player.id,
+      player.pawns.filter((pawn) => pawn.progress === 58).length,
+    ]));
+    const previous = previousHomeCountsRef.current;
+    const hasNewHome = Object.entries(counts).some(([playerId, count]) => count > (previous[playerId] || 0));
+    previousHomeCountsRef.current = counts;
+    if (!hasNewHome || Object.keys(previous).length === 0) return;
+    setHomeCelebration(true);
+    const timer = window.setTimeout(() => setHomeCelebration(false), 2200);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
+  useEffect(() => {
     if (!state || !myTurn || state.phase !== 'QUESTION' || !state.questionDeadline || timedOutVersion.current === state.version) return;
     if (new Date(state.questionDeadline).getTime() > Date.now()) return;
     timedOutVersion.current = state.version;
@@ -386,11 +403,16 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
             </div>
           )}
           <div className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
+            {homeCelebration && <RoadHomeConfetti />}
             <RoadHomeBoard state={state} userId={userId} sending={sending} visualPawnProgress={visualPawnProgress} movingPawnIds={movingPawnIds} onMove={(pawnId) => void send('MOVE', { pawnId })} />
           </div>
         </div>
 
         <aside className="space-y-3">
+          <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
+            <MessageCircle size={15} /> Match Chat
+          </button>
+          {chatOpen && <ArenaMatchChat roomId={roomId} userId={userId} />}
           <div className={cn('rounded-lg border p-4', myTurn ? 'border-gold/50 bg-gold-soft' : 'border-border bg-surface/90')}>
             <div className="flex items-center gap-3">
               <PlayerAvatar player={activePlayer!} size="lg" />
@@ -428,16 +450,68 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
 }
 
 function OpponentPlayFeed({ state, events }: { state: RoadHomeState; events: RoadHomeState['eventLog'] }) {
+  const compactEvents = events.slice(0, 3);
   return <div className="rounded-lg border border-royal/30 bg-surface/92 p-3" aria-live="polite">
     <div className="mb-2 flex items-center justify-between gap-2"><div><p className="text-xs font-bold text-ink">Opponent Live Play</p><p className="text-[10px] text-stone">Rolls, questions, selected answers, results, and moves</p></div><Users size={17} className="text-royal" /></div>
-    {events.length === 0 ? <p className="text-xs text-stone">Your opponent's next action will appear here.</p> : <div className="max-h-56 space-y-2 overflow-y-auto">{events.map((event) => {
+    {compactEvents.length === 0 ? <p className="text-xs text-stone">Your opponent's next action will appear here.</p> : <div className="space-y-2">{compactEvents.map((event) => {
       const player = state.players.find((item) => item.id === event.playerId);
       return <div key={event.id} className="flex items-start gap-2 rounded-md border border-border bg-surface-2/90 p-2 animate-fade-in">
         {player && <PlayerAvatar player={player} />}
-        <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-[11px] font-bold text-ink">{player?.name || 'Opponent'}</p><span className="text-[8px] font-bold uppercase text-royal">{event.type.replace(/_/g, ' ')}</span></div><p className="mt-0.5 text-xs leading-relaxed text-stone">{event.message}</p></div>
+        <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-[11px] font-bold text-ink">{player?.name || 'Opponent'}</p><span className="text-[8px] font-bold uppercase text-royal">{event.type.replace(/_/g, ' ')}</span></div><p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-stone">{event.message}</p></div>
       </div>;
     })}</div>}
   </div>;
+}
+
+function ArenaMatchChat({ roomId, userId }: { roomId: string; userId: string }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const loadMessages = useCallback(async () => {
+    try { setMessages(await fetchArenaRoomMessages(roomId)); } catch (error) { console.error('Arena match chat load failed', error); }
+  }, [roomId]);
+
+  useEffect(() => {
+    void loadMessages();
+    const channel = supabase.channel(`road-home-chat-${roomId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}` }, () => void loadMessages())
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [loadMessages, roomId]);
+
+  const submit = async () => {
+    if (!body.trim() || sending) return;
+    setSending(true);
+    try {
+      await sendArenaRoomMessage(roomId, userId, body);
+      setBody('');
+      await loadMessages();
+    } catch (error) {
+      console.error('Arena match chat send failed', error);
+    }
+    setSending(false);
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-surface/95 p-3 animate-slide-up">
+      <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+        {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk during the match.</p> : messages.slice(-8).map((message) => {
+          const mine = message.sender_id === userId;
+          return (
+            <div key={message.id} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
+              <p className={cn('max-w-[84%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}>
+                <span className="mr-1 font-bold">{mine ? 'You' : message.sender?.display_name || 'Player'}</span>{message.body}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void submit(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Send a match message..." />
+        <button type="button" onClick={() => void submit()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send match message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button>
+      </div>
+    </div>
+  );
 }
 
 function PlayerAvatar({ player, size = 'sm' }: { player: RoadHomePlayer; size?: 'sm' | 'lg' }) {
@@ -506,8 +580,9 @@ function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnI
           tokens.length > 2 && tokenIndex === 2 && 'translate-x-[18%] -translate-y-[18%]',
           tokens.length > 3 && tokenIndex === 3 && '-translate-x-[18%] translate-y-[18%]',
           legal && 'animate-pulse cursor-pointer ring-2 ring-white ring-offset-1 ring-offset-gold hover:scale-110',
+          pawn.progress === 58 && 'opacity-45 grayscale saturate-50',
           movingPawnIds.has(pawn.id) && 'z-20 animate-bounce ring-2 ring-white/80',
-        )}>{pawn.prisonRounds ? <LockKeyhole size={10} /> : pawn.number}</button>;
+        )}>{pawn.prisonRounds ? <LockKeyhole size={10} /> : pawn.progress === 58 ? <Crown size={10} /> : pawn.number}</button>;
       })}
     </div>;
   })}</div>;

@@ -305,7 +305,29 @@ function buildFallbackDeck(targetCount: number, difficulty: string, gameType: st
     category: selectedSet,
     bank: ARENA_BANKS[selectedSet][Math.floor(seedValue / 3) % ARENA_BANKS[selectedSet].length],
   };
-  const availableFacts = selectedSet === "all" ? FALLBACK_FACTS : FALLBACK_FACTS.filter((fact) => factSet(fact) === selectedSet);
+  const sourceFacts = selectedSet === "all" ? FALLBACK_FACTS : FALLBACK_FACTS.filter((fact) => factSet(fact) === selectedSet);
+  const variants = [
+    (fact: FallbackFact) => fact,
+    (fact: FallbackFact) => ({
+      ...fact,
+      prompt: `Which answer preserves the meaning of ${fact.reference}? ${fact.prompt}`,
+      explanation: `${fact.explanation} This version asks for the supported reading, not just recall.`,
+    }),
+    (fact: FallbackFact) => ({
+      ...fact,
+      prompt: `A player must infer carefully from ${fact.reference}: ${fact.prompt}`,
+      explanation: `${fact.explanation} The key is the textual detail named in the reference.`,
+    }),
+    (fact: FallbackFact) => ({
+      ...fact,
+      prompt: `Under pressure, choose the most precise option from ${fact.reference}: ${fact.prompt}`,
+      explanation: `${fact.explanation} Plausible distractors are close, but the reference fixes the answer.`,
+    }),
+  ];
+  const availableFacts = sourceFacts.flatMap((fact) => variants.map((variant, index) => ({
+    ...variant(fact),
+    reference: `${fact.reference}${index ? ` · angle ${index + 1}` : ""}`,
+  })));
   const sortedFacts = [...availableFacts].sort((left, right) => {
     const leftScore = [...`${seed}|${left.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const rightScore = [...`${seed}|${right.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -313,8 +335,18 @@ function buildFallbackDeck(targetCount: number, difficulty: string, gameType: st
   });
   const preferredFacts = sortedFacts.filter((fact) => fact.bank.toLowerCase().includes(focus.category === "characters" ? "characters" : focus.category === "books" ? "books" : "themes"));
   const facts = preferredFacts.length >= Math.min(targetCount, 10) ? [...preferredFacts, ...sortedFacts.filter((fact) => !preferredFacts.includes(fact))] : sortedFacts;
+  const usage = new Map<string, number>();
   return Array.from({ length: targetCount }, (_, index) => {
-    const fact = facts[(index * 7 + seedValue) % facts.length];
+    let fact = facts[(index * 7 + seedValue) % facts.length];
+    const referenceKey = fact.reference;
+    if ((usage.get(referenceKey) || 0) >= 2) {
+      fact = facts.find((candidate) => {
+        const candidateKey = candidate.reference;
+        return (usage.get(candidateKey) || 0) < 2;
+      }) || fact;
+    }
+    const nextKey = fact.reference;
+    usage.set(nextKey, (usage.get(nextKey) || 0) + 1);
     return fallbackQuestion(fact, index, difficulty, gameType);
   });
 }

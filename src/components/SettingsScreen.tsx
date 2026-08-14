@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, uploadAvatar, fetchStrictStreak } from '../lib/queries';
+import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, uploadAvatar, fetchStrictStreak, fetchQuizScoreboard, fetchRhudeBoard, fetchMarksBoard } from '../lib/queries';
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
@@ -14,7 +14,7 @@ import {
   TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
-import { Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
+import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -27,8 +27,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tentInfo, setTentInfo] = useState<{ name: string; houseId: string; sentryName?: string } | null>(null);
-  const [stats, setStats] = useState<{ denarii: number; streak: number; longestStreak: number; awards: Award[]; relics: number }>({
-    denarii: 0, streak: 0, longestStreak: 0, awards: [], relics: 0,
+  const [stats, setStats] = useState<{ denarii: number; streak: number; longestStreak: number; awards: Award[]; relics: number; figs: number; rhudes: number; marks: number }>({
+    denarii: 0, streak: 0, longestStreak: 0, awards: [], relics: 0, figs: 0, rhudes: 0, marks: 0,
   });
   const [loading, setLoading] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -40,13 +40,16 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-    const [balance, streakInfo, awards, relics, memberData, sentryTentData] = await Promise.allSettled([
+    const [balance, streakInfo, awards, relics, memberData, sentryTentData, figBoard, rhudeBoard, marksBoard] = await Promise.allSettled([
       fetchLedgerTotal(profile.id),
       fetchStrictStreak(profile.id),
       fetchAwards(),
       fetchRelicInventory(profile.id),
       supabase.from('tent_members').select('*, tents(*, tent_houses(*))').eq('user_id', profile.id).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
+      fetchQuizScoreboard(),
+      fetchRhudeBoard(),
+      fetchMarksBoard(),
     ]);
 
     const memberRow = memberData.status === 'fulfilled' ? memberData.value.data : null;
@@ -77,6 +80,9 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       longestStreak: streakInfo.status === 'fulfilled' ? streakInfo.value.longest_streak : 0,
       awards: myAwards,
       relics: relics.status === 'fulfilled' ? relics.value.length : 0,
+      figs: figBoard.status === 'fulfilled' ? Number(figBoard.value.find((row) => row.user_id === profile.id)?.total_score || 0) : 0,
+      rhudes: rhudeBoard.status === 'fulfilled' ? Number(rhudeBoard.value.find((row) => row.user_id === profile.id)?.rhudes || 0) : 0,
+      marks: marksBoard.status === 'fulfilled' ? Math.round(Number(marksBoard.value.find((row) => row.user_id === profile.id)?.marks || 0)) : 0,
     });
     setTentInfo(tent);
     } catch (e) { console.error('Settings load error:', e); }
@@ -262,8 +268,11 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-slide-up">
         <StatCard icon={CoinIcon} label="Denarii" value={formatDenarii(stats.denarii)} color="#F5B731" />
         <StatCard icon={FlameIcon} label="Streak" value={stats.streak} sublabel={`Best: ${stats.longestStreak}`} color="#E05252" />
-        <StatCard icon={AwardIcon} label="Awards" value={stats.awards.length} color="#5BAD7F" />
-        <StatCard icon={TrophyIcon} label="Relics" value={stats.relics} color="#DDE3FF" />
+        <StatCard icon={BadgeCheck} label="Figs" value={stats.figs} color="#7C8CFF" />
+        <StatCard icon={Shield} label="Rhudes" value={stats.rhudes} color="#5BAD7F" />
+        <StatCard icon={Cross} label="Marks" value={stats.marks} color="#DDE3FF" />
+        <StatCard icon={AwardIcon} label="Awards" value={stats.awards.length} color="#D6A849" />
+        <StatCard icon={TrophyIcon} label="Relics" value={stats.relics} color="#A7B0C6" />
       </div>
 
       {/* Tent info */}

@@ -967,7 +967,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   const [turnPhase, setTurnPhase] = useState<'user' | 'user-feedback' | 'machine-thinking' | 'machine-feedback'>('user');
   const [answerFeedback, setAnswerFeedback] = useState<{ correct: boolean; answer: string } | null>(null);
   const [latestOutcome, setLatestOutcome] = useState<{ player: string; correct: boolean; answer: string } | null>(null);
-  const [matchPlayers, setMatchPlayers] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
+  const [matchPlayers, setMatchPlayers] = useState<{ user_id: string; display_name: string; avatar_url: string | null; rhudes: number }[]>([]);
   const [timeLeft, setTimeLeft] = useState(40);
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
@@ -1002,9 +1002,18 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     void (async () => {
       const { data: rows } = await supabase.from('arena_participants').select('user_id,joined_at').eq('room_id', roomId).is('forfeited_at', null).order('joined_at');
       const ids = (rows || []).map((row) => row.user_id);
-      const { data: profiles } = ids.length ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', ids) : { data: [] as any[] };
+      const [{ data: profiles }, rhudeResult] = await Promise.all([
+        ids.length ? supabase.from('profiles').select('id,display_name,avatar_url').in('id', ids) : Promise.resolve({ data: [] as any[] }),
+        fetchRhudeBoard().then((data) => ({ data })).catch(() => ({ data: [] })),
+      ]);
       const byId = new Map((profiles || []).map((item) => [item.id, item]));
-      if (!cancelled) setMatchPlayers(ids.map((id) => ({ user_id: id, display_name: byId.get(id)?.display_name || 'Arena player', avatar_url: byId.get(id)?.avatar_url || null })));
+      const rhudesById = new Map((rhudeResult.data || []).map((item: any) => [item.user_id, Number(item.rhudes) || 0]));
+      if (!cancelled) setMatchPlayers(ids.map((id) => ({
+        user_id: id,
+        display_name: byId.get(id)?.display_name || 'Arena player',
+        avatar_url: byId.get(id)?.avatar_url || null,
+        rhudes: rhudesById.get(id) || 0,
+      })));
     })();
     return () => { cancelled = true; };
   }, [machineMatch, roomId]);
@@ -1280,6 +1289,17 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         <span>Live figs: <span className="text-ink font-semibold">You {score}</span>{machineMatch ? ` · The Scribe ${machineScore}` : opponentScores.map((opponent) => ` · ${opponent.name} ${opponent.figs}`).join('')}</span>
         <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
       </div>
+      {!machineMatch && matchPlayers.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {matchPlayers.map((player) => (
+            <div key={player.user_id} className={cn('flex min-w-max items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-bold', player.user_id === activeRealPlayer?.user_id ? 'border-gold bg-gold-soft text-gold' : 'border-border bg-surface/90 text-stone')}>
+              <span className="h-5 w-5 overflow-hidden rounded-full bg-surface-2 text-center text-[9px] leading-5">{player.avatar_url ? <img src={player.avatar_url} alt="" className="h-full w-full object-cover" /> : player.display_name.charAt(0)}</span>
+              {player.display_name}
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-surface px-1.5 py-0.5 text-[10px] text-sage"><Shield size={10} /> {player.rhudes}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {latestOutcome && (
         <div className={cn('rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm',
