@@ -1,9 +1,9 @@
 import { cn } from '../lib/utils';
-import squaresAsset from '../assets/brand-real/squares.png';
-import spadesAsset from '../assets/brand-real/spades.png';
-import daricsAsset from '../assets/brand-real/darics.png';
-import rudesAsset from '../assets/brand-real/sword.png';
-import laureatsAsset from '../assets/brand-real/laureats.png';
+import squaresAsset from '../assets/brand-real/squares-symbol.svg';
+import spadesAsset from '../assets/brand-real/spades-symbol.svg';
+import daricsAsset from '../assets/brand-real/darics-symbol.svg';
+import rudesAsset from '../assets/brand-real/rudes-symbol.svg';
+import laureatsAsset from '../assets/brand-real/laureats-symbol.svg';
 
 const HOUSE_COLORS: Record<string, string> = {
   squares: '#5B9BE8',
@@ -30,11 +30,11 @@ const HOUSE_ASSETS: Record<string, string> = {
 };
 
 const HOUSE_SCALE: Record<string, number> = {
-  squares: 1.34,
-  spades: 1.34,
+  squares: 1.28,
+  spades: 1.24,
   darics: 1.24,
-  rudes: 1.2,
-  laureats: 1.32,
+  rudes: 1.18,
+  laureats: 1.2,
 };
 
 export function TentHouseSymbol({ houseId, size = 24, className }: { houseId: string; size?: number; className?: string }) {
@@ -48,10 +48,10 @@ export function TentHouseSymbol({ houseId, size = 24, className }: { houseId: st
       <img
         src={src}
         alt={HOUSE_NAMES[houseId] || houseId}
-        className="h-[76%] w-[76%] object-contain"
+        className="h-[84%] w-[84%] object-contain"
         style={{
           transform: `scale(${HOUSE_SCALE[houseId] || 1.24})`,
-          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.42)) saturate(1.16) contrast(1.18) brightness(1.08)',
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.46)) saturate(1.1) contrast(1.18) brightness(1.12)',
         }}
       />
     </span>

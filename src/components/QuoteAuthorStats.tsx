@@ -42,7 +42,7 @@ export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsPro
             <RankIcon size={13} style={{ color: rank.color }} strokeWidth={3} />
           </span>
         </p>
-        <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">
+        <div className="mt-1 inline-flex max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-full border border-white/25 bg-surface/55 px-2.5 py-1 shadow-sm backdrop-blur-xl ring-1 ring-black/5">
           <span className={statClass} title="Current streak">
             <Flame size={compact ? 11 : 12} className="text-gold" /> {currentStreak}
           </span>
