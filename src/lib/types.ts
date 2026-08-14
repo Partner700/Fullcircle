@@ -475,6 +475,9 @@ export interface DailyQuoteFeedItem {
   current_streak?: number;
   total_figs?: number;
   rhudes?: number;
+  role?: string | null;
+  tent_house_id?: string | null;
+  tent_name?: string | null;
 }
 
 export interface DailyQuoteComment {

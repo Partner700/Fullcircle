@@ -33,10 +33,10 @@ export function TentHouseSymbol({ houseId, size = 24, className }: { houseId: st
   const src = HOUSE_ASSETS[houseId] || squaresAsset;
   return (
     <span
-      className={cn('inline-flex items-center justify-center flex-shrink-0', className)}
+      className={cn('inline-flex items-center justify-center flex-shrink-0 rounded-full bg-surface-2/90 p-1 shadow-sm ring-1 ring-border-bright', className)}
       style={{ width: size, height: size }}
     >
-      <img src={src} alt="" className="h-full w-full object-contain" />
+      <img src={src} alt="" className="h-full w-full object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />
     </span>
   );
 }
@@ -44,7 +44,7 @@ export function TentHouseSymbol({ houseId, size = 24, className }: { houseId: st
 export function TentHouseBadge({ houseId, size = 'md' }: { houseId: string; size?: 'xs' | 'sm' | 'md' | 'lg' }) {
   const color = HOUSE_COLORS[houseId] || '#DDE3FF';
   const src = HOUSE_ASSETS[houseId] || squaresAsset;
-  const iconSize = size === 'xs' ? 12 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16;
+  const iconSize = size === 'xs' ? 14 : size === 'sm' ? 16 : size === 'lg' ? 24 : 18;
   const padX = size === 'xs' ? 'px-2' : 'px-3';
   const padY = size === 'xs' ? 'py-0.5' : 'py-1.5';
   const textSize = size === 'xs' ? 'text-[10px]' : 'text-sm';

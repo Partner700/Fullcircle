@@ -12,6 +12,8 @@ const REACTIONS = [
   { type: 'thoughtful', label: 'Think', icon: Lightbulb },
 ];
 
+const reactionButtonClass = 'inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-full border px-2 text-xs font-bold transition-colors';
+
 export function QuoteReactions({
   state,
   disabled,
@@ -86,15 +88,16 @@ export function QuoteReactions({
               disabled={disabled || data.reacted}
               onClick={() => onReact(reaction.type)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors',
+                reactionButtonClass,
                 data.reacted
                   ? 'border-brass/50 bg-brass-soft text-brass'
                   : 'border-border bg-surface-2 text-stone hover:border-brass/40 hover:text-brass',
               )}
+              title={reaction.label}
+              aria-label={`${reaction.label}: ${data.count} reactions`}
             >
-              <Icon size={10} />
-              {reaction.label}
-              {data.count > 0 && <span className="text-[9px] opacity-80">{data.count}</span>}
+              <Icon size={14} />
+              <span className="text-[11px] opacity-85">{data.count}</span>
             </button>
           );
         })}
@@ -102,9 +105,11 @@ export function QuoteReactions({
           <button
             type="button"
             onClick={() => setShowComments(true)}
-            className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-stone hover:border-royal/40 hover:text-royal transition-colors"
+            className={cn(reactionButtonClass, 'border-border bg-surface-2 text-stone hover:border-royal/40 hover:text-royal')}
+            title="Comments"
+            aria-label={`${comments.length} comments`}
           >
-            <MessageCircle size={10} /> Comments {comments.length > 0 ? comments.length : ''}
+            <MessageCircle size={14} /> <span className="text-[11px] opacity-85">{comments.length}</span>
           </button>
         )}
       </div>

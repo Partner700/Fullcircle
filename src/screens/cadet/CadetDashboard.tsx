@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
-import { TentHouseBadge } from '../../components/TentHouseSymbol';
+import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
@@ -468,7 +468,12 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
 
                   {slide.kind === 'quote' && (
                     <>
-                      <p className="eyebrow mb-1 flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
+                      <div className="mb-1 flex items-center justify-between gap-3">
+                        <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
+                        {slide.quote.tent_house_id && (
+                          <TentHouseSymbol houseId={slide.quote.tent_house_id} size={30} className="-mt-1" />
+                        )}
+                      </div>
                       <p className="font-display text-2xl text-ink leading-snug italic">"{slide.quote.daily_quote}"</p>
                       <QuoteAuthorStats quote={slide.quote} />
                       <QuoteReactions
