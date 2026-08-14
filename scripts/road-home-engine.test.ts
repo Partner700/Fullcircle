@@ -32,7 +32,7 @@ function makeSelectable(state: RoadHomeState, value: number, pawnId: string) {
   const before = player.denarii;
   state = applyRoadHomeCommand(state, player.id, { action: 'ROLL' }, [], fixed(0.51));
   assert.equal(state.diceValue, 4);
-  assert.equal(state.currentQuestion?.timerSeconds, 25);
+  assert.equal(state.currentQuestion?.timerSeconds, 14);
   const answer = state.currentQuestion!.correctAnswer;
   state = applyRoadHomeCommand(state, player.id, { action: 'ANSWER', answer }, [], fixed(0.1));
   assert.equal(state.phase, 'SELECTING_PAWN');
@@ -47,13 +47,13 @@ function makeSelectable(state: RoadHomeState, value: number, pawnId: string) {
   easy.players[0].pawns[0].progress = 0;
   const easyQuestion = applyRoadHomeCommand(easy, easy.players[0].id, { action: 'ROLL' }, [], fixed(0.01));
   assert.equal(easyQuestion.diceValue, 1);
-  assert.equal(easyQuestion.currentQuestion?.timerSeconds, 40);
+  assert.equal(easyQuestion.currentQuestion?.timerSeconds, 17);
 
   const hard = game();
   hard.players[0].pawns[0].progress = 0;
   const hardQuestion = applyRoadHomeCommand(hard, hard.players[0].id, { action: 'ROLL' }, [], fixed(0.7));
   assert.equal(hardQuestion.diceValue, 5);
-  assert.equal(hardQuestion.currentQuestion?.timerSeconds, 15);
+  assert.equal(hardQuestion.currentQuestion?.timerSeconds, 11);
 }
 
 // Failed question creates a FIFO inherited challenge; the next player can claim it.

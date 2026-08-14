@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -26,6 +26,7 @@ type DashboardHeroSlide =
 
 interface Props {
   denariiTotal: number;
+  currentStreak: number;
   tentInfo: { tent: (Tent & { tent_houses?: any }) | null; members: (TentMember & { profiles: Profile })[] };
   onNavigate: (tab: Tab) => void;
   onRefreshDenarii: () => void;
@@ -33,7 +34,7 @@ interface Props {
   notificationBadges?: Record<string, number>;
 }
 
-export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey = 0, notificationBadges = {} }: Props) {
+export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNavigate, refreshKey = 0, notificationBadges = {} }: Props) {
   const { profile } = useAuth();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [records, setRecords] = useState<DailyRecord[]>([]);
@@ -51,6 +52,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [loading, setLoading] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   const today = getTodayISODate();
   const todayDate = new Date();
@@ -58,7 +60,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     try {
       const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activePanelImages] = await Promise.allSettled([
         fetchNarrative(today),
@@ -85,10 +87,10 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
-      setHeroIndex(0);
       // Reactions enrich the slideshow, but they should never hold the entire
       // dashboard behind a loading screen on a slow mobile connection.
       setLoading(false);
+      hasLoadedRef.current = true;
       const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
         quoteItems.length > 0
           ? fetchDailyQuoteReactions(quoteItems, profile.id)
@@ -145,7 +147,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
     return r.record_date.startsWith(monthPrefix) && r.streak_valid === true;
   }).length;
   const streak: StreakInfo = {
-    current_streak: streakData?.current_streak ?? 0,
+    current_streak: Math.max(currentStreak, streakData?.current_streak ?? 0),
     longest_streak: streakData?.longest_streak ?? 0,
     consecutive_inactive: streakData?.consecutive_inactive ?? 0,
     cumulative_inactive: streakData?.cumulative_inactive ?? 0,
@@ -403,9 +405,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
               {slideImage && (
                 <PanelImageBackdrop
                   image={slideImage}
-                  opacityFallback={22}
+                  opacityOverride={100}
                   veilClassName={slide.kind === 'quote' ? 'quote-panel-veil' : 'panel-picture-veil'}
-                  modeFilter={slide.kind !== 'welcome'}
+                  modeFilter={false}
                   textGradient={false}
                   simple={slide.kind === 'quote'}
                 />

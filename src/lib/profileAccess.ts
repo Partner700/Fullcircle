@@ -8,6 +8,13 @@ function isMissingProfileRpc(error: PostgrestError | null) {
     || /could not find the function.*get_my_profile/i.test(error.message);
 }
 
+function canTryDirectOwnProfile(error: PostgrestError | null) {
+  if (!error) return false;
+  return isMissingProfileRpc(error)
+    || error.code === '42501'
+    || /permission denied|authentication required|not found|schema cache/i.test(error.message);
+}
+
 /**
  * Prefer the private profile RPC, but remain compatible with databases that
  * have not received the profile-privacy migration yet.
@@ -15,7 +22,7 @@ function isMissingProfileRpc(error: PostgrestError | null) {
 export async function fetchOwnProfile(userId: string): Promise<Profile | null> {
   const rpcResult = await supabase.rpc('get_my_profile');
   if (!rpcResult.error) return rpcResult.data as Profile | null;
-  if (!isMissingProfileRpc(rpcResult.error)) throw rpcResult.error;
+  if (!canTryDirectOwnProfile(rpcResult.error)) throw rpcResult.error;
 
   const { data, error } = await supabase
     .from('profiles')

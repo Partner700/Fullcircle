@@ -69,9 +69,6 @@ self.addEventListener('install', (event) => {
             caches.delete(name).catch(() => false)
           )
         );
-      })
-      .then(() => {
-        return self.skipWaiting();
       }),
   );
 });

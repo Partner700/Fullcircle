@@ -510,10 +510,31 @@ export type UserLiveStats = {
   marks: number;
 };
 
+export type ToolbarStats = Pick<
+  UserLiveStats,
+  'user_id' | 'total_denarii' | 'current_streak' | 'longest_streak' | 'consecutive_inactive' | 'cumulative_inactive'
+>;
+
+export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
+  const { data, error } = await supabase.rpc('get_my_toolbar_stats');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.user_id) throw new Error('Live toolbar stats were unavailable.');
+  return {
+    user_id: String(row.user_id),
+    total_denarii: Number(row.total_denarii) || 0,
+    current_streak: Number(row.current_streak) || 0,
+    longest_streak: Number(row.longest_streak) || 0,
+    consecutive_inactive: Number(row.consecutive_inactive) || 0,
+    cumulative_inactive: Number(row.cumulative_inactive) || 0,
+  };
+}
+
 export async function fetchUserLiveStats(userId: string): Promise<UserLiveStats> {
   const { data, error } = await supabase.rpc('get_user_live_stats', { p_user_id: userId });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.user_id) throw new Error('Live user stats were unavailable.');
   return {
     user_id: row?.user_id || userId,
     total_denarii: Number(row?.total_denarii) || 0,

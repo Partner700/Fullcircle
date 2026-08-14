@@ -8,6 +8,7 @@ import {
   fetchStrictStreak,
   fetchLedgerTotal,
   fetchUserLiveStats,
+  fetchOwnToolbarStats,
   fetchUserNotifications,
   markNotificationRead,
   markAllNotificationsRead,
@@ -256,7 +257,8 @@ export function CadetApp() {
 
   const loadDenarii = useCallback(async () => {
     if (!profile) return;
-    const liveStats = await fetchUserLiveStats(profile.id).catch(() => null);
+    const toolbarStats = await fetchOwnToolbarStats().catch(() => null);
+    const liveStats = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
     const total = liveStats?.total_denarii ?? await fetchLedgerTotal(profile.id).catch(async () => {
       const entries = await fetchLedgerEntries(profile.id, 500).catch(() => []);
       return entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
@@ -280,7 +282,8 @@ export function CadetApp() {
       return;
     }
     try {
-      const liveStats = await fetchUserLiveStats(profile.id).catch(() => null);
+      const toolbarStats = await fetchOwnToolbarStats().catch(() => null);
+      const liveStats = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
       const s = liveStats
         ? {
             current_streak: liveStats.current_streak,
@@ -970,7 +973,7 @@ export function CadetApp() {
       navBadges={notificationBadges}
     >
       <Suspense fallback={<TabLoading />}>
-        {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
+        {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
         {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'game' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}

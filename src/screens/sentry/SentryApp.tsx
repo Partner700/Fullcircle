@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
@@ -16,7 +16,7 @@ import {
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import {
-  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, uploadTentProfileImage,
+  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, fetchOwnToolbarStats, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
 } from '../../lib/queries';
@@ -111,19 +111,21 @@ export function SentryApp() {
   const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   const today = getTodayISODate();
   const dayType = getDayType(new Date());
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     try {
-      const [ownStreak, ownDenarii, ownLedger] = await Promise.all([
-        fetchUserLiveStats(profile.id).catch(() => null),
+      const [toolbarStats, ownDenarii, ownLedger] = await Promise.all([
+        fetchOwnToolbarStats().catch(() => null),
         fetchLedgerTotal(profile.id).catch(() => null),
         fetchLedgerEntries(profile.id, 80).catch(() => []),
       ]);
+      const ownStreak = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
       const strictFallback = ownStreak ? null : await fetchStrictStreak(profile.id).catch(() => null);
       setSentryStreak((previous) => ownStreak?.current_streak || strictFallback?.current_streak || previous);
       setSentryDenarii((previous) => ownStreak?.total_denarii ?? ownDenarii ?? previous);
@@ -192,8 +194,8 @@ export function SentryApp() {
       } else {
         setQuoteReactions({});
       }
-      setQuoteIndex(0);
     } catch (e) { console.error('Sentry load error:', e); }
+    hasLoadedRef.current = true;
     setLoading(false);
   }, [profile]);
 
@@ -648,7 +650,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
 }) {
   return (
     <div className="card p-4 sm:p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
-      <PanelImageBackdrop image={image} opacityFallback={22} veilClassName="quote-panel-veil" textGradient={false} simple />
+      <PanelImageBackdrop image={image} opacityOverride={100} veilClassName="quote-panel-veil" textGradient={false} simple />
       <div className="relative flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Quote size={18} className="text-brass" />

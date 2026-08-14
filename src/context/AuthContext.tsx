@@ -90,8 +90,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (roleError) throw new Error(roleError.message);
-      setRoleAssignment(ra as RoleAssignment | null);
+      if (roleError) {
+        console.warn('Role assignment could not load; opening with cadet defaults:', roleError);
+        setRoleAssignment({
+          id: `fallback-${userId}`,
+          user_id: userId,
+          role: 'cadet',
+          status: 'active',
+          start_date: null,
+          approver_id: null,
+          created_at: prof.created_at || new Date().toISOString(),
+        });
+      } else {
+        setRoleAssignment((ra as RoleAssignment | null) || {
+          id: `fallback-${userId}`,
+          user_id: userId,
+          role: 'cadet',
+          status: 'active',
+          start_date: null,
+          approver_id: null,
+          created_at: prof.created_at || new Date().toISOString(),
+        });
+      }
     } else {
       setRoleAssignment(null);
     }
