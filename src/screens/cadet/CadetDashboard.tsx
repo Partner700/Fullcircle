@@ -415,7 +415,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   )}
 
                   {slide.kind === 'verse' && (
-                    <>
+                    <div className="max-w-2xl rounded-2xl border border-white/18 bg-surface/62 p-4 shadow-[0_18px_50px_rgba(7,24,43,0.16)] backdrop-blur-2xl ring-1 ring-black/5">
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><BookOpen size={14} /> Verse of the Day</p>
                       <p className="font-display text-2xl text-ink leading-snug">"{slide.narrative.verse_of_day}"</p>
                       <p className="text-sm text-stone mt-3">{slide.narrative.scripture_reference || slide.narrative.title}</p>
@@ -433,7 +433,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         }}
                         onCommentOpenChange={onCommentOpenChange}
                       />
-                    </>
+                    </div>
                   )}
 
                   {slide.kind === 'announcement' && (

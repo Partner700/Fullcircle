@@ -140,9 +140,25 @@
     font-family: 'Nunito', system-ui, sans-serif;
   }
 
-  select option {
+  select {
+    color-scheme: dark;
+  }
+
+  select option,
+  select optgroup {
     background: var(--color-navy-3);
     color: var(--color-peri);
+    font-weight: 700;
+  }
+
+  [data-theme="day"] select {
+    color-scheme: light;
+  }
+
+  [data-theme="day"] select option,
+  [data-theme="day"] select optgroup {
+    background: #f7f9ff;
+    color: #14233a;
   }
 
   .reading-glass-panel {
@@ -308,29 +324,53 @@
     border-color: var(--color-border-bright);
     background-color: var(--color-navy-3);
     background-image:
-      linear-gradient(180deg, var(--color-peri-soft), transparent 72%),
+      linear-gradient(180deg, color-mix(in srgb, var(--color-peri-soft) 82%, transparent), transparent 74%),
+      linear-gradient(90deg, transparent calc(100% - 2.85rem), color-mix(in srgb, var(--color-peri-soft) 70%, transparent) calc(100% - 2.85rem)),
       linear-gradient(45deg, transparent 50%, var(--color-peri-dim) 50%),
       linear-gradient(135deg, var(--color-peri-dim) 50%, transparent 50%);
     background-position:
       center,
+      center,
       calc(100% - 1.15rem) calc(50% - 2px),
       calc(100% - 0.85rem) calc(50% - 2px);
     background-repeat: no-repeat;
-    background-size: 100% 100%, 0.38rem 0.38rem, 0.38rem 0.38rem;
-    box-shadow: inset 0 1px 0 var(--color-peri-medium), inset 0 -1px 0 var(--color-border), 0 5px 14px rgba(7, 15, 29, 0.13);
+    background-size: 100% 100%, 100% 100%, 0.38rem 0.38rem, 0.38rem 0.38rem;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-peri) 22%, transparent), inset 0 -1px 0 var(--color-border), 0 5px 14px rgba(7, 15, 29, 0.13);
     font-weight: 700;
+  }
+  [data-theme="day"] select.input-field {
+    background-color: color-mix(in srgb, #ffffff 88%, var(--color-peri-soft));
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,0.94), color-mix(in srgb, var(--color-peri-soft) 62%, transparent)),
+      linear-gradient(90deg, transparent calc(100% - 2.85rem), color-mix(in srgb, var(--color-peri-soft) 78%, transparent) calc(100% - 2.85rem)),
+      linear-gradient(45deg, transparent 50%, var(--color-navy-3) 50%),
+      linear-gradient(135deg, var(--color-navy-3) 50%, transparent 50%);
+    color: var(--color-ink);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.76), inset 0 -1px 0 var(--color-border), 0 5px 14px rgba(13, 33, 55, 0.09);
   }
   select.input-field:hover {
     border-color: var(--color-border-bright);
     background-color: var(--color-navy-4);
     box-shadow: inset 0 1px 0 var(--color-peri-medium), inset 0 -1px 0 var(--color-border-bright), 0 8px 18px rgba(7, 15, 29, 0.18);
   }
+  [data-theme="day"] select.input-field:hover {
+    background-color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -1px 0 var(--color-border-bright), 0 8px 18px rgba(13, 33, 55, 0.12);
+  }
   select.input-field:focus {
     background-image:
       linear-gradient(180deg, var(--color-peri-medium), transparent 72%),
+      linear-gradient(90deg, transparent calc(100% - 2.85rem), color-mix(in srgb, var(--color-peri-medium) 78%, transparent) calc(100% - 2.85rem)),
       linear-gradient(45deg, transparent 50%, var(--color-peri) 50%),
       linear-gradient(135deg, var(--color-peri) 50%, transparent 50%);
     box-shadow: inset 0 1px 0 var(--color-peri-medium), 0 0 0 3px var(--color-peri-soft), 0 8px 18px rgba(7, 15, 29, 0.18);
+  }
+  [data-theme="day"] select.input-field:focus {
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,0.98), color-mix(in srgb, var(--color-peri-soft) 72%, transparent)),
+      linear-gradient(90deg, transparent calc(100% - 2.85rem), color-mix(in srgb, var(--color-peri-soft) 86%, transparent) calc(100% - 2.85rem)),
+      linear-gradient(45deg, transparent 50%, var(--color-navy-3) 50%),
+      linear-gradient(135deg, var(--color-navy-3) 50%, transparent 50%);
   }
   select.input-field:disabled {
     cursor: not-allowed;
