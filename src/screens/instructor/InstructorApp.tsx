@@ -12,6 +12,7 @@ import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
+import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { supabase } from '../../lib/supabase';
 import {
@@ -1415,17 +1416,10 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
       {featuredQuote && (
         <div className="card p-4">
           <div className="flex items-start gap-3">
-            <div className="h-11 w-11 rounded-full overflow-hidden bg-surface-2 border border-border flex-shrink-0 flex items-center justify-center">
-              {featuredQuote.avatar_url ? (
-                <img src={featuredQuote.avatar_url} alt={featuredQuote.display_name} className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-display font-bold text-brass">{featuredQuote.display_name?.charAt(0) || '?'}</span>
-              )}
-            </div>
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-1">Quote Feed</p>
               <p className="text-base text-ink font-display leading-snug">"{featuredQuote.daily_quote}"</p>
-              <p className="text-xs text-stone mt-1">{featuredQuote.display_name}</p>
+              <QuoteAuthorStats quote={featuredQuote} showDate={false} compact />
               {quotes.length > 1 && (
                 <div className="mt-2 flex items-center gap-1.5">
                   <button onClick={() => setQuoteIndex((idx) => (idx - 1 + quotes.length) % quotes.length)} className="btn-ghost text-xs px-2 py-1">Prev</button>

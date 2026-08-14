@@ -169,6 +169,12 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         const active = await heartbeatArenaParticipant(activeRoomId, profile.id);
         if (!active && !cancelled) {
           const freshRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
+          if (freshRoom?.status === 'completed') {
+            setRooms((prev) => [freshRoom, ...prev.filter((item) => item.id !== freshRoom.id)]);
+            setPhase('finished');
+            setError(null);
+            return;
+          }
           const participant = freshRoom?.arena_participants?.find((item: any) => item.user_id === profile.id);
           setError(participant?.forfeit_reason === 'manual'
             ? 'You forfeited this Arena match.'
@@ -211,13 +217,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       setError(room.status === 'expired' ? 'That arena room expired.' : 'That arena room was closed by the host.');
       clearActiveRoom(false);
     }
-    const myParticipant = (room.arena_participants || []).find((participant: any) => participant.user_id === profile?.id);
-    if (myParticipant?.forfeited_at && room.status === 'playing') {
-      setError(myParticipant.forfeit_reason === 'inactive'
-        ? 'You were away from this Arena match for three minutes and forfeited your place.'
-        : 'You forfeited this Arena match.');
-      clearActiveRoom(true);
-    }
     if (room.status === 'completed') {
       if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
@@ -225,6 +224,13 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         setPhase('finished');
         if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
       }
+    }
+    const myParticipant = (room.arena_participants || []).find((participant: any) => participant.user_id === profile?.id);
+    if (myParticipant?.forfeited_at && room.status === 'playing') {
+      setError(myParticipant.forfeit_reason === 'inactive'
+        ? 'You were away from this Arena match for three minutes and forfeited your place.'
+        : 'You forfeited this Arena match.');
+      clearActiveRoom(true);
     }
   }, [activeRoomId, phase, rooms, profile, clearActiveRoom]);
 
@@ -971,8 +977,9 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
     if (completedRef.current) return;
     completedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
+    void heartbeatArenaParticipant(roomId, userId).catch(() => null);
     onComplete(finalScore, finalCorrectCount);
-  }, [onComplete]);
+  }, [onComplete, roomId, userId]);
 
   useEffect(() => {
     if (machineMatch || !ready || questions.length === 0 || matchPlayers.length === 0) return;
@@ -1043,6 +1050,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       machineTotalFigs: number;
     };
     try {
+      await heartbeatArenaParticipant(roomId, userId).catch(() => true);
       result = await submitArenaTriviaAnswer(roomId, userId, currentQ, answer);
     } catch (error: any) {
       console.error('Arena answer verification failed', error);

@@ -472,6 +472,9 @@ export interface DailyQuoteFeedItem {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  current_streak?: number;
+  total_figs?: number;
+  rhudes?: number;
 }
 
 export interface DailyQuoteComment {
