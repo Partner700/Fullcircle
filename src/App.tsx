@@ -7,6 +7,7 @@ import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { CadetApp } from './screens/cadet/CadetApp';
+import { useFrenchUiTranslation } from './lib/frenchUi';
 
 // Role applications are large, independent experiences. Load only the one the
 // signed-in person needs instead of making every user download all three.
@@ -35,6 +36,7 @@ function isPasswordRecoveryUrl() {
 export default function App() {
   const { session, profile, role, configError, loading } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
+  useFrenchUiTranslation(profile?.language_code);
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
   }, []);
