@@ -817,6 +817,49 @@ export async function upsertChallengeSubmission(sub: Partial<ChallengeSubmission
   if (error) throw error;
 }
 
+export async function uploadChallengeEvidence(userId: string, file: File) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-90);
+  const path = `challenge-evidence/${userId}/${Date.now()}-${safeName}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, {
+    upsert: true,
+    contentType: file.type || 'application/octet-stream',
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return {
+    name: file.name,
+    type: file.type || 'file',
+    size: file.size,
+    url: data.publicUrl,
+  };
+}
+
+export async function fetchVerseInsights(narrativeId: string) {
+  const { data, error } = await supabase
+    .from('scripture_verse_insights')
+    .select('id,narrative_id,verse_reference,body,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)')
+    .eq('narrative_id', narrativeId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.warn('Verse insights unavailable:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
+export async function saveVerseInsight(narrativeId: string, userId: string, verseReference: string, body: string) {
+  const { error } = await supabase
+    .from('scripture_verse_insights')
+    .upsert({
+      narrative_id: narrativeId,
+      user_id: userId,
+      verse_reference: verseReference,
+      body: body.trim(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'narrative_id,user_id,verse_reference' });
+  if (error) throw error;
+}
+
 // ── Subscription queries ──
 
 export async function fetchSubscription(userId: string) {

@@ -140,7 +140,65 @@ const TEXT_FR: Record<string, string> = {
   'Loading': 'Chargement',
   'Search': 'Rechercher',
   'No results': 'Aucun résultat',
+  'The Arena': 'L’arène',
+  'Challenge Review': 'Vérification des défis',
+  'Reading Archive': 'Archives de lecture',
+  'Open archive': 'Ouvrir les archives',
+  'Hide': 'Masquer',
+  'Scripture': 'Écriture',
+  'Reflection Prompts': 'Questions de réflexion',
+  'Daily Meditation': 'Méditation quotidienne',
+  'Write Your Meditation': 'Écrire votre méditation',
+  'At least 50 words': 'Au moins 50 mots',
+  'Select a verse from today\'s reading': 'Choisissez un verset de la lecture du jour',
+  'Submit Challenge': 'Soumettre le défi',
+  'Resubmit': 'Soumettre à nouveau',
+  'Verify Evidence': 'Vérifier la preuve',
+  'Open uploaded evidence': 'Ouvrir la preuve envoyée',
+  'Open link': 'Ouvrir le lien',
+  'Recent Reviews': 'Avis récents',
+  'No pending challenges.': 'Aucun défi en attente.',
+  'No challenge submissions': 'Aucune soumission de défi',
+  'My Tent': 'Ma tente',
+  'My Stats': 'Mes statistiques',
+  'Send WhatsApp Message': 'Envoyer un message WhatsApp',
+  'Send via WhatsApp': 'Envoyer via WhatsApp',
 };
+
+const PHRASE_FR: Array<[RegExp, string]> = [
+  [/\bToday's Reading\b/g, 'Lecture du jour'],
+  [/\bToday’s Reading\b/g, 'Lecture du jour'],
+  [/\bDaily Meditation\b/g, 'Méditation quotidienne'],
+  [/\bDaily Challenge\b/g, 'Défi quotidien'],
+  [/\bChallenge Boards\b/g, 'Tableaux des défis'],
+  [/\bChallenge Board\b/g, 'Tableau des défis'],
+  [/\bChallenge Review\b/g, 'Vérification des défis'],
+  [/\bPrevious readings\b/g, 'Lectures précédentes'],
+  [/\bPrevious meditations\b/g, 'Méditations précédentes'],
+  [/\bYour profile, stats, and preferences\b/g, 'Votre profil, vos statistiques et vos préférences'],
+  [/\bSettings\b/g, 'Paramètres'],
+  [/\bCountry\b/g, 'Pays'],
+  [/\bLanguage\b/g, 'Langue'],
+  [/\bBirthday\b/g, 'Anniversaire'],
+  [/\bSave\b/g, 'Enregistrer'],
+  [/\bOpen\b/g, 'Ouvrir'],
+  [/\bClose\b/g, 'Fermer'],
+  [/\bApprove\b/g, 'Approuver'],
+  [/\bReject\b/g, 'Rejeter'],
+  [/\bPending\b/g, 'En attente'],
+  [/\bApproved\b/g, 'Approuvé'],
+  [/\bRejected\b/g, 'Rejeté'],
+  [/\bStreak\b/g, 'Série'],
+  [/\bDenarii\b/g, 'Deniers'],
+  [/\bFigs\b/g, 'Figues'],
+  [/\bRhudes\b/g, 'Rhudes'],
+  [/\bMarks\b/g, 'Marques'],
+  [/\bAwards\b/g, 'Prix'],
+  [/\bArena\b/g, 'Arène'],
+  [/\bMarket\b/g, 'Marché'],
+  [/\bTent\b/g, 'Tente'],
+  [/\bProfile\b/g, 'Profil'],
+];
 
 const PLACEHOLDER_FR: Record<string, string> = {
   'Your name': 'Votre nom',
@@ -167,6 +225,11 @@ function translateStaticText(value: string) {
   const compact = value.replace(/\s+/g, ' ').trim();
   if (!compact) return null;
   if (TEXT_FR[compact]) return TEXT_FR[compact];
+  let translated = compact;
+  PHRASE_FR.forEach(([pattern, replacement]) => {
+    translated = translated.replace(pattern, replacement);
+  });
+  if (translated !== compact) return translated;
   const loading = compact.match(/^Loading (.+?)(?:\.{3}|…)$/);
   if (loading) return `Chargement de ${loading[1].toLowerCase()}...`;
   const posted = compact.match(/^Posted (.+)$/);

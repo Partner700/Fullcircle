@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
-import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, recordSundayReadingOpen, upsertChallengeSubmission } from '../../lib/queries';
+import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -47,6 +47,11 @@ export function CadetNarrative({
   const [readingImage, setReadingImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
+  const [verseInsights, setVerseInsights] = useState<any[]>([]);
+  const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
+  const [myInsightDrafts, setMyInsightDrafts] = useState<Record<string, string>>({});
+  const [savingInsight, setSavingInsight] = useState<string | null>(null);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [readingHistory, setReadingHistory] = useState<(DailyNarrative & { meditation_text: string | null; best_verse: string | null; daily_quote: string | null })[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -153,6 +158,20 @@ export function CadetNarrative({
     return () => { cancelled = true; };
   }, [narrative]);
 
+  useEffect(() => {
+    if (!narrative?.id) return;
+    let cancelled = false;
+    fetchVerseInsights(narrative.id).then((items) => {
+      if (!cancelled) {
+        setVerseInsights(items);
+        const drafts: Record<string, string> = {};
+        items.filter((item: any) => item.user_id === profile?.id).forEach((item: any) => { drafts[item.verse_reference] = item.body || ''; });
+        setMyInsightDrafts(drafts);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [narrative?.id, profile?.id]);
+
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
   const appClock = getAppClock();
@@ -206,6 +225,21 @@ export function CadetNarrative({
     setChallengeSaved(true);
     setSaving(false);
     load();
+  };
+
+  const submitVerseInsight = async (reference: string) => {
+    if (!profile || !narrative?.id) return;
+    const body = (myInsightDrafts[reference] || '').trim();
+    if (!body) return;
+    setSavingInsight(reference);
+    try {
+      await saveVerseInsight(narrative.id, profile.id, reference, body);
+      setVerseInsights(await fetchVerseInsights(narrative.id));
+      setOpenUserInsights(reference);
+    } catch (error: any) {
+      alert(error.message || 'Could not save your insight.');
+    }
+    setSavingInsight(null);
   };
 
   if (loading) {
@@ -285,8 +319,10 @@ export function CadetNarrative({
         <ScrollEdge position="top" className="text-brass mb-4" />
         <div className="space-y-4 sm:space-y-5">
           {displayVerses.length ? displayVerses.map((verse, index) => {
+            const userInsights = verseInsights.filter((item: any) => item.verse_reference === verse.reference);
             const hasInsight = Boolean(verse.meditation?.trim());
             const expanded = openVerse === index;
+            const userExpanded = openUserInsights === verse.reference;
             const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
             return (
               <article key={`${verse.reference}-${index}`} className="overflow-hidden border-b border-border pb-4 last:border-b-0 last:pb-0">
@@ -298,7 +334,7 @@ export function CadetNarrative({
                 >
                   <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
                   <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
-                    {verse.reference}{hasInsight ? ' · Instructor annotation available' : ''}
+                    {verse.reference}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
                   </span>
                 </button>
                 {hasInsight && expanded && (
@@ -307,6 +343,33 @@ export function CadetNarrative({
                     <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
                   </div>
                 )}
+                <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
+                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => setOpenUserInsights(userExpanded ? null : verse.reference)}>
+                      {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                    </button>
+                  </div>
+                  {userExpanded && (
+                    <div className="mt-3 space-y-3">
+                      {userInsights.filter((item: any) => item.user_id !== profile?.id).map((item: any) => (
+                        <div key={item.id} className="rounded-lg bg-surface-2 p-2">
+                          <p className="text-xs font-bold text-ink">{item.profiles?.display_name || 'Reader'}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>
+                        </div>
+                      ))}
+                      <textarea
+                        className="input-field min-h-[5.5rem] text-sm"
+                        value={myInsightDrafts[verse.reference] || ''}
+                        onChange={(event) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: event.target.value }))}
+                        placeholder="Write your insight on this verse..."
+                      />
+                      <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference)}>
+                        {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </article>
             );
           }) : fetchedVerses.map((verse, index) => (
@@ -553,23 +616,27 @@ export function CadetNarrative({
                       type="file"
                       accept={proofFormat === 'png' ? 'image/png' : proofFormat === 'pdf' ? 'application/pdf' : 'image/*'}
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          setChallengeText(`[File: ${file.name} — ${Math.round(file.size / 1024)}KB]`);
+                        if (file && profile) {
+                          setUploadingEvidence(true);
+                          try {
+                            const uploaded = await uploadChallengeEvidence(profile.id, file);
+                            setChallengeText(JSON.stringify({ items: [uploaded] }));
+                          } catch (error: any) {
+                            alert(error.message || 'Could not upload evidence.');
+                          }
+                          setUploadingEvidence(false);
                           setChallengeSaved(false);
                         }
                       }}
                     />
                   </label>
                   {challengeText && (
-                    <p className="text-xs text-moss flex items-center gap-1">
-                      <CheckCircle2 size={12} /> {challengeText}
+                    <p className="text-xs text-moss flex items-center gap-1 break-all">
+                      <CheckCircle2 size={12} /> {uploadingEvidence ? 'Uploading evidence...' : 'Evidence ready'}
                     </p>
                   )}
-                  <p className="text-[10px] text-stone">
-                    File uploads are stored as proof references. In production, this would upload to Supabase Storage.
-                  </p>
                 </div>
               )}
 
