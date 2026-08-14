@@ -3651,9 +3651,20 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
       setSubmissions(data || []);
     } catch {}
     setLoading(false);
-  }, []);
+  }, [instructorId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const channel = supabase
+      .channel(`instructor_challenge_review_${instructorId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'challenge_submissions' }, () => { void load(); })
+      .subscribe();
+    const interval = window.setInterval(() => { void load(); }, 20_000);
+    return () => {
+      window.clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [instructorId, load]);
 
   const approve = async (id: string) => {
     setReviewingId(id);

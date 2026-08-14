@@ -15,13 +15,13 @@ import {
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import {
-  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, uploadTentProfileImage,
+  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchUnassignedUsers, sentryAddCadetToTent,
 } from '../../lib/queries';
-import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl } from '../../lib/utils';
+import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
@@ -107,6 +107,7 @@ export function SentryApp() {
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [sentryStreak, setSentryStreak] = useState(0);
   const [sentryDenarii, setSentryDenarii] = useState(0);
+  const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
 
@@ -117,12 +118,14 @@ export function SentryApp() {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [ownStreak, ownDenarii] = await Promise.all([
+      const [ownStreak, ownDenarii, ownLedger] = await Promise.all([
         fetchStrictStreak(profile.id).catch(() => null),
         fetchLedgerTotal(profile.id).catch(() => 0),
+        fetchLedgerEntries(profile.id, 80).catch(() => []),
       ]);
       setSentryStreak(ownStreak?.current_streak || 0);
       setSentryDenarii(ownDenarii);
+      setSentryLedger(ownLedger);
 
       const { data: member } = await supabase
         .from('tent_members')
@@ -180,7 +183,7 @@ export function SentryApp() {
       const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
       setAnnouncements(await fetchAnnouncements(['all', 'cadets', 'sentries']).catch(() => []));
       setQuotes(quoteFeed);
-      const sentryPanelImages = await fetchPanelImageSettings(['quote', 'sentry_overview'], ['all', 'sentries']).catch(() => ({}));
+      const sentryPanelImages = await fetchPanelImageSettings(['quote', 'sentry_overview', 'recent_denarii'], ['all', 'sentries']).catch(() => ({}));
       setPanelImages(sentryPanelImages);
       if (quoteFeed.length > 0) {
         setQuoteReactions(await fetchDailyQuoteReactions(quoteFeed, profile.id).catch(() => ({})) as Record<string, QuoteReactionState>);
@@ -302,6 +305,8 @@ export function SentryApp() {
           currentUserId={profile?.id || null}
           panelImages={panelImages}
           announcements={announcements}
+          ledger={sentryLedger}
+          denariiTotal={sentryDenarii}
           onReactQuote={async (quote, reactionType) => {
             if (!profile) return;
             const key = `${quote.user_id}:${quote.record_date}`;
@@ -394,7 +399,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, announcements, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
+function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, announcements, ledger, denariiTotal, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -409,6 +414,8 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   currentUserId: string | null;
   panelImages: Record<string, PanelImageSetting>;
   announcements: ScheduledAnnouncement[];
+  ledger: DenariiLedgerEntry[];
+  denariiTotal: number;
   onReactQuote: (quote: DailyQuoteFeedItem, reactionType: string) => void;
   onQuotePrev: () => void;
   onQuoteNext: () => void;
@@ -418,6 +425,11 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   uploadingTentPhoto: boolean;
 }) {
   const dayType = getDayType(new Date());
+  const today = getTodayISODate();
+  const todayDenarii = ledger
+    .filter((entry) => entry.created_at.startsWith(today))
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const recentLedger = ledger.slice(0, 5);
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="card p-5 bg-surface-2">
@@ -475,6 +487,30 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <StatCard icon={UserCheck} label="Marked Today" value={todayMarked} sublabel={`of ${members.length}`} color="#6B8E5A" />
         <StatCard icon={AlertTriangle} label="At Risk" value={atRiskCount} sublabel="need attention" color="#B8553E" />
         <StatCard icon={Sunrise} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
+      </div>
+
+      <div className="card relative overflow-hidden p-4">
+        <PanelImageBackdrop image={panelImages.recent_denarii} />
+        <div className="relative">
+          <SectionHeader title="Recent Denarii" subtitle={`${formatDenarii(denariiTotal)} total · ${todayDenarii >= 0 ? '+' : ''}${formatDenarii(todayDenarii)} today`} />
+          {recentLedger.length > 0 ? (
+            <div className="space-y-2">
+              {recentLedger.map((entry) => (
+                <div key={entry.id} className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <SealBullet className="text-brass flex-shrink-0" />
+                    <span className="truncate text-ink">{entry.description || entry.source_type.replace(/_/g, ' ')}</span>
+                  </div>
+                  <span className={cn('font-medium flex-shrink-0', entry.amount > 0 ? 'text-moss' : 'text-roman')}>
+                    {entry.amount > 0 ? '+' : ''}{formatDenarii(entry.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={Coins} title="No Denarii yet" message="Arena wins, quiz rewards, and approved duties will appear here." />
+          )}
+        </div>
       </div>
 
       {announcements.length > 0 && (
@@ -893,6 +929,17 @@ function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRe
   }, [sentryId]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const channel = supabase
+      .channel(`sentry_challenge_review_${sentryId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'challenge_submissions' }, () => { void load(); })
+      .subscribe();
+    const interval = window.setInterval(() => { void load(); }, 20_000);
+    return () => {
+      window.clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [load, sentryId]);
 
   const review = async (id: string, status: 'approved' | 'rejected') => {
     if (status === 'rejected' && !rejectionReason.trim()) return;

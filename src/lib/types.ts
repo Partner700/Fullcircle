@@ -9,7 +9,7 @@ export type QuizAttemptStatus = 'not_started' | 'in_progress' | 'submitted' | 'f
 export type GameMode = 'normal' | 'blitz' | 'practice';
 export type GameStatus = 'in_progress' | 'passed' | 'failed';
 
-export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fortune_quiz_reward' | 'relic_purchase' | 'relic_reward' | 'admin_adjustment' | 'hint_purchase' | 'answer_reveal' | 'freezer_daily' | 'freezer_weekly' | 'attendance' | 'arena_stake' | 'arena_fee' | 'arena_reward' | 'mobile_money' | 'campay_payment';
+export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fortune_quiz_reward' | 'relic_purchase' | 'relic_reward' | 'admin_adjustment' | 'hint_purchase' | 'answer_reveal' | 'freezer_daily' | 'freezer_weekly' | 'attendance' | 'arena_stake' | 'arena_fee' | 'arena_reward' | 'mobile_money' | 'campay_payment' | 'notification_opt_in' | 'challenge_submission';
 
 export type ChallengeProofFormat = 'text' | 'png' | 'pdf' | 'link' | 'image';
 export type ChallengeSubmissionStatus = 'pending' | 'approved' | 'rejected';

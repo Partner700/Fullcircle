@@ -797,6 +797,14 @@ export async function fetchChallengeSubmission(userId: string, date: string) {
 }
 
 export async function upsertChallengeSubmission(sub: Partial<ChallengeSubmission>) {
+  const { data: rpcData, error: rpcError } = await supabase.rpc('submit_challenge_submission_secure', {
+    p_user_id: sub.user_id,
+    p_narrative_date: sub.narrative_date,
+    p_proof_text: sub.proof_text,
+    p_proof_type: sub.proof_type,
+  });
+  if (!rpcError && rpcData) return rpcData as ChallengeSubmission;
+
   const { error } = await supabase.from('challenge_submissions').upsert(sub);
   if (error) throw error;
 }

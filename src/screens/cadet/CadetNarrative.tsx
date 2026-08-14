@@ -484,7 +484,7 @@ export function CadetNarrative({
         <div className="card p-5 animate-slide-up bg-surface-2 border-border">
           <div className="flex items-center justify-between gap-3 mb-1">
             <span className="eyebrow text-stone">Daily Challenge</span>
-            <span className="badge badge-roman text-[10px]" title="Counts after sentry approval">5%</span>
+            <span className="badge badge-roman text-[10px]" title="Submitting evidence awards 1000 Denarii">+1000D</span>
           </div>
           <div className="flex items-center gap-2 mt-3 mb-2">
             <Target size={18} className="text-roman" strokeWidth={1.5} />
@@ -584,7 +584,7 @@ export function CadetNarrative({
                   </span>
                 ) : (
                   <span className="text-sm text-stone">
-                    Counts after sentry approval
+                    Submit evidence to earn 1000 Denarii. Review still comes from your sentry or instructor.
                   </span>
                 )}
                 <button

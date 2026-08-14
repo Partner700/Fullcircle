@@ -146,8 +146,11 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       setAllInvitees((invitees.status === 'fulfilled' ? invitees.value : []).filter((c) => c.user_id !== profile.id));
       setArenaImage(panelImage.status === 'fulfilled' ? panelImage.value : null);
       if (narrs.status === 'fulfilled' && narrs.value && narrs.value.length > 0 && !selectedNarrativeDate) setSelectedNarrativeDate(narrs.value[0].narrative_date);
-    } catch (e) { console.error('Arena load error:', e); }
-    setLoading(false);
+    } catch (e) {
+      console.error('Arena load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [profile, selectedNarrativeDate]);
 
   useEffect(() => { load(); }, [load]);
@@ -376,7 +379,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     setInviting(false);
   };
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+  if (loading && phase === 'lobby') return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
   if (phase === 'playing' && activeRoomId) {
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
