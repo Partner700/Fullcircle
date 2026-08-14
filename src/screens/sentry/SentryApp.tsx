@@ -10,6 +10,7 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
+import { AppSelect } from '../../components/AppSelect';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
@@ -196,6 +197,28 @@ export function SentryApp() {
   }, [profile]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!profile) return;
+    const refreshVisibleStats = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    const refreshOnFocus = () => { void load(); };
+    document.addEventListener('visibilitychange', refreshVisibleStats);
+    window.addEventListener('focus', refreshOnFocus);
+    window.addEventListener('full-circle-wallet-refresh', refreshOnFocus);
+    const channel = supabase
+      .channel(`sentry_topbar_${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
+      .subscribe();
+    return () => {
+      document.removeEventListener('visibilitychange', refreshVisibleStats);
+      window.removeEventListener('focus', refreshOnFocus);
+      window.removeEventListener('full-circle-wallet-refresh', refreshOnFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [profile, load]);
+
   useEffect(() => {
     if (quotes.length <= 1 || quotePaused) return;
     const interval = window.setInterval(() => {
@@ -837,13 +860,13 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
         </div>
         {showAdd && (
           <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-            <select className="input-field" value={selectedCadet} onChange={(event) => setSelectedCadet(event.target.value)}>
-              {unassigned.length === 0 ? (
-                <option value="">No unassigned cadets available</option>
-              ) : unassigned.map((cadet) => (
-                <option key={cadet.user_id} value={cadet.user_id}>{cadet.display_name}</option>
-              ))}
-            </select>
+            <AppSelect
+              value={selectedCadet}
+              onChange={setSelectedCadet}
+              placeholder={unassigned.length === 0 ? 'No unassigned cadets available' : 'Choose cadet'}
+              disabled={unassigned.length === 0}
+              options={unassigned.map((cadet) => ({ value: cadet.user_id, label: cadet.display_name }))}
+            />
             <button onClick={addCadet} disabled={!selectedCadet || adding} className="btn-primary text-xs disabled:opacity-50">
               {adding ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
               Add
@@ -977,7 +1000,8 @@ function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRe
         : Array.isArray(parsed?.evidence)
           ? parsed.evidence
           : [];
-    const links = proofText.match(/https?:\/\/\S+/g) || [];
+    const links = (proofText.match(/https?:\/\/\S+/g) || []).map((link) => link.replace(/[),.;\]]+$/, ''));
+    const legacyFileOnly = /^\[File:/i.test(proofText) && items.length === 0 && links.length === 0;
 
     return (
       <div className="mt-3 rounded-2xl border border-border bg-surface/70 p-3">
@@ -995,13 +1019,17 @@ function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRe
                   <p className="font-semibold text-ink">{label}</p>
                   {text && <p className="mt-1 whitespace-pre-line">{text}</p>}
                   {url && (
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-xs font-bold text-brass underline">
-                      Open uploaded evidence
+                    <a href={url} target="_blank" rel="noopener noreferrer" download className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass-soft px-3 py-1.5 text-xs font-bold text-brass hover:border-brass/60 transition-colors">
+                      <Eye size={12} /> Open file
                     </a>
                   )}
                 </div>
               );
             })}
+          </div>
+        ) : legacyFileOnly ? (
+          <div className="rounded-xl border border-coral/25 bg-coral-soft p-3 text-sm text-coral">
+            This file was recorded before secure upload links were saved. Ask the cadet to resubmit the file so you can open it here.
           </div>
         ) : proofText ? (
           <p className="whitespace-pre-line text-sm leading-relaxed text-stone">{proofText}</p>

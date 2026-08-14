@@ -1257,15 +1257,15 @@ function MatchingQuestion({ pairs, shuffledOptions, showFeedback, onAnswer }: {
             {pair.left}
           </div>
           <span className="text-stone">→</span>
-          <select
-            className="input-field flex-1 text-sm"
+          <AppSelect
+            className="flex-1"
+            buttonClassName="text-sm"
             value={matches[pair.left] || ''}
-            onChange={(e) => !showFeedback && setMatches({ ...matches, [pair.left]: e.target.value })}
+            onChange={(value) => !showFeedback && setMatches({ ...matches, [pair.left]: value })}
             disabled={showFeedback}
-          >
-            <option value="">Select…</option>
-            {shuffledOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
+            placeholder="Select..."
+            options={shuffledOptions.map((opt) => ({ value: opt, label: opt }))}
+          />
         </div>
       ))}
       {!showFeedback && (
@@ -1304,19 +1304,15 @@ function CategorySortQuestion({ items, buckets, showFeedback, onAnswer }: {
             <div className="flex-1 p-3 rounded-lg bg-surface-2 text-sm font-medium text-ink border border-border">
               {item.text}
             </div>
-            <select
-              className={cn(
-                'input-field flex-1 text-sm',
-                isCorrect && 'border-sage text-sage',
-                isWrong && 'border-coral text-coral',
-              )}
+            <AppSelect
+              className="flex-1"
+              buttonClassName={cn('text-sm', isCorrect && 'border-sage text-sage', isWrong && 'border-coral text-coral')}
               value={selected}
-              onChange={(e) => !showFeedback && setAssignments({ ...assignments, [item.text]: e.target.value })}
+              onChange={(value) => !showFeedback && setAssignments({ ...assignments, [item.text]: value })}
               disabled={showFeedback}
-            >
-              <option value="">Select…</option>
-              {buckets.map((bucket) => <option key={bucket} value={bucket}>{bucket}</option>)}
-            </select>
+              placeholder="Select..."
+              options={buckets.map((bucket) => ({ value: bucket, label: bucket }))}
+            />
           </div>
         );
       })}

@@ -270,7 +270,7 @@ export function CadetNarrative({
       {/* ── Header card — scripture reference + theme ── */}
       <div
         className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up border-border backdrop-blur-sm"
-        style={{ background: 'color-mix(in srgb, var(--color-navy-3) 88%, transparent)' }}
+        style={{ background: 'color-mix(in srgb, var(--color-navy-3) 42%, transparent)', backdropFilter: 'blur(18px) saturate(1.18)' }}
       >
         <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="" />
         <div className="relative">
@@ -289,7 +289,7 @@ export function CadetNarrative({
         <div
           className="card reading-glass-panel relative overflow-hidden p-5 animate-slide-up border-brass/30"
           style={{
-            backdropFilter: 'blur(14px) saturate(1.12)',
+            backdropFilter: 'blur(26px) saturate(1.22)',
           }}
         >
           <div>
@@ -310,7 +310,7 @@ export function CadetNarrative({
       <div
         className="card reading-glass-panel p-5 animate-slide-up border-border"
         style={{
-          backdropFilter: 'blur(14px) saturate(1.12)',
+          backdropFilter: 'blur(26px) saturate(1.22)',
         }}
       >
         <div className="flex items-center gap-2 mb-3">

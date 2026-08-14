@@ -669,6 +669,22 @@ export function CadetApp() {
     return () => { supabase.removeChannel(channel); };
   }, [profile, refreshCadetState]);
 
+  useEffect(() => {
+    if (!profile) return;
+    const refreshVisibleStats = () => {
+      if (document.visibilityState === 'visible') void refreshCadetState();
+    };
+    const refreshOnFocus = () => { void refreshCadetState(); };
+    document.addEventListener('visibilitychange', refreshVisibleStats);
+    window.addEventListener('focus', refreshOnFocus);
+    window.addEventListener('full-circle-wallet-refresh', refreshOnFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshVisibleStats);
+      window.removeEventListener('focus', refreshOnFocus);
+      window.removeEventListener('full-circle-wallet-refresh', refreshOnFocus);
+    };
+  }, [profile, refreshCadetState]);
+
   const houseName = tentInfo.tent?.tent_houses?.name;
   const tentName = tentInfo.tent?.name;
 

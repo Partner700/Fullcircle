@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { AppSelect } from '../../components/AppSelect';
 import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
@@ -404,12 +405,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       {giftRecipients.length > 0 && (
         <div className="card p-4">
           <label className="text-xs text-stone block mb-1">Buy for</label>
-          <select className="input-field" value={giftRecipientId} onChange={(e) => setGiftRecipientId(e.target.value)}>
-            <option value="self">Myself</option>
-            {giftRecipients.map((recipient) => (
-              <option key={recipient.id} value={recipient.id}>{recipient.name}</option>
-            ))}
-          </select>
+          <AppSelect
+            value={giftRecipientId}
+            onChange={setGiftRecipientId}
+            options={[{ value: 'self', label: 'Myself' }, ...giftRecipients.map((recipient) => ({ value: recipient.id, label: recipient.name }))]}
+          />
           {giftRecipientId !== 'self' && (
             <p className="text-xs text-sage mt-2">
               You pay with your denarii; the item is added to this cadet's account.

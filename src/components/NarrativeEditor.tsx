@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { upsertNarrative } from '../lib/queries';
+import { AppSelect } from './AppSelect';
 import { getTodayISODate, getDayType, getAppClock, shiftISODate, cn } from '../lib/utils';
 import { CHALLENGE_PROOF_FORMATS } from '../lib/constants';
 import type { DailyNarrative, GameSeedData, ChallengeProofFormat } from '../lib/types';
@@ -483,17 +484,11 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-peri-dim mb-1">Translation</label>
-            <select
+            <AppSelect
               value={form.translation}
-              onChange={(e) => update('translation', e.target.value as TranslationValue)}
-              className="input-field"
-            >
-              {TRANSLATIONS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => update('translation', value as TranslationValue)}
+              options={TRANSLATIONS.map((t) => ({ value: t.value, label: t.label }))}
+            />
           </div>
           <div className="flex items-end">
             <button

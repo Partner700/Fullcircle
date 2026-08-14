@@ -20,7 +20,7 @@ const SOUND_STATE_EVENT = 'full-circle-sound-state';
 
 const moodSoundSlots: Partial<Record<SoundMood, string>> = {
   instructor_overview: 'sound_instructor_overview',
-  sentry_overview: 'sound_sentry_overview',
+  sentry_overview: 'sound_dashboard',
   reading: 'sound_reading',
   tent: 'sound_tent',
   game: 'sound_game_lobby',

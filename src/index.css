@@ -29,7 +29,7 @@
     --color-border: rgba(221, 227, 255, 0.10);
     --color-border-bright: rgba(221, 227, 255, 0.22);
     --color-stone-dim: rgba(136, 150, 204, 0.55);
-    --panel-image-mode-filter: brightness(0.5) saturate(0.9) contrast(1.06);
+    --panel-image-mode-filter: brightness(0.64) saturate(1.16) contrast(1.08);
   }
 
   [data-theme="day"] {
@@ -69,7 +69,7 @@
   /* The weekly artwork is the app canvas, not a panel illustration. */
   [data-theme="night"] .weekly-app-background-image,
   :root:not([data-theme="day"]) .weekly-app-background-image {
-    filter: brightness(0.36) saturate(0.9) contrast(1.12) !important;
+    filter: brightness(0.5) saturate(1.2) contrast(1.08) !important;
   }
   [data-theme="day"] .weekly-app-background-image {
     filter: brightness(1.72) saturate(0.82) contrast(0.9) !important;
@@ -162,18 +162,19 @@
   }
 
   .reading-glass-panel {
-    background: color-mix(in srgb, var(--color-navy-2) 18%, transparent);
-    box-shadow: 0 18px 55px rgba(7, 24, 43, 0.18);
+    background: color-mix(in srgb, var(--color-navy-3) 36%, transparent);
+    border-color: color-mix(in srgb, var(--color-peri) 16%, transparent);
+    box-shadow: 0 18px 55px rgba(7, 24, 43, 0.14), inset 0 1px 0 color-mix(in srgb, var(--color-peri) 10%, transparent);
   }
 
   [data-theme="day"] .reading-glass-panel {
-    background: color-mix(in srgb, #ffffff 86%, transparent);
-    border-color: rgba(13, 33, 55, 0.16);
-    box-shadow: 0 18px 55px rgba(13, 33, 55, 0.1);
+    background: color-mix(in srgb, #f6fbff 48%, transparent);
+    border-color: rgba(13, 33, 55, 0.12);
+    box-shadow: 0 18px 55px rgba(13, 33, 55, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.36);
   }
 
   [data-theme="night"] .reading-glass-panel {
-    background: color-mix(in srgb, var(--color-navy-2) 20%, transparent);
+    background: color-mix(in srgb, var(--color-navy-3) 34%, transparent);
   }
 }
 

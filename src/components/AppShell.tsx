@@ -173,7 +173,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
     const key = `${activeKey} ${headerTitle}`.toLowerCase();
     let mood: SoundMood = 'default';
     if (role === 'instructor' && activeKey === 'dashboard') mood = 'instructor_overview';
-    else if (role === 'sentry' && activeKey === 'overview') mood = 'sentry_overview';
+    else if (role === 'sentry' && activeKey === 'overview') mood = 'home';
     else if (key.includes('dashboard') || key.includes('home')) mood = 'home';
     else if (key.includes('reading') || key.includes('narrative') || key.includes('devotion')) mood = 'reading';
     else if (key.includes('tent')) mood = 'tent';

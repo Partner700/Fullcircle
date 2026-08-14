@@ -14,6 +14,7 @@ import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { AppSelect } from '../../components/AppSelect';
 import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
@@ -792,31 +793,31 @@ function AnnouncementManager() {
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">Type</label>
-            <select className="input-field" value={announcementType} onChange={(e) => setAnnouncementType(e.target.value)}>
-              <option value="general">General</option>
-              <option value="morning_call">Morning Call</option>
-              <option value="midday_reminder">Midday Reminder</option>
-              <option value="evening_reminder">Evening Reminder</option>
-              <option value="quote_of_day">Quote of the Day</option>
-              <option value="birthday">Birthday</option>
-              <option value="streakboard_release">Streakboard Release</option>
-              <option value="weekly_background">Weekly Background Image</option>
-              <option value="panel_image_welcome">Panel Image: Welcome</option>
-              <option value="panel_image_verse">Panel Image: Verse</option>
-              <option value="panel_image_announcement">Panel Image: Announcement</option>
-              <option value="panel_image_birthday">Panel Image: Birthday</option>
-              <option value="panel_image_quote">Panel Image: Quote</option>
-              <option value="panel_image_market">Panel Image: Market</option>
-            </select>
+            <AppSelect value={announcementType} onChange={setAnnouncementType} options={[
+              { value: 'general', label: 'General' },
+              { value: 'morning_call', label: 'Morning Call' },
+              { value: 'midday_reminder', label: 'Midday Reminder' },
+              { value: 'evening_reminder', label: 'Evening Reminder' },
+              { value: 'quote_of_day', label: 'Quote of the Day' },
+              { value: 'birthday', label: 'Birthday' },
+              { value: 'streakboard_release', label: 'Streakboard Release' },
+              { value: 'weekly_background', label: 'Weekly Background Image' },
+              { value: 'panel_image_welcome', label: 'Panel Image: Welcome' },
+              { value: 'panel_image_verse', label: 'Panel Image: Verse' },
+              { value: 'panel_image_announcement', label: 'Panel Image: Announcement' },
+              { value: 'panel_image_birthday', label: 'Panel Image: Birthday' },
+              { value: 'panel_image_quote', label: 'Panel Image: Quote' },
+              { value: 'panel_image_market', label: 'Panel Image: Market' },
+            ]} />
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">Audience</label>
-            <select className="input-field" value={audience} onChange={(e) => setAudience(e.target.value)}>
-              <option value="all">Everyone</option>
-              <option value="cadets">Cadets</option>
-              <option value="sentries">Sentries</option>
-              <option value="instructors">Instructors</option>
-            </select>
+            <AppSelect value={audience} onChange={setAudience} options={[
+              { value: 'all', label: 'Everyone' },
+              { value: 'cadets', label: 'Cadets' },
+              { value: 'sentries', label: 'Sentries' },
+              { value: 'instructors', label: 'Instructors' },
+            ]} />
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">Publish time</label>
@@ -1576,20 +1577,22 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
           <h4 className="font-display font-semibold text-ink">Create New Tent</h4>
           <div className="grid sm:grid-cols-3 gap-3">
             <input className="input-field" placeholder="Tent name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-            <select className="input-field" value={newHouse} onChange={(e) => setNewHouse(e.target.value)}>
-              <option value="squares">The Squares</option>
-              <option value="spades">The Spades</option>
-              <option value="darics">The Darics</option>
-              <option value="rudes">The Rudes</option>
-              <option value="laureats">The Laureats</option>
-            </select>
-            <select className="input-field" value={newSentry} onChange={(e) => setNewSentry(e.target.value)}>
-              <option value="">Select sentry…</option>
-              {availableSentries.map((r) => {
+            <AppSelect value={newHouse} onChange={setNewHouse} options={[
+              { value: 'squares', label: 'The Squares' },
+              { value: 'spades', label: 'The Spades' },
+              { value: 'darics', label: 'The Darics' },
+              { value: 'rudes', label: 'The Rudes' },
+              { value: 'laureats', label: 'The Laureats' },
+            ]} />
+            <AppSelect
+              value={newSentry}
+              onChange={setNewSentry}
+              placeholder="Select sentry..."
+              options={availableSentries.map((r) => {
                 const p = profiles.find((p) => p.id === r.user_id);
-                return <option key={r.user_id} value={r.user_id}>{p?.display_name}</option>;
+                return { value: r.user_id, label: p?.display_name || 'Sentry' };
               })}
-            </select>
+            />
           </div>
           <div className="flex gap-2">
             <button onClick={createTent} disabled={creating || !newName || !newSentry} className="btn-primary text-sm">
@@ -1704,13 +1707,17 @@ function AddCadetRow({ tentId, availableCadets, profiles, onRefresh }: {
 
   return (
     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-      <select className="input-field text-sm flex-1" value={selected} onChange={(e) => setSelected(e.target.value)}>
-        <option value="">Add cadet…</option>
-        {availableCadets.map((r) => {
+      <AppSelect
+        className="flex-1"
+        buttonClassName="text-sm"
+        value={selected}
+        onChange={setSelected}
+        placeholder="Add cadet..."
+        options={availableCadets.map((r) => {
           const p = profiles.find((p) => p.id === r.user_id);
-          return <option key={r.user_id} value={r.user_id}>{p?.display_name}</option>;
+          return { value: r.user_id, label: p?.display_name || 'Cadet' };
         })}
-      </select>
+      />
       <button onClick={addCadet} disabled={adding || !selected} className="btn-primary text-xs">
         {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
       </button>
@@ -2090,13 +2097,17 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
                         <label className="text-xs font-bold text-peri block mb-1.5">Replace with another sentry</label>
                         <p className="text-[10px] text-stone mb-2">The tent and its cadets stay intact. The new sentry takes over immediately.</p>
                         <div className="flex gap-2">
-                          <select className="input-field text-sm flex-1" value={replacementId} onChange={(e) => setReplacementId(e.target.value)}>
-                            <option value="">Select a replacement…</option>
-                            {availableSentries.filter((ar) => ar.user_id !== r.user_id).map((ar) => {
+                          <AppSelect
+                            className="flex-1"
+                            buttonClassName="text-sm"
+                            value={replacementId}
+                            onChange={setReplacementId}
+                            placeholder="Select a replacement..."
+                            options={availableSentries.filter((ar) => ar.user_id !== r.user_id).map((ar) => {
                               const ap = profiles.find((p) => p.id === ar.user_id);
-                              return <option key={ar.user_id} value={ar.user_id}>{ap?.display_name}</option>;
+                              return { value: ar.user_id, label: ap?.display_name || 'Sentry' };
                             })}
-                          </select>
+                          />
                           <button onClick={() => confirmReplace(r.user_id)} disabled={busy || !replacementId} className="btn-primary text-sm">
                             {busy ? <Loader2 size={14} className="animate-spin" /> : <UserMinus size={14} />} Replace
                           </button>
@@ -2685,12 +2696,10 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         {targetType === 'tent' ? (
           <div>
             <label className="text-xs text-stone block mb-1">Select Tent</label>
-            <select className="input-field" value={selectedTentId} onChange={(e) => setSelectedTentId(e.target.value)}>
-              <option value="">Choose a tent…</option>
-              {tents.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} · {t.tent_houses?.name || ''}</option>
-              ))}
-            </select>
+            <AppSelect value={selectedTentId} onChange={setSelectedTentId} placeholder="Choose a tent..." options={tents.map((t) => ({
+              value: t.id,
+              label: `${t.name} · ${t.tent_houses?.name || ''}`,
+            }))} />
             {selectedTentId && (
               <p className="text-xs text-stone mt-1">
                 Awarding all {members.filter((m) => m.tent_id === selectedTentId && m.role === 'cadet').length} cadet(s) in this tent.
@@ -3203,10 +3212,10 @@ function QuizBuilder() {
               </div>
               <div>
                 <label className="text-xs text-stone block mb-1">Quiz Type</label>
-                <select className="input-field" value={sessionType} onChange={(event) => setSessionType(event.target.value as 'saturday' | 'fortune')}>
-                  <option value="saturday">Saturday Quiz</option>
-                  <option value="fortune">Fortune Quiz</option>
-                </select>
+                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune')} options={[
+                  { value: 'saturday', label: 'Saturday Quiz' },
+                  { value: 'fortune', label: 'Fortune Quiz' },
+                ]} />
               </div>
               <div>
                 <label className="text-xs text-stone block mb-1">Countdown (minutes)</label>
@@ -3279,10 +3288,10 @@ function QuizBuilder() {
         <div className="card p-4 space-y-3 bg-surface-2">
           <div>
             <label className="text-xs text-stone block mb-1">Quiz Type</label>
-            <select className="input-field text-sm" value={newQuizType} onChange={(e) => setNewQuizType(e.target.value as 'saturday' | 'fortune')}>
-              <option value="saturday">Saturday Quiz (scheduled, streak-critical)</option>
-              <option value="fortune">Fortune Quiz (random, bonus rewards)</option>
-            </select>
+            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune')} options={[
+              { value: 'saturday', label: 'Saturday Quiz', description: 'Scheduled, streak-critical' },
+              { value: 'fortune', label: 'Fortune Quiz', description: 'Random bonus rewards' },
+            ]} />
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">Quiz Title</label>
@@ -3463,15 +3472,11 @@ function InstructorSettings({ profile, tents, members }: {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-xs text-stone">
             <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
-            <select className="input-field" value={country} onChange={(event) => setCountry(event.target.value)}>
-              {PROFILE_COUNTRIES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-            </select>
+            <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name }))} />
           </label>
           <label className="block text-xs text-stone">
             <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
-            <select className="input-field" value={language} onChange={(event) => setLanguage(event.target.value)}>
-              {PROFILE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-            </select>
+            <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
           </label>
           <label className="block text-xs text-stone">
             <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
@@ -3525,11 +3530,11 @@ function InstructorSettings({ profile, tents, members }: {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">Receiving Provider</label>
-            <select className="input-field text-sm" value={mmForm.provider_name || 'MTN MoMo'} onChange={(e) => setMmForm({ ...mmForm, provider_name: e.target.value })}>
-              <option value="MTN MoMo">MTN MoMo</option>
-              <option value="Orange Money">Orange Money</option>
-              <option value="Other">Other</option>
-            </select>
+            <AppSelect value={mmForm.provider_name || 'MTN MoMo'} onChange={(value) => setMmForm({ ...mmForm, provider_name: value })} options={[
+              { value: 'MTN MoMo', label: 'MTN MoMo' },
+              { value: 'Orange Money', label: 'Orange Money' },
+              { value: 'Other', label: 'Other' },
+            ]} />
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">Receiving Number</label>
@@ -3557,10 +3562,10 @@ function InstructorSettings({ profile, tents, members }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-stone block mb-1">Payout Provider</label>
-              <select className="input-field text-sm" value={mmForm.payout_provider_name || mmForm.provider_name || 'MTN MoMo'} onChange={(e) => setMmForm({ ...mmForm, payout_provider_name: e.target.value })}>
-                <option value="MTN MoMo">MTN MoMo</option>
-                <option value="Orange Money">Orange Money</option>
-              </select>
+              <AppSelect value={mmForm.payout_provider_name || mmForm.provider_name || 'MTN MoMo'} onChange={(value) => setMmForm({ ...mmForm, payout_provider_name: value })} options={[
+                { value: 'MTN MoMo', label: 'MTN MoMo' },
+                { value: 'Orange Money', label: 'Orange Money' },
+              ]} />
             </div>
             <div>
               <label className="text-xs text-stone block mb-1">Payout Number</label>
@@ -3673,6 +3678,58 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
     setReviewingId(null);
   };
 
+  const renderEvidence = (submission: any) => {
+    const proofText = String(submission.proof_text || '').trim();
+    let parsed: any = null;
+    if (proofText.startsWith('{') || proofText.startsWith('[')) {
+      try { parsed = JSON.parse(proofText); } catch { parsed = null; }
+    }
+    const items = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.items)
+        ? parsed.items
+        : Array.isArray(parsed?.evidence)
+          ? parsed.evidence
+          : [];
+    const links = (proofText.match(/https?:\/\/\S+/g) || []).map((link) => link.replace(/[),.;\]]+$/, ''));
+    const legacyFileOnly = /^\[File:/i.test(proofText) && items.length === 0 && links.length === 0;
+    return (
+      <div className="rounded-2xl border border-border bg-surface-2/80 p-3 text-sm text-ink mb-3">
+        {items.length > 0 ? (
+          <div className="space-y-2">
+            {items.map((item: any, index: number) => {
+              const label = item?.name || item?.title || item?.type || `Evidence ${index + 1}`;
+              const url = item?.url || item?.href || item?.link;
+              const text = item?.text || item?.body || item?.description;
+              return (
+                <div key={`${submission.id}_${index}`} className="rounded-xl border border-border bg-surface/80 p-2">
+                  <p className="font-semibold text-ink">{label}</p>
+                  {text && <p className="mt-1 whitespace-pre-line text-stone">{text}</p>}
+                  {url && (
+                    <a href={url} target="_blank" rel="noopener noreferrer" download className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass-soft px-3 py-1.5 text-xs font-bold text-brass hover:border-brass/60 transition-colors">
+                      <Eye size={12} /> Open file
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : legacyFileOnly ? (
+          <p className="text-coral">This file was recorded before secure upload links were saved. Ask the user to resubmit the file so it can be opened here.</p>
+        ) : proofText ? (
+          <p className="whitespace-pre-line leading-relaxed">{proofText}</p>
+        ) : (
+          <p className="text-stone">No readable evidence text was attached.</p>
+        )}
+        {links.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {links.map((link) => <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="badge badge-royal text-[10px]">Open link</a>)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
   const pending = submissions.filter((s) => s.status === 'pending');
@@ -3698,9 +3755,7 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
                     </div>
                     <span className="badge badge-gold text-[10px]">Pending</span>
                   </div>
-                  <div className="p-3 rounded-lg bg-surface-2 text-sm text-ink mb-3">
-                    {s.proof_text}
-                  </div>
+                  {renderEvidence(s)}
                   {rejectingId === s.id ? (
                     <div className="space-y-2 animate-slide-up">
                       <textarea
@@ -3908,21 +3963,21 @@ function CustomQuestionsEditor({ sessionId }: { sessionId: string }) {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-stone block mb-1">Type</label>
-            <select className="input-field text-sm" value={qType} onChange={(e) => setQType(e.target.value)}>
-              <option value="multiple_choice">Multiple Choice</option>
-              <option value="true_false">True / False</option>
-              <option value="order_sequence">Order / Sequence</option>
-              <option value="scriptorium">Scriptorium (Verse ID)</option>
-              <option value="comprehension">Comprehension</option>
-            </select>
+            <AppSelect value={qType} onChange={setQType} buttonClassName="text-sm" options={[
+              { value: 'multiple_choice', label: 'Multiple Choice' },
+              { value: 'true_false', label: 'True / False' },
+              { value: 'order_sequence', label: 'Order / Sequence' },
+              { value: 'scriptorium', label: 'Scriptorium (Verse ID)' },
+              { value: 'comprehension', label: 'Comprehension' },
+            ]} />
             </div>
             <div>
               <label className="text-xs text-stone block mb-1">Difficulty</label>
-              <select className="input-field text-sm" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
-                <option value="easy">Easy</option>
-                <option value="moderate">Moderate</option>
-                <option value="hard">Hard</option>
-              </select>
+              <AppSelect value={difficulty} onChange={setDifficulty} buttonClassName="text-sm" options={[
+                { value: 'easy', label: 'Easy' },
+                { value: 'moderate', label: 'Moderate' },
+                { value: 'hard', label: 'Hard' },
+              ]} />
             </div>
           </div>
           {(qType === 'multiple_choice' || qType === 'comprehension' || qType === 'order_sequence') && (
@@ -4319,18 +4374,16 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
       <div className="card p-4 grid md:grid-cols-3 gap-3">
         <div>
           <label className="text-xs text-stone block mb-1">Narrative Day</label>
-          <select className="input-field" value={selectedNarrativeDate} onChange={(e) => setSelectedNarrativeDate(e.target.value)}>
-            {narratives.map((n) => (
-              <option key={n.id} value={n.narrative_date}>{n.narrative_date} · {n.title}</option>
-            ))}
-          </select>
+          <AppSelect value={selectedNarrativeDate} onChange={setSelectedNarrativeDate} options={narratives.map((n) => ({
+            value: n.narrative_date,
+            label: `${n.narrative_date} · ${n.title}`,
+            description: n.theme || undefined,
+          }))} />
           {selectedNarrative && <p className="text-[10px] text-stone mt-1">{selectedNarrative.title} · {selectedNarrative.theme}</p>}
         </div>
         <div>
           <label className="text-xs text-stone block mb-1">Level Question Type</label>
-          <select className="input-field" value={levelQuestionType} onChange={(e) => setLevelQuestionType(e.target.value)}>
-            {questionTypeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          <AppSelect value={levelQuestionType} onChange={setLevelQuestionType} options={questionTypeOptions} />
         </div>
         <div className="flex items-end">
           <button onClick={syncFromPacket} disabled={syncing || !selectedNarrative} className="btn-primary w-full text-sm">
@@ -4415,9 +4468,12 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wide text-brass mb-1">Part 2 · Questions</p>
-                    <select className="input-field text-xs" value={roundQuestionTypes[round] || 'comprehension'} onChange={(e) => setRoundQuestionTypes((prev) => ({ ...prev, [round]: e.target.value }))}>
-                      {questionTypeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                    </select>
+                    <AppSelect
+                      value={roundQuestionTypes[round] || 'comprehension'}
+                      onChange={(value) => setRoundQuestionTypes((prev) => ({ ...prev, [round]: value }))}
+                      buttonClassName="text-xs"
+                      options={questionTypeOptions}
+                    />
                   </div>
                   <button
                     onClick={() => applyRoundComprehensionSettings(round)}
@@ -4446,10 +4502,11 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">{isFinalLevel ? 'Question Type' : 'Level Question Type'}</label>
-            <select className="input-field" value={effectiveQuestionType} onChange={(e) => isComprehensionLevel ? setRoundQuestionTypes((prev) => ({ ...prev, [newQ.round]: e.target.value })) : setLevelQuestionType(e.target.value)}>
-              {questionTypeOptions
-                .map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </select>
+            <AppSelect
+              value={effectiveQuestionType}
+              onChange={(value) => isComprehensionLevel ? setRoundQuestionTypes((prev) => ({ ...prev, [newQ.round]: value })) : setLevelQuestionType(value)}
+              options={questionTypeOptions}
+            />
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">
@@ -4483,19 +4540,19 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label className="text-xs text-stone block mb-1">Round</label>
-            <select className="input-field" value={newQ.round} onChange={(e) => setNewQ({ ...newQ, round: Number(e.target.value), difficulty: Number(e.target.value) === 1 ? 'easy' : Number(e.target.value) === 2 ? 'moderate' : 'hard' })}>
-              <option value={1}>Round 1</option>
-              <option value={2}>Round 2</option>
-              <option value={3}>Round 3</option>
-            </select>
+            <AppSelect value={String(newQ.round)} onChange={(value) => setNewQ({ ...newQ, round: Number(value), difficulty: Number(value) === 1 ? 'easy' : Number(value) === 2 ? 'moderate' : 'hard' })} options={[
+              { value: '1', label: 'Round 1' },
+              { value: '2', label: 'Round 2' },
+              { value: '3', label: 'Round 3' },
+            ]} />
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">Difficulty</label>
-            <select className="input-field" value={newQ.difficulty} onChange={(e) => setNewQ({ ...newQ, difficulty: e.target.value })}>
-              <option value="easy">Easy</option>
-              <option value="moderate">Moderate</option>
-              <option value="hard">Hard</option>
-            </select>
+            <AppSelect value={newQ.difficulty} onChange={(value) => setNewQ({ ...newQ, difficulty: value })} options={[
+              { value: 'easy', label: 'Easy' },
+              { value: 'moderate', label: 'Moderate' },
+              { value: 'hard', label: 'Hard' },
+            ]} />
           </div>
           <label className="flex items-center gap-2 text-xs text-stone pt-6">
             <input type="checkbox" checked={newQ.useForQuiz} onChange={(e) => setNewQ({ ...newQ, useForQuiz: e.target.checked })} className="accent-peri" />
@@ -4661,17 +4718,19 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
               <div className="grid grid-cols-3 gap-2 items-end">
                 <div>
                   <label className="text-xs text-stone block mb-1">Role</label>
-                  <select className="input-field text-sm" value={assignRole[u.user_id] || 'cadet'} onChange={(e) => setAssignRole({ ...assignRole, [u.user_id]: e.target.value })}>
-                    <option value="cadet">Cadet</option>
-                    <option value="sentry">Sentry</option>
-                  </select>
+                  <AppSelect value={assignRole[u.user_id] || 'cadet'} onChange={(value) => setAssignRole({ ...assignRole, [u.user_id]: value })} buttonClassName="text-sm" options={[
+                    { value: 'cadet', label: 'Cadet' },
+                    { value: 'sentry', label: 'Sentry' },
+                  ]} />
                 </div>
                 <div>
                   <label className="text-xs text-stone block mb-1">Tent (optional)</label>
-                  <select className="input-field text-sm" value={assignTent[u.user_id] || ''} onChange={(e) => setAssignTent({ ...assignTent, [u.user_id]: e.target.value })}>
-                    <option value="">No tent</option>
-                    {tents.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  <AppSelect
+                    value={assignTent[u.user_id] || ''}
+                    onChange={(value) => setAssignTent({ ...assignTent, [u.user_id]: value })}
+                    buttonClassName="text-sm"
+                    options={[{ value: '', label: 'No tent' }, ...tents.map((t) => ({ value: t.id, label: t.name }))]}
+                  />
                 </div>
                 <button onClick={() => assign(u.user_id)} disabled={assigning === u.user_id} className="btn-primary text-sm">
                   {assigning === u.user_id ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Assign
