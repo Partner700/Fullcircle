@@ -21,6 +21,7 @@ import {
   sendArenaRoomMessage,
   fetchArenaRooms,
   fetchArenaRoom,
+  fetchRhudeBoard,
   fetchNarratives,
   fetchArenaInvitees,
   generateArenaQuestionsWithAI,
@@ -33,6 +34,7 @@ import type { DailyNarrative, QuestionPayload, Profile, RoleAssignment, PanelIma
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
+  Shield,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -71,6 +73,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set());
   const [playerSearch, setPlayerSearch] = useState('');
   const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
+  const [finishSummary, setFinishSummary] = useState<{ room: any | null; rhudes: number | null } | null>(null);
   const previousSoundPhase = useRef<ArenaPhase | null>(null);
 
   useEffect(() => {
@@ -110,6 +113,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
     setActiveRoomId(null);
     setPhase('lobby');
+    setFinishSummary(null);
   }, [activeRoomId, profile]);
 
   const activateRoom = useCallback((roomId: string, nextPhase: ArenaPhase = 'waiting') => {
@@ -122,6 +126,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     }
     setActiveRoomId(roomId);
     setPhase(nextPhase);
+    setFinishSummary(null);
   }, [profile]);
 
   const load = useCallback(async () => {
@@ -221,6 +226,16 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
       } else if (phase !== 'finished') {
+        if (profile) {
+          void fetchRhudeBoard()
+            .then((rows) => {
+              const mine = rows.find((row) => row.user_id === profile.id);
+              setFinishSummary({ room, rhudes: mine ? Number(mine.rhudes) || 0 : 0 });
+            })
+            .catch(() => setFinishSummary({ room, rhudes: null }));
+        } else {
+          setFinishSummary({ room, rhudes: null });
+        }
         setPhase('finished');
         if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
       }
@@ -408,9 +423,20 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
         onComplete={async (score, correctCount) => {
           try {
             await finishArenaGame(activeRoomId, profile!.id, score, correctCount);
-          } catch {}
+          } catch (finishError) {
+            console.error('Arena finish settlement failed', finishError);
+          }
+          const [freshRoomResult, rhudeResult] = await Promise.allSettled([
+            fetchArenaRoom(activeRoomId),
+            fetchRhudeBoard(),
+          ]);
+          const finishedRoom = freshRoomResult.status === 'fulfilled' ? freshRoomResult.value : null;
+          const rhudes = rhudeResult.status === 'fulfilled'
+            ? Number(rhudeResult.value.find((row) => row.user_id === profile!.id)?.rhudes) || 0
+            : null;
+          if (finishedRoom) setRooms((prev) => [finishedRoom, ...prev.filter((item) => item.id !== finishedRoom.id)]);
+          setFinishSummary({ room: finishedRoom, rhudes });
           setPhase('finished');
-          await load();
           await onBalanceChanged?.();
         }}
         onForfeit={forfeitStandardMatch}
@@ -421,8 +447,10 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   }
 
   if (phase === 'finished' && activeRoomId) {
-    const room = rooms.find((r) => r.id === activeRoomId);
+    const room = finishSummary?.room || rooms.find((r) => r.id === activeRoomId);
     const winner = room?.winner_id === profile?.id;
+    const participantCount = Math.max(1, room?.arena_participants?.length || (room?.play_mode === 'machine' ? 1 : 0));
+    const prize = (room?.stake_amount || 0) * participantCount * 10;
     return (
       <div className="max-w-md mx-auto animate-scale-in">
         <div className={cn('card p-8 text-center', winner ? 'border-sage' : 'border-border')}>
@@ -434,8 +462,17 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             {winner ? 'You Won!' : 'Game Over'}
           </h2>
           <p className="text-stone text-sm mb-4">
-            {winner ? `You won ${formatDenarii((room?.stake_amount || 0) * (room?.arena_participants?.length || 1) * 10)} Ð (ten times the total stake).` : room?.completion_reason === 'forfeit' ? 'The match ended by forfeiture.' : 'Better luck next time!'}
+            {winner ? `You won ${formatDenarii(prize)} Ð and earned 1 Rhude for this Arena victory.` : room?.completion_reason === 'forfeit' ? 'The match ended by forfeiture.' : 'Better luck next time!'}
           </p>
+          {winner && (
+            <div className="mb-5 rounded-xl border border-royal/25 bg-royal-soft px-4 py-3">
+              <p className="eyebrow mb-1 flex items-center justify-center gap-1.5 text-royal"><Shield size={13} /> Valley Count</p>
+              <p className="font-display text-2xl font-bold text-ink">
+                {finishSummary?.rhudes == null ? 'Updated' : finishSummary.rhudes}
+                {finishSummary?.rhudes != null && <span className="ml-1 text-sm font-semibold text-stone">Rhudes</span>}
+              </p>
+            </div>
+          )}
           <button onClick={() => clearActiveRoom(true)} className="btn-primary w-full">
             Back to Arena
           </button>

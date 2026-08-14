@@ -608,5 +608,26 @@ function RoadHomeResults({ state, userId, onExit }: { state: RoadHomeState; user
   const winner = ranking[0];
   const knowledgeable = [...state.players].sort((a, b) => b.stats.correct - a.stats.correct)[0];
   const strategic = [...state.players].sort((a, b) => (b.stats.captured + b.stats.inheritedClaimed) - (a.stats.captured + a.stats.inheritedClaimed))[0];
-  return <div className="mx-auto max-w-3xl space-y-4 animate-scale-in"><div className="card border-gold/40 p-6 text-center"><Trophy size={48} className="mx-auto text-gold" /><p className="eyebrow mt-3">The Road Home</p><h2 className="mt-1 font-display text-2xl font-bold text-ink">{winner?.id === userId ? 'You reached Home first' : `${winner?.name || 'The victor'} reached Home first`}</h2><p className="mt-2 text-sm text-stone">The four-pawn race is complete and the tenfold Arena reward has been settled.</p></div><div className="grid gap-3 sm:grid-cols-2">{ranking.map((player, index) => <div key={player.id} className="card flex items-center gap-3 p-4"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-soft font-display font-bold text-gold">{index + 1}</span><PlayerAvatar player={player} size="lg" /><div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="text-[10px] text-stone">{index === 0 ? 'The Victor' : index === 1 ? 'The Finisher' : index === 2 ? 'The Traveller' : 'The Sojourner'} · {player.stats.correct} correct</p></div></div>)}</div><div className="grid gap-3 sm:grid-cols-2"><div className="card p-4"><p className="eyebrow">Most Knowledgeable</p><p className="mt-1 font-bold text-ink">{knowledgeable?.name}</p><p className="text-xs text-stone">{knowledgeable?.stats.correct} correct answers</p></div><div className="card p-4"><p className="eyebrow">Most Strategic</p><p className="mt-1 font-bold text-ink">{strategic?.name}</p><p className="text-xs text-stone">{strategic?.stats.captured} captures · {strategic?.stats.inheritedClaimed} inherited claims</p></div></div><button onClick={onExit} className="btn-primary w-full">Back to Arena</button></div>;
+  return <div className="mx-auto max-w-3xl space-y-4 animate-scale-in"><div className="card relative overflow-hidden border-gold/40 p-6 text-center"><RoadHomeConfetti /><Trophy size={48} className="relative z-10 mx-auto text-gold" /><p className="eyebrow relative z-10 mt-3">The Road Home</p><h2 className="relative z-10 mt-1 font-display text-2xl font-bold text-ink">{winner?.id === userId ? 'You reached Home first' : `${winner?.name || 'The victor'} reached Home first`}</h2><p className="relative z-10 mt-2 text-sm text-stone">The four-pawn race is complete and the tenfold Arena reward has been settled.</p></div><div className="grid gap-3 sm:grid-cols-2">{ranking.map((player, index) => <div key={player.id} className="card flex items-center gap-3 p-4"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-soft font-display font-bold text-gold">{index + 1}</span><PlayerAvatar player={player} size="lg" /><div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="text-[10px] text-stone">{index === 0 ? 'The Victor' : index === 1 ? 'The Finisher' : index === 2 ? 'The Traveller' : 'The Sojourner'} · {player.stats.correct} correct</p></div></div>)}</div><div className="grid gap-3 sm:grid-cols-2"><div className="card p-4"><p className="eyebrow">Most Knowledgeable</p><p className="mt-1 font-bold text-ink">{knowledgeable?.name}</p><p className="text-xs text-stone">{knowledgeable?.stats.correct} correct answers</p></div><div className="card p-4"><p className="eyebrow">Most Strategic</p><p className="mt-1 font-bold text-ink">{strategic?.name}</p><p className="text-xs text-stone">{strategic?.stats.captured} captures · {strategic?.stats.inheritedClaimed} inherited claims</p></div></div><button onClick={onExit} className="btn-primary w-full">Back to Arena</button></div>;
+}
+
+function RoadHomeConfetti() {
+  const pieces = Array.from({ length: 22 }, (_, index) => ({
+    left: `${8 + ((index * 37) % 84)}%`,
+    delay: `${(index % 7) * 0.09}s`,
+    duration: `${1.45 + (index % 5) * 0.12}s`,
+    color: ['bg-gold', 'bg-sage', 'bg-royal', 'bg-coral', 'bg-brass'][index % 5],
+    rotate: index % 2 === 0 ? 'rotate-12' : '-rotate-12',
+  }));
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+      {pieces.map((piece, index) => (
+        <span
+          key={index}
+          className={cn('absolute top-[-14px] h-3 w-1.5 rounded-sm opacity-0 animate-confetti-fall', piece.color, piece.rotate)}
+          style={{ left: piece.left, animationDelay: piece.delay, animationDuration: piece.duration }}
+        />
+      ))}
+    </div>
+  );
 }
