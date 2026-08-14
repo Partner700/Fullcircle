@@ -11,7 +11,7 @@ import type {
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
 import { prepareImageUpload } from './uploads';
-import { getTodayISODate } from './utils';
+import { computeStreak, getDateDaysAgoISO, getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
 
@@ -474,15 +474,21 @@ export async function fetchLedgerEntries(userId: string, limit?: number) {
 }
 
 export async function fetchLedgerTotal(userId: string): Promise<number> {
+  const ledgerFallback = async () => {
+    const entries = await fetchLedgerEntries(userId);
+    return entries.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  };
   try {
     const { data, error } = await supabase
       .rpc('get_user_denarii_total', { p_user_id: userId });
     if (error) throw error;
-    return Number(data) || 0;
+    const rpcTotal = Number(data) || 0;
+    if (rpcTotal !== 0) return rpcTotal;
+    const ledgerTotal = await ledgerFallback().catch(() => 0);
+    return ledgerTotal || rpcTotal;
   } catch {
     try {
-      const entries = await fetchLedgerEntries(userId);
-      return entries.reduce((sum, e) => sum + e.amount, 0);
+      return await ledgerFallback();
     } catch {
       return 0;
     }
@@ -1932,11 +1938,25 @@ export async function fetchStrictStreak(userId: string) {
     const { data, error } = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
-    return {
+    const strict = {
       current_streak: Number(row?.current_streak) || 0,
       longest_streak: Number(row?.longest_streak) || 0,
       consecutive_inactive: Number(row?.consecutive_inactive) || 0,
       cumulative_inactive: Number(row?.cumulative_inactive) || 0,
+    };
+    if (strict.current_streak !== 0) return strict;
+    const { data: records } = await supabase
+      .from('daily_records')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('record_date', getDateDaysAgoISO(120))
+      .order('record_date', { ascending: true });
+    const computed = computeStreak((records || []) as DailyRecord[]);
+    return {
+      current_streak: computed.current_streak || strict.current_streak,
+      longest_streak: Math.max(computed.longest_streak || 0, strict.longest_streak),
+      consecutive_inactive: strict.consecutive_inactive || computed.consecutive_inactive,
+      cumulative_inactive: Math.max(strict.cumulative_inactive, computed.cumulative_inactive || 0),
     };
   } catch {
     return {
