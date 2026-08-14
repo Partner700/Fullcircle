@@ -7,7 +7,7 @@ interface QuoteAuthorStatsProps {
   compact?: boolean;
 }
 
-const statClass = 'inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface/75 px-2 py-0.5 font-semibold text-ink shadow-sm backdrop-blur-md';
+const statClass = 'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-border bg-surface-2 px-2 text-[11px] font-bold text-ink shadow-sm';
 
 export function QuoteAuthorStats({ quote, showDate = true, compact = false }: QuoteAuthorStatsProps) {
   const currentStreak = Number(quote.current_streak || 0);
@@ -15,26 +15,30 @@ export function QuoteAuthorStats({ quote, showDate = true, compact = false }: Qu
   const rhudes = Number(quote.rhudes || 0);
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone">
-      <div className="h-7 w-7 overflow-hidden rounded-full border border-border bg-surface-2 flex items-center justify-center text-[10px] font-bold text-brass">
+    <div className="mt-3 flex min-w-0 items-center gap-2 text-xs text-stone">
+      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-border bg-surface-2 flex items-center justify-center text-xs font-bold text-brass shadow-sm">
         {quote.avatar_url ? (
           <img src={quote.avatar_url} alt={quote.display_name} className="h-full w-full object-cover" />
         ) : (
           quote.display_name.charAt(0)
         )}
       </div>
-      <span className="min-w-0 truncate">
-        {quote.display_name}{showDate ? ` · ${quote.record_date}` : ''}
-      </span>
-      <span className={statClass} title="Current streak">
-        <Flame size={compact ? 12 : 14} className="text-gold" /> {currentStreak}
-      </span>
-      <span className={statClass} title="Figs">
-        <BadgeCheck size={compact ? 12 : 14} className="text-sage" /> {totalFigs}
-      </span>
-      <span className={statClass} title="Rhudes">
-        <Shield size={compact ? 12 : 14} className="text-powder" /> {rhudes}
-      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold text-stone">
+          {quote.display_name}{showDate ? ` · ${quote.record_date}` : ''}
+        </p>
+        <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">
+          <span className={statClass} title="Current streak">
+            <Flame size={compact ? 11 : 12} className="text-gold" /> {currentStreak}
+          </span>
+          <span className={statClass} title="Figs">
+            <BadgeCheck size={compact ? 11 : 12} className="text-sage" /> {totalFigs}
+          </span>
+          <span className={statClass} title="Rhudes">
+            <Shield size={compact ? 11 : 12} className="text-royal" /> {rhudes}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

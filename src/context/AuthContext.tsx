@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigError } from '../lib/supabase';
 import { fetchOwnProfile } from '../lib/profileAccess';
@@ -50,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const authOperationRef = useRef(false);
 
   const loadProfile = useCallback(async (userId: string) => {
     if (supabaseConfigError) return;
@@ -153,6 +154,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // quick token refresh into a full-screen loading state.
       if (event === 'TOKEN_REFRESHED') return;
       if (sess) {
+        // signIn performs this handoff itself. Suppressing the duplicate mobile
+        // callback avoids two competing profile requests on slower devices.
+        if (authOperationRef.current) return;
         window.setTimeout(() => void (async () => {
           if (!active) return;
           setLoading(true);
@@ -179,38 +183,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     if (supabaseConfigError) return { error: supabaseConfigError };
 
-    // Installed mobile copies can retain a valid Supabase session even after
-    // the UI has returned to sign in. End it before accepting another account.
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (error) {
-      console.warn('Previous mobile session could not be closed cleanly:', error);
-    }
-    clearLocalAuthStorage();
-    setSession(null);
+    authOperationRef.current = true;
     setLoading(true);
     setProfile(null);
     setRoleAssignment(null);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) {
-      setLoading(false);
-      return { error: error.message };
-    }
-
-    const signedInSession = data.session;
-    if (!signedInSession) {
-      setLoading(false);
-      return { error: 'Sign-in did not return a session. Please try again.' };
-    }
-
-    setSession(signedInSession);
     try {
-      await waitFor(loadProfile(signedInSession.user.id), 8_000, 'Profile loading');
+      // Only close an actual retained session. Removing Supabase storage while
+      // its mobile auth client is active can race Safari's storage lock.
+      const existing = await waitFor(supabase.auth.getSession(), 5_000, 'Previous session check');
+      if (existing.data.session) {
+        await waitFor(supabase.auth.signOut({ scope: 'local' }), 5_000, 'Previous session close');
+      }
+
+      const { data, error } = await waitFor(
+        supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
+        20_000,
+        'Sign-in',
+      );
+      if (error) return { error: error.message };
+
+      const signedInSession = data.session;
+      if (!signedInSession) {
+        return { error: 'Sign-in did not return a session. Please try again.' };
+      }
+
+      setSession(signedInSession);
+      await waitFor(loadProfile(signedInSession.user.id), 15_000, 'Profile loading');
       return { error: null };
-    } catch (profileError) {
-      console.warn('Sign-in profile handoff failed:', profileError);
-      return { error: 'Your account signed in, but could not finish loading. Please try again.' };
+    } catch (signInError) {
+      console.warn('Mobile sign-in could not complete:', signInError);
+      const message = signInError instanceof Error ? signInError.message : '';
+      return {
+        error: /timed out/i.test(message)
+          ? 'The connection took too long. Check your internet connection and try again.'
+          : 'Your account could not finish signing in. Please try again.',
+      };
     } finally {
+      authOperationRef.current = false;
       setLoading(false);
     }
   }, [loadProfile]);
