@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
-import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
+import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import {
   User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
@@ -236,7 +236,7 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
             </label>
             <label className="block text-xs text-stone">
               <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
-              <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" />
+              <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
             </label>
           </div>
         </div>

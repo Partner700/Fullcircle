@@ -6,6 +6,12 @@ export function formatBirthdayInput(month?: number | null, day?: number | null) 
   return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
 }
 
+export function formatBirthdayTyping(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
 export function parseBirthdayInput(value: string, required = false) {
   const trimmed = value.trim().replace(/\s+/g, '');
   if (!trimmed) {

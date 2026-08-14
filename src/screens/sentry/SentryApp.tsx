@@ -17,7 +17,7 @@ import { supabase } from '../../lib/supabase';
 import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
-  fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchUnassignedUsers, sentryAddCadetToTent,
+  fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
 } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
@@ -32,7 +32,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone, Trophy,
-  Swords, Flame, Coins, Target, UserPlus, X,
+  Swords, Flame, Coins, Target, UserPlus, X, Eye,
 } from 'lucide-react';
 
 const CadetArena = lazy(() => import('../cadet/CadetArena').then((module) => ({ default: module.CadetArena })));
@@ -800,10 +800,10 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   const [adding, setAdding] = useState(false);
 
   const loadUnassigned = useCallback(async () => {
-    const users = await fetchUnassignedUsers().catch(() => []);
+    const users = await fetchSentryAddableCadets(currentUserId).catch(() => []);
     setUnassigned(users);
     setSelectedCadet(users[0]?.user_id || '');
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (showAdd) void loadUnassigned();
@@ -960,6 +960,67 @@ function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRe
 
   const pending = submissions.filter((submission) => submission.status === 'pending');
   const reviewed = submissions.filter((submission) => submission.status !== 'pending').slice(0, 8);
+  const renderEvidence = (submission: any) => {
+    const proofText = String(submission.proof_text || '').trim();
+    let parsed: any = null;
+    if (proofText.startsWith('{') || proofText.startsWith('[')) {
+      try {
+        parsed = JSON.parse(proofText);
+      } catch {
+        parsed = null;
+      }
+    }
+    const items = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.items)
+        ? parsed.items
+        : Array.isArray(parsed?.evidence)
+          ? parsed.evidence
+          : [];
+    const links = proofText.match(/https?:\/\/\S+/g) || [];
+
+    return (
+      <div className="mt-3 rounded-2xl border border-border bg-surface/70 p-3">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-ink">
+          <Eye size={13} /> Verify Evidence
+        </p>
+        {items.length > 0 ? (
+          <div className="space-y-2">
+            {items.map((item: any, index: number) => {
+              const label = item?.name || item?.title || item?.type || `Evidence ${index + 1}`;
+              const url = item?.url || item?.href || item?.link;
+              const text = item?.text || item?.body || item?.description;
+              return (
+                <div key={`${submission.id}_${index}`} className="rounded-xl bg-surface-2/80 p-2 text-sm text-stone">
+                  <p className="font-semibold text-ink">{label}</p>
+                  {text && <p className="mt-1 whitespace-pre-line">{text}</p>}
+                  {url && (
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-xs font-bold text-brass underline">
+                      Open uploaded evidence
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : proofText ? (
+          <p className="whitespace-pre-line text-sm leading-relaxed text-stone">{proofText}</p>
+        ) : (
+          <p className="text-sm text-stone">No readable evidence text was attached.</p>
+        )}
+        {links.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {links.map((link) => (
+              <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="badge badge-royal text-[10px]">
+                Open link
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSubmission = (submission: any, active = false) => (
     <div key={submission.id} className={cn('card p-4', active ? 'border-gold/35' : 'bg-surface-2')}>
       <div className="flex items-start justify-between gap-3">
@@ -971,7 +1032,7 @@ function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRe
           {submission.status}
         </span>
       </div>
-      {submission.proof_text && <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-stone">{submission.proof_text}</p>}
+      {renderEvidence(submission)}
       {active && (
         <div className="mt-4 space-y-2">
           {rejectingId === submission.id && (

@@ -9,7 +9,7 @@ import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel'
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
-import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
+import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
@@ -3475,7 +3475,7 @@ function InstructorSettings({ profile, tents, members }: {
           </label>
           <label className="block text-xs text-stone">
             <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
-            <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" />
+            <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
           </label>
         </div>
         <button onClick={save} disabled={saving} className="btn-primary text-sm">

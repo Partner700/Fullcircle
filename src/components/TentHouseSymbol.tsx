@@ -1,5 +1,9 @@
 import { cn } from '../lib/utils';
-import { Crown, Landmark, Spade, Square, Sword } from 'lucide-react';
+import squaresAsset from '../assets/brand-real/squares.png';
+import spadesAsset from '../assets/brand-real/spades.png';
+import daricsAsset from '../assets/brand-real/darics.png';
+import rudesAsset from '../assets/brand-real/sword.png';
+import laureatsAsset from '../assets/brand-real/laureats.png';
 
 const HOUSE_COLORS: Record<string, string> = {
   squares: '#5B9BE8',
@@ -17,26 +21,38 @@ const HOUSE_NAMES: Record<string, string> = {
   laureats: 'The Laureats',
 };
 
+const HOUSE_ASSETS: Record<string, string> = {
+  squares: squaresAsset,
+  spades: spadesAsset,
+  darics: daricsAsset,
+  rudes: rudesAsset,
+  laureats: laureatsAsset,
+};
+
+const HOUSE_SCALE: Record<string, number> = {
+  squares: 1.34,
+  spades: 1.34,
+  darics: 1.24,
+  rudes: 1.2,
+  laureats: 1.32,
+};
+
 export function TentHouseSymbol({ houseId, size = 24, className }: { houseId: string; size?: number; className?: string }) {
-  const Icon = houseId === 'spades'
-    ? Spade
-    : houseId === 'darics'
-      ? Landmark
-      : houseId === 'rudes'
-        ? Sword
-        : houseId === 'laureats'
-          ? Crown
-          : Square;
   const color = HOUSE_COLORS[houseId] || '#DDE3FF';
+  const src = HOUSE_ASSETS[houseId] || squaresAsset;
   return (
     <span
       className={cn('inline-flex items-center justify-center flex-shrink-0 rounded-full bg-surface-2/95 shadow-sm ring-1 ring-border-bright', className)}
       style={{ width: size, height: size, color }}
     >
-      <Icon
-        size={Math.max(16, Math.round(size * 0.62))}
-        strokeWidth={houseId === 'squares' ? 3.1 : 2.8}
-        className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]"
+      <img
+        src={src}
+        alt={HOUSE_NAMES[houseId] || houseId}
+        className="h-[76%] w-[76%] object-contain"
+        style={{
+          transform: `scale(${HOUSE_SCALE[houseId] || 1.24})`,
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.42)) saturate(1.16) contrast(1.18) brightness(1.08)',
+        }}
       />
     </span>
   );

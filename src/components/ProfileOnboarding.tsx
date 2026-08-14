@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Cake, Globe2, Languages, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
-import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
+import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 
 export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
@@ -76,7 +76,7 @@ export function ProfileOnboarding() {
         </label>
         <div>
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Cake size={16} /> Birthday</span>
-          <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" required />
+          <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" required />
           <span className="mt-1 block text-xs text-stone">We only store the month and day, so the app can celebrate you.</span>
         </div>
         {error && <div className="rounded-lg bg-coral-soft p-3 text-sm text-coral">{error}</div>}

@@ -7,12 +7,12 @@ interface QuoteAuthorStatsProps {
   compact?: boolean;
 }
 
-const statClass = 'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-border bg-surface-2 px-2 text-[11px] font-bold text-ink shadow-sm';
+const statClass = 'inline-flex h-5 shrink-0 items-center gap-1 text-[11px] font-extrabold text-ink';
 
 const getRankSymbol = (role?: string | null) => {
-  if (role === 'instructor') return { Icon: Crown, label: 'Instructor', className: 'text-gold' };
-  if (role === 'sentry') return { Icon: ShieldCheck, label: 'Sentry', className: 'text-sage' };
-  return { Icon: UserRound, label: 'Cadet', className: 'text-royal' };
+  if (role === 'instructor') return { Icon: Crown, label: 'Instructor', color: '#F5B731' };
+  if (role === 'sentry') return { Icon: ShieldCheck, label: 'Sentry', color: '#74B67A' };
+  return { Icon: UserRound, label: 'Cadet', color: '#6FA8FF' };
 };
 
 export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsProps) {
@@ -35,11 +35,11 @@ export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsPro
         <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-ink">
           <span className="truncate">{quote.display_name}</span>
           <span
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 shadow-sm"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-bright bg-surface-2 shadow-sm ring-1 ring-black/10"
             title={rank.label}
             aria-label={rank.label}
           >
-            <RankIcon size={13} className={rank.className} strokeWidth={2.6} />
+            <RankIcon size={13} style={{ color: rank.color }} strokeWidth={3} />
           </span>
         </p>
         <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">

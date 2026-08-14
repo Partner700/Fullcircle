@@ -204,6 +204,14 @@ export async function sentryAddCadetToTent(sentryId: string, cadetId: string) {
   if (error) throw error;
 }
 
+export async function fetchSentryAddableCadets(sentryId: string) {
+  const { data, error } = await supabase.rpc('get_sentry_addable_cadets', {
+    p_sentry_id: sentryId,
+  });
+  if (error) throw error;
+  return data as { user_id: string; display_name: string; avatar_url: string | null }[];
+}
+
 export async function fetchDailyRecords(userId: string) {
   const { data, error } = await supabase
     .from('daily_records')

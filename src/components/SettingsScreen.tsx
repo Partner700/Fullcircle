@@ -7,7 +7,7 @@ import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
 import { BrowserNotificationSettings } from './BrowserNotificationSettings';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
-import { formatBirthdayInput, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
+import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 import { StatCard, SectionHeader } from './AppShell';
 import {
   CadetIcon, SentryIcon, InstructorIcon,
@@ -257,7 +257,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
             </label>
             <label className="block text-xs font-bold text-peri">
               <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday</span>
-              <input className="input-field" value={birthday} onChange={(event) => setBirthday(event.target.value)} placeholder="MM/DD" inputMode="numeric" />
+              <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
             </label>
           </div>
         </div>
