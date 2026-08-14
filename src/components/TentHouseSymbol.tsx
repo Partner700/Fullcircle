@@ -30,7 +30,7 @@ const HOUSE_ASSETS: Record<string, string> = {
 };
 
 const HOUSE_SCALE: Record<string, number> = {
-  squares: 1.28,
+  squares: 1.18,
   spades: 1.24,
   darics: 1.24,
   rudes: 1.18,

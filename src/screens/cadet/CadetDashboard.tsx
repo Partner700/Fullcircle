@@ -474,7 +474,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
                         )}
                       </div>
-                      <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">"{slide.quote.daily_quote}"</p>
+                      <p className="mt-3 font-display text-xl font-bold text-ink leading-snug">"{slide.quote.daily_quote}"</p>
                       <QuoteAuthorStats quote={slide.quote} />
                       <QuoteReactions
                         state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}

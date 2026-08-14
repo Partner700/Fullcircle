@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { fetchAwardReactions, fetchAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
-import { formatShortDate, cn } from '../../lib/utils';
+import { formatShortDate, getTodayISODate, cn } from '../../lib/utils';
 import type { AwardWithRecipient } from '../../lib/types';
 import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, Cross, BadgeCheck } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
@@ -99,6 +99,8 @@ export function CadetAwards() {
   const [loading, setLoading] = useState(true);
   const [reactions, setReactions] = useState<Record<string, AwardReactionState>>({});
   const [reacting, setReacting] = useState<string | null>(null);
+  const [awardMonth, setAwardMonth] = useState(getTodayISODate().slice(0, 7));
+  const [awardType, setAwardType] = useState('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,7 +123,12 @@ export function CadetAwards() {
 
   useEffect(() => { load(); }, [load]);
 
-  const myAwards = awards.filter((a) => a.award_target_type !== 'tent' && a.user_id === profile?.id);
+  const awardTypeOptions = Array.from(new Set(awards.map((award) => award.award_type).filter(Boolean))).sort((a, b) => (
+    (AWARD_LABEL_MAP[a] || a).localeCompare(AWARD_LABEL_MAP[b] || b)
+  ));
+  const monthlyAwards = awards.filter((award) => String(award.award_month || '').startsWith(awardMonth));
+  const visibleAwards = monthlyAwards.filter((award) => awardType === 'all' || award.award_type === awardType);
+  const myAwards = visibleAwards.filter((a) => a.award_target_type !== 'tent' && a.user_id === profile?.id);
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading awards…</div>;
 
@@ -129,9 +136,26 @@ export function CadetAwards() {
     <div className="space-y-5 animate-fade-in">
       {/* My awards */}
       <div className="card p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <LaurelWreath size={22} className="text-brass" />
-          <SectionHeader title="My Awards" subtitle={`${myAwards.length} earned`} />
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-2">
+            <LaurelWreath size={22} className="text-brass" />
+            <SectionHeader title="My Awards" subtitle={`${myAwards.length} earned this month`} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(9rem,auto)_minmax(12rem,auto)]">
+            <label className="block text-xs font-bold text-stone">
+              <span className="mb-1 block">Month</span>
+              <input type="month" className="input-field text-xs" value={awardMonth} onChange={(event) => setAwardMonth(event.target.value)} />
+            </label>
+            <label className="block text-xs font-bold text-stone">
+              <span className="mb-1 block">Award</span>
+              <select className="input-field text-xs" value={awardType} onChange={(event) => setAwardType(event.target.value)}>
+                <option value="all">All awards</option>
+                {awardTypeOptions.map((type) => (
+                  <option key={type} value={type}>{AWARD_LABEL_MAP[type] || type.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
         {myAwards.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -183,11 +207,11 @@ export function CadetAwards() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <LaurelWreath size={22} className="text-brass" />
-          <SectionHeader title="All Awards" subtitle="Honors across every cadet, sentry, and tent" />
+          <SectionHeader title="All Awards" subtitle="This month's visible honors across cadets, sentries, and tents" />
         </div>
-        {awards.length > 0 ? (
+        {visibleAwards.length > 0 ? (
           <div className="space-y-2">
-            {awards.map((award) => {
+            {visibleAwards.map((award) => {
               const Icon = AWARD_ICON_MAP[award.award_type] || Trophy;
               const color = AWARD_COLOR_MAP[award.award_type] || '#C9A227';
               return (
@@ -215,7 +239,7 @@ export function CadetAwards() {
             })}
           </div>
         ) : (
-          <EmptyState icon={(props) => <Trophy {...props} />} title="No awards announced" message="Awards are computed at month-end from a frozen snapshot of the month's data." />
+          <EmptyState icon={(props) => <Trophy {...props} />} title="No awards announced" message="No awards match this month and award filter yet." />
         )}
       </div>
 

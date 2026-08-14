@@ -1418,7 +1418,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-1">Quote Feed</p>
-              <p className="text-base text-ink font-display font-medium italic leading-snug">"{featuredQuote.daily_quote}"</p>
+              <p className="text-base text-ink font-display leading-snug">"{featuredQuote.daily_quote}"</p>
               <QuoteAuthorStats quote={featuredQuote} showDate={false} compact />
               {quotes.length > 1 && (
                 <div className="mt-2 flex items-center gap-1.5">
