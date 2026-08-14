@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
   fetchStrictStreak,
+  fetchLedgerTotal,
   fetchUserNotifications,
   markNotificationRead,
   markAllNotificationsRead,
@@ -14,7 +15,7 @@ import {
   fetchLedgerEntries,
   fetchArenaRooms,
 } from '../../lib/queries';
-import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
+import { computeStreak, formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
 import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
 import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
 import {
@@ -226,10 +227,11 @@ export function CadetApp() {
 
   const loadDenarii = useCallback(async () => {
     if (!profile) return;
-    try {
-      const { data } = await supabase.rpc('get_user_denarii_total', { p_user_id: profile.id });
-      setDenariiTotal(Number(data) || 0);
-    } catch { setDenariiTotal(0); }
+    const total = await fetchLedgerTotal(profile.id).catch(async () => {
+      const entries = await fetchLedgerEntries(profile.id, 500).catch(() => []);
+      return entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    });
+    setDenariiTotal(Number.isFinite(total) ? total : 0);
   }, [profile]);
 
   const refreshWallet = useCallback(async () => {
@@ -245,7 +247,16 @@ export function CadetApp() {
     }
     try {
       const s = await fetchStrictStreak(profile.id);
-      const nextStreak = s.current_streak || 0;
+      let nextStreak = s.current_streak || 0;
+      if (nextStreak === 0) {
+        const { data: recentRecords } = await supabase
+          .from('daily_records')
+          .select('*')
+          .eq('user_id', profile.id)
+          .gte('record_date', getDateDaysAgoISO(120))
+          .order('record_date', { ascending: true });
+        nextStreak = computeStreak((recentRecords || []) as any).current_streak || 0;
+      }
       setStreakCount((previous) => {
         if (streakLoadedRef.current && nextStreak > previous) void playSoundEffect('sound_streak', 0.66);
         streakLoadedRef.current = true;

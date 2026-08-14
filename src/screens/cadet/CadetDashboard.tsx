@@ -368,6 +368,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   const visibleSlides = count > 1 ? [...slides, slides[0]] : slides;
   const [displayIndex, setDisplayIndex] = useState(index % Math.max(count, 1));
   const [withTransition, setWithTransition] = useState(true);
+  const counterIndex = count > 0 ? ((index % count) + count) % count : 0;
 
   useEffect(() => {
     if (count <= 0) return;
@@ -507,7 +508,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
         {count > 1 && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={onPrev} className="btn-ghost text-xs px-2 py-1">Prev</button>
-            <span className="text-[10px] text-stone">{(displayIndex % count) + 1}/{count}</span>
+            <span className="text-[10px] text-stone">{counterIndex + 1}/{count}</span>
             <button onClick={onNext} className="btn-ghost text-xs px-2 py-1">Next</button>
           </div>
         )}

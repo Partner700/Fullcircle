@@ -71,14 +71,15 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   }, [awards.length]);
 
   useEffect(() => {
-    if (activeIndex >= awards.length) setActiveIndex(0);
-  }, [activeIndex, awards.length]);
+    if (awards.length === 0) setActiveIndex(0);
+  }, [awards.length]);
 
-  const activeAward = awards[activeIndex];
+  const logicalAwardIndex = awards.length ? ((activeIndex % awards.length) + awards.length) % awards.length : 0;
+  const activeAward = awards[logicalAwardIndex];
   const activeHouseId = activeAward?.target_tent?.tent_house_id || activeAward?.recipient_tent?.tent_house_id || null;
   const move = (direction: number) => {
     if (!awards.length) return;
-    setActiveIndex((index) => (index + direction + awards.length) % awards.length);
+    setActiveIndex((index) => index + direction);
   };
 
   return (
@@ -111,7 +112,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
           {awards.length > 1 && (
             <div className="absolute bottom-2 right-3 flex items-center gap-1">
               <button type="button" onClick={() => move(-1)} className="icon-btn h-7 w-7" aria-label="Previous award"><ChevronLeft size={14} /></button>
-              <span className="min-w-8 text-center text-[10px] text-stone">{activeIndex + 1}/{awards.length}</span>
+              <span className="min-w-8 text-center text-[10px] text-stone">{logicalAwardIndex + 1}/{awards.length}</span>
               <button type="button" onClick={() => move(1)} className="icon-btn h-7 w-7" aria-label="Next award"><ChevronRight size={14} /></button>
             </div>
           )}

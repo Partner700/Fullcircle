@@ -29,7 +29,7 @@
     --color-border: rgba(221, 227, 255, 0.10);
     --color-border-bright: rgba(221, 227, 255, 0.22);
     --color-stone-dim: rgba(136, 150, 204, 0.55);
-    --panel-image-mode-filter: brightness(0.64) saturate(1.16) contrast(1.08);
+    --panel-image-mode-filter: brightness(0.74) saturate(1.32) contrast(1.05);
   }
 
   [data-theme="day"] {
@@ -69,7 +69,7 @@
   /* The weekly artwork is the app canvas, not a panel illustration. */
   [data-theme="night"] .weekly-app-background-image,
   :root:not([data-theme="day"]) .weekly-app-background-image {
-    filter: brightness(0.5) saturate(1.2) contrast(1.08) !important;
+    filter: brightness(0.72) saturate(1.48) contrast(1.04) !important;
   }
   [data-theme="day"] .weekly-app-background-image {
     filter: brightness(1.72) saturate(0.82) contrast(0.9) !important;
