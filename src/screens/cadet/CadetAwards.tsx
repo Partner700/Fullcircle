@@ -8,6 +8,7 @@ import type { AwardWithRecipient } from '../../lib/types';
 import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, Cross, BadgeCheck } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
 import { AppSelect } from '../../components/AppSelect';
+import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   rhetoric: MessageCircle,
@@ -167,6 +168,7 @@ export function CadetAwards() {
               const Icon = AWARD_ICON_MAP[award.award_type] || Trophy;
               const color = AWARD_COLOR_MAP[award.award_type] || '#C9A227';
               const badgeClass = AWARD_BADGE_MAP[award.award_type] || 'badge badge-neutral';
+              const houseId = award.target_tent?.tent_house_id || award.recipient_tent?.tent_house_id || null;
               return (
                 <div
                   key={award.id}
@@ -183,6 +185,7 @@ export function CadetAwards() {
                       <div className="flex items-center gap-2">
                         <LaurelWreath size={14} className="flex-shrink-0" />
                         <h4 className="font-display font-semibold text-ink truncate">{award.title}</h4>
+                        {houseId && <TentHouseSymbol houseId={houseId} size={19} />}
                       </div>
                       <p className="text-xs text-stone mt-0.5">{formatShortDate(award.award_month)}</p>
                     </div>
@@ -218,6 +221,7 @@ export function CadetAwards() {
             {visibleAwards.map((award) => {
               const Icon = AWARD_ICON_MAP[award.award_type] || Trophy;
               const color = AWARD_COLOR_MAP[award.award_type] || '#C9A227';
+              const houseId = award.target_tent?.tent_house_id || award.recipient_tent?.tent_house_id || null;
               return (
                 <div
                   key={award.id}
@@ -230,7 +234,10 @@ export function CadetAwards() {
                     <Icon size={18} color={color} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-ink">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</span>
+                    <span className="inline-flex max-w-full items-center gap-1.5 align-middle text-sm font-medium text-ink">
+                      <span className="truncate">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</span>
+                      {houseId && <TentHouseSymbol houseId={houseId} size={19} />}
+                    </span>
                     <span className="text-stone text-sm"> · {award.title}</span>
                     {award.target_tent && (
                       <p className="text-xs text-stone">Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>

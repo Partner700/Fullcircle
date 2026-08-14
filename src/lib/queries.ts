@@ -573,14 +573,30 @@ export async function fetchAwards(): Promise<AwardWithRecipient[]> {
     .order('created_at', { ascending: false });
   if (error) throw error;
   const awards = data as AwardWithRecipient[];
+  const userIds = Array.from(new Set(awards
+    .filter((award) => award.award_target_type !== 'tent' && award.user_id)
+    .map((award) => award.user_id as string)));
   const tentIds = Array.from(new Set(awards
     .filter((award) => award.award_target_type === 'tent' && award.award_target_id)
     .map((award) => award.award_target_id as string)));
-  if (tentIds.length === 0) return awards;
+  const { data: memberRows, error: memberError } = userIds.length
+    ? await supabase
+      .from('tent_members')
+      .select('user_id, tents(id, name, tent_house_id)')
+      .in('user_id', userIds)
+    : { data: [], error: null };
+  if (memberError) throw memberError;
+  const recipientTents = new Map((memberRows || []).map((row: any) => [row.user_id, row.tents || null]));
+  if (tentIds.length === 0) {
+    return awards.map((award) => ({
+      ...award,
+      recipient_tent: award.user_id ? recipientTents.get(award.user_id) || null : null,
+    })) as AwardWithRecipient[];
+  }
 
   const { data: tentRows, error: tentError } = await supabase
     .from('tents')
-    .select('id, name, profile_image_url, sentry_id')
+    .select('id, name, tent_house_id, profile_image_url, sentry_id')
     .in('id', tentIds);
   if (tentError) throw tentError;
   const sentryIds = Array.from(new Set((tentRows || []).map((tent) => tent.sentry_id).filter(Boolean))) as string[];
@@ -599,6 +615,7 @@ export async function fetchAwards(): Promise<AwardWithRecipient[]> {
     target_tent: award.award_target_type === 'tent' && award.award_target_id
       ? tents.get(award.award_target_id) || null
       : null,
+    recipient_tent: award.user_id ? recipientTents.get(award.user_id) || null : null,
   })) as AwardWithRecipient[];
 }
 

@@ -6,6 +6,7 @@ import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { AwardReactions } from './AwardReactions';
 import { useAuth } from '../context/AuthContext';
 import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../lib/queries';
+import { TentHouseSymbol } from './TentHouseSymbol';
 
 type RecentAward = AwardWithRecipient;
 
@@ -74,6 +75,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   }, [activeIndex, awards.length]);
 
   const activeAward = awards[activeIndex];
+  const activeHouseId = activeAward?.target_tent?.tent_house_id || activeAward?.recipient_tent?.tent_house_id || null;
   const move = (direction: number) => {
     if (!awards.length) return;
     setActiveIndex((index) => (index + direction + awards.length) % awards.length);
@@ -96,7 +98,10 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-base font-semibold text-ink">{activeAward.title}</p>
-              <p className="text-sm font-medium text-stone">{activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Full Circle member'}</p>
+              <p className="flex items-center gap-1.5 text-sm font-medium text-stone">
+                <span className="truncate">{activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Full Circle member'}</span>
+                {activeHouseId && <TentHouseSymbol houseId={activeHouseId} size={20} />}
+              </p>
               {activeAward.target_tent && <p className="text-xs text-stone">Family trophy · Sentry: {activeAward.target_tent.sentry?.display_name || 'Not assigned'}</p>}
               {activeAward.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{activeAward.description}</p>}
               <AwardReactions state={reactions[activeAward.id]} disabled={!!reacting?.startsWith(`${activeAward.id}:`)} onReact={(type) => void handleReaction(activeAward.id, type)} />

@@ -341,9 +341,15 @@ export type AwardWithRecipient = Award & {
   target_tent?: {
     id: string;
     name: string;
+    tent_house_id: string | null;
     profile_image_url: string | null;
     sentry_id: string | null;
     sentry: { id: string; display_name: string; avatar_url: string | null } | null;
+  } | null;
+  recipient_tent?: {
+    id: string;
+    name: string;
+    tent_house_id: string | null;
   } | null;
 };
 
