@@ -474,6 +474,9 @@ export async function fetchLedgerEntries(userId: string, limit?: number) {
 }
 
 export async function fetchLedgerTotal(userId: string): Promise<number> {
+  const liveStats = await fetchUserLiveStats(userId).catch(() => null);
+  if (liveStats && liveStats.total_denarii !== 0) return liveStats.total_denarii;
+
   const ledgerFallback = async () => {
     const entries = await fetchLedgerEntries(userId);
     return entries.reduce((sum, e) => sum + Number(e.amount || 0), 0);
@@ -485,14 +488,43 @@ export async function fetchLedgerTotal(userId: string): Promise<number> {
     const rpcTotal = Number(data) || 0;
     if (rpcTotal !== 0) return rpcTotal;
     const ledgerTotal = await ledgerFallback().catch(() => 0);
-    return ledgerTotal || rpcTotal;
+    return ledgerTotal || liveStats?.total_denarii || rpcTotal;
   } catch {
     try {
-      return await ledgerFallback();
+      return await ledgerFallback() || liveStats?.total_denarii || 0;
     } catch {
-      return 0;
+      return liveStats?.total_denarii || 0;
     }
   }
+}
+
+export type UserLiveStats = {
+  user_id: string;
+  total_denarii: number;
+  current_streak: number;
+  longest_streak: number;
+  consecutive_inactive: number;
+  cumulative_inactive: number;
+  total_figs: number;
+  rhudes: number;
+  marks: number;
+};
+
+export async function fetchUserLiveStats(userId: string): Promise<UserLiveStats> {
+  const { data, error } = await supabase.rpc('get_user_live_stats', { p_user_id: userId });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    user_id: row?.user_id || userId,
+    total_denarii: Number(row?.total_denarii) || 0,
+    current_streak: Number(row?.current_streak) || 0,
+    longest_streak: Number(row?.longest_streak) || 0,
+    consecutive_inactive: Number(row?.consecutive_inactive) || 0,
+    cumulative_inactive: Number(row?.cumulative_inactive) || 0,
+    total_figs: Number(row?.total_figs) || 0,
+    rhudes: Number(row?.rhudes) || 0,
+    marks: Number(row?.marks) || 0,
+  };
 }
 
 export async function fetchGameAttempts(userId: string, narrativeDate?: string) {
@@ -1934,6 +1966,16 @@ export async function fetchArenaRoom(roomId: string) {
 // ── Strict streak ──
 
 export async function fetchStrictStreak(userId: string) {
+  const liveStats = await fetchUserLiveStats(userId).catch(() => null);
+  if (liveStats && (liveStats.current_streak !== 0 || liveStats.longest_streak !== 0 || liveStats.cumulative_inactive !== 0)) {
+    return {
+      current_streak: liveStats.current_streak,
+      longest_streak: liveStats.longest_streak,
+      consecutive_inactive: liveStats.consecutive_inactive,
+      cumulative_inactive: liveStats.cumulative_inactive,
+    };
+  }
+
   try {
     const { data, error } = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
     if (error) throw error;
@@ -1960,10 +2002,10 @@ export async function fetchStrictStreak(userId: string) {
     };
   } catch {
     return {
-      current_streak: 0,
-      longest_streak: 0,
-      consecutive_inactive: 0,
-      cumulative_inactive: 0,
+      current_streak: liveStats?.current_streak || 0,
+      longest_streak: liveStats?.longest_streak || 0,
+      consecutive_inactive: liveStats?.consecutive_inactive || 0,
+      cumulative_inactive: liveStats?.cumulative_inactive || 0,
     };
   }
 }

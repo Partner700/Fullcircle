@@ -6,10 +6,10 @@
   :root,
   [data-theme="night"] {
     /* Background layers — night mode */
-    --color-navy: #232D55;
-    --color-navy-2: #293360;
-    --color-navy-3: #323D70;
-    --color-navy-4: #3C4980;
+    --color-navy: #17243C;
+    --color-navy-2: #1E2F4A;
+    --color-navy-3: #26395D;
+    --color-navy-4: #314779;
 
     --color-royal: #3D52E8;
 
@@ -29,7 +29,7 @@
     --color-border: rgba(221, 227, 255, 0.10);
     --color-border-bright: rgba(221, 227, 255, 0.22);
     --color-stone-dim: rgba(136, 150, 204, 0.55);
-    --panel-image-mode-filter: brightness(0.64) saturate(1.16) contrast(1.08);
+    --panel-image-mode-filter: brightness(0.34) saturate(0.76) contrast(1.12);
   }
 
   [data-theme="day"] {
@@ -69,7 +69,7 @@
   /* The weekly artwork is the app canvas, not a panel illustration. */
   [data-theme="night"] .weekly-app-background-image,
   :root:not([data-theme="day"]) .weekly-app-background-image {
-    filter: brightness(0.72) saturate(1.48) contrast(1.04) !important;
+    filter: brightness(0.27) saturate(0.82) contrast(1.15) !important;
   }
   [data-theme="day"] .weekly-app-background-image {
     filter: brightness(1.72) saturate(0.82) contrast(0.9) !important;
