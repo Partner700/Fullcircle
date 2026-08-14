@@ -6,10 +6,10 @@
   :root,
   [data-theme="night"] {
     /* Background layers — night mode */
-    --color-navy: #17245C;
-    --color-navy-2: #1D2C70;
-    --color-navy-3: #263985;
-    --color-navy-4: #314A9C;
+    --color-navy: #232D55;
+    --color-navy-2: #293360;
+    --color-navy-3: #323D70;
+    --color-navy-4: #3C4980;
 
     --color-royal: #3D52E8;
 
