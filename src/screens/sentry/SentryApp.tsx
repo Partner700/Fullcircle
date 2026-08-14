@@ -1000,7 +1000,7 @@ function SentryChallengeReview({ sentryId, onRefresh }: { sentryId: string; onRe
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Challenge Review" subtitle="Review evidence submitted by cadets in your tent" />
       {pending.length === 0 && reviewed.length === 0 ? (
-        <EmptyState icon={Target} title="No challenge submissions" message="Your cadets’ submitted challenge evidence will appear here." />
+        <EmptyState icon={Target} title="No challenge submissions" message="Your cadets’ submitted challenge evidence will appear here as soon as they send it." />
       ) : (
         <>
           <div className="space-y-3">

@@ -135,7 +135,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   useEffect(() => {
     if (heroSlideCount <= 1 || heroPaused) return;
     const interval = window.setInterval(() => {
-      setHeroIndex((index) => (index + 1) % heroSlideCount);
+      setHeroIndex((index) => index + 1);
     }, 6000);
     return () => window.clearInterval(interval);
   }, [heroPaused, heroSlideCount]);
@@ -166,8 +166,6 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
   const completedLevels = games.filter((g) => g.status === 'passed').length;
   const todayDenarii = ledger.filter((l) => l.created_at.startsWith(today)).reduce((s, l) => s + l.amount, 0);
   const recentLedger = ledger.slice(0, 5);
-  const activeHeroIndex = heroIndex % Math.max(heroSlideCount, 1);
-
   if (loading) {
     return <div className="text-center py-12 text-stone">Loading your dashboard…</div>;
   }
@@ -182,7 +180,7 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
         tentHouseId={tentInfo.tent?.tent_house_id || null}
         currentUserId={profile?.id || null}
         count={heroSlideCount}
-        index={activeHeroIndex}
+        index={heroIndex}
         panelImages={panelImages}
         quoteReactions={quoteReactions}
         verseReactions={verseReactions}
@@ -213,8 +211,8 @@ export function CadetDashboard({ denariiTotal, tentInfo, onNavigate, refreshKey 
           }
           setReactingVerse(null);
         }}
-        onPrev={() => setHeroIndex((idx) => (idx - 1 + heroSlideCount) % heroSlideCount)}
-        onNext={() => setHeroIndex((idx) => (idx + 1) % heroSlideCount)}
+        onPrev={() => setHeroIndex((idx) => idx - 1)}
+        onNext={() => setHeroIndex((idx) => idx + 1)}
         onCommentOpenChange={setHeroPaused}
       />
 
@@ -367,14 +365,31 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
 }) {
   const dateLabel = todayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const dayLabel = dayType === 'saturday' ? 'Quiz Day' : dayType === 'sunday' ? 'Day of Rest' : 'Reading Day';
+  const visibleSlides = count > 1 ? [...slides, slides[0]] : slides;
+  const [displayIndex, setDisplayIndex] = useState(index % Math.max(count, 1));
+  const [withTransition, setWithTransition] = useState(true);
+
+  useEffect(() => {
+    if (count <= 0) return;
+    setWithTransition(true);
+    const wrapped = ((index % count) + count) % count;
+    setDisplayIndex(count > 1 && index > 0 && wrapped === 0 ? count : wrapped);
+  }, [count, index]);
 
   return (
     <div className="card relative overflow-hidden animate-slide-up">
       <div
-        className="flex min-h-[220px] transition-transform duration-700 ease-out sm:min-h-[190px]"
-        style={{ transform: `translateX(-${index * 100}%)` }}
+        className={cn('flex min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
+        style={{ transform: `translateX(-${displayIndex * 100}%)` }}
+        onTransitionEnd={() => {
+          if (count > 1 && displayIndex === count) {
+            setWithTransition(false);
+            setDisplayIndex(0);
+            window.setTimeout(() => setWithTransition(true), 30);
+          }
+        }}
       >
-        {slides.map((slide) => {
+        {visibleSlides.map((slide, slideIndex) => {
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
@@ -383,7 +398,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
             : panelImages[slide.kind];
 
           return (
-            <div key={slide.id} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
+            <div key={`${slide.id}-${slideIndex}`} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
               {slideImage && (
                 <PanelImageBackdrop image={slideImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
               )}
@@ -487,7 +502,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
         {count > 1 && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={onPrev} className="btn-ghost text-xs px-2 py-1">Prev</button>
-            <span className="text-[10px] text-stone">{index + 1}/{count}</span>
+            <span className="text-[10px] text-stone">{(displayIndex % count) + 1}/{count}</span>
             <button onClick={onNext} className="btn-ghost text-xs px-2 py-1">Next</button>
           </div>
         )}

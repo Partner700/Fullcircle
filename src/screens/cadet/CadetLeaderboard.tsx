@@ -55,14 +55,50 @@ type CompetitiveRow = {
   new_record?: boolean | null;
   record_value?: number | null;
   personal_best?: number | null;
+  previous_value?: number | null;
+  value_yesterday?: number | null;
+  previous_total?: number | null;
+  total_yesterday?: number | null;
+  previous_total_denarii?: number | null;
+  previous_current_streak?: number | null;
+  previous_total_score?: number | null;
+  previous_rhudes?: number | null;
+  previous_marks?: number | null;
+  previous_combined_score?: number | null;
 };
 
-function rankMovement(row: CompetitiveRow): number | null {
+function previousBoardValue(row: CompetitiveRow): number | null {
+  const candidates = [
+    row.previous_value,
+    row.value_yesterday,
+    row.previous_total,
+    row.total_yesterday,
+    row.previous_total_denarii,
+    row.previous_current_streak,
+    row.previous_total_score,
+    row.previous_rhudes,
+    row.previous_marks,
+    row.previous_combined_score,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+  }
+  return null;
+}
+
+function rankMovement(row: CompetitiveRow, currentValue?: number): number | null {
   if (typeof row.movement === 'number') return row.movement;
   const previous = Number(row.previous_rank ?? row.rank_yesterday);
   const current = Number(row.rank);
-  if (!previous || !current) return null;
-  return previous - current;
+  if (previous && current && previous !== current) return previous - current;
+  const previousValue = previousBoardValue(row);
+  if (typeof currentValue === 'number' && previousValue !== null) {
+    if (currentValue > previousValue) return 1;
+    if (currentValue < previousValue) return -1;
+    return 0;
+  }
+  if (previous && current) return 0;
+  return null;
 }
 
 function isNewRecord(row: CompetitiveRow, value?: number) {
@@ -191,7 +227,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="eyebrow">Challenge Boards</p>
             <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
           </div>
-          <span className="badge badge-brass text-[10px]">Club Stats</span>
+          <span className="badge badge-brass text-[10px]">Camp Stats</span>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         {tabs.map((item) => (
@@ -264,7 +300,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       value={formatDenarii(row.total_denarii)}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
-                      movement={rankMovement(row as CompetitiveRow)}
+                      movement={rankMovement(row as CompetitiveRow, Number(row.total_denarii))}
                       isRecord={isNewRecord(row as CompetitiveRow, Number(row.total_denarii))}
                       valueLabel="Denarii"
                     />
@@ -333,7 +369,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   const validDays = Number(row.volume ?? 0);
                   const consecutiveInactive = Number(row.consecutive_inactive ?? 0);
                   const cumulativeInactive = Number(row.cumulative_inactive ?? 0);
-                  const streakSubtext = `Current ${currentStreak} · Longest ${longestStreak} · Valid ${validDays} · Missed ${cumulativeInactive}`;
+                  const streakSubtext = `Best ${longestStreak} · Valid ${validDays} · Missed ${cumulativeInactive}`;
 
                   if (isPodium && tint) {
                     return (
@@ -380,7 +416,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
                       subtext={streakSubtext}
-                      movement={rankMovement(row as unknown as CompetitiveRow)}
+                      movement={rankMovement(row as unknown as CompetitiveRow, currentStreak)}
                       isRecord={isNewRecord(row as unknown as CompetitiveRow, currentStreak)}
                       valueLabel="Streak"
                     />
@@ -434,7 +470,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                 {quizRows.map((row) => {
                   const isPodium = row.rank >= 1 && row.rank <= 3;
                   const tint = RANK_HONOR_TINT[row.rank];
-                  const subtext = `Game ${row.daily_game_score} figs · Arena ${row.arena_figs || 0} figs · Fortune ${row.random_quiz_score} figs · Saturday ${row.saturday_quiz_score} figs`;
+                  const subtext = `Figs total`;
 
                   if (isPodium && tint) {
                     return (
@@ -477,7 +513,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
                       subtext={subtext}
-                      movement={rankMovement(row as unknown as CompetitiveRow)}
+                      movement={rankMovement(row as unknown as CompetitiveRow, Number(row.total_score))}
                       isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.total_score))}
                       valueLabel="Figs"
                     />
@@ -522,8 +558,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     value={`${row.rhudes} ${Number(row.rhudes) === 1 ? 'Rhude' : 'Rhudes'}`}
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
-                    subtext={`${row.role} · ${row.tent_name || 'No tent yet'}${row.latest_victory_at ? ` · last victory ${formatShortDate(row.latest_victory_at.slice(0, 10))}` : ''}`}
-                    movement={rankMovement(row as unknown as CompetitiveRow)}
+                    subtext={`${row.role} · ${row.tent_name || 'No tent yet'}`}
+                    movement={rankMovement(row as unknown as CompetitiveRow, Number(row.rhudes))}
                     isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.rhudes))}
                     valueLabel="Rhudes"
                   />
@@ -563,8 +599,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     value={`${Math.round(Number(row.marks || 0))}`}
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
-                    subtext={`${formatDenarii(row.total_denarii)}D · ${row.total_figs} figs · ${row.current_streak} streak · ${row.rhudes} rhudes`}
-                    movement={rankMovement(row as unknown as CompetitiveRow)}
+                    subtext={`${row.total_figs}F · ${row.rhudes}R · ${formatDenarii(row.total_denarii)}D`}
+                    movement={rankMovement(row as unknown as CompetitiveRow, Number(row.marks))}
                     isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.marks))}
                     valueLabel="Marks"
                   />
@@ -640,8 +676,8 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 		                      value={`${Math.round(Number(row.combined_score || 0))}`}
 		                      houseId={row.tent_house_id || undefined}
 		                      isCurrentUser={false}
-		                      subtext={[`Marks`, `${formatDenarii(row.total_denarii)}D`, `${Number(row.total_figs || 0)} figs`, `${row.total_streak} streaks`, sentries].filter(Boolean).join(' · ')}
-                          movement={rankMovement(row as unknown as CompetitiveRow)}
+		                      subtext={[`${row.cadet_count} cadets`, sentries].filter(Boolean).join(' · ')}
+                          movement={rankMovement(row as unknown as CompetitiveRow, Number(row.combined_score))}
                           isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.combined_score))}
                           valueLabel="Marks"
 		                    />

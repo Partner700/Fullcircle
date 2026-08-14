@@ -74,15 +74,42 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       tent = { name: t.name, houseId: t.tent_house_id, sentryName };
     }
 
+    let figTotal = figBoard.status === 'fulfilled' ? Number(figBoard.value.find((row) => row.user_id === profile.id)?.total_score || 0) : 0;
+    let rhudeTotal = rhudeBoard.status === 'fulfilled' ? Number(rhudeBoard.value.find((row) => row.user_id === profile.id)?.rhudes || 0) : 0;
+    let marksTotal = marksBoard.status === 'fulfilled' ? Math.round(Number(marksBoard.value.find((row) => row.user_id === profile.id)?.marks || 0)) : 0;
+
+    if (!figTotal || !rhudeTotal || !marksTotal) {
+      const [quizAttempts, gameAttempts, arenaWins] = await Promise.allSettled([
+        supabase.from('quiz_attempts').select('figs_scored,talents_scored,score').eq('user_id', profile.id),
+        supabase.from('game_attempts').select('score').eq('user_id', profile.id),
+        supabase.from('arena_rooms').select('id', { count: 'exact', head: true }).eq('winner_id', profile.id).eq('status', 'completed'),
+      ]);
+      if (!figTotal) {
+        const quizFigs = quizAttempts.status === 'fulfilled'
+          ? (quizAttempts.value.data || []).reduce((sum: number, row: any) => sum + Number(row.figs_scored ?? row.talents_scored ?? row.score ?? 0), 0)
+          : 0;
+        const gameFigs = gameAttempts.status === 'fulfilled'
+          ? (gameAttempts.value.data || []).reduce((sum: number, row: any) => sum + Number(row.score || 0), 0)
+          : 0;
+        figTotal = quizFigs + gameFigs;
+      }
+      if (!rhudeTotal && arenaWins.status === 'fulfilled') rhudeTotal = Number(arenaWins.value.count || 0);
+      if (!marksTotal) {
+        const denariiTotal = balance.status === 'fulfilled' ? balance.value : 0;
+        const streakTotal = streakInfo.status === 'fulfilled' ? streakInfo.value.current_streak : 0;
+        marksTotal = Math.round(denariiTotal + figTotal * 100 + streakTotal * 1000 + rhudeTotal * 5000);
+      }
+    }
+
     setStats({
       denarii: balance.status === 'fulfilled' ? balance.value : 0,
       streak: streakInfo.status === 'fulfilled' ? streakInfo.value.current_streak : 0,
       longestStreak: streakInfo.status === 'fulfilled' ? streakInfo.value.longest_streak : 0,
       awards: myAwards,
       relics: relics.status === 'fulfilled' ? relics.value.length : 0,
-      figs: figBoard.status === 'fulfilled' ? Number(figBoard.value.find((row) => row.user_id === profile.id)?.total_score || 0) : 0,
-      rhudes: rhudeBoard.status === 'fulfilled' ? Number(rhudeBoard.value.find((row) => row.user_id === profile.id)?.rhudes || 0) : 0,
-      marks: marksBoard.status === 'fulfilled' ? Math.round(Number(marksBoard.value.find((row) => row.user_id === profile.id)?.marks || 0)) : 0,
+      figs: figTotal,
+      rhudes: rhudeTotal,
+      marks: marksTotal,
     });
     setTentInfo(tent);
     } catch (e) { console.error('Settings load error:', e); }

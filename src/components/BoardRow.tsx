@@ -21,10 +21,10 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
   return (
     <div
       className={cn(
-        'grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-3 rounded-lg border transition-all sm:grid-cols-[48px_minmax(0,1fr)_130px] sm:px-4',
+        'grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all sm:grid-cols-[46px_minmax(0,1fr)_120px] sm:px-4',
         isCurrentUser
           ? 'border-brass bg-brass-soft shadow-sm'
-          : 'border-border bg-surface hover:border-border-bright',
+          : 'border-border bg-surface-2 hover:border-border-bright',
       )}
     >
       <div className={cn(
@@ -35,7 +35,7 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
       </div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className={cn('text-sm font-medium truncate', isCurrentUser ? 'text-brass' : 'text-ink')}>
+          <p className={cn('rounded-md bg-surface px-2 py-1 text-[13px] font-bold truncate', isCurrentUser ? 'text-brass' : 'text-ink')}>
             {name}
           </p>
           {houseId && <TentHouseSymbol houseId={houseId} size={18} className="flex-shrink-0" />}
@@ -45,12 +45,12 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
             </span>
           )}
         </div>
-        {subtext && <p className="text-[11px] text-stone truncate mt-0.5">{subtext}</p>}
+        {subtext && <p className="text-[10px] text-stone truncate mt-1">{subtext}</p>}
       </div>
       <div className="flex items-center justify-end gap-2 text-right">
         <MovementBadge movement={movement} />
         <div>
-          <span className="text-sm font-semibold text-ink">{value}</span>
+          <span className="text-[13px] font-bold text-ink">{value}</span>
           {(subtext || valueLabel) && <p className="text-[10px] text-stone mt-1">{valueLabel || 'Marks'}</p>}
         </div>
       </div>

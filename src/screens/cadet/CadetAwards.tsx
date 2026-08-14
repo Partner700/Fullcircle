@@ -5,48 +5,92 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { fetchAwardReactions, fetchAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
 import { formatShortDate, cn } from '../../lib/utils';
 import type { AwardWithRecipient } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, Flame, Coins, Target, Zap, BookOpen, TrendingUp } from 'lucide-react';
+import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, Cross, BadgeCheck } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
-  cadet_of_month: Crown,
-  streak_champion: Flame,
-  quiz_champion: Zap,
-  top_reader: BookOpen,
-  challenge_master: Target,
-  relic_keeper: Coins,
-  most_improved: TrendingUp,
+  rhetoric: MessageCircle,
+  nuncio: BookOpen,
+  rumor: Crown,
+  scribe: PenTool,
+  sprout: Sprout,
+  reputation: Shield,
+  tutorix: BadgeCheck,
+  valley_champion: Shield,
+  lords_secret: Users,
+  vallum: Cross,
+  monthly_scribe: PenTool,
+  monthly_valley_champion: Shield,
+  portion_of_priests: Users,
+  grand_vallum: Crown,
+  grand_scribe: PenTool,
+  grand_valley_champion: Shield,
+  grand_orator: MessageCircle,
+  bethel_stone: Trophy,
 };
 
 // Warm-palette award colors (brass / roman / moss / etc.)
 const AWARD_COLOR_MAP: Record<string, string> = {
-  cadet_of_month: '#C9A227',   // brass
-  streak_champion: '#B8553E',  // roman
-  quiz_champion: '#B8553E',    // roman
-  top_reader: '#6B8E5A',        // moss
-  challenge_master: '#6B8E5A', // moss
-  relic_keeper: '#C9A227',      // brass
-  most_improved: '#C9A227',    // brass
+  rhetoric: '#C9A227',
+  nuncio: '#6B8E5A',
+  rumor: '#B8553E',
+  scribe: '#7C8CFF',
+  sprout: '#5BAD7F',
+  reputation: '#D4A03C',
+  tutorix: '#7C8CFF',
+  valley_champion: '#5BAD7F',
+  lords_secret: '#C9A227',
+  vallum: '#DDE3FF',
+  monthly_scribe: '#7C8CFF',
+  monthly_valley_champion: '#5BAD7F',
+  portion_of_priests: '#D4A03C',
+  grand_vallum: '#C9A227',
+  grand_scribe: '#7C8CFF',
+  grand_valley_champion: '#5BAD7F',
+  grand_orator: '#C9A227',
+  bethel_stone: '#B8553E',
 };
 
 const AWARD_BADGE_MAP: Record<string, string> = {
-  cadet_of_month: 'badge badge-brass',
-  streak_champion: 'badge badge-roman',
-  quiz_champion: 'badge badge-roman',
-  top_reader: 'badge badge-moss',
-  challenge_master: 'badge badge-moss',
-  relic_keeper: 'badge badge-brass',
-  most_improved: 'badge badge-neutral',
+  rhetoric: 'badge badge-brass',
+  nuncio: 'badge badge-moss',
+  rumor: 'badge badge-roman',
+  scribe: 'badge badge-neutral',
+  sprout: 'badge badge-moss',
+  reputation: 'badge badge-brass',
+  tutorix: 'badge badge-neutral',
+  valley_champion: 'badge badge-moss',
+  lords_secret: 'badge badge-brass',
+  vallum: 'badge badge-neutral',
+  monthly_scribe: 'badge badge-neutral',
+  monthly_valley_champion: 'badge badge-moss',
+  portion_of_priests: 'badge badge-brass',
+  grand_vallum: 'badge badge-brass',
+  grand_scribe: 'badge badge-neutral',
+  grand_valley_champion: 'badge badge-moss',
+  grand_orator: 'badge badge-brass',
+  bethel_stone: 'badge badge-roman',
 };
 
 const AWARD_LABEL_MAP: Record<string, string> = {
-  cadet_of_month: 'Cadet of the Month',
-  streak_champion: 'Streak Champion',
-  quiz_champion: 'Quiz Champion',
-  top_reader: 'Top Reader',
-  challenge_master: 'Challenge Master',
-  relic_keeper: 'Relic Keeper',
-  most_improved: 'Most Improved',
+  rhetoric: 'Rhetoric Award (Orator)',
+  nuncio: 'Messenger Award (Nuncio)',
+  rumor: 'Rumor Award',
+  scribe: 'Scribe Award',
+  sprout: 'The Sprout',
+  reputation: 'Reputation Award',
+  tutorix: 'Tutorix',
+  valley_champion: 'Valley Champion',
+  lords_secret: "The Lord's Secret",
+  vallum: 'Vallum',
+  monthly_scribe: 'Monthly Scribe',
+  monthly_valley_champion: 'Monthly Valley Champion',
+  portion_of_priests: 'Portion of the Priests',
+  grand_vallum: 'Grand Vallum',
+  grand_scribe: 'Grand Scribe',
+  grand_valley_champion: 'Grand Valley Champion',
+  grand_orator: 'Grand Orator',
+  bethel_stone: 'Bethel Stone',
 };
 
 export function CadetAwards() {
@@ -184,7 +228,7 @@ export function CadetAwards() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <LaurelWreath size={22} className="text-brass" />
-          <SectionHeader title="Award Categories" subtitle="Seven honors awarded each cycle" />
+          <SectionHeader title="Award Categories" subtitle="Current weekly, monthly, and annual honors" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {Object.entries(AWARD_ICON_MAP).map(([type, Icon]) => {
@@ -213,31 +257,31 @@ export function CadetAwards() {
         </div>
 
         <div className="mt-4">
-          <p className="eyebrow mb-2">Monthly Ranking Weights</p>
+          <p className="eyebrow mb-2">Current Score Language</p>
           <ul className="space-y-1.5 text-xs text-stone">
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Volume</span> — 40%</span>
+              <span><span className="text-ink font-medium">Marks</span> — grand total for Rumor, Vallum, and Grand Vallum.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Consistency</span> — 20%</span>
+              <span><span className="text-ink font-medium">Figs</span> — correct answers from games, quizzes, and Arena play.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Improvement</span> — 15%</span>
+              <span><span className="text-ink font-medium">Rhudes</span> — Arena victories on the Valley Board.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Quiz</span> — 15%</span>
+              <span><span className="text-ink font-medium">Denarii</span> — earned currency on the Denarii Board.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Challenge</span> — 5%</span>
+              <span><span className="text-ink font-medium">Streaks</span> — faithfulness on the Streak Board.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Game</span> — 5%</span>
+              <span><span className="text-ink font-medium">Tent Awards</span> — belong to tents, not tent houses.</span>
             </li>
           </ul>
         </div>

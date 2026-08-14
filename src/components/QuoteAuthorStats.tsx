@@ -15,8 +15,8 @@ export function QuoteAuthorStats({ quote, showDate = true, compact = false }: Qu
   const rhudes = Number(quote.rhudes || 0);
 
   return (
-    <div className="mt-3 flex min-w-0 items-center gap-2 text-xs text-stone">
-      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-border bg-surface-2 flex items-center justify-center text-xs font-bold text-brass shadow-sm">
+    <div className="mt-3 flex min-w-0 items-center gap-2.5 text-xs text-stone">
+      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border-2 border-border bg-surface-2 flex items-center justify-center text-sm font-bold text-brass shadow-sm">
         {quote.avatar_url ? (
           <img src={quote.avatar_url} alt={quote.display_name} className="h-full w-full object-cover" />
         ) : (

@@ -2361,22 +2361,6 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             .gte('narrative_date', AWARD_MEASUREMENT_START),
         ]);
 
-        const consistency = new Map<string, number>();
-        (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id)).forEach((record: any) => {
-          const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
-          consistency.set(record.user_id, (consistency.get(record.user_id) || 0) + credit);
-        });
-        const consistentRanking = [...consistency.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-        const topConsistent = consistentRanking[0];
-        if (topConsistent) {
-          next.push({
-            title: 'Most Consistent Cadet',
-            candidate: profileName(topConsistent[0]),
-            detail: `${topConsistent[1]} qualifying daily action(s) since ${formatShortDate(AWARD_MEASUREMENT_START)}.`,
-            runnersUp: consistentRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} qualifying daily action(s).` })),
-          });
-        }
-
         const todayIso = getTodayISODate();
         const todayDay = new Date(`${todayIso}T12:00:00.000Z`).getUTCDay();
         const weeklyStartIso = shiftISODate(todayIso, -((todayDay + 6) % 7));
@@ -3696,10 +3680,10 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Challenge Review" subtitle="Approve or reject cadet challenge submissions" />
+      <SectionHeader title="Challenge Review" subtitle="Approve or reject challenge submissions from cadets and sentries" />
 
       {pending.length === 0 && reviewed.length === 0 ? (
-        <EmptyState icon={Target} title="No submissions yet" message="Cadet challenge submissions will appear here for your review." />
+        <EmptyState icon={Target} title="No submissions yet" message="Cadet and sentry challenge submissions will appear here for your review." />
       ) : (
         <>
           {pending.length > 0 && (
@@ -3709,7 +3693,7 @@ function ChallengeReview({ instructorId, onRefresh }: { instructorId: string; on
                 <div key={s.id} className="card p-4 border-gold/30">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <p className="text-sm font-semibold text-ink">{s.profiles?.display_name || 'Unknown cadet'}</p>
+                      <p className="text-sm font-semibold text-ink">{s.profiles?.display_name || 'Unknown user'}</p>
                       <p className="text-xs text-stone">{s.narrative_date} · {s.proof_type}</p>
                     </div>
                     <span className="badge badge-gold text-[10px]">Pending</span>
