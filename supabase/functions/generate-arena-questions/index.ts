@@ -463,7 +463,7 @@ Deno.serve(async (req) => {
         }
       }
     } catch (error) {
-      if (!isQuotaOrProviderFailure(error)) throw error;
+      console.warn("Arena AI generation fell back to the built-in deck:", error);
       questions = buildFallbackDeck(targetCount, difficulty, gameType, packetSeed, selectedSet);
     }
 

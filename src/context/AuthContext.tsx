@@ -193,6 +193,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const existing = await waitFor(supabase.auth.getSession(), 5_000, 'Previous session check');
       if (existing.data.session) {
         await waitFor(supabase.auth.signOut({ scope: 'local' }), 5_000, 'Previous session close');
+      } else {
+        clearLocalAuthStorage();
       }
 
       const { data, error } = await waitFor(
@@ -293,10 +295,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    authOperationRef.current = true;
+    setLoading(false);
     setSession(null);
     setProfile(null);
     setRoleAssignment(null);
-    clearLocalAuthStorage();
 
     if (supabaseConfigError) return;
 
@@ -309,6 +312,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn('Sign out failed after local session was cleared:', error);
     } finally {
       clearLocalAuthStorage();
+      authOperationRef.current = false;
+      setLoading(false);
     }
   }, []);
 
