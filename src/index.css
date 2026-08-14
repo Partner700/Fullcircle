@@ -6,10 +6,10 @@
   :root,
   [data-theme="night"] {
     /* Background layers — night mode */
-    --color-navy: #243D63;
-    --color-navy-2: #2E4D76;
-    --color-navy-3: #3A6192;
-    --color-navy-4: #4A76B5;
+    --color-navy: #232D55;
+    --color-navy-2: #293360;
+    --color-navy-3: #323D70;
+    --color-navy-4: #3C4980;
 
     --color-royal: #3D52E8;
 
@@ -464,6 +464,13 @@
   .recent-award-change { animation: awardChange 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
   .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .recent-awards-veil { background-color: var(--color-navy-2); opacity: 0.76; }
+  .quote-panel-veil {
+    background-color: color-mix(in srgb, var(--color-navy-2) 74%, transparent);
+    opacity: 1;
+  }
+  [data-theme="day"] .quote-panel-veil {
+    background-color: rgba(237, 246, 255, 0.72);
+  }
   .animate-float { animation: float 4s ease-in-out infinite; }
   .animate-drift { animation: drift 8s ease-in-out infinite; }
   .animate-flicker { animation: flicker 3s ease-in-out infinite; }

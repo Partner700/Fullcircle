@@ -401,7 +401,12 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
           return (
             <div key={`${slide.id}-${slideIndex}`} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
               {slideImage && (
-                <PanelImageBackdrop image={slideImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
+                <PanelImageBackdrop
+                  image={slideImage}
+                  opacityFallback={22}
+                  veilClassName={slide.kind === 'quote' ? 'quote-panel-veil' : 'bg-navy-2/76'}
+                  textGradient={slide.kind !== 'quote'}
+                />
               )}
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
