@@ -530,6 +530,71 @@ export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
   };
 }
 
+export async function fetchReliableToolbarStats(userId: string): Promise<ToolbarStats> {
+  const toolbarRequest = fetchOwnToolbarStats();
+  const balanceRequest = (async () => {
+    const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: userId });
+    if (error) throw error;
+    return Number(data) || 0;
+  })();
+  const streakRequest = (async () => {
+    const { data, error } = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('Strict streak data were unavailable.');
+    return {
+      current_streak: Number(row.current_streak) || 0,
+      longest_streak: Number(row.longest_streak) || 0,
+      consecutive_inactive: Number(row.consecutive_inactive) || 0,
+      cumulative_inactive: Number(row.cumulative_inactive) || 0,
+    };
+  })();
+
+  const [toolbarResult, balanceResult, streakResult] = await Promise.allSettled([
+    toolbarRequest,
+    balanceRequest,
+    streakRequest,
+  ]);
+  const toolbar = toolbarResult.status === 'fulfilled' ? toolbarResult.value : null;
+
+  let balance = balanceResult.status === 'fulfilled' ? balanceResult.value : null;
+  if (balance === null) {
+    const entries = await fetchLedgerEntries(userId).catch(() => null);
+    if (entries) balance = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  }
+
+  let streak = streakResult.status === 'fulfilled' ? streakResult.value : null;
+  if (!streak || streak.current_streak === 0) {
+    const { data: records, error } = await supabase
+      .from('daily_records')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('record_date', getDateDaysAgoISO(365))
+      .order('record_date', { ascending: true });
+    if (!error && records) {
+      const local = computeStreak(records as DailyRecord[]);
+      streak = {
+        current_streak: Math.max(streak?.current_streak || 0, local.current_streak || 0),
+        longest_streak: Math.max(streak?.longest_streak || 0, local.longest_streak || 0),
+        consecutive_inactive: streak?.consecutive_inactive ?? local.consecutive_inactive,
+        cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, local.cumulative_inactive || 0),
+      };
+    }
+  }
+
+  if (balance === null && !toolbar) throw new Error('Live Denarii data were unavailable.');
+  if (!streak && !toolbar) throw new Error('Live streak data were unavailable.');
+
+  return {
+    user_id: userId,
+    total_denarii: balance ?? toolbar?.total_denarii ?? 0,
+    current_streak: streak?.current_streak ?? toolbar?.current_streak ?? 0,
+    longest_streak: streak?.longest_streak ?? toolbar?.longest_streak ?? 0,
+    consecutive_inactive: streak?.consecutive_inactive ?? toolbar?.consecutive_inactive ?? 0,
+    cumulative_inactive: streak?.cumulative_inactive ?? toolbar?.cumulative_inactive ?? 0,
+  };
+}
+
 export async function fetchUserLiveStats(userId: string): Promise<UserLiveStats> {
   const { data, error } = await supabase.rpc('get_user_live_stats', { p_user_id: userId });
   if (error) throw error;

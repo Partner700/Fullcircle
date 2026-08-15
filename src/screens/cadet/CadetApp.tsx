@@ -5,10 +5,7 @@ import { CadetDashboard } from './CadetDashboard';
 import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
-  fetchStrictStreak,
-  fetchLedgerTotal,
-  fetchUserLiveStats,
-  fetchOwnToolbarStats,
+  fetchReliableToolbarStats,
   fetchUserNotifications,
   markNotificationRead,
   markAllNotificationsRead,
@@ -17,7 +14,7 @@ import {
   fetchLedgerEntries,
   fetchArenaRooms,
 } from '../../lib/queries';
-import { computeStreak, formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
+import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
 import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
 import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
 import {
@@ -255,64 +252,36 @@ export function CadetApp() {
     }
   }, [profile]);
 
-  const loadDenarii = useCallback(async () => {
-    if (!profile) return;
-    const toolbarStats = await fetchOwnToolbarStats().catch(() => null);
-    const liveStats = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
-    const total = liveStats?.total_denarii ?? await fetchLedgerTotal(profile.id).catch(async () => {
-      const entries = await fetchLedgerEntries(profile.id, 500).catch(() => []);
-      return entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-    });
-    setDenariiTotal((previous) => {
-      const next = Number.isFinite(total) ? total : previous;
-      writeCachedTopbarStats(profile.id, { denarii: next });
-      return next;
-    });
-  }, [profile]);
-
-  const refreshWallet = useCallback(async () => {
-    await loadDenarii();
-    setWalletRefreshKey((key) => key + 1);
-  }, [loadDenarii]);
-
-  const loadStreak = useCallback(async () => {
+  const loadToolbarStats = useCallback(async () => {
     if (!profile) {
       streakLoadedRef.current = false;
       setStreakCount(0);
+      setDenariiTotal(0);
       return;
     }
+
     try {
-      const toolbarStats = await fetchOwnToolbarStats().catch(() => null);
-      const liveStats = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
-      const s = liveStats
-        ? {
-            current_streak: liveStats.current_streak,
-            longest_streak: liveStats.longest_streak,
-            consecutive_inactive: liveStats.consecutive_inactive,
-            cumulative_inactive: liveStats.cumulative_inactive,
-          }
-        : await fetchStrictStreak(profile.id);
-      let nextStreak = s.current_streak || 0;
-      if (nextStreak === 0) {
-        const { data: recentRecords } = await supabase
-          .from('daily_records')
-          .select('*')
-          .eq('user_id', profile.id)
-          .gte('record_date', getDateDaysAgoISO(120))
-          .order('record_date', { ascending: true });
-        nextStreak = computeStreak((recentRecords || []) as any).current_streak || 0;
-      }
+      const stats = await fetchReliableToolbarStats(profile.id);
+      const nextDenarii = Number(stats.total_denarii) || 0;
+      const nextStreak = Number(stats.current_streak) || 0;
+
+      setDenariiTotal(nextDenarii);
       setStreakCount((previous) => {
-        if (nextStreak === 0 && previous > 0) return previous;
         if (streakLoadedRef.current && nextStreak > previous) void playSoundEffect('sound_streak', 0.66);
         streakLoadedRef.current = true;
-        writeCachedTopbarStats(profile.id, { streak: nextStreak });
         return nextStreak;
       });
+      writeCachedTopbarStats(profile.id, { denarii: nextDenarii, streak: nextStreak });
     } catch {
-      setStreakCount((previous) => previous);
+      // Keep the last confirmed values visible during a temporary network or
+      // schema-cache failure instead of replacing them with misleading zeroes.
     }
   }, [profile]);
+
+  const refreshWallet = useCallback(async () => {
+    await loadToolbarStats();
+    setWalletRefreshKey((key) => key + 1);
+  }, [loadToolbarStats]);
 
   const loadNotifications = useCallback(async () => {
     if (!profile) return;
@@ -627,11 +596,10 @@ export function CadetApp() {
   const refreshCadetState = useCallback(async () => {
     await Promise.allSettled([
       refreshWallet(),
-      loadStreak(),
       loadNotifications(),
     ]);
     setCadetRefreshKey((key) => key + 1);
-  }, [refreshWallet, loadStreak, loadNotifications]);
+  }, [refreshWallet, loadNotifications]);
 
   const loadSubStatus = useCallback(async () => {
     if (!profile) return;
@@ -646,9 +614,8 @@ export function CadetApp() {
   useEffect(() => {
     loadTentInfo();
     refreshWallet();
-    loadStreak();
     loadSubStatus();
-  }, [loadTentInfo, refreshWallet, loadStreak, loadSubStatus]);
+  }, [loadTentInfo, refreshWallet, loadSubStatus]);
 
   useEffect(() => {
     if (!profile) {
