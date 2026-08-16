@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
-import { recoverFromStaleBundle } from '../lib/staleBundleRecovery';
+import { recoverFromStaleBundle, reloadFreshApp } from '../lib/staleBundleRecovery';
 
 type Props = {
   children: ReactNode;
@@ -72,7 +72,7 @@ export class AppErrorBoundary extends Component<Props, State> {
             }} className="btn-primary">
               <RefreshCcw size={16} /> Try Again
             </button>
-            <button type="button" onClick={() => window.location.reload()} className="btn-secondary">
+            <button type="button" onClick={() => void reloadFreshApp()} className="btn-secondary">
               Reload App
             </button>
           </div>

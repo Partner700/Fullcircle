@@ -83,6 +83,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [quizImage, setQuizImage] = useState<PanelImageSetting | null>(null);
   const [readingArchive, setReadingArchive] = useState<(DailyNarrative & { meditation_text?: string | null; best_verse?: string | null })[]>([]);
   const [reviewVerseIndex, setReviewVerseIndex] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const releasedResultsLoadedRef = useRef(false);
 
   useEffect(() => {
     void setScenarioSound(inQuiz ? 'sound_quiz_start' : 'sound_quiz_waiting');
@@ -92,41 +94,71 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
+    setLoadError(null);
     try {
-    const sess = await fetchLatestQuizSession();
-    setSession(sess);
-    if (sess) {
-      const [qs, att, relics, image] = await Promise.allSettled([
-        fetchPlayableQuestionsForSession(sess.id),
-        fetchQuizAttempt(profile.id, sess.id),
-        fetchRelicInventory(profile.id),
-        fetchPanelImageSetting('quiz'),
-      ]);
-      setQuestions(qs.status === 'fulfilled' ? qs.value : []);
-      setAttempt(att.status === 'fulfilled' ? att.value : null);
-      setQuizImage(image.status === 'fulfilled' ? image.value : null);
-      if (relics.status === 'fulfilled') {
-        const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
-        setLazarusCount(lazarus?.quantity || 0);
+      const sess = await fetchLatestQuizSession();
+      setSession(sess);
+      if (sess) {
+        const [qs, att, relics, image] = await Promise.allSettled([
+          fetchPlayableQuestionsForSession(sess.id),
+          fetchQuizAttempt(profile.id, sess.id),
+          fetchRelicInventory(profile.id),
+          fetchPanelImageSetting('quiz'),
+        ]);
+        if (qs.status === 'rejected') {
+          throw qs.reason instanceof Error ? qs.reason : new Error('Quiz questions could not be loaded.');
+        }
+        setQuestions(qs.value);
+        setAttempt(att.status === 'fulfilled' ? att.value : null);
+        setQuizImage(image.status === 'fulfilled' ? image.value : null);
+        if (relics.status === 'fulfilled') {
+          const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
+          setLazarusCount(lazarus?.quantity || 0);
+        }
+        if (att.status === 'fulfilled' && att.value) {
+          try {
+            const resps = await fetchResponsesForAttempt(att.value.id);
+            setResponses(resps);
+          } catch { setResponses([]); }
+        }
       }
-      if (att.status === 'fulfilled' && att.value) {
-        try {
-          const resps = await fetchResponsesForAttempt(att.value.id);
-          setResponses(resps);
-        } catch { setResponses([]); }
-      }
+      try {
+        const narrs = await fetchNarratives(90);
+        const { data: records } = await supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id);
+        const recordsByDate = new Map((records || []).map((record: any) => [record.record_date, record]));
+        setReadingArchive(narrs.filter((item) => item.narrative_date < getTodayISODate()).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
+      } catch { setReadingArchive([]); }
+    } catch (error) {
+      console.error('Quiz load error:', error);
+      setLoadError(error instanceof Error ? error.message : 'The quiz could not be loaded.');
+    } finally {
+      setLoading(false);
     }
-    try {
-      const narrs = await fetchNarratives(90);
-      const { data: records } = await supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id);
-      const recordsByDate = new Map((records || []).map((record: any) => [record.record_date, record]));
-      setReadingArchive(narrs.filter((item) => item.narrative_date < getTodayISODate()).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
-    } catch { setReadingArchive([]); }
-    } catch (e) { console.error('Quiz load error:', e); }
-    setLoading(false);
   }, [profile]);
 
+  useEffect(() => {
+    if (!session || !attempt || session.quiz_type !== 'saturday') return;
+    if (!['submitted', 'timed_out'].includes(attempt.status)) return;
+    if (now < localQuizResultsRelease(session.session_date) || releasedResultsLoadedRef.current) return;
+
+    releasedResultsLoadedRef.current = true;
+    void Promise.all([
+      fetchPlayableQuestionsForSession(session.id),
+      fetchResponsesForAttempt(attempt.id),
+    ]).then(([releasedQuestions, releasedResponses]) => {
+      setQuestions(releasedQuestions);
+      setResponses(releasedResponses);
+    }).catch((error) => {
+      releasedResultsLoadedRef.current = false;
+      console.error('Released quiz results could not load:', error);
+    });
+  }, [attempt, now, session]);
+
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    releasedResultsLoadedRef.current = false;
+  }, [session?.id]);
 
   // Tick every second
   useEffect(() => {
@@ -140,6 +172,19 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         <Dove size={56} className="text-brass mb-4" />
         <p className="eyebrow text-stone">Loading</p>
         <p className="text-sm text-stone mt-1">Preparing the quiz chamber…</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="card mx-auto max-w-lg p-6 text-center animate-fade-in">
+        <AlertTriangle size={30} className="mx-auto mb-3 text-roman" />
+        <h2 className="font-display text-xl font-semibold text-ink">Quiz temporarily unavailable</h2>
+        <p className="mt-2 text-sm text-stone">{loadError}</p>
+        <button type="button" className="btn-primary mt-4" onClick={() => void load()}>
+          <RefreshCw size={16} /> Try Again
+        </button>
       </div>
     );
   }
@@ -303,7 +348,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
             <Zap size={18} /> Enter Quiz
           </button>
           <p className="text-xs text-roman mt-3 flex items-center justify-center gap-1">
-            <AlertTriangle size={12} /> Exiting the app during the quiz = instant forfeiture
+            <AlertTriangle size={12} /> Leaving the quiz in the background for more than 8 seconds forfeits the attempt
           </p>
         </div>
       )}
@@ -337,7 +382,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <RuleItem icon={Clock} text={`${QUIZ_LIVE_DURATION_MINUTES}-minute live window — no late submissions`} />
           <RuleItem icon={ChevronRight} text="Forward-gated: can't skip ahead without answering" />
           <RuleItem icon={ChevronLeft} text="Can navigate back to review/change earlier answers" />
-          <RuleItem icon={AlertTriangle} text="App-exit = instant forfeiture, zero figs, broken streak" />
+          <RuleItem icon={AlertTriangle} text="Leaving the quiz in the background for more than 8 seconds forfeits the attempt" />
           <RuleItem icon={RefreshCw} text="Lazarus Coin can reopen or retake the Saturday quiz before 2:45 PM" />
           <RuleItem
             icon={Trophy}
@@ -468,6 +513,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
   const forfeitedRef = useRef(false);
   const submissionStartedRef = useRef(false);
+  const forfeitTimerRef = useRef<number | null>(null);
 
   const handleSubmit = useCallback(async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
     if (submissionStartedRef.current) return;
@@ -515,20 +561,37 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
     return () => clearInterval(interval);
   }, [handleSubmit, liveCloses]);
 
-  // App-exit forfeiture detection (visibility change + blur)
+  // Browsers briefly hide or blur an app for system UI, notifications, and
+  // permission prompts. Only forfeit after a sustained, real background exit.
   useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.hidden && !forfeitedRef.current) {
-        forfeitedRef.current = true;
-        await forfeitQuizAttempt(attempt.id);
-        onForfeit();
+    const cancelPendingForfeit = () => {
+      if (forfeitTimerRef.current !== null) {
+        window.clearTimeout(forfeitTimerRef.current);
+        forfeitTimerRef.current = null;
       }
     };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        cancelPendingForfeit();
+        return;
+      }
+      if (forfeitedRef.current || submissionStartedRef.current) return;
+      forfeitTimerRef.current = window.setTimeout(async () => {
+        if (!document.hidden || forfeitedRef.current || submissionStartedRef.current) return;
+        forfeitedRef.current = true;
+        try {
+          await forfeitQuizAttempt(attempt.id);
+          onForfeit();
+        } catch (error) {
+          forfeitedRef.current = false;
+          console.error('Quiz forfeiture could not be recorded:', error);
+        }
+      }, 8_000);
+    };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleVisibilityChange);
+      cancelPendingForfeit();
     };
   }, [attempt.id, onForfeit]);
 
@@ -542,7 +605,22 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   }
 
   const q = questions[currentIdx];
-  const payload = q.question_payload;
+  const payload = q?.question_payload;
+  if (!q || !payload || typeof payload !== 'object' || typeof payload.type !== 'string' || typeof payload.question !== 'string') {
+    return (
+      <div className="card mx-auto max-w-lg p-6 text-center animate-fade-in">
+        <AlertTriangle size={30} className="mx-auto mb-3 text-roman" />
+        <h2 className="font-display text-xl font-semibold text-ink">This question needs correction</h2>
+        <p className="mt-2 text-sm text-stone">The question record is incomplete. Your attempt is safe.</p>
+        <div className="mt-4 flex justify-center gap-2">
+          {currentIdx > 0 && <button type="button" className="btn-secondary" onClick={() => setCurrentIdx((value) => value - 1)}>Back</button>}
+          {currentIdx < questions.length - 1
+            ? <button type="button" className="btn-primary" onClick={() => setCurrentIdx((value) => value + 1)}>Next question</button>
+            : <button type="button" className="btn-primary" onClick={() => void handleSubmit('submitted')}>Submit quiz</button>}
+        </div>
+      </div>
+    );
+  }
   const hasResponse = localResponses.has(q.id);
   const isLastQuestion = currentIdx === questions.length - 1;
 
@@ -911,7 +989,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
 
       {/* Warning */}
       <div className="text-center text-xs text-roman flex items-center justify-center gap-1">
-        <AlertTriangle size={12} /> Do not leave this page — exiting = forfeiture
+        <AlertTriangle size={12} /> Keep this page open — an 8-second background exit forfeits the attempt
       </div>
     </div>
   );
@@ -1034,9 +1112,9 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
 }) {
   const correctByQuestion = questions.map((q) => {
     const resp = responses.find((r) => r.question_id === q.id);
-    const expected = q.question_payload.correct_answer;
+    const expected = q.question_payload?.correct_answer;
     if (!resp || expected == null) return false;
-    if (['standard_text', 'scriptorium'].includes(q.question_payload.type)) {
+    if (['standard_text', 'scriptorium'].includes(q.question_payload?.type || '')) {
       return String(resp.answer).trim() === String(expected).trim();
     }
     return String(resp.answer).trim().toLowerCase() === String(expected).trim().toLowerCase();

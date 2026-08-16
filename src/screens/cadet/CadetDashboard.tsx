@@ -406,7 +406,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityOverride={100}
-                  veilClassName={slide.kind === 'quote' ? 'quote-panel-veil' : 'panel-picture-veil'}
+                  veilClassName="welcome-slide-veil"
                   modeFilter={false}
                   textGradient={false}
                   simple={slide.kind === 'quote'}
