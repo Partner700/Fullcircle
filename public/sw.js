@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v29';
+const CACHE_VERSION = 'full-circle-v30';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -69,7 +69,11 @@ self.addEventListener('install', (event) => {
             caches.delete(name).catch(() => false)
           )
         );
-      }),
+      })
+      // Activate the repaired worker as soon as installation finishes. We do
+      // not claim or reload an open page, so an in-progress session keeps its
+      // current bundle and the fresh release is picked up on the next launch.
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -106,7 +110,6 @@ self.addEventListener('activate', (event) => {
         if (self.registration.navigationPreload) {
           await self.registration.navigationPreload.enable().catch(() => undefined);
         }
-        await self.clients.claim();
       }),
   );
 });
