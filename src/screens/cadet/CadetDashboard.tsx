@@ -7,6 +7,7 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
+import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
@@ -134,13 +135,9 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     })),
   ];
   const heroSlideCount = heroSlides.length;
-  useEffect(() => {
-    if (heroSlideCount <= 1 || heroPaused) return;
-    const interval = window.setInterval(() => {
-      setHeroIndex((index) => index + 1);
-    }, 6000);
-    return () => window.clearInterval(interval);
-  }, [heroPaused, heroSlideCount]);
+  useAutoAdvance(heroSlideCount > 1 && !heroPaused, () => {
+    setHeroIndex((index) => index + 1);
+  });
 
   const monthPrefix = today.slice(0, 7);
   const volumeThisMonth = records.filter((r) => {

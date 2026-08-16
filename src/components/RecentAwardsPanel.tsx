@@ -7,6 +7,7 @@ import { AwardReactions } from './AwardReactions';
 import { useAuth } from '../context/AuthContext';
 import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../lib/queries';
 import { TentHouseSymbol } from './TentHouseSymbol';
+import { useAutoAdvance } from '../hooks/useAutoAdvance';
 
 type RecentAward = AwardWithRecipient;
 
@@ -62,13 +63,9 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
     return () => window.clearInterval(interval);
   }, [load]);
 
-  useEffect(() => {
-    if (awards.length <= 1) return;
-    const interval = window.setInterval(() => {
-      setActiveIndex((index) => (index + 1) % awards.length);
-    }, 6000);
-    return () => window.clearInterval(interval);
-  }, [awards.length]);
+  useAutoAdvance(awards.length > 1, () => {
+    setActiveIndex((index) => (index + 1) % awards.length);
+  });
 
   useEffect(() => {
     if (awards.length === 0) setActiveIndex(0);

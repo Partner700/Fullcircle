@@ -497,16 +497,17 @@
     );
   }
   [data-theme="day"] .welcome-slide-veil {
-    width: min(64%, 40rem);
+    inset-inline-end: 0;
+    width: 100%;
     background: linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.76) 0%,
-      rgba(255, 255, 255, 0.56) 52%,
-      rgba(255, 255, 255, 0.04) 100%
+      rgba(255, 255, 255, 0.54) 0%,
+      rgba(255, 255, 255, 0.34) 52%,
+      rgba(255, 255, 255, 0.18) 100%
     );
   }
-  .award-panel-veil { background: rgba(23, 36, 60, 0.22); }
-  [data-theme="day"] .award-panel-veil { background: rgba(237, 246, 255, 0.20); }
+  .award-panel-veil { background: rgba(23, 36, 60, 0.16); }
+  [data-theme="day"] .award-panel-veil { background: rgba(237, 246, 255, 0.14); }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
   }

@@ -24,6 +24,7 @@ import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShor
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
+import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
@@ -227,13 +228,9 @@ export function SentryApp() {
     };
   }, [profile, load]);
 
-  useEffect(() => {
-    if (quotes.length <= 1 || quotePaused) return;
-    const interval = window.setInterval(() => {
-      setQuoteIndex((index) => (index + 1) % quotes.length);
-    }, 6000);
-    return () => window.clearInterval(interval);
-  }, [quotePaused, quotes.length]);
+  useAutoAdvance(quotes.length > 1 && !quotePaused, () => {
+    setQuoteIndex((index) => (index + 1) % quotes.length);
+  });
 
   const markAttendance = async (cadetId: string, status: 'present' | 'absent') => {
     if (!profile) return;

@@ -51,7 +51,7 @@ function updateHtml(p) {
 function updateSw(p) {
   if (!fs.existsSync(file(p))) return;
   let sw = read(p);
-  sw = sw.replace(/const CACHE_VERSION = 'full-circle-v\d+';/, "const CACHE_VERSION = 'full-circle-v31';");
+  sw = sw.replace(/const CACHE_VERSION = 'full-circle-v\d+';/, "const CACHE_VERSION = 'full-circle-v32';");
   sw = sw.replace(/\s*'\/icons\/fullcircle-icon\.svg',\n/g, '\n');
   if (!sw.includes("'full-circle-v2-app'")) {
     sw = sw.replace(

@@ -15,6 +15,7 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
@@ -1254,13 +1255,9 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
     return () => { cancelled = true; };
   }, [instructorId]);
 
-  useEffect(() => {
-    if (quotes.length <= 1 || quotePaused) return;
-    const interval = window.setInterval(() => {
-      setQuoteIndex((index) => (index + 1) % quotes.length);
-    }, 6000);
-    return () => window.clearInterval(interval);
-  }, [quotePaused, quotes.length]);
+  useAutoAdvance(quotes.length > 1 && !quotePaused, () => {
+    setQuoteIndex((index) => (index + 1) % quotes.length);
+  });
 
   useEffect(() => {
     const cadetIds = roles.filter((role) => role.role === 'cadet' && role.status === 'active').map((role) => role.user_id);
