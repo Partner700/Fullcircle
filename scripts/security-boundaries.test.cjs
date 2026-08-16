@@ -16,6 +16,7 @@ const calendarUtilities = read('src/lib/utils.ts');
 const toolbarStats = read('supabase/migrations/20260814172000_authoritative_toolbar_stats.sql');
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
 const sentryApp = read('src/screens/sentry/SentryApp.tsx');
+const arenaGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -77,14 +78,22 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v30'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v31'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
+assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
 assert.match(toolbarStats, /public\.get_user_denarii_total\(caller\.user_id\)/);
 assert.match(toolbarStats, /public\.compute_strict_streak\(caller\.user_id\)/);
 assert.ok(!toolbarStats.includes('get_marks_board_live'), 'Toolbar counters must not depend on a board RPC.');
+
+for (const category of ['characters', 'books', 'themes']) {
+  const bank = arenaGenerator.match(new RegExp(`${category}: \\[([\\s\\S]*?)\\]`))?.[1] || '';
+  assert.equal((bank.match(/"[^"]+"/g) || []).length, 10, `${category} must expose ten Arena banks.`);
+}
+assert.match(arenaGenerator, /gameType === 'ludo' \? 120 : 19/);
+assert.match(arenaGenerator, /isNearDuplicate\(candidate\.question/);
 
 for (const required of [
   "v_user_id IS NULL OR v_user_id IS DISTINCT FROM p_user_id",

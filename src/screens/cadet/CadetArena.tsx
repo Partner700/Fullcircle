@@ -700,6 +700,15 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
             {arenaOpponent === 'machine' && ' Machine matches cost a fixed 50 Ð.'}
           </p>
           <div>
+            <label className="text-xs text-stone block mb-1">Arena Question Set</label>
+            <AppSelect value={arenaTopicType} onChange={(value) => setArenaTopicType(value as typeof arenaTopicType)} options={[
+              { value: 'characters', label: 'Bible Characters', description: 'One of ten character banks is selected for this match.' },
+              { value: 'books', label: 'Books of the Bible', description: 'One of ten book banks is selected for this match.' },
+              { value: 'themes', label: 'Themes of Scripture', description: 'One of ten biblical-theme banks is selected for this match.' },
+              { value: 'narrative', label: 'Weekly Narrative Packet', description: 'Questions use the current narrative and Scripture.' },
+            ]} />
+          </div>
+          <div>
             <label className="text-xs text-stone block mb-1">Room Name</label>
             <input className="input-field" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
           </div>
@@ -721,17 +730,6 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           <div>
             <label className="text-xs text-stone block mb-1">Content Source (narrative date)</label>
             <AppSelect value={selectedNarrativeDate} onChange={setSelectedNarrativeDate} options={[{ value: '', label: 'Any / Latest' }, ...narratives.map((n) => ({ value: n.narrative_date, label: n.narrative_date, description: n.title }))]} />
-          </div>
-          <div>
-            <div>
-              <label className="text-xs text-stone block mb-1">Arena Question Set</label>
-              <AppSelect value={arenaTopicType} onChange={(value) => setArenaTopicType(value as any)} options={[
-                { value: 'characters', label: 'Bible Characters' },
-                { value: 'books', label: 'Books of the Bible' },
-                { value: 'themes', label: 'Themes of Scripture' },
-                { value: 'narrative', label: 'Weekly Narrative Packet' },
-              ]} />
-            </div>
           </div>
           <div>
             <label className="text-xs text-stone block mb-1.5">Tag Players <span className="text-stone/60">({taggedIds.size}/{maxPlayers - 1} spaces — they still choose whether to join)</span></label>

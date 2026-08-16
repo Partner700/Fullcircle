@@ -51,6 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
   const [loading, setLoading] = useState(true);
   const authOperationRef = useRef(false);
+  const profileRef = useRef<Profile | null>(null);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   const loadProfile = useCallback(async (userId: string) => {
     if (supabaseConfigError) return;
@@ -79,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!prof && profileError) throw profileError;
+    profileRef.current = prof as Profile | null;
     setProfile(prof as Profile | null);
 
     if (prof) {
@@ -177,18 +183,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // signIn performs this handoff itself. Suppressing the duplicate mobile
         // callback avoids two competing profile requests on slower devices.
         if (authOperationRef.current) return;
+        const needsBlockingLoad = profileRef.current?.id !== sess.user.id;
         window.setTimeout(() => void (async () => {
           if (!active) return;
-          setLoading(true);
+          if (needsBlockingLoad) setLoading(true);
           try {
             await waitFor(loadProfile(sess.user.id), 8_000, 'Profile loading');
           } catch (error) {
             console.warn('Profile refresh could not complete:', error);
           } finally {
-            if (active) setLoading(false);
+            if (active && needsBlockingLoad) setLoading(false);
           }
         })(), 0);
       } else {
+        profileRef.current = null;
         setProfile(null);
         setRoleAssignment(null);
       }
@@ -206,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authOperationRef.current = true;
     setLoading(true);
     setProfile(null);
+    profileRef.current = null;
     setRoleAssignment(null);
     try {
       // Only close an actual retained session. Removing Supabase storage while
@@ -318,6 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authOperationRef.current = true;
     setLoading(false);
     setSession(null);
+    profileRef.current = null;
     setProfile(null);
     setRoleAssignment(null);
 

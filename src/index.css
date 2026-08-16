@@ -185,6 +185,10 @@
     background: var(--color-peri);
     color: var(--color-navy-3);
     font-family: 'Nunito', system-ui, sans-serif;
+    isolation: isolate;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    background-clip: padding-box;
   }
   .btn-primary:hover {
     opacity: 0.88;
@@ -201,6 +205,10 @@
     border: 1.5px solid var(--color-peri-2);
     background: var(--color-peri-soft);
     font-family: 'Nunito', sans-serif;
+    isolation: isolate;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    background-clip: padding-box;
   }
   .btn-secondary:hover {
     background: var(--color-peri-medium);
@@ -213,6 +221,10 @@
     background: transparent;
     border: 1.5px solid var(--color-border);
     font-family: 'Nunito', sans-serif;
+    isolation: isolate;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    background-clip: padding-box;
   }
   .btn-ghost:hover {
     color: var(--color-peri);
@@ -225,6 +237,10 @@
     color: var(--color-coral);
     background: var(--color-coral-soft);
     border: 1px solid rgba(224, 82, 82, 0.2);
+    isolation: isolate;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    background-clip: padding-box;
   }
   .btn-danger:hover {
     background: rgba(224, 82, 82, 0.25);
@@ -471,21 +487,26 @@
     background-color: rgba(255, 255, 255, 0.12);
   }
   .welcome-slide-veil {
+    inset-inline-end: auto;
+    width: min(60%, 38rem);
     background: linear-gradient(
       90deg,
-      rgba(7, 24, 43, 0.58) 0%,
-      rgba(7, 24, 43, 0.46) 48%,
-      rgba(7, 24, 43, 0.30) 100%
+      rgba(0, 0, 0, 0.38) 0%,
+      rgba(0, 0, 0, 0.24) 52%,
+      rgba(0, 0, 0, 0.02) 100%
     );
   }
   [data-theme="day"] .welcome-slide-veil {
+    width: min(64%, 40rem);
     background: linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.94) 0%,
-      rgba(255, 255, 255, 0.84) 48%,
-      rgba(255, 255, 255, 0.68) 100%
+      rgba(255, 255, 255, 0.76) 0%,
+      rgba(255, 255, 255, 0.56) 52%,
+      rgba(255, 255, 255, 0.04) 100%
     );
   }
+  .award-panel-veil { background: rgba(23, 36, 60, 0.22); }
+  [data-theme="day"] .award-panel-veil { background: rgba(237, 246, 255, 0.20); }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
   }

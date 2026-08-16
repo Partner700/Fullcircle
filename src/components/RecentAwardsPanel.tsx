@@ -87,7 +87,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
       <PanelImageBackdrop
         image={image}
         opacityOverride={100}
-        veilClassName="panel-picture-veil"
+        veilClassName="award-panel-veil"
         modeFilter={false}
         textGradient={false}
         simple

@@ -516,7 +516,12 @@ export type ToolbarStats = Pick<
 >;
 
 export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
-  const { data, error } = await supabase.rpc('get_my_toolbar_stats');
+  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v2');
+  if (error) {
+    const legacy = await supabase.rpc('get_my_toolbar_stats');
+    data = legacy.data;
+    error = legacy.error;
+  }
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.user_id) throw new Error('Live toolbar stats were unavailable.');
@@ -532,6 +537,7 @@ export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
 
 export async function fetchReliableToolbarStats(userId: string): Promise<ToolbarStats> {
   const toolbarRequest = fetchOwnToolbarStats();
+  const liveStatsRequest = fetchUserLiveStats(userId);
   const balanceRequest = (async () => {
     const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: userId });
     if (error) throw error;
@@ -550,20 +556,36 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
     };
   })();
 
-  const [toolbarResult, balanceResult, streakResult] = await Promise.allSettled([
+  const [toolbarResult, balanceResult, streakResult, liveStatsResult] = await Promise.allSettled([
     toolbarRequest,
     balanceRequest,
     streakRequest,
+    liveStatsRequest,
   ]);
   const toolbar = toolbarResult.status === 'fulfilled' ? toolbarResult.value : null;
+  const liveStats = liveStatsResult.status === 'fulfilled' ? liveStatsResult.value : null;
 
   let balance = balanceResult.status === 'fulfilled' ? balanceResult.value : null;
-  if (balance === null) {
+  if ((!balance || balance === 0) && liveStats && liveStats.total_denarii !== 0) {
+    balance = liveStats.total_denarii;
+  }
+  if (balance === null || balance === 0) {
     const entries = await fetchLedgerEntries(userId).catch(() => null);
-    if (entries) balance = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    if (entries) {
+      const ledgerBalance = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+      if (ledgerBalance !== 0 || balance === null) balance = ledgerBalance;
+    }
   }
 
   let streak = streakResult.status === 'fulfilled' ? streakResult.value : null;
+  if (liveStats) {
+    streak = {
+      current_streak: Math.max(streak?.current_streak || 0, liveStats.current_streak || 0),
+      longest_streak: Math.max(streak?.longest_streak || 0, liveStats.longest_streak || 0),
+      consecutive_inactive: streak?.consecutive_inactive ?? liveStats.consecutive_inactive,
+      cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, liveStats.cumulative_inactive || 0),
+    };
+  }
   if (!streak || streak.current_streak === 0) {
     const { data: records, error } = await supabase
       .from('daily_records')
@@ -582,14 +604,14 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
     }
   }
 
-  if (balance === null && !toolbar) throw new Error('Live Denarii data were unavailable.');
-  if (!streak && !toolbar) throw new Error('Live streak data were unavailable.');
+  if (balance === null && !toolbar && !liveStats) throw new Error('Live Denarii data were unavailable.');
+  if (!streak && !toolbar && !liveStats) throw new Error('Live streak data were unavailable.');
 
   return {
     user_id: userId,
-    total_denarii: balance ?? toolbar?.total_denarii ?? 0,
-    current_streak: streak?.current_streak ?? toolbar?.current_streak ?? 0,
-    longest_streak: streak?.longest_streak ?? toolbar?.longest_streak ?? 0,
+    total_denarii: balance ?? liveStats?.total_denarii ?? toolbar?.total_denarii ?? 0,
+    current_streak: streak?.current_streak ?? liveStats?.current_streak ?? toolbar?.current_streak ?? 0,
+    longest_streak: streak?.longest_streak ?? liveStats?.longest_streak ?? toolbar?.longest_streak ?? 0,
     consecutive_inactive: streak?.consecutive_inactive ?? toolbar?.consecutive_inactive ?? 0,
     cumulative_inactive: streak?.cumulative_inactive ?? toolbar?.cumulative_inactive ?? 0,
   };

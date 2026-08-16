@@ -80,7 +80,7 @@ function cleanQuestion(raw: unknown, index: number): QuestionPayload | null {
     correct_answer: canonicalAnswer,
     explanation: q.explanation ? String(q.explanation).trim() : undefined,
     reference: q.reference ? String(q.reference).trim() : undefined,
-    difficulty_tag: "hard",
+    difficulty_tag: round === 1 ? "easy" : round === 2 ? "moderate" : "hard",
     game_round: round,
     round_timer_seconds: seconds,
     is_bonus: index === 18,
@@ -299,61 +299,69 @@ function normaliseSet(value: string | null | undefined): keyof typeof ARENA_BANK
   return "all";
 }
 
+function combinedFallbackFact(facts: FallbackFact[], variant: number): FallbackFact {
+  const references = facts.map((fact) => fact.reference);
+  const answers = facts.map((fact) => fact.answer);
+  const wrongAnswers = facts.map((fact) => fact.options.find((option) => option !== fact.answer) || "Not supported by the passage");
+  const correct = answers.join("; and ");
+  const distractors = facts.map((_, replaceIndex) => answers
+    .map((answer, answerIndex) => answerIndex === replaceIndex ? wrongAnswers[answerIndex] : answer)
+    .join("; and "));
+  if (facts.length === 2) distractors.push(wrongAnswers.join("; and "));
+  const prompts = facts.length === 2
+    ? [
+      `Which paired statement is supported by both ${references.join(" and ")}?`,
+      `Compare ${references.join(" with ")}. Which option preserves both textual details?`,
+    ]
+    : [
+      `Which three-part summary accurately joins ${references.join(", ")}?`,
+      `Read ${references.join(", ")} together. Which combined conclusion is fully supported?`,
+    ];
+  return {
+    bank: facts[0].bank,
+    reference: references.join("; "),
+    prompt: prompts[variant % prompts.length],
+    answer: correct,
+    options: [correct, ...distractors].slice(0, 4),
+    explanation: facts.map((fact) => fact.explanation).join(" "),
+  };
+}
+
 function buildFallbackDeck(targetCount: number, difficulty: string, gameType: string, seed: string, selectedSet: keyof typeof ARENA_BANKS | "all" = "all") {
   const seedValue = [...seed].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const focus = selectedSet === "all" ? bankFocus(seed) : {
     category: selectedSet,
     bank: ARENA_BANKS[selectedSet][Math.floor(seedValue / 3) % ARENA_BANKS[selectedSet].length],
   };
-  const sourceFacts = selectedSet === "all" ? FALLBACK_FACTS : FALLBACK_FACTS.filter((fact) => factSet(fact) === selectedSet);
-  const variants = [
-    (fact: FallbackFact) => fact,
-    (fact: FallbackFact) => ({
-      ...fact,
-      prompt: `Which answer preserves the meaning of ${fact.reference}? ${fact.prompt}`,
-      explanation: `${fact.explanation} This version asks for the supported reading, not just recall.`,
-    }),
-    (fact: FallbackFact) => ({
-      ...fact,
-      prompt: `A player must infer carefully from ${fact.reference}: ${fact.prompt}`,
-      explanation: `${fact.explanation} The key is the textual detail named in the reference.`,
-    }),
-    (fact: FallbackFact) => ({
-      ...fact,
-      prompt: `Under pressure, choose the most precise option from ${fact.reference}: ${fact.prompt}`,
-      explanation: `${fact.explanation} Plausible distractors are close, but the reference fixes the answer.`,
-    }),
-  ];
-  const availableFacts = sourceFacts.flatMap((fact) => variants.map((variant, index) => ({
-    ...variant(fact),
-    reference: `${fact.reference}${index ? ` · angle ${index + 1}` : ""}`,
-  })));
-  const sortedFacts = [...availableFacts].sort((left, right) => {
-    const leftScore = [...`${seed}|${left.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const rightScore = [...`${seed}|${right.reference}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    return leftScore - rightScore;
-  });
-  const preferredFacts = sortedFacts.filter((fact) => fact.bank.toLowerCase().includes(focus.category === "characters" ? "characters" : focus.category === "books" ? "books" : "themes"));
-  const facts = preferredFacts.length >= Math.min(targetCount, 10) ? [...preferredFacts, ...sortedFacts.filter((fact) => !preferredFacts.includes(fact))] : sortedFacts;
-  const usage = new Map<string, number>();
-  return Array.from({ length: targetCount }, (_, index) => {
-    let fact = facts[(index * 7 + seedValue) % facts.length];
-    const referenceKey = fact.reference;
-    if ((usage.get(referenceKey) || 0) >= 2) {
-      fact = facts.find((candidate) => {
-        const candidateKey = candidate.reference;
-        return (usage.get(candidateKey) || 0) < 2;
-      }) || fact;
-    }
-    const nextKey = fact.reference;
-    usage.set(nextKey, (usage.get(nextKey) || 0) + 1);
-    return fallbackQuestion(fact, index, difficulty, gameType);
-  });
-}
+  const sourceFacts = FALLBACK_FACTS.filter((fact) => factSet(fact) === focus.category);
+  const facts = seededShuffle(sourceFacts, `${seed}|${focus.bank}`);
+  const direct = seededShuffle(facts, `${seed}|direct`);
+  const paired: FallbackFact[] = [];
+  const triples: FallbackFact[] = [];
 
-function isQuotaOrProviderFailure(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return /insufficient_quota|credit_balance_exhausted|quota|billing|OPENAI_API_KEY|Question generation failed/i.test(message);
+  for (let left = 0; left < facts.length; left += 1) {
+    for (let right = left + 1; right < facts.length; right += 1) {
+      // A reference pair appears at most twice, each time through a different
+      // comparison lens. This keeps long Ludo matches varied without inventing
+      // unsupported Bible facts.
+      paired.push(combinedFallbackFact([facts[left], facts[right]], 0));
+      paired.push(combinedFallbackFact([facts[left], facts[right]], 1));
+    }
+  }
+  for (let first = 0; first < facts.length; first += 1) {
+    for (let second = first + 1; second < facts.length; second += 1) {
+      for (let third = second + 1; third < facts.length; third += 1) {
+        triples.push(combinedFallbackFact([facts[first], facts[second], facts[third]], 0));
+      }
+    }
+  }
+
+  const pool = [
+    ...direct,
+    ...seededShuffle(paired, `${seed}|pairs`),
+    ...seededShuffle(triples, `${seed}|triples`),
+  ];
+  return pool.slice(0, targetCount).map((fact, index) => fallbackQuestion(fact, index, difficulty, gameType));
 }
 
 async function fetchNarrative(narrativeDate: string | null) {
@@ -499,7 +507,17 @@ Deno.serve(async (req) => {
       questions = buildFallbackDeck(targetCount, difficulty, gameType, packetSeed, selectedSet);
     }
 
-    if (questions.length < targetCount) questions = buildFallbackDeck(targetCount, difficulty, gameType, `${packetSeed}|short`, selectedSet);
+    if (questions.length < targetCount) {
+      const fallback = buildFallbackDeck(targetCount, difficulty, gameType, `${packetSeed}|short`, selectedSet);
+      for (const candidate of fallback) {
+        if (questions.length >= targetCount) break;
+        if (isNearDuplicate(candidate.question, questions.map((question) => question.question))) continue;
+        questions.push(candidate);
+      }
+    }
+    if (questions.length < targetCount) {
+      throw new Error(`Arena could only prepare ${questions.length} distinct questions out of ${targetCount}.`);
+    }
     const publicQuestions = await serviceRpc("store_arena_question_deck", {
       p_room_id: roomId,
       p_questions: questions,

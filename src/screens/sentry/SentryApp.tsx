@@ -16,7 +16,7 @@ import {
 } from '../../components/BrandIcons';
 import { supabase } from '../../lib/supabase';
 import {
-  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, fetchOwnToolbarStats, uploadTentProfileImage,
+  fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, fetchReliableToolbarStats, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
 } from '../../lib/queries';
@@ -112,6 +112,7 @@ export function SentryApp() {
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
   const hasLoadedRef = useRef(false);
+  const lastForegroundRefreshRef = useRef(0);
 
   const today = getTodayISODate();
   const dayType = getDayType(new Date());
@@ -121,7 +122,7 @@ export function SentryApp() {
     if (!hasLoadedRef.current) setLoading(true);
     try {
       const [toolbarStats, ownDenarii, ownLedger] = await Promise.all([
-        fetchOwnToolbarStats().catch(() => null),
+        fetchReliableToolbarStats(profile.id).catch(() => null),
         fetchLedgerTotal(profile.id).catch(() => null),
         fetchLedgerEntries(profile.id, 80).catch(() => []),
       ]);
@@ -203,9 +204,13 @@ export function SentryApp() {
   useEffect(() => {
     if (!profile) return;
     const refreshVisibleStats = () => {
-      if (document.visibilityState === 'visible') void load();
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundRefreshRef.current < 1_500) return;
+      lastForegroundRefreshRef.current = now;
+      void load();
     };
-    const refreshOnFocus = () => { void load(); };
+    const refreshOnFocus = () => { refreshVisibleStats(); };
     document.addEventListener('visibilitychange', refreshVisibleStats);
     window.addEventListener('focus', refreshOnFocus);
     window.addEventListener('full-circle-wallet-refresh', refreshOnFocus);

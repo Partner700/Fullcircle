@@ -212,6 +212,7 @@ export function CadetApp() {
   const [cadetRefreshKey, setCadetRefreshKey] = useState(0);
   const [subStatus, setSubStatus] = useState<{ status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null>(null);
   const streakLoadedRef = useRef(false);
+  const lastForegroundRefreshRef = useRef(0);
 
   const isExpired = subStatus?.status === 'expired';
   const trialCountdown = getCountdownParts(subStatus?.trial_ends_at);
@@ -627,19 +628,25 @@ export function CadetApp() {
 
   useEffect(() => {
     const refreshVisibleState = () => {
-      if (document.visibilityState === 'visible') void refreshCadetState();
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundRefreshRef.current < 1_500) return;
+      lastForegroundRefreshRef.current = now;
+      void refreshCadetState();
     };
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadNotifications();
     }, 30_000);
 
-    window.addEventListener('focus', refreshCadetState);
+    window.addEventListener('focus', refreshVisibleState);
     document.addEventListener('visibilitychange', refreshVisibleState);
+    window.addEventListener('full-circle-wallet-refresh', refreshVisibleState);
 
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', refreshCadetState);
+      window.removeEventListener('focus', refreshVisibleState);
       document.removeEventListener('visibilitychange', refreshVisibleState);
+      window.removeEventListener('full-circle-wallet-refresh', refreshVisibleState);
     };
   }, [loadNotifications, refreshCadetState]);
 
@@ -694,22 +701,6 @@ export function CadetApp() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile, refreshCadetState]);
-
-  useEffect(() => {
-    if (!profile) return;
-    const refreshVisibleStats = () => {
-      if (document.visibilityState === 'visible') void refreshCadetState();
-    };
-    const refreshOnFocus = () => { void refreshCadetState(); };
-    document.addEventListener('visibilitychange', refreshVisibleStats);
-    window.addEventListener('focus', refreshOnFocus);
-    window.addEventListener('full-circle-wallet-refresh', refreshOnFocus);
-    return () => {
-      document.removeEventListener('visibilitychange', refreshVisibleStats);
-      window.removeEventListener('focus', refreshOnFocus);
-      window.removeEventListener('full-circle-wallet-refresh', refreshOnFocus);
-    };
   }, [profile, refreshCadetState]);
 
   const houseName = tentInfo.tent?.tent_houses?.name;
