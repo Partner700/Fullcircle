@@ -481,19 +481,19 @@
   .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .recent-awards-veil { background-color: var(--color-navy-2); opacity: 0.76; }
   .quote-panel-veil {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(7, 18, 38, 0.34);
   }
   [data-theme="day"] .quote-panel-veil {
     background-color: rgba(255, 255, 255, 0.29);
   }
   .welcome-slide-veil {
-    inset-inline-end: auto;
-    width: min(60%, 38rem);
+    inset-inline-end: 0;
+    width: 100%;
     background: linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.38) 0%,
-      rgba(0, 0, 0, 0.24) 52%,
-      rgba(0, 0, 0, 0.02) 100%
+      rgba(7, 18, 38, 0.48) 0%,
+      rgba(7, 18, 38, 0.36) 52%,
+      rgba(7, 18, 38, 0.22) 100%
     );
   }
   [data-theme="day"] .welcome-slide-veil {
@@ -507,7 +507,7 @@
     );
   }
   .award-panel-veil {
-    background-color: rgba(255, 255, 255, 0.32);
+    background-color: rgba(7, 18, 38, 0.42);
     background-image: none;
     transform: translateZ(0);
     backface-visibility: hidden;
@@ -516,7 +516,7 @@
     background-color: rgba(255, 255, 255, 0.43);
   }
   .panel-image-mode-veil {
-    background-color: rgba(255, 255, 255, 0.11);
+    background-color: rgba(7, 18, 38, 0.18);
   }
   [data-theme="day"] .panel-image-mode-veil {
     background-color: rgba(255, 255, 255, 0.17);

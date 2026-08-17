@@ -516,7 +516,12 @@ export type ToolbarStats = Pick<
 >;
 
 export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
-  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v3');
+  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v4');
+  if (error) {
+    const versionThree = await supabase.rpc('get_my_toolbar_stats_v3');
+    data = versionThree.data;
+    error = versionThree.error;
+  }
   if (error) {
     const versionTwo = await supabase.rpc('get_my_toolbar_stats_v2');
     data = versionTwo.data;
