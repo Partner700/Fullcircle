@@ -516,7 +516,12 @@ export type ToolbarStats = Pick<
 >;
 
 export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
-  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v2');
+  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v3');
+  if (error) {
+    const versionTwo = await supabase.rpc('get_my_toolbar_stats_v2');
+    data = versionTwo.data;
+    error = versionTwo.error;
+  }
   if (error) {
     const legacy = await supabase.rpc('get_my_toolbar_stats');
     data = legacy.data;
@@ -566,6 +571,7 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
   const liveStats = liveStatsResult.status === 'fulfilled' ? liveStatsResult.value : null;
 
   let balance = balanceResult.status === 'fulfilled' ? balanceResult.value : null;
+  if (toolbar) balance = Math.max(balance ?? 0, toolbar.total_denarii || 0);
   if ((!balance || balance === 0) && liveStats && liveStats.total_denarii !== 0) {
     balance = liveStats.total_denarii;
   }
@@ -584,6 +590,14 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
       longest_streak: Math.max(streak?.longest_streak || 0, liveStats.longest_streak || 0),
       consecutive_inactive: streak?.consecutive_inactive ?? liveStats.consecutive_inactive,
       cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, liveStats.cumulative_inactive || 0),
+    };
+  }
+  if (toolbar) {
+    streak = {
+      current_streak: Math.max(streak?.current_streak || 0, toolbar.current_streak || 0),
+      longest_streak: Math.max(streak?.longest_streak || 0, toolbar.longest_streak || 0),
+      consecutive_inactive: streak?.consecutive_inactive ?? toolbar.consecutive_inactive,
+      cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, toolbar.cumulative_inactive || 0),
     };
   }
   if (!streak || streak.current_streak === 0) {
@@ -609,9 +623,9 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
 
   return {
     user_id: userId,
-    total_denarii: balance ?? liveStats?.total_denarii ?? toolbar?.total_denarii ?? 0,
-    current_streak: streak?.current_streak ?? liveStats?.current_streak ?? toolbar?.current_streak ?? 0,
-    longest_streak: streak?.longest_streak ?? liveStats?.longest_streak ?? toolbar?.longest_streak ?? 0,
+    total_denarii: Math.max(balance ?? 0, liveStats?.total_denarii ?? 0, toolbar?.total_denarii ?? 0),
+    current_streak: Math.max(streak?.current_streak ?? 0, liveStats?.current_streak ?? 0, toolbar?.current_streak ?? 0),
+    longest_streak: Math.max(streak?.longest_streak ?? 0, liveStats?.longest_streak ?? 0, toolbar?.longest_streak ?? 0),
     consecutive_inactive: streak?.consecutive_inactive ?? toolbar?.consecutive_inactive ?? 0,
     cumulative_inactive: streak?.cumulative_inactive ?? toolbar?.cumulative_inactive ?? 0,
   };

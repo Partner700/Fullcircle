@@ -265,14 +265,20 @@ export function CadetApp() {
       const stats = await fetchReliableToolbarStats(profile.id);
       const nextDenarii = Number(stats.total_denarii) || 0;
       const nextStreak = Number(stats.current_streak) || 0;
+      const cached = readCachedTopbarStats(profile.id);
+      const confirmedBreak = nextStreak === 0 && Number(stats.consecutive_inactive) > 0;
+      const stableStreak = nextStreak === 0 && (cached?.streak || 0) > 0 && !confirmedBreak
+        ? cached!.streak
+        : nextStreak;
 
       setDenariiTotal(nextDenarii);
       setStreakCount((previous) => {
-        if (streakLoadedRef.current && nextStreak > previous) void playSoundEffect('sound_streak', 0.66);
+        const resolved = stableStreak === 0 && previous > 0 && !confirmedBreak ? previous : stableStreak;
+        if (streakLoadedRef.current && resolved > previous) void playSoundEffect('sound_streak', 0.66);
         streakLoadedRef.current = true;
-        return nextStreak;
+        return resolved;
       });
-      writeCachedTopbarStats(profile.id, { denarii: nextDenarii, streak: nextStreak });
+      writeCachedTopbarStats(profile.id, { denarii: nextDenarii, streak: stableStreak });
     } catch {
       // Keep the last confirmed values visible during a temporary network or
       // schema-cache failure instead of replacing them with misleading zeroes.

@@ -80,19 +80,20 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   };
 
   return (
-    <section className="card relative overflow-hidden border-gold/30 bg-surface-2">
+    <section className="card relative isolate overflow-hidden border-gold/30 bg-surface-2">
       <PanelImageBackdrop
         image={image}
         opacityFallback={100}
-        veilClassName="award-panel-veil"
+        veilClassName=""
         textGradient={false}
       />
-      <div className="relative flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="award-panel-veil pointer-events-none absolute inset-0" aria-hidden="true" />
+      <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2"><Trophy size={17} className="text-gold" /><div><h3 className="font-display text-sm font-semibold text-ink">Recent Awards</h3><p className="text-[11px] text-stone">Honors across Full Circle</p></div></div>
         {onOpen && <button type="button" onClick={onOpen} className="btn-ghost px-2 py-1 text-xs">View all</button>}
       </div>
       {activeAward ? (
-        <div className="relative min-h-[148px] overflow-hidden">
+        <div className="relative z-10 min-h-[148px] overflow-hidden">
           <div key={activeAward.id} className="recent-award-change flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5">
             <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
               {(activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url)
@@ -119,7 +120,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
             </div>
           )}
         </div>
-      ) : <p className="relative px-4 py-5 text-sm text-stone">New honors will appear here as they are awarded.</p>}
+      ) : <p className="relative z-10 px-4 py-5 text-sm text-stone">New honors will appear here as they are awarded.</p>}
     </section>
   );
 }

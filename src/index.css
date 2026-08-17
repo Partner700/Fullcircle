@@ -506,8 +506,15 @@
       rgba(255, 255, 255, 0.18) 100%
     );
   }
-  .award-panel-veil { background: rgba(23, 36, 60, 0.16); }
-  [data-theme="day"] .award-panel-veil { background: rgba(237, 246, 255, 0.14); }
+  .award-panel-veil {
+    background-color: rgba(23, 36, 60, 0.18);
+    background-image: none;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+  [data-theme="day"] .award-panel-veil {
+    background-color: rgba(237, 246, 255, 0.16);
+  }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
   }
