@@ -77,7 +77,10 @@ function readCachedTopbarStats(userId: string) {
 function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number; streak: number }>) {
   if (typeof window === 'undefined') return;
   const current = readCachedTopbarStats(userId) || { denarii: 0, streak: 0 };
-  const next = { ...current, ...patch };
+  const next = {
+    denarii: Number(patch.denarii) > 0 ? Number(patch.denarii) : current.denarii,
+    streak: Number(patch.streak) > 0 ? Number(patch.streak) : current.streak,
+  };
   try {
     window.localStorage.setItem(topbarStatsCacheKey(userId), JSON.stringify(next));
   } catch {}
@@ -214,6 +217,7 @@ export function CadetApp() {
   const [cadetRefreshKey, setCadetRefreshKey] = useState(0);
   const [subStatus, setSubStatus] = useState<{ status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null>(null);
   const streakLoadedRef = useRef(false);
+  const toolbarStatsRef = useRef({ userId: '', denarii: 0, streak: 0 });
   const lastForegroundRefreshRef = useRef(0);
 
   const isExpired = subStatus?.status === 'expired';
@@ -223,6 +227,11 @@ export function CadetApp() {
   useEffect(() => {
     streakLoadedRef.current = false;
     const cached = profile?.id ? readCachedTopbarStats(profile.id) : null;
+    toolbarStatsRef.current = {
+      userId: profile?.id || '',
+      denarii: cached?.denarii || 0,
+      streak: cached?.streak || 0,
+    };
     setStreakCount(cached?.streak || 0);
     setDenariiTotal(cached?.denarii || 0);
     setTentInfo({ tent: null, members: [] });
@@ -279,18 +288,28 @@ export function CadetApp() {
       const nextDenarii = Math.max(Number(reliable?.total_denarii) || 0, directDenarii);
       const nextStreak = Math.max(Number(reliable?.current_streak) || 0, Number(directStreak?.current_streak) || 0);
       const cached = readCachedTopbarStats(profile.id);
-      const consecutiveInactive = Number(directStreak?.consecutive_inactive ?? reliable?.consecutive_inactive) || 0;
-      const confirmedBreak = nextStreak === 0 && consecutiveInactive > 0;
-      const stableStreak = nextStreak === 0 && (cached?.streak || 0) > 0 && !confirmedBreak
-        ? cached!.streak
-        : nextStreak;
-      const stableDenarii = nextDenarii === 0 && (cached?.denarii || 0) > 0
-        ? cached!.denarii
-        : nextDenarii;
+      const retained = toolbarStatsRef.current.userId === profile.id
+        ? toolbarStatsRef.current
+        : { userId: profile.id, denarii: 0, streak: 0 };
+      // A refresh may briefly receive an RLS/schema-cache zero while the same
+      // account's Settings and Streak screens still have authoritative values.
+      // Never let that transient response erase a confirmed positive counter.
+      const stableStreak = nextStreak > 0
+        ? nextStreak
+        : Math.max(retained.streak, cached?.streak || 0);
+      const stableDenarii = nextDenarii > 0
+        ? nextDenarii
+        : Math.max(retained.denarii, cached?.denarii || 0);
 
-      setDenariiTotal((previous) => stableDenarii === 0 && previous > 0 ? previous : stableDenarii);
+      toolbarStatsRef.current = {
+        userId: profile.id,
+        denarii: stableDenarii,
+        streak: stableStreak,
+      };
+
+      setDenariiTotal(stableDenarii);
       setStreakCount((previous) => {
-        const resolved = stableStreak === 0 && previous > 0 && !confirmedBreak ? previous : stableStreak;
+        const resolved = stableStreak === 0 && previous > 0 ? previous : stableStreak;
         if (streakLoadedRef.current && resolved > previous) void playSoundEffect('sound_streak', 0.66);
         streakLoadedRef.current = true;
         return resolved;

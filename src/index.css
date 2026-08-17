@@ -507,13 +507,13 @@
     );
   }
   .award-panel-veil {
-    background-color: rgba(23, 36, 60, 0.18);
+    background-color: rgba(23, 36, 60, 0.3);
     background-image: none;
     transform: translateZ(0);
     backface-visibility: hidden;
   }
   [data-theme="day"] .award-panel-veil {
-    background-color: rgba(245, 249, 255, 0.38);
+    background-color: rgba(23, 36, 60, 0.3);
   }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
