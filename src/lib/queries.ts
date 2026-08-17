@@ -1043,7 +1043,7 @@ export async function uploadChallengeEvidence(userId: string, file: File) {
 export async function fetchVerseInsights(narrativeId: string) {
   const { data, error } = await supabase
     .from('scripture_verse_insights')
-    .select('id,narrative_id,verse_reference,body,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)')
+    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)')
     .eq('narrative_id', narrativeId)
     .order('created_at', { ascending: false });
   if (error) {

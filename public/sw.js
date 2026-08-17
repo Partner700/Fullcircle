@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v45';
+const CACHE_VERSION = 'full-circle-v46';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -225,7 +225,9 @@ self.addEventListener('notificationclick', (event) => {
           const clientUrl = new URL(client.url);
           const targetUrl = new URL(urlToOpen, self.location.origin);
           if (clientUrl.pathname === targetUrl.pathname && 'focus' in client) {
-            return client.focus();
+            return client.focus().then(() => {
+              if ('navigate' in client && client.url !== targetUrl.href) return client.navigate(targetUrl.href);
+            });
           }
         }
         // Check if any window is open, focus it and navigate

@@ -69,6 +69,7 @@ const NAV_ITEMS = [
 function getInitialSentryTab(): Tab {
   if (typeof window === 'undefined') return 'overview';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
+  if (key === 'narrative') return 'reading';
   const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'game', 'arena', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings'];
   return tabs.includes(key as Tab) ? key as Tab : 'overview';
 }
@@ -653,6 +654,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
   return (
     <div className="card p-4 sm:p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
       <PanelImageBackdrop image={image} opacityOverride={100} veilClassName="" modeFilter={false} textGradient={false} simple />
+      <div className="panel-veil-layer quote-picture-veil pointer-events-none absolute" aria-hidden="true" />
       <div className="quote-glass-panel relative rounded-2xl p-4 ring-1 ring-black/5">
         <PanelImageBackdrop
           image={image}

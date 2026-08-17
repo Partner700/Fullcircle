@@ -23,6 +23,9 @@ const sentryStreakRecovery = read('supabase/migrations/20260817121000_preserve_s
 const authoritativeRestitution = read('supabase/migrations/20260817122000_make_streak_restitutions_authoritative.sql');
 const materializedRestitution = read('supabase/migrations/20260817123000_neutral_sunday_and_materialized_restitution.sql');
 const verifiedStreakBaseline = read('supabase/migrations/20260817124000_preserve_verified_streak_baselines.sql');
+const scriptureDeepLinks = read('supabase/migrations/20260817183000_scripture_notification_deep_links.sql');
+const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
+const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -84,7 +87,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v45'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v46'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -108,6 +111,10 @@ assert.match(verifiedStreakBaseline, /coalesce\(snapshot\.current_streak, 0\) > 
 assert.match(verifiedStreakBaseline, /v_current := greatest\(v_current, v_baseline_current\)/);
 assert.match(verifiedStreakBaseline, /v_longest := greatest\(v_longest, v_baseline_longest, v_current\)/);
 assert.ok(!read('src/components/PanelImageBackdrop.tsx').includes('panel-image-mode-veil absolute inset-0'), 'Panel images must not stack a second full-card mode veil.');
+assert.match(scriptureDeepLinks, /'verse_reference', v_verse_reference/);
+assert.match(scriptureDeepLinks, /'narrative_id', v_narrative_id/);
+assert.match(pushDelivery, /destinationParams\.set\("fc-verse"/);
+assert.match(scriptureNavigation, /scrollIntoView|SCRIPTURE_TARGET_KEY/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);

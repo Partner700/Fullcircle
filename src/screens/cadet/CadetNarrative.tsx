@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
@@ -10,6 +10,7 @@ import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
 import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
 import type { CampMentionCandidate } from '../../lib/queries';
+import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import {
   BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
@@ -141,6 +142,8 @@ export function CadetNarrative({
   const [showHistory, setShowHistory] = useState(false);
   const [readingHistory, setReadingHistory] = useState<(DailyNarrative & { meditation_text: string | null; best_verse: string | null; daily_quote: string | null })[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
+  const verseRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const today = getTodayISODate();
   const dayType = getDayType(new Date());
@@ -266,6 +269,29 @@ export function CadetNarrative({
     return () => { cancelled = true; };
   }, [narrative?.id, profile?.id]);
 
+  useEffect(() => {
+    const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
+    window.addEventListener('full-circle-open-scripture', receiveTarget);
+    return () => window.removeEventListener('full-circle-open-scripture', receiveTarget);
+  }, []);
+
+  useEffect(() => {
+    if (!navigationTarget || !narrative?.id || readerVerses.length === 0) return;
+    if (navigationTarget.narrativeId && navigationTarget.narrativeId !== narrative.id) return;
+    const targetedInsight = navigationTarget.insightId
+      ? verseInsights.find((item: any) => item.id === navigationTarget.insightId)
+      : null;
+    const reference = navigationTarget.verseReference || targetedInsight?.verse_reference;
+    if (!reference) return;
+    const index = readerVerses.findIndex((verse) => verse.reference === reference);
+    if (index < 0) return;
+    setOpenVerse(index);
+    setOpenUserInsights(reference);
+    window.setTimeout(() => verseRefs.current[reference]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+    clearScriptureTarget();
+    setNavigationTarget(null);
+  }, [navigationTarget, narrative?.id, readerVerses, verseInsights]);
+
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
   const appClock = getAppClock();
@@ -330,6 +356,7 @@ export function CadetNarrative({
       await saveVerseInsight(narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
       setVerseInsights(await fetchVerseInsights(narrative.id));
       setOpenUserInsights(reference);
+      setMyInsightDrafts((current) => ({ ...current, [reference]: '' }));
     } catch (error: any) {
       alert(error.message || 'Could not save your insight.');
     }
@@ -440,11 +467,27 @@ export function CadetNarrative({
           {displayVerses.length ? displayVerses.map((verse, index) => {
             const userInsights = verseInsights.filter((item: any) => item.verse_reference === verse.reference);
             const hasInsight = Boolean(verse.meditation?.trim());
+            const hasReaderInsight = userInsights.length > 0;
+            const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
+            const taggedMe = userInsights.some((item: any) =>
+              (item.mentioned_user_ids || []).includes(profile?.id)
+              || (item.comments || []).some((comment: any) =>
+                comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
+              ),
+            );
             const expanded = openVerse === index;
             const userExpanded = openUserInsights === verse.reference;
             const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
             return (
-              <article key={`${verse.reference}-${index}`} className="overflow-hidden border-b border-border pb-4 last:border-b-0 last:pb-0">
+              <article
+                key={`${verse.reference}-${index}`}
+                ref={(element) => { verseRefs.current[verse.reference] = element; }}
+                data-verse-reference={verse.reference}
+                className={cn(
+                  'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300',
+                  taggedMe ? 'verse-highlight-tagged' : sharedByMe ? 'verse-highlight-mine' : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => hasInsight && setOpenVerse(expanded ? null : index)}

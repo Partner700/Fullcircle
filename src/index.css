@@ -516,6 +516,9 @@
   .quote-glass-tint {
     background-color: rgba(18, 30, 63, 0.54);
   }
+  .quote-picture-veil {
+    background-color: rgba(7, 18, 38, 0.1);
+  }
   [data-theme="day"] .quote-glass-panel {
     border-color: rgba(255, 255, 255, 0.5);
     background-color: rgba(241, 246, 255, 0.56);
@@ -523,6 +526,23 @@
   }
   [data-theme="day"] .quote-glass-tint {
     background-color: rgba(241, 246, 255, 0.58);
+  }
+  [data-theme="day"] .quote-picture-veil {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+  .verse-highlight-insight {
+    border-color: color-mix(in srgb, var(--color-brass) 34%, transparent);
+    background-color: color-mix(in srgb, var(--color-brass) 8%, transparent);
+  }
+  .verse-highlight-tagged {
+    border-color: color-mix(in srgb, var(--color-coral) 52%, transparent);
+    background-color: color-mix(in srgb, var(--color-coral) 13%, transparent);
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-coral) 78%, transparent);
+  }
+  .verse-highlight-mine {
+    border-color: color-mix(in srgb, var(--color-sage) 48%, transparent);
+    background-color: color-mix(in srgb, var(--color-sage) 12%, transparent);
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-sage) 72%, transparent);
   }
   .welcome-slide-veil {
     background-color: rgba(7, 18, 38, 0.36);

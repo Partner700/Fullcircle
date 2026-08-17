@@ -5,10 +5,11 @@ import { fetchUserNotifications, markAllNotificationsRead, markNotificationRead 
 import { supabase } from '../lib/supabase';
 import { playNotificationSound } from '../lib/soundscape';
 import type { UserNotification } from '../lib/types';
+import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../lib/scriptureNavigation';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 
-type Props = { onNavigate?: (actionKey: string) => void };
+type Props = { onNavigate?: (actionKey: string, metadata?: Record<string, unknown>) => void };
 
 function notificationTone(notification: UserNotification) {
   const status = String(notification.metadata?.status || '').toLowerCase();
@@ -20,7 +21,7 @@ function notificationTone(notification: UserNotification) {
 async function showDeviceNotification(notification: UserNotification) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
   if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
-  const options = { body: notification.body || 'You have a new update.', icon: '/icons/icon-192.png', badge: '/icons/icon-96.png', tag: `full-circle-${notification.id}`, data: { url: '/' } };
+  const options = { body: notification.body || 'You have a new update.', icon: '/icons/icon-192.png', badge: '/icons/icon-96.png', tag: `full-circle-${notification.id}`, data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) } };
   try {
     const registration = await navigator.serviceWorker?.ready;
     if (registration) await registration.showNotification(notification.title || 'Full Circle', options);
@@ -85,7 +86,11 @@ export function NotificationCenter({ onNavigate }: Props) {
       setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
       await markNotificationRead(notification.id).catch(() => void load());
     }
-    if (navigate && notification.action_key && onNavigate) { onNavigate(notification.action_key); setOpen(false); }
+    if (navigate && notification.action_key && onNavigate) {
+      storeScriptureTarget(scriptureTargetFromMetadata(notification.metadata));
+      onNavigate(notification.action_key, notification.metadata);
+      setOpen(false);
+    }
   };
 
   const markAllRead = async () => {
@@ -108,7 +113,7 @@ export function NotificationCenter({ onNavigate }: Props) {
             const tone = notificationTone(notification);
             return <div key={notification.id} className={`flex gap-2.5 border-b border-border px-4 py-3 last:border-0 ${notification.read_at ? 'opacity-70' : ''}`}>
               {tone === 'success' ? <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-sage" /> : tone === 'warning' ? <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-coral" /> : notification.notification_type === 'message' ? <MessageCircle size={16} className="mt-0.5 flex-shrink-0 text-royal" /> : <Bell size={16} className="mt-0.5 flex-shrink-0 text-royal" />}
-              <div className="min-w-0 flex-1"><div className="flex items-start gap-2"><p className="text-xs font-semibold leading-snug text-ink">{notification.title}</p>{!notification.read_at && <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-coral" />}</div><p className="mt-0.5 text-xs leading-relaxed text-stone">{notification.body}</p>{!notification.read_at && <button type="button" onClick={() => void markRead(notification, Boolean(notification.action_key && onNavigate))} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage"><CheckCheck size={11} /> {notification.action_key && onNavigate ? 'Open and mark read' : 'Mark as read'}</button>}</div>
+              <div className="min-w-0 flex-1"><div className="flex items-start gap-2"><p className="text-xs font-semibold leading-snug text-ink">{notification.title}</p>{!notification.read_at && <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-coral" />}</div><p className="mt-0.5 text-xs leading-relaxed text-stone">{notification.body}</p>{(notification.action_key && onNavigate) ? <button type="button" onClick={() => void markRead(notification, true)} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage"><CheckCheck size={11} /> {notification.read_at ? 'Open' : 'Open and mark read'}</button> : !notification.read_at && <button type="button" onClick={() => void markRead(notification)} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage"><CheckCheck size={11} /> Mark as read</button>}</div>
             </div>;
           })}
         </div>

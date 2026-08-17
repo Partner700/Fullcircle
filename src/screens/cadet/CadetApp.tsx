@@ -19,6 +19,7 @@ import {
 import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
 import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
 import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
+import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../../lib/scriptureNavigation';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
@@ -52,6 +53,7 @@ type CadetNotification = {
   persistedId?: string;
   read?: boolean;
   createdAt?: string;
+  metadata?: Record<string, unknown>;
 };
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
@@ -96,7 +98,7 @@ async function showDeviceNotification(notification: UserNotification) {
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
       tag: `full-circle-${notification.id}`,
-      data: { url: '/' },
+      data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },
     };
     if (registration) {
       await registration.showNotification(notification.title || 'Full Circle', options);
@@ -401,6 +403,7 @@ export function CadetApp() {
           actionLabel: actionLabelForTab(actionTab),
           read: !!notification.read_at,
           createdAt: notification.created_at,
+          metadata: notification.metadata,
         });
       });
     } catch {}
@@ -875,6 +878,7 @@ export function CadetApp() {
       markLocalNotificationsRead([notification.id]);
     }
     if (notification.actionTab) {
+      storeScriptureTarget(scriptureTargetFromMetadata(notification.metadata));
       handleNavigate(notification.actionTab);
       setShowNotifications(false);
     }

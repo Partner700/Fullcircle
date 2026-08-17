@@ -409,6 +409,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   simple={slide.kind === 'quote'}
                 />
               )}
+              {slide.kind === 'quote' && <div className="panel-veil-layer quote-picture-veil pointer-events-none absolute" aria-hidden="true" />}
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   {slide.kind === 'welcome' && (

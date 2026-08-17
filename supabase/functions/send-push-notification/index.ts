@@ -74,9 +74,13 @@ Deno.serve(async (request) => {
       env("VAPID_PRIVATE_KEY"),
     );
 
-    const destination = notification.action_key
-      ? `/#fc-tab=${encodeURIComponent(notification.action_key)}`
-      : "/";
+    const destinationParams = new URLSearchParams();
+    if (notification.action_key) destinationParams.set("fc-tab", notification.action_key);
+    const metadata = notification.metadata || {};
+    if (typeof metadata.narrative_id === "string") destinationParams.set("fc-narrative", metadata.narrative_id);
+    if (typeof metadata.verse_reference === "string") destinationParams.set("fc-verse", metadata.verse_reference);
+    if (typeof metadata.insight_id === "string") destinationParams.set("fc-insight", metadata.insight_id);
+    const destination = destinationParams.size ? `/#${destinationParams.toString()}` : "/";
     const payload = JSON.stringify({
       title: notification.title || "Full Circle",
       body: notification.body || "You have a new update.",
@@ -113,4 +117,3 @@ Deno.serve(async (request) => {
     return Response.json({ error: error instanceof Error ? error.message : "Push delivery failed" }, { status: 500 });
   }
 });
-
