@@ -21,6 +21,7 @@ const frenchUi = read('src/lib/frenchUi.ts');
 const relicRecovery = read('supabase/migrations/20260817120000_relic_recovery_and_denarii_only.sql');
 const sentryStreakRecovery = read('supabase/migrations/20260817121000_preserve_sentry_duty_and_relic_recovery.sql');
 const authoritativeRestitution = read('supabase/migrations/20260817122000_make_streak_restitutions_authoritative.sql');
+const materializedRestitution = read('supabase/migrations/20260817123000_neutral_sunday_and_materialized_restitution.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -98,6 +99,10 @@ assert.match(authoritativeRestitution, /restitution\.source = 'thiefs_request'/)
 assert.match(authoritativeRestitution, /LIKE ANY \(ARRAY\['%thiefsrequest%', '%thievesrequest%'\]\)/);
 assert.match(authoritativeRestitution, /v_complete := public\.streak_requirement_met\(p_user_id, v_check\)/);
 assert.ok(!authoritativeRestitution.includes('JOIN public.tent_members cadet_member'), 'Restitution must preserve historical sentry duty after tent changes.');
+assert.match(materializedRestitution, /ON CONFLICT \(user_id, record_date\) DO UPDATE/);
+assert.match(materializedRestitution, /SET streak_valid = true/);
+assert.match(materializedRestitution, /WHEN extract\(dow FROM v_check\) = 0 THEN v_complete/);
+assert.match(materializedRestitution, /restoration\.source IN \('relic', 'redemption', 'thiefs_request'\)/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
