@@ -525,7 +525,12 @@ export type ToolbarStats = Pick<
 >;
 
 export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
-  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v5');
+  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v6');
+  if (error) {
+    const versionFive = await supabase.rpc('get_my_toolbar_stats_v5');
+    data = versionFive.data;
+    error = versionFive.error;
+  }
   if (error) {
     const versionFour = await supabase.rpc('get_my_toolbar_stats_v4');
     data = versionFour.data;
@@ -1044,7 +1049,7 @@ export async function fetchVerseInsights(narrativeId: string) {
   if (!insights.length) return insights;
   const { data: comments, error: commentError } = await supabase
     .from('scripture_insight_comments')
-    .select('id,insight_id,user_id,mentioned_user_id,parent_comment_id,body,created_at')
+    .select('id,insight_id,user_id,mentioned_user_id,mentioned_user_ids,parent_comment_id,body,created_at')
     .in('insight_id', insights.map((insight) => insight.id))
     .order('created_at', { ascending: true });
   if (commentError) return insights.map((insight) => ({ ...insight, comments: [] }));
@@ -1065,7 +1070,33 @@ export async function fetchVerseInsights(narrativeId: string) {
   }));
 }
 
-export async function saveVerseInsight(narrativeId: string, userId: string, verseReference: string, body: string) {
+export type CampMentionCandidate = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: string;
+};
+
+export async function fetchCampMentionCandidates() {
+  const { data, error } = await supabase.rpc('get_camp_mention_candidates');
+  if (error) throw error;
+  return (data || []) as CampMentionCandidate[];
+}
+
+export async function saveVerseInsight(
+  narrativeId: string,
+  userId: string,
+  verseReference: string,
+  body: string,
+  mentionedUserIds: string[] = [],
+) {
+  const { error: rpcError } = await supabase.rpc('save_scripture_verse_insight_secure', {
+    p_narrative_id: narrativeId,
+    p_verse_reference: verseReference,
+    p_body: body.trim(),
+    p_mentioned_user_ids: mentionedUserIds,
+  });
+  if (!rpcError) return;
   const { error } = await supabase
     .from('scripture_verse_insights')
     .upsert({
@@ -1073,6 +1104,7 @@ export async function saveVerseInsight(narrativeId: string, userId: string, vers
       user_id: userId,
       verse_reference: verseReference,
       body: body.trim(),
+      mentioned_user_ids: mentionedUserIds,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'narrative_id,user_id,verse_reference' });
   if (error) throw error;
@@ -1083,13 +1115,22 @@ export async function addVerseInsightComment(input: {
   userId: string;
   body: string;
   mentionedUserId?: string | null;
+  mentionedUserIds?: string[];
   parentCommentId?: string | null;
 }) {
+  const { error: rpcError } = await supabase.rpc('add_scripture_insight_comment_secure', {
+    p_insight_id: input.insightId,
+    p_body: input.body.trim(),
+    p_mentioned_user_ids: input.mentionedUserIds || (input.mentionedUserId ? [input.mentionedUserId] : []),
+    p_parent_comment_id: input.parentCommentId || null,
+  });
+  if (!rpcError) return;
   const { error } = await supabase.from('scripture_insight_comments').insert({
     insight_id: input.insightId,
     user_id: input.userId,
     body: input.body.trim(),
     mentioned_user_id: input.mentionedUserId || null,
+    mentioned_user_ids: input.mentionedUserIds || (input.mentionedUserId ? [input.mentionedUserId] : []),
     parent_comment_id: input.parentCommentId || null,
   });
   if (error) throw error;

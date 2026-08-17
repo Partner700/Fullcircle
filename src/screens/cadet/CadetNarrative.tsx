@@ -4,11 +4,12 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
-import { addVerseInsightComment, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
 import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
+import type { CampMentionCandidate } from '../../lib/queries';
 import {
   BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
@@ -26,6 +27,84 @@ function splitScriptureVerses(text: string) {
 }
 
 type ScriptureVerse = { reference: string; text: string; meditation: string };
+
+function MentionTextarea({
+  value,
+  onChange,
+  candidates,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  candidates: CampMentionCandidate[];
+  className: string;
+  placeholder: string;
+}) {
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const visibleCandidates = mentionQuery === null ? [] : candidates
+    .filter((candidate) => candidate.display_name.toLowerCase().includes(mentionQuery.toLowerCase()))
+    .slice(0, 10);
+
+  const updateMentionQuery = (nextValue: string, cursor: number) => {
+    const match = nextValue.slice(0, cursor).match(/(?:^|\s)@([^@\n]{0,40})$/);
+    setMentionQuery(match ? match[1] : null);
+    setCursorPosition(cursor);
+  };
+
+  const insertMention = (candidate: CampMentionCandidate) => {
+    const beforeCursor = value.slice(0, cursorPosition);
+    const mentionStart = beforeCursor.lastIndexOf('@');
+    if (mentionStart < 0) return;
+    onChange(`${value.slice(0, mentionStart)}@${candidate.display_name} ${value.slice(cursorPosition)}`);
+    setMentionQuery(null);
+  };
+
+  return (
+    <div className="relative">
+      <textarea
+        className={className}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          updateMentionQuery(event.target.value, event.target.selectionStart || event.target.value.length);
+        }}
+        onClick={(event) => updateMentionQuery(event.currentTarget.value, event.currentTarget.selectionStart || 0)}
+        onBlur={() => window.setTimeout(() => setMentionQuery(null), 140)}
+        placeholder={placeholder}
+      />
+      {mentionQuery !== null && (
+        <div className="absolute inset-x-0 top-full z-40 mt-1 max-h-64 overflow-y-auto rounded-xl border border-border bg-surface p-1.5 shadow-2xl">
+          {visibleCandidates.length ? visibleCandidates.map((candidate) => (
+            <button
+              key={candidate.user_id}
+              type="button"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-peri-soft"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => insertMention(candidate)}
+            >
+              <span className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-border bg-peri-soft text-center text-xs font-bold leading-8 text-peri">
+                {candidate.avatar_url ? <img src={candidate.avatar_url} alt="" className="h-full w-full object-cover" /> : candidate.display_name.charAt(0)}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-bold text-ink">{candidate.display_name}</span>
+                <span className="block text-[10px] capitalize text-stone">{candidate.role}</span>
+              </span>
+            </button>
+          )) : <p className="px-3 py-2 text-xs text-stone">No camp member matches that name.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function mentionedUserIds(body: string, candidates: CampMentionCandidate[]) {
+  const normalizedBody = body.toLocaleLowerCase();
+  return candidates
+    .filter((candidate) => normalizedBody.includes(`@${candidate.display_name.toLocaleLowerCase()}`))
+    .map((candidate) => candidate.user_id);
+}
 
 export function CadetNarrative({
   onMeditationSaved,
@@ -57,6 +136,7 @@ export function CadetNarrative({
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replyTargets, setReplyTargets] = useState<Record<string, { userId: string; displayName: string; parentCommentId?: string } | null>>({});
   const [savingReply, setSavingReply] = useState<string | null>(null);
+  const [campMentionCandidates, setCampMentionCandidates] = useState<CampMentionCandidate[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [readingHistory, setReadingHistory] = useState<(DailyNarrative & { meditation_text: string | null; best_verse: string | null; daily_quote: string | null })[]>([]);
@@ -102,6 +182,14 @@ export function CadetNarrative({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCampMentionCandidates()
+      .then((candidates) => { if (!cancelled) setCampMentionCandidates(candidates); })
+      .catch(() => { if (!cancelled) setCampMentionCandidates([]); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!profile || !isSundayRest) return;
@@ -239,7 +327,7 @@ export function CadetNarrative({
     if (!body) return;
     setSavingInsight(reference);
     try {
-      await saveVerseInsight(narrative.id, profile.id, reference, body);
+      await saveVerseInsight(narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
       setVerseInsights(await fetchVerseInsights(narrative.id));
       setOpenUserInsights(reference);
     } catch (error: any) {
@@ -260,6 +348,7 @@ export function CadetNarrative({
         userId: profile.id,
         body,
         mentionedUserId: target?.userId || insight.user_id,
+        mentionedUserIds: mentionedUserIds(body, campMentionCandidates),
         parentCommentId: target?.parentCommentId || null,
       });
       setVerseInsights(await fetchVerseInsights(narrative.id));
@@ -419,7 +508,9 @@ export function CadetNarrative({
                                 ))}
                                 {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
                                 <div className="flex items-end gap-2">
-                                  <textarea className="input-field min-h-[4rem] flex-1 text-xs" value={replyDrafts[item.id] || ''} onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder={`Respond to @${authorName}...`} />
+                                  <div className="min-w-0 flex-1">
+                                    <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
+                                  </div>
                                   <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
                                 </div>
                               </div>
@@ -427,11 +518,12 @@ export function CadetNarrative({
                           </div>
                         );
                       })}
-                      <textarea
-                        className="input-field min-h-[5.5rem] text-sm"
+                      <MentionTextarea
+                        className="input-field min-h-[5.5rem] w-full text-sm"
                         value={myInsightDrafts[verse.reference] || ''}
-                        onChange={(event) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: event.target.value }))}
-                        placeholder="Write your insight on this verse..."
+                        onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
+                        candidates={campMentionCandidates}
+                        placeholder="Write your insight on this verse. Type @ to tag someone..."
                       />
                       <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference)}>
                         {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}

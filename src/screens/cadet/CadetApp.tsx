@@ -356,11 +356,13 @@ export function CadetApp() {
     const retryTimers = [0, 1_200, 4_000].map((delay) => window.setTimeout(() => {
       void loadToolbarStats();
     }, delay));
+    const resolveTimer = window.setTimeout(() => setToolbarReady(true), 6_000);
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadToolbarStats();
     }, 45_000);
     return () => {
       retryTimers.forEach((timer) => window.clearTimeout(timer));
+      window.clearTimeout(resolveTimer);
       window.clearInterval(interval);
     };
   }, [loadToolbarStats, toolbarUserId]);
