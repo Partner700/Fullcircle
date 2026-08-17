@@ -513,7 +513,7 @@
     backface-visibility: hidden;
   }
   [data-theme="day"] .award-panel-veil {
-    background-color: rgba(237, 246, 255, 0.16);
+    background-color: rgba(245, 249, 255, 0.38);
   }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);

@@ -10,28 +10,23 @@ export function useAutoAdvance(enabled: boolean, advance: () => void, delayMs = 
 
   useEffect(() => {
     if (!enabled) return;
-    let nextAdvanceAt = Date.now() + delayMs;
+    let timer: number | undefined;
 
-    const tick = () => {
+    const schedule = () => {
+      window.clearTimeout(timer);
       if (document.visibilityState !== 'visible') return;
-      const now = Date.now();
-      if (now < nextAdvanceAt) return;
-      advanceRef.current();
-      nextAdvanceAt = now + delayMs;
+      timer = window.setTimeout(() => {
+        advanceRef.current();
+        schedule();
+      }, delayMs);
     };
-    const resume = () => {
-      if (document.visibilityState !== 'visible') return;
-      tick();
-      nextAdvanceAt = Date.now() + delayMs;
-    };
+    const handleVisibilityChange = () => schedule();
 
-    const interval = window.setInterval(tick, Math.min(1000, delayMs));
-    document.addEventListener('visibilitychange', resume);
-    window.addEventListener('focus', resume);
+    schedule();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', resume);
-      window.removeEventListener('focus', resume);
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [delayMs, enabled]);
 }

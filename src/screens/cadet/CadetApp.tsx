@@ -12,6 +12,8 @@ import {
   fetchUnreadTentMessagesForUser,
   markTentMessageRead,
   fetchLedgerEntries,
+  fetchLedgerTotal,
+  fetchStrictStreak,
   fetchArenaRooms,
 } from '../../lib/queries';
 import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
@@ -262,23 +264,38 @@ export function CadetApp() {
     }
 
     try {
-      const stats = await fetchReliableToolbarStats(profile.id);
-      const nextDenarii = Number(stats.total_denarii) || 0;
-      const nextStreak = Number(stats.current_streak) || 0;
+      const [reliableResult, denariiResult, streakResult] = await Promise.allSettled([
+        fetchReliableToolbarStats(profile.id),
+        fetchLedgerTotal(profile.id),
+        fetchStrictStreak(profile.id),
+      ]);
+      const reliable = reliableResult.status === 'fulfilled' ? reliableResult.value : null;
+      const directDenarii = denariiResult.status === 'fulfilled' ? Number(denariiResult.value) || 0 : 0;
+      const directStreak = streakResult.status === 'fulfilled' ? streakResult.value : null;
+      if (!reliable && denariiResult.status === 'rejected' && !directStreak) {
+        throw new Error('Toolbar stats were unavailable.');
+      }
+
+      const nextDenarii = Math.max(Number(reliable?.total_denarii) || 0, directDenarii);
+      const nextStreak = Math.max(Number(reliable?.current_streak) || 0, Number(directStreak?.current_streak) || 0);
       const cached = readCachedTopbarStats(profile.id);
-      const confirmedBreak = nextStreak === 0 && Number(stats.consecutive_inactive) > 0;
+      const consecutiveInactive = Number(directStreak?.consecutive_inactive ?? reliable?.consecutive_inactive) || 0;
+      const confirmedBreak = nextStreak === 0 && consecutiveInactive > 0;
       const stableStreak = nextStreak === 0 && (cached?.streak || 0) > 0 && !confirmedBreak
         ? cached!.streak
         : nextStreak;
+      const stableDenarii = nextDenarii === 0 && (cached?.denarii || 0) > 0
+        ? cached!.denarii
+        : nextDenarii;
 
-      setDenariiTotal(nextDenarii);
+      setDenariiTotal((previous) => stableDenarii === 0 && previous > 0 ? previous : stableDenarii);
       setStreakCount((previous) => {
         const resolved = stableStreak === 0 && previous > 0 && !confirmedBreak ? previous : stableStreak;
         if (streakLoadedRef.current && resolved > previous) void playSoundEffect('sound_streak', 0.66);
         streakLoadedRef.current = true;
         return resolved;
       });
-      writeCachedTopbarStats(profile.id, { denarii: nextDenarii, streak: stableStreak });
+      writeCachedTopbarStats(profile.id, { denarii: stableDenarii, streak: stableStreak });
     } catch {
       // Keep the last confirmed values visible during a temporary network or
       // schema-cache failure instead of replacing them with misleading zeroes.

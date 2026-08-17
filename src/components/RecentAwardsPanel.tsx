@@ -85,6 +85,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
         image={image}
         opacityFallback={100}
         veilClassName=""
+        modeFilter={false}
         textGradient={false}
       />
       <div className="award-panel-veil pointer-events-none absolute inset-0" aria-hidden="true" />
