@@ -481,25 +481,25 @@
   .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .recent-awards-veil { background-color: var(--color-navy-2); opacity: 0.76; }
   .quote-panel-veil {
-    background-color: rgba(7, 18, 38, 0.34);
+    background-color: rgba(7, 18, 38, 0.24);
   }
   [data-theme="day"] .quote-panel-veil {
-    background-color: rgba(255, 255, 255, 0.29);
+    background-color: rgba(255, 255, 255, 0.22);
   }
   .quote-glass-panel {
     border: 1px solid rgba(198, 207, 232, 0.2);
-    background-color: rgba(18, 30, 63, 0.74);
+    background: linear-gradient(135deg, rgba(18, 30, 63, 0.86), rgba(24, 38, 76, 0.82));
     background-clip: padding-box;
     box-shadow: 0 18px 50px rgba(7, 24, 43, 0.18);
-    /* A single translucent surface is more reliable than backdrop-filter in
-       moving mobile slides; WebKit otherwise paints the glass in visible
-       rectangular tiles. */
+    /* Keep one continuous composited surface. Multiple translucent/backdrop
+       layers render as rectangular bands in mobile WebKit slide transforms. */
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+    isolation: isolate;
   }
   [data-theme="day"] .quote-glass-panel {
     border-color: rgba(255, 255, 255, 0.5);
-    background-color: rgba(239, 244, 255, 0.78);
+    background: linear-gradient(135deg, rgba(244, 248, 255, 0.88), rgba(232, 239, 253, 0.84));
     box-shadow: 0 18px 50px rgba(42, 55, 96, 0.14);
   }
   .welcome-slide-veil {

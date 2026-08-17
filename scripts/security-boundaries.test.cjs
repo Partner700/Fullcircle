@@ -22,6 +22,7 @@ const relicRecovery = read('supabase/migrations/20260817120000_relic_recovery_an
 const sentryStreakRecovery = read('supabase/migrations/20260817121000_preserve_sentry_duty_and_relic_recovery.sql');
 const authoritativeRestitution = read('supabase/migrations/20260817122000_make_streak_restitutions_authoritative.sql');
 const materializedRestitution = read('supabase/migrations/20260817123000_neutral_sunday_and_materialized_restitution.sql');
+const verifiedStreakBaseline = read('supabase/migrations/20260817124000_preserve_verified_streak_baselines.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -83,7 +84,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v39'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v40'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -103,6 +104,10 @@ assert.match(materializedRestitution, /ON CONFLICT \(user_id, record_date\) DO U
 assert.match(materializedRestitution, /SET streak_valid = true/);
 assert.match(materializedRestitution, /WHEN extract\(dow FROM v_check\) = 0 THEN v_complete/);
 assert.match(materializedRestitution, /restoration\.source IN \('relic', 'redemption', 'thiefs_request'\)/);
+assert.match(verifiedStreakBaseline, /coalesce\(snapshot\.current_streak, 0\) > 0/);
+assert.match(verifiedStreakBaseline, /v_current := greatest\(v_current, v_baseline_current\)/);
+assert.match(verifiedStreakBaseline, /v_longest := greatest\(v_longest, v_baseline_longest, v_current\)/);
+assert.match(read('src/components/PanelImageBackdrop.tsx'), /\{modeFilter && <div className="panel-image-mode-veil absolute inset-0" \/>\}/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
