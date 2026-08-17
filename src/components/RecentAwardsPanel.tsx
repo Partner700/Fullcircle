@@ -83,11 +83,9 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
     <section className="card relative overflow-hidden border-gold/30 bg-surface-2">
       <PanelImageBackdrop
         image={image}
-        opacityOverride={100}
+        opacityFallback={100}
         veilClassName="award-panel-veil"
-        modeFilter={false}
         textGradient={false}
-        simple
       />
       <div className="relative flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2"><Trophy size={17} className="text-gold" /><div><h3 className="font-display text-sm font-semibold text-ink">Recent Awards</h3><p className="text-[11px] text-stone">Honors across Full Circle</p></div></div>
