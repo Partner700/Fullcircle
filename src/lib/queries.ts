@@ -343,7 +343,16 @@ export async function fetchPlayableQuestionsForSession(sessionId: string) {
     p_quiz_session_id: sessionId,
   });
   if (error) throw error;
-  return (data || []) as GeneratedQuestion[];
+  const seen = new Set<string>();
+  return ((data || []) as GeneratedQuestion[]).filter((question) => {
+    const prompt = String(question.question_payload?.question || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    if (!prompt || seen.has(prompt)) return false;
+    seen.add(prompt);
+    return true;
+  });
 }
 
 export async function startQuizAttempt(sessionId: string) {
@@ -516,7 +525,12 @@ export type ToolbarStats = Pick<
 >;
 
 export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
-  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v4');
+  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v5');
+  if (error) {
+    const versionFour = await supabase.rpc('get_my_toolbar_stats_v4');
+    data = versionFour.data;
+    error = versionFour.error;
+  }
   if (error) {
     const versionThree = await supabase.rpc('get_my_toolbar_stats_v3');
     data = versionThree.data;
