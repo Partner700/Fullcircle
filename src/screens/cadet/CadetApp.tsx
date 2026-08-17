@@ -204,10 +204,12 @@ function getCountdownParts(target?: string | null) {
 
 export function CadetApp() {
   const { profile, session } = useAuth();
+  const toolbarUserId = session?.user.id || profile?.id || '';
   const [tab, setTab] = useState<Tab>(getInitialCadetTab);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
+  const [toolbarReady, setToolbarReady] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<CadetNotification[]>([]);
@@ -225,7 +227,7 @@ export function CadetApp() {
   const trialDaysLeft = trialCountdown.days;
 
   useEffect(() => {
-    const userId = profile?.id || session?.user.id;
+    const userId = toolbarUserId;
     if (!userId) return;
     streakLoadedRef.current = false;
     const cached = readCachedTopbarStats(userId);
@@ -236,8 +238,9 @@ export function CadetApp() {
     };
     setStreakCount(cached?.streak || 0);
     setDenariiTotal(cached?.denarii || 0);
+    setToolbarReady(!!cached && (cached.streak > 0 || cached.denarii > 0));
     setTentInfo({ tent: null, members: [] });
-  }, [profile?.id, session?.user.id]);
+  }, [toolbarUserId]);
 
   const loadTentInfo = useCallback(async () => {
     if (!profile) {
@@ -267,15 +270,15 @@ export function CadetApp() {
   }, [profile]);
 
   const loadToolbarStats = useCallback(async () => {
-    if (!profile) {
+    if (!toolbarUserId) {
       return;
     }
 
     try {
       const [reliableResult, denariiResult, streakResult] = await Promise.allSettled([
-        fetchReliableToolbarStats(profile.id),
-        fetchLedgerTotal(profile.id),
-        fetchStrictStreak(profile.id),
+        fetchReliableToolbarStats(toolbarUserId),
+        fetchLedgerTotal(toolbarUserId),
+        fetchStrictStreak(toolbarUserId),
       ]);
       const reliable = reliableResult.status === 'fulfilled' ? reliableResult.value : null;
       const directDenarii = denariiResult.status === 'fulfilled' ? Number(denariiResult.value) || 0 : 0;
@@ -286,10 +289,10 @@ export function CadetApp() {
 
       const nextDenarii = Math.max(Number(reliable?.total_denarii) || 0, directDenarii);
       const nextStreak = Math.max(Number(reliable?.current_streak) || 0, Number(directStreak?.current_streak) || 0);
-      const cached = readCachedTopbarStats(profile.id);
-      const retained = toolbarStatsRef.current.userId === profile.id
+      const cached = readCachedTopbarStats(toolbarUserId);
+      const retained = toolbarStatsRef.current.userId === toolbarUserId
         ? toolbarStatsRef.current
-        : { userId: profile.id, denarii: 0, streak: 0 };
+        : { userId: toolbarUserId, denarii: 0, streak: 0 };
       // A refresh may briefly receive an RLS/schema-cache zero while the same
       // account's Settings and Streak screens still have authoritative values.
       // Never let that transient response erase a confirmed positive counter.
@@ -301,11 +304,12 @@ export function CadetApp() {
         : Math.max(retained.denarii, cached?.denarii || 0);
 
       toolbarStatsRef.current = {
-        userId: profile.id,
+        userId: toolbarUserId,
         denarii: stableDenarii,
         streak: stableStreak,
       };
 
+      setToolbarReady(true);
       setDenariiTotal(stableDenarii);
       setStreakCount((previous) => {
         const resolved = stableStreak === 0 && previous > 0 ? previous : stableStreak;
@@ -313,12 +317,53 @@ export function CadetApp() {
         streakLoadedRef.current = true;
         return resolved;
       });
-      writeCachedTopbarStats(profile.id, { denarii: stableDenarii, streak: stableStreak });
+      writeCachedTopbarStats(toolbarUserId, { denarii: stableDenarii, streak: stableStreak });
     } catch {
       // Keep the last confirmed values visible during a temporary network or
       // schema-cache failure instead of replacing them with misleading zeroes.
     }
-  }, [profile]);
+  }, [toolbarUserId]);
+
+  useEffect(() => {
+    if (!toolbarUserId) return;
+
+    const acceptConfirmedStats = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string; denarii?: number; streak?: number }>).detail;
+      if (!detail || detail.userId !== toolbarUserId) return;
+      const confirmedDenarii = Number(detail.denarii) || 0;
+      const confirmedStreak = Number(detail.streak) || 0;
+      const retained = toolbarStatsRef.current.userId === toolbarUserId
+        ? toolbarStatsRef.current
+        : { userId: toolbarUserId, denarii: 0, streak: 0 };
+      const next = {
+        userId: toolbarUserId,
+        denarii: confirmedDenarii > 0 ? confirmedDenarii : retained.denarii,
+        streak: confirmedStreak > 0 ? confirmedStreak : retained.streak,
+      };
+      toolbarStatsRef.current = next;
+      setDenariiTotal(next.denarii);
+      setStreakCount(next.streak);
+      setToolbarReady(true);
+      writeCachedTopbarStats(toolbarUserId, next);
+    };
+
+    window.addEventListener('full-circle-toolbar-stats', acceptConfirmedStats);
+    return () => window.removeEventListener('full-circle-toolbar-stats', acceptConfirmedStats);
+  }, [toolbarUserId]);
+
+  useEffect(() => {
+    if (!toolbarUserId) return;
+    const retryTimers = [0, 1_200, 4_000].map((delay) => window.setTimeout(() => {
+      void loadToolbarStats();
+    }, delay));
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadToolbarStats();
+    }, 45_000);
+    return () => {
+      retryTimers.forEach((timer) => window.clearTimeout(timer));
+      window.clearInterval(interval);
+    };
+  }, [loadToolbarStats, toolbarUserId]);
 
   const refreshWallet = useCallback(async () => {
     await loadToolbarStats();
@@ -886,7 +931,7 @@ export function CadetApp() {
           {/* Streak icon */}
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
             <Flame size={15} className="text-coral" />
-            <span className="font-display font-bold text-coral text-[13px]">{streakCount}</span>
+            <span className="font-display font-bold text-coral text-[13px]">{toolbarReady ? streakCount : '…'}</span>
           </div>
           {/* Notification bell */}
           <div className="relative z-[70]" ref={notificationsRef}>
@@ -964,7 +1009,7 @@ export function CadetApp() {
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright">
             <Coins size={16} className="text-gold" />
             <span className="font-display font-bold text-gold text-[13px]">
-              {denariiTotal >= 1000 ? `${(denariiTotal / 1000).toFixed(1)}K` : denariiTotal}
+              {toolbarReady ? (denariiTotal >= 1000 ? `${(denariiTotal / 1000).toFixed(1)}K` : denariiTotal) : '…'}
             </span>
           </div>
         </div>

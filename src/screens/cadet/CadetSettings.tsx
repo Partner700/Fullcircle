@@ -110,6 +110,13 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
         narrativesRead: narrativesRead || 0,
         relicsOwned,
       });
+      window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
+        detail: {
+          userId: profile.id,
+          denarii: balance,
+          streak: Math.max(currentStreak, streak.current_streak),
+        },
+      }));
       setSubStatus(sub);
     } catch {}
     setLoading(false);

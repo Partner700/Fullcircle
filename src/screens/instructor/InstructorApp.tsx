@@ -1413,7 +1413,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
 
       {featuredQuote && (
         <div className="card p-4">
-          <div className="flex items-start gap-3">
+          <div className="quote-glass-panel flex items-start gap-3 rounded-2xl p-4 ring-1 ring-black/5">
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-1">Quote Feed</p>
               <p className="text-base text-ink font-display font-medium italic leading-snug">"{featuredQuote.daily_quote}"</p>

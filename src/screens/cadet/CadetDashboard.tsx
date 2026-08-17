@@ -474,7 +474,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   )}
 
                   {slide.kind === 'quote' && (
-                    <>
+                    <div className="quote-glass-panel max-w-2xl rounded-2xl p-4 ring-1 ring-black/5">
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
                         {slide.quote.tent_house_id && (
@@ -496,7 +496,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           : Promise.reject(new Error('Sign in to comment.'))}
                         onCommentOpenChange={onCommentOpenChange}
                       />
-                    </>
+                    </div>
                   )}
                 </div>
 

@@ -653,24 +653,22 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
   return (
     <div className="card p-4 sm:p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
       <PanelImageBackdrop image={image} opacityOverride={100} veilClassName="quote-panel-veil" textGradient={false} simple />
-      <div className="relative flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <Quote size={18} className="text-brass" />
-          <span className="eyebrow text-stone">Quotes From Daily Meditations</span>
-        </div>
-        {count > 1 && (
-          <div className="flex items-center gap-1.5">
-            <button onClick={onPrev} className="btn-ghost text-xs px-2 py-1">Prev</button>
-            <span className="text-[10px] text-stone">{index + 1}/{count}</span>
-            <button onClick={onNext} className="btn-ghost text-xs px-2 py-1">Next</button>
+      <div className="quote-glass-panel relative rounded-2xl p-4 ring-1 ring-black/5">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <Quote size={18} className="text-brass" />
+            <span className="eyebrow text-stone">Quotes From Daily Meditations</span>
           </div>
-        )}
-      </div>
-      <p className="relative font-display text-xl text-ink leading-snug italic">"{quote.daily_quote}"</p>
-      <div className="relative">
+          {count > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button onClick={onPrev} className="btn-ghost text-xs px-2 py-1">Prev</button>
+              <span className="text-[10px] text-stone">{index + 1}/{count}</span>
+              <button onClick={onNext} className="btn-ghost text-xs px-2 py-1">Next</button>
+            </div>
+          )}
+        </div>
+        <p className="font-display text-xl text-ink leading-snug italic">"{quote.daily_quote}"</p>
         <QuoteAuthorStats quote={quote} />
-      </div>
-      <div className="relative">
         <QuoteReactions
           state={quoteReactions[`${quote.user_id}:${quote.record_date}`]}
           disabled={!!reactingQuote?.startsWith(`${quote.user_id}:${quote.record_date}:`)}

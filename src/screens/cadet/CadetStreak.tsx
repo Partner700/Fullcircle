@@ -97,6 +97,13 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
       setFreezers(frz.status === 'fulfilled' ? frz.value : []);
       setDenariiBalance((bal.status === 'fulfilled' && bal.value.data) ? Number(bal.value.data) : 0);
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
+      window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
+        detail: {
+          userId: profile.id,
+          denarii: (bal.status === 'fulfilled' && bal.value.data) ? Number(bal.value.data) : 0,
+          streak: strict.status === 'fulfilled' ? strict.value.current_streak : 0,
+        },
+      }));
     } catch (e) { console.error('Streak load error:', e); }
     setLoading(false);
   }, [profile]);
