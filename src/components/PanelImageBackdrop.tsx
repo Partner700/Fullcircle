@@ -40,7 +40,7 @@ export function PanelImageBackdrop({
           className={cn('h-full w-full object-cover', imageClassName)}
           style={{ objectPosition: panelImageObjectPosition(image), opacity }}
         />
-        <div className="panel-image-mode-veil absolute inset-0" />
+        {modeFilter && <div className="panel-image-mode-veil absolute inset-0" />}
         <div className={cn('absolute inset-0', veilClassName)} />
       </div>
     );
