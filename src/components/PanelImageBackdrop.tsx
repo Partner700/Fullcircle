@@ -31,16 +31,16 @@ export function PanelImageBackdrop({
 
   if (simple) {
     return (
-      <div className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
+      <div className={cn('panel-image-backdrop pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
         <img
           src={image.url}
           alt=""
           loading="eager"
           decoding="async"
-          className={cn('h-full w-full object-cover', imageClassName)}
+          className={cn('panel-image-layer h-full w-full object-cover', imageClassName)}
           style={{ objectPosition: panelImageObjectPosition(image), opacity }}
         />
-        <div className={cn('absolute inset-0', veilClassName)} />
+        {!!veilClassName.trim() && <div className={cn('panel-veil-layer absolute', veilClassName)} />}
       </div>
     );
   }
@@ -59,58 +59,56 @@ export function PanelImageBackdrop({
   const grainOpacity = (adjustments.grain + adjustments.noise) / 220;
   const ageOpacity = adjustments.age / 160;
   const vignetteOpacity = adjustments.vignette / 100;
+  const effectBackgrounds: string[] = [];
+  const effectSizes: string[] = [];
+  if (whiteOverlayOpacity > 0) {
+    effectBackgrounds.push(`linear-gradient(rgba(255,255,255,${whiteOverlayOpacity}), rgba(255,255,255,${whiteOverlayOpacity}))`);
+    effectSizes.push('auto');
+  }
+  if (blackOverlayOpacity > 0) {
+    effectBackgrounds.push(`linear-gradient(rgba(0,0,0,${blackOverlayOpacity}), rgba(0,0,0,${blackOverlayOpacity}))`);
+    effectSizes.push('auto');
+  }
+  if (ageOpacity > 0) {
+    effectBackgrounds.push(`linear-gradient(135deg, rgba(130,86,40,${0.65 * ageOpacity}), rgba(62,45,27,${0.28 * ageOpacity}) 48%, rgba(196,147,80,${0.42 * ageOpacity}))`);
+    effectSizes.push('auto');
+  }
+  if (grainOpacity > 0) {
+    effectBackgrounds.push(
+      `radial-gradient(circle at 10% 20%, rgba(255,255,255,${0.35 * grainOpacity}) 0 1px, transparent 1px)`,
+      `radial-gradient(circle at 80% 70%, rgba(0,0,0,${0.32 * grainOpacity}) 0 1px, transparent 1px)`,
+    );
+    effectSizes.push('9px 11px', '13px 15px');
+  }
+  if (vignetteOpacity > 0) {
+    effectBackgrounds.push(`radial-gradient(circle at center, transparent 42%, rgba(0,0,0,${0.72 * vignetteOpacity}) 100%)`);
+    effectSizes.push('auto');
+  }
+  if (textGradient) {
+    effectBackgrounds.push('linear-gradient(90deg, rgba(7,18,38,0.42) 0%, rgba(7,18,38,0.3) 42%, rgba(7,18,38,0.12) 72%, transparent 100%)');
+    effectSizes.push('auto');
+  }
 
   return (
-    <div className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
+    <div className={cn('panel-image-backdrop pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
       <img
         src={image.url}
         alt=""
         loading="eager"
         decoding="async"
-        className={cn('h-full w-full object-cover', imageClassName)}
+        className={cn('panel-image-layer h-full w-full object-cover', imageClassName)}
         style={imageStyle}
       />
-      {whiteOverlayOpacity > 0 && <div className="absolute inset-0 bg-white" style={{ opacity: whiteOverlayOpacity }} />}
-      {blackOverlayOpacity > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: blackOverlayOpacity }} />}
-      {ageOpacity > 0 && (
+      {effectBackgrounds.length > 0 && (
         <div
-          className="absolute inset-0"
+          className="panel-effects-layer absolute"
           style={{
-            opacity: ageOpacity,
-            background: 'linear-gradient(135deg, rgba(130,86,40,0.65), rgba(62,45,27,0.28) 48%, rgba(196,147,80,0.42))',
-            mixBlendMode: 'multiply',
+            backgroundImage: effectBackgrounds.join(', '),
+            backgroundSize: effectSizes.join(', '),
           }}
         />
       )}
-      {grainOpacity > 0 && (
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: grainOpacity,
-            backgroundImage: 'radial-gradient(circle at 10% 20%, rgba(255,255,255,0.35) 0 1px, transparent 1px), radial-gradient(circle at 80% 70%, rgba(0,0,0,0.32) 0 1px, transparent 1px)',
-            backgroundSize: '9px 11px, 13px 15px',
-            mixBlendMode: 'overlay',
-          }}
-        />
-      )}
-      {vignetteOpacity > 0 && (
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: vignetteOpacity,
-            background: 'radial-gradient(circle at center, transparent 42%, rgba(0,0,0,0.72) 100%)',
-          }}
-        />
-      )}
-      {textGradient && (
-        <div
-          className="absolute inset-y-0 left-0 w-[78%]"
-          style={{
-            background: 'linear-gradient(90deg, color-mix(in srgb, var(--color-navy-2) 58%, transparent) 0%, color-mix(in srgb, var(--color-navy-2) 46%, transparent) 34%, color-mix(in srgb, var(--color-navy-2) 25%, transparent) 64%, color-mix(in srgb, var(--color-navy-2) 8%, transparent) 86%, transparent 100%)',
-          }}
-        />
-      )}
-      <div className={cn('absolute inset-0', veilClassName)} />
+      {!!veilClassName.trim() && <div className={cn('panel-veil-layer absolute', veilClassName)} />}
     </div>
   );
 }

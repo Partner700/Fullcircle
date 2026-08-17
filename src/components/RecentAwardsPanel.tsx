@@ -88,7 +88,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
         modeFilter={false}
         textGradient={false}
       />
-      <div className="award-panel-veil pointer-events-none absolute inset-0" aria-hidden="true" />
+      <div className="panel-veil-layer award-panel-veil pointer-events-none absolute" aria-hidden="true" />
       <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2"><Trophy size={17} className="text-gold" /><div><h3 className="font-display text-sm font-semibold text-ink">Recent Awards</h3><p className="text-[11px] text-stone">Honors across Full Circle</p></div></div>
         {onOpen && <button type="button" onClick={onOpen} className="btn-ghost px-2 py-1 text-xs">View all</button>}

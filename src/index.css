@@ -480,6 +480,23 @@
   .recent-award-change { animation: awardChange 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
   .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .recent-awards-veil { background-color: var(--color-navy-2); opacity: 0.76; }
+  .panel-image-backdrop {
+    contain: paint;
+    isolation: isolate;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+  .panel-image-layer {
+    display: block;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+  .panel-effects-layer,
+  .panel-veil-layer {
+    inset: -1px;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
   .quote-glass-panel {
     border: 1px solid rgba(198, 207, 232, 0.2);
     background: transparent;
@@ -496,30 +513,14 @@
     box-shadow: 0 18px 50px rgba(42, 55, 96, 0.14);
   }
   .welcome-slide-veil {
-    inset-inline-end: 0;
-    width: 100%;
-    background: linear-gradient(
-      90deg,
-      rgba(7, 18, 38, 0.48) 0%,
-      rgba(7, 18, 38, 0.36) 52%,
-      rgba(7, 18, 38, 0.22) 100%
-    );
+    background-color: rgba(7, 18, 38, 0.36);
   }
   [data-theme="day"] .welcome-slide-veil {
-    inset-inline-end: 0;
-    width: 100%;
-    background: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.54) 0%,
-      rgba(255, 255, 255, 0.34) 52%,
-      rgba(255, 255, 255, 0.18) 100%
-    );
+    background-color: rgba(255, 255, 255, 0.38);
   }
   .award-panel-veil {
     background-color: rgba(7, 18, 38, 0.42);
     background-image: none;
-    transform: translateZ(0);
-    backface-visibility: hidden;
   }
   [data-theme="day"] .award-panel-veil {
     background-color: rgba(255, 255, 255, 0.43);
