@@ -474,28 +474,40 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   )}
 
                   {slide.kind === 'quote' && (
-                    <div className="quote-glass-panel max-w-2xl rounded-2xl p-4 ring-1 ring-black/5">
-                      <div className="mb-1 flex items-center justify-between gap-3">
-                        <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
-                        {slide.quote.tent_house_id && (
-                          <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
-                        )}
-                      </div>
-                      <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">"{slide.quote.daily_quote}"</p>
-                      <QuoteAuthorStats quote={slide.quote} />
-                      <QuoteReactions
-                        state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
-                        disabled={!!reactingQuote?.startsWith(`${slide.quote.user_id}:${slide.quote.record_date}:`)}
-                        onReact={(reactionType) => onReactQuote(slide.quote, reactionType)}
-                        quoteUserId={slide.quote.user_id}
-                        quoteRecordDate={slide.quote.record_date}
-                        currentUserId={currentUserId || undefined}
-                        fetchComments={fetchDailyQuoteComments}
-                        onComment={(body) => currentUserId
-                          ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
-                          : Promise.reject(new Error('Sign in to comment.'))}
-                        onCommentOpenChange={onCommentOpenChange}
+                    <div className="quote-glass-panel relative max-w-2xl rounded-2xl p-4 ring-1 ring-black/5">
+                      <PanelImageBackdrop
+                        image={slideImage}
+                        opacityOverride={100}
+                        veilClassName=""
+                        modeFilter={false}
+                        textGradient={false}
+                        simple
+                        imageClassName="quote-glass-image"
                       />
+                      <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
+                      <div className="relative z-10">
+                        <div className="mb-1 flex items-center justify-between gap-3">
+                          <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
+                          {slide.quote.tent_house_id && (
+                            <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
+                          )}
+                        </div>
+                        <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">"{slide.quote.daily_quote}"</p>
+                        <QuoteAuthorStats quote={slide.quote} />
+                        <QuoteReactions
+                          state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
+                          disabled={!!reactingQuote?.startsWith(`${slide.quote.user_id}:${slide.quote.record_date}:`)}
+                          onReact={(reactionType) => onReactQuote(slide.quote, reactionType)}
+                          quoteUserId={slide.quote.user_id}
+                          quoteRecordDate={slide.quote.record_date}
+                          currentUserId={currentUserId || undefined}
+                          fetchComments={fetchDailyQuoteComments}
+                          onComment={(body) => currentUserId
+                            ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
+                            : Promise.reject(new Error('Sign in to comment.'))}
+                          onCommentOpenChange={onCommentOpenChange}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
