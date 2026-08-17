@@ -519,6 +519,10 @@
   .quote-picture-veil {
     background-color: rgba(7, 18, 38, 0.265);
   }
+  [data-theme="night"] .quote-picture-veil,
+  :root:not([data-theme="day"]) .quote-picture-veil {
+    background-color: rgba(18, 30, 63, 0.36);
+  }
   [data-theme="day"] .quote-glass-panel {
     border-color: rgba(255, 255, 255, 0.5);
     background-color: rgba(241, 246, 255, 0.56);
