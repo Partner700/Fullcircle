@@ -203,7 +203,7 @@ function getCountdownParts(target?: string | null) {
 }
 
 export function CadetApp() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const [tab, setTab] = useState<Tab>(getInitialCadetTab);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
@@ -225,17 +225,19 @@ export function CadetApp() {
   const trialDaysLeft = trialCountdown.days;
 
   useEffect(() => {
+    const userId = profile?.id || session?.user.id;
+    if (!userId) return;
     streakLoadedRef.current = false;
-    const cached = profile?.id ? readCachedTopbarStats(profile.id) : null;
+    const cached = readCachedTopbarStats(userId);
     toolbarStatsRef.current = {
-      userId: profile?.id || '',
+      userId,
       denarii: cached?.denarii || 0,
       streak: cached?.streak || 0,
     };
     setStreakCount(cached?.streak || 0);
     setDenariiTotal(cached?.denarii || 0);
     setTentInfo({ tent: null, members: [] });
-  }, [profile?.id]);
+  }, [profile?.id, session?.user.id]);
 
   const loadTentInfo = useCallback(async () => {
     if (!profile) {
@@ -266,9 +268,6 @@ export function CadetApp() {
 
   const loadToolbarStats = useCallback(async () => {
     if (!profile) {
-      streakLoadedRef.current = false;
-      setStreakCount(0);
-      setDenariiTotal(0);
       return;
     }
 

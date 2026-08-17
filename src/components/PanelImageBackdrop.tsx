@@ -40,6 +40,7 @@ export function PanelImageBackdrop({
           className={cn('h-full w-full object-cover', imageClassName)}
           style={{ objectPosition: panelImageObjectPosition(image), opacity }}
         />
+        <div className="panel-image-mode-veil absolute inset-0" />
         <div className={cn('absolute inset-0', veilClassName)} />
       </div>
     );
@@ -70,6 +71,7 @@ export function PanelImageBackdrop({
         className={cn('h-full w-full object-cover', imageClassName)}
         style={imageStyle}
       />
+      <div className="panel-image-mode-veil absolute inset-0" />
       {whiteOverlayOpacity > 0 && <div className="absolute inset-0 bg-white" style={{ opacity: whiteOverlayOpacity }} />}
       {blackOverlayOpacity > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: blackOverlayOpacity }} />}
       {ageOpacity > 0 && (

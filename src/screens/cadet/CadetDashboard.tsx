@@ -367,7 +367,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   const visibleSlides = count > 1 ? [...slides, slides[0]] : slides;
   const [displayIndex, setDisplayIndex] = useState(index % Math.max(count, 1));
   const [withTransition, setWithTransition] = useState(true);
-  const counterIndex = count > 0 ? ((index % count) + count) % count : 0;
+  const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
 
   useEffect(() => {
     if (count <= 0) return;

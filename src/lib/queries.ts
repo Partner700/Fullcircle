@@ -1021,7 +1021,29 @@ export async function fetchVerseInsights(narrativeId: string) {
     console.warn('Verse insights unavailable:', error.message);
     return [];
   }
-  return data || [];
+  const insights = data || [];
+  if (!insights.length) return insights;
+  const { data: comments, error: commentError } = await supabase
+    .from('scripture_insight_comments')
+    .select('id,insight_id,user_id,mentioned_user_id,parent_comment_id,body,created_at')
+    .in('insight_id', insights.map((insight) => insight.id))
+    .order('created_at', { ascending: true });
+  if (commentError) return insights.map((insight) => ({ ...insight, comments: [] }));
+  const profileIds = Array.from(new Set((comments || []).flatMap((comment) => [comment.user_id, comment.mentioned_user_id]).filter(Boolean))) as string[];
+  const { data: commentProfiles } = profileIds.length
+    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', profileIds)
+    : { data: [] };
+  const profilesById = new Map((commentProfiles || []).map((commentProfile) => [commentProfile.id, commentProfile]));
+  return insights.map((insight) => ({
+    ...insight,
+    comments: (comments || [])
+      .filter((comment) => comment.insight_id === insight.id)
+      .map((comment) => ({
+        ...comment,
+        profile: profilesById.get(comment.user_id) || null,
+        mentioned_profile: comment.mentioned_user_id ? profilesById.get(comment.mentioned_user_id) || null : null,
+      })),
+  }));
 }
 
 export async function saveVerseInsight(narrativeId: string, userId: string, verseReference: string, body: string) {
@@ -1034,6 +1056,23 @@ export async function saveVerseInsight(narrativeId: string, userId: string, vers
       body: body.trim(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'narrative_id,user_id,verse_reference' });
+  if (error) throw error;
+}
+
+export async function addVerseInsightComment(input: {
+  insightId: string;
+  userId: string;
+  body: string;
+  mentionedUserId?: string | null;
+  parentCommentId?: string | null;
+}) {
+  const { error } = await supabase.from('scripture_insight_comments').insert({
+    insight_id: input.insightId,
+    user_id: input.userId,
+    body: input.body.trim(),
+    mentioned_user_id: input.mentionedUserId || null,
+    parent_comment_id: input.parentCommentId || null,
+  });
   if (error) throw error;
 }
 
@@ -2089,7 +2128,7 @@ export async function fetchArenaRoom(roomId: string) {
 
 export async function fetchStrictStreak(userId: string) {
   const liveStats = await fetchUserLiveStats(userId).catch(() => null);
-  if (liveStats && (liveStats.current_streak !== 0 || liveStats.longest_streak !== 0 || liveStats.cumulative_inactive !== 0)) {
+  if (liveStats?.current_streak && liveStats.current_streak > 0) {
     return {
       current_streak: liveStats.current_streak,
       longest_streak: liveStats.longest_streak,

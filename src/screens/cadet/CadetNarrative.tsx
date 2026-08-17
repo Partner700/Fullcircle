@@ -4,7 +4,7 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
-import { fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -13,6 +13,7 @@ import {
   BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
+  MessageCircle, Reply, Send,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -52,6 +53,10 @@ export function CadetNarrative({
   const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
   const [myInsightDrafts, setMyInsightDrafts] = useState<Record<string, string>>({});
   const [savingInsight, setSavingInsight] = useState<string | null>(null);
+  const [openInsightReplies, setOpenInsightReplies] = useState<string | null>(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyTargets, setReplyTargets] = useState<Record<string, { userId: string; displayName: string; parentCommentId?: string } | null>>({});
+  const [savingReply, setSavingReply] = useState<string | null>(null);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [readingHistory, setReadingHistory] = useState<(DailyNarrative & { meditation_text: string | null; best_verse: string | null; daily_quote: string | null })[]>([]);
@@ -243,6 +248,30 @@ export function CadetNarrative({
     setSavingInsight(null);
   };
 
+  const submitInsightReply = async (insight: any) => {
+    if (!profile || !narrative?.id) return;
+    const body = (replyDrafts[insight.id] || '').trim();
+    if (!body) return;
+    const target = replyTargets[insight.id];
+    setSavingReply(insight.id);
+    try {
+      await addVerseInsightComment({
+        insightId: insight.id,
+        userId: profile.id,
+        body,
+        mentionedUserId: target?.userId || insight.user_id,
+        parentCommentId: target?.parentCommentId || null,
+      });
+      setVerseInsights(await fetchVerseInsights(narrative.id));
+      setReplyDrafts((current) => ({ ...current, [insight.id]: '' }));
+      setReplyTargets((current) => ({ ...current, [insight.id]: null }));
+      setOpenInsightReplies(insight.id);
+    } catch (error: any) {
+      alert(error.message || 'Could not post your reply.');
+    }
+    setSavingReply(null);
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12 text-stone animate-fade-in">
@@ -353,12 +382,51 @@ export function CadetNarrative({
                   </div>
                   {userExpanded && (
                     <div className="mt-3 space-y-3">
-                      {userInsights.filter((item: any) => item.user_id !== profile?.id).map((item: any) => (
-                        <div key={item.id} className="rounded-lg bg-surface-2 p-2">
-                          <p className="text-xs font-bold text-ink">{item.profiles?.display_name || 'Reader'}</p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>
-                        </div>
-                      ))}
+                      {userInsights.map((item: any) => {
+                        const authorName = item.profiles?.display_name || 'Reader';
+                        const comments = item.comments || [];
+                        const repliesOpen = openInsightReplies === item.id;
+                        return (
+                          <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
+                            <div className="flex items-start gap-2.5">
+                              <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-border bg-peri-soft text-center text-xs font-bold leading-8 text-peri">
+                                {item.profiles?.avatar_url ? <img src={item.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : authorName.charAt(0)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-ink">{authorName}{item.user_id === profile?.id ? ' · You' : ''}</p>
+                                <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>
+                              </div>
+                            </div>
+                            <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
+                              setOpenInsightReplies(repliesOpen ? null : item.id);
+                              setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
+                              setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
+                            }}>
+                              <MessageCircle size={13} /> {comments.length ? `${comments.length} ${comments.length === 1 ? 'reply' : 'replies'}` : 'Reply'}
+                            </button>
+                            {repliesOpen && (
+                              <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
+                                {comments.map((comment: any) => (
+                                  <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
+                                    <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'}</p>
+                                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>
+                                    <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
+                                      const displayName = comment.profile?.display_name || 'Reader';
+                                      setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
+                                      setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
+                                    }}><Reply size={11} /> Reply</button>
+                                  </div>
+                                ))}
+                                {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
+                                <div className="flex items-end gap-2">
+                                  <textarea className="input-field min-h-[4rem] flex-1 text-xs" value={replyDrafts[item.id] || ''} onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder={`Respond to @${authorName}...`} />
+                                  <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       <textarea
                         className="input-field min-h-[5.5rem] text-sm"
                         value={myInsightDrafts[verse.reference] || ''}

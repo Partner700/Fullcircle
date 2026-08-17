@@ -481,10 +481,10 @@
   .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .recent-awards-veil { background-color: var(--color-navy-2); opacity: 0.76; }
   .quote-panel-veil {
-    background-color: rgba(0, 0, 0, 0.16);
+    background-color: rgba(255, 255, 255, 0.2);
   }
   [data-theme="day"] .quote-panel-veil {
-    background-color: rgba(255, 255, 255, 0.12);
+    background-color: rgba(255, 255, 255, 0.29);
   }
   .welcome-slide-veil {
     inset-inline-end: auto;
@@ -507,13 +507,19 @@
     );
   }
   .award-panel-veil {
-    background-color: rgba(23, 36, 60, 0.3);
+    background-color: rgba(255, 255, 255, 0.32);
     background-image: none;
     transform: translateZ(0);
     backface-visibility: hidden;
   }
   [data-theme="day"] .award-panel-veil {
-    background-color: rgba(23, 36, 60, 0.3);
+    background-color: rgba(255, 255, 255, 0.43);
+  }
+  .panel-image-mode-veil {
+    background-color: rgba(255, 255, 255, 0.11);
+  }
+  [data-theme="day"] .panel-image-mode-veil {
+    background-color: rgba(255, 255, 255, 0.17);
   }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
