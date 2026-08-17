@@ -480,12 +480,6 @@
   .recent-award-change { animation: awardChange 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
   .status-surface { min-height: 8.5rem; transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease; }
   .recent-awards-veil { background-color: var(--color-navy-2); opacity: 0.76; }
-  .quote-panel-veil {
-    background-color: rgba(7, 18, 38, 0.24);
-  }
-  [data-theme="day"] .quote-panel-veil {
-    background-color: rgba(255, 255, 255, 0.22);
-  }
   .quote-glass-panel {
     border: 1px solid rgba(198, 207, 232, 0.2);
     background: linear-gradient(135deg, rgba(18, 30, 63, 0.86), rgba(24, 38, 76, 0.82));
@@ -530,12 +524,6 @@
   }
   [data-theme="day"] .award-panel-veil {
     background-color: rgba(255, 255, 255, 0.43);
-  }
-  .panel-image-mode-veil {
-    background-color: rgba(7, 18, 38, 0.18);
-  }
-  [data-theme="day"] .panel-image-mode-veil {
-    background-color: rgba(255, 255, 255, 0.17);
   }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
