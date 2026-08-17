@@ -688,7 +688,13 @@ export function CadetApp() {
       loadNotifications(),
     ]);
     setCadetRefreshKey((key) => key + 1);
-  }, [refreshWallet, loadNotifications]);
+    // Realtime can announce a committed daily-record change before every
+    // derived streak RPC observes it. Confirm once more after propagation.
+    window.setTimeout(() => {
+      void loadToolbarStats();
+      setCadetRefreshKey((key) => key + 1);
+    }, 900);
+  }, [refreshWallet, loadNotifications, loadToolbarStats]);
 
   const loadSubStatus = useCallback(async () => {
     if (!profile) return;
