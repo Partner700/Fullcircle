@@ -19,6 +19,7 @@ const sentryApp = read('src/screens/sentry/SentryApp.tsx');
 const arenaGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 const frenchUi = read('src/lib/frenchUi.ts');
 const relicRecovery = read('supabase/migrations/20260817120000_relic_recovery_and_denarii_only.sql');
+const sentryStreakRecovery = read('supabase/migrations/20260817121000_preserve_sentry_duty_and_relic_recovery.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -89,6 +90,8 @@ assert.match(relicRecovery, /denarii_cost = 60000/);
 assert.match(relicRecovery, /money_price_usd = NULL/);
 assert.match(relicRecovery, /restore_thiefs_request_history\(v_use\.user_id, v_cutoff\)/);
 assert.match(relicRecovery, /CREATE OR REPLACE FUNCTION public\.get_authoritative_streak/);
+assert.match(sentryStreakRecovery, /marked\.attendance_marked_by = p_user_id/);
+assert.ok(!sentryStreakRecovery.includes('JOIN public.tent_members cadet_member'), 'Historical sentry duty must not depend on current tent membership.');
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
