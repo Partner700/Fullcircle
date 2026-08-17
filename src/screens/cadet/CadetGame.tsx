@@ -773,7 +773,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
-      <div className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
+      <div key={`${q.id || currentQ}-${currentQ}`} className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>
           {!showFeedback && !answerRevealed && (

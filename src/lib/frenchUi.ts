@@ -213,6 +213,7 @@ const PLACEHOLDER_FR: Record<string, string> = {
 
 const SKIP_SELECTOR = 'script,style,noscript,textarea,input,select,option,code,pre,[data-no-translate]';
 const originalText = new WeakMap<Text, string>();
+const lastAppliedText = new WeakMap<Text, string>();
 const originalAttrs = new WeakMap<Element, Record<string, string>>();
 
 function preserveSpacing(source: string, replacement: string) {
@@ -258,14 +259,18 @@ function translateTextNodes(root: ParentNode, useFrench: boolean) {
     node = walker.nextNode();
   }
   nodes.forEach((textNode) => {
-    const original = originalText.get(textNode) ?? textNode.nodeValue ?? '';
-    if (!originalText.has(textNode)) originalText.set(textNode, original);
-    const next = useFrench ? translateStaticText(original) : original;
-    if (next && textNode.nodeValue !== preserveSpacing(original, next)) {
-      textNode.nodeValue = preserveSpacing(original, next);
-    } else if (!useFrench && textNode.nodeValue !== original) {
-      textNode.nodeValue = original;
+    const current = textNode.nodeValue ?? '';
+    const lastApplied = lastAppliedText.get(textNode);
+    // React reuses text nodes for timers, counters, slideshow positions, and
+    // questions. A value different from our last write is fresh source text.
+    if (!originalText.has(textNode) || (lastApplied !== undefined && current !== lastApplied)) {
+      originalText.set(textNode, current);
     }
+    const original = originalText.get(textNode) ?? current;
+    const next = useFrench ? translateStaticText(original) : original;
+    const target = next ? preserveSpacing(original, next) : original;
+    if (textNode.nodeValue !== target) textNode.nodeValue = target;
+    lastAppliedText.set(textNode, target);
   });
 }
 

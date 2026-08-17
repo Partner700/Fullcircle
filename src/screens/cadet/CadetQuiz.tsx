@@ -786,7 +786,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
       )}
 
       {/* Question card with scroll-edge motif */}
-      <div className="card p-5 relative animate-slide-up">
+      <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
         <ScrollEdge position="top" className="text-stone mb-2" />
 
         {/* Badges */}

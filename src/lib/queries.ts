@@ -573,10 +573,15 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
     return Number(data) || 0;
   })();
   const streakRequest = (async () => {
-    const { data, error } = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
+    let { data, error } = await supabase.rpc('get_authoritative_streak', { p_user_id: userId });
+    if (error) {
+      const strict = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
+      data = strict.data;
+      error = strict.error;
+    }
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
-    if (!row) throw new Error('Strict streak data were unavailable.');
+    if (!row) throw new Error('Authoritative streak data were unavailable.');
     return {
       current_streak: Number(row.current_streak) || 0,
       longest_streak: Number(row.longest_streak) || 0,
@@ -2198,7 +2203,12 @@ export async function fetchStrictStreak(userId: string) {
   }
 
   try {
-    const { data, error } = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
+    let { data, error } = await supabase.rpc('get_authoritative_streak', { p_user_id: userId });
+    if (error) {
+      const strict = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
+      data = strict.data;
+      error = strict.error;
+    }
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
     const strict = {

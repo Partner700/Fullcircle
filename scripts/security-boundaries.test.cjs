@@ -17,6 +17,8 @@ const toolbarStats = read('supabase/migrations/20260814172000_authoritative_tool
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
 const sentryApp = read('src/screens/sentry/SentryApp.tsx');
 const arenaGenerator = read('supabase/functions/generate-arena-questions/index.ts');
+const frenchUi = read('src/lib/frenchUi.ts');
+const relicRecovery = read('supabase/migrations/20260817120000_relic_recovery_and_denarii_only.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -78,9 +80,15 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v37'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v38'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
+assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
+assert.match(frenchUi, /current !== lastApplied/);
+assert.match(relicRecovery, /denarii_cost = 60000/);
+assert.match(relicRecovery, /money_price_usd = NULL/);
+assert.match(relicRecovery, /restore_thiefs_request_history\(v_use\.user_id, v_cutoff\)/);
+assert.match(relicRecovery, /CREATE OR REPLACE FUNCTION public\.get_authoritative_streak/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);

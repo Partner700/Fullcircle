@@ -53,6 +53,7 @@ const PAYMENT_METHODS: { id: StorePaymentMethod; label: string; icon: typeof Sma
 ];
 
 const FALLBACK_XAF_PER_USD = 575;
+const PREMIUM_STREAK_RELIC_COST = 60_000;
 
 function relicMoneyPriceXaf(relic: RelicType): number {
   const explicitXaf = Number(relic.money_price_xaf);
@@ -464,10 +465,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           <div className="p-4 rounded-lg border border-border bg-surface-2">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-ink text-sm">Weekly Freezer</span>
-              <span className="font-display font-bold text-gold">5000 Ð</span>
+              <span className="font-display font-bold text-gold">{formatDenarii(PREMIUM_STREAK_RELIC_COST)} Ð</span>
             </div>
             <p className="text-xs text-stone mb-3">7 days of streak protection. Available only to subscribed accounts.</p>
-            <button onClick={() => buyWithDenarii('simons-purse')} disabled={!isSubscribed || denarii < 5000 || purchasing === 'simons-purse'}
+            <button onClick={() => buyWithDenarii('simons-purse')} disabled={!isSubscribed || denarii < PREMIUM_STREAK_RELIC_COST || purchasing === 'simons-purse'}
               className="btn-primary text-xs w-full disabled:opacity-50">
               {purchasing === 'simons-purse' ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy
             </button>
