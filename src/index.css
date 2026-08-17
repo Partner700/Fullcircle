@@ -517,11 +517,11 @@
     background-color: rgba(18, 30, 63, 0.54);
   }
   .quote-picture-veil {
-    background-color: rgba(7, 18, 38, 0.265);
+    background-color: rgba(18, 30, 63, 0.432);
   }
   [data-theme="night"] .quote-picture-veil,
   :root:not([data-theme="day"]) .quote-picture-veil {
-    background-color: rgba(18, 30, 63, 0.36);
+    background-color: rgba(18, 30, 63, 0.432);
   }
   [data-theme="day"] .quote-glass-panel {
     border-color: rgba(255, 255, 255, 0.5);
@@ -532,7 +532,7 @@
     background-color: rgba(241, 246, 255, 0.58);
   }
   [data-theme="day"] .quote-picture-veil {
-    background-color: rgba(255, 255, 255, 0.285);
+    background-color: rgba(255, 255, 255, 0.342);
   }
   .verse-highlight-insight {
     border-color: color-mix(in srgb, var(--color-brass) 34%, transparent);
