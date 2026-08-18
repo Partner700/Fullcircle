@@ -139,12 +139,24 @@ WITH candidates AS (
   SELECT payment_id, user_id, relic_type_id FROM candidates
   ON CONFLICT (payment_id) DO NOTHING
   RETURNING payment_id, user_id, relic_type_id
+), delivery_totals AS (
+  SELECT
+    user_id,
+    relic_type_id,
+    count(*)::integer AS quantity,
+    min(payment_id::text) AS first_payment_id
+  FROM delivered
+  GROUP BY user_id, relic_type_id
 )
 INSERT INTO public.relic_inventory(user_id, relic_type_id, quantity, source_description)
-SELECT user_id, relic_type_id, 1, 'Recovered confirmed CamPay purchase ' || payment_id::text
-FROM delivered
+SELECT
+  user_id,
+  relic_type_id,
+  quantity,
+  'Recovered ' || quantity || ' confirmed CamPay purchase(s), beginning with ' || first_payment_id
+FROM delivery_totals
 ON CONFLICT (user_id, relic_type_id) DO UPDATE
-  SET quantity = public.relic_inventory.quantity + 1,
+  SET quantity = public.relic_inventory.quantity + EXCLUDED.quantity,
       source_description = EXCLUDED.source_description;
 
 -- Relic-secured quiz answers remain correct but do not produce figs.
