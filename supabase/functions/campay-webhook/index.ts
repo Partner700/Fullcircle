@@ -393,23 +393,13 @@ Deno.serve(async (req: Request) => {
 
     const pendingPayment = requestedPayment
       || await fetchPaymentFromVerification(reference, payload, verifyData, verifyDetails);
-    if (pendingPayment) {
-      if (authenticatedUserId && pendingPayment.user_id !== authenticatedUserId) {
-        throw new Error("Payment does not belong to the signed-in account.");
-      }
-      const ageMs = Date.now() - Date.parse(pendingPayment.created_at);
-      if (Number.isFinite(ageMs) && ageMs >= 35_000) {
-        await callPaymentRpc("reject_campay_payment", {
-          p_payment_id: pendingPayment.id,
-          p_provider_reference: String(verifyData.reference || verifyDetails.reference || reference),
-          p_reason: "Payment was not confirmed within 35 seconds.",
-          p_verification: verifyData,
-        });
-        return new Response(JSON.stringify({ received: true, reference, status: "rejected" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (pendingPayment && authenticatedUserId && pendingPayment.user_id !== authenticatedUserId) {
+      throw new Error("Payment does not belong to the signed-in account.");
     }
+
+    // A mobile-money approval can settle after the initial checkout window.
+    // Keep an unconfirmed transaction pending so a delayed provider callback or
+    // a later status check can still deliver the purchased relic.
 
     return new Response(JSON.stringify({ received: true, reference, status: paymentStatus }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

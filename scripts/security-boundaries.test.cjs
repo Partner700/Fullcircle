@@ -160,7 +160,8 @@ for (const required of [
 assert.match(supabaseConfig, /\[functions\.campay-webhook\][\s\S]*?verify_jwt = false/);
 assert.match(supabaseConfig, /\[functions\.send-push-notification\][\s\S]*?verify_jwt = false/);
 assert.match(campayWebhook, /requestedPayment\.user_id !== authenticatedUserId/);
-assert.match(campayWebhook, /ageMs >= 35_000/);
+assert.doesNotMatch(campayWebhook, /ageMs >= 35_000/);
+assert.match(campayWebhook, /Keep an unconfirmed transaction pending/);
 
 for (const required of [
   "APP_TIME_ZONE = 'Africa/Douala'",
@@ -199,9 +200,21 @@ for (const migrationName of [
   '20260810143000_release_integrity_followup.sql',
   '20260810144000_final_rpc_security_closure.sql',
   '20260810145000_deterministic_streak_calculator.sql',
+  '20260818100000_active_answer_figs_and_payment_delivery.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
+}
+
+const activeAnswerIntegrity = read('supabase/migrations/20260818100000_active_answer_figs_and_payment_delivery.sql');
+for (const required of [
+  'assisted_by_relic',
+  'relic_payment_deliveries',
+  'v_figs := 0',
+  "v_score := 0",
+  "payment.relic_slug = 'masters-reward'",
+]) {
+  assert.ok(activeAnswerIntegrity.includes(required), `Missing active-answer/payment boundary: ${required}`);
 }
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
