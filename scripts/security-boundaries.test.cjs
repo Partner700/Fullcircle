@@ -27,6 +27,7 @@ const scriptureDeepLinks = read('supabase/migrations/20260817183000_scripture_no
 const messageMentions = read('supabase/migrations/20260817190000_notify_mentions_in_messages.sql');
 const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
 const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
+const appShell = read('src/components/AppShell.tsx');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -88,7 +89,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v50'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v51'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -116,6 +117,8 @@ assert.match(scriptureDeepLinks, /'verse_reference', v_verse_reference/);
 assert.match(scriptureDeepLinks, /'narrative_id', v_narrative_id/);
 assert.match(pushDelivery, /destinationParams\.set\("fc-verse"/);
 assert.match(scriptureNavigation, /scrollIntoView|SCRIPTURE_TARGET_KEY/);
+assert.match(appShell, /app-safe-header fixed left-0 right-0 top-0/);
+assert.match(appShell, /style=\{\{ height: headerHeight \}\}/);
 for (const messageTable of [
   'tent_messages',
   'direct_messages',

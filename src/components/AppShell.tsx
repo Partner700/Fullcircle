@@ -1,4 +1,4 @@
-import { type ElementType, type ReactNode, useState, useEffect, useCallback, useRef } from 'react';
+import { type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { DoveMark } from './Dove';
@@ -99,6 +99,8 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
   const { profile, role, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [weeklyBackground, setWeeklyBackground] = useState<PanelImageSetting | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerRef = useRef<HTMLElement>(null);
   const activeKeyRef = useRef(activeKey);
   const onNavigateRef = useRef(onNavigate);
   const historyReadyRef = useRef(false);
@@ -106,6 +108,22 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
 
   useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
   useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
+
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+
+    const measureHeader = () => setHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    measureHeader();
+
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureHeader);
+    observer?.observe(header);
+    window.addEventListener('resize', measureHeader);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measureHeader);
+    };
+  }, []);
 
   // Treat app screens as real history entries so Android/iOS back gestures feel native.
   useEffect(() => {
@@ -277,7 +295,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
 
       {/* Main content */}
       <div className="relative z-10 flex-1 flex flex-col min-w-0 md:ml-60">
-        <header className="app-safe-header sticky top-0 z-30 border-b border-border bg-navy-2 px-3 py-2 shadow-sm sm:px-4 sm:py-3 md:px-6">
+        <header ref={headerRef} className="app-safe-header fixed left-0 right-0 top-0 z-30 border-b border-border bg-navy-2 px-3 py-2 shadow-sm sm:px-4 sm:py-3 md:left-60 md:px-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
             <div className="flex min-w-0 items-start justify-between gap-2 md:flex-1">
               <div className="flex min-w-0 items-start gap-2">
@@ -327,6 +345,7 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
             </div>
           </div>
         </header>
+        <div aria-hidden="true" className="shrink-0" style={{ height: headerHeight }} />
 
         {/* Mobile side dashboard */}
         <div
