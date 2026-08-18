@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/AppShell';
+import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { CadetDashboard } from './CadetDashboard';
 import { supabase } from '../../lib/supabase';
 import {
@@ -15,10 +16,11 @@ import {
   fetchLedgerTotal,
   fetchStrictStreak,
   fetchArenaRooms,
+  fetchStreakProtectionState,
 } from '../../lib/queries';
 import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '../../lib/utils';
 import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
-import type { Tent, TentMember, Profile, UserNotification } from '../../lib/types';
+import type { Tent, TentMember, Profile, StreakProtectionState, UserNotification } from '../../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../../lib/scriptureNavigation';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
@@ -211,6 +213,7 @@ export function CadetApp() {
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
+  const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [toolbarReady, setToolbarReady] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -277,6 +280,8 @@ export function CadetApp() {
     }
 
     try {
+      const protection = await fetchStreakProtectionState().catch(() => null);
+      if (protection) setStreakProtection(protection);
       const [reliableResult, denariiResult, streakResult] = await Promise.allSettled([
         fetchReliableToolbarStats(toolbarUserId),
         fetchLedgerTotal(toolbarUserId),
@@ -796,6 +801,11 @@ export function CadetApp() {
         { event: '*', schema: 'public', table: 'daily_records', filter: `user_id=eq.${profile.id}` },
         refreshCadetWallet,
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` },
+        refreshCadetWallet,
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [profile, refreshCadetState]);
@@ -942,7 +952,7 @@ export function CadetApp() {
           )}
           {/* Streak icon */}
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
-            <Flame size={15} className="text-coral" />
+            <StreakStatusIcon protection={streakProtection} />
             <span className="font-display font-bold text-coral text-[13px]">{toolbarReady ? streakCount : '…'}</span>
           </div>
           {/* Notification bell */}

@@ -424,9 +424,22 @@ export interface StreakFreezer {
   id: string;
   user_id: string;
   freezer_type: FreezerType;
-  source: 'denarii' | 'payment' | 'relic';
+  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'thiefs_request' | 'game_reward' | 'arena_reward';
   purchased_at: string;
   used_at: string | null;
+  applied_to_date: string | null;
+  expires_at?: string | null;
+  activated_at?: string | null;
+  protection_ends_at?: string | null;
+  protected_through_date?: string | null;
+}
+
+export interface StreakProtectionState {
+  active: boolean;
+  protection_kind: 'freezer' | 'simons_purse' | null;
+  freezer_type: FreezerType | null;
+  activated_at: string | null;
+  protection_ends_at: string | null;
   applied_to_date: string | null;
 }
 

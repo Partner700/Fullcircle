@@ -4,8 +4,8 @@ import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, getSubscriptionStatus, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
-import { FREEZER_DAILY_COST, RELIC_SLUGS } from '../../lib/constants';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
+import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import type { CampayPaymentResult } from '../../lib/queries';
@@ -53,8 +53,6 @@ const PAYMENT_METHODS: { id: StorePaymentMethod; label: string; icon: typeof Sma
 ];
 
 const FALLBACK_XAF_PER_USD = 575;
-const PREMIUM_STREAK_RELIC_COST = 60_000;
-
 function relicMoneyPriceXaf(relic: RelicType): number {
   const explicitXaf = Number(relic.money_price_xaf);
   if (Number.isFinite(explicitXaf) && explicitXaf > 0) return Math.round(explicitXaf);
@@ -81,6 +79,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [usingRelic, setUsingRelic] = useState<string | null>(null);
   const [buyingFreezer, setBuyingFreezer] = useState(false);
+  const [buyingWeeklyFreezer, setBuyingWeeklyFreezer] = useState(false);
   const [paymentModalRelic, setPaymentModalRelic] = useState<RelicType | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<StorePaymentMethod>('mtn_momo');
   const [payPhone, setPayPhone] = useState('');
@@ -92,7 +91,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [paymentResult, setPaymentResult] = useState<CampayPaymentResult | null>(null);
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
@@ -116,12 +114,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setLoading(true);
     setLoadError(null);
     try {
-      const [relicData, invData, balance, frz, sub, marketPanelImage] = await Promise.all([
+      const [relicData, invData, balance, frz, marketPanelImage] = await Promise.all([
         supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
         fetchLedgerTotal(profile.id),
         fetchStreakFreezers(profile.id),
-        getSubscriptionStatus(profile.id).catch(() => null),
         fetchPanelImageSetting('market').catch(() => null),
       ]);
       setRelics(relicData.data as RelicType[] || []);
@@ -130,7 +127,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       setInventory(invMap);
       setDenarii(balance);
       setFreezers(frz);
-      setIsSubscribed(Boolean(sub && ((sub as any).is_paid || (sub as any).status === 'active')));
       setMarketImage(marketPanelImage);
     } catch (err: any) {
       setLoadError(err?.message || 'The Market could not load. Please try again.');
@@ -383,6 +379,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setBuyingFreezer(false);
   };
 
+  const buyWeeklyFreezer = async () => {
+    if (!profile || giftRecipientId !== 'self') return;
+    setBuyingWeeklyFreezer(true);
+    try {
+      await purchaseWeeklyFreezer(profile.id);
+      await refreshPurchaseState();
+    } catch (e: any) { alert(e.message || 'Failed to purchase weekly freezer'); }
+    setBuyingWeeklyFreezer(false);
+  };
+
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
   const selectedPaymentLabel = PAYMENT_METHODS.find((method) => method.id === paymentMethod)?.label || 'Payment';
@@ -390,8 +396,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     ? false
     : payPhone.trim().length > 0;
   const lazarusMarketDescription = 'Take or retake the Saturday quiz late and submit before 2:45 PM. Denarii only.';
-  const readyDailyFreezers = freezers.filter((f) => f.freezer_type === 'daily' && !f.used_at).length;
-  const readyWeeklyFreezers = freezers.filter((f) => f.freezer_type === 'weekly' && !f.used_at).length;
+  const readyDailyFreezers = freezers.filter((f) => f.freezer_type === 'daily' && !f.used_at && !f.applied_to_date).length;
+  const readyWeeklyFreezers = freezers.filter((f) => f.freezer_type === 'weekly' && !f.used_at && !f.applied_to_date).length;
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
@@ -465,23 +471,23 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           <div className="p-4 rounded-lg border border-border bg-surface-2">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-ink text-sm">Weekly Freezer</span>
-              <span className="font-display font-bold text-gold">{formatDenarii(PREMIUM_STREAK_RELIC_COST)} Ð</span>
+              <span className="font-display font-bold text-gold">{formatDenarii(FREEZER_WEEKLY_COST)} Ð</span>
             </div>
-            <p className="text-xs text-stone mb-3">7 days of streak protection. Available only to subscribed accounts.</p>
-            <button onClick={() => buyWithDenarii('simons-purse')} disabled={!isSubscribed || denarii < PREMIUM_STREAK_RELIC_COST || purchasing === 'simons-purse'}
+            <p className="text-xs text-stone mb-3">Protects seven consecutive days and activates only when no daily freezer is ready.</p>
+            <button onClick={buyWeeklyFreezer} disabled={giftRecipientId !== 'self' || denarii < FREEZER_WEEKLY_COST || buyingWeeklyFreezer}
               className="btn-primary text-xs w-full disabled:opacity-50">
-              {purchasing === 'simons-purse' ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy
+              {buyingWeeklyFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy
             </button>
-            {!isSubscribed && <p className="text-[10px] text-stone mt-2">Subscribe first to unlock weekly freezer purchases.</p>}
+            {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-2">Weekly freezers are currently purchased for your own account.</p>}
           </div>
         </div>
 
         {freezers.length > 0 && (
           <div className="relative z-10 mt-3 flex flex-wrap gap-1.5">
             {freezers.map((f) => (
-              <span key={f.id} className={cn('badge text-[10px]', f.used_at ? 'badge-neutral' : 'badge-brass')}>
+              <span key={f.id} className={cn('badge text-[10px]', f.used_at || f.applied_to_date ? 'badge-neutral' : 'badge-brass')}>
                 <Snowflake size={10} className="mr-1" />
-                {f.freezer_type === 'daily' ? 'Daily' : 'Weekly'} · {f.used_at ? 'Used' : 'Ready'}
+                {f.freezer_type === 'daily' ? 'Daily' : 'Weekly'} · {f.used_at ? 'Used' : f.applied_to_date ? 'Applied' : 'Ready'}
               </span>
             ))}
           </div>

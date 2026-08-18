@@ -136,8 +136,8 @@ export const MONTHLY_RANKING_WEIGHTS = {
 // ── Game economy: hint & answer-reveal costs ──
 export const HINT_COST = 50;
 export const ANSWER_REVEAL_COST = 100;
-export const FREEZER_DAILY_COST = 500;
-export const FREEZER_WEEKLY_PRICE = 2;
+export const FREEZER_DAILY_COST = 6_000;
+export const FREEZER_WEEKLY_COST = 18_000;
 
 export const ARENA_GAME_CALL_FEE = 10;
 

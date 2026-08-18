@@ -28,6 +28,7 @@ const messageMentions = read('supabase/migrations/20260817190000_notify_mentions
 const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
 const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
 const appShell = read('src/components/AppShell.tsx');
+const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecycle_and_rare_rewards.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -89,7 +90,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v51'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v52'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -201,9 +202,24 @@ for (const migrationName of [
   '20260810144000_final_rpc_security_closure.sql',
   '20260810145000_deterministic_streak_calculator.sql',
   '20260818100000_active_answer_figs_and_payment_delivery.sql',
+  '20260818113000_freezer_lifecycle_and_rare_rewards.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
+}
+
+for (const required of [
+  "v_cost integer := 6000",
+  "v_cost integer := 18000",
+  "freezer.freezer_type = 'daily'",
+  "freezer.freezer_type = 'weekly'",
+  "v_deadline + interval '24 hours'",
+  'pg_advisory_xact_lock',
+  "p_context_type = 'arena'",
+  "WHEN v_roll < v_threshold_thief THEN 'thieves-request'",
+  'get_my_streak_protection_state',
+]) {
+  assert.ok(freezerLifecycle.includes(required), `Missing freezer/reward boundary: ${required}`);
 }
 
 const activeAnswerIntegrity = read('supabase/migrations/20260818100000_active_answer_figs_and_payment_delivery.sql');

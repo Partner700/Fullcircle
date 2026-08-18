@@ -11,6 +11,7 @@ import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { AppSelect } from '../../components/AppSelect';
+import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
@@ -19,10 +20,11 @@ import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, fetchReliableToolbarStats, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
+  fetchStreakProtectionState,
 } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState } from '../../lib/types';
 import { TentAvatar } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { CadetGame } from '../cadet/CadetGame';
@@ -34,7 +36,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ImagePlus, Quote, ShoppingBag, FileQuestion, Award, Megaphone, Trophy,
-  Swords, Flame, Coins, Target, UserPlus, X, Eye,
+  Swords, Coins, Target, UserPlus, X, Eye,
 } from 'lucide-react';
 
 const CadetArena = lazy(() => import('../cadet/CadetArena').then((module) => ({ default: module.CadetArena })));
@@ -109,6 +111,7 @@ export function SentryApp() {
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [sentryStreak, setSentryStreak] = useState(0);
+  const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [sentryDenarii, setSentryDenarii] = useState(0);
   const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +126,8 @@ export function SentryApp() {
     if (!profile) { setLoading(false); return; }
     if (!hasLoadedRef.current) setLoading(true);
     try {
+      const protection = await fetchStreakProtectionState().catch(() => null);
+      if (protection) setStreakProtection(protection);
       const [toolbarStats, ownDenarii, ownLedger] = await Promise.all([
         fetchReliableToolbarStats(profile.id).catch(() => null),
         fetchLedgerTotal(profile.id).catch(() => null),
@@ -213,6 +218,7 @@ export function SentryApp() {
       void load();
     };
     const refreshOnFocus = () => { refreshVisibleStats(); };
+    const protectionInterval = window.setInterval(refreshVisibleStats, 60_000);
     document.addEventListener('visibilitychange', refreshVisibleStats);
     window.addEventListener('focus', refreshOnFocus);
     window.addEventListener('full-circle-wallet-refresh', refreshOnFocus);
@@ -220,11 +226,13 @@ export function SentryApp() {
       .channel(`sentry_topbar_${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
       .subscribe();
     return () => {
       document.removeEventListener('visibilitychange', refreshVisibleStats);
       window.removeEventListener('focus', refreshOnFocus);
       window.removeEventListener('full-circle-wallet-refresh', refreshOnFocus);
+      window.clearInterval(protectionInterval);
       supabase.removeChannel(channel);
     };
   }, [profile, load]);
@@ -300,7 +308,7 @@ export function SentryApp() {
       rightHeader={
         <div className="flex items-center gap-1.5">
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${sentryStreak} day streak`}>
-            <Flame size={15} className="text-coral" />
+            <StreakStatusIcon protection={streakProtection} />
             <span className="font-display font-bold text-coral text-[13px]">{sentryStreak}</span>
           </div>
           <NotificationCenter onNavigate={(key) => {

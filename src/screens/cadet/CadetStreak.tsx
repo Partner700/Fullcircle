@@ -10,8 +10,8 @@ import {
   Flame, Calendar, TrendingUp, AlertTriangle, ShieldCheck, XCircle,
   CheckCircle2, MinusCircle, Award, Snowflake, Loader2, Coins,
 } from 'lucide-react';
-import { fetchStreakFreezers, purchaseDailyFreezer } from '../../lib/queries';
-import { FREEZER_DAILY_COST } from '../../lib/constants';
+import { fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer } from '../../lib/queries';
+import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST } from '../../lib/constants';
 import type { StreakFreezer } from '../../lib/types';
 
 const REMOVAL_STATE_INFO: Record<
@@ -80,7 +80,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
   const [freezers, setFreezers] = useState<StreakFreezer[]>([]);
   const [denariiBalance, setDenariiBalance] = useState(0);
   const [streakData, setStreakData] = useState<{ current_streak: number; longest_streak: number; consecutive_inactive: number; cumulative_inactive: number } | null>(null);
-  const [purchasing, setPurchasing] = useState(false);
+  const [purchasing, setPurchasing] = useState<'daily' | 'weekly' | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -332,37 +332,48 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
               <button
                 onClick={async () => {
                   if (denariiBalance < FREEZER_DAILY_COST) return;
-                  setPurchasing(true);
+                  setPurchasing('daily');
                   try {
                     await purchaseDailyFreezer(profile!.id);
                     await load();
                   } catch (e: any) {
                     alert(e.message || 'Failed to purchase freezer');
                   }
-                  setPurchasing(false);
+                  setPurchasing(null);
                 }}
-                disabled={denariiBalance < FREEZER_DAILY_COST || purchasing}
+                disabled={denariiBalance < FREEZER_DAILY_COST || purchasing !== null}
                 className="btn-primary text-xs disabled:opacity-50"
               >
-                {purchasing ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy ({FREEZER_DAILY_COST}Ø)
+                {purchasing === 'daily' ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy ({FREEZER_DAILY_COST}Ø)
               </button>
             </div>
           </div>
 
-          {/* Weekly freezer — real money */}
+          {/* Weekly freezer — denarii */}
           <div className="p-4 rounded-lg border border-border bg-surface-2">
             <div className="flex items-center gap-2 mb-2">
               <Snowflake size={20} className="text-royal" />
               <h4 className="font-display font-semibold text-ink text-sm">Weekly Freezer</h4>
             </div>
             <p className="text-xs text-stone mb-3">
-              Real-money purchase. Protects your streak for an entire week of absences.
+              Costs {FREEZER_WEEKLY_COST} denarii (3 talents). Activates only when no daily freezer is ready.
             </p>
             <button
-              onClick={() => alert('Weekly freezer purchases require an active subscription. Visit the Subscribe tab to set up payment.')}
-              className="btn-secondary text-xs w-full"
+              onClick={async () => {
+                if (!profile || denariiBalance < FREEZER_WEEKLY_COST) return;
+                setPurchasing('weekly');
+                try {
+                  await purchaseWeeklyFreezer(profile.id);
+                  await load();
+                } catch (e: any) {
+                  alert(e.message || 'Failed to purchase weekly freezer');
+                }
+                setPurchasing(null);
+              }}
+              disabled={denariiBalance < FREEZER_WEEKLY_COST || purchasing !== null}
+              className="btn-primary text-xs w-full disabled:opacity-50"
             >
-              <Snowflake size={12} /> Coming with Subscription
+              {purchasing === 'weekly' ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy ({FREEZER_WEEKLY_COST}Ø)
             </button>
           </div>
         </div>
@@ -374,10 +385,10 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
               {freezers.map((f) => (
                 <span
                   key={f.id}
-                  className={`badge text-[10px] ${f.used_at ? 'badge-neutral' : 'badge-brass'}`}
+                  className={`badge text-[10px] ${f.used_at || f.applied_to_date ? 'badge-neutral' : 'badge-brass'}`}
                 >
                   <Snowflake size={10} className="mr-1" />
-                  {f.freezer_type === 'daily' ? 'Daily' : 'Weekly'} · {f.used_at ? 'Used' : 'Available'}
+                  {f.freezer_type === 'daily' ? 'Daily' : 'Weekly'} · {f.used_at ? 'Used' : f.applied_to_date ? 'Applied' : 'Available'}
                 </span>
               ))}
             </div>

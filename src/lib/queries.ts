@@ -1176,6 +1176,26 @@ export async function purchaseDailyFreezer(userId: string) {
   if (error) throw error;
 }
 
+export async function purchaseWeeklyFreezer(userId: string) {
+  void userId;
+  const { error } = await supabase.rpc('purchase_weekly_freezer_secure');
+  if (error) throw error;
+}
+
+export async function fetchStreakProtectionState() {
+  const { data, error } = await supabase.rpc('get_my_streak_protection_state');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row || {
+    active: false,
+    protection_kind: null,
+    freezer_type: null,
+    activated_at: null,
+    protection_ends_at: null,
+    applied_to_date: null,
+  }) as import('./types').StreakProtectionState;
+}
+
 export type DailyGameAnswerResult = {
   correct: boolean;
   protected?: boolean;
