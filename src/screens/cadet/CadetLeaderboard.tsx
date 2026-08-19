@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { BoardRow, BoardList } from '../../components/BoardRow';
@@ -88,16 +88,16 @@ function previousBoardValue(row: CompetitiveRow): number | null {
 }
 
 function rankMovement(row: CompetitiveRow, currentValue?: number): number | null {
-  if (typeof row.movement === 'number') return row.movement;
-  const previous = Number(row.previous_rank ?? row.rank_yesterday);
-  const current = Number(row.rank);
-  if (previous && current && previous !== current) return previous - current;
   const previousValue = previousBoardValue(row);
   if (typeof currentValue === 'number' && previousValue !== null) {
     if (currentValue > previousValue) return 1;
     if (currentValue < previousValue) return -1;
     return 0;
   }
+  if (typeof row.movement === 'number') return row.movement;
+  const previous = Number(row.previous_rank ?? row.rank_yesterday);
+  const current = Number(row.rank);
+  if (previous && current && previous !== current) return previous - current;
   if (previous && current) return 0;
   return null;
 }
@@ -228,6 +228,13 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
     { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
   ];
 
+  const BoardPanel = ({ children, className = 'p-4' }: { children: ReactNode; className?: string }) => (
+    <div className={cn('card relative overflow-hidden', className)}>
+      <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="card relative overflow-hidden p-3">
@@ -249,7 +256,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       {/* Denarii Leaderboard (live) */}
       {tab === 'leader' && (
         <div className="space-y-4">
-          <div className="card p-4">
+          <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
               <Coins size={20} className="text-gold" />
               <h3 className="font-display font-semibold text-ink">Denarii Challenge Board</h3>
@@ -258,16 +265,16 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="text-xs text-stone">
               Updates in real time as cadets play and submit quizzes. Tent symbols appear beside each name.
             </p>
-          </div>
+          </BoardPanel>
 
           {liveRows.length > 0 ? (
-            <div className="card p-4">
+            <BoardPanel>
               <BoardMovementSummary rows={liveRows as CompetitiveRow[]} />
               <div className="mt-4" />
               <BoardList>
                 {liveRows.map((row, i) => {
                   const rank = row.rank || i + 1;
-                  const isPodium = rank >= 1 && rank <= 3;
+                  const isPodium = false;
                   const tint = RANK_HONOR_TINT[rank];
 
                   if (isPodium && tint) {
@@ -320,7 +327,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   );
                 })}
               </BoardList>
-            </div>
+            </BoardPanel>
           ) : (
             <EmptyState icon={(props) => <Trophy {...props} />} title="No data yet" message="Play the daily game or take the Saturday quiz to appear on the board." />
           )}
@@ -328,7 +335,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
           {leaderRows.length > 0 && (
             <>
               <div className="text-stone"><MeanderBorder /></div>
-              <div className="card p-4">
+              <BoardPanel>
                 <SectionHeader
                   title="Last Week's Result"
                   subtitle={`Frozen at Saturday 6 PM · Week ending ${formatShortDate(leaderRows[0].week_ending)}`}
@@ -348,7 +355,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     />
                   ))}
                 </BoardList>
-              </div>
+              </BoardPanel>
             </>
           )}
         </div>
@@ -357,7 +364,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       {/* Streak Board */}
       {tab === 'streak' && (
         <div className="space-y-4">
-          <div className="card p-4">
+          <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
               <Flame size={20} className="text-roman" />
               <h3 className="font-display font-semibold text-ink">Streak Challenge Board</h3>
@@ -368,17 +375,17 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="text-xs text-stone">
               Always on. Ranks by current streak, longest streak, then total valid days. Tent symbols appear beside each name.
             </p>
-          </div>
+          </BoardPanel>
 
           {streakRows.length > 0 ? (
-            <div className="card p-4">
+            <BoardPanel>
               <BoardMovementSummary rows={streakRows as unknown as CompetitiveRow[]} />
               <p className="text-xs text-stone mb-3">
                 Live as of {(lastUpdatedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}
               </p>
               <BoardList>
                 {streakRows.map((row) => {
-                  const isPodium = row.rank >= 1 && row.rank <= 3;
+                  const isPodium = false;
                   const tint = RANK_HONOR_TINT[row.rank];
                   const currentStreak = Number(row.current_streak ?? row.consistency ?? 0);
                   const longestStreak = Number(row.longest_streak ?? row.consistency ?? currentStreak);
@@ -457,7 +464,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   <span><span className="text-ink font-medium">Improvement</span> — trend versus prior window.</span>
                 </li>
               </ul>
-            </div>
+            </BoardPanel>
           ) : (
             <EmptyState icon={(props) => <Crown {...props} />} title="No streak data yet" message="The live streak board is on. Complete today's streak actions to appear here." />
           )}
@@ -467,7 +474,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       {/* Fig Board */}
       {tab === 'quiz' && (
         <div className="space-y-4">
-          <div className="card p-4">
+          <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
               <BadgeCheck size={20} className="text-royal" />
               <h3 className="font-display font-semibold text-ink">Fig Board</h3>
@@ -478,15 +485,15 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="text-xs text-stone">
               Daily game figs, arena figs, and fortune quiz figs update live. Saturday quiz figs join the board at 3:00 PM.
             </p>
-          </div>
+          </BoardPanel>
 
           {quizRows.length > 0 ? (
-            <div className="card p-4">
+            <BoardPanel>
               <BoardMovementSummary rows={quizRows as unknown as CompetitiveRow[]} />
               <div className="mt-4" />
               <BoardList>
                 {quizRows.map((row) => {
-                  const isPodium = row.rank >= 1 && row.rank <= 3;
+                  const isPodium = false;
                   const tint = RANK_HONOR_TINT[row.rank];
                   const subtext = `Figs total`;
 
@@ -540,7 +547,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   );
                 })}
               </BoardList>
-            </div>
+            </BoardPanel>
           ) : (
             <EmptyState
               icon={(props) => <BadgeCheck {...props} />}
@@ -554,7 +561,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       {/* Valley Board */}
       {tab === 'rhude' && (
         <div className="space-y-4">
-          <div className="card p-4">
+          <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
               <Shield size={20} className="text-sage" />
               <h3 className="font-display font-semibold text-ink">Valley Board</h3>
@@ -563,10 +570,10 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="text-xs text-stone">
               Rhudes measure Arena victories. Cadets and sentries both appear here.
             </p>
-          </div>
+          </BoardPanel>
 
           {rhudeRows.length > 0 ? (
-            <div className="card p-4">
+            <BoardPanel>
               <BoardMovementSummary rows={rhudeRows as unknown as CompetitiveRow[]} />
               <div className="mt-4" />
               <BoardList>
@@ -587,7 +594,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   />
                 ))}
               </BoardList>
-            </div>
+            </BoardPanel>
           ) : (
             <EmptyState icon={(props) => <Shield {...props} />} title="No Rhudes yet" message="One Rhude is added for every Arena victory. Victors appear here as soon as a match is settled." />
           )}
@@ -597,7 +604,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       {/* Instructor Leaderboard */}
       {instructorMode && tab === 'marks' && (
         <div className="space-y-4">
-          <div className="card p-4">
+          <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
               <Cross size={20} className="text-brass" />
               <h3 className="font-display font-semibold text-ink">Leaderboard</h3>
@@ -606,10 +613,10 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="text-xs text-stone">
               Marks combine denarii, figs, streaks, and Rhudes. This powers Rumor, Vallum, and Grand Vallum tracking.
             </p>
-          </div>
+          </BoardPanel>
 
           {marksRows.length > 0 ? (
-            <div className="card p-4">
+            <BoardPanel>
               <BoardMovementSummary rows={marksRows as unknown as CompetitiveRow[]} />
               <div className="mt-4" />
               <BoardList>
@@ -630,7 +637,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   />
                 ))}
               </BoardList>
-            </div>
+            </BoardPanel>
           ) : (
             <EmptyState icon={(props) => <Cross {...props} />} title="No Marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
           )}
@@ -640,7 +647,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       {/* Tent Leaderboard */}
       {tab === 'tent_house' && (
         <div className="space-y-4">
-          <div className="card p-4">
+          <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
               <TentIcon size={20} className="text-brass" />
               <h3 className="font-display font-semibold text-ink">Tent Challenge Board</h3>
@@ -649,15 +656,15 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="text-xs text-stone">
               Actual tents ranked by aggregate Marks from their cadets. Sentry names and tent pictures appear here.
             </p>
-          </div>
+          </BoardPanel>
 
 	          {tentRows.length > 0 ? (
-	            <div className="card p-4">
+	            <BoardPanel>
                 <BoardMovementSummary rows={tentRows as unknown as CompetitiveRow[]} />
                 <div className="mt-4" />
 	              <BoardList>
 	                {tentRows.map((row) => {
-	                  const isPodium = row.rank >= 1 && row.rank <= 3;
+	                  const isPodium = false;
 	                  const tint = RANK_HONOR_TINT[row.rank];
 	                  const sentries = sentryLine(row.sentry_names);
 
@@ -700,7 +707,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 		                      value={`${Math.round(Number(row.combined_score || 0))}`}
 		                      houseId={row.tent_house_id || undefined}
 		                      isCurrentUser={false}
+                          avatarUrl={row.tent_profile_image_url}
 		                      subtext={[`${row.cadet_count} cadets`, sentries].filter(Boolean).join(' · ')}
+                          showSubtext
                           movement={rankMovement(row as unknown as CompetitiveRow, Number(row.combined_score))}
                           isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.combined_score))}
                           valueLabel="Marks"
@@ -708,7 +717,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                   );
                 })}
               </BoardList>
-            </div>
+            </BoardPanel>
           ) : (
             <EmptyState icon={(props) => <TentIcon {...props} />} title="No tent data yet" message="Assign cadets to tents to see aggregate rankings here." />
           )}
