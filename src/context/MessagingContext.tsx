@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchUnreadDirectMessagesForUser } from '../lib/queries';
 import { useAuth } from './AuthContext';
 
 interface MessagingContextValue {
@@ -19,9 +18,15 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       setUnreadBySender({});
       return;
     }
-    const unread = await fetchUnreadDirectMessagesForUser(profile.id).catch(() => []);
+    const { data: unread } = await supabase
+      .from('direct_messages')
+      .select('sender_id')
+      .eq('recipient_id', profile.id)
+      .is('read_at', null)
+      .order('created_at', { ascending: false })
+      .limit(200);
     const next: Record<string, number> = {};
-    unread.forEach((message: any) => {
+    (unread || []).forEach((message: any) => {
       if (!message.sender_id || message.sender_id === profile.id) return;
       next[message.sender_id] = (next[message.sender_id] || 0) + 1;
     });

@@ -60,6 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (userId: string) => {
     if (supabaseConfigError) return;
 
+    // Profile and role are independent reads. Start them together so session
+    // restoration does not spend an extra round trip waiting for the shell.
+    const rolePromise = supabase
+      .from('role_assignments')
+      .select('*')
+      .eq('user_id', userId)
+      .in('status', ['active', 'approved'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     let prof: Profile | null = null;
     let profileError: Error | null = null;
     // A freshly restored mobile session can reach the database a beat before
@@ -88,14 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(prof as Profile | null);
 
     if (prof) {
-      const { data: ra, error: roleError } = await supabase
-        .from('role_assignments')
-        .select('*')
-        .eq('user_id', userId)
-        .in('status', ['active', 'approved'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: ra, error: roleError } = await rolePromise;
       if (roleError) {
         console.warn('Role assignment could not load; opening with cadet defaults:', roleError);
         setRoleAssignment({
