@@ -216,15 +216,15 @@
   }
   [data-theme="day"] .sentry-overview-actions .btn-primary,
   [data-theme="day"] .sentry-overview-actions .btn-secondary {
-    background: rgba(18, 30, 63, 0.88);
-    border-color: rgba(221, 227, 255, 0.22);
-    color: #DDE3FF;
-    box-shadow: 0 12px 28px rgba(7, 18, 38, 0.16);
+    background: rgba(18, 30, 63, 0.88) !important;
+    border-color: rgba(221, 227, 255, 0.22) !important;
+    color: #DDE3FF !important;
+    box-shadow: 0 12px 28px rgba(7, 18, 38, 0.16) !important;
   }
   [data-theme="day"] .sentry-overview-actions .btn-primary:hover,
   [data-theme="day"] .sentry-overview-actions .btn-secondary:hover {
-    background: rgba(30, 47, 74, 0.92);
-    border-color: rgba(221, 227, 255, 0.36);
+    background: rgba(30, 47, 74, 0.92) !important;
+    border-color: rgba(221, 227, 255, 0.36) !important;
   }
 
   .btn-ghost {
