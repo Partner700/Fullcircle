@@ -284,7 +284,12 @@ export function TentAvatar({
 
   useEffect(() => {
     onOpenChange?.(showMessenger);
-    return () => onOpenChange?.(false);
+    if (showMessenger) document.body.dataset.fullCircleMessengerOpen = 'true';
+    else if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
+    return () => {
+      onOpenChange?.(false);
+      if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
+    };
   }, [onOpenChange, showMessenger]);
 
   if (!profile) return null;
@@ -360,7 +365,12 @@ export function MessageAvatar({
 
   useEffect(() => {
     onOpenChange?.(showMessenger);
-    return () => onOpenChange?.(false);
+    if (showMessenger) document.body.dataset.fullCircleMessengerOpen = 'true';
+    else if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
+    return () => {
+      onOpenChange?.(false);
+      if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
+    };
   }, [onOpenChange, showMessenger]);
 
   return (

@@ -6,7 +6,7 @@ import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
-import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchAllProfiles, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
@@ -135,7 +135,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
   const [tab, setTab] = useState<BoardTab>('leader');
   const [streakRows, setStreakRows] = useState<(StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
   const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
-  const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
+  const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; avatar_url?: string | null; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
   const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
   const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
@@ -147,6 +147,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
   const refreshTimerRef = useRef<number | null>(null);
 
   const load = useCallback(async (silent = false) => {
+    if (silent && typeof document !== 'undefined' && document.body.dataset.fullCircleMessengerOpen === 'true') return;
     if (loadInFlightRef.current) return;
     loadInFlightRef.current = true;
     if (!silent) setLoading(true);
@@ -167,7 +168,14 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 	      ]);
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
-	      setLiveRows((liveResult?.data || []) as typeof liveRows);
+        const liveRowsRaw = (liveResult?.data || []) as typeof liveRows;
+        if (liveRowsRaw.some((row) => row.user_id && !row.avatar_url)) {
+          const profiles = await withBoardTimeout(fetchAllProfiles(), 'Profile pictures', 6_000).catch(() => []);
+          const profilesById = new Map(profiles.map((item) => [item.id, item]));
+          setLiveRows(liveRowsRaw.map((row) => ({ ...row, avatar_url: row.avatar_url || profilesById.get(row.user_id)?.avatar_url || null })));
+        } else {
+          setLiveRows(liveRowsRaw);
+        }
 	      setTentRows((tentResult?.data || []) as TentLeaderboardRow[]);
 	      setQuizRows(quizBoard.status === 'fulfilled' ? quizBoard.value : []);
         setRhudeRows(rhudes.status === 'fulfilled' ? rhudes.value : []);

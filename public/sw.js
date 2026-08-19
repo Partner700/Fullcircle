@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v63';
+const CACHE_VERSION = 'full-circle-v64';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -49,12 +49,40 @@ const APP_SHELL = [
   '/icons/apple-splash-1668x2388.png',
   '/icons/apple-splash-1668x2224.png',
   '/icons/apple-splash-1536x2048.png',
+  '/notification-symbols/message.svg',
+  '/notification-symbols/award.svg',
+  '/notification-symbols/arena.svg',
+  '/notification-symbols/streak.svg',
+  '/notification-symbols/relic.svg',
+  '/notification-symbols/payment.svg',
+  '/notification-symbols/reading.svg',
+  '/notification-symbols/challenge.svg',
 ];
 
 const MAX_RUNTIME_ENTRIES = 50;
 const MAX_IMAGE_ENTRIES = 100;
 const RUNTIME_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const IMAGE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const NOTIFICATION_SYMBOLS = {
+  message: '/notification-symbols/message.svg',
+  direct_message: '/notification-symbols/message.svg',
+  message_mention: '/notification-symbols/message.svg',
+  award: '/notification-symbols/award.svg',
+  arena: '/notification-symbols/arena.svg',
+  streak: '/notification-symbols/streak.svg',
+  relic: '/notification-symbols/relic.svg',
+  reward: '/notification-symbols/relic.svg',
+  purchase: '/notification-symbols/payment.svg',
+  payment: '/notification-symbols/payment.svg',
+  economy: '/notification-symbols/payment.svg',
+  challenge: '/notification-symbols/challenge.svg',
+  scripture: '/notification-symbols/reading.svg',
+  reading: '/notification-symbols/reading.svg',
+};
+
+function notificationSymbol(type) {
+  return NOTIFICATION_SYMBOLS[String(type || '').toLowerCase()] || '/notification-symbols/reading.svg';
+}
 
 // ── Install Event ──
 self.addEventListener('install', (event) => {
@@ -187,6 +215,7 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
+      image: data.image || notificationSymbol(data.type || data.notification_type),
       vibrate: [200, 100, 200],
       data: {
         url: data.url || '/',
@@ -206,6 +235,7 @@ self.addEventListener('push', (event) => {
       body: event.data.text(),
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
+      image: notificationSymbol('message'),
     };
     event.waitUntil(self.registration.showNotification(title, options));
   }

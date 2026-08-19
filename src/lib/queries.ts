@@ -235,7 +235,7 @@ export async function fetchDailyRecordsForTent(tentId: string, date?: string) {
 export async function fetchDailyRecordsForDate(date: string) {
   const { data, error } = await supabase
     .from('daily_records')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name, avatar_url)')
     .eq('record_date', date)
     .order('created_at');
   if (error) throw error;
@@ -740,7 +740,7 @@ export async function fetchStreakboardSnapshots() {
 export async function fetchLeaderboardSnapshots() {
   const { data, error } = await supabase
     .from('leaderboard_weekly_snapshots')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name, avatar_url)')
     .order('week_ending', { ascending: false })
     .limit(1);
   if (error) throw error;
@@ -752,7 +752,7 @@ export async function fetchLeaderboardSnapshots() {
     .eq('week_ending', latestWeek)
     .order('rank');
   if (err2) throw err2;
-  return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string } })[];
+  return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
 export async function fetchAwards(): Promise<AwardWithRecipient[]> {

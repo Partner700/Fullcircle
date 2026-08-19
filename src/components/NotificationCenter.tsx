@@ -18,10 +18,29 @@ function notificationTone(notification: UserNotification) {
   return 'info';
 }
 
+function notificationSymbol(type: string) {
+  const key = String(type || '').toLowerCase();
+  if (['message', 'direct_message', 'message_mention'].includes(key)) return '/notification-symbols/message.svg';
+  if (key === 'award') return '/notification-symbols/award.svg';
+  if (key === 'arena') return '/notification-symbols/arena.svg';
+  if (key === 'streak') return '/notification-symbols/streak.svg';
+  if (['relic', 'reward'].includes(key)) return '/notification-symbols/relic.svg';
+  if (['payment', 'purchase', 'economy'].includes(key)) return '/notification-symbols/payment.svg';
+  if (key === 'challenge') return '/notification-symbols/challenge.svg';
+  return '/notification-symbols/reading.svg';
+}
+
 async function showDeviceNotification(notification: UserNotification) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
   if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
-  const options = { body: notification.body || 'You have a new update.', icon: '/icons/icon-192.png', badge: '/icons/icon-96.png', tag: `full-circle-${notification.id}`, data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) } };
+  const options = {
+    body: notification.body || 'You have a new update.',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-96.png',
+    image: notificationSymbol(notification.notification_type),
+    tag: `full-circle-${notification.id}`,
+    data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },
+  };
   try {
     const registration = await navigator.serviceWorker?.ready;
     if (registration) await registration.showNotification(notification.title || 'Full Circle', options);

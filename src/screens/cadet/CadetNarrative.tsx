@@ -411,7 +411,7 @@ export function CadetNarrative({
   const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
 
   return (
-    <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
+    <div className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto">
       {/* ── Header card — scripture reference + theme ── */}
       <div
         className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up border-border backdrop-blur-sm"
@@ -484,7 +484,7 @@ export function CadetNarrative({
                 ref={(element) => { verseRefs.current[verse.reference] = element; }}
                 data-verse-reference={verse.reference}
                 className={cn(
-                  'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300',
+                  'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300 [overflow-anchor:none]',
                   taggedMe ? 'verse-highlight-tagged' : sharedByMe ? 'verse-highlight-mine' : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
                 )}
               >
