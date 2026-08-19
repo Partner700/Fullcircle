@@ -226,6 +226,14 @@
     background: rgba(30, 47, 74, 0.92) !important;
     border-color: rgba(221, 227, 255, 0.36) !important;
   }
+  .overview-glass-button {
+    border-color: rgba(221, 227, 255, 0.28) !important;
+    background: rgba(18, 30, 63, 0.42) !important;
+    color: #DDE3FF !important;
+    -webkit-backdrop-filter: blur(14px) saturate(1.08);
+    backdrop-filter: blur(14px) saturate(1.08);
+    box-shadow: 0 10px 24px rgba(7, 18, 38, 0.16) !important;
+  }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-[0.97] cursor-pointer;

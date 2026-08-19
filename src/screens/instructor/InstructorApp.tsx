@@ -46,7 +46,7 @@ import {
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
-  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting,
+  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting, fetchPanelImageSetting,
   fetchStreakboardSnapshots,
 } from '../../lib/queries';
 
@@ -1238,9 +1238,13 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const [quotePaused, setQuotePaused] = useState(false);
   const [endOfDayStats, setEndOfDayStats] = useState<{ records: number; attendance: number; meditations: number; streaks: number; challenges: number } | null>(null);
   const [morningCall, setMorningCall] = useState<{ userId: string; name: string; avatarUrl: string | null; tentName: string; status: 'present' | 'absent' | 'unmarked'; late: boolean }[]>([]);
+  const [coverImage, setCoverImage] = useState<any>(null);
 
   useEffect(() => {
     let cancelled = false;
+    fetchPanelImageSetting('instructor_dashboard', ['instructors', 'all'])
+      .then((image) => { if (!cancelled) setCoverImage(image); })
+      .catch(() => { if (!cancelled) setCoverImage(null); });
     fetchDailyQuoteFeed(6)
       .then(async (items) => {
         if (cancelled) return;
@@ -1325,6 +1329,22 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
 
   return (
     <div className="space-y-5 animate-fade-in">
+      <section className="card relative overflow-hidden p-5">
+        <PanelImageBackdrop image={coverImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+        <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="eyebrow">Instructor Overview</p>
+            <h2 className="mt-1 font-display text-2xl font-semibold text-ink">Full Circle Control</h2>
+            <p className="mt-1 text-sm text-stone">Cover image uses the same readability veil as the cadet welcome panel.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => onNavigate('announcements')} className="overview-glass-button btn-secondary text-xs"><Megaphone size={13} /> Publish</button>
+            <button type="button" onClick={() => onNavigate('leaderboard')} className="overview-glass-button btn-secondary text-xs"><Trophy size={13} /> Boards</button>
+            <button type="button" onClick={() => onNavigate('settings')} className="overview-glass-button btn-secondary text-xs"><ImageIcon size={13} /> Media</button>
+          </div>
+        </div>
+      </section>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatBox icon={Users} label="Cadets" value={cadetCount} tint="text-peri-2" />
         <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />

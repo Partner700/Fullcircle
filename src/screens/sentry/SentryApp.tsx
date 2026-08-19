@@ -462,16 +462,43 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   uploadingTentPhoto: boolean;
 }) {
   const [showTentChat, setShowTentChat] = useState(false);
+  const [tentUnreadCount, setTentUnreadCount] = useState(0);
   const dayType = getDayType(new Date());
   const today = getTodayISODate();
   const todayDenarii = ledger
     .filter((entry) => entry.created_at.startsWith(today))
     .reduce((sum, entry) => sum + entry.amount, 0);
   const recentLedger = ledger.slice(0, 5);
+
+  useEffect(() => {
+    if (!currentUserId || !tent.id) return;
+    let cancelled = false;
+    const loadTentUnread = async () => {
+      const { data } = await supabase
+        .from('user_notifications')
+        .select('id,metadata')
+        .eq('recipient_id', currentUserId)
+        .eq('action_key', 'tent')
+        .is('read_at', null);
+      if (cancelled) return;
+      setTentUnreadCount((data || []).filter((item: any) => item.metadata?.tent_id === tent.id).length);
+    };
+    void loadTentUnread();
+    const channel = supabase
+      .channel(`sentry_tent_unread_${currentUserId}_${tent.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${currentUserId}` }, () => void loadTentUnread())
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId, tent.id]);
+
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="card p-5 bg-surface-2">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="card relative overflow-hidden p-5 bg-surface-2">
+        <PanelImageBackdrop image={panelImages.sentry_overview} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+        <div className="relative z-10 flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="relative flex-shrink-0">
               <div className="w-20 h-20 rounded-xl overflow-hidden border border-border bg-surface flex items-center justify-center">
@@ -508,7 +535,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
               <button
                 onClick={() => document.getElementById(`tent-profile-upload-${tent.id}`)?.click()}
                 disabled={uploadingTentPhoto}
-                className="mt-3 btn-secondary text-xs"
+                className="overview-glass-button mt-3 btn-secondary text-xs"
               >
                 {uploadingTentPhoto ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
                 {tent.profile_image_url ? 'Change Tent Picture' : 'Add Tent Picture'}
@@ -517,16 +544,21 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
                 <button
                   type="button"
                   onClick={() => setShowTentChat(true)}
-                  className="mt-2 btn-secondary text-xs"
+                  className="overview-glass-button relative mt-2 btn-secondary text-xs"
                 >
                   <Users size={12} /> Tent Chat
+                  {tentUnreadCount > 0 && (
+                    <span className="notification-badge-ring absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                      {tentUnreadCount > 9 ? '9+' : tentUnreadCount}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
           </div>
           {tent.tent_house_id && <TentHouseBadge houseId={tent.tent_house_id} size="md" />}
         </div>
-        <ScrollEdge position="bottom" className="text-stone mt-3" />
+        <ScrollEdge position="bottom" className="relative z-10 text-stone mt-3" />
       </div>
       {showTentChat && currentUserId && (
         <TentGroupMessenger

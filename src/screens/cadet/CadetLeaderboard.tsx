@@ -3,9 +3,10 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { BoardRow, BoardList } from '../../components/BoardRow';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
+import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
-import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard } from '../../lib/queries';
+import { fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
@@ -139,6 +140,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
   const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
   const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const loadInFlightRef = useRef(false);
@@ -188,6 +190,13 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    let cancelled = false;
+    fetchPanelImageSetting('leaderboard')
+      .then((image) => { if (!cancelled) setBoardImage(image); })
+      .catch(() => { if (!cancelled) setBoardImage(null); });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
     const channel = supabase
       .channel('cadet_quiz_scoreboard_live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, scheduleSilentRefresh)
@@ -221,15 +230,16 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="card overflow-hidden p-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="card relative overflow-hidden p-3">
+        <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+        <div className="relative z-10 mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="eyebrow">Challenge Boards</p>
             <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
           </div>
           <span className="badge badge-brass text-[10px]">Camp Stats</span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <div className="relative z-10 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         {tabs.map((item) => (
           <BoardTabButton key={item.key} active={tab === item.key} onClick={() => setTab(item.key)} icon={item.icon} label={item.label} />
         ))}
@@ -300,6 +310,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       value={formatDenarii(row.total_denarii)}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
+                      userId={row.user_id}
+                      avatarUrl={(row as any).avatar_url}
+                      currentUserId={profile?.id}
                       movement={rankMovement(row as CompetitiveRow, Number(row.total_denarii))}
                       isRecord={isNewRecord(row as CompetitiveRow, Number(row.total_denarii))}
                       valueLabel="Denarii"
@@ -329,6 +342,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       value={formatDenarii(Number(row.total_denarii))}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
+                      userId={row.user_id}
+                      avatarUrl={row.profiles.avatar_url}
+                      currentUserId={profile?.id}
                     />
                   ))}
                 </BoardList>
@@ -415,7 +431,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       value={`${currentStreak}`}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
-                      subtext={streakSubtext}
+                      userId={row.user_id}
+                      avatarUrl={row.profiles.avatar_url}
+                      currentUserId={profile?.id}
                       movement={rankMovement(row as unknown as CompetitiveRow, currentStreak)}
                       isRecord={isNewRecord(row as unknown as CompetitiveRow, currentStreak)}
                       valueLabel="Streak"
@@ -512,7 +530,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                       value={`${row.total_score}`}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
-                      subtext={subtext}
+                      userId={row.user_id}
+                      avatarUrl={(row as any).avatar_url}
+                      currentUserId={profile?.id}
                       movement={rankMovement(row as unknown as CompetitiveRow, Number(row.total_score))}
                       isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.total_score))}
                       valueLabel="Figs"
@@ -558,7 +578,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     value={`${row.rhudes} ${Number(row.rhudes) === 1 ? 'Rhude' : 'Rhudes'}`}
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
-                    subtext={`${row.role} · ${row.tent_name || 'No tent yet'}`}
+                    userId={row.user_id}
+                    avatarUrl={(row as any).avatar_url}
+                    currentUserId={profile?.id}
                     movement={rankMovement(row as unknown as CompetitiveRow, Number(row.rhudes))}
                     isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.rhudes))}
                     valueLabel="Rhudes"
@@ -599,7 +621,9 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
                     value={`${Math.round(Number(row.marks || 0))}`}
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
-                    subtext={`${row.total_figs}F · ${row.rhudes}R · ${formatDenarii(row.total_denarii)}D`}
+                    userId={row.user_id}
+                    avatarUrl={(row as any).avatar_url}
+                    currentUserId={profile?.id}
                     movement={rankMovement(row as unknown as CompetitiveRow, Number(row.marks))}
                     isRecord={isNewRecord(row as unknown as CompetitiveRow, Number(row.marks))}
                     valueLabel="Marks"

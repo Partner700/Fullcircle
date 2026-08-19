@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from '../lib/utils';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { ArrowDown, ArrowUp, Minus, Sparkles } from 'lucide-react';
+import { MessageAvatar } from './TentMessenger';
 
 interface BoardRowProps {
   rank: number;
@@ -13,9 +14,12 @@ interface BoardRowProps {
   movement?: number | null;
   isRecord?: boolean;
   valueLabel?: string;
+  userId?: string;
+  avatarUrl?: string | null;
+  currentUserId?: string | null;
 }
 
-export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, movement, isRecord, valueLabel }: BoardRowProps) {
+export function BoardRow({ rank, name, value, houseId, isCurrentUser, movement, isRecord, valueLabel, userId, avatarUrl, currentUserId }: BoardRowProps) {
   const medal = rank <= 3;
 
   return (
@@ -35,6 +39,13 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
       </div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
+          {userId && (
+            <MessageAvatar
+              profile={{ id: userId, display_name: name, email: null, avatar_url: avatarUrl || null, whatsapp_number: null, country_code: null, language_code: null, created_at: new Date().toISOString() }}
+              currentUserId={currentUserId}
+              size="sm"
+            />
+          )}
           <p className={cn('rounded-md bg-surface px-2 py-1 text-[13px] font-bold truncate', isCurrentUser ? 'text-brass' : 'text-ink')}>
             {name}
           </p>
@@ -45,13 +56,12 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
             </span>
           )}
         </div>
-        {subtext && <p className="text-[10px] text-stone truncate mt-1">{subtext}</p>}
       </div>
       <div className="flex items-center justify-end gap-2 text-right">
         <MovementBadge movement={movement} />
         <div>
           <span className="text-[13px] font-bold text-ink">{value}</span>
-          {(subtext || valueLabel) && <p className="text-[10px] text-stone mt-1">{valueLabel || 'Marks'}</p>}
+          {valueLabel && <p className="text-[10px] text-stone mt-1">{valueLabel}</p>}
         </div>
       </div>
     </div>

@@ -200,9 +200,14 @@ export function CadetTent() {
         <button
           type="button"
           onClick={() => setShowTentChat(true)}
-          className="btn-secondary mb-3 w-full justify-center text-sm"
+          className="btn-secondary relative mb-3 w-full justify-center text-sm"
         >
           <Users size={16} /> Tent Chat
+          {Object.values(unreadBySender).reduce((sum, count) => sum + count, 0) > 0 && (
+            <span className="notification-badge-ring absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+              {Object.values(unreadBySender).reduce((sum, count) => sum + count, 0) > 9 ? '9+' : Object.values(unreadBySender).reduce((sum, count) => sum + count, 0)}
+            </span>
+          )}
         </button>
 
         {/* Reach out to sentry */}
