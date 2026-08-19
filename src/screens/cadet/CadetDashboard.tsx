@@ -539,7 +539,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 )}
               </div>
               {slide.kind === 'welcome' && (
-                <p key={scriptureIndex} className="pointer-events-none absolute bottom-12 right-5 z-10 max-w-[70%] truncate text-right text-[10px] font-semibold text-peri/45 animate-fade-in">
+                <p key={scriptureIndex} className="welcome-blessing-text pointer-events-none absolute bottom-12 right-5 z-10 max-w-[70%] truncate text-right text-[10px] font-semibold text-peri/45 animate-fade-in">
                   {welcomeScriptures[scriptureIndex]}
                 </p>
               )}
