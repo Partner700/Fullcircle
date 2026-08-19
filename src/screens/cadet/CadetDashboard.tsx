@@ -433,9 +433,6 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         Welcome, <span className="text-[#FFD84D]">{profileName}</span>
                       </h2>
                       <p className="text-sm text-stone mt-1">{dateLabel}</p>
-                      <p key={scriptureIndex} className="absolute bottom-6 left-0 max-w-[70%] truncate text-[10px] font-semibold text-peri/45 animate-fade-in">
-                        {welcomeScriptures[scriptureIndex]}
-                      </p>
                     </>
                   )}
 
@@ -541,6 +538,11 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                   </div>
                 )}
               </div>
+              {slide.kind === 'welcome' && (
+                <p key={scriptureIndex} className="pointer-events-none absolute bottom-12 right-5 z-10 max-w-[70%] truncate text-right text-[10px] font-semibold text-peri/45 animate-fade-in">
+                  {welcomeScriptures[scriptureIndex]}
+                </p>
+              )}
             </div>
           );
         })}

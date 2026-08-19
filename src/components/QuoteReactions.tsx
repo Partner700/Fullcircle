@@ -49,11 +49,12 @@ export function QuoteReactions({
   const [showComments, setShowComments] = useState(false);
   const [replyTarget, setReplyTarget] = useState<DailyQuoteComment | null>(null);
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
+  const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
 
   useEffect(() => {
-    onCommentOpenChange?.(commentsEnabled && showComments);
+    onCommentOpenChange?.(commentsPanelOpen);
     return () => onCommentOpenChange?.(false);
-  }, [commentsEnabled, onCommentOpenChange, showComments]);
+  }, [commentsPanelOpen, onCommentOpenChange]);
 
   useEffect(() => {
     if (!commentsEnabled || !quoteUserId || !quoteRecordDate || !fetchComments) {
@@ -175,7 +176,15 @@ export function QuoteReactions({
               <h3 className="font-display text-base font-semibold text-ink">Quote Comments</h3>
               <p className="text-xs text-stone">Visible to cadets, sentries, and instructors.</p>
             </div>
-            <button type="button" onClick={() => setShowComments(false)} className="btn-ghost text-xs px-2 py-1">
+            <button
+              type="button"
+              onClick={() => {
+                setReplyTarget(null);
+                setBody('');
+                setShowComments(false);
+              }}
+              className="btn-ghost text-xs px-2 py-1"
+            >
               Hide
             </button>
           </div>

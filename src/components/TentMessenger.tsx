@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { fetchTentMessages, sendTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage } from '../lib/queries';
 import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../lib/types';
@@ -67,7 +68,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
     setSending(false);
   };
 
-  return (
+  const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
       <div
         className="relative z-[2147483001] w-full sm:max-w-md bg-bg rounded-t-2xl sm:rounded-2xl border border-border shadow-xl animate-slide-up flex flex-col max-h-[80vh]"
@@ -136,6 +137,8 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
       </div>
     </div>
   );
+
+  return typeof document === 'undefined' ? modal : createPortal(modal, document.body);
 }
 
 export function TentGroupMessenger({
@@ -186,7 +189,7 @@ export function TentGroupMessenger({
     setSending(false);
   };
 
-  return (
+  const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/50 animate-fade-in sm:items-center" onClick={onClose}>
       <div
         className="relative z-[2147483001] flex max-h-[82vh] w-full flex-col rounded-t-2xl border border-border bg-bg shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
@@ -252,6 +255,8 @@ export function TentGroupMessenger({
       </div>
     </div>
   );
+
+  return typeof document === 'undefined' ? modal : createPortal(modal, document.body);
 }
 
 // Avatar with click-to-message popup
