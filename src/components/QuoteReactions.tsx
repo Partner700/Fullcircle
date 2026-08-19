@@ -24,6 +24,7 @@ export function QuoteReactions({
   fetchComments,
   onComment,
   onCommentOpenChange,
+  onMessageOpenChange,
 }: {
   state?: QuoteReactionState;
   disabled?: boolean;
@@ -34,6 +35,7 @@ export function QuoteReactions({
   fetchComments?: (quoteUserId: string, quoteRecordDate: string) => Promise<DailyQuoteComment[]>;
   onComment?: (body: string) => Promise<void>;
   onCommentOpenChange?: (open: boolean) => void;
+  onMessageOpenChange?: (open: boolean) => void;
 }) {
   const [comments, setComments] = useState<DailyQuoteComment[]>([]);
   const [body, setBody] = useState('');
@@ -137,6 +139,7 @@ export function QuoteReactions({
                 }}
                 currentUserId={currentUserId}
                 size="sm"
+                onOpenChange={onMessageOpenChange || onCommentOpenChange}
               />
               <div className="min-w-0">
                 <p className="text-[11px] font-extrabold text-ink">{comment.display_name || 'User'}</p>
@@ -176,6 +179,7 @@ export function QuoteReactions({
                   }}
                   currentUserId={currentUserId}
                   size="sm"
+                  onOpenChange={onMessageOpenChange || onCommentOpenChange}
                 />
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-ink">

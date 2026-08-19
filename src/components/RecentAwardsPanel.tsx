@@ -33,6 +33,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [reactions, setReactions] = useState<Record<string, AwardReactionState>>({});
   const [reacting, setReacting] = useState<string | null>(null);
+  const [messageOpen, setMessageOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [awardResult, imageResult] = await Promise.allSettled([
@@ -64,7 +65,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
     return () => window.clearInterval(interval);
   }, [load]);
 
-  useAutoAdvance(awards.length > 1, () => {
+  useAutoAdvance(awards.length > 1 && !messageOpen, () => {
     setActiveIndex((index) => (index + 1) % awards.length);
   });
 
@@ -118,6 +119,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
                 currentUserId={profile?.id}
                 size="lg"
                 className="flex-shrink-0"
+                onOpenChange={setMessageOpen}
               />
             ) : (
               <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">

@@ -688,7 +688,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
             )}
           </div>
           <p className="font-display text-xl text-ink leading-snug italic">"{quote.daily_quote}"</p>
-          <QuoteAuthorStats quote={quote} currentUserId={currentUserId} />
+          <QuoteAuthorStats quote={quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
           <QuoteReactions
             state={quoteReactions[`${quote.user_id}:${quote.record_date}`]}
             disabled={!!reactingQuote?.startsWith(`${quote.user_id}:${quote.record_date}:`)}
@@ -701,6 +701,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
               ? commentOnDailyQuote(quote.user_id, quote.record_date, currentUserId, body)
               : Promise.reject(new Error('Sign in to comment.'))}
             onCommentOpenChange={onCommentOpenChange}
+            onMessageOpenChange={onCommentOpenChange}
           />
         </div>
       </div>

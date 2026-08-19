@@ -7,6 +7,7 @@ interface QuoteAuthorStatsProps {
   showDate?: boolean;
   compact?: boolean;
   currentUserId?: string | null;
+  onMessageOpenChange?: (open: boolean) => void;
 }
 
 const statClass = 'inline-flex h-5 shrink-0 items-center gap-1 text-[11px] font-extrabold text-ink';
@@ -17,7 +18,7 @@ const getRankSymbol = (role?: string | null) => {
   return { Icon: UserRound, label: 'Cadet', color: '#6FA8FF' };
 };
 
-export function QuoteAuthorStats({ quote, compact = false, currentUserId }: QuoteAuthorStatsProps) {
+export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMessageOpenChange }: QuoteAuthorStatsProps) {
   const currentStreak = Number(quote.current_streak || 0);
   const totalFigs = Number(quote.total_figs || 0);
   const rhudes = Number(quote.rhudes || 0);
@@ -40,6 +41,7 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId }: Quot
         currentUserId={currentUserId}
         size={compact ? 'md' : 'lg'}
         className="shrink-0"
+        onOpenChange={onMessageOpenChange}
       />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-ink">

@@ -145,12 +145,14 @@ export function TentAvatar({
   tentId,
   size = 'md',
   showName = false,
+  onOpenChange,
 }: {
   member: { user_id: string; profiles?: Profile } | Profile;
   currentUserId: string;
   tentId: string;
   size?: 'sm' | 'md' | 'lg';
   showName?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
@@ -165,6 +167,11 @@ export function TentAvatar({
   const isMe = userId === currentUserId;
   const unreadCount = !isMe ? unreadBySender[userId] || 0 : 0;
 
+  useEffect(() => {
+    onOpenChange?.(showMessenger);
+    return () => onOpenChange?.(false);
+  }, [onOpenChange, showMessenger]);
+
   return (
     <>
       <button
@@ -178,7 +185,7 @@ export function TentAvatar({
       >
         <span className="relative inline-flex shrink-0">
           <span className={cn(
-            'rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass transition-all',
+            'rounded-full border-2 border-border bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass shadow-sm transition-all',
             sizeClass,
             !isMe && 'group-hover:ring-2 group-hover:ring-brass/50',
           )}>
@@ -215,18 +222,25 @@ export function MessageAvatar({
   size = 'sm',
   showName = false,
   className,
+  onOpenChange,
 }: {
   profile: Profile;
   currentUserId?: string | null;
   size?: 'sm' | 'md' | 'lg';
   showName?: boolean;
   className?: string;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
   const sizeClass = size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = profile.id === currentUserId;
   const unreadCount = !isMe && currentUserId ? unreadBySender[profile.id] || 0 : 0;
+
+  useEffect(() => {
+    onOpenChange?.(showMessenger);
+    return () => onOpenChange?.(false);
+  }, [onOpenChange, showMessenger]);
 
   return (
     <>
@@ -237,7 +251,7 @@ export function MessageAvatar({
         title={isMe ? profile.display_name : `Message ${profile.display_name}`}
       >
         <span className="relative inline-flex shrink-0">
-          <span className={cn('rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')}>
+          <span className={cn('rounded-full border-2 border-border bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass shadow-sm transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')}>
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
             ) : (

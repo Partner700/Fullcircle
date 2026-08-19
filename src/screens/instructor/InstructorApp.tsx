@@ -1418,7 +1418,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-1">Quote Feed</p>
               <p className="text-base text-ink font-display font-medium italic leading-snug">"{featuredQuote.daily_quote}"</p>
-              <QuoteAuthorStats quote={featuredQuote} showDate={false} compact currentUserId={instructorId} />
+              <QuoteAuthorStats quote={featuredQuote} showDate={false} compact currentUserId={instructorId} onMessageOpenChange={setQuotePaused} />
               {quotes.length > 1 && (
                 <div className="mt-2 flex items-center gap-1.5">
                   <button onClick={() => setQuoteIndex((idx) => (idx - 1 + quotes.length) % quotes.length)} className="btn-ghost text-xs px-2 py-1">Prev</button>
@@ -1442,6 +1442,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                   ? commentOnDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, body)
                   : Promise.resolve()}
                 onCommentOpenChange={setQuotePaused}
+                onMessageOpenChange={setQuotePaused}
               />
             </div>
           </div>
