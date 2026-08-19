@@ -25,7 +25,7 @@ import {
 import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState } from '../../lib/types';
-import { TentAvatar } from '../../components/TentMessenger';
+import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
@@ -461,6 +461,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   onUploadTentPhoto: (file: File) => Promise<void>;
   uploadingTentPhoto: boolean;
 }) {
+  const [showTentChat, setShowTentChat] = useState(false);
   const dayType = getDayType(new Date());
   const today = getTodayISODate();
   const todayDenarii = ledger
@@ -512,12 +513,29 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
                 {uploadingTentPhoto ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
                 {tent.profile_image_url ? 'Change Tent Picture' : 'Add Tent Picture'}
               </button>
+              {currentUserId && (
+                <button
+                  type="button"
+                  onClick={() => setShowTentChat(true)}
+                  className="mt-2 btn-secondary text-xs"
+                >
+                  <Users size={12} /> Tent Chat
+                </button>
+              )}
             </div>
           </div>
           {tent.tent_house_id && <TentHouseBadge houseId={tent.tent_house_id} size="md" />}
         </div>
         <ScrollEdge position="bottom" className="text-stone mt-3" />
       </div>
+      {showTentChat && currentUserId && (
+        <TentGroupMessenger
+          tentId={tent.id}
+          senderId={currentUserId}
+          tentName={tent.name}
+          onClose={() => setShowTentChat(false)}
+        />
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Users} label="Cadets" value={members.length} color="#C9A227" />

@@ -82,6 +82,18 @@ export interface TentMessage {
   created_at: string;
 }
 
+export interface TentGroupMessage {
+  id: string;
+  tent_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  sender?: {
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+}
+
 export interface DirectMessage {
   id: string;
   sender_id: string;

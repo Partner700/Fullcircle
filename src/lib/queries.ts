@@ -1806,6 +1806,24 @@ export async function markTentMessageRead(messageId: string) {
   if (error) throw error;
 }
 
+export async function fetchTentGroupMessages(tentId: string) {
+  const { data, error } = await supabase
+    .from('tent_group_messages')
+    .select('*, sender:profiles!sender_id(display_name,avatar_url)')
+    .eq('tent_id', tentId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendTentGroupMessage(tentId: string, senderId: string, body: string) {
+  const { error } = await supabase
+    .from('tent_group_messages')
+    .insert({ tent_id: tentId, sender_id: senderId, body });
+  if (error) throw error;
+}
+
 // ── Direct messages ──
 
 export async function fetchDirectMessages(senderId: string, recipientId: string) {

@@ -25,6 +25,7 @@ export function QuoteReactions({
   onComment,
   onCommentOpenChange,
   onMessageOpenChange,
+  previewLimit = 2,
 }: {
   state?: QuoteReactionState;
   disabled?: boolean;
@@ -36,6 +37,7 @@ export function QuoteReactions({
   onComment?: (body: string) => Promise<void>;
   onCommentOpenChange?: (open: boolean) => void;
   onMessageOpenChange?: (open: boolean) => void;
+  previewLimit?: number;
 }) {
   const [comments, setComments] = useState<DailyQuoteComment[]>([]);
   const [body, setBody] = useState('');
@@ -81,7 +83,7 @@ export function QuoteReactions({
   };
 
   const commentTotal = Math.max(Number(state?.comments?.count || 0), comments.length);
-  const previewComments = comments.slice(0, 2);
+  const previewComments = comments.slice(0, Math.max(0, previewLimit));
 
   return (
     <div className="mt-6 space-y-3 pt-2">

@@ -5,9 +5,10 @@ import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbo
 import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
 import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
-import { TentAvatar } from '../../components/TentMessenger';
+import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { AppSelect } from '../../components/AppSelect';
 import type { PanelImageSetting } from '../../lib/types';
 import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
 
@@ -18,6 +19,18 @@ const REACTIONS = [
   { type: 'star', icon: Star, color: '#6FBF92', label: 'Shining' },
   { type: 'clap', icon: ThumbsUp, color: '#7B8ED4', label: 'Well done' },
 ];
+
+function weeklyPublishedAwards(awards: AwardWithRecipient[]) {
+  const now = new Date();
+  const doualaClock = new Date(now.getTime() + 60 * 60 * 1000);
+  const saturdayDoualaClock = Date.UTC(
+    doualaClock.getUTCFullYear(),
+    doualaClock.getUTCMonth(),
+    doualaClock.getUTCDate() - ((doualaClock.getUTCDay() + 1) % 7),
+  );
+  const saturdayUtc = saturdayDoualaClock - 60 * 60 * 1000;
+  return awards.filter((award) => new Date(award.created_at).getTime() >= saturdayUtc);
+}
 
 type ReactionRow = {
   id: string;
@@ -44,6 +57,8 @@ export function CadetTent() {
   const [availableTents, setAvailableTents] = useState<any[]>([]);
   const [pendingTentId, setPendingTentId] = useState<string | null>(null);
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
+  const [awardView, setAwardView] = useState('week');
+  const [showTentChat, setShowTentChat] = useState(false);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -161,6 +176,7 @@ export function CadetTent() {
   const cadets = members.filter((m) => m.role === 'cadet');
   const visibleMembers = [...(sentry ? [sentry] : []), ...cadets];
   const memberById = new Map(visibleMembers.map((m) => [m.user_id, m]));
+  const visibleTentAwards = awardView === 'week' ? weeklyPublishedAwards(tentAwards) : tentAwards;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -175,11 +191,19 @@ export function CadetTent() {
             )}
           </div>
           <div className="flex-1">
-            {tent.tent_houses && <TentHouseBadge houseId={tent.tent_houses.id} size="sm" />}
+          {tent.tent_houses && <TentHouseBadge houseId={tent.tent_houses.id} size="sm" />}
             <h2 className="font-display font-bold text-lg text-ink">{tent.name}</h2>
             <p className="text-xs text-stone">{cadets.length} cadet{cadets.length === 1 ? '' : 's'} · {sentry ? '1 sentry' : 'no sentry assigned'}</p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowTentChat(true)}
+          className="btn-secondary mb-3 w-full justify-center text-sm"
+        >
+          <Users size={16} /> Tent Chat
+        </button>
 
         {/* Reach out to sentry */}
         {sentry && whatsappUrl(sentry.profiles.whatsapp_number) && (
@@ -197,11 +221,22 @@ export function CadetTent() {
           <p className="text-xs text-stone text-center py-2">Your sentry hasn't added a WhatsApp number yet.</p>
         )}
       </div>
+      {showTentChat && profile && (
+        <TentGroupMessenger
+          tentId={tent.id}
+          senderId={profile.id}
+          tentName={tent.name}
+          onClose={() => setShowTentChat(false)}
+        />
+      )}
 
       {/* Awards belong to the tent as a family. */}
-      <section className="card relative overflow-hidden border-gold/35">
-        <PanelImageBackdrop image={awardsImage} opacityFallback={34} veilClassName="bg-surface/76" />
-        <div className="relative border-b border-border px-4 py-3">
+      <section className="card relative isolate overflow-visible border-gold/35">
+        <div className="absolute inset-0 isolate overflow-hidden rounded-[inherit]">
+          <PanelImageBackdrop image={awardsImage} opacityFallback={100} veilClassName="" modeFilter={false} textGradient={false} />
+          <div className="panel-veil-layer tent-award-panel-veil pointer-events-none absolute" aria-hidden="true" />
+        </div>
+        <div className="relative z-10 flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Trophy size={18} className="text-gold" />
             <div>
@@ -209,10 +244,20 @@ export function CadetTent() {
               <p className="text-xs text-stone">Awards won together by {tent.name}</p>
             </div>
           </div>
+          <AppSelect
+            value={awardView}
+            onChange={setAwardView}
+            className="w-full sm:w-44"
+            buttonClassName="min-h-10 py-1.5 text-xs"
+            options={[
+              { value: 'week', label: 'This Week' },
+              { value: 'all', label: 'All Awards' },
+            ]}
+          />
         </div>
-        {tentAwards.length > 0 ? (
-          <div className="relative grid gap-3 p-4 sm:grid-cols-2">
-            {tentAwards.map((award) => {
+        {visibleTentAwards.length > 0 ? (
+          <div className="relative z-10 grid gap-3 p-4 sm:grid-cols-2">
+            {visibleTentAwards.map((award) => {
               const isTentAward = award.award_target_type === 'tent';
               const recipient = !isTentAward
                 ? memberById.get(award.user_id) || memberById.get(award.award_target_id || '')
@@ -242,7 +287,9 @@ export function CadetTent() {
             })}
           </div>
         ) : (
-          <p className="relative px-4 py-5 text-sm text-stone">The trophies your tent wins will remain here as part of its family history.</p>
+          <p className="relative z-10 px-4 py-5 text-sm text-stone">
+            {awardView === 'week' ? 'No family trophies have been published this week yet.' : 'The trophies your tent wins will remain here as part of its family history.'}
+          </p>
         )}
       </section>
 

@@ -534,6 +534,12 @@
   [data-theme="day"] .quote-picture-veil {
     background-color: rgba(255, 255, 255, 0.342);
   }
+  .quote-rhude-icon {
+    color: #d9c8ff;
+  }
+  [data-theme="day"] .quote-rhude-icon {
+    color: var(--color-royal);
+  }
   .verse-highlight-insight {
     border-color: color-mix(in srgb, var(--color-brass) 34%, transparent);
     background-color: color-mix(in srgb, var(--color-brass) 8%, transparent);
@@ -549,10 +555,10 @@
     box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-sage) 72%, transparent);
   }
   .welcome-slide-veil {
-    background-color: rgba(7, 18, 38, 0.36);
+    background-color: rgba(7, 18, 38, 0.34);
   }
   [data-theme="day"] .welcome-slide-veil {
-    background-color: rgba(255, 255, 255, 0.38);
+    background-color: rgba(255, 255, 255, 0.36);
   }
   .award-panel-veil {
     background-color: rgba(7, 18, 38, 0.42);
@@ -560,6 +566,13 @@
   }
   [data-theme="day"] .award-panel-veil {
     background-color: rgba(255, 255, 255, 0.56);
+  }
+  .tent-award-panel-veil {
+    background-color: rgba(7, 18, 38, 0.42);
+    background-image: none;
+  }
+  [data-theme="day"] .tent-award-panel-veil {
+    background-color: rgba(255, 255, 255, 0.64);
   }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);

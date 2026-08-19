@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchTentMessages, sendTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, markDirectMessageRead } from '../lib/queries';
-import type { DirectMessage, Profile, TentMessage } from '../lib/types';
-import { X, Send, Loader2 } from 'lucide-react';
+import { fetchTentMessages, sendTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage } from '../lib/queries';
+import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../lib/types';
+import { X, Send, Loader2, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 
@@ -68,9 +68,9 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
       <div
-        className="w-full sm:max-w-md bg-bg rounded-t-2xl sm:rounded-2xl border border-border shadow-xl animate-slide-up flex flex-col max-h-[80vh]"
+        className="relative z-[2147483001] w-full sm:max-w-md bg-bg rounded-t-2xl sm:rounded-2xl border border-border shadow-xl animate-slide-up flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -138,6 +138,122 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   );
 }
 
+export function TentGroupMessenger({
+  tentId,
+  senderId,
+  tentName,
+  onClose,
+}: {
+  tentId: string;
+  senderId: string;
+  tentName: string;
+  onClose: () => void;
+}) {
+  const [messages, setMessages] = useState<TentGroupMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setMessages(await fetchTentGroupMessages(tentId) as TentGroupMessage[]);
+    } catch (e) {
+      console.error('TentGroupMessenger load error:', e);
+    }
+    setLoading(false);
+  }, [tentId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`tent_group_messages_${tentId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tent_group_messages', filter: `tent_id=eq.${tentId}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load, tentId]);
+
+  const handleSend = async () => {
+    if (!input.trim() || sending) return;
+    setSending(true);
+    try {
+      await sendTentGroupMessage(tentId, senderId, input.trim());
+      setInput('');
+      await load();
+    } catch (e) {
+      console.error('Group send error:', e);
+    }
+    setSending(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/50 animate-fade-in sm:items-center" onClick={onClose}>
+      <div
+        className="relative z-[2147483001] flex max-h-[82vh] w-full flex-col rounded-t-2xl border border-border bg-bg shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border p-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-brass/25 bg-brass-soft text-brass">
+              <Users size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate font-display text-sm font-semibold text-ink">{tentName}</p>
+              <p className="text-xs text-stone">Tent group chat</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-surface-2" aria-label="Close tent chat">
+            <X size={18} className="text-stone" />
+          </button>
+        </div>
+
+        <div className="min-h-[240px] flex-1 space-y-2 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
+          ) : messages.length === 0 ? (
+            <p className="py-8 text-center text-sm text-stone">No messages yet. Start the tent conversation.</p>
+          ) : messages.map((message) => {
+            const isMe = message.sender_id === senderId;
+            return (
+              <div key={message.id} className={cn('flex items-end gap-2', isMe ? 'justify-end' : 'justify-start')}>
+                {!isMe && (
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-[10px] font-bold text-brass">
+                    {message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : (message.sender?.display_name || 'U').charAt(0)}
+                  </div>
+                )}
+                <div className={cn(
+                  'max-w-[78%] rounded-xl border px-3 py-2 text-sm',
+                  isMe ? 'border-brass/30 bg-brass/15 text-ink' : 'border-border bg-surface-2 text-ink',
+                )}>
+                  {!isMe && <p className="mb-1 text-[10px] font-bold text-stone">{message.sender?.display_name || 'Tent member'}</p>}
+                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                  <p className="mt-1 text-[10px] text-stone">
+                    {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-border p-3">
+          <input
+            type="text"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend(); } }}
+            placeholder="Message the tent..."
+            className="input-field flex-1 text-sm"
+          />
+          <button onClick={handleSend} disabled={!input.trim() || sending} className="btn-primary p-2.5" aria-label="Send tent message">
+            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Avatar with click-to-message popup
 export function TentAvatar({
   member,
@@ -161,16 +277,16 @@ export function TentAvatar({
     'user_id' in member ? member.profiles : (member as Profile);
   const userId = 'user_id' in member ? member.user_id : (member as Profile).id;
 
+  useEffect(() => {
+    onOpenChange?.(showMessenger);
+    return () => onOpenChange?.(false);
+  }, [onOpenChange, showMessenger]);
+
   if (!profile) return null;
 
   const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = userId === currentUserId;
   const unreadCount = !isMe ? unreadBySender[userId] || 0 : 0;
-
-  useEffect(() => {
-    onOpenChange?.(showMessenger);
-    return () => onOpenChange?.(false);
-  }, [onOpenChange, showMessenger]);
 
   return (
     <>

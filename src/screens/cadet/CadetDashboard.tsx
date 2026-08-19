@@ -415,7 +415,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     <>
                       <p className="eyebrow mb-1">{dayLabel}</p>
                       <h2 className="font-display text-2xl font-semibold text-ink">
-                        Welcome, <span className="text-brass">{profileName}</span>
+                        Welcome, <span className="text-[#FFD84D]">{profileName}</span>
                       </h2>
                       <p className="text-sm text-stone mt-1">{dateLabel}</p>
                     </>
@@ -439,6 +439,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
                         }}
                         onCommentOpenChange={onCommentOpenChange}
+                        previewLimit={1}
                       />
                     </div>
                   )}
@@ -514,7 +515,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 </div>
 
                 {slide.kind === 'welcome' && tentHouseId && (
-                  <TentHouseBadge houseId={tentHouseId} size="md" />
+                  <div className="rounded-full border border-white/25 bg-surface/55 px-2.5 py-1.5 shadow-sm backdrop-blur-xl ring-1 ring-black/5">
+                    <TentHouseBadge houseId={tentHouseId} size="md" />
+                  </div>
                 )}
               </div>
             </div>

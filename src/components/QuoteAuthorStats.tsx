@@ -62,7 +62,7 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
             <BadgeCheck size={compact ? 11 : 12} className="text-sage" /> {totalFigs}
           </span>
           <span className={statClass} title="Rhudes">
-            <Shield size={compact ? 11 : 12} className="text-royal" /> {rhudes}
+            <Shield size={compact ? 11 : 12} className="quote-rhude-icon" /> {rhudes}
           </span>
         </div>
       </div>

@@ -32,6 +32,7 @@ const appShell = read('src/components/AppShell.tsx');
 const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecycle_and_rare_rewards.sql');
 const quoteReactions = read('src/components/QuoteReactions.tsx');
 const quoteQueries = read('src/lib/queries.ts');
+const tentGroupChat = read('supabase/migrations/20260819100000_tent_group_chat.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -93,7 +94,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v55'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v56'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -139,7 +140,8 @@ assert.match(directMessageNotifications, /CREATE OR REPLACE FUNCTION public\.not
 assert.match(directMessageNotifications, /AFTER INSERT ON public\.direct_messages/);
 assert.match(directMessageNotifications, /'direct_message'/);
 assert.match(quoteQueries, /\.from\('daily_quote_comments'\)/);
-assert.match(quoteReactions, /previewComments = comments\.slice\(0, 2\)/);
+assert.match(quoteReactions, /previewLimit = 2/);
+assert.match(quoteReactions, /previewComments = comments\.slice\(0, Math\.max\(0, previewLimit\)\)/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
@@ -211,6 +213,7 @@ for (const migrationName of [
   '20260810145000_deterministic_streak_calculator.sql',
   '20260818100000_active_answer_figs_and_payment_delivery.sql',
   '20260818113000_freezer_lifecycle_and_rare_rewards.sql',
+  '20260819100000_tent_group_chat.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
@@ -228,6 +231,15 @@ for (const required of [
   'get_my_streak_protection_state',
 ]) {
   assert.ok(freezerLifecycle.includes(required), `Missing freezer/reward boundary: ${required}`);
+}
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.tent_group_messages',
+  'CREATE POLICY tent_group_messages_select_members',
+  'CREATE POLICY tent_group_messages_insert_members',
+  'notify_tent_group_message_insert',
+]) {
+  assert.ok(tentGroupChat.includes(required), `Missing tent group chat boundary: ${required}`);
 }
 
 const activeAnswerIntegrity = read('supabase/migrations/20260818100000_active_answer_figs_and_payment_delivery.sql');
