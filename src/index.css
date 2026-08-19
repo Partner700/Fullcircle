@@ -214,6 +214,18 @@
     background: var(--color-peri-medium);
     border-color: var(--color-peri);
   }
+  [data-theme="day"] .sentry-overview-actions .btn-primary,
+  [data-theme="day"] .sentry-overview-actions .btn-secondary {
+    background: rgba(18, 30, 63, 0.88);
+    border-color: rgba(221, 227, 255, 0.22);
+    color: #DDE3FF;
+    box-shadow: 0 12px 28px rgba(7, 18, 38, 0.16);
+  }
+  [data-theme="day"] .sentry-overview-actions .btn-primary:hover,
+  [data-theme="day"] .sentry-overview-actions .btn-secondary:hover {
+    background: rgba(30, 47, 74, 0.92);
+    border-color: rgba(221, 227, 255, 0.36);
+  }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-[0.97] cursor-pointer;

@@ -646,7 +646,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="sentry-overview-actions grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <button onClick={() => onNavigate('attendance')} className="btn-primary">
           <ClipboardCheck size={18} /> Mark Attendance
         </button>
