@@ -1,10 +1,12 @@
 import { BadgeCheck, Crown, Flame, Shield, ShieldCheck, UserRound } from 'lucide-react';
 import type { DailyQuoteFeedItem } from '../lib/types';
+import { MessageAvatar } from './TentMessenger';
 
 interface QuoteAuthorStatsProps {
   quote: DailyQuoteFeedItem;
   showDate?: boolean;
   compact?: boolean;
+  currentUserId?: string | null;
 }
 
 const statClass = 'inline-flex h-5 shrink-0 items-center gap-1 text-[11px] font-extrabold text-ink';
@@ -15,7 +17,7 @@ const getRankSymbol = (role?: string | null) => {
   return { Icon: UserRound, label: 'Cadet', color: '#6FA8FF' };
 };
 
-export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsProps) {
+export function QuoteAuthorStats({ quote, compact = false, currentUserId }: QuoteAuthorStatsProps) {
   const currentStreak = Number(quote.current_streak || 0);
   const totalFigs = Number(quote.total_figs || 0);
   const rhudes = Number(quote.rhudes || 0);
@@ -24,13 +26,21 @@ export function QuoteAuthorStats({ quote, compact = false }: QuoteAuthorStatsPro
 
   return (
     <div className="mt-3 flex min-w-0 items-center gap-2.5 text-xs text-stone">
-      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border-2 border-border bg-surface-2 flex items-center justify-center text-base font-bold text-brass shadow-sm">
-        {quote.avatar_url ? (
-          <img src={quote.avatar_url} alt={quote.display_name} className="h-full w-full object-cover" />
-        ) : (
-          quote.display_name.charAt(0)
-        )}
-      </div>
+      <MessageAvatar
+        profile={{
+          id: quote.user_id,
+          display_name: quote.display_name || 'User',
+          email: null,
+          avatar_url: quote.avatar_url,
+          whatsapp_number: null,
+          country_code: null,
+          language_code: null,
+          created_at: quote.record_date,
+        }}
+        currentUserId={currentUserId}
+        size={compact ? 'md' : 'lg'}
+        className="shrink-0"
+      />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-ink">
           <span className="truncate">{quote.display_name}</span>

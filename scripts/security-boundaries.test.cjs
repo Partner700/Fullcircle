@@ -25,10 +25,13 @@ const materializedRestitution = read('supabase/migrations/20260817123000_neutral
 const verifiedStreakBaseline = read('supabase/migrations/20260817124000_preserve_verified_streak_baselines.sql');
 const scriptureDeepLinks = read('supabase/migrations/20260817183000_scripture_notification_deep_links.sql');
 const messageMentions = read('supabase/migrations/20260817190000_notify_mentions_in_messages.sql');
+const directMessageNotifications = read('supabase/migrations/20260818123000_direct_message_notifications.sql');
 const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
 const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
 const appShell = read('src/components/AppShell.tsx');
 const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecycle_and_rare_rewards.sql');
+const quoteReactions = read('src/components/QuoteReactions.tsx');
+const quoteQueries = read('src/lib/queries.ts');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -90,7 +93,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v52'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v53'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -132,6 +135,11 @@ for (const messageTable of [
 }
 assert.match(messageMentions, /'message_mention'/);
 assert.match(messageMentions, /PERFORM public\.notify_user/);
+assert.match(directMessageNotifications, /CREATE OR REPLACE FUNCTION public\.notify_direct_message_recipient/);
+assert.match(directMessageNotifications, /AFTER INSERT ON public\.direct_messages/);
+assert.match(directMessageNotifications, /'direct_message'/);
+assert.match(quoteQueries, /\.from\('daily_quote_comments'\)/);
+assert.match(quoteReactions, /previewComments = comments\.slice\(0, 2\)/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);

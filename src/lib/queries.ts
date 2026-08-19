@@ -1462,22 +1462,37 @@ export async function fetchDailyQuoteReactions(quotes: { user_id: string; record
   if (quotes.length === 0) return {};
   const userIds = Array.from(new Set(quotes.map((q) => q.user_id)));
   const dates = Array.from(new Set(quotes.map((q) => q.record_date)));
-  const { data, error } = await supabase
-    .from('daily_quote_reactions')
-    .select('quote_user_id, quote_record_date, reactor_user_id, reaction_type')
-    .in('quote_user_id', userIds)
-    .in('quote_record_date', dates);
-  if (error) throw error;
+  const [reactionResult, commentResult] = await Promise.all([
+    supabase
+      .from('daily_quote_reactions')
+      .select('quote_user_id, quote_record_date, reactor_user_id, reaction_type')
+      .in('quote_user_id', userIds)
+      .in('quote_record_date', dates),
+    supabase
+      .from('daily_quote_comments')
+      .select('quote_user_id, quote_record_date')
+      .in('quote_user_id', userIds)
+      .in('quote_record_date', dates),
+  ]);
+  if (reactionResult.error) throw reactionResult.error;
+  if (commentResult.error) throw commentResult.error;
 
   const wanted = new Set(quotes.map((q) => `${q.user_id}:${q.record_date}`));
   const map: Record<string, Record<string, { count: number; reacted: boolean }>> = {};
-  (data || []).forEach((row: any) => {
+  (reactionResult.data || []).forEach((row: any) => {
     const key = `${row.quote_user_id}:${row.quote_record_date}`;
     if (!wanted.has(key)) return;
     if (!map[key]) map[key] = {};
     if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false };
     map[key][row.reaction_type].count += 1;
     if (reactorId && row.reactor_user_id === reactorId) map[key][row.reaction_type].reacted = true;
+  });
+  (commentResult.data || []).forEach((row: any) => {
+    const key = `${row.quote_user_id}:${row.quote_record_date}`;
+    if (!wanted.has(key)) return;
+    if (!map[key]) map[key] = {};
+    if (!map[key].comments) map[key].comments = { count: 0, reacted: false };
+    map[key].comments.count += 1;
   });
   return map;
 }
@@ -1801,6 +1816,18 @@ export async function fetchDirectMessages(senderId: string, recipientId: string)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return data;
+}
+
+export async function fetchUnreadDirectMessagesForUser(userId: string) {
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('id,sender_id,recipient_id,body,read_at,created_at')
+    .eq('recipient_id', userId)
+    .is('read_at', null)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return data || [];
 }
 
 export async function sendDirectMessage(senderId: string, recipientId: string, body: string) {

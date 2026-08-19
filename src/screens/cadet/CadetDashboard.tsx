@@ -493,7 +493,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           )}
                         </div>
                         <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">"{slide.quote.daily_quote}"</p>
-                        <QuoteAuthorStats quote={slide.quote} />
+                        <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
                           disabled={!!reactingQuote?.startsWith(`${slide.quote.user_id}:${slide.quote.record_date}:`)}

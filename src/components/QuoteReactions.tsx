@@ -49,7 +49,10 @@ export function QuoteReactions({
   }, [commentsEnabled, onCommentOpenChange, showComments]);
 
   useEffect(() => {
-    if (!commentsEnabled || !showComments || !quoteUserId || !quoteRecordDate || !fetchComments) return;
+    if (!commentsEnabled || !quoteUserId || !quoteRecordDate || !fetchComments) {
+      setComments([]);
+      return;
+    }
     let cancelled = false;
     setLoadingComments(true);
     fetchComments(quoteUserId, quoteRecordDate)
@@ -57,7 +60,7 @@ export function QuoteReactions({
       .catch(() => { if (!cancelled) setCommentError('Comments need setup before they can load.'); })
       .finally(() => { if (!cancelled) setLoadingComments(false); });
     return () => { cancelled = true; };
-  }, [commentsEnabled, fetchComments, quoteRecordDate, quoteUserId, showComments]);
+  }, [commentsEnabled, fetchComments, quoteRecordDate, quoteUserId]);
 
   const submitComment = async () => {
     if (!onComment || !body.trim()) return;
@@ -74,6 +77,9 @@ export function QuoteReactions({
     }
     setCommenting(false);
   };
+
+  const commentTotal = Math.max(Number(state?.comments?.count || 0), comments.length);
+  const previewComments = comments.slice(0, 2);
 
   return (
     <div className="mt-6 space-y-3 pt-2">
@@ -107,12 +113,39 @@ export function QuoteReactions({
             onClick={() => setShowComments(true)}
             className={cn(reactionButtonClass, 'border-border bg-surface-2 text-stone hover:border-royal/40 hover:text-royal')}
             title="Comments"
-            aria-label={`${comments.length} comments`}
+            aria-label={`${commentTotal} comments`}
           >
-            <MessageCircle size={12} /> <span className="text-[10px] opacity-85">{comments.length}</span>
+            <MessageCircle size={12} /> <span className="text-[10px] opacity-85">{commentTotal}</span>
           </button>
         )}
       </div>
+
+      {commentsEnabled && previewComments.length > 0 && (
+        <div className="space-y-1.5">
+          {previewComments.map((comment) => (
+            <div key={comment.id} className="flex items-start gap-2 rounded-xl border border-border bg-surface-2/90 px-2.5 py-2">
+              <MessageAvatar
+                profile={{
+                  id: comment.commenter_user_id,
+                  display_name: comment.display_name || 'User',
+                  email: null,
+                  avatar_url: comment.avatar_url,
+                  whatsapp_number: null,
+                  language_code: null,
+                  country_code: null,
+                  created_at: comment.created_at,
+                }}
+                currentUserId={currentUserId}
+                size="sm"
+              />
+              <div className="min-w-0">
+                <p className="text-[11px] font-extrabold text-ink">{comment.display_name || 'User'}</p>
+                <p className="line-clamp-2 text-xs leading-snug text-stone">{comment.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {commentsEnabled && showComments && (
         <div className="mt-3 rounded-2xl border border-royal/25 bg-surface/95 p-4 shadow-sm animate-slide-up">

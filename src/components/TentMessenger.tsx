@@ -4,15 +4,17 @@ import { fetchTentMessages, sendTentMessage, markTentMessageRead, fetchDirectMes
 import type { DirectMessage, Profile, TentMessage } from '../lib/types';
 import { X, Send, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useMessaging } from '../context/MessagingContext';
 
 interface TentMessengerProps {
   recipient: Profile;
   senderId: string;
   tentId?: string;
   onClose: () => void;
+  onMessagesRead?: () => void;
 }
 
-export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMessengerProps) {
+export function TentMessenger({ recipient, senderId, tentId, onClose, onMessagesRead }: TentMessengerProps) {
   const [messages, setMessages] = useState<((TentMessage | DirectMessage) & { sender?: { display_name: string; avatar_url: string | null } })[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,11 +35,12 @@ export function TentMessenger({ recipient, senderId, tentId, onClose }: TentMess
         if (m.recipient_id === senderId && !m.read_at) {
           if (tentId) await markTentMessageRead(m.id);
           else await markDirectMessageRead(m.id);
+          onMessagesRead?.();
         }
       }
     } catch (e) { console.error('TentMessenger load error:', e); }
     setLoading(false);
-  }, [tentId, senderId, recipient.id]);
+  }, [tentId, senderId, recipient.id, onMessagesRead]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -150,6 +153,7 @@ export function TentAvatar({
   showName?: boolean;
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
+  const { unreadBySender, refreshDirectUnread } = useMessaging();
 
   const profile: Profile | undefined =
     'user_id' in member ? member.profiles : (member as Profile);
@@ -159,6 +163,7 @@ export function TentAvatar({
 
   const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = userId === currentUserId;
+  const unreadCount = !isMe ? unreadBySender[userId] || 0 : 0;
 
   return (
     <>
@@ -171,17 +176,24 @@ export function TentAvatar({
         )}
         title={isMe ? profile.display_name : `Message ${profile.display_name}`}
       >
-        <div className={cn(
-          'rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass flex-shrink-0 transition-all',
-          sizeClass,
-          !isMe && 'group-hover:ring-2 group-hover:ring-brass/50',
-        )}>
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-          ) : (
-            profile.display_name.charAt(0)
+        <span className="relative inline-flex shrink-0">
+          <span className={cn(
+            'rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass transition-all',
+            sizeClass,
+            !isMe && 'group-hover:ring-2 group-hover:ring-brass/50',
+          )}>
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+            ) : (
+              profile.display_name.charAt(0)
+            )}
+          </span>
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 z-10 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-bg bg-coral px-1 text-[9px] font-black leading-none text-white shadow-md">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
           )}
-        </div>
+        </span>
         {showName && <span className="text-sm text-ink font-medium">{profile.display_name}</span>}
       </button>
       {showMessenger && (
@@ -190,6 +202,7 @@ export function TentAvatar({
           senderId={currentUserId}
           tentId={tentId}
           onClose={() => setShowMessenger(false)}
+          onMessagesRead={refreshDirectUnread}
         />
       )}
     </>
@@ -210,8 +223,10 @@ export function MessageAvatar({
   className?: string;
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
+  const { unreadBySender, refreshDirectUnread } = useMessaging();
   const sizeClass = size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = profile.id === currentUserId;
+  const unreadCount = !isMe && currentUserId ? unreadBySender[profile.id] || 0 : 0;
 
   return (
     <>
@@ -221,13 +236,20 @@ export function MessageAvatar({
         className={cn('inline-flex items-center gap-2 group', className, !isMe && currentUserId ? 'cursor-pointer' : 'cursor-default')}
         title={isMe ? profile.display_name : `Message ${profile.display_name}`}
       >
-        <div className={cn('rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass flex-shrink-0 transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')}>
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-          ) : (
-            profile.display_name.charAt(0)
+        <span className="relative inline-flex shrink-0">
+          <span className={cn('rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')}>
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+            ) : (
+              profile.display_name.charAt(0)
+            )}
+          </span>
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 z-10 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-bg bg-coral px-1 text-[9px] font-black leading-none text-white shadow-md">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
           )}
-        </div>
+        </span>
         {showName && <span className="text-sm text-ink font-medium">{profile.display_name}</span>}
       </button>
       {showMessenger && currentUserId && (
@@ -235,6 +257,7 @@ export function MessageAvatar({
           recipient={profile}
           senderId={currentUserId}
           onClose={() => setShowMessenger(false)}
+          onMessagesRead={refreshDirectUnread}
         />
       )}
     </>
