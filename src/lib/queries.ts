@@ -1517,12 +1517,21 @@ export async function fetchDailyQuoteComments(quoteUserId: string, quoteRecordDa
   return data as import('./types').DailyQuoteComment[];
 }
 
-export async function commentOnDailyQuote(quoteUserId: string, quoteRecordDate: string, commenterUserId: string, body: string) {
+export async function commentOnDailyQuote(
+  quoteUserId: string,
+  quoteRecordDate: string,
+  commenterUserId: string,
+  body: string,
+  parentCommentId?: string | null,
+  mentionedUserIds: string[] = [],
+) {
   const { data, error } = await supabase.rpc('comment_on_daily_quote', {
     p_quote_user_id: quoteUserId,
     p_quote_record_date: quoteRecordDate,
     p_commenter_user_id: commenterUserId,
     p_body: body,
+    p_parent_comment_id: parentCommentId || null,
+    p_mentioned_user_ids: mentionedUserIds,
   });
   if (error) throw error;
   return data;

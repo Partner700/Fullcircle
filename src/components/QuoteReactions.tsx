@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Send } from 'lucide-react';
+import { Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Reply, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
 import { MessageAvatar } from './TentMessenger';
@@ -23,6 +23,7 @@ export function QuoteReactions({
   currentUserId,
   fetchComments,
   onComment,
+  onReply,
   onCommentOpenChange,
   onMessageOpenChange,
   previewLimit = 2,
@@ -35,6 +36,7 @@ export function QuoteReactions({
   currentUserId?: string;
   fetchComments?: (quoteUserId: string, quoteRecordDate: string) => Promise<DailyQuoteComment[]>;
   onComment?: (body: string) => Promise<void>;
+  onReply?: (body: string, parentCommentId: string, mentionedUserIds: string[]) => Promise<void>;
   onCommentOpenChange?: (open: boolean) => void;
   onMessageOpenChange?: (open: boolean) => void;
   previewLimit?: number;
@@ -45,6 +47,7 @@ export function QuoteReactions({
   const [commenting, setCommenting] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [showComments, setShowComments] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<DailyQuoteComment | null>(null);
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
 
   useEffect(() => {
@@ -71,8 +74,13 @@ export function QuoteReactions({
     setCommentError(null);
     setCommenting(true);
     try {
-      await onComment(body.trim());
+      if (replyTarget && onReply) {
+        await onReply(body.trim(), replyTarget.id, [replyTarget.commenter_user_id]);
+      } else {
+        await onComment(body.trim());
+      }
       setBody('');
+      setReplyTarget(null);
       if (quoteUserId && quoteRecordDate && fetchComments) {
         setComments(await fetchComments(quoteUserId, quoteRecordDate));
       }
@@ -84,6 +92,14 @@ export function QuoteReactions({
 
   const commentTotal = Math.max(Number(state?.comments?.count || 0), comments.length);
   const previewComments = comments.slice(0, Math.max(0, previewLimit));
+  const topLevelComments = comments.filter((comment) => !comment.parent_comment_id);
+  const repliesByParent = comments.reduce<Record<string, DailyQuoteComment[]>>((map, comment) => {
+    if (comment.parent_comment_id) {
+      if (!map[comment.parent_comment_id]) map[comment.parent_comment_id] = [];
+      map[comment.parent_comment_id].push(comment);
+    }
+    return map;
+  }, {});
 
   return (
     <div className="mt-6 space-y-3 pt-2">
@@ -166,37 +182,80 @@ export function QuoteReactions({
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             {loadingComments && <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading comments...</p>}
             {!loadingComments && comments.length === 0 && <p className="text-xs text-stone">No comments yet.</p>}
-            {comments.map((comment) => (
-              <div key={comment.id} className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-2">
-                <MessageAvatar
-                  profile={{
-                    id: comment.commenter_user_id,
-                    display_name: comment.display_name || 'User',
-                    email: null,
-                    avatar_url: comment.avatar_url,
-                    whatsapp_number: null,
-                    language_code: null,
-                    country_code: null,
-                    created_at: comment.created_at,
-                  }}
-                  currentUserId={currentUserId}
-                  size="sm"
-                  onOpenChange={onMessageOpenChange || onCommentOpenChange}
-                />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-ink">
-                    {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span>
-                  </p>
-                  <p className="text-sm text-stone leading-snug">{comment.body}</p>
+            {topLevelComments.map((comment) => (
+              <div key={comment.id} className="space-y-2">
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-2">
+                  <MessageAvatar
+                    profile={{
+                      id: comment.commenter_user_id,
+                      display_name: comment.display_name || 'User',
+                      email: null,
+                      avatar_url: comment.avatar_url,
+                      whatsapp_number: null,
+                      language_code: null,
+                      country_code: null,
+                      created_at: comment.created_at,
+                    }}
+                    currentUserId={currentUserId}
+                    size="sm"
+                    onOpenChange={onMessageOpenChange || onCommentOpenChange}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-ink">
+                      {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span>
+                    </p>
+                    <p className="text-sm text-stone leading-snug">{comment.body}</p>
+                    <button
+                      type="button"
+                      className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri"
+                      onClick={() => {
+                        setReplyTarget(comment);
+                        setBody(`@${comment.display_name || 'User'} `);
+                      }}
+                    >
+                      <Reply size={11} /> Reply
+                    </button>
+                  </div>
                 </div>
+                {(repliesByParent[comment.id] || []).map((reply) => (
+                  <div key={reply.id} className="ml-8 flex items-start gap-2 rounded-lg border border-border bg-surface/75 p-2">
+                    <MessageAvatar
+                      profile={{
+                        id: reply.commenter_user_id,
+                        display_name: reply.display_name || 'User',
+                        email: null,
+                        avatar_url: reply.avatar_url,
+                        whatsapp_number: null,
+                        language_code: null,
+                        country_code: null,
+                        created_at: reply.created_at,
+                      }}
+                      currentUserId={currentUserId}
+                      size="sm"
+                      onOpenChange={onMessageOpenChange || onCommentOpenChange}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold text-ink">{reply.display_name || 'User'}</p>
+                      <p className="text-xs leading-snug text-stone">{reply.body}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
+          {replyTarget && (
+            <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-peri/25 bg-peri-soft px-3 py-2">
+              <p className="min-w-0 truncate text-[11px] font-semibold text-peri">Replying to @{replyTarget.display_name || 'User'}</p>
+              <button type="button" className="text-[10px] font-bold text-stone hover:text-ink" onClick={() => { setReplyTarget(null); setBody(''); }}>
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="mt-4 flex gap-2">
             <input
               className="input-field text-sm"
               maxLength={500}
-              placeholder="Comment on this quote..."
+              placeholder={replyTarget ? `Reply to ${replyTarget.display_name || 'this comment'}...` : 'Comment on this quote...'}
               value={body}
               onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter') void submitComment(); }}

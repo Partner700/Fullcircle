@@ -33,6 +33,7 @@ const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecy
 const quoteReactions = read('src/components/QuoteReactions.tsx');
 const quoteQueries = read('src/lib/queries.ts');
 const tentGroupChat = read('supabase/migrations/20260819100000_tent_group_chat.sql');
+const quoteCommentReplies = read('supabase/migrations/20260819103000_quote_comment_replies.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -94,7 +95,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v56'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v58'/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
@@ -214,6 +215,7 @@ for (const migrationName of [
   '20260818100000_active_answer_figs_and_payment_delivery.sql',
   '20260818113000_freezer_lifecycle_and_rare_rewards.sql',
   '20260819100000_tent_group_chat.sql',
+  '20260819103000_quote_comment_replies.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
@@ -240,6 +242,15 @@ for (const required of [
   'notify_tent_group_message_insert',
 ]) {
   assert.ok(tentGroupChat.includes(required), `Missing tent group chat boundary: ${required}`);
+}
+
+for (const required of [
+  'parent_comment_id',
+  'mentioned_user_ids',
+  'Quote reply',
+  'DROP FUNCTION IF EXISTS public.get_daily_quote_comments(uuid, date)',
+]) {
+  assert.ok(quoteCommentReplies.includes(required), `Missing quote reply boundary: ${required}`);
 }
 
 const activeAnswerIntegrity = read('supabase/migrations/20260818100000_active_answer_figs_and_payment_delivery.sql');

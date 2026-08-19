@@ -718,6 +718,9 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
             onComment={(body) => currentUserId
               ? commentOnDailyQuote(quote.user_id, quote.record_date, currentUserId, body)
               : Promise.reject(new Error('Sign in to comment.'))}
+            onReply={(body, parentCommentId, mentionedUserIds) => currentUserId
+              ? commentOnDailyQuote(quote.user_id, quote.record_date, currentUserId, body, parentCommentId, mentionedUserIds)
+              : Promise.reject(new Error('Sign in to reply.'))}
             onCommentOpenChange={onCommentOpenChange}
             onMessageOpenChange={onCommentOpenChange}
           />
@@ -863,12 +866,14 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   const [showAdd, setShowAdd] = useState(false);
   const [unassigned, setUnassigned] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
   const [selectedCadet, setSelectedCadet] = useState('');
+  const [confirmCadet, setConfirmCadet] = useState<{ user_id: string; display_name: string; avatar_url: string | null } | null>(null);
   const [adding, setAdding] = useState(false);
 
   const loadUnassigned = useCallback(async () => {
     const users = await fetchSentryAddableCadets(currentUserId).catch(() => []);
     setUnassigned(users);
-    setSelectedCadet(users[0]?.user_id || '');
+    setSelectedCadet('');
+    setConfirmCadet(null);
   }, [currentUserId]);
 
   useEffect(() => {
@@ -876,11 +881,13 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   }, [loadUnassigned, showAdd]);
 
   const addCadet = async () => {
-    if (!selectedCadet) return;
+    if (!confirmCadet) return;
     setAdding(true);
     try {
-      await sentryAddCadetToTent(currentUserId, selectedCadet);
+      await sentryAddCadetToTent(currentUserId, confirmCadet.user_id);
       setShowAdd(false);
+      setSelectedCadet('');
+      setConfirmCadet(null);
       await onChanged();
     } catch (error: any) {
       alert(error.message || 'Could not add cadet to your tent.');
@@ -896,7 +903,11 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
             <p className="font-display font-semibold text-ink">Tent Cadets</p>
             <p className="text-xs text-stone">Sentries can add unassigned cadets. Only the instructor can remove or move cadets.</p>
           </div>
-          <button onClick={() => setShowAdd((value) => !value)} className="btn-secondary text-xs">
+          <button onClick={() => {
+            setShowAdd((value) => !value);
+            setSelectedCadet('');
+            setConfirmCadet(null);
+          }} className="btn-secondary text-xs">
             {showAdd ? <X size={14} /> : <UserPlus size={14} />}
             {showAdd ? 'Close' : 'Add Cadet'}
           </button>
@@ -908,15 +919,43 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
               onChange={setSelectedCadet}
               placeholder={unassigned.length === 0 ? 'No unassigned cadets available' : 'Choose cadet'}
               disabled={unassigned.length === 0}
+              buttonClassName="bg-surface text-xs shadow-sm"
               options={unassigned.map((cadet) => ({ value: cadet.user_id, label: cadet.display_name }))}
             />
-            <button onClick={addCadet} disabled={!selectedCadet || adding} className="btn-primary text-xs disabled:opacity-50">
-              {adding ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+            <button
+              onClick={() => setConfirmCadet(unassigned.find((cadet) => cadet.user_id === selectedCadet) || null)}
+              disabled={!selectedCadet || adding}
+              className="btn-primary text-xs disabled:opacity-50"
+            >
+              <UserPlus size={14} />
               Add
             </button>
           </div>
         )}
       </div>
+      {confirmCadet && (
+        <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/50 px-4 animate-fade-in" onClick={() => !adding && setConfirmCadet(null)}>
+          <div className="relative z-[2147483001] w-full max-w-sm rounded-2xl border border-border bg-bg p-5 shadow-2xl animate-scale-in" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/30 bg-brass-soft text-sm font-bold text-brass">
+                {confirmCadet.avatar_url ? <img src={confirmCadet.avatar_url} alt="" className="h-full w-full object-cover" /> : confirmCadet.display_name.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-display text-base font-semibold text-ink">Add {confirmCadet.display_name}?</h3>
+                <p className="mt-1 text-sm leading-relaxed text-stone">This will add the cadet to your tent. Only the instructor can undo this or move them later.</p>
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" className="btn-secondary justify-center text-xs" disabled={adding} onClick={() => setConfirmCadet(null)}>
+                Cancel
+              </button>
+              <button type="button" className="btn-primary justify-center text-xs" disabled={adding} onClick={addCadet}>
+                {adding ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {members.map((m) => {
         const streak = streakForMember(m.user_id, allRecords, strictStreaks);
         const stateColor = streak.removal_state === 'active' ? '#6B8E5A' : streak.removal_state === 'at_risk' ? '#C9A227' : '#B8553E';

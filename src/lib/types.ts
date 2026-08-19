@@ -516,6 +516,8 @@ export interface DailyQuoteComment {
   body: string;
   created_at: string;
   commenter_user_id: string;
+  parent_comment_id?: string | null;
+  mentioned_user_ids?: string[] | null;
   display_name: string;
   avatar_url: string | null;
   rank_label: string;

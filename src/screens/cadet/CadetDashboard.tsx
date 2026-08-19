@@ -362,12 +362,27 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   onNext: () => void;
   onCommentOpenChange: (open: boolean) => void;
 }) {
+  const welcomeScriptures = [
+    'Let all that you do be done in love.',
+    'Commit your work to the Lord, and your plans will be established.',
+    'Be strong and courageous; the Lord goes with you.',
+    'Let the word of Christ dwell in you richly.',
+    'Walk by faith, not by sight.',
+  ];
   const dateLabel = todayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const dayLabel = dayType === 'saturday' ? 'Quiz Day' : dayType === 'sunday' ? 'Day of Rest' : 'Reading Day';
   const visibleSlides = count > 1 ? [...slides, slides[0]] : slides;
   const [displayIndex, setDisplayIndex] = useState(index % Math.max(count, 1));
   const [withTransition, setWithTransition] = useState(true);
+  const [scriptureIndex, setScriptureIndex] = useState(0);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setScriptureIndex((current) => (current + 1) % welcomeScriptures.length);
+    }, 4200);
+    return () => window.clearInterval(interval);
+  }, [welcomeScriptures.length]);
 
   useEffect(() => {
     if (count <= 0) return;
@@ -418,6 +433,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                         Welcome, <span className="text-[#FFD84D]">{profileName}</span>
                       </h2>
                       <p className="text-sm text-stone mt-1">{dateLabel}</p>
+                      <p key={scriptureIndex} className="absolute bottom-6 left-0 max-w-[70%] truncate text-[10px] font-semibold text-peri/45 animate-fade-in">
+                        {welcomeScriptures[scriptureIndex]}
+                      </p>
                     </>
                   )}
 
@@ -506,6 +524,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           onComment={(body) => currentUserId
                             ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
                             : Promise.reject(new Error('Sign in to comment.'))}
+                          onReply={(body, parentCommentId, mentionedUserIds) => currentUserId
+                            ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body, parentCommentId, mentionedUserIds)
+                            : Promise.reject(new Error('Sign in to reply.'))}
                           onCommentOpenChange={onCommentOpenChange}
                           onMessageOpenChange={onCommentOpenChange}
                         />
@@ -515,8 +536,8 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 </div>
 
                 {slide.kind === 'welcome' && tentHouseId && (
-                  <div className="rounded-full border border-white/25 bg-surface/55 px-2.5 py-1.5 shadow-sm backdrop-blur-xl ring-1 ring-black/5">
-                    <TentHouseBadge houseId={tentHouseId} size="md" />
+                  <div className="welcome-house-glass rounded-full px-1.5 py-1 shadow-sm">
+                    <TentHouseBadge houseId={tentHouseId} size="sm" />
                   </div>
                 )}
               </div>
