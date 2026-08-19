@@ -45,6 +45,18 @@ export async function fetchAllProfiles() {
   return data as Profile[];
 }
 
+/** Load only the public avatar fields needed by visible board rows. */
+export async function fetchBoardAvatars(userIds: string[]) {
+  const ids = Array.from(new Set(userIds.filter(Boolean)));
+  if (ids.length === 0) return {} as Record<string, string | null>;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,avatar_url')
+    .in('id', ids);
+  if (error) return {} as Record<string, string | null>;
+  return Object.fromEntries((data || []).map((profile) => [profile.id, profile.avatar_url || null]));
+}
+
 export async function fetchAllRoleAssignments() {
   const { data, error } = await supabase.from('role_assignments').select('*').order('created_at', { ascending: false });
   if (error) throw error;
@@ -748,7 +760,7 @@ export async function fetchLeaderboardSnapshots() {
   const latestWeek = data[0].week_ending;
   const { data: rows, error: err2 } = await supabase
     .from('leaderboard_weekly_snapshots')
-    .select('*, profiles(display_name)')
+    .select('*, profiles(display_name, avatar_url)')
     .eq('week_ending', latestWeek)
     .order('rank');
   if (err2) throw err2;

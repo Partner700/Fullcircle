@@ -6,7 +6,7 @@ import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
-import { fetchAllProfiles, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
@@ -156,8 +156,10 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
         withBoardTimeout(fetchStreakboardSnapshots(), 'Streak board'),
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
       ]);
-      setStreakRows(streaks.status === 'fulfilled' ? streaks.value : []);
-      setLeaderRows((leaders.status === 'fulfilled' ? leaders.value : []) as any);
+      const streakRowsRaw = streaks.status === 'fulfilled' ? streaks.value : [];
+      const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
+      setStreakRows(streakRowsRaw);
+      setLeaderRows(leaderRowsRaw as any);
 
 	      const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
 	        withBoardTimeout(supabase.rpc('get_leaderboard_live'), 'Denarii board'),
@@ -169,18 +171,43 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
         const liveRowsRaw = (liveResult?.data || []) as typeof liveRows;
-        if (liveRowsRaw.some((row) => row.user_id && !row.avatar_url)) {
-          const profiles = await withBoardTimeout(fetchAllProfiles(), 'Profile pictures', 6_000).catch(() => []);
-          const profilesById = new Map(profiles.map((item) => [item.id, item]));
-          setLiveRows(liveRowsRaw.map((row) => ({ ...row, avatar_url: row.avatar_url || profilesById.get(row.user_id)?.avatar_url || null })));
-        } else {
-          setLiveRows(liveRowsRaw);
-        }
-	      setTentRows((tentResult?.data || []) as TentLeaderboardRow[]);
-	      setQuizRows(quizBoard.status === 'fulfilled' ? quizBoard.value : []);
-        setRhudeRows(rhudes.status === 'fulfilled' ? rhudes.value : []);
-        setMarksRows(marks.status === 'fulfilled' ? marks.value : []);
+        const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
+        const quizRowsRaw = quizBoard.status === 'fulfilled' ? quizBoard.value : [];
+        const rhudeRowsRaw = rhudes.status === 'fulfilled' ? rhudes.value : [];
+        const marksRowsRaw = marks.status === 'fulfilled' ? marks.value : [];
+	      setLiveRows(liveRowsRaw);
+	      setTentRows(tentRowsRaw);
+	      setQuizRows(quizRowsRaw);
+        setRhudeRows(rhudeRowsRaw);
+        setMarksRows(marksRowsRaw);
         setLastUpdatedAt(new Date());
+
+        // Render board rows immediately, then fill in only the missing public
+        // avatars. This avoids blocking the board on a full profile download.
+        const boardUserIds = [
+          ...streakRowsRaw.map((row) => row.user_id),
+          ...leaderRowsRaw.map((row) => row.user_id),
+          ...liveRowsRaw.map((row) => row.user_id),
+          ...quizRowsRaw.map((row) => row.user_id),
+          ...rhudeRowsRaw.map((row) => row.user_id),
+          ...marksRowsRaw.map((row) => row.user_id),
+        ];
+        void withBoardTimeout(fetchBoardAvatars(boardUserIds), 'Board pictures', 5_000)
+          .then((avatars) => {
+            setStreakRows((rows) => rows.map((row) => ({
+              ...row,
+              profiles: { ...row.profiles, avatar_url: row.profiles?.avatar_url || avatars[row.user_id] || null },
+            })));
+            setLeaderRows((rows) => rows.map((row: any) => ({
+              ...row,
+              profiles: { ...row.profiles, avatar_url: row.profiles?.avatar_url || avatars[row.user_id] || null },
+            })) as any);
+            setLiveRows((rows) => rows.map((row) => ({ ...row, avatar_url: row.avatar_url || avatars[row.user_id] || null })));
+            setQuizRows((rows) => rows.map((row: any) => ({ ...row, avatar_url: row.avatar_url || avatars[row.user_id] || null })));
+            setRhudeRows((rows) => rows.map((row) => ({ ...row, avatar_url: row.avatar_url || avatars[row.user_id] || null })));
+            setMarksRows((rows) => rows.map((row) => ({ ...row, avatar_url: row.avatar_url || avatars[row.user_id] || null })));
+          })
+          .catch(() => undefined);
     } catch (e) { console.error('Leaderboard load error:', e); }
     finally {
       loadInFlightRef.current = false;
