@@ -9,6 +9,7 @@ import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, Pen
 import { AwardReactions } from '../../components/AwardReactions';
 import { AppSelect } from '../../components/AppSelect';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
+import { MessageAvatar } from '../../components/TentMessenger';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   rhetoric: MessageCircle,
@@ -233,6 +234,22 @@ export function CadetAwards() {
                   >
                     <Icon size={18} color={color} />
                   </div>
+                  {award.profiles && award.award_target_type !== 'tent' && (
+                    <MessageAvatar
+                      profile={{
+                        id: award.user_id,
+                        display_name: award.profiles.display_name,
+                        email: null,
+                        avatar_url: award.profiles.avatar_url,
+                        whatsapp_number: null,
+                        country_code: null,
+                        language_code: null,
+                        created_at: award.created_at,
+                      }}
+                      currentUserId={profile?.id}
+                      size="sm"
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <span className="inline-flex max-w-full items-center gap-1.5 align-middle text-sm font-medium text-ink">
                       <span className="truncate">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</span>

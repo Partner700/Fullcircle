@@ -3,8 +3,9 @@ import { BookOpen, ChevronDown, Loader2, Search, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchStrictStreak } from '../lib/queries';
 import { getDateDaysAgoISO } from '../lib/utils';
+import { MessageAvatar } from './TentMessenger';
 
-type Person = { id: string; display_name: string; avatar_url: string | null };
+type Person = { id: string; display_name: string; avatar_url: string | null; created_at?: string | null };
 type MeditationRow = {
   user_id: string;
   record_date: string;
@@ -14,10 +15,11 @@ type MeditationRow = {
   meditation_submitted_at: string | null;
 };
 
-export function MeditationHistoryPanel({ userIds, title = 'Meditation History', showWeeklyVerse = false }: {
+export function MeditationHistoryPanel({ userIds, title = 'Meditation History', showWeeklyVerse = false, currentUserId }: {
   userIds?: string[];
   title?: string;
   showWeeklyVerse?: boolean;
+  currentUserId?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -41,7 +43,7 @@ export function MeditationHistoryPanel({ userIds, title = 'Meditation History', 
     setRows(records);
     const ids = Array.from(new Set(records.map((row) => row.user_id)));
     if (ids.length) {
-      const { data: profiles } = await supabase.from('profiles').select('id,display_name,avatar_url').in('id', ids);
+      const { data: profiles } = await supabase.from('profiles').select('id,display_name,avatar_url,created_at').in('id', ids);
       setPeople(Object.fromEntries(((profiles || []) as Person[]).map((person) => [person.id, person])));
       const streakEntries = await Promise.all(ids.map(async (id) => {
         const streak = await fetchStrictStreak(id).catch(() => ({ current_streak: 0 }));
@@ -84,7 +86,7 @@ export function MeditationHistoryPanel({ userIds, title = 'Meditation History', 
       {loading ? <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-gold" /></div> : visible.length === 0 ? <p className="py-4 text-center text-xs text-stone">No submitted meditations found.</p> : <div className="max-h-[36rem] space-y-2 overflow-y-auto pr-1">{visible.map((row) => {
         const person = people[row.user_id];
         const streak = streaks[row.user_id] ?? 0;
-        return <details key={`${row.user_id}-${row.record_date}`} className="rounded-lg border border-border bg-surface-2 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center gap-3"><div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-xs font-bold">{person?.avatar_url ? <img src={person.avatar_url} alt={person.display_name} className="h-full w-full object-cover" /> : person?.display_name?.charAt(0) || '?'}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-ink">{person?.display_name || 'Participant'}</p><p className="text-[11px] text-stone">{row.record_date}{row.best_verse ? ` · ${row.best_verse}` : ''}{streak > 0 ? ` · Streak ${streak}` : ''}</p></div><ChevronDown size={14} className="text-stone" /></div></summary><div className="mt-3 space-y-3 border-t border-border pt-3">{row.meditation_text && <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{row.meditation_text}</p>}{row.daily_quote && <p className="rounded-md bg-surface px-3 py-2 text-xs italic text-stone">“{row.daily_quote}”</p>}</div></details>;
+        return <details key={`${row.user_id}-${row.record_date}`} className="rounded-lg border border-border bg-surface-2 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center gap-3">{person ? <MessageAvatar profile={{ id: person.id, display_name: person.display_name, email: null, avatar_url: person.avatar_url, whatsapp_number: null, country_code: null, language_code: null, created_at: person.created_at || row.record_date }} currentUserId={currentUserId} size="sm" /> : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-xs font-bold">?</div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-ink">{person?.display_name || 'Participant'}</p><p className="text-[11px] text-stone">{row.record_date}{row.best_verse ? ` · ${row.best_verse}` : ''}{streak > 0 ? ` · Streak ${streak}` : ''}</p></div><ChevronDown size={14} className="text-stone" /></div></summary><div className="mt-3 space-y-3 border-t border-border pt-3">{row.meditation_text && <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{row.meditation_text}</p>}{row.daily_quote && <p className="rounded-md bg-surface px-3 py-2 text-xs italic text-stone">“{row.daily_quote}”</p>}</div></details>;
       })}</div>}
     </div>}
   </div>;

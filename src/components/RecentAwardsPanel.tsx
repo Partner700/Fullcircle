@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../lib/queries';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { useAutoAdvance } from '../hooks/useAutoAdvance';
+import { MessageAvatar } from './TentMessenger';
 
 type RecentAward = AwardWithRecipient;
 
@@ -96,11 +97,33 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
       {activeAward ? (
         <div className="relative z-10 min-h-[148px] overflow-hidden">
           <div key={activeAward.id} className="recent-award-change flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5">
-            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
-              {(activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url)
-                ? <img src={activeAward.target_tent?.profile_image_url || activeAward.profiles?.avatar_url || ''} alt={activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Award recipient'} className="h-full w-full object-cover" />
-                : <Trophy size={24} className="mx-auto mt-3.5" />}
-            </div>
+            {activeAward.target_tent ? (
+              <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
+                {activeAward.target_tent.profile_image_url
+                  ? <img src={activeAward.target_tent.profile_image_url} alt={activeAward.target_tent.name} className="h-full w-full object-cover" />
+                  : <Trophy size={24} className="mx-auto mt-3.5" />}
+              </div>
+            ) : activeAward.profiles ? (
+              <MessageAvatar
+                profile={{
+                  id: activeAward.user_id,
+                  display_name: activeAward.profiles.display_name,
+                  email: null,
+                  avatar_url: activeAward.profiles.avatar_url,
+                  whatsapp_number: null,
+                  country_code: null,
+                  language_code: null,
+                  created_at: activeAward.created_at,
+                }}
+                currentUserId={profile?.id}
+                size="lg"
+                className="flex-shrink-0"
+              />
+            ) : (
+              <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
+                <Trophy size={24} className="mx-auto mt-3.5" />
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <p className="text-base font-semibold text-ink">{activeAward.title}</p>
               <p className="flex items-center gap-1.5 text-sm font-medium text-stone">

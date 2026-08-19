@@ -952,6 +952,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
       <MeditationHistoryPanel
         userIds={members.map((member) => member.user_id)}
         title="My Cadets’ Meditation History"
+        currentUserId={currentUserId}
       />
     </div>
   );

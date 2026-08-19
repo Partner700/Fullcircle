@@ -1337,6 +1337,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
       <MeditationHistoryPanel
         title="Everyone’s Meditation History"
         showWeeklyVerse
+        currentUserId={instructorId}
       />
 
       <div className="card p-4">
