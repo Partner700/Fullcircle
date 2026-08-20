@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type TouchEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -375,7 +375,26 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   const [displayIndex, setDisplayIndex] = useState(index % Math.max(count, 1));
   const [withTransition, setWithTransition] = useState(true);
   const [scriptureIndex, setScriptureIndex] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.changedTouches[0];
+    if (touch) touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch || count <= 1) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 44 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) return;
+    if (deltaX < 0) onNext();
+    else onPrev();
+  };
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -395,7 +414,9 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
     <div className="card relative overflow-hidden animate-slide-up">
       <div
         className={cn('flex min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
-        style={{ transform: `translateX(-${displayIndex * 100}%)` }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y' }}
         onTransitionEnd={() => {
           if (count > 1 && displayIndex === count) {
             setWithTransition(false);
