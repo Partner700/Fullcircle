@@ -282,16 +282,6 @@ export function TentAvatar({
     'user_id' in member ? member.profiles : (member as Profile);
   const userId = 'user_id' in member ? member.user_id : (member as Profile).id;
 
-  useEffect(() => {
-    onOpenChange?.(showMessenger);
-    if (showMessenger) document.body.dataset.fullCircleMessengerOpen = 'true';
-    else if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
-    return () => {
-      onOpenChange?.(false);
-      if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
-    };
-  }, [onOpenChange, showMessenger]);
-
   if (!profile) return null;
 
   const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
@@ -301,7 +291,12 @@ export function TentAvatar({
   return (
     <>
       <button
-        onClick={() => !isMe && setShowMessenger(true)}
+        onClick={() => {
+          if (isMe) return;
+          setShowMessenger(true);
+          onOpenChange?.(true);
+          document.body.dataset.fullCircleMessengerOpen = 'true';
+        }}
         className={cn(
           'inline-flex items-center gap-2 group',
           !isMe && 'cursor-pointer',
@@ -334,7 +329,11 @@ export function TentAvatar({
           recipient={profile}
           senderId={currentUserId}
           tentId={tentId}
-          onClose={() => setShowMessenger(false)}
+          onClose={() => {
+            setShowMessenger(false);
+            onOpenChange?.(false);
+            if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
+          }}
           onMessagesRead={refreshDirectUnread}
         />
       )}
@@ -363,21 +362,16 @@ export function MessageAvatar({
   const isMe = profile.id === currentUserId;
   const unreadCount = !isMe && currentUserId ? unreadBySender[profile.id] || 0 : 0;
 
-  useEffect(() => {
-    onOpenChange?.(showMessenger);
-    if (showMessenger) document.body.dataset.fullCircleMessengerOpen = 'true';
-    else if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
-    return () => {
-      onOpenChange?.(false);
-      if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
-    };
-  }, [onOpenChange, showMessenger]);
-
   return (
     <>
       <button
         type="button"
-        onClick={() => !isMe && currentUserId && setShowMessenger(true)}
+        onClick={() => {
+          if (isMe || !currentUserId) return;
+          setShowMessenger(true);
+          onOpenChange?.(true);
+          document.body.dataset.fullCircleMessengerOpen = 'true';
+        }}
         className={cn('inline-flex items-center gap-2 group', className, !isMe && currentUserId ? 'cursor-pointer' : 'cursor-default')}
         title={isMe ? profile.display_name : `Message ${profile.display_name}`}
       >
@@ -401,7 +395,11 @@ export function MessageAvatar({
         <TentMessenger
           recipient={profile}
           senderId={currentUserId}
-          onClose={() => setShowMessenger(false)}
+          onClose={() => {
+            setShowMessenger(false);
+            onOpenChange?.(false);
+            if (document.body.dataset.fullCircleMessengerOpen === 'true') delete document.body.dataset.fullCircleMessengerOpen;
+          }}
           onMessagesRead={refreshDirectUnread}
         />
       )}

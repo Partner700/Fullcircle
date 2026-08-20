@@ -52,8 +52,10 @@ export function QuoteReactions({
   const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
 
   useEffect(() => {
-    onCommentOpenChange?.(commentsPanelOpen);
-    return () => onCommentOpenChange?.(false);
+    /* Do not emit a false value on mount or unmount. The same pause callback
+       can also be owned by a profile messenger, and an unrelated comment
+       component must not close or unpause that messenger. */
+    if (commentsPanelOpen) onCommentOpenChange?.(true);
   }, [commentsPanelOpen, onCommentOpenChange]);
 
   useEffect(() => {
@@ -182,6 +184,7 @@ export function QuoteReactions({
                 setReplyTarget(null);
                 setBody('');
                 setShowComments(false);
+                onCommentOpenChange?.(false);
               }}
               className="btn-ghost text-xs px-2 py-1"
             >

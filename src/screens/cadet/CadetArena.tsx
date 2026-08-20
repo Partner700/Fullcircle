@@ -930,6 +930,16 @@ function getArenaRoundForIndex(questionIndex: number) {
   return ARENA_ROUND_LENGTHS.length - 1;
 }
 
+function dedupeArenaQuestions(items: QuestionPayload[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.question}|${item.correct_answer}`.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit }: {
   narrativeDate: string;
   roomName: string;
@@ -1036,8 +1046,9 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (Array.isArray(roomQuestionSet) && roomQuestionSet.length >= 19) {
-        setQuestions(roomQuestionSet);
+      const distinctRoomQuestions = Array.isArray(roomQuestionSet) ? dedupeArenaQuestions(roomQuestionSet) : [];
+      if (distinctRoomQuestions.length >= 19) {
+        setQuestions(distinctRoomQuestions);
         setReady(true);
         return;
       }
@@ -1057,7 +1068,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
           difficulty,
         });
         if (!cancelled) {
-          setQuestions(aiQuestions);
+          setQuestions(dedupeArenaQuestions(aiQuestions));
           setReady(true);
         }
         return;

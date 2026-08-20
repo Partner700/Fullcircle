@@ -181,7 +181,9 @@ async function fetchRoomQuestions(roomId: string, minimumCount: number) {
   if (!res.ok) return null;
   const rows = await res.json();
   const existing = rows?.[0]?.question_set;
-  return Array.isArray(existing) && existing.length >= minimumCount ? existing : null;
+  if (!Array.isArray(existing) || existing.length < minimumCount) return null;
+  const distinct = new Set(existing.map((item) => `${item?.question || ''}|${item?.correct_answer || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()));
+  return distinct.size >= minimumCount ? existing : null;
 }
 
 async function waitForRoomQuestions(roomId: string, minimumCount: number) {
