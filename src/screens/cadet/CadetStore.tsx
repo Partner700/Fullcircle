@@ -24,6 +24,7 @@ const RELIC_ICONS: Record<string, any> = {
   'masters-reward': Trophy,
   'lazarus-coin': Coins,
   'redemption-coin': Coins,
+  'simons-coin': Wallet,
 };
 
 const RELIC_COLORS: Record<string, string> = {
@@ -35,6 +36,7 @@ const RELIC_COLORS: Record<string, string> = {
   'masters-reward': '#8F6A2A',
   'lazarus-coin': '#6B8E5A',
   'redemption-coin': '#C9A227',
+  'simons-coin': '#C9A227',
 };
 
 const STORE_USABLE_RELICS = new Set<string>([
@@ -42,6 +44,7 @@ const STORE_USABLE_RELICS = new Set<string>([
   RELIC_SLUGS.THIEVES_REQUEST,
   RELIC_SLUGS.SIMONS_PURSE,
   RELIC_SLUGS.REDEMPTION_COIN,
+  RELIC_SLUGS.SIMONS_COIN,
 ]);
 
 type StorePaymentMethod = 'mtn_momo' | 'orange_money' | 'other';
@@ -581,6 +584,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       )}
                       {owned > 0 && slug === RELIC_SLUGS.LAZARUS_COIN && (
                         <span className="text-[10px] text-stone">Use inside Saturday Quiz before 2:45 PM</span>
+                      )}
+                      {owned > 0 && slug === RELIC_SLUGS.SIMONS_COIN && (
+                        <span className="text-[10px] text-stone">Use once to hold today&apos;s streak steady</span>
                       )}
                     </div>
                   </div>

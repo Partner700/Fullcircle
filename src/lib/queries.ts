@@ -1371,9 +1371,9 @@ export async function purchaseDailyFreezerForCadet(sentryId: string, cadetId: st
 }
 
 export async function useRelic(userId: string, slug: string) {
-  const { data, error } = await supabase.rpc('use_relic', {
-    p_user_id: userId, p_relic_slug: slug,
-  });
+  const { data, error } = slug === 'simons-coin'
+    ? await supabase.rpc('use_simons_coin', { p_user_id: userId })
+    : await supabase.rpc('use_relic', { p_user_id: userId, p_relic_slug: slug });
   if (error) throw error;
   return data;
 }

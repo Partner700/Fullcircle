@@ -11,8 +11,17 @@ import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 
-type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
-type BoardAudience = 'cadet' | 'sentry';
+type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'instructor';
+type BoardAudience = 'cadet' | 'sentry' | 'instructor';
+
+type InstructorBoardRow = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  narratives: number;
+  residents: number;
+  rank: number;
+};
 
 type TentLeaderboardRow = {
   tent_id: string;
@@ -142,6 +151,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
   const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
   const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [instructorRows, setInstructorRows] = useState<InstructorBoardRow[]>([]);
   const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
@@ -154,6 +164,15 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     loadInFlightRef.current = true;
     if (!silent) setLoading(true);
     try {
+      if (audience === 'instructor') {
+        const { data, error } = await withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board');
+        if (error) throw error;
+        setInstructorRows((data || []) as InstructorBoardRow[]);
+        setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
+        setLastUpdatedAt(new Date());
+        return;
+      }
+
       const [streaks, leaders] = await Promise.allSettled([
         withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board'),
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
@@ -163,8 +182,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       setStreakRows(streakRowsRaw);
       setLeaderRows(leaderRowsRaw as any);
 
-	      const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
-	        withBoardTimeout(supabase.rpc('get_leaderboard_live'), 'Denarii board'),
+        const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
+          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: audience }), 'Denarii board'),
 	        withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board'),
 	        withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board'),
           withBoardTimeout(fetchRhudeBoard(), 'Valley board'),
@@ -173,7 +192,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
         const role = audience;
-        const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows).filter((row) => row.role === role);
+        const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows);
         const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
         const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === role);
         const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === role);
@@ -216,7 +235,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       loadInFlightRef.current = false;
       setLoading(false);
     }
-  }, [audience]);
+      }, [audience]);
 
   const scheduleSilentRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
@@ -257,14 +276,16 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading challenge boards…</div>;
 
-  const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = [
-    { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
-    { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
-    { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
-    { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
-    ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Cross size={16} /> }] : []),
-    { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
-  ];
+  const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
+    ? [{ key: 'instructor', label: 'Instructor Board', icon: <Cross size={16} /> }]
+    : [
+      { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
+      { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
+      { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
+      { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
+      ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Cross size={16} /> }] : []),
+      { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
+    ];
 
   const BoardPanel = ({ children, className = 'p-4' }: { children: ReactNode; className?: string }) => (
     <div className={cn('card relative overflow-hidden', className)}>
@@ -283,10 +304,11 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
             <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
           </div>
           <div className="flex items-center gap-2">
-            {allowAudienceSwitch && (
+            {(allowAudienceSwitch || instructorMode) && (
               <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5" role="group" aria-label="Board audience">
                 <button type="button" onClick={() => { setAudience('cadet'); setTab('leader'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'cadet' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Cadet Boards</button>
                 <button type="button" onClick={() => { setAudience('sentry'); setTab('leader'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'sentry' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Sentry Boards</button>
+                {instructorMode && <button type="button" onClick={() => { setAudience('instructor'); setTab('instructor'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'instructor' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Instructor Boards</button>}
               </div>
             )}
             <span className="badge badge-brass text-[10px]">Camp Stats</span>
@@ -299,8 +321,40 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         </div>
       </div>
 
+      {instructorMode && audience === 'instructor' && tab === 'instructor' && (
+        <div className="space-y-4">
+          <BoardPanel>
+            <div className="flex items-center gap-2 mb-1">
+              <Cross size={20} className="text-royal" />
+              <h3 className="font-display font-semibold text-ink">Instructor Challenge Board</h3>
+              <span className="badge badge-brass text-[10px]">Camp-wide</span>
+            </div>
+            <p className="text-xs text-stone">Narratives published and Residents served by each instructor.</p>
+          </BoardPanel>
+          {instructorRows.length > 0 ? (
+            <BoardPanel>
+              <BoardList>
+                {instructorRows.map((row) => (
+                  <BoardRow
+                    key={row.user_id}
+                    rank={row.rank}
+                    name={row.display_name}
+                    value={`${row.narratives} Narratives · ${row.residents} Residents`}
+                    userId={row.user_id}
+                    avatarUrl={row.avatar_url}
+                    currentUserId={profile?.id}
+                    isCurrentUser={row.user_id === profile?.id}
+                    valueLabel="Instructor activity"
+                  />
+                ))}
+              </BoardList>
+            </BoardPanel>
+          ) : <EmptyState icon={(props) => <Cross {...props} />} title="No instructor data yet" message="Instructor activity will appear here once a narrative is published." />}
+        </div>
+      )}
+
       {/* Denarii Leaderboard (live) */}
-      {tab === 'leader' && (
+      {audience !== 'instructor' && tab === 'leader' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
@@ -408,7 +462,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Streak Board */}
-      {tab === 'streak' && (
+      {audience !== 'instructor' && tab === 'streak' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
@@ -518,7 +572,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Fig Board */}
-      {tab === 'quiz' && (
+      {audience !== 'instructor' && tab === 'quiz' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
@@ -605,7 +659,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Valley Board */}
-      {tab === 'rhude' && (
+      {audience !== 'instructor' && tab === 'rhude' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
@@ -648,7 +702,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Instructor Leaderboard */}
-      {instructorMode && tab === 'marks' && (
+      {instructorMode && audience !== 'instructor' && tab === 'marks' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
