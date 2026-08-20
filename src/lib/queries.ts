@@ -726,7 +726,12 @@ export async function fetchRelicInventory(userId: string) {
   return data as (RelicInventory & { relic_types: RelicType })[];
 }
 
-export async function fetchStreakboardSnapshots() {
+export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = 'cadet') {
+  if (audience === 'sentry') {
+    const { data, error } = await supabase.rpc('get_streakboard_live_for_role', { p_role: 'sentry' });
+    if (error) throw error;
+    return (data || []) as (StreakboardSnapshot & { role: 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[];
+  }
   const { data: liveData, error: liveError } = await supabase.rpc('get_streakboard_live');
   if (!liveError && liveData) {
     return liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
@@ -2327,7 +2332,12 @@ export async function fetchStrictStreak(userId: string) {
   }
 }
 
-export async function fetchQuizScoreboard() {
+export async function fetchQuizScoreboard(audience: 'cadet' | 'sentry' = 'cadet') {
+  if (audience === 'sentry') {
+    const { data, error } = await supabase.rpc('get_quiz_scoreboard_for_role', { p_role: 'sentry' });
+    if (error) throw error;
+    return (data || []) as QuizScoreboardRow[];
+  }
   const { data, error } = await supabase.rpc('get_quiz_scoreboard');
   if (error) throw error;
   return (data || []) as QuizScoreboardRow[];

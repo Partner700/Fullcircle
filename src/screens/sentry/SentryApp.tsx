@@ -380,7 +380,7 @@ export function SentryApp() {
           <CadetQuiz onQuizSubmitted={load} />
         </Suspense>
       )}
-      {tab === 'leaderboard' && <CadetLeaderboard />}
+      {tab === 'leaderboard' && <CadetLeaderboard allowAudienceSwitch />}
       {tab === 'awards' && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
           <CadetAwards />

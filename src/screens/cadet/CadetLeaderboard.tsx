@@ -12,6 +12,7 @@ import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow,
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house';
+type BoardAudience = 'cadet' | 'sentry';
 
 type TentLeaderboardRow = {
   tent_id: string;
@@ -130,9 +131,10 @@ function BoardMovementSummary({ rows }: { rows: CompetitiveRow[] }) {
   );
 }
 
-export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: boolean } = {}) {
+export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch = false }: { instructorMode?: boolean; allowAudienceSwitch?: boolean } = {}) {
   const { profile } = useAuth();
   const [tab, setTab] = useState<BoardTab>('leader');
+  const [audience, setAudience] = useState<BoardAudience>('cadet');
   const [streakRows, setStreakRows] = useState<(StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
   const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
   const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; avatar_url?: string | null; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
@@ -153,7 +155,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
     if (!silent) setLoading(true);
     try {
       const [streaks, leaders] = await Promise.allSettled([
-        withBoardTimeout(fetchStreakboardSnapshots(), 'Streak board'),
+        withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board'),
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
       ]);
       const streakRowsRaw = streaks.status === 'fulfilled' ? streaks.value : [];
@@ -164,17 +166,18 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
 	      const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
 	        withBoardTimeout(supabase.rpc('get_leaderboard_live'), 'Denarii board'),
 	        withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board'),
-	        withBoardTimeout(fetchQuizScoreboard(), 'Fig board'),
+	        withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board'),
           withBoardTimeout(fetchRhudeBoard(), 'Valley board'),
           withBoardTimeout(fetchMarksBoard(), 'Marks board'),
 	      ]);
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
-        const liveRowsRaw = (liveResult?.data || []) as typeof liveRows;
+        const role = audience;
+        const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows).filter((row) => row.role === role);
         const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
-        const quizRowsRaw = quizBoard.status === 'fulfilled' ? quizBoard.value : [];
-        const rhudeRowsRaw = rhudes.status === 'fulfilled' ? rhudes.value : [];
-        const marksRowsRaw = marks.status === 'fulfilled' ? marks.value : [];
+        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === role);
+        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === role);
+        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === role);
 	      setLiveRows(liveRowsRaw);
 	      setTentRows(tentRowsRaw);
 	      setQuizRows(quizRowsRaw);
@@ -213,7 +216,7 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
       loadInFlightRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [audience]);
 
   const scheduleSilentRefresh = useCallback(() => {
     if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
@@ -279,7 +282,15 @@ export function CadetLeaderboard({ instructorMode = false }: { instructorMode?: 
             <p className="eyebrow">Challenge Boards</p>
             <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
           </div>
-          <span className="badge badge-brass text-[10px]">Camp Stats</span>
+          <div className="flex items-center gap-2">
+            {allowAudienceSwitch && (
+              <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5" role="group" aria-label="Board audience">
+                <button type="button" onClick={() => { setAudience('cadet'); setTab('leader'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'cadet' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Cadet Boards</button>
+                <button type="button" onClick={() => { setAudience('sentry'); setTab('leader'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'sentry' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Sentry Boards</button>
+              </div>
+            )}
+            <span className="badge badge-brass text-[10px]">Camp Stats</span>
+          </div>
         </div>
         <div className="relative z-10 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         {tabs.map((item) => (

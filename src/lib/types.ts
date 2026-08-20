@@ -322,6 +322,7 @@ export interface StreakboardSnapshot {
   longest_streak: number;
   consecutive_inactive?: number;
   cumulative_inactive?: number;
+  role?: Role;
   rank: number;
 }
 
@@ -611,6 +612,8 @@ export interface TentHouseLeaderboardRow {
 export interface QuizScoreboardRow {
   user_id: string;
   display_name: string;
+  avatar_url?: string | null;
+  role?: Role;
   tent_house_id: string | null;
   daily_game_score: number;
   arena_figs?: number;
