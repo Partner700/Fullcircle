@@ -1,12 +1,12 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v69';
+const CACHE_VERSION = 'full-circle-v70';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
-const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v68', 'full-circle-v67'];
+const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v69', 'full-circle-v68'];
 
 // Legacy v1 caches to clean up
 const LEGACY_CACHES = [
@@ -17,7 +17,6 @@ const LEGACY_CACHES = [
 ];
 
 const APP_SHELL = [
-  '/offline.html',
   '/manifest.webmanifest',
   '/robots.txt',
   '/browserconfig.xml',
@@ -134,7 +133,7 @@ self.addEventListener('activate', (event) => {
       )
       .then(async () => {
         if (self.registration.navigationPreload) {
-          await self.registration.navigationPreload.enable().catch(() => undefined);
+          await self.registration.navigationPreload.disable().catch(() => undefined);
         }
       }),
   );
@@ -172,9 +171,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests: network-first with offline fallback
+  // Let the browser own page navigation. A service-worker timeout previously
+  // sent slower online phones to offline.html even with a working connection.
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(request, event.preloadResponse));
     return;
   }
 
@@ -308,41 +307,6 @@ function isImageRequest(url) {
 
 function isGoogleFont(url) {
   return url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-}
-
-async function networkFirstNavigation(request, preloadResponsePromise) {
-  const cache = await caches.open(RUNTIME_CACHE);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-
-  try {
-    const preloadedResponse = preloadResponsePromise ? await preloadResponsePromise : null;
-    const networkResponse = preloadedResponse || await fetch(request, {
-        credentials: 'same-origin',
-        signal: controller.signal,
-      });
-
-    return networkResponse;
-  } catch (error) {
-    // Do not serve stale app HTML. If the phone is online but the server is
-    // slow, failing loudly is better than booting an old instructor/cadet shell.
-    const offlineResponse = await caches.match('/offline.html');
-    if (offlineResponse) return offlineResponse;
-
-    // If nothing cached, return a basic offline response
-    return new Response(
-      '<!DOCTYPE html><html><head><title>Offline</title><meta charset="utf-8"></head><body><h1>You are offline</h1><p>Please check your connection.</p></body></html>',
-      {
-        status: 503,
-        statusText: 'Service Unavailable',
-        headers: new Headers({
-          'Content-Type': 'text/html; charset=utf-8',
-        }),
-      },
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 async function cacheFirst(request, cacheName) {
