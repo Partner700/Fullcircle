@@ -726,15 +726,33 @@ export async function fetchRelicInventory(userId: string) {
   return data as (RelicInventory & { relic_types: RelicType })[];
 }
 
+async function mergePublicStreakValues<T extends { user_id: string; current_streak?: number; longest_streak?: number }>(rows: T[]): Promise<T[]> {
+  const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+  if (userIds.length === 0) return rows;
+  const { data, error } = await supabase.rpc('get_public_streaks', { p_user_ids: userIds });
+  if (error) return rows;
+  const values = new Map<string, number>((data || []).map((row: any) => [String(row.user_id), Number(row.current_streak) || 0]));
+  return rows.map((row) => {
+    const visibleStreak = values.get(row.user_id);
+    if (visibleStreak === undefined) return row;
+    const currentStreak = Math.max(Number(row.current_streak) || 0, visibleStreak);
+    return {
+      ...row,
+      current_streak: currentStreak,
+      longest_streak: Math.max(Number(row.longest_streak) || 0, currentStreak),
+    };
+  });
+}
+
 export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = 'cadet') {
   if (audience === 'sentry') {
     const { data, error } = await supabase.rpc('get_streakboard_live_for_role', { p_role: 'sentry' });
     if (error) throw error;
-    return (data || []) as (StreakboardSnapshot & { role: 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[];
+    return mergePublicStreakValues((data || []) as (StreakboardSnapshot & { role: 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[]);
   }
   const { data: liveData, error: liveError } = await supabase.rpc('get_streakboard_live');
   if (!liveError && liveData) {
-    return liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
+    return mergePublicStreakValues(liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]);
   }
 
   const { data, error } = await supabase
@@ -751,7 +769,7 @@ export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = '
     .eq('snapshot_date', latestDate)
     .order('rank');
   if (err2) throw err2;
-  return rows as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
+  return mergePublicStreakValues(rows as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]);
 }
 
 export async function fetchLeaderboardSnapshots() {

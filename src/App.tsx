@@ -62,6 +62,7 @@ export default function App() {
       <>
         {overlays}
         <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-navy gap-6">
+          <Dove size={80} className="relative z-10 animate-float" />
           <div className="relative z-10 text-center max-w-sm px-4">
             <p className="text-peri-dim text-sm font-medium animate-fade-in" key={factIndex}>
               {SCRIPTURE_FACTS[factIndex]}
@@ -146,6 +147,7 @@ export default function App() {
 function RoleLoading() {
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-navy gap-4">
+      <Dove size={64} className="relative z-10 animate-float" />
       <p className="relative z-10 text-peri-dim text-sm">Preparing your Full Circle...</p>
     </div>
   );
