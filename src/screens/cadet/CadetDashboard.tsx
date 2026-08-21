@@ -25,6 +25,12 @@ type DashboardHeroSlide =
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
   | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem };
 
+const STARTUP_WELCOME_ARTWORK: PanelImageSetting = {
+  url: '/fullcircle-startup-artwork.jpeg',
+  positionX: 50,
+  positionY: 50,
+};
+
 interface Props {
   denariiTotal: number;
   currentStreak: number;
@@ -85,8 +91,16 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       setGames(gms.status === 'fulfilled' ? gms.value : []);
       setChallenge(chal.status === 'fulfilled' ? chal.value : null);
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
-      setQuotes(quoteFeed.status === 'fulfilled' ? quoteFeed.value : []);
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
+      const quoteStreakResults = await Promise.allSettled(
+        quoteItems.map((quote) => fetchStrictStreak(quote.user_id)),
+      );
+      const enrichedQuotes = quoteItems.map((quote, index) => {
+        const strict = quoteStreakResults[index];
+        const strictCurrent = strict?.status === 'fulfilled' ? Number(strict.value.current_streak || 0) : 0;
+        return { ...quote, current_streak: Math.max(Number(quote.current_streak || 0), strictCurrent) };
+      });
+      setQuotes(enrichedQuotes);
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
       // Reactions enrich the slideshow, but they should never hold the entire
@@ -95,7 +109,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       hasLoadedRef.current = true;
       const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
         quoteItems.length > 0
-          ? fetchDailyQuoteReactions(quoteItems, profile.id)
+          ? fetchDailyQuoteReactions(enrichedQuotes, profile.id)
           : Promise.resolve({}),
         activeNarrative?.verse_of_day
           ? fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id)
@@ -437,9 +451,11 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
-          const slideImage = slide.kind === 'announcement'
-            ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
-            : panelImages[slide.kind];
+          const slideImage = slide.kind === 'welcome'
+            ? panelImages.welcome || STARTUP_WELCOME_ARTWORK
+            : slide.kind === 'announcement'
+              ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
+              : panelImages[slide.kind];
 
           return (
             <div key={`${slide.id}-${slideIndex}`} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">

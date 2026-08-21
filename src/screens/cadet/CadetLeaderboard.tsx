@@ -92,7 +92,10 @@ function previousBoardValue(row: CompetitiveRow): number | null {
     row.previous_combined_score,
   ];
   for (const candidate of candidates) {
-    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+    if (candidate !== null && candidate !== undefined) {
+      const parsed = Number(candidate);
+      if (Number.isFinite(parsed)) return parsed;
+    }
   }
   return null;
 }
