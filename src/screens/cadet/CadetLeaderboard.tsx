@@ -105,6 +105,9 @@ function rankMovement(row: CompetitiveRow, currentValue?: number): number | null
   if (typeof currentValue === 'number' && previousValue !== null) {
     if (currentValue > previousValue) return 1;
     if (currentValue < previousValue) return -1;
+    const previousRank = Number(row.previous_rank ?? row.rank_yesterday);
+    const currentRank = Number(row.rank);
+    if (previousRank && currentRank && previousRank !== currentRank) return previousRank - currentRank;
     return 0;
   }
   if (typeof row.movement === 'number') return row.movement;
@@ -121,10 +124,42 @@ function isNewRecord(row: CompetitiveRow, value?: number) {
   return Boolean(record && typeof value === 'number' && value >= record);
 }
 
-function BoardMovementSummary({ rows }: { rows: CompetitiveRow[] }) {
-  const up = rows.filter((row) => Number(rankMovement(row)) > 0).length;
-  const down = rows.filter((row) => Number(rankMovement(row)) < 0).length;
-  const records = rows.filter((row) => isNewRecord(row)).length;
+function hydrateBoardHistory<T extends { rank?: number | null }>(
+  rows: T[],
+  storageKey: string,
+  identityForRow: (row: T) => string,
+  valueForRow: (row: T) => number,
+): (T & CompetitiveRow)[] {
+  if (typeof window === 'undefined') return rows as (T & CompetitiveRow)[];
+  let history: Record<string, { value: number; max: number; rank: number | null }> = {};
+  try { history = JSON.parse(window.localStorage.getItem(storageKey) || '{}'); } catch { history = {}; }
+  const enriched = rows.map((row) => {
+    const key = identityForRow(row);
+    const previous = history[key];
+    const current = valueForRow(row);
+    return {
+      ...row,
+      previous_value: (row as any).previous_value ?? previous?.value ?? null,
+      previous_rank: (row as any).previous_rank ?? (row as any).rank_yesterday ?? previous?.rank ?? null,
+      is_new_record: (row as any).is_new_record ?? (row as any).new_record ?? (previous && current > previous.max),
+    } as T & CompetitiveRow;
+  });
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(Object.fromEntries(
+      rows.map((row) => {
+        const key = identityForRow(row);
+        const value = valueForRow(row);
+        return [key, { value, max: Math.max(value, history[key]?.max ?? value), rank: row.rank ?? null }];
+      }),
+    )));
+  } catch { /* private browsing can disable local storage */ }
+  return enriched;
+}
+
+function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; valueForRow?: (row: CompetitiveRow) => number }) {
+  const up = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) > 0).length;
+  const down = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) < 0).length;
+  const records = rows.filter((row) => isNewRecord(row, valueForRow?.(row))).length;
   return (
     <div className="grid grid-cols-3 gap-2">
       <div className="rounded-lg border border-sage/25 bg-sage/10 px-3 py-2">
@@ -182,7 +217,6 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       ]);
       const streakRowsRaw = streaks.status === 'fulfilled' ? streaks.value : [];
       const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
-      setStreakRows(streakRowsRaw);
       setLeaderRows(leaderRowsRaw as any);
 
         const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
@@ -200,22 +234,35 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === role);
         const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === role);
         const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === role);
-	      setLiveRows(liveRowsRaw);
-	      setTentRows(tentRowsRaw);
-	      setQuizRows(quizRowsRaw);
-        setRhudeRows(rhudeRowsRaw);
-        setMarksRows(marksRowsRaw);
+
+        // Some board RPCs intentionally return only the current snapshot. Keep
+        // a small client-side snapshot so arrows still work between refreshes,
+        // while preferring authoritative previous values when the API supplies them.
+        const historyAudience = audience;
+        const streakRowsWithHistory = hydrateBoardHistory(streakRowsRaw, `full-circle-board-history-${historyAudience}-streak`, (row) => row.user_id, (row) => Number((row as any).current_streak ?? (row as any).consistency ?? 0));
+        const liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `full-circle-board-history-${historyAudience}-denarii`, (row) => row.user_id, (row) => Number((row as any).total_denarii ?? 0));
+        const tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number((row as any).combined_score ?? 0));
+        const quizRowsWithHistory = hydrateBoardHistory(quizRowsRaw, `full-circle-board-history-${historyAudience}-figs`, (row) => row.user_id, (row) => Number((row as any).total_score ?? 0));
+        const rhudeRowsWithHistory = hydrateBoardHistory(rhudeRowsRaw, `full-circle-board-history-${historyAudience}-rhudes`, (row) => row.user_id, (row) => Number((row as any).rhudes ?? 0));
+        const marksRowsWithHistory = hydrateBoardHistory(marksRowsRaw, `full-circle-board-history-${historyAudience}-marks`, (row) => row.user_id, (row) => Number((row as any).marks ?? 0));
+
+	      setStreakRows(streakRowsWithHistory as any);
+	      setLiveRows(liveRowsWithHistory as any);
+	      setTentRows(tentRowsWithHistory as any);
+	      setQuizRows(quizRowsWithHistory as any);
+        setRhudeRows(rhudeRowsWithHistory as any);
+        setMarksRows(marksRowsWithHistory as any);
         setLastUpdatedAt(new Date());
 
         // Render board rows immediately, then fill in only the missing public
         // avatars. This avoids blocking the board on a full profile download.
         const boardUserIds = [
-          ...streakRowsRaw.map((row) => row.user_id),
+          ...streakRowsWithHistory.map((row) => row.user_id),
           ...leaderRowsRaw.map((row) => row.user_id),
-          ...liveRowsRaw.map((row) => row.user_id),
-          ...quizRowsRaw.map((row) => row.user_id),
-          ...rhudeRowsRaw.map((row) => row.user_id),
-          ...marksRowsRaw.map((row) => row.user_id),
+          ...liveRowsWithHistory.map((row) => row.user_id),
+          ...quizRowsWithHistory.map((row) => row.user_id),
+          ...rhudeRowsWithHistory.map((row) => row.user_id),
+          ...marksRowsWithHistory.map((row) => row.user_id),
         ];
         void withBoardTimeout(fetchBoardAvatars(boardUserIds), 'Board pictures', 5_000)
           .then((avatars) => {
@@ -372,7 +419,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {liveRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={liveRows as CompetitiveRow[]} />
+              <BoardMovementSummary rows={liveRows as CompetitiveRow[]} valueForRow={(row) => Number((row as any).total_denarii)} />
               <div className="mt-4" />
               <BoardList>
                 {liveRows.map((row, i) => {
@@ -482,7 +529,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {streakRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={streakRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={streakRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).current_streak ?? (row as any).consistency ?? 0)} />
               <p className="text-xs text-stone mb-3">
                 Live as of {(lastUpdatedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}
               </p>
@@ -592,7 +639,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {quizRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={quizRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={quizRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).total_score ?? 0)} />
               <div className="mt-4" />
               <BoardList>
                 {quizRows.map((row) => {
@@ -677,7 +724,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {rhudeRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={rhudeRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={rhudeRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).rhudes ?? 0)} />
               <div className="mt-4" />
               <BoardList>
                 {rhudeRows.map((row) => (
@@ -720,7 +767,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {marksRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={marksRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={marksRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).marks ?? 0)} />
               <div className="mt-4" />
               <BoardList>
                 {marksRows.map((row) => (
@@ -763,7 +810,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
 	          {tentRows.length > 0 ? (
 	            <BoardPanel>
-                <BoardMovementSummary rows={tentRows as unknown as CompetitiveRow[]} />
+                <BoardMovementSummary rows={tentRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).combined_score ?? 0)} />
                 <div className="mt-4" />
 	              <BoardList>
 	                {tentRows.map((row) => {
