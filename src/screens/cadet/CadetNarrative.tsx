@@ -4,15 +4,15 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
-import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
 import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
-import type { CampMentionCandidate } from '../../lib/queries';
+import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import {
-  BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
+  BookOpen, BookMarked, Heart, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
   MessageCircle, Reply, Send, Pencil, Check,
@@ -28,6 +28,11 @@ function splitScriptureVerses(text: string) {
 }
 
 type ScriptureVerse = { reference: string; text: string; meditation: string };
+
+const INSIGHT_REACTIONS: { type: VerseInsightReactionType; label: string; icon: typeof Heart }[] = [
+  { type: 'heart', label: 'Love this insight', icon: Heart },
+  { type: 'lightbulb', label: 'This gave me an idea', icon: Lightbulb },
+];
 
 function MentionTextarea({
   value,
@@ -144,6 +149,7 @@ export function CadetNarrative({
   const [editingInsightBody, setEditingInsightBody] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState('');
+  const [reactionPendingKey, setReactionPendingKey] = useState<string | null>(null);
   const [campMentionCandidates, setCampMentionCandidates] = useState<CampMentionCandidate[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -272,7 +278,7 @@ export function CadetNarrative({
   useEffect(() => {
     if (!narrative?.id) return;
     let cancelled = false;
-    fetchVerseInsights(narrative.id).then((items) => {
+    fetchVerseInsights(narrative.id, profile?.id).then((items) => {
       if (!cancelled) {
         setVerseInsights(items);
         const drafts: Record<string, string> = {};
@@ -368,7 +374,7 @@ export function CadetNarrative({
     setSavingInsight(reference);
     try {
       await saveVerseInsight(narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
-      setVerseInsights(await fetchVerseInsights(narrative.id));
+      setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
       setOpenUserInsights(reference);
       setMyInsightDrafts((current) => ({ ...current, [reference]: '' }));
     } catch (error: any) {
@@ -392,7 +398,7 @@ export function CadetNarrative({
         mentionedUserIds: mentionedUserIds(body, campMentionCandidates),
         parentCommentId: target?.parentCommentId || null,
       });
-      setVerseInsights(await fetchVerseInsights(narrative.id));
+      setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
       setReplyDrafts((current) => ({ ...current, [insight.id]: '' }));
       setReplyTargets((current) => ({ ...current, [insight.id]: null }));
       setOpenInsightReplies(insight.id);
@@ -408,7 +414,7 @@ export function CadetNarrative({
       await editVerseInsight(editingInsightId, editingInsightBody.trim());
       setEditingInsightId(null);
       setEditingInsightBody('');
-      setVerseInsights(await fetchVerseInsights(narrative.id));
+      setVerseInsights(await fetchVerseInsights(narrative.id, profile?.id));
     } catch (error: any) { alert(error.message || 'Could not edit your insight.'); }
   };
 
@@ -418,8 +424,43 @@ export function CadetNarrative({
       await editVerseInsightComment(editingCommentId, editingCommentBody.trim());
       setEditingCommentId(null);
       setEditingCommentBody('');
-      setVerseInsights(await fetchVerseInsights(narrative.id));
+      setVerseInsights(await fetchVerseInsights(narrative.id, profile?.id));
     } catch (error: any) { alert(error.message || 'Could not edit your reply.'); }
+  };
+
+  const reactToInsight = async (insightId: string, reactionType: VerseInsightReactionType) => {
+    if (!profile || reactionPendingKey) return;
+    const pendingKey = `${insightId}:${reactionType}`;
+    const insight = verseInsights.find((item: any) => item.id === insightId);
+    const previous = insight?.reactions?.[reactionType] || { count: 0, reacted: false };
+    const nextReacted = !previous.reacted;
+
+    setReactionPendingKey(pendingKey);
+    setVerseInsights((current) => current.map((item: any) => item.id === insightId ? {
+      ...item,
+      reactions: {
+        ...item.reactions,
+        [reactionType]: {
+          count: Math.max(0, Number(previous.count || 0) + (nextReacted ? 1 : -1)),
+          reacted: nextReacted,
+        },
+      },
+    } : item));
+
+    try {
+      const reacted = await toggleVerseInsightReaction(insightId, reactionType);
+      if (reacted !== nextReacted && narrative?.id) {
+        setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
+      }
+    } catch (error: any) {
+      setVerseInsights((current) => current.map((item: any) => item.id === insightId ? {
+        ...item,
+        reactions: { ...item.reactions, [reactionType]: previous },
+      } : item));
+      alert(error.message || 'Could not save your reaction.');
+    } finally {
+      setReactionPendingKey(null);
+    }
   };
 
   if (loading) {
@@ -569,6 +610,36 @@ export function CadetNarrative({
                                 ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
                                 {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
                               </div>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
+                              {INSIGHT_REACTIONS.map(({ type, label, icon: ReactionIcon }) => {
+                                const reaction = item.reactions?.[type] || { count: 0, reacted: false };
+                                const pending = reactionPendingKey === `${item.id}:${type}`;
+                                return (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    disabled={Boolean(reactionPendingKey)}
+                                    onClick={() => void reactToInsight(item.id, type)}
+                                    className={cn(
+                                      'inline-flex h-7 min-w-9 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors disabled:opacity-60',
+                                      reaction.reacted
+                                        ? type === 'heart'
+                                          ? 'border-coral/50 bg-coral-soft text-coral'
+                                          : 'border-gold/50 bg-gold-soft text-gold'
+                                        : 'border-border bg-surface text-stone hover:border-border-bright hover:text-ink',
+                                      pending && 'animate-pulse',
+                                    )}
+                                    title={label}
+                                    aria-label={`${label}: ${reaction.count}`}
+                                    aria-pressed={reaction.reacted}
+                                    aria-busy={pending}
+                                  >
+                                    <ReactionIcon size={13} fill={type === 'heart' && reaction.reacted ? 'currentColor' : 'none'} />
+                                    <span>{reaction.count}</span>
+                                  </button>
+                                );
+                              })}
                             </div>
                             <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
                               setOpenInsightReplies(repliesOpen ? null : item.id);

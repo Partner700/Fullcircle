@@ -34,6 +34,7 @@ const quoteReactions = read('src/components/QuoteReactions.tsx');
 const quoteQueries = read('src/lib/queries.ts');
 const tentGroupChat = read('supabase/migrations/20260819100000_tent_group_chat.sql');
 const quoteCommentReplies = read('supabase/migrations/20260819103000_quote_comment_replies.sql');
+const scriptureInsightReactions = read('supabase/migrations/20260821160000_scripture_insight_reactions.sql');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -79,7 +80,7 @@ const sealedTables = [
   'role_assignments', 'relic_inventory', 'mobile_money_payments', 'question_responses',
   'daily_game_runs', 'daily_game_responses', 'daily_game_question_aids',
   'arena_question_decks', 'arena_trivia_responses', 'arena_machine_trivia_responses',
-  'relic_usage_log', 'arena_rooms', 'arena_participants',
+  'relic_usage_log', 'arena_rooms', 'arena_participants', 'scripture_insight_reactions',
 ];
 
 for (const file of sourceFiles(path.join(root, 'src'))) {
@@ -95,11 +96,14 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(!serviceWorker.includes('clients.claim()'), 'Service worker must not replace the controller of an open session.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v70'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v71'/);
 assert.match(serviceWorker, /RETAINED_CACHE_PREFIXES/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.match(read('scripts/preserve-release-assets.cjs'), /manifest\.json/);
+assert.match(scriptureInsightReactions, /reaction_type IN \('heart', 'lightbulb'\)/);
+assert.match(scriptureInsightReactions, /v_user_id uuid := auth\.uid\(\)/);
+assert.match(scriptureInsightReactions, /REVOKE ALL ON TABLE public\.scripture_insight_reactions FROM PUBLIC, anon, authenticated/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
