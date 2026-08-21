@@ -82,7 +82,7 @@
     // React starts.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js?v=72', { updateViaCache: 'none' })
+        .register('/sw.js?v=73', { updateViaCache: 'none' })
         .then(function (registration) { return registration.update(); })
         .catch(function () {});
     }

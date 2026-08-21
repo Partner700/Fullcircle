@@ -1,6 +1,8 @@
 import { cn } from '../lib/utils';
 import doveArtwork from '../assets/brand-real/dove-clean.png';
 
+const stableDoveArtwork = '/icons/fullcircle-dove-clean.png';
+
 /**
  * Dove — the supplied Full Circle dove artwork, including its cloud.
  */
@@ -10,11 +12,18 @@ export function Dove({ size = 120, className }: {
 }) {
   return (
     <img
-      src={doveArtwork}
+      src={stableDoveArtwork}
       width={size}
       height={size}
       className={cn('block object-contain', className)}
       alt="Full Circle dove"
+      loading="eager"
+      decoding="sync"
+      onError={(event) => {
+        if (event.currentTarget.dataset.fallbackLoaded === 'true') return;
+        event.currentTarget.dataset.fallbackLoaded = 'true';
+        event.currentTarget.src = doveArtwork;
+      }}
     />
   );
 }

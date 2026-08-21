@@ -7,7 +7,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
 import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
-import { formatDenarii, cn, formatShortDate } from '../../lib/utils';
+import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 
@@ -131,17 +131,42 @@ function hydrateBoardHistory<T extends { rank?: number | null }>(
   valueForRow: (row: T) => number,
 ): (T & CompetitiveRow)[] {
   if (typeof window === 'undefined') return rows as (T & CompetitiveRow)[];
-  let history: Record<string, { value: number; max: number; rank: number | null }> = {};
+  type HistoryEntry = {
+    value?: number;
+    max?: number;
+    rank?: number | null;
+    snapshot_date?: string;
+    baseline_value?: number;
+    baseline_rank?: number | null;
+    last_value?: number;
+    last_rank?: number | null;
+  };
+  let history: Record<string, HistoryEntry> = {};
   try { history = JSON.parse(window.localStorage.getItem(storageKey) || '{}'); } catch { history = {}; }
+  const today = getTodayISODate();
+
+  const dailyBaseline = (entry: HistoryEntry | undefined, currentValue: number, currentRank: number | null) => {
+    if (!entry) return { value: currentValue, rank: currentRank };
+    const observedValue = entry.last_value ?? entry.value ?? currentValue;
+    const observedRank = entry.last_rank ?? entry.rank ?? currentRank;
+    const sameDay = !entry.snapshot_date || entry.snapshot_date === today;
+    return {
+      value: sameDay ? (entry.baseline_value ?? entry.value ?? observedValue) : observedValue,
+      rank: sameDay ? (entry.baseline_rank ?? entry.rank ?? observedRank) : observedRank,
+    };
+  };
+
   const enriched = rows.map((row) => {
     const key = identityForRow(row);
     const previous = history[key];
     const current = valueForRow(row);
+    const currentRank = row.rank ?? null;
+    const baseline = dailyBaseline(previous, current, currentRank);
     return {
       ...row,
-      previous_value: (row as any).previous_value ?? previous?.value ?? null,
-      previous_rank: (row as any).previous_rank ?? (row as any).rank_yesterday ?? previous?.rank ?? null,
-      is_new_record: (row as any).is_new_record ?? (row as any).new_record ?? (previous && current > previous.max),
+      previous_value: (row as any).previous_value ?? baseline.value,
+      previous_rank: (row as any).previous_rank ?? (row as any).rank_yesterday ?? baseline.rank,
+      is_new_record: (row as any).is_new_record ?? (row as any).new_record ?? Boolean(previous && current > (previous.max ?? current)),
     } as T & CompetitiveRow;
   });
   try {
@@ -149,7 +174,19 @@ function hydrateBoardHistory<T extends { rank?: number | null }>(
       rows.map((row) => {
         const key = identityForRow(row);
         const value = valueForRow(row);
-        return [key, { value, max: Math.max(value, history[key]?.max ?? value), rank: row.rank ?? null }];
+        const rank = row.rank ?? null;
+        const previous = history[key];
+        const baseline = dailyBaseline(previous, value, rank);
+        return [key, {
+          snapshot_date: today,
+          baseline_value: baseline.value,
+          baseline_rank: baseline.rank,
+          last_value: value,
+          last_rank: rank,
+          value,
+          rank,
+          max: Math.max(value, previous?.max ?? value),
+        }];
       }),
     )));
   } catch { /* private browsing can disable local storage */ }
