@@ -1,6 +1,6 @@
 import { cn } from '../lib/utils';
 import { TentHouseSymbol } from './TentHouseSymbol';
-import { ArrowDown, ArrowUp, Minus, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 import { MessageAvatar } from './TentMessenger';
 
 interface BoardRowProps {
@@ -55,20 +55,26 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
             {name}
           </p>
           {houseId && <TentHouseSymbol houseId={houseId} size={18} className="flex-shrink-0" />}
-          {isRecord && (
-            <span className="inline-flex h-6 items-center gap-1 rounded-full border border-gold/35 bg-gold-soft px-1.5 text-[9px] font-black uppercase tracking-wide text-gold" title="New record">
-              <Sparkles size={10} /> <span className="hidden sm:inline">Record</span>
-            </span>
-          )}
         </div>
         {showSubtext && subtext && <p className="mt-1 truncate text-[11px] font-medium text-stone">{subtext}</p>}
       </div>
-      <div className="flex items-center justify-end gap-2 text-right">
-        <MovementBadge movement={movement} />
-        <div>
-          <span className="text-[13px] font-bold text-ink">{value}</span>
-          {valueLabel && <p className="text-[10px] text-stone mt-1">{valueLabel}</p>}
+      <div className="flex items-center justify-end text-right">
+        <div className={cn(
+          'relative inline-flex min-h-8 min-w-[58px] items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[13px] font-bold transition-colors',
+          movement && movement > 0 ? 'border-sage/45 bg-sage/15 text-sage' :
+          movement && movement < 0 ? 'border-coral/45 bg-coral/15 text-coral' :
+          'border-border bg-surface text-ink',
+        )}>
+          {isRecord && (
+            <span className="absolute -left-1.5 -top-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/45 bg-gold-soft text-gold shadow-sm" title="New record">
+              <Sparkles size={9} />
+            </span>
+          )}
+          {movement && movement > 0 && <ArrowUp size={11} aria-label="Increased" />}
+          {movement && movement < 0 && <ArrowDown size={11} aria-label="Decreased" />}
+          <span>{value}</span>
         </div>
+        {valueLabel && <p className="ml-2 text-[10px] text-stone">{valueLabel}</p>}
       </div>
     </div>
   );
@@ -76,33 +82,4 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
 
 export function BoardList({ children }: { children: React.ReactNode }) {
   return <div className="space-y-2">{children}</div>;
-}
-
-function MovementBadge({ movement }: { movement?: number | null }) {
-  if (typeof movement !== 'number') {
-    return (
-      <span className="hidden h-6 w-6 items-center justify-center rounded-full border border-border bg-surface-2 text-stone sm:inline-flex" title="No movement yet">
-        <Minus size={10} />
-      </span>
-    );
-  }
-  if (movement > 0) {
-    return (
-      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-sage/35 bg-sage/15 px-1 text-[9px] font-black text-sage" title={`Up ${movement}`}>
-        <ArrowUp size={10} />{movement > 1 ? movement : ''}
-      </span>
-    );
-  }
-  if (movement < 0) {
-    return (
-      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-coral/35 bg-coral/15 px-1 text-[9px] font-black text-coral" title={`Down ${Math.abs(movement)}`}>
-        <ArrowDown size={10} />{Math.abs(movement) > 1 ? Math.abs(movement) : ''}
-      </span>
-    );
-  }
-  return (
-    <span className="hidden h-6 w-6 items-center justify-center rounded-full border border-border bg-surface-2 text-stone sm:inline-flex" title="No change">
-      <Minus size={10} />
-    </span>
-  );
 }

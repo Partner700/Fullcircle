@@ -28,6 +28,7 @@ import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustme
 import { prepareImageUpload } from '../../lib/uploads';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
+import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
@@ -327,6 +328,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
   { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
   { type: 'panel_image_reading', label: "Today's Reading", audience: 'all' },
+  { type: 'panel_image_scripture', label: 'Scripture / Verse of the Day', audience: 'all' },
   { type: 'panel_image_meditation', label: 'Daily Meditation', audience: 'all' },
   { type: 'panel_image_challenge', label: 'Daily Challenge', audience: 'all' },
   { type: 'panel_image_quiz', label: 'Quiz Panel', audience: 'all' },
@@ -811,6 +813,10 @@ function AnnouncementManager() {
               { value: 'panel_image_birthday', label: 'Panel Image: Birthday' },
               { value: 'panel_image_quote', label: 'Panel Image: Quote' },
               { value: 'panel_image_market', label: 'Panel Image: Market' },
+              { value: 'panel_image_reading', label: "Panel Image: Today's Reading" },
+              { value: 'panel_image_scripture', label: 'Panel Image: Scripture / Verse of the Day' },
+              { value: 'panel_image_meditation', label: 'Panel Image: Daily Meditation' },
+              { value: 'panel_image_challenge', label: 'Panel Image: Daily Challenge' },
             ]} />
           </div>
           <div>
@@ -3529,6 +3535,8 @@ function InstructorSettings({ profile, tents, members }: {
           <LogOut size={16} /> Sign Out
         </button>
       </div>
+
+      <DeleteAccountSection />
 
       <div className="card p-4 space-y-3">
         <div className="flex items-center gap-2">

@@ -127,6 +127,7 @@ export function CadetNarrative({
   const [challengeSaved, setChallengeSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [readingImage, setReadingImage] = useState<PanelImageSetting | null>(null);
+  const [scriptureImage, setScriptureImage] = useState<PanelImageSetting | null>(null);
   const [challengeImage, setChallengeImage] = useState<PanelImageSetting | null>(null);
   const [meditationImage, setMeditationImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
@@ -159,16 +160,18 @@ export function CadetNarrative({
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-    const [narr, chal, panelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
+    const [narr, chal, panelImage, scripturePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
       fetchNarrative(today),
       fetchChallengeSubmission(profile.id, today),
       fetchPanelImageSetting('reading').catch(() => null),
+      fetchPanelImageSetting('scripture').catch(() => null),
       fetchPanelImageSetting('challenge').catch(() => null),
       fetchPanelImageSetting('meditation').catch(() => null),
     ]);
     setNarrative(narr);
     setChallenge(chal);
     setReadingImage(panelImage);
+    setScriptureImage(scripturePanelImage);
     setChallengeImage(challengePanelImage);
     setMeditationImage(meditationPanelImage);
     if (chal?.proof_text) {
@@ -467,7 +470,8 @@ export function CadetNarrative({
             backdropFilter: 'blur(26px) saturate(1.22)',
           }}
         >
-          <div>
+          <PanelImageBackdrop image={scriptureImage} opacityFallback={100} veilClassName="award-panel-veil" modeFilter={false} textGradient={false} />
+          <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <Sun size={18} className="text-brass" strokeWidth={1.5} />
             <span className="eyebrow text-stone">Verse of the Day</span>

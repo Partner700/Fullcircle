@@ -15,6 +15,7 @@ import {
 } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
 import { AppSelect } from './AppSelect';
+import { DeleteAccountSection } from './DeleteAccountSection';
 import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import type { Award } from '../lib/types';
 
@@ -375,6 +376,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
           </button>
         </div>
       </div>
+
+      <DeleteAccountSection dark />
 
       {/* Dove footer */}
       <div className="flex justify-center py-4">

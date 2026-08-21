@@ -9,6 +9,7 @@ import { cn, formatDenarii } from '../../lib/utils';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { AppSelect } from '../../components/AppSelect';
+import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import {
   User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
@@ -314,6 +315,8 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
             : <>You are on the free trial with <span className="font-semibold text-coral">{trialCountdown.label}</span> remaining. Upgrade to keep playing after the trial ends.</>}
         </p>
       </div>
+
+      <DeleteAccountSection />
     </div>
   );
 }
