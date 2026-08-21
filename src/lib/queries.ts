@@ -1077,7 +1077,21 @@ export async function uploadChallengeEvidence(userId: string, file: File) {
   };
 }
 
-export async function fetchVerseInsights(narrativeId: string) {
+export type VerseInsightReactionType = 'heart' | 'lightbulb';
+
+export type VerseInsightReactionState = Record<VerseInsightReactionType, {
+  count: number;
+  reacted: boolean;
+}>;
+
+function emptyVerseInsightReactionState(): VerseInsightReactionState {
+  return {
+    heart: { count: 0, reacted: false },
+    lightbulb: { count: 0, reacted: false },
+  };
+}
+
+export async function fetchVerseInsights(narrativeId: string, reactorUserId?: string) {
   const { data, error } = await supabase
     .from('scripture_verse_insights')
     .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)')
@@ -1089,12 +1103,32 @@ export async function fetchVerseInsights(narrativeId: string) {
   }
   const insights = data || [];
   if (!insights.length) return insights;
-  const { data: comments, error: commentError } = await supabase
-    .from('scripture_insight_comments')
-    .select('id,insight_id,user_id,mentioned_user_id,mentioned_user_ids,parent_comment_id,body,created_at')
-    .in('insight_id', insights.map((insight) => insight.id))
-    .order('created_at', { ascending: true });
-  if (commentError) return insights.map((insight) => ({ ...insight, comments: [] }));
+  const insightIds = insights.map((insight) => insight.id);
+  const [commentResult, reactionResult] = await Promise.all([
+    supabase
+      .from('scripture_insight_comments')
+      .select('id,insight_id,user_id,mentioned_user_id,mentioned_user_ids,parent_comment_id,body,created_at')
+      .in('insight_id', insightIds)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('scripture_insight_reactions')
+      .select('insight_id,reactor_user_id,reaction_type')
+      .in('insight_id', insightIds),
+  ]);
+  if (commentResult.error) console.warn('Scripture insight replies unavailable:', commentResult.error.message);
+  if (reactionResult.error) console.warn('Scripture insight reactions unavailable:', reactionResult.error.message);
+  const comments = commentResult.data || [];
+  const reactionsByInsight = new Map<string, VerseInsightReactionState>();
+  (reactionResult.data || []).forEach((reaction: any) => {
+    if (reaction.reaction_type !== 'heart' && reaction.reaction_type !== 'lightbulb') return;
+    const reactionType = reaction.reaction_type as VerseInsightReactionType;
+    const state = reactionsByInsight.get(reaction.insight_id) || emptyVerseInsightReactionState();
+    state[reactionType].count += 1;
+    if (reactorUserId && reaction.reactor_user_id === reactorUserId) {
+      state[reactionType].reacted = true;
+    }
+    reactionsByInsight.set(reaction.insight_id, state);
+  });
   const profileIds = Array.from(new Set((comments || []).flatMap((comment) => [comment.user_id, comment.mentioned_user_id]).filter(Boolean))) as string[];
   const { data: commentProfiles } = profileIds.length
     ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', profileIds)
@@ -1102,6 +1136,7 @@ export async function fetchVerseInsights(narrativeId: string) {
   const profilesById = new Map((commentProfiles || []).map((commentProfile) => [commentProfile.id, commentProfile]));
   return insights.map((insight) => ({
     ...insight,
+    reactions: reactionsByInsight.get(insight.id) || emptyVerseInsightReactionState(),
     comments: (comments || [])
       .filter((comment) => comment.insight_id === insight.id)
       .map((comment) => ({
@@ -1110,6 +1145,18 @@ export async function fetchVerseInsights(narrativeId: string) {
         mentioned_profile: comment.mentioned_user_id ? profilesById.get(comment.mentioned_user_id) || null : null,
       })),
   }));
+}
+
+export async function toggleVerseInsightReaction(
+  insightId: string,
+  reactionType: VerseInsightReactionType,
+) {
+  const { data, error } = await supabase.rpc('toggle_scripture_insight_reaction', {
+    p_insight_id: insightId,
+    p_reaction_type: reactionType,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 export type CampMentionCandidate = {
