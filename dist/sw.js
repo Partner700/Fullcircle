@@ -1,12 +1,12 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v72';
+const CACHE_VERSION = 'full-circle-v73';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
-const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v71', 'full-circle-v70'];
+const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v72', 'full-circle-v71'];
 
 // Legacy v1 caches to clean up
 const LEGACY_CACHES = [

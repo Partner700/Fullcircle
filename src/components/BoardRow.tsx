@@ -60,7 +60,7 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
       </div>
       <div className="flex flex-col items-end justify-center text-right leading-none">
         <div className={cn(
-          'relative inline-flex min-h-6 min-w-[42px] items-center justify-center gap-0.5 rounded-md border px-1 py-0.5 text-[11px] font-bold transition-colors',
+          'relative inline-flex min-h-6 min-w-[42px] items-center justify-center gap-1 rounded-md border px-1 py-0.5 text-[11px] font-bold transition-colors',
           movement !== null && movement !== undefined && movement > 0 ? 'border-sage/55 bg-sage/20 text-sage' :
           movement !== null && movement !== undefined && movement < 0 ? 'border-coral/55 bg-coral/20 text-coral' :
           'border-border bg-surface text-ink',
@@ -70,9 +70,17 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
               <Sparkles size={9} />
             </span>
           )}
-          {movement !== null && movement !== undefined && movement > 0 && <ArrowUp size={11} strokeWidth={3} aria-label="Increased" />}
-          {movement !== null && movement !== undefined && movement < 0 && <ArrowDown size={11} strokeWidth={3} aria-label="Decreased" />}
           <span>{value}</span>
+          {movement !== null && movement !== undefined && movement > 0 && (
+            <span className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-sage/20" title="Increased">
+              <ArrowUp size={13} strokeWidth={3.25} aria-label="Increased" />
+            </span>
+          )}
+          {movement !== null && movement !== undefined && movement < 0 && (
+            <span className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-coral/20" title="Decreased">
+              <ArrowDown size={13} strokeWidth={3.25} aria-label="Decreased" />
+            </span>
+          )}
         </div>
         {valueLabel && <p className="mt-0.5 text-[9px] text-stone">{valueLabel}</p>}
       </div>

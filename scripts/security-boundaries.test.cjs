@@ -35,6 +35,9 @@ const quoteQueries = read('src/lib/queries.ts');
 const tentGroupChat = read('supabase/migrations/20260819100000_tent_group_chat.sql');
 const quoteCommentReplies = read('supabase/migrations/20260819103000_quote_comment_replies.sql');
 const scriptureInsightReactions = read('supabase/migrations/20260821160000_scripture_insight_reactions.sql');
+const doveComponent = read('src/components/Dove.tsx');
+const boardRow = read('src/components/BoardRow.tsx');
+const cadetLeaderboard = read('src/screens/cadet/CadetLeaderboard.tsx');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -97,11 +100,16 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v72'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v73'/);
 assert.match(serviceWorker, /RETAINED_CACHE_PREFIXES/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.match(read('scripts/preserve-release-assets.cjs'), /path\.join\(dist, 'assets'\)/);
+assert.match(doveComponent, /stableDoveArtwork = '\/icons\/fullcircle-dove-clean\.png'/);
+assert.match(doveComponent, /fallbackLoaded/);
+assert.match(boardRow, /<span>\{value\}<\/span>[\s\S]*?<ArrowUp/);
+assert.match(cadetLeaderboard, /baseline_value/);
+assert.match(cadetLeaderboard, /snapshot_date: today/);
 assert.match(scriptureInsightReactions, /reaction_type IN \('heart', 'lightbulb'\)/);
 assert.match(scriptureInsightReactions, /v_user_id uuid := auth\.uid\(\)/);
 assert.match(scriptureInsightReactions, /REVOKE ALL ON TABLE public\.scripture_insight_reactions FROM PUBLIC, anon, authenticated/);

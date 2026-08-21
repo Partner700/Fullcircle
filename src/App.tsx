@@ -62,7 +62,9 @@ export default function App() {
       <>
         {overlays}
         <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-navy gap-6">
-          <Dove size={80} className="relative z-10 animate-float" />
+          <div className="relative z-10 flex h-24 w-24 items-center justify-center" aria-label="Full Circle is loading">
+            <Dove size={96} className="animate-float" />
+          </div>
           <div className="relative z-10 text-center max-w-sm px-4">
             <p className="text-peri-dim text-sm font-medium animate-fade-in" key={factIndex}>
               {SCRIPTURE_FACTS[factIndex]}
