@@ -105,6 +105,9 @@ function rankMovement(row: CompetitiveRow, currentValue?: number): number | null
   if (typeof currentValue === 'number' && previousValue !== null) {
     if (currentValue > previousValue) return 1;
     if (currentValue < previousValue) return -1;
+    const previousRank = Number(row.previous_rank ?? row.rank_yesterday);
+    const currentRank = Number(row.rank);
+    if (previousRank && currentRank && previousRank !== currentRank) return previousRank - currentRank;
     return 0;
   }
   if (typeof row.movement === 'number') return row.movement;
@@ -121,9 +124,9 @@ function isNewRecord(row: CompetitiveRow, value?: number) {
   return Boolean(record && typeof value === 'number' && value >= record);
 }
 
-function BoardMovementSummary({ rows }: { rows: CompetitiveRow[] }) {
-  const up = rows.filter((row) => Number(rankMovement(row)) > 0).length;
-  const down = rows.filter((row) => Number(rankMovement(row)) < 0).length;
+function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; valueForRow?: (row: CompetitiveRow) => number }) {
+  const up = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) > 0).length;
+  const down = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) < 0).length;
   const records = rows.filter((row) => isNewRecord(row)).length;
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -372,7 +375,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {liveRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={liveRows as CompetitiveRow[]} />
+              <BoardMovementSummary rows={liveRows as CompetitiveRow[]} valueForRow={(row) => Number((row as any).total_denarii)} />
               <div className="mt-4" />
               <BoardList>
                 {liveRows.map((row, i) => {
@@ -482,7 +485,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {streakRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={streakRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={streakRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).current_streak ?? (row as any).consistency ?? 0)} />
               <p className="text-xs text-stone mb-3">
                 Live as of {(lastUpdatedAt || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatShortDate(streakRows[0].snapshot_date)}
               </p>
@@ -592,7 +595,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {quizRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={quizRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={quizRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).total_score ?? 0)} />
               <div className="mt-4" />
               <BoardList>
                 {quizRows.map((row) => {
@@ -677,7 +680,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {rhudeRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={rhudeRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={rhudeRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).rhudes ?? 0)} />
               <div className="mt-4" />
               <BoardList>
                 {rhudeRows.map((row) => (
@@ -720,7 +723,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
           {marksRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={marksRows as unknown as CompetitiveRow[]} />
+              <BoardMovementSummary rows={marksRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).marks ?? 0)} />
               <div className="mt-4" />
               <BoardList>
                 {marksRows.map((row) => (
@@ -763,7 +766,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
 	          {tentRows.length > 0 ? (
 	            <BoardPanel>
-                <BoardMovementSummary rows={tentRows as unknown as CompetitiveRow[]} />
+                <BoardMovementSummary rows={tentRows as unknown as CompetitiveRow[]} valueForRow={(row) => Number((row as any).combined_score ?? 0)} />
                 <div className="mt-4" />
 	              <BoardList>
 	                {tentRows.map((row) => {
