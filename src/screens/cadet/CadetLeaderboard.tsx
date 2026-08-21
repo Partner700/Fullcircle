@@ -37,6 +37,19 @@ type TentLeaderboardRow = {
   rank: number;
 };
 
+type StreakLeaderboardRow = StreakboardSnapshot & {
+  profiles: { display_name: string; avatar_url: string | null };
+};
+
+type LiveLeaderboardRow = {
+  user_id: string;
+  display_name: string;
+  avatar_url?: string | null;
+  tent_house_id: string | null;
+  total_denarii: number;
+  rank: number;
+};
+
 const RANK_HONOR_TINT: Record<number, { text: string; bg: string; border: string; label: string }> = {
   1: { text: 'text-brass', bg: 'bg-brass-soft', border: 'border-brass', label: 'Aureus' },
   2: { text: 'text-stone', bg: 'bg-surface-2', border: 'border-border', label: 'Argent' },
@@ -76,6 +89,18 @@ type CompetitiveRow = {
   previous_rhudes?: number | null;
   previous_marks?: number | null;
   previous_combined_score?: number | null;
+};
+
+type BoardMovementRow = {
+  board_key: string;
+  subject_id: string;
+  row_data: Record<string, unknown> | null;
+  current_value: number | string;
+  current_rank: number;
+  previous_value: number | string;
+  previous_rank: number | null;
+  movement: number;
+  is_new_record: boolean;
 };
 
 function previousBoardValue(row: CompetitiveRow): number | null {
@@ -193,6 +218,19 @@ function hydrateBoardHistory<T extends { rank?: number | null }>(
   return enriched;
 }
 
+function rowsFromBoardPayload<T>(movements: BoardMovementRow[], boardKey: string): (T & CompetitiveRow)[] {
+  return movements
+    .filter((movement) => movement.board_key === boardKey)
+    .map((movement) => ({
+      ...(movement.row_data || {}),
+      rank: Number(movement.current_rank),
+      previous_value: Number(movement.previous_value),
+      previous_rank: movement.previous_rank,
+      movement: Number(movement.movement),
+      is_new_record: Boolean(movement.is_new_record),
+    })) as (T & CompetitiveRow)[];
+}
+
 function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; valueForRow?: (row: CompetitiveRow) => number }) {
   const up = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) > 0).length;
   const down = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) < 0).length;
@@ -219,14 +257,14 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const { profile } = useAuth();
   const [tab, setTab] = useState<BoardTab>('leader');
   const [audience, setAudience] = useState<BoardAudience>('cadet');
-  const [streakRows, setStreakRows] = useState<(StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]>([]);
+  const [streakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
   const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
-  const [liveRows, setLiveRows] = useState<{ user_id: string; display_name: string; avatar_url?: string | null; tent_house_id: string | null; total_denarii: number; rank: number }[]>([]);
+  const [liveRows, setLiveRows] = useState<LiveLeaderboardRow[]>([]);
   const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
   const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
   const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
-  const [instructorRows, setInstructorRows] = useState<InstructorBoardRow[]>([]);
+  const [instructorRows, setInstructorRows] = useState<(InstructorBoardRow & CompetitiveRow)[]>([]);
   const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
@@ -240,55 +278,88 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     if (!silent) setLoading(true);
     try {
       if (audience === 'instructor') {
-        const { data, error } = await withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board');
-        if (error) throw error;
-        setInstructorRows((data || []) as InstructorBoardRow[]);
+        const movementResult = await withBoardTimeout(
+          supabase.rpc('get_competitive_board_movements', { p_audience: 'instructor' }),
+          'Instructor board',
+        );
+        if (!movementResult.error && movementResult.data) {
+          setInstructorRows(rowsFromBoardPayload<InstructorBoardRow>(movementResult.data as BoardMovementRow[], 'instructor'));
+        } else {
+          const { data, error } = await withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback');
+          if (error) throw error;
+          setInstructorRows(hydrateBoardHistory(
+            (data || []) as InstructorBoardRow[],
+            'full-circle-board-history-instructor-instructor',
+            (row) => row.user_id,
+            (row) => Number(row.narratives),
+          ));
+        }
         setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
         setLastUpdatedAt(new Date());
         return;
       }
 
-      const [streaks, leaders] = await Promise.allSettled([
-        withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board'),
+      const [leaders, boardMovements] = await Promise.allSettled([
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
+        withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: audience }), 'Challenge boards'),
       ]);
-      const streakRowsRaw = streaks.status === 'fulfilled' ? streaks.value : [];
       const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
       setLeaderRows(leaderRowsRaw as any);
 
-        const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
-          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: audience }), 'Denarii board'),
-	        withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board'),
-	        withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board'),
-          withBoardTimeout(fetchRhudeBoard(), 'Valley board'),
-          withBoardTimeout(fetchMarksBoard(), 'Marks board'),
-	      ]);
+      const movementResult = boardMovements.status === 'fulfilled' ? boardMovements.value : null;
+      const authoritativeMovements = movementResult && !movementResult.error
+        ? ((movementResult.data || []) as BoardMovementRow[])
+        : [];
+
+      let streakRowsWithHistory: (StreakLeaderboardRow & CompetitiveRow)[];
+      let liveRowsWithHistory: (LiveLeaderboardRow & CompetitiveRow)[];
+      let tentRowsWithHistory: (TentLeaderboardRow & CompetitiveRow)[];
+      let quizRowsWithHistory: (QuizScoreboardRow & CompetitiveRow)[];
+      let rhudeRowsWithHistory: (RhudeBoardRow & CompetitiveRow)[];
+      let marksRowsWithHistory: (MarksBoardRow & CompetitiveRow)[];
+
+      if (authoritativeMovements.length > 0) {
+        streakRowsWithHistory = rowsFromBoardPayload<StreakLeaderboardRow>(authoritativeMovements, 'streak');
+        liveRowsWithHistory = rowsFromBoardPayload<LiveLeaderboardRow>(authoritativeMovements, 'denarii');
+        tentRowsWithHistory = rowsFromBoardPayload<TentLeaderboardRow>(authoritativeMovements, 'tent');
+        quizRowsWithHistory = rowsFromBoardPayload<QuizScoreboardRow>(authoritativeMovements, 'figs');
+        rhudeRowsWithHistory = rowsFromBoardPayload<RhudeBoardRow>(authoritativeMovements, 'rhude');
+        marksRowsWithHistory = rowsFromBoardPayload<MarksBoardRow>(authoritativeMovements, 'marks');
+      } else {
+        // Keep the existing board RPCs as a rollout fallback until the new
+        // migration reaches production. Once deployed, phones use one payload.
+        const [streaks, live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
+          withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board fallback'),
+          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: audience }), 'Denarii board fallback'),
+          withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board fallback'),
+          withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board fallback'),
+          withBoardTimeout(fetchRhudeBoard(), 'Valley board fallback'),
+          withBoardTimeout(fetchMarksBoard(), 'Marks board fallback'),
+        ]);
+        const streakRowsRaw = streaks.status === 'fulfilled' ? streaks.value : [];
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
-        const role = audience;
         const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows);
         const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
-        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === role);
-        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === role);
-        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === role);
+        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === audience);
+        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === audience);
+        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === audience);
+        const historyPrefix = `full-circle-board-history-${audience}`;
 
-        // Some board RPCs intentionally return only the current snapshot. Keep
-        // a small client-side snapshot so arrows still work between refreshes,
-        // while preferring authoritative previous values when the API supplies them.
-        const historyAudience = audience;
-        const streakRowsWithHistory = hydrateBoardHistory(streakRowsRaw, `full-circle-board-history-${historyAudience}-streak`, (row) => row.user_id, (row) => Number((row as any).current_streak ?? (row as any).consistency ?? 0));
-        const liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `full-circle-board-history-${historyAudience}-denarii`, (row) => row.user_id, (row) => Number((row as any).total_denarii ?? 0));
-        const tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number((row as any).combined_score ?? 0));
-        const quizRowsWithHistory = hydrateBoardHistory(quizRowsRaw, `full-circle-board-history-${historyAudience}-figs`, (row) => row.user_id, (row) => Number((row as any).total_score ?? 0));
-        const rhudeRowsWithHistory = hydrateBoardHistory(rhudeRowsRaw, `full-circle-board-history-${historyAudience}-rhudes`, (row) => row.user_id, (row) => Number((row as any).rhudes ?? 0));
-        const marksRowsWithHistory = hydrateBoardHistory(marksRowsRaw, `full-circle-board-history-${historyAudience}-marks`, (row) => row.user_id, (row) => Number((row as any).marks ?? 0));
+        streakRowsWithHistory = hydrateBoardHistory(streakRowsRaw, `${historyPrefix}-streak`, (row) => row.user_id, (row) => Number(row.current_streak ?? row.consistency ?? 0));
+        liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `${historyPrefix}-denarii`, (row) => row.user_id, (row) => Number(row.total_denarii ?? 0));
+        tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number(row.combined_score ?? 0));
+        quizRowsWithHistory = hydrateBoardHistory(quizRowsRaw, `${historyPrefix}-figs`, (row) => row.user_id, (row) => Number(row.total_score ?? 0));
+        rhudeRowsWithHistory = hydrateBoardHistory(rhudeRowsRaw, `${historyPrefix}-rhude`, (row) => row.user_id, (row) => Number(row.rhudes ?? 0));
+        marksRowsWithHistory = hydrateBoardHistory(marksRowsRaw, `${historyPrefix}-marks`, (row) => row.user_id, (row) => Number(row.marks ?? 0));
+      }
 
-	      setStreakRows(streakRowsWithHistory as any);
-	      setLiveRows(liveRowsWithHistory as any);
-	      setTentRows(tentRowsWithHistory as any);
-	      setQuizRows(quizRowsWithHistory as any);
-        setRhudeRows(rhudeRowsWithHistory as any);
-        setMarksRows(marksRowsWithHistory as any);
+	      setStreakRows(streakRowsWithHistory);
+	      setLiveRows(liveRowsWithHistory);
+	      setTentRows(tentRowsWithHistory);
+	      setQuizRows(quizRowsWithHistory);
+        setRhudeRows(rhudeRowsWithHistory);
+        setMarksRows(marksRowsWithHistory);
         setLastUpdatedAt(new Date());
 
         // Render board rows immediately, then fill in only the missing public
@@ -420,6 +491,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           </BoardPanel>
           {instructorRows.length > 0 ? (
             <BoardPanel>
+              <BoardMovementSummary rows={instructorRows} valueForRow={(row) => Number((row as InstructorBoardRow).narratives)} />
+              <div className="mt-4" />
               <BoardList>
                 {instructorRows.map((row) => (
                   <BoardRow
@@ -431,6 +504,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                     avatarUrl={row.avatar_url}
                     currentUserId={profile?.id}
                     isCurrentUser={row.user_id === profile?.id}
+                    movement={rankMovement(row, Number(row.narratives))}
+                    isRecord={isNewRecord(row, Number(row.narratives))}
                     valueLabel="Instructor activity"
                   />
                 ))}

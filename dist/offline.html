@@ -118,10 +118,28 @@
     // before the React application can start.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js?v=73', { updateViaCache: 'none' })
-        .then(function(registration) { return registration.update(); })
+        .register('/sw.js?v=74', { updateViaCache: 'none' })
+        .then(function(registration) {
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            window.location.replace('/?fc-recovered=74');
+          }, { once: true });
+          return registration.update();
+        })
         .catch(function() {});
     }
+
+    // navigator.onLine is unreliable on installed mobile apps. Probe the
+    // actual site instead and recover without waiting for a browser event.
+    function tryRecover() {
+      fetch('/index.html?fc-connectivity=74', { cache: 'no-store' })
+        .then(function(response) {
+          if (!response.ok) return;
+          window.location.replace('/?fc-recovered=74');
+        })
+        .catch(function() {});
+    }
+    tryRecover();
+    setInterval(tryRecover, 5000);
 
     // Update status dot when online
     window.addEventListener('online', function() {
