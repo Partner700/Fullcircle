@@ -128,6 +128,7 @@ export function CadetNarrative({
   const [saving, setSaving] = useState(false);
   const [readingImage, setReadingImage] = useState<PanelImageSetting | null>(null);
   const [challengeImage, setChallengeImage] = useState<PanelImageSetting | null>(null);
+  const [meditationImage, setMeditationImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
@@ -154,16 +155,18 @@ export function CadetNarrative({
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-    const [narr, chal, panelImage, challengePanelImage] = await Promise.all([
+    const [narr, chal, panelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
       fetchNarrative(today),
       fetchChallengeSubmission(profile.id, today),
       fetchPanelImageSetting('reading').catch(() => null),
       fetchPanelImageSetting('challenge').catch(() => null),
+      fetchPanelImageSetting('meditation').catch(() => null),
     ]);
     setNarrative(narr);
     setChallenge(chal);
     setReadingImage(panelImage);
     setChallengeImage(challengePanelImage);
+    setMeditationImage(meditationPanelImage);
     if (chal?.proof_text) {
       if (narr?.challenge_proof_format === 'link') setChallengeLink(chal.proof_text);
       else setChallengeText(chal.proof_text);
@@ -607,27 +610,36 @@ export function CadetNarrative({
       )}
 
       {/* ── Meditation submission — three sections ── */}
-      {!isSundayRest && <div className="card p-5 animate-slide-up bg-surface border-border">
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <span className="eyebrow text-stone">Daily Meditation</span>
-          <span className="badge badge-moss text-[10px]">
-            <FlameIcon size={10} className="mr-1" /> Streak {streakCount}
-          </span>
-        </div>
-        {afterMeditationCutoff && !savedMeditation && (
-          <div className="mt-3 mb-3 p-3 rounded-lg bg-roman/10 border border-roman/25 text-xs text-roman">
-            Streak submissions close at 9:00 PM. You can read and draft, but today can no longer be registered for the streak.
+      {!isSundayRest && <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+        <PanelImageBackdrop
+          image={meditationImage}
+          opacityFallback={100}
+          veilClassName=""
+          modeFilter={false}
+          textGradient={false}
+        />
+        <div className="panel-veil-layer award-panel-veil pointer-events-none absolute" aria-hidden="true" />
+        <div className="relative z-10">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <span className="eyebrow text-stone">Daily Meditation</span>
+            <span className="badge badge-moss text-[10px]">
+              <FlameIcon size={10} className="mr-1" /> Streak {streakCount}
+            </span>
           </div>
-        )}
-        <div className="flex items-center gap-2 mt-3 mb-3">
-          <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
-          <h3 className="font-display font-semibold text-ink text-lg">
-            Write Your Meditation
-          </h3>
-        </div>
+          {afterMeditationCutoff && !savedMeditation && (
+            <div className="mt-3 mb-3 p-3 rounded-lg bg-roman/10 border border-roman/25 text-xs text-roman">
+              Streak submissions close at 9:00 PM. You can read and draft, but today can no longer be registered for the streak.
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-3 mb-3">
+            <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
+            <h3 className="font-display font-semibold text-ink text-lg">
+              Write Your Meditation
+            </h3>
+          </div>
 
-        {/* Best Verse */}
-        <div className="mb-4">
+          {/* Best Verse */}
+          <div className="mb-4">
           <label className="text-sm font-medium text-ink mb-1.5 block">Best Verse</label>
           <p className="text-xs text-stone mb-2">Your best verse of the day</p>
           <AppSelect
@@ -639,10 +651,10 @@ export function CadetNarrative({
               ...verseChoices.map((choice) => ({ value: choice.value, label: choice.label })),
             ]}
           />
-        </div>
+          </div>
 
-        {/* Daily Meditation (50-100 words) */}
-        <div className="mb-4">
+          {/* Daily Meditation (50-100 words) */}
+          <div className="mb-4">
           <label className="text-sm font-medium text-ink mb-1.5 block">Daily Meditation</label>
           <p className="text-xs text-stone mb-2">At least 50 words</p>
           <textarea
@@ -654,10 +666,10 @@ export function CadetNarrative({
           <p className={cn('text-xs mt-1', meditationWordCount < 50 ? 'text-roman' : 'text-moss')}>
             {meditationWordCount} words {meditationWordCount < 50 && '(need 50+)'}
           </p>
-        </div>
+          </div>
 
-        {/* Daily Quote (max 10 words) */}
-        <div className="mb-4">
+          {/* Daily Quote (max 10 words) */}
+          <div className="mb-4">
           <label className="text-sm font-medium text-ink mb-1.5 block">Daily Quote</label>
           <p className="text-xs text-stone mb-2">No more than 10 words</p>
           <input
@@ -670,9 +682,9 @@ export function CadetNarrative({
           <p className={cn('text-xs mt-1', quoteWordCount > 10 ? 'text-roman' : 'text-stone')}>
             {quoteWordCount} words {quoteWordCount > 10 && '(max 10!)'}
           </p>
-        </div>
+          </div>
 
-        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center justify-between mt-3">
           {savedMeditation ? (
             <span className="text-sm text-moss flex items-center gap-1.5">
               <CheckCircle2 size={16} strokeWidth={1.5} /> Meditation submitted — streak protected
@@ -690,6 +702,7 @@ export function CadetNarrative({
           >
             <Save size={16} strokeWidth={1.5} /> <span className="hidden sm:inline">{saving ? 'Saving…' : 'Submit Meditation'}</span>
           </button>
+          </div>
         </div>
       </div>}
 
