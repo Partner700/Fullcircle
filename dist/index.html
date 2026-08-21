@@ -76,7 +76,18 @@
 
   <!-- Full reload marker: clears retired Web Audio sessions after sound-system updates. -->
   <title>Full Circle</title>
-  <script type="module" crossorigin src="/assets/index-DJ3Jl_Rm.js"></script>
+  <script>
+    // Start repairing an older phone worker before the application bundle has
+    // finished downloading. The normal registration repeats this safely after
+    // React starts.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js?v=72', { updateViaCache: 'none' })
+        .then(function (registration) { return registration.update(); })
+        .catch(function () {});
+    }
+  </script>
+  <script type="module" crossorigin src="/assets/index-CN-d0-vk.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/icons-Bf97KgAq.js">
   <link rel="modulepreload" crossorigin href="/assets/react-vendor-DZ72gUuu.js">
   <link rel="modulepreload" crossorigin href="/assets/supabase-wIXNjVJv.js">

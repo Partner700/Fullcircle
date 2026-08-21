@@ -1,12 +1,12 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v71';
+const CACHE_VERSION = 'full-circle-v72';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
-const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v70', 'full-circle-v69'];
+const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v71', 'full-circle-v70'];
 
 // Legacy v1 caches to clean up
 const LEGACY_CACHES = [
@@ -14,50 +14,6 @@ const LEGACY_CACHES = [
   'full-circle-v1-runtime',
   'full-circle-v1-static',
   'full-circle-v1-fonts',
-];
-
-const APP_SHELL = [
-  '/manifest.webmanifest',
-  '/robots.txt',
-  '/browserconfig.xml',
-  '/icons/fullcircle-dove-clean.png',
-  '/icons/apple-touch-icon.png',
-  '/icons/icon-72.png',
-  '/icons/icon-96.png',
-  '/icons/icon-128.png',
-  '/icons/icon-144.png',
-  '/icons/icon-152.png',
-  '/icons/icon-167.png',
-  '/icons/icon-192.png',
-  '/icons/icon-384.png',
-  '/icons/icon-512.png',
-  '/icons/maskable-72.png',
-  '/icons/maskable-96.png',
-  '/icons/maskable-128.png',
-  '/icons/maskable-144.png',
-  '/icons/maskable-152.png',
-  '/icons/maskable-192.png',
-  '/icons/maskable-384.png',
-  '/icons/maskable-512.png',
-  '/fullcircle-startup-artwork.jpeg',
-  '/icons/apple-splash-640x1136.png',
-  '/icons/apple-splash-750x1334.png',
-  '/icons/apple-splash-828x1792.png',
-  '/icons/apple-splash-1125x2436.png',
-  '/icons/apple-splash-1242x2688.png',
-  '/icons/apple-splash-1242x2208.png',
-  '/icons/apple-splash-2048x2732.png',
-  '/icons/apple-splash-1668x2388.png',
-  '/icons/apple-splash-1668x2224.png',
-  '/icons/apple-splash-1536x2048.png',
-  '/notification-symbols/message.svg',
-  '/notification-symbols/award.svg',
-  '/notification-symbols/arena.svg',
-  '/notification-symbols/streak.svg',
-  '/notification-symbols/relic.svg',
-  '/notification-symbols/payment.svg',
-  '/notification-symbols/reading.svg',
-  '/notification-symbols/challenge.svg',
 ];
 
 const MAX_RUNTIME_ENTRIES = 50;
@@ -89,23 +45,12 @@ function notificationSymbol(type) {
 
 // ── Install Event ──
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(APP_CACHE)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => {
-        // Clean up legacy v1 caches on install
-        return Promise.all(
-          LEGACY_CACHES.map((name) =>
-            caches.delete(name).catch(() => false)
-          )
-        );
-      })
-      // Activate the repaired worker as soon as installation finishes. We do
-      // not claim or reload an open page, so an in-progress session keeps its
-      // current bundle and the fresh release is picked up on the next launch.
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil((async () => {
+    // Installation performs no network work. A slow icon or splash-screen
+    // request must never keep an older, broken phone worker in control.
+    await Promise.all(LEGACY_CACHES.map((name) => caches.delete(name).catch(() => false)));
+    await self.skipWaiting();
+  })());
 });
 
 // ── Activate Event ──
@@ -135,6 +80,9 @@ self.addEventListener('activate', (event) => {
         if (self.registration.navigationPreload) {
           await self.registration.navigationPreload.disable().catch(() => undefined);
         }
+        // Replace legacy navigation workers immediately. The repaired worker
+        // never intercepts documents, so claiming an open phone page is safe.
+        await self.clients.claim();
       }),
   );
 });

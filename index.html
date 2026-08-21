@@ -76,6 +76,17 @@
 
   <!-- Full reload marker: clears retired Web Audio sessions after sound-system updates. -->
   <title>Full Circle</title>
+  <script>
+    // Start repairing an older phone worker before the application bundle has
+    // finished downloading. The normal registration repeats this safely after
+    // React starts.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js?v=72', { updateViaCache: 'none' })
+        .then(function (registration) { return registration.update(); })
+        .catch(function () {});
+    }
+  </script>
 </head>
 <body>
   <main id="root"></main>
