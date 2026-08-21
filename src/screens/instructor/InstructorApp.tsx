@@ -48,7 +48,7 @@ import {
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
   fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting, fetchPanelImageSetting,
-  fetchStreakboardSnapshots,
+  fetchMarksBoard,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
@@ -2287,7 +2287,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     awards: [
       { title: 'Rhetoric Award (Orator)', description: 'Best Quote of the Week' },
       { title: 'Messenger Award (Nuncio)', description: 'Best Meditation of the Week' },
-      { title: 'Rumor Award', description: 'Overall Best Cadet of the Week' },
+      { title: 'Rumor Award', description: 'Weekly Vallum: the cadet leading the Marks table' },
       { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
       { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
       { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
@@ -2383,7 +2383,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }, { data: gameAttempts }] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }, marksBoardResult] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
@@ -2403,11 +2403,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               .in('winner_id', trackedUserIds)
               .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
             : Promise.resolve({ data: [], error: null }),
-          supabase
-            .from('game_attempts')
-            .select('user_id,narrative_date,score')
-            .in('user_id', trackedUserIds)
-            .gte('narrative_date', AWARD_MEASUREMENT_START),
+          fetchMarksBoard().then((data) => ({ data })).catch(() => ({ data: [] })),
         ]);
 
         const todayIso = getTodayISODate();
@@ -2472,45 +2468,40 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           })),
         });
 
-        const allRoundRanking = (from: string) => {
-          const score = new Map<string, number>();
-          const add = (userId: string, points: number) => score.set(userId, (score.get(userId) || 0) + points);
-          (dailyRecords || []).filter((record: any) => cadetIds.includes(record.user_id) && record.record_date >= from).forEach((record: any) => {
-            if (record.streak_valid) add(record.user_id, 5);
-            else if (record.meditation_submitted) add(record.user_id, 3);
-            else if (record.attendance_status === 'present') add(record.user_id, 1);
-          });
-          (quizAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id) && attempt.submitted_at?.slice(0, 10) >= from).forEach((attempt: any) => {
-            add(attempt.user_id, Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0));
-          });
-          (gameAttempts || []).filter((attempt: any) => cadetIds.includes(attempt.user_id) && attempt.narrative_date >= from).forEach((attempt: any) => {
-            add(attempt.user_id, Number(attempt.score || 0));
-          });
-          (arenaWins || []).filter((room: any) => room.completed_at?.slice(0, 10) >= from && cadetIds.includes(room.winner_id)).forEach((room: any) => {
-            add(room.winner_id, 10);
-          });
-          return [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-        };
-
-        const cadetRanking = allRoundRanking(weeklyStartIso);
+        // Rumor is the weekly Vallum. Both awards use the same authoritative
+        // Marks table: denarii + figs*100 + streak*1000 + Rhudes*5000.
+        const cadetRanking = ((marksBoardResult.data || []) as any[])
+          .filter((row) => row.role === 'cadet' && cadetIds.includes(row.user_id))
+          .sort((left, right) => Number(right.marks) - Number(left.marks) || Number(left.rank) - Number(right.rank))
+          .slice(0, 4);
+        const marksDetail = (row: any, cadence: 'week' | 'month') => (
+          `${Math.round(Number(row.marks || 0))} Marks leading the same all-round table used for the ${cadence === 'week' ? 'weekly Rumor' : 'monthly Vallum'}.`
+        );
         const topCadet = cadetRanking[0];
         if (topCadet) next.push({
           title: 'Rumor Award',
-          candidate: profileName(topCadet[0]),
-          candidateId: topCadet[0],
-          detail: `${topCadet[1]} all-round point(s) this week from faithful daily work, quizzes, daily games, and Arena victories.`,
-          runnersUp: cadetRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} all-round point(s) this week.` })),
+          candidate: topCadet.display_name || profileName(topCadet.user_id),
+          candidateId: topCadet.user_id,
+          detail: marksDetail(topCadet, 'week'),
+          runnersUp: cadetRanking.slice(1).map((row) => ({
+            candidate: row.display_name || profileName(row.user_id),
+            candidateId: row.user_id,
+            detail: marksDetail(row, 'week'),
+          })),
         });
 
-        const monthStartIso = `${todayIso.slice(0, 7)}-01`;
-        const vallumRanking = allRoundRanking(monthStartIso);
+        const vallumRanking = cadetRanking;
         const topVallum = vallumRanking[0];
         if (topVallum) next.push({
           title: 'Vallum',
-          candidate: profileName(topVallum[0]),
-          candidateId: topVallum[0],
-          detail: `${topVallum[1]} all-round point(s) this month from daily faithfulness, quizzes, daily games, and Arena victories.`,
-          runnersUp: vallumRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} all-round point(s) this month.` })),
+          candidate: topVallum.display_name || profileName(topVallum.user_id),
+          candidateId: topVallum.user_id,
+          detail: marksDetail(topVallum, 'month'),
+          runnersUp: vallumRanking.slice(1).map((row) => ({
+            candidate: row.display_name || profileName(row.user_id),
+            candidateId: row.user_id,
+            detail: marksDetail(row, 'month'),
+          })),
         });
 
         const priorWeekIso = shiftISODate(weeklyStartIso, -7);

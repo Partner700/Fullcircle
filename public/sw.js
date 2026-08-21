@@ -1,12 +1,12 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v73';
+const CACHE_VERSION = 'full-circle-v74';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
-const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v72', 'full-circle-v71'];
+const RETAINED_CACHE_PREFIXES = [CACHE_VERSION];
 
 // Legacy v1 caches to clean up
 const LEGACY_CACHES = [
@@ -64,12 +64,10 @@ self.addEventListener('activate', (event) => {
             if (LEGACY_CACHES.includes(cacheName)) {
               return caches.delete(cacheName);
             }
-            // Keep two prior releases so an already-open client can finish
-            // loading its lazy chunks while the new worker activates.
-            if (
-              cacheName.startsWith('full-circle-')
-              && !RETAINED_CACHE_PREFIXES.some((prefix) => cacheName.startsWith(`${prefix}-`))
-            ) {
+            // The worker no longer serves application requests. Remove every
+            // retired Full Circle response so a phone cannot be trapped on an
+            // old offline page or a mismatched application bundle.
+            if (cacheName.startsWith('full-circle-')) {
               return caches.delete(cacheName);
             }
             return Promise.resolve();
@@ -105,49 +103,9 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// ── Fetch Event ──
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-
-  // Only handle GET requests
-  if (request.method !== 'GET') return;
-
-  const url = new URL(request.url);
-
-  // Skip API requests entirely (network-only, no caching)
-  if (isApiRequest(url)) {
-    return;
-  }
-
-  // Let the browser own page navigation. A service-worker timeout previously
-  // sent slower online phones to offline.html even with a working connection.
-  if (request.mode === 'navigate') {
-    return;
-  }
-
-  // Vite gives application chunks content-hashed filenames. Reusing an already
-  // downloaded chunk is safe and makes installed-app reloads dramatically
-  // faster; new HTML automatically points at new filenames after a deployment.
-  if (url.origin === self.location.origin && isStaticAsset(url)) {
-    event.respondWith(cacheFirstStaticAsset(request));
-    return;
-  }
-
-  // Images (non-icon): cache-first with separate cache and TTL
-  if (isImageRequest(url)) {
-    event.respondWith(cacheFirstWithTTL(request, IMAGE_CACHE, IMAGE_TTL_MS));
-    return;
-  }
-
-  // Google Fonts: stale-while-revalidate
-  if (isGoogleFont(url)) {
-    event.respondWith(staleWhileRevalidate(request, FONT_CACHE));
-    return;
-  }
-
-  // Everything else (CDN, etc.): network-first
-  event.respondWith(networkFirst(request));
-});
+// Deliberately no fetch handler. Push notifications still use this worker, but
+// the browser owns every document, script, image, and API request. This keeps
+// an installed phone app from reporting "offline" while the network is live.
 
 // ── Push Notification Event Handlers ──
 self.addEventListener('push', (event) => {

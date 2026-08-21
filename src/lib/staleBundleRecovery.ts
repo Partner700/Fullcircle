@@ -21,7 +21,7 @@ export async function reloadFreshApp(): Promise<void> {
   }
 
   const freshUrl = new URL(window.location.href);
-  freshUrl.searchParams.set('fc-release', '73');
+  freshUrl.searchParams.set('fc-release', '74');
   window.location.replace(freshUrl.toString());
 }
 

@@ -38,6 +38,8 @@ const scriptureInsightReactions = read('supabase/migrations/20260821160000_scrip
 const doveComponent = read('src/components/Dove.tsx');
 const boardRow = read('src/components/BoardRow.tsx');
 const cadetLeaderboard = read('src/screens/cadet/CadetLeaderboard.tsx');
+const boardMovements = read('supabase/migrations/20260821210000_authoritative_board_movements.sql');
+const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -100,16 +102,26 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v73'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v74'/);
 assert.match(serviceWorker, /RETAINED_CACHE_PREFIXES/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
+assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.match(read('scripts/preserve-release-assets.cjs'), /path\.join\(dist, 'assets'\)/);
 assert.match(doveComponent, /stableDoveArtwork = '\/icons\/fullcircle-dove-clean\.png'/);
 assert.match(doveComponent, /fallbackLoaded/);
 assert.match(boardRow, /<span>\{value\}<\/span>[\s\S]*?<ArrowUp/);
 assert.match(cadetLeaderboard, /baseline_value/);
 assert.match(cadetLeaderboard, /snapshot_date: today/);
+assert.match(cadetLeaderboard, /get_competitive_board_movements/);
+assert.match(cadetLeaderboard, /rowsFromBoardPayload/);
+assert.match(boardMovements, /CREATE TABLE IF NOT EXISTS public\.challenge_board_daily_snapshots/);
+assert.match(boardMovements, /row_data jsonb/);
+assert.match(boardMovements, /WHEN row\.current_value > COALESCE\(prior\.current_value, saved\.opening_value\) THEN 1/);
+assert.match(boardMovements, /WHEN row\.current_rank > COALESCE\(prior\.current_rank, saved\.opening_rank, row\.current_rank\) THEN -1/);
+assert.match(boardMovements, /REVOKE ALL ON TABLE public\.challenge_board_daily_snapshots FROM PUBLIC, anon, authenticated/);
+assert.match(instructorApp, /Rumor is the weekly Vallum/);
+assert.match(instructorApp, /fetchMarksBoard\(\)/);
 assert.match(scriptureInsightReactions, /reaction_type IN \('heart', 'lightbulb'\)/);
 assert.match(scriptureInsightReactions, /v_user_id uuid := auth\.uid\(\)/);
 assert.match(scriptureInsightReactions, /REVOKE ALL ON TABLE public\.scripture_insight_reactions FROM PUBLIC, anon, authenticated/);
