@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { BadgeCheck, Crown, Flame, Shield, ShieldCheck, UserRound } from 'lucide-react';
 import type { DailyQuoteFeedItem } from '../lib/types';
+import { fetchStrictStreak } from '../lib/queries';
 import { MessageAvatar } from './TentMessenger';
 
 interface QuoteAuthorStatsProps {
@@ -19,7 +21,21 @@ const getRankSymbol = (role?: string | null) => {
 };
 
 export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMessageOpenChange }: QuoteAuthorStatsProps) {
-  const currentStreak = Number(quote.current_streak || 0);
+  const [resolvedStreak, setResolvedStreak] = useState(Number(quote.current_streak || 0));
+
+  useEffect(() => {
+    let cancelled = false;
+    const feedStreak = Number(quote.current_streak || 0);
+    setResolvedStreak(feedStreak);
+    fetchStrictStreak(quote.user_id)
+      .then((streak) => {
+        if (!cancelled) setResolvedStreak(Math.max(feedStreak, Number(streak.current_streak || 0)));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [quote.user_id, quote.current_streak]);
+
+  const currentStreak = resolvedStreak;
   const totalFigs = Number(quote.total_figs || 0);
   const rhudes = Number(quote.rhudes || 0);
   const rank = getRankSymbol(quote.role);
