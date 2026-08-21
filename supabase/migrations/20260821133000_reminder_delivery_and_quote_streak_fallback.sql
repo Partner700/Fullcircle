@@ -61,6 +61,38 @@ $$;
 REVOKE ALL ON FUNCTION public.deliver_due_daily_reminder(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.deliver_due_daily_reminder(text) TO service_role;
 
+-- Repair the original bootstrap function: its reminder rows omitted the
+-- audience value, causing the midnight seed to fail with a column mismatch.
+CREATE OR REPLACE FUNCTION public.ensure_daily_reminders()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_day date := timezone('Africa/Douala', now())::date;
+BEGIN
+  INSERT INTO public.scheduled_announcements(
+    announcement_type, publish_at, expires_at, reminder_date,
+    audience, content, is_active
+  )
+  VALUES
+    ('morning_call', (v_day + time '00:00') AT TIME ZONE 'Africa/Douala', (v_day + time '07:00') AT TIME ZONE 'Africa/Douala', v_day, 'all', 'Join the morning call and begin today together.', true),
+    ('midday_reminder', (v_day + time '07:01') AT TIME ZONE 'Africa/Douala', (v_day + time '21:00') AT TIME ZONE 'Africa/Douala', v_day, 'all', 'Submit your daily meditation before 9:00 PM.', true),
+    ('daily_game_reminder', (v_day + time '15:00') AT TIME ZONE 'Africa/Douala', (v_day + interval '1 day') AT TIME ZONE 'Africa/Douala', v_day, 'all', 'The daily games are open. Come play today.', true)
+  ON CONFLICT (announcement_type, reminder_date) DO UPDATE
+    SET publish_at = EXCLUDED.publish_at,
+        expires_at = EXCLUDED.expires_at,
+        content = EXCLUDED.content,
+        is_active = true;
+
+  PERFORM public.process_automatic_sentry_promotions();
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ensure_daily_reminders() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ensure_daily_reminders() TO authenticated, service_role;
+
 -- Backfill any reminder that is already due today when this migration is
 -- applied, so a deployment during the reminder window does not miss it.
 SELECT public.ensure_daily_reminders();
