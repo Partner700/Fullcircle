@@ -1487,6 +1487,13 @@ export async function fetchDailyQuoteFeed(limit = 12) {
   return data as import('./types').DailyQuoteFeedItem[];
 }
 
+export async function fetchPublicQuoteStreak(userId: string) {
+  const { data, error } = await supabase.rpc('get_public_quote_streak', { p_user_id: userId });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return { current_streak: Number(row?.current_streak) || 0 };
+}
+
 export async function fetchDailyQuoteReactions(quotes: { user_id: string; record_date: string }[], reactorId?: string) {
   if (quotes.length === 0) return {};
   const userIds = Array.from(new Set(quotes.map((q) => q.user_id)));

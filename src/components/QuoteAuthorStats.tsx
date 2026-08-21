@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BadgeCheck, Crown, Flame, Shield, ShieldCheck, UserRound } from 'lucide-react';
 import type { DailyQuoteFeedItem } from '../lib/types';
-import { fetchStrictStreak } from '../lib/queries';
+import { fetchPublicQuoteStreak } from '../lib/queries';
 import { MessageAvatar } from './TentMessenger';
 
 interface QuoteAuthorStatsProps {
@@ -27,7 +27,7 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
     let cancelled = false;
     const feedStreak = Number(quote.current_streak || 0);
     setResolvedStreak(feedStreak);
-    fetchStrictStreak(quote.user_id)
+    fetchPublicQuoteStreak(quote.user_id)
       .then((streak) => {
         if (!cancelled) setResolvedStreak(Math.max(feedStreak, Number(streak.current_streak || 0)));
       })
