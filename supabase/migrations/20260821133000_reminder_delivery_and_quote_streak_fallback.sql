@@ -80,7 +80,7 @@ BEGIN
     ('morning_call', (v_day + time '00:00') AT TIME ZONE 'Africa/Douala', (v_day + time '07:00') AT TIME ZONE 'Africa/Douala', v_day, 'all', 'Join the morning call and begin today together.', true),
     ('midday_reminder', (v_day + time '07:01') AT TIME ZONE 'Africa/Douala', (v_day + time '21:00') AT TIME ZONE 'Africa/Douala', v_day, 'all', 'Submit your daily meditation before 9:00 PM.', true),
     ('daily_game_reminder', (v_day + time '15:00') AT TIME ZONE 'Africa/Douala', (v_day + interval '1 day') AT TIME ZONE 'Africa/Douala', v_day, 'all', 'The daily games are open. Come play today.', true)
-  ON CONFLICT (announcement_type, reminder_date) DO UPDATE
+  ON CONFLICT (announcement_type, reminder_date) WHERE reminder_date IS NOT NULL DO UPDATE
     SET publish_at = EXCLUDED.publish_at,
         expires_at = EXCLUDED.expires_at,
         content = EXCLUDED.content,
