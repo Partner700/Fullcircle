@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/AppShell';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
+import { DoveMark } from '../../components/Dove';
 import { CadetDashboard } from './CadetDashboard';
 import { supabase } from '../../lib/supabase';
 import {
@@ -62,6 +63,18 @@ type CadetNotification = {
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 const TOPBAR_STATS_CACHE_PREFIX = 'full-circle-topbar-stats';
 
+function notificationSymbolForType(type: string) {
+  const key = String(type || '').toLowerCase();
+  if (['message', 'direct_message', 'message_mention'].includes(key)) return '/notification-symbols/message.svg';
+  if (key === 'arena' || key.startsWith('arena_')) return '/notification-symbols/arena.svg';
+  if (key === 'award') return '/notification-symbols/award.svg';
+  if (key === 'streak') return '/notification-symbols/streak.svg';
+  if (['relic', 'reward'].includes(key)) return '/notification-symbols/relic.svg';
+  if (['payment', 'purchase', 'economy'].includes(key)) return '/notification-symbols/payment.svg';
+  if (key === 'challenge') return '/notification-symbols/challenge.svg';
+  return '/notification-symbols/reading.svg';
+}
+
 function topbarStatsCacheKey(userId: string) {
   return `${TOPBAR_STATS_CACHE_PREFIX}-${userId}`;
 }
@@ -100,6 +113,7 @@ async function showDeviceNotification(notification: UserNotification) {
       body: notification.body || 'You have a new update.',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
+      image: notificationSymbolForType(notification.notification_type),
       tag: `full-circle-${notification.id}`,
       data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },
     };
@@ -220,6 +234,7 @@ export function CadetApp() {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<CadetNotification[]>([]);
+  const [toastNotification, setToastNotification] = useState<UserNotification | null>(null);
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(new Set());
   const [openedDestinationNotificationIds, setOpenedDestinationNotificationIds] = useState<Set<string>>(new Set());
   const [walletRefreshKey, setWalletRefreshKey] = useState(0);
@@ -248,6 +263,12 @@ export function CadetApp() {
     setToolbarReady(!!cached && (cached.streak > 0 || cached.denarii > 0));
     setTentInfo({ tent: null, members: [] });
   }, [toolbarUserId]);
+
+  useEffect(() => {
+    if (!toastNotification) return;
+    const timer = window.setTimeout(() => setToastNotification(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [toastNotification]);
 
   useEffect(() => {
     if (profile?.id) void supabase.rpc('process_automatic_sentry_promotion', { p_user_id: profile.id });
@@ -776,9 +797,10 @@ export function CadetApp() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const notification = payload.new as UserNotification;
-            void showDeviceNotification(notification);
+        if (payload.eventType === 'INSERT') {
+          const notification = payload.new as UserNotification;
+          setToastNotification(notification);
+          void showDeviceNotification(notification);
             void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
           }
           void loadNotifications();
@@ -1066,6 +1088,13 @@ export function CadetApp() {
       {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} />}
       </Suspense>
     </AppShell>
+    {toastNotification && (
+      <button type="button" onClick={() => { const linked = notifications.find((item) => item.persistedId === toastNotification.id); if (linked) void handleNotificationOpen(linked); else setShowNotifications(true); setToastNotification(null); }} className="fixed bottom-5 left-1/2 z-[160] flex w-[min(92vw,25rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border-bright bg-surface/95 px-3.5 py-3 text-left shadow-2xl backdrop-blur-md animate-slide-up">
+        <DoveMark size={28} className="shrink-0" />
+        <span className="min-w-0 flex-1"><strong className="block truncate text-xs font-bold text-ink">{toastNotification.title}</strong><span className="mt-0.5 block truncate text-[11px] text-stone">{toastNotification.body}</span></span>
+        <img src={notificationSymbolForType(toastNotification.notification_type)} alt="" className="h-7 w-7 shrink-0 rounded-full border border-border bg-surface-2 p-1.5" />
+      </button>
+    )}
     <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
     </>
   );

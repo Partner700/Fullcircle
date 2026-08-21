@@ -34,6 +34,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   const [reactions, setReactions] = useState<Record<string, AwardReactionState>>({});
   const [reacting, setReacting] = useState<string | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
+  const [held, setHeld] = useState(false);
 
   const load = useCallback(async () => {
     const [awardResult, imageResult] = await Promise.allSettled([
@@ -65,7 +66,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
     return () => window.clearInterval(interval);
   }, [load]);
 
-  useAutoAdvance(awards.length > 1 && !messageOpen, () => {
+  useAutoAdvance(awards.length > 1 && !messageOpen && !held, () => {
     setActiveIndex((index) => (index + 1) % awards.length);
   });
 
@@ -96,7 +97,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
         {onOpen && <button type="button" onClick={onOpen} className="btn-ghost px-2 py-1 text-xs">View all</button>}
       </div>
       {activeAward ? (
-        <div className="relative z-10 min-h-[148px] overflow-hidden">
+        <div className="relative z-10 min-h-[148px] overflow-hidden" onTouchStart={() => setHeld(true)} onTouchEnd={() => setHeld(false)} onTouchCancel={() => setHeld(false)}>
           <div key={activeAward.id} className="recent-award-change flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5">
             {activeAward.target_tent ? (
               <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">

@@ -1,6 +1,6 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v64';
+const CACHE_VERSION = 'full-circle-v65';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
@@ -39,6 +39,7 @@ const APP_SHELL = [
   '/icons/maskable-192.png',
   '/icons/maskable-384.png',
   '/icons/maskable-512.png',
+  '/fullcircle-startup-artwork.jpeg',
   '/icons/apple-splash-640x1136.png',
   '/icons/apple-splash-750x1334.png',
   '/icons/apple-splash-828x1792.png',
@@ -81,7 +82,9 @@ const NOTIFICATION_SYMBOLS = {
 };
 
 function notificationSymbol(type) {
-  return NOTIFICATION_SYMBOLS[String(type || '').toLowerCase()] || '/notification-symbols/reading.svg';
+  const key = String(type || '').toLowerCase();
+  if (key === 'arena' || key.startsWith('arena_')) return '/notification-symbols/arena.svg';
+  return NOTIFICATION_SYMBOLS[key] || '/notification-symbols/reading.svg';
 }
 
 // ── Install Event ──

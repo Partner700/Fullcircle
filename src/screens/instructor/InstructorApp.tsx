@@ -318,6 +318,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'weekly_background', label: 'Weekly App Background', audience: 'all' },
   { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
   { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
+  { type: 'panel_image_scripture', label: 'Scripture Panel', audience: 'all' },
   { type: 'panel_image_announcement', label: 'General / Announcement Panel', audience: 'all' },
   { type: 'panel_image_birthday', label: 'Birthday Announcement Panel', audience: 'all' },
   { type: 'panel_image_morning_call', label: 'Morning Call', audience: 'all' },
@@ -810,6 +811,7 @@ function AnnouncementManager() {
               { value: 'weekly_background', label: 'Weekly Background Image' },
               { value: 'panel_image_welcome', label: 'Panel Image: Welcome' },
               { value: 'panel_image_verse', label: 'Panel Image: Verse' },
+              { value: 'panel_image_scripture', label: 'Panel Image: Scripture' },
               { value: 'panel_image_announcement', label: 'Panel Image: Announcement' },
               { value: 'panel_image_birthday', label: 'Panel Image: Birthday' },
               { value: 'panel_image_quote', label: 'Panel Image: Quote' },
@@ -1246,6 +1248,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
+  const [quoteHeld, setQuoteHeld] = useState(false);
   const [endOfDayStats, setEndOfDayStats] = useState<{ records: number; attendance: number; meditations: number; streaks: number; challenges: number } | null>(null);
   const [morningCall, setMorningCall] = useState<{ userId: string; name: string; avatarUrl: string | null; tentName: string; status: 'present' | 'absent' | 'unmarked'; late: boolean }[]>([]);
   const [coverImage, setCoverImage] = useState<any>(null);
@@ -1269,7 +1272,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
     return () => { cancelled = true; };
   }, [instructorId]);
 
-  useAutoAdvance(quotes.length > 1 && !quotePaused, () => {
+  useAutoAdvance(quotes.length > 1 && !quotePaused && !quoteHeld, () => {
     setQuoteIndex((index) => (index + 1) % quotes.length);
   });
 
@@ -1443,7 +1446,12 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
       </div>
 
       {featuredQuote && (
-        <div className="card p-4">
+        <div
+          className="card p-4"
+          onTouchStart={() => setQuoteHeld(true)}
+          onTouchEnd={() => setQuoteHeld(false)}
+          onTouchCancel={() => setQuoteHeld(false)}
+        >
           <div className="quote-glass-panel flex items-start gap-3 rounded-2xl p-4 ring-1 ring-black/5">
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-1">Quote Feed</p>

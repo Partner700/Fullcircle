@@ -860,7 +860,7 @@ export async function reactToAward(awardId: string, reactorId: string, reactionT
 
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
   const now = new Date().toISOString();
-  await supabase.rpc('ensure_daily_reminders').catch(() => undefined);
+  try { await supabase.rpc('ensure_daily_reminders'); } catch { /* optional reminder bootstrap */ }
   const [announcementResult, birthdayResult] = await Promise.allSettled([
     supabase
       .from('scheduled_announcements')

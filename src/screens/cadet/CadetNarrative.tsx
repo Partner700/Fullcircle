@@ -160,10 +160,11 @@ export function CadetNarrative({
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-    const [narr, chal, panelImage, scripturePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
+    const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
       fetchNarrative(today),
       fetchChallengeSubmission(profile.id, today),
       fetchPanelImageSetting('reading').catch(() => null),
+      fetchPanelImageSetting('scripture').catch(() => null),
       fetchPanelImageSetting('verse_day_tr').catch(() => null),
       fetchPanelImageSetting('challenge').catch(() => null),
       fetchPanelImageSetting('meditation').catch(() => null),
@@ -171,7 +172,7 @@ export function CadetNarrative({
     setNarrative(narr);
     setChallenge(chal);
     setReadingImage(panelImage);
-    setScriptureImage(scripturePanelImage);
+      setScriptureImage(scripturePanelImage || legacyVersePanelImage);
     setChallengeImage(challengePanelImage);
     setMeditationImage(meditationPanelImage);
     if (chal?.proof_text) {
@@ -470,7 +471,7 @@ export function CadetNarrative({
             backdropFilter: 'blur(26px) saturate(1.22)',
           }}
         >
-          <PanelImageBackdrop image={scriptureImage} opacityFallback={100} veilClassName="award-panel-veil" modeFilter={false} textGradient={false} />
+          <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
           <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <Sun size={18} className="text-brass" strokeWidth={1.5} />

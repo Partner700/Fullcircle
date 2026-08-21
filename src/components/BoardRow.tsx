@@ -25,14 +25,14 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
   return (
     <div
       className={cn(
-        'grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all sm:grid-cols-[46px_minmax(0,1fr)_120px] sm:px-4',
+        'grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all sm:grid-cols-[36px_minmax(0,1fr)_auto] sm:px-3',
         isCurrentUser
           ? 'border-brass bg-brass-soft shadow-sm'
           : 'border-border bg-surface-2 hover:border-border-bright',
       )}
     >
       <div className={cn(
-        'flex h-10 w-10 items-center justify-center rounded-2xl font-display font-semibold text-sm',
+        'flex h-7 w-7 items-center justify-center rounded-lg font-display font-semibold text-xs',
         medal ? 'bg-brass-soft text-brass border border-brass/30' : 'bg-surface-2 text-stone border border-border',
       )}>
         {rank}
@@ -58,9 +58,9 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
         </div>
         {showSubtext && subtext && <p className="mt-1 truncate text-[11px] font-medium text-stone">{subtext}</p>}
       </div>
-      <div className="flex items-center justify-end text-right">
+      <div className="flex flex-col items-end justify-center text-right leading-none">
         <div className={cn(
-          'relative inline-flex min-h-8 min-w-[58px] items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[13px] font-bold transition-colors',
+          'relative inline-flex min-h-7 min-w-[46px] items-center justify-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[12px] font-bold transition-colors',
           movement && movement > 0 ? 'border-sage/45 bg-sage/15 text-sage' :
           movement && movement < 0 ? 'border-coral/45 bg-coral/15 text-coral' :
           'border-border bg-surface text-ink',
@@ -74,7 +74,7 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
           {movement && movement < 0 && <ArrowDown size={11} aria-label="Decreased" />}
           <span>{value}</span>
         </div>
-        {valueLabel && <p className="ml-2 text-[10px] text-stone">{valueLabel}</p>}
+        {valueLabel && <p className="mt-0.5 text-[9px] text-stone">{valueLabel}</p>}
       </div>
     </div>
   );

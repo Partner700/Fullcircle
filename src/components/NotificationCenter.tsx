@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchUserNotifications, markAllNotificationsRead, markNotificationRead } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import { playNotificationSound } from '../lib/soundscape';
+import { DoveMark } from './Dove';
 import type { UserNotification } from '../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../lib/scriptureNavigation';
 
@@ -22,7 +23,7 @@ function notificationSymbol(type: string) {
   const key = String(type || '').toLowerCase();
   if (['message', 'direct_message', 'message_mention'].includes(key)) return '/notification-symbols/message.svg';
   if (key === 'award') return '/notification-symbols/award.svg';
-  if (key === 'arena') return '/notification-symbols/arena.svg';
+  if (key === 'arena' || key.startsWith('arena_')) return '/notification-symbols/arena.svg';
   if (key === 'streak') return '/notification-symbols/streak.svg';
   if (['relic', 'reward'].includes(key)) return '/notification-symbols/relic.svg';
   if (['payment', 'purchase', 'economy'].includes(key)) return '/notification-symbols/payment.svg';
@@ -56,6 +57,7 @@ export function NotificationCenter({ onNavigate }: Props) {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<UserNotification | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -75,6 +77,12 @@ export function NotificationCenter({ onNavigate }: Props) {
   }, [load, profile]);
 
   useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
     if (!profile) return;
     const channel = supabase.channel(`notification_center_${profile.id}`).on(
       'postgres_changes',
@@ -82,6 +90,7 @@ export function NotificationCenter({ onNavigate }: Props) {
       (payload) => {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
+          setToast(notification);
           void showDeviceNotification(notification);
           void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
         }
@@ -121,6 +130,13 @@ export function NotificationCenter({ onNavigate }: Props) {
   const unreadCount = notifications.filter((notification) => !notification.read_at).length;
   return (
     <div className="relative z-[70]" ref={rootRef}>
+      {toast && (
+        <button type="button" onClick={() => void markRead(toast, true)} className="fixed bottom-5 left-1/2 z-[160] flex w-[min(92vw,25rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border-bright bg-surface/95 px-3.5 py-3 text-left shadow-2xl backdrop-blur-md animate-slide-up">
+          <DoveMark size={28} className="shrink-0" />
+          <span className="min-w-0 flex-1"><strong className="block truncate text-xs font-bold text-ink">{toast.title}</strong><span className="mt-0.5 block truncate text-[11px] text-stone">{toast.body}</span></span>
+          <img src={notificationSymbol(toast.notification_type)} alt="" className="h-7 w-7 shrink-0 rounded-full border border-border bg-surface-2 p-1.5" />
+        </button>
+      )}
       <button type="button" onClick={() => setOpen((shown) => !shown)} className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-2 transition-colors hover:border-border-bright" aria-label={unreadCount ? `${unreadCount} unread notifications` : 'Notifications'} aria-expanded={open}>
         <Bell size={16} className="text-ink" />
         {unreadCount > 0 && <span className="notification-badge-ring absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}

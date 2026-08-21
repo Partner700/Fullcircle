@@ -109,6 +109,7 @@ export function SentryApp() {
   const [reactingQuote, setReactingQuote] = useState<string | null>(null);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quotePaused, setQuotePaused] = useState(false);
+  const [quoteHeld, setQuoteHeld] = useState(false);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [sentryStreak, setSentryStreak] = useState(0);
@@ -246,7 +247,7 @@ export function SentryApp() {
     };
   }, [profile, load]);
 
-  useAutoAdvance(quotes.length > 1 && !quotePaused, () => {
+  useAutoAdvance(quotes.length > 1 && !quotePaused && !quoteHeld, () => {
     setQuoteIndex((index) => (index + 1) % quotes.length);
   });
 
@@ -369,6 +370,7 @@ export function SentryApp() {
           onQuotePrev={() => setQuoteIndex((idx) => (idx - 1 + quotes.length) % quotes.length)}
           onQuoteNext={() => setQuoteIndex((idx) => (idx + 1) % quotes.length)}
           onCommentOpenChange={setQuotePaused}
+          onQuoteHoldChange={setQuoteHeld}
           onNavigate={setTab}
           onUploadTentPhoto={uploadTentPhoto}
           uploadingTentPhoto={uploadingTentPhoto}
@@ -448,7 +450,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, announcements, ledger, denariiTotal, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
+function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quote, quoteCount, quoteIndex, quoteReactions, reactingQuote, currentUserId, panelImages, announcements, ledger, denariiTotal, onReactQuote, onQuotePrev, onQuoteNext, onCommentOpenChange, onQuoteHoldChange, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -469,6 +471,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   onQuotePrev: () => void;
   onQuoteNext: () => void;
   onCommentOpenChange: (open: boolean) => void;
+  onQuoteHoldChange: (held: boolean) => void;
   onNavigate: (tab: Tab) => void;
   onUploadTentPhoto: (file: File) => Promise<void>;
   uploadingTentPhoto: boolean;
@@ -644,6 +647,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
           onPrev={onQuotePrev}
           onNext={onQuoteNext}
           onCommentOpenChange={onCommentOpenChange}
+          onHoldChange={onQuoteHoldChange}
         />
       )}
 
@@ -708,7 +712,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   );
 }
 
-function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuote, currentUserId, image, onReactQuote, onPrev, onNext, onCommentOpenChange }: {
+function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuote, currentUserId, image, onReactQuote, onPrev, onNext, onCommentOpenChange, onHoldChange }: {
   quote: DailyQuoteFeedItem;
   count: number;
   index: number;
@@ -720,9 +724,15 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
   onPrev: () => void;
   onNext: () => void;
   onCommentOpenChange: (open: boolean) => void;
+  onHoldChange: (held: boolean) => void;
 }) {
   return (
-    <div className="card p-4 sm:p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden">
+    <div
+      className="card p-4 sm:p-5 bg-surface-2 border-brass/20 animate-slide-up relative overflow-hidden"
+      onTouchStart={() => onHoldChange(true)}
+      onTouchEnd={() => onHoldChange(false)}
+      onTouchCancel={() => onHoldChange(false)}
+    >
       <PanelImageBackdrop image={image} opacityOverride={100} veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
       <div className="quote-glass-panel relative rounded-2xl p-4 ring-1 ring-black/5">
         <PanelImageBackdrop
