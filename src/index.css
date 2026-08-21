@@ -587,6 +587,10 @@
   .welcome-slide-veil {
     background-color: rgba(7, 18, 38, 0.34);
   }
+  .welcome-first-slide-veil { background-color: rgba(7, 18, 38, 0.34); }
+  [data-theme="day"] .welcome-first-slide-veil {
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0) 38%, rgba(255,255,255,0.08) 58%, rgba(255,255,255,0.42) 100%);
+  }
   [data-theme="day"] .welcome-slide-veil {
     background-color: rgba(255, 255, 255, 0.36);
   }
@@ -641,6 +645,8 @@
   .animate-flicker { animation: flicker 3s ease-in-out infinite; }
   .animate-dove-walk { animation: doveWalk 0.6s ease-in-out infinite alternate; }
   .animate-confetti-fall { animation: confettiFall 1.7s ease-out forwards; }
+  .animate-streak-flame { animation: streakFlame 850ms ease-in-out infinite; transform-origin: 50% 90%; }
+  @keyframes streakFlame { 0%, 100% { transform: translateY(0) rotate(-3deg) scale(1); } 50% { transform: translateY(-5px) rotate(3deg) scale(1.12); } }
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

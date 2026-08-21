@@ -52,6 +52,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [reactingVerse, setReactingVerse] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
+  const [heroHeld, setHeroHeld] = useState(false);
   const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
 
@@ -74,7 +75,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchAnnouncements(),
         fetchPanelImageSettings([
           'welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
-          'morning_call', 'midday_reminder', 'evening_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
@@ -135,7 +136,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     })),
   ];
   const heroSlideCount = heroSlides.length;
-  useAutoAdvance(heroSlideCount > 1 && !heroPaused, () => {
+  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld, () => {
     setHeroIndex((index) => index + 1);
   });
 
@@ -213,6 +214,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         onPrev={() => setHeroIndex((idx) => idx - 1)}
         onNext={() => setHeroIndex((idx) => idx + 1)}
         onCommentOpenChange={setHeroPaused}
+        onHoldChange={setHeroHeld}
       />
 
       <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
@@ -342,7 +344,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   );
 }
 
-function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange }: {
+function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -361,6 +363,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
   onPrev: () => void;
   onNext: () => void;
   onCommentOpenChange: (open: boolean) => void;
+  onHoldChange: (held: boolean) => void;
 }) {
   const welcomeScriptures = [
     'Let all that you do be done in love.',
@@ -380,12 +383,16 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.changedTouches[0];
-    if (touch) touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    if (touch) {
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+      onHoldChange(true);
+    }
   };
 
   const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
     const start = touchStartRef.current;
     touchStartRef.current = null;
+    onHoldChange(false);
     const touch = event.changedTouches[0];
     if (!start || !touch || count <= 1) return;
 
@@ -416,6 +423,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
         className={cn('flex min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => { touchStartRef.current = null; onHoldChange(false); }}
         style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y' }}
         onTransitionEnd={() => {
           if (count > 1 && displayIndex === count) {
@@ -439,7 +447,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityOverride={100}
-                  veilClassName={slide.kind === 'quote' ? 'quote-picture-veil' : 'welcome-slide-veil'}
+                  veilClassName={slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'welcome' && slideIndex === 0 ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
                   modeFilter={false}
                   textGradient={false}
                   simple={slide.kind === 'quote'}

@@ -12,6 +12,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { AppSelect } from '../../components/AppSelect';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
+import { StreakCelebration } from '../../components/StreakCelebration';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
 } from '../../components/BrandIcons';
@@ -112,6 +113,7 @@ export function SentryApp() {
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [sentryStreak, setSentryStreak] = useState(0);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
+  const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
   const [sentryDenarii, setSentryDenarii] = useState(0);
   const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,7 +137,11 @@ export function SentryApp() {
       ]);
       const ownStreak = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
       const strictFallback = ownStreak ? null : await fetchStrictStreak(profile.id).catch(() => null);
-      setSentryStreak((previous) => ownStreak?.current_streak || strictFallback?.current_streak || previous);
+      setSentryStreak((previous) => {
+        const resolved = Math.max(Number(ownStreak?.current_streak || 0), Number(strictFallback?.current_streak || 0), previous);
+        if (hasLoadedRef.current && resolved > previous) setStreakCelebration(resolved);
+        return resolved;
+      });
       setSentryDenarii((previous) => ownStreak?.total_denarii ?? ownDenarii ?? previous);
       setSentryLedger(ownLedger);
 
@@ -208,6 +214,9 @@ export function SentryApp() {
   }, [profile]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (profile?.id) void supabase.rpc('process_automatic_sentry_promotion', { p_user_id: profile.id });
+  }, [profile?.id]);
   useEffect(() => {
     if (!profile) return;
     const refreshVisibleStats = () => {
@@ -299,6 +308,7 @@ export function SentryApp() {
   };
 
   return (
+    <>
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
@@ -397,6 +407,8 @@ export function SentryApp() {
       )}
       {tab === 'settings' && <SettingsScreen onSignOut={signOut} />}
     </AppShell>
+    <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
+    </>
   );
 }
 

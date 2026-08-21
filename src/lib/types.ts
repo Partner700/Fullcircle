@@ -376,6 +376,8 @@ export interface ScheduledAnnouncement {
   audience: string;
   content: string;
   is_active: boolean;
+  expires_at?: string | null;
+  reminder_date?: string | null;
   metadata?: Record<string, any> | null;
   image_position_x?: number;
   image_position_y?: number;

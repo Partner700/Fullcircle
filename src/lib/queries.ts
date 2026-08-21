@@ -860,11 +860,13 @@ export async function reactToAward(awardId: string, reactorId: string, reactionT
 
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
   const now = new Date().toISOString();
+  await supabase.rpc('ensure_daily_reminders').catch(() => undefined);
   const [announcementResult, birthdayResult] = await Promise.allSettled([
     supabase
       .from('scheduled_announcements')
       .select('*')
       .lte('publish_at', now)
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
       .eq('is_active', true)
       .in('audience', audiences)
       .not('announcement_type', 'like', 'panel_image_%')

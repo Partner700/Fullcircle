@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } fro
 import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/AppShell';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
+import { StreakCelebration } from '../../components/StreakCelebration';
 import { CadetDashboard } from './CadetDashboard';
 import { supabase } from '../../lib/supabase';
 import {
@@ -214,6 +215,7 @@ export function CadetApp() {
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
+  const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
   const [toolbarReady, setToolbarReady] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -246,6 +248,10 @@ export function CadetApp() {
     setToolbarReady(!!cached && (cached.streak > 0 || cached.denarii > 0));
     setTentInfo({ tent: null, members: [] });
   }, [toolbarUserId]);
+
+  useEffect(() => {
+    if (profile?.id) void supabase.rpc('process_automatic_sentry_promotion', { p_user_id: profile.id });
+  }, [profile?.id]);
 
   const loadTentInfo = useCallback(async () => {
     if (!profile) {
@@ -320,7 +326,10 @@ export function CadetApp() {
       setDenariiTotal(stableDenarii);
       setStreakCount((previous) => {
         const resolved = stableStreak === 0 && previous > 0 ? previous : stableStreak;
-        if (streakLoadedRef.current && resolved > previous) void playSoundEffect('sound_streak', 0.66);
+        if (streakLoadedRef.current && resolved > previous) {
+          void playSoundEffect('sound_streak', 0.66);
+          setStreakCelebration(resolved);
+        }
         streakLoadedRef.current = true;
         return resolved;
       });
@@ -349,7 +358,10 @@ export function CadetApp() {
       };
       toolbarStatsRef.current = next;
       setDenariiTotal(next.denarii);
-      setStreakCount(next.streak);
+      setStreakCount((previous) => {
+        if (next.streak > previous) setStreakCelebration(next.streak);
+        return Math.max(previous, next.streak);
+      });
       setToolbarReady(true);
       writeCachedTopbarStats(toolbarUserId, next);
     };
@@ -936,6 +948,7 @@ export function CadetApp() {
   }, [showNotifications]);
 
   return (
+    <>
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
@@ -1053,6 +1066,8 @@ export function CadetApp() {
       {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} />}
       </Suspense>
     </AppShell>
+    <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
+    </>
   );
 }
 
