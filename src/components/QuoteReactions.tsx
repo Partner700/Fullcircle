@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Reply, Send } from 'lucide-react';
+import { Check, Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Pencil, Reply, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
 import { MessageAvatar } from './TentMessenger';
@@ -24,6 +24,7 @@ export function QuoteReactions({
   fetchComments,
   onComment,
   onReply,
+  onEditComment,
   onCommentOpenChange,
   onMessageOpenChange,
   previewLimit = 2,
@@ -37,6 +38,7 @@ export function QuoteReactions({
   fetchComments?: (quoteUserId: string, quoteRecordDate: string) => Promise<DailyQuoteComment[]>;
   onComment?: (body: string) => Promise<void>;
   onReply?: (body: string, parentCommentId: string, mentionedUserIds: string[]) => Promise<void>;
+  onEditComment?: (commentId: string, body: string) => Promise<void>;
   onCommentOpenChange?: (open: boolean) => void;
   onMessageOpenChange?: (open: boolean) => void;
   previewLimit?: number;
@@ -48,6 +50,8 @@ export function QuoteReactions({
   const [commentError, setCommentError] = useState<string | null>(null);
   const [showComments, setShowComments] = useState(false);
   const [replyTarget, setReplyTarget] = useState<DailyQuoteComment | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState('');
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
   const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
 
@@ -89,6 +93,20 @@ export function QuoteReactions({
       }
     } catch (err: any) {
       setCommentError(err?.message || 'Could not post comment.');
+    }
+    setCommenting(false);
+  };
+
+  const submitEdit = async () => {
+    if (!onEditComment || !editingCommentId || !editingBody.trim()) return;
+    setCommenting(true);
+    try {
+      await onEditComment(editingCommentId, editingBody.trim());
+      setEditingCommentId(null);
+      setEditingBody('');
+      if (quoteUserId && quoteRecordDate && fetchComments) setComments(await fetchComments(quoteUserId, quoteRecordDate));
+    } catch (err: any) {
+      setCommentError(err?.message || 'Could not edit comment.');
     }
     setCommenting(false);
   };
@@ -216,7 +234,13 @@ export function QuoteReactions({
                     <p className="text-xs font-bold text-ink">
                       {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span>
                     </p>
-                    <p className="text-sm text-stone leading-snug">{comment.body}</p>
+                    {editingCommentId === comment.id ? (
+                      <div className="mt-1 flex items-end gap-2">
+                        <textarea value={editingBody} onChange={(event) => setEditingBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
+                        <button type="button" onClick={() => void submitEdit()} disabled={!editingBody.trim() || commenting} className="icon-btn" aria-label="Save comment"><Check size={13} /></button>
+                      </div>
+                    ) : <p className="text-sm text-stone leading-snug">{comment.body}</p>}
+                    {onEditComment && comment.commenter_user_id === currentUserId && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingCommentId(comment.id); setEditingBody(comment.body); }}><Pencil size={10} /> Edit</button>}
                     <button
                       type="button"
                       className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri"
@@ -248,7 +272,13 @@ export function QuoteReactions({
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-bold text-ink">{reply.display_name || 'User'}</p>
-                      <p className="text-xs leading-snug text-stone">{reply.body}</p>
+                      {editingCommentId === reply.id ? (
+                        <div className="mt-1 flex items-end gap-2">
+                          <textarea value={editingBody} onChange={(event) => setEditingBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
+                          <button type="button" onClick={() => void submitEdit()} disabled={!editingBody.trim() || commenting} className="icon-btn" aria-label="Save reply"><Check size={13} /></button>
+                        </div>
+                      ) : <p className="text-xs leading-snug text-stone">{reply.body}</p>}
+                      {onEditComment && reply.commenter_user_id === currentUserId && editingCommentId !== reply.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingCommentId(reply.id); setEditingBody(reply.body); }}><Pencil size={10} /> Edit</button>}
                     </div>
                   </div>
                 ))}

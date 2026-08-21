@@ -18,7 +18,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchStrictStreak, fetchLedgerTotal, fetchLedgerEntries, fetchUserLiveStats, fetchReliableToolbarStats, uploadTentProfileImage,
-  fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchAnnouncements,
+  fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
   fetchStreakProtectionState,
 } from '../../lib/queries';
@@ -753,6 +753,7 @@ function SentryQuoteSlideshow({ quote, count, index, quoteReactions, reactingQuo
             onReply={(body, parentCommentId, mentionedUserIds) => currentUserId
               ? commentOnDailyQuote(quote.user_id, quote.record_date, currentUserId, body, parentCommentId, mentionedUserIds)
               : Promise.reject(new Error('Sign in to reply.'))}
+            onEditComment={(commentId, body) => editDailyQuoteComment(commentId, body)}
             onCommentOpenChange={onCommentOpenChange}
             onMessageOpenChange={onCommentOpenChange}
           />

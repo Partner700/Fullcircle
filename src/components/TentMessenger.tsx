@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { fetchTentMessages, sendTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage } from '../lib/queries';
+import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage } from '../lib/queries';
 import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../lib/types';
-import { X, Send, Loader2, Users } from 'lucide-react';
+import { X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 
@@ -20,6 +20,8 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +70,19 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
     setSending(false);
   };
 
+  const handleEdit = async () => {
+    if (!editingId || !editingBody.trim() || sending) return;
+    setSending(true);
+    try {
+      if (tentId) await editTentMessage(editingId, editingBody.trim());
+      else await editDirectMessage(editingId, editingBody.trim());
+      setEditingId(null);
+      setEditingBody('');
+      await load();
+    } catch (e) { console.error('Edit message error:', e); }
+    setSending(false);
+  };
+
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
       <div
@@ -109,7 +124,13 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
                     'max-w-[75%] px-3 py-2 rounded-lg text-sm',
                     isMe ? 'bg-brass/15 text-ink border border-brass/30' : 'bg-surface-2 text-ink border border-border',
                   )}>
-                    <p>{m.body}</p>
+                    {editingId === m.id ? (
+                      <div className="flex items-end gap-2">
+                        <textarea value={editingBody} onChange={(event) => setEditingBody(event.target.value)} className="input-field min-h-16 flex-1 text-sm" autoFocus />
+                        <button type="button" onClick={() => void handleEdit()} disabled={!editingBody.trim() || sending} className="icon-btn" aria-label="Save message"><Check size={15} /></button>
+                      </div>
+                    ) : <p className="whitespace-pre-wrap break-words">{m.body}</p>}
+                    {isMe && editingId !== m.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingId(m.id); setEditingBody(m.body); }}><Pencil size={10} /> Edit</button>}
                     <p className="text-[10px] text-stone mt-1">
                       {new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </p>
@@ -156,6 +177,8 @@ export function TentGroupMessenger({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingBody, setEditingBody] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -186,6 +209,18 @@ export function TentGroupMessenger({
     } catch (e) {
       console.error('Group send error:', e);
     }
+    setSending(false);
+  };
+
+  const handleEdit = async () => {
+    if (!editingId || !editingBody.trim() || sending) return;
+    setSending(true);
+    try {
+      await editTentGroupMessage(editingId, editingBody.trim());
+      setEditingId(null);
+      setEditingBody('');
+      await load();
+    } catch (e) { console.error('Edit group message error:', e); }
     setSending(false);
   };
 
@@ -229,7 +264,13 @@ export function TentGroupMessenger({
                   isMe ? 'border-brass/30 bg-brass/15 text-ink' : 'border-border bg-surface-2 text-ink',
                 )}>
                   {!isMe && <p className="mb-1 text-[10px] font-bold text-stone">{message.sender?.display_name || 'Tent member'}</p>}
-                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                  {editingId === message.id ? (
+                    <div className="flex items-end gap-2">
+                      <textarea value={editingBody} onChange={(event) => setEditingBody(event.target.value)} className="input-field min-h-16 flex-1 text-sm" autoFocus />
+                      <button type="button" onClick={() => void handleEdit()} disabled={!editingBody.trim() || sending} className="icon-btn" aria-label="Save message"><Check size={15} /></button>
+                    </div>
+                  ) : <p className="whitespace-pre-wrap break-words">{message.body}</p>}
+                  {isMe && editingId !== message.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingId(message.id); setEditingBody(message.body); }}><Pencil size={10} /> Edit</button>}
                   <p className="mt-1 text-[10px] text-stone">
                     {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                   </p>

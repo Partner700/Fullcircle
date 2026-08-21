@@ -80,6 +80,7 @@ export interface TentMessage {
   body: string;
   read_at: string | null;
   created_at: string;
+  edited_at?: string | null;
 }
 
 export interface TentGroupMessage {
@@ -88,6 +89,7 @@ export interface TentGroupMessage {
   sender_id: string;
   body: string;
   created_at: string;
+  edited_at?: string | null;
   sender?: {
     display_name: string;
     avatar_url: string | null;
@@ -101,6 +103,7 @@ export interface DirectMessage {
   body: string;
   read_at: string | null;
   created_at: string;
+  edited_at?: string | null;
 }
 
 export interface DailyRecord {
@@ -522,6 +525,7 @@ export interface DailyQuoteComment {
   display_name: string;
   avatar_url: string | null;
   rank_label: string;
+  edited_at?: string | null;
 }
 
 export interface CurrencyInfo {

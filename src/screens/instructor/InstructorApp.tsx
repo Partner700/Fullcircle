@@ -46,7 +46,7 @@ import {
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
-  fetchDailyQuoteComments, commentOnDailyQuote, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting, fetchPanelImageSetting,
+  fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting, fetchPanelImageSetting,
   fetchStreakboardSnapshots,
 } from '../../lib/queries';
 
@@ -1463,6 +1463,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                 onComment={(body) => instructorId
                   ? commentOnDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, body)
                   : Promise.resolve()}
+                onEditComment={(commentId, body) => editDailyQuoteComment(commentId, body)}
                 onCommentOpenChange={setQuotePaused}
                 onMessageOpenChange={setQuotePaused}
               />

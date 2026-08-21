@@ -4,7 +4,7 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
-import { addVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -15,7 +15,7 @@ import {
   BookOpen, BookMarked, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
-  MessageCircle, Reply, Send,
+  MessageCircle, Reply, Send, Pencil, Check,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -139,6 +139,10 @@ export function CadetNarrative({
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replyTargets, setReplyTargets] = useState<Record<string, { userId: string; displayName: string; parentCommentId?: string } | null>>({});
   const [savingReply, setSavingReply] = useState<string | null>(null);
+  const [editingInsightId, setEditingInsightId] = useState<string | null>(null);
+  const [editingInsightBody, setEditingInsightBody] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentBody, setEditingCommentBody] = useState('');
   const [campMentionCandidates, setCampMentionCandidates] = useState<CampMentionCandidate[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -394,6 +398,26 @@ export function CadetNarrative({
     setSavingReply(null);
   };
 
+  const submitInsightEdit = async () => {
+    if (!editingInsightId || !editingInsightBody.trim() || !narrative?.id) return;
+    try {
+      await editVerseInsight(editingInsightId, editingInsightBody.trim());
+      setEditingInsightId(null);
+      setEditingInsightBody('');
+      setVerseInsights(await fetchVerseInsights(narrative.id));
+    } catch (error: any) { alert(error.message || 'Could not edit your insight.'); }
+  };
+
+  const submitInsightCommentEdit = async () => {
+    if (!editingCommentId || !editingCommentBody.trim() || !narrative?.id) return;
+    try {
+      await editVerseInsightComment(editingCommentId, editingCommentBody.trim());
+      setEditingCommentId(null);
+      setEditingCommentBody('');
+      setVerseInsights(await fetchVerseInsights(narrative.id));
+    } catch (error: any) { alert(error.message || 'Could not edit your reply.'); }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12 text-stone animate-fade-in">
@@ -532,7 +556,13 @@ export function CadetNarrative({
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-bold text-ink">{authorName}{item.user_id === profile?.id ? ' · You' : ''}</p>
-                                <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>
+                                {editingInsightId === item.id ? (
+                                  <div className="mt-1 flex items-end gap-2">
+                                    <textarea value={editingInsightBody} onChange={(event) => setEditingInsightBody(event.target.value)} className="input-field min-h-16 flex-1 text-xs" autoFocus />
+                                    <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
+                                  </div>
+                                ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
+                                {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
                               </div>
                             </div>
                             <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
@@ -547,7 +577,13 @@ export function CadetNarrative({
                                 {comments.map((comment: any) => (
                                   <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
                                     <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'}</p>
-                                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>
+                                    {editingCommentId === comment.id ? (
+                                      <div className="mt-1 flex items-end gap-2">
+                                        <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
+                                        <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                      </div>
+                                    ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
+                                    {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
                                     <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
                                       const displayName = comment.profile?.display_name || 'Reader';
                                       setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));

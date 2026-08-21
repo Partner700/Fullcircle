@@ -8,7 +8,7 @@ import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse } from '../../lib/queries';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
 import {
@@ -474,6 +474,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           if (!currentUserId) throw new Error('Sign in to comment.');
                           await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
                         }}
+                        onEditComment={(commentId, body) => editDailyVerseComment(commentId, body)}
                         onCommentOpenChange={onCommentOpenChange}
                         previewLimit={1}
                       />
@@ -545,6 +546,7 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                           onReply={(body, parentCommentId, mentionedUserIds) => currentUserId
                             ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body, parentCommentId, mentionedUserIds)
                             : Promise.reject(new Error('Sign in to reply.'))}
+                          onEditComment={(commentId, body) => editDailyQuoteComment(commentId, body)}
                           onCommentOpenChange={onCommentOpenChange}
                           onMessageOpenChange={onCommentOpenChange}
                         />

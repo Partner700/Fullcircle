@@ -1132,6 +1132,11 @@ export async function saveVerseInsight(
   if (error) throw error;
 }
 
+export async function editVerseInsight(insightId: string, body: string) {
+  const { error } = await supabase.rpc('edit_scripture_verse_insight', { p_insight_id: insightId, p_body: body });
+  if (error) throw error;
+}
+
 export async function addVerseInsightComment(input: {
   insightId: string;
   userId: string;
@@ -1155,6 +1160,11 @@ export async function addVerseInsightComment(input: {
     mentioned_user_ids: input.mentionedUserIds || (input.mentionedUserId ? [input.mentionedUserId] : []),
     parent_comment_id: input.parentCommentId || null,
   });
+  if (error) throw error;
+}
+
+export async function editVerseInsightComment(commentId: string, body: string) {
+  const { error } = await supabase.rpc('edit_scripture_insight_comment', { p_comment_id: commentId, p_body: body });
   if (error) throw error;
 }
 
@@ -1554,6 +1564,11 @@ export async function commentOnDailyQuote(
   return data;
 }
 
+export async function editDailyQuoteComment(commentId: string, body: string) {
+  const { error } = await supabase.rpc('edit_daily_quote_comment', { p_comment_id: commentId, p_body: body });
+  if (error) throw error;
+}
+
 export async function fetchDailyVerseReactions(narrativeDates: string[], reactorId?: string) {
   if (narrativeDates.length === 0) return {};
   const { data, error } = await supabase
@@ -1586,7 +1601,7 @@ export async function reactToDailyVerse(narrativeDate: string, reactorUserId: st
 export async function fetchDailyVerseComments(narrativeDate: string) {
   const { data, error } = await supabase
     .from('daily_verse_comments')
-    .select('id,body,created_at,commenter_user_id,profiles!daily_verse_comments_commenter_user_id_fkey(display_name,avatar_url)')
+    .select('id,body,created_at,edited_at,commenter_user_id,profiles!daily_verse_comments_commenter_user_id_fkey(display_name,avatar_url)')
     .eq('narrative_date', narrativeDate)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -1594,6 +1609,7 @@ export async function fetchDailyVerseComments(narrativeDate: string) {
     id: row.id,
     body: row.body,
     created_at: row.created_at,
+    edited_at: row.edited_at || null,
     commenter_user_id: row.commenter_user_id,
     display_name: row.profiles?.display_name || 'User',
     avatar_url: row.profiles?.avatar_url || null,
@@ -1609,6 +1625,11 @@ export async function commentOnDailyVerse(narrativeDate: string, commenterUserId
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+export async function editDailyVerseComment(commentId: string, body: string) {
+  const { error } = await supabase.rpc('edit_daily_verse_comment', { p_comment_id: commentId, p_body: body });
+  if (error) throw error;
 }
 
 export async function fetchDailyQuoteInteractionSummary(limit = 50) {
@@ -1824,6 +1845,11 @@ export async function sendTentMessage(tentId: string, senderId: string, recipien
   if (error) throw error;
 }
 
+export async function editTentMessage(messageId: string, body: string) {
+  const { error } = await supabase.rpc('edit_tent_message', { p_message_id: messageId, p_body: body });
+  if (error) throw error;
+}
+
 export async function markTentMessageRead(messageId: string) {
   const { error } = await supabase
     .from('tent_messages')
@@ -1847,6 +1873,11 @@ export async function sendTentGroupMessage(tentId: string, senderId: string, bod
   const { error } = await supabase
     .from('tent_group_messages')
     .insert({ tent_id: tentId, sender_id: senderId, body });
+  if (error) throw error;
+}
+
+export async function editTentGroupMessage(messageId: string, body: string) {
+  const { error } = await supabase.rpc('edit_tent_group_message', { p_message_id: messageId, p_body: body });
   if (error) throw error;
 }
 
@@ -1878,6 +1909,11 @@ export async function sendDirectMessage(senderId: string, recipientId: string, b
   const { error } = await supabase
     .from('direct_messages')
     .insert({ sender_id: senderId, recipient_id: recipientId, body });
+  if (error) throw error;
+}
+
+export async function editDirectMessage(messageId: string, body: string) {
+  const { error } = await supabase.rpc('edit_direct_message', { p_message_id: messageId, p_body: body });
   if (error) throw error;
 }
 
