@@ -164,7 +164,7 @@ export function CadetNarrative({
       fetchNarrative(today),
       fetchChallengeSubmission(profile.id, today),
       fetchPanelImageSetting('reading').catch(() => null),
-      fetchPanelImageSetting('scripture').catch(() => null),
+      fetchPanelImageSetting('verse_day_tr').catch(() => null),
       fetchPanelImageSetting('challenge').catch(() => null),
       fetchPanelImageSetting('meditation').catch(() => null),
     ]);

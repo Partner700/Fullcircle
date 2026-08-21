@@ -328,7 +328,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
   { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
   { type: 'panel_image_reading', label: "Today's Reading", audience: 'all' },
-  { type: 'panel_image_scripture', label: 'Scripture / Verse of the Day', audience: 'all' },
+  { type: 'panel_image_verse_day_tr', label: 'Verse of the Day TR', audience: 'all' },
   { type: 'panel_image_meditation', label: 'Daily Meditation', audience: 'all' },
   { type: 'panel_image_challenge', label: 'Daily Challenge', audience: 'all' },
   { type: 'panel_image_quiz', label: 'Quiz Panel', audience: 'all' },
@@ -814,7 +814,7 @@ function AnnouncementManager() {
               { value: 'panel_image_quote', label: 'Panel Image: Quote' },
               { value: 'panel_image_market', label: 'Panel Image: Market' },
               { value: 'panel_image_reading', label: "Panel Image: Today's Reading" },
-              { value: 'panel_image_scripture', label: 'Panel Image: Scripture / Verse of the Day' },
+              { value: 'panel_image_verse_day_tr', label: 'Panel Image: Verse of the Day TR' },
               { value: 'panel_image_meditation', label: 'Panel Image: Daily Meditation' },
               { value: 'panel_image_challenge', label: 'Panel Image: Daily Challenge' },
             ]} />
