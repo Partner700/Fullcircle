@@ -114,6 +114,15 @@
     </p>
   </div>
   <script>
+    // Repair older installed copies even when they have landed on this fallback
+    // before the React application can start.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js?v=72', { updateViaCache: 'none' })
+        .then(function(registration) { return registration.update(); })
+        .catch(function() {});
+    }
+
     // Update status dot when online
     window.addEventListener('online', function() {
       document.querySelector('.status-dot').classList.add('online');

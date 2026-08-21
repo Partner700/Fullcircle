@@ -3,7 +3,6 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
-const manifestPath = path.join(dist, '.vite', 'manifest.json');
 const snapshotDir = path.join(root, '.release-assets');
 
 function copyFile(relativePath, fromRoot, toRoot) {
@@ -16,17 +15,24 @@ function copyFile(relativePath, fromRoot, toRoot) {
 
 function snapshot() {
   fs.rmSync(snapshotDir, { recursive: true, force: true });
-  if (!fs.existsSync(manifestPath)) return;
+  const assets = path.join(dist, 'assets');
+  if (!fs.existsSync(assets)) return;
 
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const releaseFiles = new Set();
-  for (const entry of Object.values(manifest)) {
-    if (entry.file) releaseFiles.add(entry.file);
-    for (const file of entry.css || []) releaseFiles.add(file);
-    for (const file of entry.assets || []) releaseFiles.add(file);
+  // Keep every already-deployed hashed asset, not only the files referenced by
+  // the newest manifest. Older installed phones can still hold HTML from one of
+  // the retained service-worker generations while an update is propagating.
+  const pending = [assets];
+  while (pending.length > 0) {
+    const directory = pending.pop();
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const source = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(source);
+        continue;
+      }
+      copyFile(path.relative(dist, source), dist, snapshotDir);
+    }
   }
-
-  for (const file of releaseFiles) copyFile(file, dist, snapshotDir);
 }
 
 function restore() {
