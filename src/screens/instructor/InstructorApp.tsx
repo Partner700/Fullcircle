@@ -327,6 +327,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
   { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
   { type: 'panel_image_reading', label: "Today's Reading", audience: 'all' },
+  { type: 'panel_image_challenge', label: 'Daily Challenge', audience: 'all' },
   { type: 'panel_image_quiz', label: 'Quiz Panel', audience: 'all' },
   { type: 'panel_image_progress', label: "Today's Progress", audience: 'all' },
   { type: 'panel_image_recent_denarii', label: 'Recent Denarii', audience: 'all' },

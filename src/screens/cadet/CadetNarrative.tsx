@@ -127,6 +127,7 @@ export function CadetNarrative({
   const [challengeSaved, setChallengeSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [readingImage, setReadingImage] = useState<PanelImageSetting | null>(null);
+  const [challengeImage, setChallengeImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
@@ -153,14 +154,16 @@ export function CadetNarrative({
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-    const [narr, chal, panelImage] = await Promise.all([
+    const [narr, chal, panelImage, challengePanelImage] = await Promise.all([
       fetchNarrative(today),
       fetchChallengeSubmission(profile.id, today),
       fetchPanelImageSetting('reading').catch(() => null),
+      fetchPanelImageSetting('challenge').catch(() => null),
     ]);
     setNarrative(narr);
     setChallenge(chal);
     setReadingImage(panelImage);
+    setChallengeImage(challengePanelImage);
     if (chal?.proof_text) {
       if (narr?.challenge_proof_format === 'link') setChallengeLink(chal.proof_text);
       else setChallengeText(chal.proof_text);
@@ -746,27 +749,36 @@ export function CadetNarrative({
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}
       {!isSundayRest && narrative.challenge_active && narrative.challenge_title && (
-        <div className="card p-5 animate-slide-up bg-surface-2 border-border">
-          <div className="flex items-center justify-between gap-3 mb-1">
-            <span className="eyebrow text-stone">Daily Challenge</span>
-            <span className="badge badge-roman text-[10px]" title="Submitting evidence awards 1000 Denarii">+1000D</span>
-          </div>
-          <div className="flex items-center gap-2 mt-3 mb-2">
-            <Target size={18} className="text-roman" strokeWidth={1.5} />
-            <h3 className="font-display font-semibold text-ink text-lg">
-              {narrative.challenge_title}
-            </h3>
-          </div>
-          <p className="text-sm text-stone mb-2">
-            {narrative.challenge_instructions}
-          </p>
-          <div className="flex items-center gap-1.5 text-xs text-stone mb-4">
-            {proofFormat === 'link' ? <Link2 size={12} /> : proofFormat === 'text' ? <FileText size={12} /> : <ImageIcon size={12} />}
-            <span>Submit as: <span className="font-medium text-ink">{proofFormatLabel(proofFormat)}</span></span>
-          </div>
+        <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+          <PanelImageBackdrop
+            image={challengeImage}
+            opacityFallback={100}
+            veilClassName=""
+            modeFilter={false}
+            textGradient={false}
+          />
+          <div className="panel-veil-layer award-panel-veil pointer-events-none absolute" aria-hidden="true" />
+          <div className="relative z-10">
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <span className="eyebrow text-stone">Daily Challenge</span>
+              <span className="badge badge-roman text-[10px]" title="Submitting evidence awards 1000 Denarii">+1000D</span>
+            </div>
+            <div className="flex items-center gap-2 mt-3 mb-2">
+              <Target size={18} className="text-roman" strokeWidth={1.5} />
+              <h3 className="font-display font-semibold text-ink text-lg">
+                {narrative.challenge_title}
+              </h3>
+            </div>
+            <p className="mb-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone">
+              {narrative.challenge_instructions}
+            </p>
+            <div className="flex items-center gap-1.5 text-xs text-stone mb-4">
+              {proofFormat === 'link' ? <Link2 size={12} /> : proofFormat === 'text' ? <FileText size={12} /> : <ImageIcon size={12} />}
+              <span>Submit as: <span className="font-medium text-ink">{proofFormatLabel(proofFormat)}</span></span>
+            </div>
 
-          {/* Rejection notice */}
-          {challengeRejected && (
+            {/* Rejection notice */}
+            {challengeRejected && (
             <div className="p-3 rounded-lg bg-coral-soft border border-coral/30 mb-4 animate-slide-up">
               <div className="flex items-start gap-2">
                 <AlertCircle size={16} className="text-coral flex-shrink-0 mt-0.5" />
@@ -781,8 +793,8 @@ export function CadetNarrative({
             </div>
           )}
 
-          {/* Approved notice */}
-          {challengeApproved && (
+            {/* Approved notice */}
+            {challengeApproved && (
             <div className="p-3 rounded-lg bg-sage-soft border border-sage/30 mb-4 animate-slide-up">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-sage" />
@@ -791,8 +803,8 @@ export function CadetNarrative({
             </div>
           )}
 
-          {/* Submission input — format-aware */}
-          {!challengeApproved && (
+            {/* Submission input — format-aware */}
+            {!challengeApproved && (
             <>
               {proofFormat === 'link' ? (
                 <input
@@ -866,7 +878,8 @@ export function CadetNarrative({
                 </button>
               </div>
             </>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
