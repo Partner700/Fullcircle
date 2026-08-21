@@ -1,4 +1,5 @@
 node_modules/
+.release-assets/
 .DS_Store
 .env
 .env.local
