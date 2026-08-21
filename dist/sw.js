@@ -1,11 +1,12 @@
 // Bump this whenever the bundle-loading strategy changes. It forces installed
 // copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v67';
+const CACHE_VERSION = 'full-circle-v68';
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
+const RETAINED_CACHE_PREFIXES = [CACHE_VERSION, 'full-circle-v67', 'full-circle-v66'];
 
 // Legacy v1 caches to clean up
 const LEGACY_CACHES = [
@@ -110,27 +111,21 @@ self.addEventListener('install', (event) => {
 
 // ── Activate Event ──
 self.addEventListener('activate', (event) => {
-  const expectedCaches = new Set([
-    APP_CACHE,
-    RUNTIME_CACHE,
-    STATIC_CACHE,
-    FONT_CACHE,
-    IMAGE_CACHE,
-    ...LEGACY_CACHES, // Will be cleaned up anyway
-  ]);
-
   event.waitUntil(
     caches
       .keys()
       .then((cacheNames) =>
         Promise.all(
           cacheNames.map((cacheName) => {
-            // Delete any cache not in the expected set
-            if (!expectedCaches.has(cacheName)) {
+            if (LEGACY_CACHES.includes(cacheName)) {
               return caches.delete(cacheName);
             }
-            // Delete legacy caches explicitly
-            if (LEGACY_CACHES.includes(cacheName)) {
+            // Keep two prior releases so an already-open client can finish
+            // loading its lazy chunks while the new worker activates.
+            if (
+              cacheName.startsWith('full-circle-')
+              && !RETAINED_CACHE_PREFIXES.some((prefix) => cacheName.startsWith(`${prefix}-`))
+            ) {
               return caches.delete(cacheName);
             }
             return Promise.resolve();
