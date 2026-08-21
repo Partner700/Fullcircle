@@ -62,8 +62,6 @@ export default function App() {
       <>
         {overlays}
         <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-navy gap-6">
-          <img src="/fullcircle-startup-artwork.jpeg" alt="Full Circle" className="absolute inset-0 h-full w-full object-cover opacity-95" />
-          <div className="absolute inset-0 bg-navy/35" />
           <div className="relative z-10 text-center max-w-sm px-4">
             <p className="text-peri-dim text-sm font-medium animate-fade-in" key={factIndex}>
               {SCRIPTURE_FACTS[factIndex]}
@@ -148,8 +146,6 @@ export default function App() {
 function RoleLoading() {
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-navy gap-4">
-      <img src="/fullcircle-startup-artwork.jpeg" alt="Full Circle" className="absolute inset-0 h-full w-full object-cover opacity-95" />
-      <div className="absolute inset-0 bg-navy/35" />
       <p className="relative z-10 text-peri-dim text-sm">Preparing your Full Circle...</p>
     </div>
   );
