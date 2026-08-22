@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
-  QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse,
+  QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, WeeklyQuizReleasedResult,
   DenariiLedgerEntry, GameAttempt, RelicType, RelicInventory,
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
@@ -453,6 +453,14 @@ export async function fetchQuizAttempt(_userId: string, sessionId: string) {
   });
   if (error) throw error;
   return data as QuizAttempt | null;
+}
+
+export async function fetchMyWeeklyQuizResult(sessionId: string) {
+  const { data, error } = await supabase.rpc('get_my_weekly_quiz_result', {
+    p_quiz_session_id: sessionId,
+  });
+  if (error) throw error;
+  return data as WeeklyQuizReleasedResult | null;
 }
 
 export async function fetchResponsesForAttempt(attemptId: string) {

@@ -207,6 +207,7 @@ export interface QuestionPayload {
   question: string;
   options?: string[];
   correct_answer: string | number;
+  accepted_answers?: Array<string | number>;
   explanation?: string;
   reference?: string;
   blanked_text?: string;
@@ -241,6 +242,17 @@ export interface QuizAttempt {
   forfeited_at: string | null;
   submitted_at: string | null;
   created_at: string;
+}
+
+export interface WeeklyQuizReleasedResult {
+  released: boolean;
+  release_at: string;
+  released_at?: string | null;
+  correct_count?: number;
+  question_count?: number;
+  figs_earned?: number;
+  perfect?: boolean;
+  denarii_awarded?: number;
 }
 
 export interface QuestionResponse {

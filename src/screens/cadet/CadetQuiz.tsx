@@ -9,14 +9,18 @@ import {
   fetchNarratives, fetchRelicInventory, resetQuizAttemptWithLazarus, startQuizAttempt,
   saveQuizResponse, consumeQuizQuestionRelic, completeQuizAttempt, forfeitQuizAttempt,
   fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
+  fetchMyWeeklyQuizResult,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
 import { formatCountdown, formatDate, formatDenarii, getAppDateTimeMs, getTodayISODate, cn } from '../../lib/utils';
 import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
-import type { QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative, PanelImageSetting } from '../../lib/types';
+import type {
+  QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative,
+  PanelImageSetting, WeeklyQuizReleasedResult,
+} from '../../lib/types';
 import {
-  FileQuestion, Clock, CheckCircle2, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
+  FileQuestion, Clock, CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
   Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw, Lightbulb, Wand2,
   SkipForward, Volume2, Eye, Sparkles,
 } from 'lucide-react';
@@ -42,7 +46,7 @@ function localQuizDayStart(sessionDate: string) {
 }
 
 function localQuizResultsRelease(sessionDate: string) {
-  return getAppDateTimeMs(sessionDate, 15, 0);
+  return getAppDateTimeMs(sessionDate, 16, 0);
 }
 
 function hasUsedLazarus(attempt: QuizAttempt | null) {
@@ -74,6 +78,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [responses, setResponses] = useState<QuestionResponse[]>([]);
+  const [releasedResult, setReleasedResult] = useState<WeeklyQuizReleasedResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [inQuiz, setInQuiz] = useState(false);
@@ -99,11 +104,12 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       const sess = await fetchLatestQuizSession();
       setSession(sess);
       if (sess) {
-        const [qs, att, relics, image] = await Promise.allSettled([
+        const [qs, att, relics, image, result] = await Promise.allSettled([
           fetchPlayableQuestionsForSession(sess.id),
           fetchQuizAttempt(profile.id, sess.id),
           fetchRelicInventory(profile.id),
           fetchPanelImageSetting('quiz'),
+          fetchMyWeeklyQuizResult(sess.id),
         ]);
         if (qs.status === 'rejected') {
           throw qs.reason instanceof Error ? qs.reason : new Error('Quiz questions could not be loaded.');
@@ -111,6 +117,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         setQuestions(qs.value);
         setAttempt(att.status === 'fulfilled' ? att.value : null);
         setQuizImage(image.status === 'fulfilled' ? image.value : null);
+        setReleasedResult(result.status === 'fulfilled' ? result.value : null);
         if (relics.status === 'fulfilled') {
           const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
           setLazarusCount(lazarus?.quantity || 0);
@@ -145,19 +152,27 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     void Promise.all([
       fetchPlayableQuestionsForSession(session.id),
       fetchResponsesForAttempt(attempt.id),
-    ]).then(([releasedQuestions, releasedResponses]) => {
+      fetchQuizAttempt(profile!.id, session.id),
+      fetchMyWeeklyQuizResult(session.id),
+    ]).then(([releasedQuestions, releasedResponses, releasedAttempt, result]) => {
       setQuestions(releasedQuestions);
       setResponses(releasedResponses);
+      if (releasedAttempt) setAttempt(releasedAttempt);
+      setReleasedResult(result);
+      const answersAreOpen = releasedQuestions.length > 0
+        && releasedQuestions.every((question) => question.question_payload?.correct_answer !== undefined);
+      if (!answersAreOpen || !result?.released) releasedResultsLoadedRef.current = false;
     }).catch((error) => {
       releasedResultsLoadedRef.current = false;
       console.error('Released quiz results could not load:', error);
     });
-  }, [attempt, now, session]);
+  }, [attempt, now, profile, session]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     releasedResultsLoadedRef.current = false;
+    setReleasedResult(null);
   }, [session?.id]);
 
   // Tick every second
@@ -257,7 +272,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
       return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
     }
-    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ResultsView attempt={attempt} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
 
   // In quiz
@@ -1032,7 +1047,7 @@ function SubmittedView({ releaseAt, image, canUseLazarus, lazarusCount, usingLaz
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink mb-2">Quiz Submitted</h2>
           <p className="text-sm text-stone">
-            Your answers are safely recorded. Your question results and the updated Quiz Board will be released together at 3:00 PM.
+            Your answers are safely recorded. Your marked answer sheet, figs, denarii, and the updated Fig Board will be released together at 4:00 PM.
           </p>
           <div className="mt-4 rounded-lg border border-border bg-surface-2 p-3">
             <p className="text-[10px] uppercase tracking-wider text-stone">Results release in</p>
@@ -1100,8 +1115,37 @@ function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazar
   );
 }
 
-function ResultsView({ attempt, image, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+function comparableQuizAnswer(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).join('|');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return String(value ?? '').trim();
+}
+
+function displayQuizAnswer(value: unknown) {
+  if (value == null || value === '') return 'No answer';
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(' → ');
+  const text = String(value);
+  return text.includes('|') ? text.split('|').join(' → ') : text;
+}
+
+function quizResponseIsCorrect(question: GeneratedQuestion, answer: unknown) {
+  const payload = question.question_payload;
+  if (!payload || payload.correct_answer == null || answer == null) return false;
+  const given = comparableQuizAnswer(answer);
+  const acceptedAnswers = Array.isArray(payload.accepted_answers)
+    ? payload.accepted_answers
+    : [];
+  const accepted = [payload.correct_answer, ...acceptedAnswers];
+  if (['standard_text', 'scriptorium'].includes(payload.type)) {
+    return accepted.some((candidate) => comparableQuizAnswer(candidate) === given);
+  }
+  return accepted.some((candidate) => comparableQuizAnswer(candidate).toLowerCase() === given.toLowerCase());
+}
+
+function ResultsView({ attempt, result, weekly, image, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
   attempt: QuizAttempt;
+  result: WeeklyQuizReleasedResult | null;
+  weekly: boolean;
   image: PanelImageSetting | null;
   questions: GeneratedQuestion[];
   responses: QuestionResponse[];
@@ -1110,21 +1154,33 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
   usingLazarus: boolean;
   onUseLazarus: () => void;
 }) {
-  const correctByQuestion = questions.map((q) => {
-    const resp = responses.find((r) => r.question_id === q.id);
-    const expected = q.question_payload?.correct_answer;
-    if (!resp || expected == null) return false;
-    if (['standard_text', 'scriptorium'].includes(q.question_payload?.type || '')) {
-      return String(resp.answer).trim() === String(expected).trim();
-    }
-    return String(resp.answer).trim().toLowerCase() === String(expected).trim().toLowerCase();
-  });
+  const responseByQuestion = new Map(responses.map((response) => [response.question_id, response]));
+  const correctByQuestion = questions.map((question) => (
+    quizResponseIsCorrect(question, responseByQuestion.get(question.id)?.answer)
+  ));
+  const answersReady = questions.length > 0
+    && questions.every((question) => question.question_payload?.correct_answer !== undefined);
   const maxFigs = questions.reduce((total, question) => total + (
     question.difficulty_tag === 'hard' ? 5 : question.difficulty_tag === 'moderate' ? 3 : 1
   ), 0);
-  const figs = Number(attempt.talents_scored) || 0;
-  const perfect = maxFigs > 0 && figs === maxFigs;
-  const denarii = perfect ? 6000 : figs > 0 ? 1000 : 0;
+  const figs = Number(result?.figs_earned ?? attempt.talents_scored) || 0;
+  const correctCount = Number(result?.correct_count ?? correctByQuestion.filter(Boolean).length) || 0;
+  const questionCount = Number(result?.question_count ?? questions.length) || questions.length;
+  const perfect = result?.perfect ?? (questionCount > 0 && correctCount === questionCount);
+  const denarii = Number(result?.denarii_awarded ?? (perfect ? 6000 : correctCount > 0 ? 1000 : 0));
+
+  if (weekly && !result?.released) {
+    return (
+      <div className="card relative mx-auto max-w-2xl overflow-hidden p-6 text-center animate-fade-in">
+        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
+        <div className="relative flex flex-col items-center">
+          <Loader2 size={26} className="animate-spin text-brass" />
+          <h2 className="mt-3 font-display text-xl font-semibold text-ink">Releasing your quiz result</h2>
+          <p className="mt-1 text-sm text-stone">Your answer sheet and denarii are being settled now.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto animate-fade-in space-y-4">
@@ -1137,7 +1193,7 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink mb-1">Quiz Complete</h2>
           <p className="text-sm text-stone mb-4">
-            {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {figs}/{maxFigs} figs
+            {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {correctCount}/{questionCount} correct
           </p>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -1152,7 +1208,7 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
           </div>
 
           <p className="text-xs text-stone mb-3">
-            {perfect ? 'Perfect score reward: 1 talent' : figs > 0 ? 'Imperfect score reward: 1,000 denarii' : 'No reward was earned this time'}
+            {perfect ? 'Perfect score reward: 1 talent' : correctCount > 0 ? 'Quiz reward: 1,000 denarii' : 'No denarii were earned this time'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-1">
             {Array.from({ length: questions.length }, (_, i) => (
@@ -1173,6 +1229,120 @@ function ResultsView({ attempt, image, questions, responses, canUseLazarus, laza
           />
         </div>
       </div>
+
+      {!answersReady ? (
+        <div className="card relative overflow-hidden p-6 text-center">
+          <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
+          <div className="relative flex flex-col items-center">
+            <Loader2 size={24} className="animate-spin text-brass" />
+            <h3 className="mt-3 font-display text-lg font-semibold text-ink">Opening your answer sheet</h3>
+            <p className="mt-1 text-sm text-stone">The 4:00 PM seal is lifting. This will update automatically.</p>
+          </div>
+        </div>
+      ) : (
+        <section className="card relative overflow-hidden p-5 sm:p-6">
+          <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
+          <div className="relative">
+            <div className="flex items-start justify-between gap-3 pb-4">
+              <div>
+                <p className="eyebrow text-brass">{weekly ? 'Released at 4:00 PM' : 'Quiz Review'}</p>
+                <h3 className="mt-1 font-display text-xl font-semibold text-ink">Your Answer Sheet</h3>
+                <p className="mt-1 text-xs text-stone">Your choices are marked against the released answers.</p>
+              </div>
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-brass/30 bg-brass-soft">
+                <BookOpen size={20} className="text-brass" />
+              </div>
+            </div>
+
+            <div className="divide-y divide-border">
+              {questions.map((question, questionIndex) => {
+                const payload = question.question_payload;
+                const response = responseByQuestion.get(question.id);
+                const selectedAnswer = response?.answer;
+                const isCorrect = correctByQuestion[questionIndex];
+                const options = cleanQuizOptions(payload?.options, payload?.correct_answer);
+                const hasOptions = options.length > 0;
+
+                return (
+                  <article key={question.id} className="py-5 first:pt-1 last:pb-1">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-border bg-surface/75 text-xs font-semibold text-ink">
+                        {questionIndex + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-display text-base font-semibold leading-snug text-ink">{payload.question}</p>
+                        {payload.blanked_text && (
+                          <p className="mt-2 rounded-md border border-border bg-surface/70 p-3 font-serif text-sm text-ink">{payload.blanked_text}</p>
+                        )}
+
+                        {hasOptions ? (
+                          <div className="mt-3 space-y-2">
+                            {options.map((option, optionIndex) => {
+                              const selected = comparableQuizAnswer(selectedAnswer).toLowerCase() === comparableQuizAnswer(option).toLowerCase();
+                              const correct = comparableQuizAnswer(payload.correct_answer).toLowerCase() === comparableQuizAnswer(option).toLowerCase();
+                              const wrongSelection = selected && !correct;
+                              return (
+                                <div
+                                  key={`${question.id}-${optionIndex}`}
+                                  className={cn(
+                                    'flex min-h-11 items-center gap-2.5 rounded-lg border px-3 py-2 text-sm',
+                                    correct && 'border-moss/50 bg-moss/15 text-ink',
+                                    wrongSelection && 'border-roman/50 bg-roman/12 text-ink',
+                                    !correct && !wrongSelection && 'border-border bg-surface/70 text-stone',
+                                  )}
+                                >
+                                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-current/25 text-[10px] font-semibold">
+                                    {String.fromCharCode(65 + optionIndex)}
+                                  </span>
+                                  <span className="min-w-0 flex-1">{option}</span>
+                                  {correct && <CheckCircle2 size={19} className="flex-shrink-0 text-moss" aria-label="Correct answer" />}
+                                  {wrongSelection && <XCircle size={19} className="flex-shrink-0 text-roman" aria-label="Your incorrect answer" />}
+                                </div>
+                              );
+                            })}
+                            {selectedAnswer == null && (
+                              <div className="flex min-h-11 items-center gap-2.5 rounded-lg border border-roman/50 bg-roman/12 px-3 py-2 text-sm text-ink">
+                                <XCircle size={19} className="flex-shrink-0 text-roman" />
+                                <span>No answer submitted</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3 space-y-2">
+                            <div className={cn(
+                              'flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm',
+                              isCorrect ? 'border-moss/50 bg-moss/15 text-ink' : 'border-roman/50 bg-roman/12 text-ink',
+                            )}>
+                              {isCorrect
+                                ? <CheckCircle2 size={19} className="mt-0.5 flex-shrink-0 text-moss" />
+                                : <XCircle size={19} className="mt-0.5 flex-shrink-0 text-roman" />}
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-semibold uppercase text-stone">Your answer</p>
+                                <p className="mt-0.5 whitespace-pre-wrap break-words">{displayQuizAnswer(selectedAnswer)}</p>
+                              </div>
+                            </div>
+                            {!isCorrect && (
+                              <div className="flex items-start gap-2 rounded-lg border border-moss/50 bg-moss/15 px-3 py-2.5 text-sm text-ink">
+                                <CheckCircle2 size={19} className="mt-0.5 flex-shrink-0 text-moss" />
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-semibold uppercase text-stone">Correct answer</p>
+                                  <p className="mt-0.5 whitespace-pre-wrap break-words">{displayQuizAnswer(payload.correct_answer)}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {payload.reference && <p className="mt-2 text-xs font-medium text-brass">{payload.reference}</p>}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -741,11 +741,11 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
               <BadgeCheck size={20} className="text-royal" />
               <h3 className="font-display font-semibold text-ink">Fig Board</h3>
               <span className="badge badge-neutral text-[10px] inline-flex items-center gap-1">
-                <Clock size={10} /> Saturday 3 PM
+                <Clock size={10} /> Saturday 4 PM
               </span>
             </div>
             <p className="text-xs text-stone">
-              Daily game figs, arena figs, and fortune quiz figs update live. Saturday quiz figs join the board at 3:00 PM.
+              Daily game figs, arena figs, and fortune quiz figs update live. Saturday quiz figs join the board at 4:00 PM.
             </p>
           </BoardPanel>
 
@@ -814,7 +814,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
             <EmptyState
               icon={(props) => <BadgeCheck {...props} />}
               title="Fig Board ready"
-              message="Cadets appear here once assigned. Daily game, arena, and fortune quiz figs update live; Saturday quiz figs join at 3:00 PM."
+              message="Cadets appear here once assigned. Daily game, arena, and fortune quiz figs update live; Saturday quiz figs join at 4:00 PM."
             />
           )}
         </div>
