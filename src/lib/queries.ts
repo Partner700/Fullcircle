@@ -320,13 +320,17 @@ export async function fetchQuizSessions() {
 }
 
 export async function fetchLatestQuizSession() {
+  const rpcResult = await supabase.rpc('get_current_quiz_session');
+  if (!rpcResult.error) return rpcResult.data as QuizSession | null;
+
+  // Keep older deployments usable while the lifecycle migration rolls out.
   const { data, error } = await supabase
     .from('quiz_sessions')
     .select('*')
     .order('session_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1).maybeSingle();
-  if (error) throw error;
+  if (error) throw rpcResult.error;
   return data as QuizSession | null;
 }
 
@@ -338,6 +342,27 @@ export async function createQuizSession(session: Partial<QuizSession>) {
     .maybeSingle();
   if (error) throw error;
   return data as QuizSession;
+}
+
+export async function launchQuizSession(sessionId: string) {
+  const { data, error } = await supabase.rpc('launch_quiz_session', {
+    p_quiz_session_id: sessionId,
+  });
+  if (error) throw error;
+  return data as QuizSession;
+}
+
+export async function deleteQuizSession(sessionId: string) {
+  const { data, error } = await supabase.rpc('delete_quiz_session_cascade', {
+    p_quiz_session_id: sessionId,
+  });
+  if (error) throw error;
+  return data as {
+    deleted: boolean;
+    quiz_session_id: string;
+    attempts_deleted: number;
+    reward_entries_reversed: number;
+  };
 }
 
 export async function fetchQuestionsForSession(sessionId: string) {
@@ -1576,7 +1601,7 @@ export async function fetchQuizTaggedGameQuestions(limit = 50) {
 export async function fetchDailyQuoteFeed(limit = 12) {
   const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
   if (error) throw error;
-  return data as import('./types').DailyQuoteFeedItem[];
+  return mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
 }
 
 export async function fetchPublicQuoteStreak(userId: string) {

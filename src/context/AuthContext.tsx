@@ -52,79 +52,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const authOperationRef = useRef(false);
   const profileRef = useRef<Profile | null>(null);
+  const profileLoadRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
 
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
 
-  const loadProfile = useCallback(async (userId: string) => {
-    if (supabaseConfigError) return;
+  const loadProfile = useCallback((userId: string) => {
+    if (supabaseConfigError) return Promise.resolve();
+    if (profileLoadRef.current?.userId === userId) return profileLoadRef.current.promise;
 
-    // Profile and role are independent reads. Start them together so session
-    // restoration does not spend an extra round trip waiting for the shell.
-    const rolePromise = supabase
-      .from('role_assignments')
-      .select('*')
-      .eq('user_id', userId)
-      .in('status', ['active', 'approved'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let prof: Profile | null = null;
-    let profileError: Error | null = null;
-    // A freshly restored mobile session can reach the database a beat before
-    // its access token/profile query is ready. Retry briefly instead of
-    // sending a valid user back to the sign-in screen.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const data = await fetchOwnProfile(userId);
-        if (data) {
-          prof = data;
-          profileError = null;
-          break;
+    const request = (async () => {
+      // The bootstrap RPC returns the signed-in person's private profile and
+      // active role in one round trip. Retry briefly while a restored mobile
+      // token settles, then retain the older two-query path as rollout safety.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const bootstrap = await supabase.rpc('get_my_app_bootstrap');
+        const payload = bootstrap.data as { profile?: Profile | null; role_assignment?: RoleAssignment | null } | null;
+        if (!bootstrap.error && payload?.profile) {
+          const prof = payload.profile;
+          const assignment = payload.role_assignment || {
+            id: `fallback-${userId}`,
+            user_id: userId,
+            role: 'cadet' as Role,
+            status: 'active',
+            start_date: null,
+            approver_id: null,
+            created_at: prof.created_at || new Date().toISOString(),
+          };
+          profileRef.current = prof;
+          setProfile(prof);
+          setRoleAssignment(assignment);
+          window.localStorage.setItem('full-circle-role-hint', assignment.role);
+          return;
         }
-      } catch (error) {
-        profileError = error instanceof Error ? error : new Error('Profile loading failed.');
-      }
-      if (prof) {
-        profileError = null;
+        if (attempt < 2 && !/could not find the function|get_my_app_bootstrap|schema cache/i.test(bootstrap.error?.message || '')) {
+          await pause(350 * (attempt + 1));
+          continue;
+        }
         break;
       }
-      if (attempt < 2) await pause(500 * (attempt + 1));
-    }
 
-    if (!prof && profileError) throw profileError;
-    profileRef.current = prof as Profile | null;
-    setProfile(prof as Profile | null);
+      const rolePromise = supabase
+        .from('role_assignments')
+        .select('*')
+        .eq('user_id', userId)
+        .in('status', ['active', 'approved'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (prof) {
-      const { data: ra, error: roleError } = await rolePromise;
-      if (roleError) {
-        console.warn('Role assignment could not load; opening with cadet defaults:', roleError);
-        setRoleAssignment({
-          id: `fallback-${userId}`,
-          user_id: userId,
-          role: 'cadet',
-          status: 'active',
-          start_date: null,
-          approver_id: null,
-          created_at: prof.created_at || new Date().toISOString(),
-        });
-      } else {
-        setRoleAssignment((ra as RoleAssignment | null) || {
-          id: `fallback-${userId}`,
-          user_id: userId,
-          role: 'cadet',
-          status: 'active',
-          start_date: null,
-          approver_id: null,
-          created_at: prof.created_at || new Date().toISOString(),
-        });
+      let prof: Profile | null = null;
+      let profileError: Error | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          prof = await fetchOwnProfile(userId);
+          if (prof) break;
+        } catch (error) {
+          profileError = error instanceof Error ? error : new Error('Profile loading failed.');
+        }
+        if (attempt < 2) await pause(500 * (attempt + 1));
       }
-    } else {
-      setRoleAssignment(null);
-    }
+      if (!prof && profileError) throw profileError;
+
+      profileRef.current = prof;
+      setProfile(prof);
+      if (!prof) {
+        setRoleAssignment(null);
+        return;
+      }
+
+      const { data: roleData, error: roleError } = await rolePromise;
+      if (roleError) console.warn('Role assignment could not load; opening with cadet defaults:', roleError);
+      const assignment = (roleData as RoleAssignment | null) || {
+        id: `fallback-${userId}`,
+        user_id: userId,
+        role: 'cadet' as Role,
+        status: 'active',
+        start_date: null,
+        approver_id: null,
+        created_at: prof.created_at || new Date().toISOString(),
+      };
+      setRoleAssignment(assignment);
+      window.localStorage.setItem('full-circle-role-hint', assignment.role);
+    })();
+
+    const shared = request.finally(() => {
+      if (profileLoadRef.current?.promise === shared) profileLoadRef.current = null;
+    });
+    profileLoadRef.current = { userId, promise: shared };
+    return shared;
   }, []);
 
   useEffect(() => {

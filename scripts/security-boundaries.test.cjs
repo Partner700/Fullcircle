@@ -44,7 +44,10 @@ const statFirstBoardMovements = read('supabase/migrations/20260822100000_stat_fi
 const saturdayQuizReminders = read('supabase/migrations/20260822110000_saturday_quiz_reminders.sql');
 const weeklyQuizRelease = read('supabase/migrations/20260822120000_weekly_quiz_4pm_release.sql');
 const externalQuestionMetadata = read('supabase/migrations/20260822130000_external_question_import_metadata.sql');
+const quizLifecycle = read('supabase/migrations/20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
+const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
+const authContext = read('src/context/AuthContext.tsx');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -107,15 +110,15 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v79'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '79'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v80'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '80'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '79'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '80'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\('\/index\.html\?fc-connectivity='/);
 assert.match(offlinePage, /window\.location\.replace\('\/index\.html\?fc-recovered='/);
@@ -133,6 +136,19 @@ assert.match(externalQuestionMetadata, /ADD COLUMN IF NOT EXISTS scripture_refer
 assert.match(externalQuestionMetadata, /public\.is_instructor\(auth\.uid\(\)\)/);
 assert.match(externalQuestionMetadata, /jsonb_array_elements_text\(coalesce\(v_question\.accepted_answers/);
 assert.match(externalQuestionMetadata, /REVOKE ALL ON FUNCTION public\.daily_game_answer_is_correct/);
+assert.match(quizLifecycle, /CREATE OR REPLACE FUNCTION public\.get_my_app_bootstrap/);
+assert.match(quizLifecycle, /CREATE OR REPLACE FUNCTION public\.launch_quiz_session/);
+assert.match(quizLifecycle, /CREATE OR REPLACE FUNCTION public\.delete_quiz_session_cascade/);
+assert.match(quizLifecycle, /v_session\.status = 'scheduled'/);
+assert.match(quizLifecycle, /greatest\(25,[\s\S]*Vedette/);
+assert.match(quizLifecycle, /Courage Webnjoh/);
+assert.match(authContext, /get_my_app_bootstrap/);
+assert.match(cadetQuiz, /Update Answer/);
+assert.ok(!cadetQuiz.includes('if (showFeedback) return;'), 'Saved quiz answers must remain editable until final submission.');
+assert.match(cadetQuiz, /session\.status === 'scheduled'/);
+assert.ok(!instructorApp.includes('Countdown (minutes)'), 'Quiz countdown must be derived from the programmed start time.');
+assert.ok(!instructorApp.includes('Wait Time (min before quiz opens)'), 'Quiz builder must not expose a manual countdown setting.');
+assert.match(instructorApp, /deleteQuizSession/);
 assert.match(instructorApp, /destination="quiz"/);
 assert.match(instructorApp, /destination="game"/);
 assert.match(read('scripts/preserve-release-assets.cjs'), /path\.join\(dist, 'assets'\)/);
@@ -282,6 +298,7 @@ for (const migrationName of [
   '20260822110000_saturday_quiz_reminders.sql',
   '20260822120000_weekly_quiz_4pm_release.sql',
   '20260822130000_external_question_import_metadata.sql',
+  '20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);

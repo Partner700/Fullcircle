@@ -136,13 +136,39 @@ export function SentryApp() {
     if (!profile) { setLoading(false); return; }
     if (!hasLoadedRef.current) setLoading(true);
     try {
-      const protection = await fetchStreakProtectionState().catch(() => null);
-      if (protection) setStreakProtection(protection);
-      const [toolbarStats, ownDenarii, ownLedger] = await Promise.all([
-        fetchReliableToolbarStats(profile.id).catch(() => null),
-        fetchLedgerTotal(profile.id).catch(() => null),
-        fetchLedgerEntries(profile.id, 80).catch(() => []),
+      const protectionPromise = fetchStreakProtectionState().catch(() => null);
+      const toolbarPromise = fetchReliableToolbarStats(profile.id).catch(() => null);
+      const denariiPromise = fetchLedgerTotal(profile.id).catch(() => null);
+      const ledgerPromise = fetchLedgerEntries(profile.id, 80).catch(() => []);
+      const memberPointerPromise = supabase
+        .from('tent_members')
+        .select('tent_id')
+        .eq('user_id', profile.id)
+        .maybeSingle();
+      const ownedTentPromise = supabase
+        .from('tents')
+        .select('*, tent_houses(*)')
+        .eq('sentry_id', profile.id)
+        .maybeSingle();
+      const quotePromise = fetchDailyQuoteFeed(12).catch(() => []);
+      const announcementPromise = fetchAnnouncements(['all', 'cadets', 'sentries']).catch(() => []);
+      const imagePromise = fetchPanelImageSettings([
+        'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
+      ], ['all', 'sentries']).catch(() => ({}));
+
+      const [protection, toolbarStats, ownDenarii, ownLedger, memberPointer, ownedTent, quoteFeed, sentryAnnouncements, sentryPanelImages] = await Promise.all([
+        protectionPromise,
+        toolbarPromise,
+        denariiPromise,
+        ledgerPromise,
+        memberPointerPromise,
+        ownedTentPromise,
+        quotePromise,
+        announcementPromise,
+        imagePromise,
       ]);
+      if (protection) setStreakProtection(protection);
       const ownStreak = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
       const strictFallback = ownStreak ? null : await fetchStrictStreak(profile.id).catch(() => null);
       setSentryStreak((previous) => {
@@ -153,69 +179,58 @@ export function SentryApp() {
       setSentryDenarii((previous) => ownStreak?.total_denarii ?? ownDenarii ?? previous);
       setSentryLedger(ownLedger);
 
-      const { data: member } = await supabase
-        .from('tent_members')
-        .select('tent_id')
-        .eq('user_id', profile.id)
-        .maybeSingle();
-
-      let sentryTent: (Tent & { tent_houses?: any }) | null = null;
-
-      if (member) {
+      let sentryTent = ownedTent.data as (Tent & { tent_houses?: any }) | null;
+      if (memberPointer.data) {
         const { data: t } = await supabase
           .from('tents')
           .select('*, tent_houses(*)')
-          .eq('id', member.tent_id)
-          .maybeSingle();
-        sentryTent = t as any;
-      } else {
-        const { data: t } = await supabase
-          .from('tents')
-          .select('*, tent_houses(*)')
-          .eq('sentry_id', profile.id)
+          .eq('id', memberPointer.data.tent_id)
           .maybeSingle();
         sentryTent = t as any;
       }
 
       setTent(sentryTent);
+      setQuotes(quoteFeed);
+      setAnnouncements(sentryAnnouncements);
+      setPanelImages(sentryPanelImages);
+      hasLoadedRef.current = true;
+      setLoading(false);
 
+      // Member history and social reactions are secondary dashboard details.
+      // Let the sentry overview become interactive before these larger reads.
       if (sentryTent) {
-        const { data: mems } = await supabase
+        void (async () => {
+          const { data: mems } = await supabase
           .from('tent_members')
           .select('*, profiles(id,display_name,avatar_url,created_at)')
           .eq('tent_id', sentryTent.id)
           .eq('role', 'cadet')
           .order('joined_at');
-        setMembers((mems || []) as any);
+          setMembers((mems || []) as any);
 
-        const memberIds = (mems || []).map((m) => m.user_id);
-        const recordsMap: Record<string, DailyRecord[]> = Object.fromEntries(memberIds.map((id) => [id, []]));
-        const streakMap: Record<string, StrictStreakData> = {};
-        const [recordsResult, streakResults] = await Promise.all([
-          memberIds.length
-            ? supabase.from('daily_records').select('*').in('user_id', memberIds).order('record_date', { ascending: true })
-            : Promise.resolve({ data: [] as DailyRecord[] }),
-          Promise.all(memberIds.map(async (id) => ({ id, data: await fetchStrictStreak(id).catch(() => null) }))),
-        ]);
-        for (const record of (recordsResult.data || []) as DailyRecord[]) recordsMap[record.user_id]?.push(record);
-        for (const result of streakResults) if (result.data) streakMap[result.id] = result.data;
-        setAllRecords(recordsMap);
-        setStrictStreaks(streakMap);
+          const memberIds = (mems || []).map((m) => m.user_id);
+          const recordsMap: Record<string, DailyRecord[]> = Object.fromEntries(memberIds.map((id) => [id, []]));
+          const streakMap: Record<string, StrictStreakData> = {};
+          const [recordsResult, streakResults] = await Promise.all([
+            memberIds.length
+              ? supabase.from('daily_records').select('*').in('user_id', memberIds).order('record_date', { ascending: true })
+              : Promise.resolve({ data: [] as DailyRecord[] }),
+            Promise.all(memberIds.map(async (id) => ({ id, data: await fetchStrictStreak(id).catch(() => null) }))),
+          ]);
+          for (const record of (recordsResult.data || []) as DailyRecord[]) recordsMap[record.user_id]?.push(record);
+          for (const result of streakResults) if (result.data) streakMap[result.id] = result.data;
+          setAllRecords(recordsMap);
+          setStrictStreaks(streakMap);
+        })().catch((error) => console.warn('Sentry member history could not load:', error));
       } else {
         setMembers([]);
         setAllRecords({});
         setStrictStreaks({});
       }
-      const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
-      setAnnouncements(await fetchAnnouncements(['all', 'cadets', 'sentries']).catch(() => []));
-      setQuotes(quoteFeed);
-      const sentryPanelImages = await fetchPanelImageSettings([
-        'quote', 'sentry_overview', 'recent_denarii', 'announcement',
-        'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
-      ], ['all', 'sentries']).catch(() => ({}));
-      setPanelImages(sentryPanelImages);
       if (quoteFeed.length > 0) {
-        setQuoteReactions(await fetchDailyQuoteReactions(quoteFeed, profile.id).catch(() => ({})) as Record<string, QuoteReactionState>);
+        void fetchDailyQuoteReactions(quoteFeed, profile.id)
+          .then((reactions) => setQuoteReactions(reactions as Record<string, QuoteReactionState>))
+          .catch(() => setQuoteReactions({}));
       } else {
         setQuoteReactions({});
       }

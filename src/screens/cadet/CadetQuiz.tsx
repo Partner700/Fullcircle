@@ -100,28 +100,20 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     setLoadError(null);
+    let shellReady = false;
     try {
       const sess = await fetchLatestQuizSession();
       setSession(sess);
       if (sess) {
-        const [qs, att, relics, image, result] = await Promise.allSettled([
+        const [qs, att] = await Promise.allSettled([
           fetchPlayableQuestionsForSession(sess.id),
           fetchQuizAttempt(profile.id, sess.id),
-          fetchRelicInventory(profile.id),
-          fetchPanelImageSetting('quiz'),
-          fetchMyWeeklyQuizResult(sess.id),
         ]);
         if (qs.status === 'rejected') {
           throw qs.reason instanceof Error ? qs.reason : new Error('Quiz questions could not be loaded.');
         }
         setQuestions(qs.value);
         setAttempt(att.status === 'fulfilled' ? att.value : null);
-        setQuizImage(image.status === 'fulfilled' ? image.value : null);
-        setReleasedResult(result.status === 'fulfilled' ? result.value : null);
-        if (relics.status === 'fulfilled') {
-          const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
-          setLazarusCount(lazarus?.quantity || 0);
-        }
         if (att.status === 'fulfilled' && att.value) {
           try {
             const resps = await fetchResponsesForAttempt(att.value.id);
@@ -129,17 +121,37 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           } catch { setResponses([]); }
         }
       }
-      try {
-        const narrs = await fetchNarratives(90);
-        const { data: records } = await supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id);
-        const recordsByDate = new Map((records || []).map((record: any) => [record.record_date, record]));
-        setReadingArchive(narrs.filter((item) => item.narrative_date < getTodayISODate()).map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
-      } catch { setReadingArchive([]); }
+      setLoading(false);
+      shellReady = true;
+
+      // These enrich the screen but do not decide whether the quiz can open.
+      // Fetch them after the usable quiz shell is already visible.
+      void (async () => {
+        const [relics, image, result, narratives, records] = await Promise.allSettled([
+          fetchRelicInventory(profile.id),
+          fetchPanelImageSetting('quiz'),
+          sess ? fetchMyWeeklyQuizResult(sess.id) : Promise.resolve(null),
+          fetchNarratives(90),
+          supabase.from('daily_records').select('record_date,meditation_text,best_verse').eq('user_id', profile.id),
+        ]);
+        if (relics.status === 'fulfilled') {
+          const lazarus = relics.value.find((item) => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN);
+          setLazarusCount(lazarus?.quantity || 0);
+        }
+        if (image.status === 'fulfilled') setQuizImage(image.value);
+        if (result.status === 'fulfilled') setReleasedResult(result.value);
+        if (narratives.status === 'fulfilled' && records.status === 'fulfilled') {
+          const recordsByDate = new Map((records.value.data || []).map((record: any) => [record.record_date, record]));
+          setReadingArchive(narratives.value
+            .filter((item) => item.narrative_date < getTodayISODate())
+            .map((item) => ({ ...item, ...(recordsByDate.get(item.narrative_date) || {}) })));
+        }
+      })().catch((error) => console.warn('Quiz extras could not load:', error));
     } catch (error) {
       console.error('Quiz load error:', error);
       setLoadError(error instanceof Error ? error.message : 'The quiz could not be loaded.');
     } finally {
-      setLoading(false);
+      if (!shellReady) setLoading(false);
     }
   }, [profile]);
 
@@ -169,6 +181,20 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   }, [attempt, now, profile, session]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!session?.id) return;
+    const channel = supabase
+      .channel(`quiz-session-lifecycle-${session.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'quiz_sessions',
+        filter: `id=eq.${session.id}`,
+      }, (payload) => setSession(payload.new as QuizSession))
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [session?.id]);
 
   useEffect(() => {
     releasedResultsLoadedRef.current = false;
@@ -225,7 +251,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const attemptLazarusActive = hasUsedLazarus(attempt) && lazarusWindowOpen;
 
   let phase: Phase;
-  if (now < countdownOpens) phase = 'scheduled';
+  if (session.status === 'scheduled') phase = 'scheduled';
+  else if (now < countdownOpens) phase = 'scheduled';
   else if (now < liveOpens) phase = 'countdown';
   else if (now < liveCloses) phase = 'live';
   else phase = 'closed';
@@ -291,7 +318,6 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   }
 
   // Pre-quiz views
-  const timeToCountdown = countdownOpens - now;
   const timeToLive = liveOpens - now;
   const timeToClose = liveCloses - now;
 
@@ -317,12 +343,12 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       {/* Phase-specific content */}
       {phase === 'scheduled' && (
         <WaitingRoom
-          eyebrow="Not Yet Open"
-          title="Quiz Not Yet Open"
-          description="The waiting room opens in:"
-          countdownMs={timeToCountdown}
-          footnote={`Waiting room opens at ${new Date(session.countdown_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Live at ${new Date(session.live_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
-          progressLabel="Time to waiting room"
+          eyebrow="Scheduled"
+          title="Awaiting Instructor Launch"
+          description="Programmed quiz start:"
+          countdownMs={Math.max(0, timeToLive)}
+          footnote={`Launch opens the countdown automatically · Live at ${new Date(session.live_opens_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+          progressLabel="Time to programmed start"
           sessionId={session.id}
           userId={profile!.id}
         />
@@ -517,8 +543,16 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   const [localResponses, setLocalResponses] = useState<Map<string, any>>(
     () => new Map(initialResponses.map((response) => [response.question_id, response.answer])),
   );
-  const [selectedAnswer, setSelectedAnswer] = useState<any>(null);
-  const [showFeedback, setShowFeedback] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState<any>(() => {
+    const saved = initialResponses.find((response) => response.question_id === questions[0]?.id)?.answer ?? null;
+    return questions[0]?.question_payload.type === 'order_sequence' && typeof saved === 'string'
+      ? saved.split('|')
+      : saved;
+  });
+  const [showFeedback, setShowFeedback] = useState(
+    () => initialResponses.some((response) => response.question_id === questions[0]?.id),
+  );
+  const [savingAnswer, setSavingAnswer] = useState(false);
   const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor((liveCloses - Date.now()) / 1000)));
   const [submitting, setSubmitting] = useState(false);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
@@ -650,33 +684,43 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   };
 
   const handleAnswer = async (answer: any) => {
-    if (showFeedback) return;
+    if (savingAnswer || submitting) return;
+    const replacingAnswer = localResponses.has(q.id);
+    setSavingAnswer(true);
     try {
       const accepted = await saveResponse(answer);
       if (!accepted) return;
       setSelectedAnswer(answer);
       setShowFeedback(true);
-      setRelicNotice('Answer saved. Results remain sealed until the quiz is released.');
+      setRelicNotice(`${replacingAnswer ? 'Answer updated' : 'Answer saved'}. You can change it until final submission.`);
     } catch (error: any) {
       setRelicNotice(error.message || 'Your answer could not be saved. Please try again.');
+    } finally {
+      setSavingAnswer(false);
     }
+  };
+
+  const moveToQuestion = (nextIndex: number) => {
+    const nextQuestion = questions[nextIndex];
+    const saved = localResponses.get(nextQuestion.id) ?? null;
+    setCurrentIdx(nextIndex);
+    setSelectedAnswer(nextQuestion.question_payload.type === 'order_sequence' && typeof saved === 'string'
+      ? saved.split('|')
+      : saved);
+    setShowFeedback(localResponses.has(nextQuestion.id));
+    setRelicNotice(null);
+    setEliminatedOptions([]);
   };
 
   const goNext = () => {
     if (currentIdx < questions.length - 1) {
-      setCurrentIdx(currentIdx + 1);
-      setSelectedAnswer(localResponses.get(questions[currentIdx + 1].id) ?? null);
-      setShowFeedback(localResponses.has(questions[currentIdx + 1].id));
-      setRelicNotice(null);
-      setEliminatedOptions([]);
+      moveToQuestion(currentIdx + 1);
     }
   };
 
   const goBack = () => {
     if (currentIdx > 0) {
-      setCurrentIdx(currentIdx - 1);
-      setSelectedAnswer(localResponses.get(questions[currentIdx - 1].id) ?? null);
-      setShowFeedback(true);
+      moveToQuestion(currentIdx - 1);
     }
   };
 
@@ -838,24 +882,23 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
             <div className="p-4 rounded-lg bg-surface-2 font-serif text-ink text-center text-lg tracking-wider mb-3 border border-border">
               {payload.blanked_text}
             </div>
-            {!showFeedback ? (
-              <div>
-                <textarea
-                  className="w-full min-h-[80px] p-3 rounded-lg bg-surface-2 border border-border text-ink font-serif focus:outline-none focus:border-brass transition-colors"
-                  placeholder="Type the verse from memory..."
-                  autoFocus
-                  value={selectedAnswer || ''}
-                  onChange={(e) => setSelectedAnswer(e.target.value)}
-                />
-                <button
-                  onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
-                  disabled={!selectedAnswer?.trim()}
-                  className="btn-primary mt-2 w-full disabled:opacity-50"
-                >
-                  Save Answer
-                </button>
-              </div>
-            ) : null}
+            <div>
+              <textarea
+                className="w-full min-h-[80px] p-3 rounded-lg bg-surface-2 border border-border text-ink font-serif focus:outline-none focus:border-brass transition-colors"
+                placeholder="Type the verse from memory..."
+                autoFocus
+                value={selectedAnswer || ''}
+                onChange={(e) => setSelectedAnswer(e.target.value)}
+              />
+              <button
+                onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
+                disabled={!selectedAnswer?.trim() || savingAnswer}
+                className="btn-primary mt-2 w-full disabled:opacity-50"
+              >
+                {savingAnswer ? <Loader2 size={16} className="animate-spin" /> : null}
+                {showFeedback ? 'Update Answer' : 'Save Answer'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -868,24 +911,23 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                 {payload.passage}
               </div>
             )}
-            {!showFeedback ? (
-              <div>
-                <textarea
-                  className="w-full min-h-[80px] p-3 rounded-lg bg-surface-2 border border-border text-ink font-serif focus:outline-none focus:border-brass transition-colors"
-                  placeholder="Type the exact answer..."
-                  autoFocus
-                  value={selectedAnswer || ''}
-                  onChange={(e) => setSelectedAnswer(e.target.value)}
-                />
-                <button
-                  onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
-                  disabled={!selectedAnswer?.trim()}
-                  className="btn-primary mt-2 w-full disabled:opacity-50"
-                >
-                  Save Answer
-                </button>
-              </div>
-            ) : null}
+            <div>
+              <textarea
+                className="w-full min-h-[80px] p-3 rounded-lg bg-surface-2 border border-border text-ink font-serif focus:outline-none focus:border-brass transition-colors"
+                placeholder="Type the exact answer..."
+                autoFocus
+                value={selectedAnswer || ''}
+                onChange={(e) => setSelectedAnswer(e.target.value)}
+              />
+              <button
+                onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
+                disabled={!selectedAnswer?.trim() || savingAnswer}
+                className="btn-primary mt-2 w-full disabled:opacity-50"
+              >
+                {savingAnswer ? <Loader2 size={16} className="animate-spin" /> : null}
+                {showFeedback ? 'Update Answer' : 'Save Answer'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -897,13 +939,12 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
               return (
                 <button
                   key={i}
-                  onClick={() => !showFeedback && handleAnswer(opt)}
-                  disabled={showFeedback}
+                  onClick={() => handleAnswer(opt)}
+                  disabled={savingAnswer}
                   className={cn(
                     'btn-ghost w-full text-left justify-start',
-                    !showFeedback && 'hover:border-brass hover:bg-brass/5',
-                    showFeedback && isSelected && 'border-brass bg-brass/10 text-ink',
-                    showFeedback && !isSelected && 'opacity-50',
+                    'hover:border-brass hover:bg-brass/5',
+                    isSelected && 'border-brass bg-brass/10 text-ink',
                   )}
                 >
                   <span className="flex-1">{opt}</span>
@@ -929,16 +970,16 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                 <button
                   key={item}
                   onClick={() => {
-                    if (showFeedback) return;
                     const newOrder = userOrder.includes(item)
                       ? userOrder.filter((x) => x !== item)
                       : [...userOrder, item];
                     setSelectedAnswer(newOrder);
                   }}
+                  disabled={savingAnswer}
                   className={cn(
                     'btn-ghost w-full text-left justify-between',
-                    !showFeedback && userOrder.includes(item) && 'border-brass bg-brass/5',
-                    !showFeedback && !userOrder.includes(item) && 'hover:border-brass',
+                    userOrder.includes(item) && 'border-brass bg-brass/5',
+                    !userOrder.includes(item) && 'hover:border-brass',
                   )}
                 >
                   <span>{item}</span>
@@ -946,16 +987,15 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                 </button>
               );
             })}
-            {!showFeedback && (
-              <button
-                type="button"
-                className="btn-primary mt-3 w-full disabled:opacity-50"
-                disabled={!Array.isArray(selectedAnswer) || selectedAnswer.length !== payload.items.length}
-                onClick={() => void handleAnswer((selectedAnswer as string[]).join('|'))}
-              >
-                Save Order
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn-primary mt-3 w-full disabled:opacity-50"
+              disabled={!Array.isArray(selectedAnswer) || selectedAnswer.length !== payload.items.length || savingAnswer}
+              onClick={() => void handleAnswer((selectedAnswer as string[]).join('|'))}
+            >
+              {savingAnswer ? <Loader2 size={16} className="animate-spin" /> : null}
+              {showFeedback ? 'Update Order' : 'Save Order'}
+            </button>
           </div>
         )}
 
@@ -964,7 +1004,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
           <div className="mt-4 animate-slide-up">
             <div className="p-3 rounded-lg flex items-center gap-2 bg-surface-2 text-stone border border-border">
               <CheckCircle2 size={18} />
-              <span className="text-sm font-medium">Answer saved.</span>
+              <span className="text-sm font-medium">Answer saved. You can change it until final submission.</span>
             </div>
             {payload.reference && <p className="text-xs text-brass mt-2">Reference: {payload.reference}</p>}
 

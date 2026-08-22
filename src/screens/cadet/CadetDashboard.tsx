@@ -100,15 +100,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       setChallenge(chal.status === 'fulfilled' ? chal.value : null);
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
-      const quoteStreakResults = await Promise.allSettled(
-        quoteItems.map((quote) => fetchStrictStreak(quote.user_id)),
-      );
-      const enrichedQuotes = quoteItems.map((quote, index) => {
-        const strict = quoteStreakResults[index];
-        const strictCurrent = strict?.status === 'fulfilled' ? Number(strict.value.current_streak || 0) : 0;
-        return { ...quote, current_streak: Math.max(Number(quote.current_streak || 0), strictCurrent) };
-      });
-      setQuotes(enrichedQuotes);
+      setQuotes(quoteItems);
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
       setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
       // Reactions enrich the slideshow, but they should never hold the entire
@@ -117,7 +109,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       hasLoadedRef.current = true;
       const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
         quoteItems.length > 0
-          ? fetchDailyQuoteReactions(enrichedQuotes, profile.id)
+          ? fetchDailyQuoteReactions(quoteItems, profile.id)
           : Promise.resolve({}),
         activeNarrative?.verse_of_day
           ? fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id)

@@ -21,7 +21,7 @@ import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
   fetchAllNarratives, fetchAwards,
-  fetchQuizSessions, createQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
+  fetchQuizSessions, createQuizSession, launchQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
@@ -2835,7 +2835,7 @@ function isQuizRelaunchDraft(session: QuizSession) {
   return Boolean(session.relaunch_of_id) || /\(Relaunch\)/i.test(session.title);
 }
 
-function buildQuizSchedule(date: string, time: string, countdownMinutes: number, durationMinutes: number) {
+function buildQuizSchedule(date: string, time: string, durationMinutes: number) {
   const [hour, minute] = time.split(':').map(Number);
   if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
     throw new Error('Choose a valid quiz date and start time.');
@@ -2844,7 +2844,10 @@ function buildQuizSchedule(date: string, time: string, countdownMinutes: number,
   if (!Number.isFinite(startMs)) throw new Error('Choose a valid quiz date and start time.');
   return {
     scheduledStart: new Date(startMs).toISOString(),
-    countdownOpens: new Date(startMs - countdownMinutes * 60_000).toISOString(),
+    // The launch action opens the waiting-room countdown. Its destination is
+    // always this programmed live time, so there is no separate setting that
+    // can drift away from the actual quiz schedule.
+    countdownOpens: new Date(startMs).toISOString(),
     liveOpens: new Date(startMs).toISOString(),
     liveCloses: new Date(startMs + durationMinutes * 60_000).toISOString(),
   };
@@ -2894,7 +2897,6 @@ function QuizBuilder() {
   const [newDate, setNewDate] = useState(getTodayISODate());
   const [newStartTime, setNewStartTime] = useState('09:00');
   const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune'>('saturday');
-  const [waitTime, setWaitTime] = useState(15);
   const [quizDuration, setQuizDuration] = useState(30);
   const [selectedSession, setSelectedSession] = useState<QuizSession | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
@@ -2907,6 +2909,7 @@ function QuizBuilder() {
   const [sessionType, setSessionType] = useState<'saturday' | 'fortune'>('saturday');
   const [savingSessionDetails, setSavingSessionDetails] = useState(false);
   const [launchingSessionId, setLaunchingSessionId] = useState<string | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2926,7 +2929,7 @@ function QuizBuilder() {
   const createSession = async () => {
     if (!newTitle.trim()) return;
     try {
-      const schedule = buildQuizSchedule(newDate, newStartTime, waitTime, quizDuration);
+      const schedule = buildQuizSchedule(newDate, newStartTime, quizDuration);
       await createQuizSession({
         session_date: newDate,
         title: newTitle,
@@ -2974,27 +2977,33 @@ function QuizBuilder() {
         return;
       }
 
-      const now = Date.now();
-      const liveOpensAt = new Date(session.live_opens_at).getTime();
-      const liveClosesAt = new Date(session.live_closes_at).getTime();
-      if (!Number.isFinite(liveOpensAt) || !Number.isFinite(liveClosesAt)) {
-        alert('Save a valid quiz start time and duration before launching.');
-        return;
-      }
-      if (liveClosesAt <= now) {
-        alert('This quiz schedule has already ended. Edit the quiz and choose a future start time before launching.');
-        return;
-      }
-
-      const { error } = await supabase.from('quiz_sessions').update({
-        status: now >= liveOpensAt ? 'live' : 'countdown',
-      }).eq('id', session.id);
-      if (error) throw error;
+      await launchQuizSession(session.id);
       await load();
     } catch (error: any) {
       alert(error.message || 'This quiz could not be launched.');
     } finally {
       setLaunchingSessionId(null);
+    }
+  };
+
+  const deleteQuiz = async (session: QuizSession) => {
+    if (deletingSessionId) return;
+    const confirmed = window.confirm(
+      `Delete “${session.title}” and all of its questions, attempts, answers, result records, and quiz rewards? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    setDeletingSessionId(session.id);
+    try {
+      await deleteQuizSession(session.id);
+      if (selectedSession?.id === session.id) {
+        setSelectedSession(null);
+        setGeneratedQuestions([]);
+      }
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'This quiz could not be deleted.');
+    } finally {
+      setDeletingSessionId(null);
     }
   };
 
@@ -3143,9 +3152,7 @@ function QuizBuilder() {
     setSessionStartTime(quizLocalTime(session.live_opens_at || session.scheduled_start_time));
     setSessionType(session.quiz_type || 'saturday');
     setEditingSessionDetails(beginEditing);
-    const countdownMinutes = Math.round((new Date(session.live_opens_at).getTime() - new Date(session.countdown_opens_at).getTime()) / 60_000);
     const durationMinutes = Math.round((new Date(session.live_closes_at).getTime() - new Date(session.live_opens_at).getTime()) / 60_000);
-    if (countdownMinutes > 0) setWaitTime(countdownMinutes);
     if (durationMinutes > 0) setQuizDuration(durationMinutes);
     const qs = await fetchQuestionsForSession(session.id);
     setGeneratedQuestions(qs);
@@ -3155,7 +3162,7 @@ function QuizBuilder() {
     if (!selectedSession || !sessionTitle.trim()) return;
     setSavingSessionDetails(true);
     try {
-      const schedule = buildQuizSchedule(sessionDate, sessionStartTime, waitTime, quizDuration);
+      const schedule = buildQuizSchedule(sessionDate, sessionStartTime, quizDuration);
       const { data, error } = await supabase.from('quiz_sessions').update({
         title: sessionTitle.trim(),
         session_date: sessionDate,
@@ -3244,6 +3251,14 @@ function QuizBuilder() {
               {generating ? <Loader2 size={14} className="animate-spin" /> : <FileQuestion size={14} />} Edit for Relaunch
             </button>
           )}
+          <button
+            onClick={() => deleteQuiz(selectedSession)}
+            disabled={deletingSessionId === selectedSession.id}
+            className="btn-secondary text-sm text-roman"
+          >
+            {deletingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Delete Quiz
+          </button>
           <span className="text-xs text-stone">{generatedQuestions.length} questions</span>
         </div>
 
@@ -3287,14 +3302,11 @@ function QuizBuilder() {
                 ]} />
               </div>
               <div>
-                <label className="text-xs text-stone block mb-1">Countdown (minutes)</label>
-                <input type="number" min={1} max={180} className="input-field" value={waitTime} onChange={(event) => setWaitTime(Number(event.target.value) || 1)} />
-              </div>
-              <div>
                 <label className="text-xs text-stone block mb-1">Quiz Duration (minutes)</label>
                 <input type="number" min={5} max={300} className="input-field" value={quizDuration} onChange={(event) => setQuizDuration(Number(event.target.value) || 5)} />
               </div>
             </div>
+            <p className="text-xs text-stone">Launching opens the countdown automatically. The quiz goes live at the programmed start time.</p>
             <div className="flex flex-wrap gap-2">
               <button onClick={saveSessionDetails} disabled={savingSessionDetails} className="btn-primary text-sm">
                 {savingSessionDetails ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Quiz Changes
@@ -3376,19 +3388,13 @@ function QuizBuilder() {
               <input type="time" className="input-field" value={newStartTime} onChange={(e) => setNewStartTime(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-stone block mb-1">Wait Time (min before quiz opens)</label>
-              <input type="number" min={1} max={180} className="input-field" value={waitTime} onChange={(e) => setWaitTime(Number(e.target.value) || 60)} />
-            </div>
-            <div>
-              <label className="text-xs text-stone block mb-1">Quiz Duration (min live)</label>
-              <input type="number" min={5} max={300} className="input-field" value={quizDuration} onChange={(e) => setQuizDuration(Number(e.target.value) || 90)} />
-            </div>
+          <div>
+            <label className="text-xs text-stone block mb-1">Quiz Duration (min live)</label>
+            <input type="number" min={5} max={300} className="input-field" value={quizDuration} onChange={(e) => setQuizDuration(Number(e.target.value) || 90)} />
           </div>
           <p className="text-xs text-stone">
             {newQuizType === 'saturday'
-              ? `Saturday quiz begins at ${newStartTime} after a ${waitTime}-minute waiting room and remains open for ${quizDuration} minutes. It is the sole streak validation for that Saturday.`
+              ? `Launching opens the waiting-room countdown automatically. The Saturday quiz goes live at ${newStartTime} and remains open for ${quizDuration} minutes. It is the sole streak validation for that Saturday.`
               : `Fortune quiz: 1 talent (6,000 Ð) for perfect score, 1,000 Ð for anything less. ${!satScheduled ? '⚠ You must schedule a Saturday quiz first!' : 'Ready to launch — Saturday quiz is scheduled.'}`}
           </p>
           <button onClick={createSession} disabled={newQuizType === 'fortune' && !satScheduled} className="btn-primary text-sm">
@@ -3408,14 +3414,14 @@ function QuizBuilder() {
             const relaunchDraft = isQuizRelaunchDraft(s);
             const launched = s.status !== 'scheduled';
             return (
-            <div key={s.id} className="card p-4 flex items-center justify-between card-hover bg-surface">
+            <div key={s.id} className="card p-4 flex flex-wrap items-center justify-between gap-3 card-hover bg-surface">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{s.title}</p>
                 <p className="text-xs text-stone">
                   {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {s.status === 'scheduled' && !relaunchDraft && (
                   <button onClick={() => launchQuiz(s)} disabled={launchingSessionId === s.id} className="btn-primary text-xs">
                     {launchingSessionId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Launch
@@ -3437,6 +3443,16 @@ function QuizBuilder() {
                   </button>
                 )}
                 <button onClick={() => openSession(s)} className="btn-secondary text-xs">Open</button>
+                <button
+                  type="button"
+                  onClick={() => deleteQuiz(s)}
+                  disabled={deletingSessionId === s.id}
+                  className="btn-ghost h-9 w-9 flex-shrink-0 justify-center p-0 text-roman"
+                  title="Delete quiz and all records"
+                  aria-label={`Delete ${s.title}`}
+                >
+                  {deletingSessionId === s.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
               </div>
             </div>
           );})}

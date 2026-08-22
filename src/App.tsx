@@ -10,9 +10,12 @@ import { useFrenchUiTranslation } from './lib/frenchUi';
 
 // Role applications are large, independent experiences. Load only the one the
 // signed-in person needs instead of making every user download all three.
-const CadetApp = lazy(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp })));
-const SentryApp = lazy(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp })));
-const InstructorApp = lazy(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp })));
+const loadCadetApp = () => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }));
+const loadSentryApp = () => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }));
+const loadInstructorApp = () => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp }));
+const CadetApp = lazy(loadCadetApp);
+const SentryApp = lazy(loadSentryApp);
+const InstructorApp = lazy(loadInstructorApp);
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -48,6 +51,14 @@ export default function App() {
     }, 3000);
     return () => clearInterval(interval);
   }, [loading]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hintedRole = role || window.localStorage.getItem('full-circle-role-hint');
+    if (hintedRole === 'instructor') void loadInstructorApp();
+    else if (hintedRole === 'sentry') void loadSentryApp();
+    else if (hintedRole === 'cadet') void loadCadetApp();
+  }, [role]);
 
   useEffect(() => {
     document.documentElement.lang = profile?.language_code || 'en';
