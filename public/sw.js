@@ -1,8 +1,8 @@
 // This worker is intentionally notification-only. Application requests must
 // always go to the network so an installed phone cannot be trapped on a stale
 // offline document or an obsolete JavaScript bundle.
-const CACHE_VERSION = 'full-circle-v75';
-const RECOVERY_MARKER = '75';
+const CACHE_VERSION = 'full-circle-v76';
+const RECOVERY_MARKER = '76';
 
 const NOTIFICATION_SYMBOLS = {
   message: '/notification-symbols/message.svg',
@@ -51,29 +51,30 @@ self.addEventListener('activate', (event) => {
     }
     await self.clients.claim();
 
-    // An older worker may have returned offline.html for the root URL, so the
-    // client's address alone cannot reveal that it is displaying the fallback.
-    // Navigate every existing client once when this rescue worker activates.
-    // Because this worker has no fetch listener, the navigation is network-only.
+    // Tell fallback pages that a network-only worker now controls them. Healthy
+    // application screens are deliberately left untouched so an update cannot
+    // cause a mid-session reload on a phone.
     const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    await Promise.all(windowClients.map(async (client) => {
-      try {
-        const target = new URL(client.url);
-        if (target.origin !== self.location.origin) return;
-        if (target.searchParams.get('fc-worker') === RECOVERY_MARKER) return;
-        if (target.pathname.endsWith('/offline.html')) {
-          target.pathname = '/';
-          target.search = '';
-        }
-        target.searchParams.set('fc-worker', RECOVERY_MARKER);
-        target.searchParams.set('fc-recovered-at', String(Date.now()));
-        await client.navigate(target.href);
-      } catch {
-        // A closed client must not prevent activation for every other phone.
-      }
-    }));
+    windowClients.forEach((client) => {
+      client.postMessage({ type: 'FULL_CIRCLE_RECOVERY_READY', worker: CACHE_VERSION });
+    });
   })());
 });
+
+async function recoverFallbackClient(client) {
+  if (!client || typeof client.navigate !== 'function') return;
+  try {
+    const target = new URL(client.url);
+    if (target.origin !== self.location.origin) return;
+    target.pathname = '/';
+    target.search = '';
+    target.searchParams.set('fc-worker', RECOVERY_MARKER);
+    target.searchParams.set('fc-recovered-at', String(Date.now()));
+    await client.navigate(target.href);
+  } catch {
+    // A closed fallback tab must not affect recovery for other clients.
+  }
+}
 
 self.addEventListener('message', (event) => {
   if (!event.data) return;
@@ -81,6 +82,11 @@ self.addEventListener('message', (event) => {
     event.waitUntil(self.skipWaiting());
   } else if (event.data.type === 'CLEAR_CACHES') {
     event.waitUntil(clearFullCircleCaches());
+  } else if (event.data.type === 'OFFLINE_FALLBACK_VISIBLE') {
+    event.waitUntil((async () => {
+      await clearFullCircleCaches();
+      await recoverFallbackClient(event.source);
+    })());
   } else if (event.data.type === 'GET_CACHE_STATUS') {
     event.waitUntil((async () => {
       const cacheNames = await caches.keys();

@@ -114,15 +114,10 @@
     </p>
   </div>
   <script>
+    var RECOVERY_VERSION = '76';
     var recoveryInProgress = false;
 
-    async function clearRetiredAppState() {
-      if ('serviceWorker' in navigator) {
-        var registrations = await navigator.serviceWorker.getRegistrations().catch(function() { return []; });
-        await Promise.all(registrations.map(function(registration) {
-          return registration.unregister().catch(function() { return false; });
-        }));
-      }
+    async function clearRetiredAppCaches() {
       if ('caches' in window) {
         var cacheNames = await window.caches.keys().catch(function() { return []; });
         await Promise.all(cacheNames.filter(function(cacheName) {
@@ -133,55 +128,77 @@
       }
     }
 
+    function isCurrentRecoveryWorker(worker) {
+      return !!worker && worker.scriptURL.indexOf('/sw.js') !== -1 && worker.scriptURL.indexOf('v=' + RECOVERY_VERSION) !== -1;
+    }
+
+    function waitForCurrentController(timeoutMs) {
+      if (isCurrentRecoveryWorker(navigator.serviceWorker.controller)) return Promise.resolve(true);
+      return new Promise(function(resolve) {
+        var settled = false;
+        var finish = function(result) {
+          if (settled) return;
+          settled = true;
+          navigator.serviceWorker.removeEventListener('controllerchange', check);
+          window.clearTimeout(timer);
+          resolve(result);
+        };
+        var check = function() {
+          if (isCurrentRecoveryWorker(navigator.serviceWorker.controller)) finish(true);
+        };
+        var timer = window.setTimeout(function() { finish(false); }, timeoutMs);
+        navigator.serviceWorker.addEventListener('controllerchange', check);
+        check();
+      });
+    }
+
+    async function installRecoveryWorker() {
+      if (!('serviceWorker' in navigator)) return false;
+      var registration = await navigator.serviceWorker.register('/sw.js?v=' + RECOVERY_VERSION, { updateViaCache: 'none' });
+      await registration.update().catch(function() {});
+      if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      return waitForCurrentController(10000);
+    }
+
     async function recoverFullCircle() {
       if (recoveryInProgress) return;
       recoveryInProgress = true;
       var button = document.querySelector('.retry-btn');
       button.innerHTML = '<span class="status-dot online"></span> Reconnecting...';
       try {
-        await clearRetiredAppState();
-        var response = await fetch('/index.html?fc-connectivity=75&ts=' + Date.now(), { cache: 'no-store' });
+        await clearRetiredAppCaches();
+        var workerReady = await installRecoveryWorker();
+        if (!workerReady) throw new Error('The recovery worker is still starting.');
+        var response = await fetch('/index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), { cache: 'no-store' });
         if (!response.ok) throw new Error('Full Circle is not reachable yet.');
-        window.location.replace('/?fc-recovered=75&ts=' + Date.now());
+        var html = await response.text();
+        if (html.indexOf('id="root"') === -1) throw new Error('The application shell is not ready yet.');
+        navigator.serviceWorker.controller.postMessage({ type: 'OFFLINE_FALLBACK_VISIBLE' });
+        window.location.replace('/?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now());
       } catch (error) {
         recoveryInProgress = false;
         button.innerHTML = '<span class="status-dot"></span> Retry Connection';
       }
     }
 
-    // Repair older installed copies even when they land on this fallback
-    // before the React application can start.
+    // A current notification-only worker replaces any retired worker that
+    // served this fallback. It is never unregistered during recovery.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/sw.js?v=75', { updateViaCache: 'none' })
-        .then(function(registration) {
-          navigator.serviceWorker.addEventListener('controllerchange', function() {
-            window.location.replace('/?fc-recovered=75&ts=' + Date.now());
-          }, { once: true });
-          return registration.update();
-        })
-        .catch(function() {});
+      navigator.serviceWorker.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'FULL_CIRCLE_RECOVERY_READY') recoverFullCircle();
+      });
     }
 
     // navigator.onLine is unreliable on installed mobile apps. Probe the
-    // actual site instead and recover without waiting for a browser event.
-    function tryRecover() {
-      fetch('/index.html?fc-connectivity=75&ts=' + Date.now(), { cache: 'no-store' })
-        .then(function(response) {
-          if (!response.ok) return;
-          return clearRetiredAppState().then(function() {
-            window.location.replace('/?fc-recovered=75&ts=' + Date.now());
-          });
-        })
-        .catch(function() {});
-    }
-    tryRecover();
-    setInterval(tryRecover, 5000);
+    // actual site and keep only one recovery attempt in flight.
+    recoverFullCircle();
+    setInterval(recoverFullCircle, 10000);
 
     // Update status dot when online
     window.addEventListener('online', function() {
       document.querySelector('.status-dot').classList.add('online');
       document.querySelector('.retry-btn').innerHTML = '<span class="status-dot online"></span> Back Online — Reloading...';
+      recoveryInProgress = false;
       setTimeout(function() { recoverFullCircle(); }, 300);
     });
   </script>

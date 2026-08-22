@@ -78,6 +78,13 @@ function getInitialSentryTab(): Tab {
 }
 
 const TENT_REQUIRED_TABS = new Set<Tab>(['overview', 'attendance', 'cadets', 'challenges']);
+const REMINDER_ANNOUNCEMENT_TYPES = new Set([
+  'morning_call',
+  'midday_reminder',
+  'evening_reminder',
+  'daily_game_reminder',
+  'weekly_quiz_reminder',
+]);
 
 function streakForMember(
   userId: string,
@@ -202,7 +209,10 @@ export function SentryApp() {
       const quoteFeed = await fetchDailyQuoteFeed(12).catch(() => []);
       setAnnouncements(await fetchAnnouncements(['all', 'cadets', 'sentries']).catch(() => []));
       setQuotes(quoteFeed);
-      const sentryPanelImages = await fetchPanelImageSettings(['quote', 'sentry_overview', 'recent_denarii'], ['all', 'sentries']).catch(() => ({}));
+      const sentryPanelImages = await fetchPanelImageSettings([
+        'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
+      ], ['all', 'sentries']).catch(() => ({}));
       setPanelImages(sentryPanelImages);
       if (quoteFeed.length > 0) {
         setQuoteReactions(await fetchDailyQuoteReactions(quoteFeed, profile.id).catch(() => ({})) as Record<string, QuoteReactionState>);
@@ -622,12 +632,30 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
             <div><h3 className="font-display text-sm font-semibold text-ink">Weekly Announcements</h3><p className="text-[11px] text-stone">Shared updates for the whole community</p></div>
           </div>
           <div className="divide-y divide-border">
-            {announcements.slice(0, 4).map((announcement) => (
-              <article key={announcement.id} className="px-4 py-3">
-                <p className="text-xs font-semibold capitalize text-ink">{announcement.announcement_type?.replace(/_/g, ' ') || 'Announcement'}</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone">{announcement.content}</p>
-              </article>
-            ))}
+            {announcements.slice(0, 4).map((announcement) => {
+              const isReminder = REMINDER_ANNOUNCEMENT_TYPES.has(announcement.announcement_type);
+              const reminderImage = isReminder
+                ? panelImages[announcement.announcement_type] || panelImages.announcement
+                : null;
+              return (
+                <article key={announcement.id} className="relative overflow-hidden px-4 py-3">
+                  {reminderImage && (
+                    <PanelImageBackdrop
+                      image={reminderImage}
+                      opacityOverride={100}
+                      veilClassName="quote-picture-veil"
+                      modeFilter={false}
+                      textGradient={false}
+                      simple
+                    />
+                  )}
+                  <div className="relative z-10">
+                    <p className="text-xs font-semibold capitalize text-ink">{announcement.announcement_type?.replace(/_/g, ' ') || 'Announcement'}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone">{announcement.content}</p>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

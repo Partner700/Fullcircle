@@ -338,6 +338,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_quick_links', label: 'Quick Links', audience: 'all' },
   { type: 'panel_image_game', label: 'Daily Game', audience: 'all' },
   { type: 'panel_image_daily_game_reminder', label: 'Daily Game Reminder', audience: 'all' },
+  { type: 'panel_image_weekly_quiz_reminder', label: 'Weekly Quiz Reminder', audience: 'all' },
   { type: 'panel_image_arena', label: 'Arena', audience: 'all' },
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },

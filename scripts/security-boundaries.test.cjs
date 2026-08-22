@@ -10,6 +10,7 @@ const closure = read('supabase/migrations/20260810144000_final_rpc_security_clos
 const release = read('supabase/migrations/20260810143000_release_integrity_followup.sql');
 const streakIntegrity = read('supabase/migrations/20260810145000_deterministic_streak_calculator.sql');
 const serviceWorker = read('public/sw.js');
+const offlinePage = read('public/offline.html');
 const supabaseConfig = read('supabase/config.toml');
 const campayWebhook = read('supabase/functions/campay-webhook/index.ts');
 const calendarUtilities = read('src/lib/utils.ts');
@@ -40,6 +41,7 @@ const boardRow = read('src/components/BoardRow.tsx');
 const cadetLeaderboard = read('src/screens/cadet/CadetLeaderboard.tsx');
 const boardMovements = read('supabase/migrations/20260821210000_authoritative_board_movements.sql');
 const statFirstBoardMovements = read('supabase/migrations/20260822100000_stat_first_board_movements.sql');
+const saturdayQuizReminders = read('supabase/migrations/20260822110000_saturday_quiz_reminders.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 
 for (const required of [
@@ -103,12 +105,19 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v75'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '75'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v76'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '76'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
+assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
+assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
+assert.match(offlinePage, /RECOVERY_VERSION = '76'/);
+assert.match(offlinePage, /waitForCurrentController/);
+assert.match(saturdayQuizReminders, /extract\(isodow[\s\S]*= 6/);
+assert.match(saturdayQuizReminders, /'weekly_quiz_reminder'[\s\S]*time '09:15'/);
+assert.match(saturdayQuizReminders, /'15 8 \* \* 6'/);
 assert.match(read('scripts/preserve-release-assets.cjs'), /path\.join\(dist, 'assets'\)/);
 assert.match(doveComponent, /stableDoveArtwork = '\/icons\/fullcircle-dove-clean\.png'/);
 assert.match(doveComponent, /fallbackLoaded/);
@@ -253,6 +262,7 @@ for (const migrationName of [
   '20260818113000_freezer_lifecycle_and_rare_rewards.sql',
   '20260819100000_tent_group_chat.sql',
   '20260819103000_quote_comment_replies.sql',
+  '20260822110000_saturday_quiz_reminders.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);

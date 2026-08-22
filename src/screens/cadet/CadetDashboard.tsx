@@ -31,6 +31,14 @@ const STARTUP_WELCOME_ARTWORK: PanelImageSetting = {
   positionY: 50,
 };
 
+const REMINDER_ANNOUNCEMENT_TYPES = new Set([
+  'morning_call',
+  'midday_reminder',
+  'evening_reminder',
+  'daily_game_reminder',
+  'weekly_quiz_reminder',
+]);
+
 interface Props {
   denariiTotal: number;
   currentStreak: number;
@@ -81,7 +89,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchAnnouncements(),
         fetchPanelImageSettings([
           'welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
-          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);
       setNarrative(narr.status === 'fulfilled' ? narr.value : null);
@@ -451,6 +459,8 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
+          const isReminder = slide.kind === 'announcement'
+            && REMINDER_ANNOUNCEMENT_TYPES.has(slide.announcement.announcement_type);
           const slideImage = slide.kind === 'welcome'
             ? panelImages.welcome || STARTUP_WELCOME_ARTWORK
             : slide.kind === 'announcement'
@@ -463,10 +473,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityOverride={100}
-                  veilClassName={slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'welcome' && slideIndex === 0 ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
+                  veilClassName={slide.kind === 'quote' || isReminder ? 'quote-picture-veil' : slide.kind === 'welcome' && slideIndex === 0 ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
                   modeFilter={false}
                   textGradient={false}
-                  simple={slide.kind === 'quote'}
+                  simple={slide.kind === 'quote' || isReminder}
                 />
               )}
               <div className="relative flex items-start justify-between gap-3">

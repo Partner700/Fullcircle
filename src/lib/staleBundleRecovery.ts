@@ -6,10 +6,11 @@ const staleBundlePattern = /failed to fetch dynamically imported module|error lo
 export async function reloadFreshApp(): Promise<void> {
   if (typeof window === 'undefined') return;
 
-  const registrations = 'serviceWorker' in navigator
-    ? await navigator.serviceWorker.getRegistrations().catch(() => [])
-    : [];
-  await Promise.all(registrations.map((registration) => registration.unregister().catch(() => false)));
+  if ('serviceWorker' in navigator) {
+    const registration = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+    registration?.active?.postMessage({ type: 'CLEAR_CACHES' });
+    void registration?.update().catch(() => undefined);
+  }
 
   if ('caches' in window) {
     const cacheNames = await window.caches.keys();
@@ -21,7 +22,7 @@ export async function reloadFreshApp(): Promise<void> {
   }
 
   const freshUrl = new URL(window.location.href);
-  freshUrl.searchParams.set('fc-release', '75');
+  freshUrl.searchParams.set('fc-release', '76');
   window.location.replace(freshUrl.toString());
 }
 
