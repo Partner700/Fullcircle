@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f2037" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Offline — Full Circle</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -114,7 +117,7 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '76';
+    var RECOVERY_VERSION = '77';
     var recoveryInProgress = false;
 
     async function clearRetiredAppCaches() {
@@ -128,36 +131,11 @@
       }
     }
 
-    function isCurrentRecoveryWorker(worker) {
-      return !!worker && worker.scriptURL.indexOf('/sw.js') !== -1 && worker.scriptURL.indexOf('v=' + RECOVERY_VERSION) !== -1;
-    }
-
-    function waitForCurrentController(timeoutMs) {
-      if (isCurrentRecoveryWorker(navigator.serviceWorker.controller)) return Promise.resolve(true);
-      return new Promise(function(resolve) {
-        var settled = false;
-        var finish = function(result) {
-          if (settled) return;
-          settled = true;
-          navigator.serviceWorker.removeEventListener('controllerchange', check);
-          window.clearTimeout(timer);
-          resolve(result);
-        };
-        var check = function() {
-          if (isCurrentRecoveryWorker(navigator.serviceWorker.controller)) finish(true);
-        };
-        var timer = window.setTimeout(function() { finish(false); }, timeoutMs);
-        navigator.serviceWorker.addEventListener('controllerchange', check);
-        check();
-      });
-    }
-
     async function installRecoveryWorker() {
-      if (!('serviceWorker' in navigator)) return false;
+      if (!('serviceWorker' in navigator)) return;
       var registration = await navigator.serviceWorker.register('/sw.js?v=' + RECOVERY_VERSION, { updateViaCache: 'none' });
       await registration.update().catch(function() {});
       if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      return waitForCurrentController(10000);
     }
 
     async function recoverFullCircle() {
@@ -167,14 +145,15 @@
       button.innerHTML = '<span class="status-dot online"></span> Reconnecting...';
       try {
         await clearRetiredAppCaches();
-        var workerReady = await installRecoveryWorker();
-        if (!workerReady) throw new Error('The recovery worker is still starting.');
+        // Repair notifications in the background, but never make a healthy
+        // network wait for a service-worker controller handoff. Some mobile
+        // browsers delay that handoff even while the site is fully reachable.
+        installRecoveryWorker().catch(function() {});
         var response = await fetch('/index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), { cache: 'no-store' });
         if (!response.ok) throw new Error('Full Circle is not reachable yet.');
         var html = await response.text();
         if (html.indexOf('id="root"') === -1) throw new Error('The application shell is not ready yet.');
-        navigator.serviceWorker.controller.postMessage({ type: 'OFFLINE_FALLBACK_VISIBLE' });
-        window.location.replace('/?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now());
+        window.location.replace('/index.html?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now());
       } catch (error) {
         recoveryInProgress = false;
         button.innerHTML = '<span class="status-dot"></span> Retry Connection';
