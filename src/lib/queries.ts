@@ -1517,6 +1517,12 @@ export async function insertCustomQuestion(q: Partial<import('./types').CustomQu
   if (error) throw error;
 }
 
+export async function insertCustomQuestions(questions: Partial<import('./types').CustomQuestion>[]) {
+  if (questions.length === 0) return;
+  const { error } = await supabase.from('custom_questions').insert(questions);
+  if (error) throw error;
+}
+
 export async function updateCustomQuestion(id: string, patch: Partial<import('./types').CustomQuestion>) {
   const { error } = await supabase.from('custom_questions').update(patch).eq('id', id);
   if (error) throw error;
@@ -1537,6 +1543,19 @@ export async function fetchCustomGameQuestions(level: number, narrativeDate?: st
   if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
   if (approvedOnly) query = query.eq('is_approved', true);
   const { data, error } = await query;
+  if (error) throw error;
+  return data as import('./types').CustomQuestion[];
+}
+
+export async function fetchCustomGameQuestionsForNarrative(narrativeDate: string) {
+  const { data, error } = await supabase
+    .from('custom_questions')
+    .select('*')
+    .not('game_level', 'is', null)
+    .eq('narrative_date', narrativeDate)
+    .order('game_level')
+    .order('game_round')
+    .order('question_index');
   if (error) throw error;
   return data as import('./types').CustomQuestion[];
 }

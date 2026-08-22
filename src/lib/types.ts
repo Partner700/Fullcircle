@@ -496,7 +496,9 @@ export interface CustomQuestion {
   question_type: string;
   options: string[] | null;
   correct_answer: string;
+  accepted_answers?: string[] | null;
   explanation: string | null;
+  scripture_reference?: string | null;
   passage: string | null;
   difficulty_tag: string;
   question_index: number;

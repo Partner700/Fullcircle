@@ -825,6 +825,13 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
           </div>
         )}
 
+        {payload.passage && payload.type !== 'standard_text' && payload.type !== 'scriptorium' && (
+          <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border border-border bg-surface-2 p-4 font-serif text-sm leading-relaxed text-ink">
+            <p className="mb-2 font-sans text-xs not-italic text-stone">Passage:</p>
+            {payload.passage}
+          </div>
+        )}
+
         {/* Scriptorium */}
         {payload.type === 'scriptorium' && payload.blanked_text && (
           <div className="mb-4">

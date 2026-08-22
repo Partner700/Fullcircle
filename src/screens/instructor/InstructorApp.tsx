@@ -15,6 +15,7 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -39,10 +40,11 @@ import {
 } from 'lucide-react';
 import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, GAME_TYPE_LABELS } from '../../lib/gameEngines';
+import { importedQuestionToPayload, questionImportKey, type ImportedQuestion } from '../../lib/questionImport';
 import {
   fetchAllChallengeSubmissions, reviewChallengeSubmission, promoteCadetToSentry, promoteSentryToInstructor,
-  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, updateCustomQuestion, deleteCustomQuestion,
-  fetchCustomGameQuestions, fetchQuizTaggedGameQuestions,
+  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, insertCustomQuestions, updateCustomQuestion, deleteCustomQuestion,
+  fetchCustomGameQuestions, fetchCustomGameQuestionsForNarrative, fetchQuizTaggedGameQuestions,
   fetchMobileMoneySettings, saveMobileMoneySettings, fetchInstructorMobileMoneyPayments,
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
@@ -310,7 +312,9 @@ function cleanQuestionPayload(payload: QuestionPayload): QuestionPayload {
   }
   return {
     ...payload,
-    options: options.slice(0, 4),
+    options: ['multiple_choice', 'true_false', 'fill_blank', 'spot_error'].includes(payload.type)
+      ? options.slice(0, 4)
+      : options,
   };
 }
 
@@ -3106,6 +3110,32 @@ function QuizBuilder() {
     setGenerating(false);
   };
 
+  const importQuizQuestionSet = async (session: QuizSession, imported: ImportedQuestion[]) => {
+    const current = await fetchQuestionsForSession(session.id);
+    const existingKeys = new Set(current.map((question) => questionImportKey(question.question_payload.question)));
+    const additions = imported.filter((question) => !existingKeys.has(questionImportKey(question.question)));
+    if (additions.length === 0) return { imported: 0, skipped: imported.length, message: 'Every question already exists in this quiz.' };
+
+    const startIndex = current.length === 0 ? 0 : Math.max(...current.map((question) => question.question_index)) + 1;
+    await insertQuestions(additions.map((question, index) => ({
+      quiz_session_id: session.id,
+      question_index: startIndex + index,
+      source_narrative_date: question.narrativeDate,
+      difficulty_tag: question.difficulty,
+      mechanic_type: `external_${question.type}`,
+      recycled_from_game: false,
+      question_payload: cleanQuestionPayload(importedQuestionToPayload(question)),
+    })));
+    const refreshed = await fetchQuestionsForSession(session.id);
+    setGeneratedQuestions(refreshed);
+    await markRelaunchReady(session);
+    return {
+      imported: additions.length,
+      skipped: imported.length - additions.length,
+      message: `${additions.length} questions added to ${session.title}.`,
+    };
+  };
+
   const openSession = async (session: QuizSession, beginEditing = false) => {
     setSelectedSession(session);
     setSessionTitle(session.title);
@@ -3223,6 +3253,15 @@ function QuizBuilder() {
 
         {selectedEditable && generatedQuestions.length === 0 && (
           <p className="rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-xs text-coral">Add, generate, or sync at least one question before launch. Instructor-written custom questions are converted into the playable set automatically.</p>
+        )}
+
+        {selectedEditable && (
+          <QuestionImportPanel
+            destination="quiz"
+            defaults={{ destination: 'quiz' }}
+            existingPrompts={generatedQuestions.map((question) => question.question_payload.question)}
+            onImport={(questions) => importQuizQuestionSet(selectedSession, questions)}
+          />
         )}
 
         {editingSessionDetails && (
@@ -4230,6 +4269,80 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
 
   const rows = questions.filter((q) => selectedRound === 'all' || (q.game_round || 1) === selectedRound);
 
+  const importGameQuestionSet = async (imported: ImportedQuestion[]) => {
+    const incoming = imported.filter((question) => question.destination === 'game');
+    if (incoming.length === 0) return { imported: 0, skipped: imported.length, message: 'No Daily Game questions were found in this set.' };
+
+    const narrativeByDate = new Map(narratives.map((narrative) => [narrative.narrative_date, narrative]));
+    const targetDates = Array.from(new Set(incoming.map((question) => question.narrativeDate || selectedNarrativeDate).filter(Boolean))) as string[];
+    const missingDates = targetDates.filter((date) => !narrativeByDate.has(date));
+    if (missingDates.length > 0) {
+      throw new Error(`No published Daily Reading exists for ${missingDates.join(', ')}. Select an existing Narrative Day or correct narrative_date in the file.`);
+    }
+
+    const existingByDate = await Promise.all(targetDates.map((date) => fetchCustomGameQuestionsForNarrative(date)));
+    const existing = existingByDate.flat();
+    const existingKeys = new Set(existing.map((question) => questionImportKey(question.question_text)));
+    const additions = incoming.filter((question) => !existingKeys.has(questionImportKey(question.question)));
+    if (additions.length === 0) {
+      return { imported: 0, skipped: incoming.length, message: 'Every question already exists in the selected Daily Game bank.' };
+    }
+
+    const nextIndexBySegment = new Map<string, number>();
+    existing.forEach((question) => {
+      const key = `${question.narrative_date}|${question.game_level}|${question.game_round || 1}`;
+      nextIndexBySegment.set(key, Math.max(nextIndexBySegment.get(key) || 0, question.question_index + 1));
+    });
+
+    const rowsToInsert = additions.map((question) => {
+      const narrativeDate = question.narrativeDate || selectedNarrativeDate;
+      const narrative = narrativeByDate.get(narrativeDate);
+      if (!narrative) throw new Error(`No published Daily Reading exists for ${narrativeDate}.`);
+      const level = question.level || selectedLevel;
+      const round = question.round || (selectedRound === 'all' ? 1 : selectedRound);
+      const segmentKey = `${narrativeDate}|${level}|${round}`;
+      const questionIndex = nextIndexBySegment.get(segmentKey) || 0;
+      nextIndexBySegment.set(segmentKey, questionIndex + 1);
+      const baseTimer = LEVEL_TIMERS[level - 1] || 60;
+      const defaultTimer = round === 1 ? baseTimer : Math.max(baseTimer - (round - 1) * 5, 20);
+
+      return {
+        instructor_id: profile.id,
+        quiz_session_id: null,
+        game_level: level,
+        narrative_date: narrativeDate,
+        narrative_title: narrative.title,
+        narrative_theme: narrative.theme,
+        game_round: round,
+        round_timer_seconds: question.roundTimerSeconds || defaultTimer,
+        passage_display_seconds: question.passageDisplaySeconds || DEFAULT_PASSAGE_DISPLAY_SECONDS,
+        is_bonus: question.isBonus,
+        use_for_quiz: question.useForQuiz,
+        generated_from_packet: false,
+        packet_section: 'external import',
+        question_text: question.question,
+        question_type: question.type,
+        options: question.options.length > 0 ? question.options : null,
+        correct_answer: question.correctAnswer,
+        accepted_answers: question.acceptedAnswers,
+        explanation: question.explanation || null,
+        scripture_reference: question.reference || null,
+        passage: question.passage || null,
+        difficulty_tag: question.difficulty,
+        question_index: questionIndex,
+        is_approved: true,
+      };
+    });
+
+    await insertCustomQuestions(rowsToInsert);
+    await load();
+    return {
+      imported: rowsToInsert.length,
+      skipped: incoming.length - rowsToInsert.length,
+      message: `${rowsToInsert.length} questions segmented into their Daily Game levels and rounds.`,
+    };
+  };
+
   const syncFromPacket = async () => {
     if (!selectedNarrative || !profile) return;
     setSyncing(true);
@@ -4423,6 +4536,18 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
           </button>
         </div>
       </div>
+
+      <QuestionImportPanel
+        destination="game"
+        defaults={{
+          destination: 'game',
+          level: selectedLevel,
+          round: selectedRound === 'all' ? 1 : selectedRound,
+          narrativeDate: selectedNarrativeDate,
+        }}
+        existingPrompts={questions.map((question) => question.question_text)}
+        onImport={importGameQuestionSet}
+      />
 
       {/* Level selector */}
       <div className="card p-4">

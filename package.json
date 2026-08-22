@@ -10,7 +10,7 @@
     "postbuild": "node scripts/copy-hostinger-fallback.cjs && node scripts/preserve-release-assets.cjs restore",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types scripts/road-home-engine.test.ts && node scripts/security-boundaries.test.cjs",
+    "test": "node --experimental-strip-types scripts/road-home-engine.test.ts && node --experimental-strip-types scripts/question-import.test.ts && node scripts/security-boundaries.test.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "check": "npm run typecheck && npm run test && npm run lint"
   },
