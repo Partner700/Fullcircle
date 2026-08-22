@@ -105,7 +105,7 @@
     </svg>
     <h1>You're Offline</h1>
     <p>Full Circle needs an internet connection to load. Check your connection and try again.</p>
-    <button class="retry-btn" onclick="window.location.reload()">
+    <button class="retry-btn" onclick="recoverFullCircle()">
       <span class="status-dot"></span>
       Retry Connection
     </button>
@@ -114,14 +114,49 @@
     </p>
   </div>
   <script>
-    // Repair older installed copies even when they have landed on this fallback
+    var recoveryInProgress = false;
+
+    async function clearRetiredAppState() {
+      if ('serviceWorker' in navigator) {
+        var registrations = await navigator.serviceWorker.getRegistrations().catch(function() { return []; });
+        await Promise.all(registrations.map(function(registration) {
+          return registration.unregister().catch(function() { return false; });
+        }));
+      }
+      if ('caches' in window) {
+        var cacheNames = await window.caches.keys().catch(function() { return []; });
+        await Promise.all(cacheNames.filter(function(cacheName) {
+          return cacheName.indexOf('full-circle-') === 0;
+        }).map(function(cacheName) {
+          return window.caches.delete(cacheName);
+        }));
+      }
+    }
+
+    async function recoverFullCircle() {
+      if (recoveryInProgress) return;
+      recoveryInProgress = true;
+      var button = document.querySelector('.retry-btn');
+      button.innerHTML = '<span class="status-dot online"></span> Reconnecting...';
+      try {
+        await clearRetiredAppState();
+        var response = await fetch('/index.html?fc-connectivity=75&ts=' + Date.now(), { cache: 'no-store' });
+        if (!response.ok) throw new Error('Full Circle is not reachable yet.');
+        window.location.replace('/?fc-recovered=75&ts=' + Date.now());
+      } catch (error) {
+        recoveryInProgress = false;
+        button.innerHTML = '<span class="status-dot"></span> Retry Connection';
+      }
+    }
+
+    // Repair older installed copies even when they land on this fallback
     // before the React application can start.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js?v=74', { updateViaCache: 'none' })
+        .register('/sw.js?v=75', { updateViaCache: 'none' })
         .then(function(registration) {
           navigator.serviceWorker.addEventListener('controllerchange', function() {
-            window.location.replace('/?fc-recovered=74');
+            window.location.replace('/?fc-recovered=75&ts=' + Date.now());
           }, { once: true });
           return registration.update();
         })
@@ -131,10 +166,12 @@
     // navigator.onLine is unreliable on installed mobile apps. Probe the
     // actual site instead and recover without waiting for a browser event.
     function tryRecover() {
-      fetch('/index.html?fc-connectivity=74', { cache: 'no-store' })
+      fetch('/index.html?fc-connectivity=75&ts=' + Date.now(), { cache: 'no-store' })
         .then(function(response) {
           if (!response.ok) return;
-          window.location.replace('/?fc-recovered=74');
+          return clearRetiredAppState().then(function() {
+            window.location.replace('/?fc-recovered=75&ts=' + Date.now());
+          });
         })
         .catch(function() {});
     }
@@ -145,7 +182,7 @@
     window.addEventListener('online', function() {
       document.querySelector('.status-dot').classList.add('online');
       document.querySelector('.retry-btn').innerHTML = '<span class="status-dot online"></span> Back Online — Reloading...';
-      setTimeout(function() { window.location.reload(); }, 1000);
+      setTimeout(function() { recoverFullCircle(); }, 300);
     });
   </script>
 </body>

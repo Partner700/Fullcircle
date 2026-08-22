@@ -1,25 +1,9 @@
-// Bump this whenever the bundle-loading strategy changes. It forces installed
-// copies to discard any old HTML/chunk pairing left by a previous deployment.
-const CACHE_VERSION = 'full-circle-v74';
-const APP_CACHE = `${CACHE_VERSION}-app`;
-const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const STATIC_CACHE = `${CACHE_VERSION}-static`;
-const FONT_CACHE = `${CACHE_VERSION}-fonts`;
-const IMAGE_CACHE = `${CACHE_VERSION}-images`;
-const RETAINED_CACHE_PREFIXES = [CACHE_VERSION];
+// This worker is intentionally notification-only. Application requests must
+// always go to the network so an installed phone cannot be trapped on a stale
+// offline document or an obsolete JavaScript bundle.
+const CACHE_VERSION = 'full-circle-v75';
+const RECOVERY_MARKER = '75';
 
-// Legacy v1 caches to clean up
-const LEGACY_CACHES = [
-  'full-circle-v1-app',
-  'full-circle-v1-runtime',
-  'full-circle-v1-static',
-  'full-circle-v1-fonts',
-];
-
-const MAX_RUNTIME_ENTRIES = 50;
-const MAX_IMAGE_ENTRIES = 100;
-const RUNTIME_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const IMAGE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const NOTIFICATION_SYMBOLS = {
   message: '/notification-symbols/message.svg',
   direct_message: '/notification-symbols/message.svg',
@@ -43,71 +27,71 @@ function notificationSymbol(type) {
   return NOTIFICATION_SYMBOLS[key] || '/notification-symbols/reading.svg';
 }
 
-// ── Install Event ──
+async function clearFullCircleCaches() {
+  const cacheNames = await caches.keys();
+  await Promise.all(
+    cacheNames
+      .filter((cacheName) => cacheName.startsWith('full-circle-'))
+      .map((cacheName) => caches.delete(cacheName)),
+  );
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    // Installation performs no network work. A slow icon or splash-screen
-    // request must never keep an older, broken phone worker in control.
-    await Promise.all(LEGACY_CACHES.map((name) => caches.delete(name).catch(() => false)));
+    await clearFullCircleCaches();
     await self.skipWaiting();
   })());
 });
 
-// ── Activate Event ──
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) =>
-        Promise.all(
-          cacheNames.map((cacheName) => {
-            if (LEGACY_CACHES.includes(cacheName)) {
-              return caches.delete(cacheName);
-            }
-            // The worker no longer serves application requests. Remove every
-            // retired Full Circle response so a phone cannot be trapped on an
-            // old offline page or a mismatched application bundle.
-            if (cacheName.startsWith('full-circle-')) {
-              return caches.delete(cacheName);
-            }
-            return Promise.resolve();
-          }),
-        ),
-      )
-      .then(async () => {
-        if (self.registration.navigationPreload) {
-          await self.registration.navigationPreload.disable().catch(() => undefined);
+  event.waitUntil((async () => {
+    await clearFullCircleCaches();
+    if (self.registration.navigationPreload) {
+      await self.registration.navigationPreload.disable().catch(() => undefined);
+    }
+    await self.clients.claim();
+
+    // An older worker may have returned offline.html for the root URL, so the
+    // client's address alone cannot reveal that it is displaying the fallback.
+    // Navigate every existing client once when this rescue worker activates.
+    // Because this worker has no fetch listener, the navigation is network-only.
+    const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    await Promise.all(windowClients.map(async (client) => {
+      try {
+        const target = new URL(client.url);
+        if (target.origin !== self.location.origin) return;
+        if (target.searchParams.get('fc-worker') === RECOVERY_MARKER) return;
+        if (target.pathname.endsWith('/offline.html')) {
+          target.pathname = '/';
+          target.search = '';
         }
-        // Replace legacy navigation workers immediately. The repaired worker
-        // never intercepts documents, so claiming an open phone page is safe.
-        await self.clients.claim();
-      }),
-  );
+        target.searchParams.set('fc-worker', RECOVERY_MARKER);
+        target.searchParams.set('fc-recovered-at', String(Date.now()));
+        await client.navigate(target.href);
+      } catch {
+        // A closed client must not prevent activation for every other phone.
+      }
+    }));
+  })());
 });
 
-// ── Message Event ──
 self.addEventListener('message', (event) => {
   if (!event.data) return;
-  const { type } = event.data;
-
-  switch (type) {
-    case 'SKIP_WAITING':
-      self.skipWaiting();
-      break;
-    case 'CLEAR_CACHES':
-      event.waitUntil(clearAllCaches());
-      break;
-    case 'GET_CACHE_STATUS':
-      event.waitUntil(getCacheStatus(event));
-      break;
+  if (event.data.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  } else if (event.data.type === 'CLEAR_CACHES') {
+    event.waitUntil(clearFullCircleCaches());
+  } else if (event.data.type === 'GET_CACHE_STATUS') {
+    event.waitUntil((async () => {
+      const cacheNames = await caches.keys();
+      event.source?.postMessage({ type: 'CACHE_STATUS', status: { cacheNames, worker: CACHE_VERSION } });
+    })());
   }
 });
 
-// Deliberately no fetch handler. Push notifications still use this worker, but
-// the browser owns every document, script, image, and API request. This keeps
-// an installed phone app from reporting "offline" while the network is live.
+// Deliberately no fetch event. Push notifications do not require this worker
+// to intercept the Full Circle application itself.
 
-// ── Push Notification Event Handlers ──
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -132,246 +116,40 @@ self.addEventListener('push', (event) => {
 
     event.waitUntil(self.registration.showNotification(title, options));
   } catch {
-    // If not JSON, show raw text
-    const title = 'Full Circle';
-    const options = {
+    event.waitUntil(self.registration.showNotification('Full Circle', {
       body: event.data.text(),
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
       image: notificationSymbol('message'),
-    };
-    event.waitUntil(self.registration.showNotification(title, options));
+    }));
   }
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const urlToOpen = event.notification.data?.url || '/';
 
-  event.waitUntil(
-    clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((windowClients) => {
-        // Check if there's already a window open at the URL
-        for (const client of windowClients) {
-          const clientUrl = new URL(client.url);
-          const targetUrl = new URL(urlToOpen, self.location.origin);
-          if (clientUrl.pathname === targetUrl.pathname && 'focus' in client) {
-            return client.focus().then(() => {
-              if ('navigate' in client && client.url !== targetUrl.href) return client.navigate(targetUrl.href);
-            });
-          }
-        }
-        // Check if any window is open, focus it and navigate
-        if (windowClients.length > 0 && 'focus' in windowClients[0]) {
-          return windowClients[0].focus().then(() => {
-            if ('navigate' in windowClients[0]) {
-              return windowClients[0].navigate(urlToOpen);
-            }
-          });
-        }
-        // If not, open a new window
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
-        }
-      }),
-  );
+  event.waitUntil((async () => {
+    const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const targetUrl = new URL(urlToOpen, self.location.origin);
+
+    for (const client of windowClients) {
+      if (new URL(client.url).pathname !== targetUrl.pathname) continue;
+      await client.focus();
+      if ('navigate' in client && client.url !== targetUrl.href) await client.navigate(targetUrl.href);
+      return;
+    }
+
+    if (windowClients.length > 0) {
+      await windowClients[0].focus();
+      if ('navigate' in windowClients[0]) await windowClients[0].navigate(targetUrl.href);
+      return;
+    }
+
+    if (clients.openWindow) await clients.openWindow(targetUrl.href);
+  })());
 });
 
 self.addEventListener('notificationclose', (event) => {
-  // Placeholder for analytics or cleanup
   event.waitUntil(Promise.resolve());
 });
-
-// ── Helper Functions ──
-
-function isApiRequest(url) {
-  return (
-    url.hostname.endsWith('.supabase.co') ||
-    url.pathname.startsWith('/functions/v1/') ||
-    url.pathname.startsWith('/auth/v1/') ||
-    url.pathname.startsWith('/rest/v1/') ||
-    url.pathname.startsWith('/storage/v1/')
-  );
-}
-
-function isStaticAsset(url) {
-  return (
-    url.pathname.startsWith('/assets/') ||
-    url.pathname.startsWith('/icons/') ||
-    url.pathname === '/manifest.webmanifest' ||
-    url.pathname === '/robots.txt' ||
-    url.pathname === '/browserconfig.xml'
-  );
-}
-
-function isImageRequest(url) {
-  const imageExtensions = /\.(png|jpg|jpeg|gif|webp|avif|svg|ico)$/i;
-  return imageExtensions.test(url.pathname) && !url.pathname.startsWith('/icons/');
-}
-
-function isGoogleFont(url) {
-  return url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-}
-
-async function cacheFirst(request, cacheName) {
-  const cachedResponse = await caches.match(request);
-  if (cachedResponse) return cachedResponse;
-
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      // Manage cache size
-      const keys = await cache.keys();
-      if (keys.length >= MAX_RUNTIME_ENTRIES) {
-        await cache.delete(keys[0]);
-      }
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    // If fetch fails for a navigation document, return offline fallback
-    if (request.destination === 'document') {
-      const offlineResponse = await caches.match('/offline.html');
-      if (offlineResponse) return offlineResponse;
-    }
-    throw error;
-  }
-}
-
-function isValidStaticAssetResponse(request, response) {
-  if (!response.ok) return false;
-  const contentType = response.headers.get('content-type') || '';
-  if (request.destination === 'script') return /javascript|ecmascript|text\/plain/i.test(contentType);
-  if (request.destination === 'style') return /text\/css/i.test(contentType);
-  return true;
-}
-
-async function cacheFirstStaticAsset(request) {
-  const cache = await caches.open(STATIC_CACHE);
-  const cachedResponse = await cache.match(request);
-  if (cachedResponse && isValidStaticAssetResponse(request, cachedResponse)) {
-    return cachedResponse;
-  }
-
-  try {
-    const response = await fetch(request);
-    // Some static hosts return index.html with a 200 status for a missing old
-    // chunk. Never serve that HTML as JavaScript/CSS.
-    if (isValidStaticAssetResponse(request, response)) {
-      await cache.put(request, response.clone());
-      return response;
-    }
-  } catch {
-    // Return the controlled error below so the app never executes stale code.
-  }
-  return new Response('', { status: 404, statusText: 'App asset unavailable' });
-}
-
-async function cacheFirstWithTTL(request, cacheName, ttl) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
-
-  if (cachedResponse) {
-    const cachedTime = new Date(cachedResponse.headers.get('sw-cached-time') || 0).getTime();
-    const now = Date.now();
-
-    if (now - cachedTime < ttl) {
-      return cachedResponse;
-    }
-
-    // Expired: delete and fetch fresh
-    await cache.delete(request);
-  }
-
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      // Clone response to add custom header for TTL tracking
-      const clonedResponse = response.clone();
-      const headers = new Headers(clonedResponse.headers);
-      headers.set('sw-cached-time', new Date().toISOString());
-
-      const newResponse = new Response(clonedResponse.body, {
-        status: clonedResponse.status,
-        statusText: clonedResponse.statusText,
-        headers,
-      });
-
-      // Manage cache size (LRU eviction)
-      const keys = await cache.keys();
-      if (keys.length >= MAX_IMAGE_ENTRIES) {
-        await cache.delete(keys[0]);
-      }
-
-      await cache.put(request, newResponse);
-    }
-    return response;
-  } catch (error) {
-    // If fetch fails, return expired cached version rather than nothing
-    if (cachedResponse) return cachedResponse;
-    throw error;
-  }
-}
-
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cachedResponse = await cache.match(request);
-
-  // Fire-and-forget network update
-  const networkResponse = fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        // Manage cache size
-        cache.keys().then((keys) => {
-          if (keys.length >= MAX_RUNTIME_ENTRIES) {
-            cache.delete(keys[0]);
-          }
-        });
-        cache.put(request, response.clone());
-      }
-      return response;
-    })
-    .catch(() => undefined);
-
-  // Return cached immediately, or wait for network if nothing cached
-  return cachedResponse || networkResponse;
-}
-
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(RUNTIME_CACHE);
-      // Manage cache size (LRU eviction)
-      const keys = await cache.keys();
-      if (keys.length >= MAX_RUNTIME_ENTRIES) {
-        await cache.delete(keys[0]);
-      }
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) return cachedResponse;
-    throw error;
-  }
-}
-
-async function clearAllCaches() {
-  const cacheNames = await caches.keys();
-  await Promise.all(cacheNames.map((name) => caches.delete(name)));
-}
-
-async function getCacheStatus(event) {
-  const cacheNames = await caches.keys();
-  const status = {};
-  for (const name of cacheNames) {
-    const cache = await caches.open(name);
-    const keys = await cache.keys();
-    status[name] = keys.length;
-  }
-  event.source?.postMessage({ type: 'CACHE_STATUS', status });
-}

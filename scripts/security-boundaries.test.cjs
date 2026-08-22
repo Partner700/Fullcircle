@@ -39,6 +39,7 @@ const doveComponent = read('src/components/Dove.tsx');
 const boardRow = read('src/components/BoardRow.tsx');
 const cadetLeaderboard = read('src/screens/cadet/CadetLeaderboard.tsx');
 const boardMovements = read('supabase/migrations/20260821210000_authoritative_board_movements.sql');
+const statFirstBoardMovements = read('supabase/migrations/20260822100000_stat_first_board_movements.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 
 for (const required of [
@@ -102,8 +103,9 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v74'/);
-assert.match(serviceWorker, /RETAINED_CACHE_PREFIXES/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v75'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '75'/);
+assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
@@ -120,6 +122,12 @@ assert.match(boardMovements, /row_data jsonb/);
 assert.match(boardMovements, /WHEN row\.current_value > COALESCE\(prior\.current_value, saved\.opening_value\) THEN 1/);
 assert.match(boardMovements, /WHEN row\.current_rank > COALESCE\(prior\.current_rank, saved\.opening_rank, row\.current_rank\) THEN -1/);
 assert.match(boardMovements, /REVOKE ALL ON TABLE public\.challenge_board_daily_snapshots FROM PUBLIC, anon, authenticated/);
+assert.match(statFirstBoardMovements, /WHEN ranked\.current_value > ranked\.previous_value THEN 1/);
+assert.match(statFirstBoardMovements, /WHEN ranked\.current_value < ranked\.previous_value THEN -1/);
+assert.match(statFirstBoardMovements, /WHEN ranked\.current_position < ranked\.previous_position THEN 1/);
+assert.match(statFirstBoardMovements, /WHEN ranked\.current_position > ranked\.previous_position THEN -1/);
+assert.match(statFirstBoardMovements, /entry\.created_at < v_midnight/);
+assert.match(statFirstBoardMovements, /attempt\.completed_at < v_midnight/);
 assert.match(instructorApp, /Rumor is the weekly Vallum/);
 assert.match(instructorApp, /fetchMarksBoard\(\)/);
 assert.match(scriptureInsightReactions, /reaction_type IN \('heart', 'lightbulb'\)/);

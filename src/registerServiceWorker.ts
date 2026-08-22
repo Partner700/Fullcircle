@@ -22,9 +22,9 @@ export function registerServiceWorker() {
     return;
   }
 
-  window.addEventListener('load', () => {
+  const register = () => {
     navigator.serviceWorker
-      .register('/sw.js?v=74', { updateViaCache: 'none' })
+      .register('/sw.js?v=75', { updateViaCache: 'none' })
       .then((registration) => {
         // Check for a new worker at launch. The worker itself activates safely;
         // this client never forces a mid-session reload.
@@ -47,7 +47,13 @@ export function registerServiceWorker() {
       .catch((error) => {
         console.warn('Service worker registration failed:', error);
       });
-  });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', register, { once: true });
+  } else {
+    register();
+  }
 }
 
 /**
