@@ -46,6 +46,7 @@ const weeklyQuizRelease = read('supabase/migrations/20260822120000_weekly_quiz_4
 const externalQuestionMetadata = read('supabase/migrations/20260822130000_external_question_import_metadata.sql');
 const quizLifecycle = read('supabase/migrations/20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql');
 const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_authoritative_streak_lifecycle.sql');
+const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_verified_streaks_forward.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -159,6 +160,14 @@ assert.match(authoritativeStreakLifecycle, /THEN 27[\s\S]*THEN 26/);
 assert.match(authoritativeStreakLifecycle, /Restored verified Courage Webnjoh 26-day streak/);
 assert.match(authoritativeStreakLifecycle, /SELECT public\.refresh_all_streak_snapshots\(\)/);
 assert.match(authoritativeStreakLifecycle, /full-circle-streak-snapshots/);
+assert.match(verifiedStreakRollForward, /date '2026-08-22'/);
+assert.match(verifiedStreakRollForward, /THEN 27[\s\S]*THEN 26/);
+assert.match(verifiedStreakRollForward, /replay later evidence/);
+assert.match(verifiedStreakRollForward, /refresh_user_streak_snapshot\(baseline\.user_id\)/);
+assert.ok(
+  !verifiedStreakRollForward.includes('verified_streak - CASE'),
+  'Verified close-of-day totals must not subtract a later completed day.',
+);
 assert.match(quoteQueries, /current_streak: visibleStreak/);
 assert.ok(!quoteQueries.includes('streak.current_streak === 0'), 'A canonical zero must not trigger a local streak reconstruction.');
 assert.match(quoteQueries, /if \(!liveStats\) throw error/);
