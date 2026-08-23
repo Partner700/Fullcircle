@@ -172,7 +172,11 @@ export function SentryApp() {
       const ownStreak = toolbarStats || await fetchUserLiveStats(profile.id).catch(() => null);
       const strictFallback = ownStreak ? null : await fetchStrictStreak(profile.id).catch(() => null);
       setSentryStreak((previous) => {
-        const resolved = Math.max(Number(ownStreak?.current_streak || 0), Number(strictFallback?.current_streak || 0), previous);
+        const resolved = ownStreak
+          ? Number(ownStreak.current_streak) || 0
+          : strictFallback
+            ? Number(strictFallback.current_streak) || 0
+            : previous;
         if (hasLoadedRef.current && resolved > previous) setStreakCelebration(resolved);
         return resolved;
       });

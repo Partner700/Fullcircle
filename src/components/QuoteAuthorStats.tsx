@@ -29,7 +29,7 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
     setResolvedStreak(feedStreak);
     fetchPublicQuoteStreak(quote.user_id)
       .then((streak) => {
-        if (!cancelled) setResolvedStreak(Math.max(feedStreak, Number(streak.current_streak || 0)));
+        if (!cancelled) setResolvedStreak(Number(streak.current_streak) || 0);
       })
       .catch(() => undefined);
     return () => { cancelled = true; };

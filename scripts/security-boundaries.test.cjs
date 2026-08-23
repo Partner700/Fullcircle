@@ -45,9 +45,11 @@ const saturdayQuizReminders = read('supabase/migrations/20260822110000_saturday_
 const weeklyQuizRelease = read('supabase/migrations/20260822120000_weekly_quiz_4pm_release.sql');
 const externalQuestionMetadata = read('supabase/migrations/20260822130000_external_question_import_metadata.sql');
 const quizLifecycle = read('supabase/migrations/20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql');
+const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_authoritative_streak_lifecycle.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
+const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -142,6 +144,25 @@ assert.match(quizLifecycle, /CREATE OR REPLACE FUNCTION public\.delete_quiz_sess
 assert.match(quizLifecycle, /v_session\.status = 'scheduled'/);
 assert.match(quizLifecycle, /greatest\(25,[\s\S]*Vedette/);
 assert.match(quizLifecycle, /Courage Webnjoh/);
+assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_restored/);
+assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_purchased/);
+assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_protected/);
+assert.match(authoritativeStreakLifecycle, /marked\.attendance_marked_by = p_user_id/);
+assert.match(authoritativeStreakLifecycle, /p_record_date < date '2026-08-10'[\s\S]*historical\.streak_valid IS TRUE/);
+assert.match(authoritativeStreakLifecycle, /v_credited := v_requirement_met OR v_restored OR v_purchased/);
+assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.use_simons_coin/);
+assert.match(authoritativeStreakLifecycle, /Today is already earned\. Simon''s Coin was not used/);
+assert.match(authoritativeStreakLifecycle, /Simon''s Coin added one streak day for today/);
+assert.match(authoritativeStreakLifecycle, /ELSIF v_protected THEN[\s\S]*A freezer holds the number exactly where it was/);
+assert.match(authoritativeStreakLifecycle, /A genuine miss resets the current chain[\s\S]*v_current := 0/);
+assert.match(authoritativeStreakLifecycle, /THEN 27[\s\S]*THEN 26/);
+assert.match(authoritativeStreakLifecycle, /Restored verified Courage Webnjoh 26-day streak/);
+assert.match(authoritativeStreakLifecycle, /SELECT public\.refresh_all_streak_snapshots\(\)/);
+assert.match(authoritativeStreakLifecycle, /full-circle-streak-snapshots/);
+assert.match(quoteQueries, /current_streak: visibleStreak/);
+assert.ok(!quoteQueries.includes('streak.current_streak === 0'), 'A canonical zero must not trigger a local streak reconstruction.');
+assert.match(quoteQueries, /if \(!liveStats\) throw error/);
+assert.ok(!quoteAuthorStats.includes('Math.max(feedStreak'), 'Quote streaks must use the canonical public value exactly.');
 assert.match(authContext, /get_my_app_bootstrap/);
 assert.match(cadetQuiz, /Update Answer/);
 assert.ok(!cadetQuiz.includes('if (showFeedback) return;'), 'Saved quiz answers must remain editable until final submission.');

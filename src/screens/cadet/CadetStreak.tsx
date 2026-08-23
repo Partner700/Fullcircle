@@ -64,13 +64,9 @@ const REMOVAL_STATE_INFO: Record<
   },
 };
 
-const SUNDAY_READING_STREAK_START = '2026-08-02';
-
-function displayedRecordValidity(record: DailyRecord, today: string, currentHour: number): boolean | null {
+function displayedRecordValidity(record: DailyRecord): boolean | null {
   if (record.day_type !== 'sunday') return isWeekdayValid(record);
   if (record.sunday_reading_opened_at) return true;
-  if (record.record_date < SUNDAY_READING_STREAK_START) return null;
-  if (record.record_date < today || (record.record_date === today && currentHour >= 21)) return false;
   return null;
 }
 
@@ -97,13 +93,15 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
       setFreezers(frz.status === 'fulfilled' ? frz.value : []);
       setDenariiBalance((bal.status === 'fulfilled' && bal.value.data) ? Number(bal.value.data) : 0);
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
-      window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
-        detail: {
-          userId: profile.id,
-          denarii: (bal.status === 'fulfilled' && bal.value.data) ? Number(bal.value.data) : 0,
-          streak: strict.status === 'fulfilled' ? strict.value.current_streak : 0,
-        },
-      }));
+      if (strict.status === 'fulfilled') {
+        window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
+          detail: {
+            userId: profile.id,
+            ...(bal.status === 'fulfilled' ? { denarii: Number(bal.value.data) || 0 } : {}),
+            streak: strict.value.current_streak,
+          },
+        }));
+      }
     } catch (e) { console.error('Streak load error:', e); }
     setLoading(false);
   }, [profile]);
@@ -157,8 +155,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
     );
     let valid: boolean | null = null;
     if (dt === 'sunday') {
-      if (rec) valid = displayedRecordValidity(rec, appClock.date, appClock.hour);
-      else if (date >= SUNDAY_READING_STREAK_START && (date < appClock.date || appClock.hour >= 21)) valid = false;
+      if (rec) valid = displayedRecordValidity(rec);
     }
     else if (rec) valid = isWeekdayValid(rec);
     last14.push({ date, record: rec, dayType: dt, valid });
@@ -483,7 +480,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
           <div className="space-y-1 max-h-60 overflow-y-auto">
             {[...records].reverse().map((rec) => {
               const dt = getDayType(rec.record_date);
-	              const valid = displayedRecordValidity(rec, appClock.date, appClock.hour);
+	              const valid = displayedRecordValidity(rec);
               return (
                 <div
                   key={rec.id}

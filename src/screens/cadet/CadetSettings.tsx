@@ -30,7 +30,7 @@ function getCountdownParts(target?: string | null) {
   return { days, hours, minutes, label: `${days}d ${hours}h ${minutes}m` };
 }
 
-export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettingsProps) {
+export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
   const { profile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
@@ -103,7 +103,7 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
 
       setStats({
         denarii: balance,
-        currentStreak: Math.max(currentStreak, streak.current_streak),
+        currentStreak: streak.current_streak,
         longestStreak: Math.max(streak.longest_streak, historicalLongest),
         awardsCount: awardsCount || 0,
         gamesPlayed: gamesPlayed || 0,
@@ -115,13 +115,13 @@ export function CadetSettings({ refreshKey = 0, currentStreak = 0 }: CadetSettin
         detail: {
           userId: profile.id,
           denarii: balance,
-          streak: Math.max(currentStreak, streak.current_streak),
+          streak: streak.current_streak,
         },
       }));
       setSubStatus(sub);
     } catch {}
     setLoading(false);
-  }, [profile, currentStreak]);
+  }, [profile]);
 
   useEffect(() => { void load(); }, [load, refreshKey]);
 

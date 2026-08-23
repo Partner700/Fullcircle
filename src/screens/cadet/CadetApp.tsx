@@ -321,21 +321,16 @@ export function CadetApp() {
         throw new Error('Toolbar stats were unavailable.');
       }
 
-      const nextDenarii = Math.max(Number(reliable?.total_denarii) || 0, directDenarii);
-      const nextStreak = Math.max(Number(reliable?.current_streak) || 0, Number(directStreak?.current_streak) || 0);
-      const cached = readCachedTopbarStats(toolbarUserId);
-      const retained = toolbarStatsRef.current.userId === toolbarUserId
-        ? toolbarStatsRef.current
-        : { userId: toolbarUserId, denarii: 0, streak: 0 };
-      // A refresh may briefly receive an RLS/schema-cache zero while the same
-      // account's Settings and Streak screens still have authoritative values.
-      // Never let that transient response erase a confirmed positive counter.
-      const stableStreak = nextStreak > 0
-        ? nextStreak
-        : Math.max(retained.streak, cached?.streak || 0);
-      const stableDenarii = nextDenarii > 0
-        ? nextDenarii
-        : Math.max(retained.denarii, cached?.denarii || 0);
+      const stableDenarii = reliable
+        ? Number(reliable.total_denarii) || 0
+        : denariiResult.status === 'fulfilled'
+          ? directDenarii
+          : toolbarStatsRef.current.denarii;
+      const stableStreak = reliable
+        ? Number(reliable.current_streak) || 0
+        : directStreak
+          ? Number(directStreak.current_streak) || 0
+          : toolbarStatsRef.current.streak;
 
       toolbarStatsRef.current = {
         userId: toolbarUserId,
@@ -346,13 +341,12 @@ export function CadetApp() {
       setToolbarReady(true);
       setDenariiTotal(stableDenarii);
       setStreakCount((previous) => {
-        const resolved = stableStreak === 0 && previous > 0 ? previous : stableStreak;
-        if (streakLoadedRef.current && resolved > previous) {
+        if (streakLoadedRef.current && stableStreak > previous) {
           void playSoundEffect('sound_streak', 0.66);
-          setStreakCelebration(resolved);
+          setStreakCelebration(stableStreak);
         }
         streakLoadedRef.current = true;
-        return resolved;
+        return stableStreak;
       });
       writeCachedTopbarStats(toolbarUserId, { denarii: stableDenarii, streak: stableStreak });
     } catch {
@@ -374,14 +368,14 @@ export function CadetApp() {
         : { userId: toolbarUserId, denarii: 0, streak: 0 };
       const next = {
         userId: toolbarUserId,
-        denarii: confirmedDenarii > 0 ? confirmedDenarii : retained.denarii,
-        streak: confirmedStreak > 0 ? confirmedStreak : retained.streak,
+        denarii: detail.denarii === undefined ? retained.denarii : confirmedDenarii,
+        streak: detail.streak === undefined ? retained.streak : confirmedStreak,
       };
       toolbarStatsRef.current = next;
       setDenariiTotal(next.denarii);
       setStreakCount((previous) => {
         if (next.streak > previous) setStreakCelebration(next.streak);
-        return Math.max(previous, next.streak);
+        return next.streak;
       });
       setToolbarReady(true);
       writeCachedTopbarStats(toolbarUserId, next);

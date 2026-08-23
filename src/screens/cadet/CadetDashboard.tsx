@@ -159,7 +159,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     return r.record_date.startsWith(monthPrefix) && r.streak_valid === true;
   }).length;
   const streak: StreakInfo = {
-    current_streak: Math.max(currentStreak, streakData?.current_streak ?? 0),
+    current_streak: streakData?.current_streak ?? currentStreak,
     longest_streak: streakData?.longest_streak ?? 0,
     consecutive_inactive: streakData?.consecutive_inactive ?? 0,
     cumulative_inactive: streakData?.cumulative_inactive ?? 0,

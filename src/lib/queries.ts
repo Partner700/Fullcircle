@@ -11,7 +11,7 @@ import type {
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
 import { prepareImageUpload } from './uploads';
-import { computeStreak, getDateDaysAgoISO, getTodayISODate } from './utils';
+import { getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
 
@@ -644,62 +644,42 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
   const toolbar = toolbarResult.status === 'fulfilled' ? toolbarResult.value : null;
   const liveStats = liveStatsResult.status === 'fulfilled' ? liveStatsResult.value : null;
 
-  let balance = balanceResult.status === 'fulfilled' ? balanceResult.value : null;
-  if (toolbar) balance = Math.max(balance ?? 0, toolbar.total_denarii || 0);
-  if ((!balance || balance === 0) && liveStats && liveStats.total_denarii !== 0) {
-    balance = liveStats.total_denarii;
-  }
-  if (balance === null || balance === 0) {
+  let balance = balanceResult.status === 'fulfilled'
+    ? balanceResult.value
+    : toolbar?.total_denarii ?? liveStats?.total_denarii ?? null;
+  if (balance === null) {
     const entries = await fetchLedgerEntries(userId).catch(() => null);
     if (entries) {
-      const ledgerBalance = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-      if (ledgerBalance !== 0 || balance === null) balance = ledgerBalance;
+      balance = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
     }
   }
 
-  let streak = streakResult.status === 'fulfilled' ? streakResult.value : null;
-  if (liveStats) {
-    streak = {
-      current_streak: Math.max(streak?.current_streak || 0, liveStats.current_streak || 0),
-      longest_streak: Math.max(streak?.longest_streak || 0, liveStats.longest_streak || 0),
-      consecutive_inactive: streak?.consecutive_inactive ?? liveStats.consecutive_inactive,
-      cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, liveStats.cumulative_inactive || 0),
-    };
-  }
-  if (toolbar) {
-    streak = {
-      current_streak: Math.max(streak?.current_streak || 0, toolbar.current_streak || 0),
-      longest_streak: Math.max(streak?.longest_streak || 0, toolbar.longest_streak || 0),
-      consecutive_inactive: streak?.consecutive_inactive ?? toolbar.consecutive_inactive,
-      cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, toolbar.cumulative_inactive || 0),
-    };
-  }
-  if (!streak || streak.current_streak === 0) {
-    const { data: records, error } = await supabase
-      .from('daily_records')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('record_date', getDateDaysAgoISO(365))
-      .order('record_date', { ascending: true });
-    if (!error && records) {
-      const local = computeStreak(records as DailyRecord[]);
-      streak = {
-        current_streak: Math.max(streak?.current_streak || 0, local.current_streak || 0),
-        longest_streak: Math.max(streak?.longest_streak || 0, local.longest_streak || 0),
-        consecutive_inactive: streak?.consecutive_inactive ?? local.consecutive_inactive,
-        cumulative_inactive: Math.max(streak?.cumulative_inactive || 0, local.cumulative_inactive || 0),
-      };
-    }
-  }
+  const streak = streakResult.status === 'fulfilled'
+    ? streakResult.value
+    : liveStats
+      ? {
+          current_streak: liveStats.current_streak,
+          longest_streak: liveStats.longest_streak,
+          consecutive_inactive: liveStats.consecutive_inactive,
+          cumulative_inactive: liveStats.cumulative_inactive,
+        }
+      : toolbar
+        ? {
+            current_streak: toolbar.current_streak,
+            longest_streak: toolbar.longest_streak,
+            consecutive_inactive: toolbar.consecutive_inactive,
+            cumulative_inactive: toolbar.cumulative_inactive,
+          }
+        : null;
 
   if (balance === null && !toolbar && !liveStats) throw new Error('Live Denarii data were unavailable.');
   if (!streak && !toolbar && !liveStats) throw new Error('Live streak data were unavailable.');
 
   return {
     user_id: userId,
-    total_denarii: Math.max(balance ?? 0, liveStats?.total_denarii ?? 0, toolbar?.total_denarii ?? 0),
-    current_streak: Math.max(streak?.current_streak ?? 0, liveStats?.current_streak ?? 0, toolbar?.current_streak ?? 0),
-    longest_streak: Math.max(streak?.longest_streak ?? 0, liveStats?.longest_streak ?? 0, toolbar?.longest_streak ?? 0),
+    total_denarii: balance ?? 0,
+    current_streak: streak?.current_streak ?? 0,
+    longest_streak: streak?.longest_streak ?? 0,
     consecutive_inactive: streak?.consecutive_inactive ?? toolbar?.consecutive_inactive ?? 0,
     cumulative_inactive: streak?.cumulative_inactive ?? toolbar?.cumulative_inactive ?? 0,
   };
@@ -768,11 +748,10 @@ async function mergePublicStreakValues<T extends { user_id: string; current_stre
   return rows.map((row) => {
     const visibleStreak = values.get(row.user_id);
     if (visibleStreak === undefined) return row;
-    const currentStreak = Math.max(Number(row.current_streak) || 0, visibleStreak);
     return {
       ...row,
-      current_streak: currentStreak,
-      longest_streak: Math.max(Number(row.longest_streak) || 0, currentStreak),
+      current_streak: visibleStreak,
+      longest_streak: Math.max(Number(row.longest_streak) || 0, visibleStreak),
     };
   });
 }
@@ -2445,16 +2424,6 @@ export async function fetchArenaRoom(roomId: string) {
 // ── Strict streak ──
 
 export async function fetchStrictStreak(userId: string) {
-  const liveStats = await fetchUserLiveStats(userId).catch(() => null);
-  if (liveStats?.current_streak && liveStats.current_streak > 0) {
-    return {
-      current_streak: liveStats.current_streak,
-      longest_streak: liveStats.longest_streak,
-      consecutive_inactive: liveStats.consecutive_inactive,
-      cumulative_inactive: liveStats.cumulative_inactive,
-    };
-  }
-
   try {
     let { data, error } = await supabase.rpc('get_authoritative_streak', { p_user_id: userId });
     if (error) {
@@ -2464,27 +2433,15 @@ export async function fetchStrictStreak(userId: string) {
     }
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
-    const strict = {
+    return {
       current_streak: Number(row?.current_streak) || 0,
       longest_streak: Number(row?.longest_streak) || 0,
       consecutive_inactive: Number(row?.consecutive_inactive) || 0,
       cumulative_inactive: Number(row?.cumulative_inactive) || 0,
     };
-    if (strict.current_streak !== 0) return strict;
-    const { data: records } = await supabase
-      .from('daily_records')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('record_date', getDateDaysAgoISO(120))
-      .order('record_date', { ascending: true });
-    const computed = computeStreak((records || []) as DailyRecord[]);
-    return {
-      current_streak: computed.current_streak || strict.current_streak,
-      longest_streak: Math.max(computed.longest_streak || 0, strict.longest_streak),
-      consecutive_inactive: strict.consecutive_inactive || computed.consecutive_inactive,
-      cumulative_inactive: Math.max(strict.cumulative_inactive, computed.cumulative_inactive || 0),
-    };
-  } catch {
+  } catch (error) {
+    const liveStats = await fetchUserLiveStats(userId).catch(() => null);
+    if (!liveStats) throw error;
     return {
       current_streak: liveStats?.current_streak || 0,
       longest_streak: liveStats?.longest_streak || 0,
