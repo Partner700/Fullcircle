@@ -662,7 +662,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
                     <PanelImageBackdrop
                       image={reminderImage}
                       opacityOverride={100}
-                      veilClassName="quote-picture-veil"
+                      veilClassName="reminder-picture-veil"
                       modeFilter={false}
                       textGradient={false}
                       simple

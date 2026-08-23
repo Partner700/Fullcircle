@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
@@ -15,7 +15,7 @@ import {
   BookOpen, BookMarked, Heart, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
-  MessageCircle, Reply, Send, Pencil, Check,
+  MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -112,6 +112,110 @@ function mentionedUserIds(body: string, candidates: CampMentionCandidate[]) {
     .map((candidate) => candidate.user_id);
 }
 
+function readingArchiveGroups<T extends { narrative_date: string }>(items: T[]) {
+  const months = new Map<string, { key: string; label: string; weeks: Map<string, { key: string; label: string; items: T[] }> }>();
+  items.forEach((item) => {
+    const date = new Date(`${item.narrative_date}T12:00:00`);
+    const monthKey = item.narrative_date.slice(0, 7);
+    const month = months.get(monthKey) || {
+      key: monthKey,
+      label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      weeks: new Map(),
+    };
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const weekKey = monday.toISOString().slice(0, 10);
+    const week = month.weeks.get(weekKey) || {
+      key: weekKey,
+      label: `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      items: [],
+    };
+    week.items.push(item);
+    month.weeks.set(weekKey, week);
+    months.set(monthKey, month);
+  });
+  return Array.from(months.values()).map((month) => ({
+    ...month,
+    weeks: Array.from(month.weeks.values()),
+  }));
+}
+
+type ArchivedReading = DailyNarrative & {
+  meditation_text: string | null;
+  best_verse: string | null;
+  daily_quote: string | null;
+};
+
+function ReadingArchiveBrowser({
+  open,
+  loading,
+  readings,
+  onToggle,
+  onOpenReading,
+}: {
+  open: boolean;
+  loading: boolean;
+  readings: ArchivedReading[];
+  onToggle: () => void;
+  onOpenReading: (date: string) => void;
+}) {
+  const groups = useMemo(() => readingArchiveGroups(readings), [readings]);
+  return (
+    <section className="card p-5 animate-slide-up bg-surface border-border">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="eyebrow text-stone">Reading Archive</p>
+          <p className="mt-1 text-sm text-ink">Full readings and conversations, grouped by month and week</p>
+        </div>
+        <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={onToggle}>
+          <BookOpen size={14} /> {open ? 'Hide' : 'Previous Readings'}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-4 space-y-5">
+          {loading && <p className="text-xs text-stone">Loading your reading archive...</p>}
+          {!loading && readings.length === 0 && <p className="text-xs text-stone">No previous readings are available yet.</p>}
+          {groups.map((month) => (
+            <section key={month.key} className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-border pb-2">
+                <CalendarDays size={15} className="text-brass" />
+                <h3 className="font-display text-sm font-bold text-ink">{month.label}</h3>
+              </div>
+              {month.weeks.map((week) => (
+                <div key={week.key} className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase text-stone">Week of {week.label}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {week.items.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="group flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-left transition-colors hover:border-brass/45 hover:bg-brass-soft"
+                        onClick={() => onOpenReading(item.narrative_date)}
+                      >
+                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-brass/25 bg-brass-soft text-xs font-bold text-brass">
+                          {new Date(`${item.narrative_date}T12:00:00`).getDate()}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-bold text-ink">{item.title}</span>
+                          <span className="mt-0.5 block truncate text-[10px] text-stone">{item.scripture_reference}</span>
+                          {item.meditation_text && <span className="mt-1 block text-[9px] font-bold uppercase text-moss">Meditation saved</span>}
+                        </span>
+                        <ChevronRight size={15} className="flex-shrink-0 text-stone transition-transform group-hover:translate-x-0.5 group-hover:text-brass" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function CadetNarrative({
   onMeditationSaved,
   streakCount = 0,
@@ -153,22 +257,30 @@ export function CadetNarrative({
   const [campMentionCandidates, setCampMentionCandidates] = useState<CampMentionCandidate[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [readingHistory, setReadingHistory] = useState<(DailyNarrative & { meditation_text: string | null; best_verse: string | null; daily_quote: string | null })[]>([]);
+  const [readingHistory, setReadingHistory] = useState<ArchivedReading[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [archiveDate, setArchiveDate] = useState<string | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const today = getTodayISODate();
-  const dayType = getDayType(new Date());
+  const activeDate = archiveDate || today;
+  const isHistoricalReading = activeDate < today;
+  const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
     setLoading(true);
+    setReaderVerses([]);
+    setVerseInsights([]);
+    setOpenVerse(null);
+    setOpenUserInsights(null);
+    setOpenInsightReplies(null);
     try {
     const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
-      fetchNarrative(today),
-      fetchChallengeSubmission(profile.id, today),
+      fetchNarrative(activeDate),
+      isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profile.id, activeDate),
       fetchPanelImageSetting('reading').catch(() => null),
       fetchPanelImageSetting('scripture').catch(() => null),
       fetchPanelImageSetting('verse_day_tr').catch(() => null),
@@ -181,6 +293,12 @@ export function CadetNarrative({
       setScriptureImage(scripturePanelImage || legacyVersePanelImage);
     setChallengeImage(challengePanelImage);
     setMeditationImage(meditationPanelImage);
+    setMeditation('');
+    setBestVerse('');
+    setDailyQuote('');
+    setSavedMeditation(false);
+    setChallengeText('');
+    setChallengeLink('');
     if (chal?.proof_text) {
       if (narr?.challenge_proof_format === 'link') setChallengeLink(chal.proof_text);
       else setChallengeText(chal.proof_text);
@@ -190,7 +308,7 @@ export function CadetNarrative({
       .from('daily_records')
       .select('meditation_text, meditation_submitted, best_verse, daily_quote')
       .eq('user_id', profile.id)
-      .eq('record_date', today)
+      .eq('record_date', activeDate)
       .maybeSingle();
     if (record?.meditation_text) {
       setMeditation(record.meditation_text);
@@ -200,7 +318,7 @@ export function CadetNarrative({
     if (record?.daily_quote) setDailyQuote(record.daily_quote);
     } catch (e) { console.error('Narrative load error:', e); }
     setLoading(false);
-  }, [profile, today]);
+  }, [activeDate, isHistoricalReading, profile]);
 
   useEffect(() => {
     load();
@@ -215,11 +333,11 @@ export function CadetNarrative({
   }, []);
 
   useEffect(() => {
-    if (!profile || !isSundayRest) return;
+    if (!profile || !isSundayRest || isHistoricalReading) return;
     let cancelled = false;
     const creditSundayReading = async () => {
       try {
-        const credited = await recordSundayReadingOpen(profile.id, today);
+        const credited = await recordSundayReadingOpen(profile.id, activeDate);
         if (credited && !cancelled) await onMeditationSaved?.();
       } catch (error) {
         console.error('Sunday reading streak credit failed:', error);
@@ -227,14 +345,14 @@ export function CadetNarrative({
     };
     void creditSundayReading();
     return () => { cancelled = true; };
-  }, [isSundayRest, onMeditationSaved, profile, today]);
+  }, [activeDate, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
 
   const loadHistory = async () => {
     if (!profile || historyLoading) return;
     setHistoryLoading(true);
     try {
       const [pastNarratives, recordsResult] = await Promise.all([
-        fetchNarratives(90),
+        fetchNarratives(370),
         supabase.from('daily_records').select('record_date,meditation_text,best_verse,daily_quote').eq('user_id', profile.id).order('record_date', { ascending: false }),
       ]);
       const recordByDate = new Map((recordsResult.data || []).map((record) => [record.record_date, record]));
@@ -250,8 +368,8 @@ export function CadetNarrative({
   useEffect(() => {
     if (!narrative) return;
     const savedVerses = narrative.highlighted_verses || [];
+    setReaderVerses(savedVerses);
     if (savedVerses.length > 1) {
-      setReaderVerses(savedVerses);
       return;
     }
 
@@ -296,6 +414,20 @@ export function CadetNarrative({
   }, []);
 
   useEffect(() => {
+    if (!navigationTarget?.narrativeId || navigationTarget.narrativeId === narrative?.id) return;
+    let cancelled = false;
+    void supabase
+      .from('daily_narratives')
+      .select('narrative_date')
+      .eq('id', navigationTarget.narrativeId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data?.narrative_date) setArchiveDate(data.narrative_date);
+      });
+    return () => { cancelled = true; };
+  }, [navigationTarget?.narrativeId, narrative?.id]);
+
+  useEffect(() => {
     if (!navigationTarget || !narrative?.id || readerVerses.length === 0) return;
     if (navigationTarget.narrativeId && navigationTarget.narrativeId !== narrative.id) return;
     const targetedInsight = navigationTarget.insightId
@@ -319,6 +451,7 @@ export function CadetNarrative({
     appClock.hour > MEDITATION_CUTOFF_HOUR ||
     (appClock.hour === MEDITATION_CUTOFF_HOUR && appClock.minute >= MEDITATION_CUTOFF_MINUTE);
   const canSubmitMeditation =
+    !isHistoricalReading &&
     !afterMeditationCutoff &&
     bestVerse.trim().length > 0 &&
     meditationWordCount >= 50 &&
@@ -326,10 +459,10 @@ export function CadetNarrative({
     quoteWordCount <= 10;
 
   const saveMeditation = async () => {
-    if (!profile || !canSubmitMeditation) return;
+    if (!profile || isHistoricalReading || !canSubmitMeditation) return;
     setSaving(true);
     const { error } = await supabase.rpc('submit_daily_meditation', {
-      p_record_date: today,
+      p_record_date: activeDate,
       p_meditation_text: meditation.trim(),
       p_best_verse: bestVerse.trim(),
       p_daily_quote: dailyQuote.trim(),
@@ -345,7 +478,7 @@ export function CadetNarrative({
   };
 
   const saveChallenge = async () => {
-    if (!profile) return;
+    if (!profile || isHistoricalReading) return;
     const format = narrative?.challenge_proof_format || 'text';
     const proof = format === 'link' ? challengeLink.trim() : challengeText.trim();
     if (!proof) return;
@@ -356,7 +489,7 @@ export function CadetNarrative({
     }
     await upsertChallengeSubmission({
       user_id: profile.id,
-      narrative_date: today,
+      narrative_date: activeDate,
       proof_text: proof,
       proof_type: format,
       status: 'pending',
@@ -473,8 +606,21 @@ export function CadetNarrative({
 
   if (!narrative) {
     return (
-      <div className="space-y-5 max-w-3xl mx-auto"><EmptyState icon={BookOpen} title="No reading published" message="Today's narrative hasn't been published yet. Your previous readings remain available below." />
-        <section className="card p-5"><div className="flex items-center justify-between gap-3"><div><p className="eyebrow text-stone">Reading Archive</p><p className="mt-1 text-sm text-ink">Previous readings, notes, and your meditations</p></div><button type="button" className="btn-secondary text-xs" onClick={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}><BookOpen size={14} /> {showHistory ? 'Hide' : 'Open archive'}</button></div>{showHistory && <div className="mt-4 space-y-3">{historyLoading && <p className="text-xs text-stone">Loading your reading archive...</p>}{!historyLoading && readingHistory.map((item) => <details key={item.id} className="rounded-lg border border-border bg-surface-2 p-3"><summary className="cursor-pointer text-sm font-semibold text-ink">{item.title} · {item.narrative_date}</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-ink">{item.main_text}</p>{item.meditation_text && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.meditation_text}</p>}</details>)}</div>}</section></div>
+      <div className="space-y-5 max-w-3xl mx-auto">
+        <EmptyState icon={BookOpen} title="No reading published" message="This date has no published reading. Your previous readings remain available below." />
+        {isHistoricalReading && (
+          <button type="button" className="btn-secondary text-xs" onClick={() => setArchiveDate(null)}>
+            <ArrowLeft size={14} /> Return to Today
+          </button>
+        )}
+        <ReadingArchiveBrowser
+          open={showHistory}
+          loading={historyLoading}
+          readings={readingHistory}
+          onToggle={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}
+          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        />
+      </div>
     );
   }
 
@@ -487,6 +633,19 @@ export function CadetNarrative({
 
   return (
     <div className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto">
+      {isHistoricalReading && (
+        <div className="card flex items-center justify-between gap-3 border-brass/30 bg-brass-soft px-4 py-3">
+          <div className="min-w-0">
+            <p className="eyebrow text-brass">Previous Reading</p>
+            <p className="mt-0.5 truncate text-xs text-ink">
+              {new Date(`${activeDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => { setArchiveDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <ArrowLeft size={14} /> Today
+          </button>
+        </div>
+      )}
       {/* ── Header card — scripture reference + theme ── */}
       <div
         className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up border-border backdrop-blur-sm"
@@ -722,7 +881,7 @@ export function CadetNarrative({
       )}
 
       {/* ── Meditation submission — three sections ── */}
-      {!isSundayRest && <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+      {!isSundayRest && !isHistoricalReading && <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
         <PanelImageBackdrop
           image={meditationImage}
           opacityFallback={100}
@@ -818,6 +977,19 @@ export function CadetNarrative({
         </div>
       </div>}
 
+      {isHistoricalReading && meditation && (
+        <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+          <PanelImageBackdrop image={meditationImage} opacityFallback={100} veilClassName="" modeFilter={false} textGradient={false} />
+          <div className="panel-veil-layer award-panel-veil pointer-events-none absolute" aria-hidden="true" />
+          <div className="relative z-10">
+            <p className="eyebrow text-stone">Your Meditation</p>
+            {bestVerse && <p className="mt-2 text-xs font-semibold text-brass">Best verse: {bestVerse}</p>}
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{meditation}</p>
+            {dailyQuote && <p className="mt-3 text-sm italic text-stone">&ldquo;{dailyQuote}&rdquo;</p>}
+          </div>
+        </div>
+      )}
+
       {isSundayRest && (
         <div className="card p-5 animate-slide-up bg-surface border-border">
           <div className="flex items-center gap-2">
@@ -830,50 +1002,16 @@ export function CadetNarrative({
         </div>
       )}
 
-      <section className="card p-5 animate-slide-up bg-surface border-border">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow text-stone">Reading Archive</p>
-            <p className="mt-1 text-sm text-ink">Previous readings and your personal meditations</p>
-          </div>
-          <button type="button" className="btn-secondary text-xs" onClick={() => {
-            const next = !showHistory;
-            setShowHistory(next);
-            if (next) void loadHistory();
-          }}>
-            <BookOpen size={14} /> {showHistory ? 'Hide' : 'Previous Readings'}
-          </button>
-        </div>
-        {showHistory && (
-          <div className="mt-4 space-y-3">
-            {historyLoading && <p className="text-xs text-stone">Loading your reading archive...</p>}
-            {!historyLoading && readingHistory.length === 0 && <p className="text-xs text-stone">No previous readings are available yet.</p>}
-            {readingHistory.map((item) => (
-              <details key={item.id} className="rounded-lg border border-border bg-surface-2 p-3">
-                <summary className="cursor-pointer list-none">
-                  <p className="text-sm font-semibold text-ink">{item.title}</p>
-                  <p className="mt-0.5 text-xs text-stone">{item.narrative_date} · {item.scripture_reference}</p>
-                </summary>
-                <div className="mt-3 space-y-3 border-t border-border pt-3">
-                  <p className="text-sm leading-relaxed text-ink whitespace-pre-wrap">{item.main_text}</p>
-                  {(item.highlighted_verses || []).length > 0 && <div className="space-y-2">{item.highlighted_verses!.map((verse, index) => <div key={`${item.id}-${index}`} className="rounded-md bg-surface p-2"><p className="text-xs font-semibold text-brass">{verse.reference}</p><p className="mt-1 text-xs text-ink">{verse.text}</p>{verse.meditation && <p className="mt-1 text-xs text-stone">Instructor note: {verse.meditation}</p>}</div>)}</div>}
-                  {item.meditation_text ? (
-                    <div className="rounded-md border border-brass/20 bg-brass-soft p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Your meditation</p>
-                      {item.best_verse && <p className="mt-1 text-xs text-stone">Best verse: {item.best_verse}</p>}
-                      <p className="mt-2 text-sm leading-relaxed text-ink whitespace-pre-wrap">{item.meditation_text}</p>
-                      {item.daily_quote && <p className="mt-2 text-xs italic text-stone">&ldquo;{item.daily_quote}&rdquo;</p>}
-                    </div>
-                  ) : <p className="text-xs text-stone">You did not submit a meditation for this reading.</p>}
-                </div>
-              </details>
-            ))}
-          </div>
-        )}
-      </section>
+      <ReadingArchiveBrowser
+        open={showHistory}
+        loading={historyLoading}
+        readings={readingHistory}
+        onToggle={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}
+        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+      />
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}
-      {!isSundayRest && narrative.challenge_active && narrative.challenge_title && (
+      {!isSundayRest && !isHistoricalReading && narrative.challenge_active && narrative.challenge_title && (
         <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
           <PanelImageBackdrop
             image={challengeImage}

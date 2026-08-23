@@ -564,6 +564,38 @@
   [data-theme="day"] .quote-picture-veil {
     background-color: rgba(255, 255, 255, 0.342);
   }
+  .reminder-picture-veil {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(18, 30, 63, 0.5) 0%,
+      rgba(18, 30, 63, 0.57) 42%,
+      rgba(18, 30, 63, 0.7) 100%
+    );
+  }
+  [data-theme="day"] .reminder-picture-veil {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.58) 42%,
+      rgba(255, 255, 255, 0.72) 100%
+    );
+  }
+  .fcx-slide-veil {
+    background: radial-gradient(
+      ellipse at 38% 42%,
+      rgba(18, 30, 63, 0.46) 0%,
+      rgba(18, 30, 63, 0.54) 46%,
+      rgba(18, 30, 63, 0.7) 100%
+    );
+  }
+  [data-theme="day"] .fcx-slide-veil {
+    background: radial-gradient(
+      ellipse at 38% 42%,
+      rgba(255, 255, 255, 0.46) 0%,
+      rgba(255, 255, 255, 0.56) 46%,
+      rgba(255, 255, 255, 0.72) 100%
+    );
+  }
   .quote-rhude-icon {
     color: #d9c8ff;
   }
@@ -587,9 +619,23 @@
   .welcome-slide-veil {
     background-color: rgba(7, 18, 38, 0.34);
   }
-  .welcome-first-slide-veil { background-color: rgba(7, 18, 38, 0.34); }
+  .welcome-first-slide-veil {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(7, 18, 38, 0.22) 0%,
+      rgba(7, 18, 38, 0.25) 16%,
+      rgba(7, 18, 38, 0.34) 46%,
+      rgba(7, 18, 38, 0.54) 100%
+    );
+  }
   [data-theme="day"] .welcome-first-slide-veil {
-    background: radial-gradient(ellipse at center, rgba(255,255,255,0) 38%, rgba(255,255,255,0.08) 58%, rgba(255,255,255,0.42) 100%);
+    background: radial-gradient(
+      ellipse at center,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.1) 16%,
+      rgba(255, 255, 255, 0.23) 46%,
+      rgba(255, 255, 255, 0.57) 100%
+    );
   }
   [data-theme="day"] .welcome-slide-veil {
     background-color: rgba(255, 255, 255, 0.36);

@@ -16,6 +16,7 @@ import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { QuestionImportPanel } from '../../components/QuestionImportPanel';
+import { FcxExperienceManager } from '../../components/FcxExperience';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -321,6 +322,7 @@ function cleanQuestionPayload(payload: QuestionPayload): QuestionPayload {
 const PANEL_IMAGE_SLOTS = [
   { type: 'weekly_background', label: 'Weekly App Background', audience: 'all' },
   { type: 'panel_image_welcome', label: 'Welcome Panel', audience: 'all' },
+  { type: 'panel_image_fcx', label: 'Full Circle Experience (FCX)', audience: 'all' },
   { type: 'panel_image_verse', label: 'Verse Panel', audience: 'all' },
   { type: 'panel_image_scripture', label: 'Scripture Panel', audience: 'all' },
   { type: 'panel_image_announcement', label: 'General / Announcement Panel', audience: 'all' },
@@ -742,6 +744,8 @@ function AnnouncementManager() {
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Announcements" subtitle="Schedule dashboard slideshow notices for cadets, sentries, or everyone." />
 
+      <FcxExperienceManager onEditArtwork={() => openImageEditor('panel_image_fcx')} />
+
       <div className="card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -815,6 +819,7 @@ function AnnouncementManager() {
               { value: 'streakboard_release', label: 'Streakboard Release' },
               { value: 'weekly_background', label: 'Weekly Background Image' },
               { value: 'panel_image_welcome', label: 'Panel Image: Welcome' },
+              { value: 'panel_image_fcx', label: 'Panel Image: FCX' },
               { value: 'panel_image_verse', label: 'Panel Image: Verse' },
               { value: 'panel_image_scripture', label: 'Panel Image: Scripture' },
               { value: 'panel_image_announcement', label: 'Panel Image: Announcement' },

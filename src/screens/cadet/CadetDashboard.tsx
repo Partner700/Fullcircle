@@ -7,10 +7,11 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
+import { FcxExperienceSlide } from '../../components/FcxExperience';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment } from '../../lib/queries';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
-import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting } from '../../lib/types';
+import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
@@ -21,6 +22,7 @@ type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 't
 
 type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
+  | { id: string; kind: 'fcx'; experience: FcxExperience }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
   | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem };
@@ -59,6 +61,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [streakData, setStreakData] = useState<{ current_streak: number; longest_streak: number; consecutive_inactive: number; cumulative_inactive: number } | null>(null);
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
+  const [fcxExperience, setFcxExperience] = useState<FcxExperience | null>(null);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [verseReactions, setVerseReactions] = useState<Record<string, QuoteReactionState>>({});
@@ -78,7 +81,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     if (!profile) { setLoading(false); return; }
     if (!hasLoadedRef.current) setLoading(true);
     try {
-      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activePanelImages] = await Promise.allSettled([
+      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activeFcx, activePanelImages] = await Promise.allSettled([
         fetchNarrative(today),
         fetchDailyRecords(profile.id),
         fetchLedgerEntries(profile.id, 100),
@@ -87,8 +90,9 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchStrictStreak(profile.id),
         fetchDailyQuoteFeed(12),
         fetchAnnouncements(),
+        fetchActiveFcxExperience(),
         fetchPanelImageSettings([
-          'welcome', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'welcome', 'fcx', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);
@@ -102,6 +106,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
       setQuotes(quoteItems);
       setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
+      setFcxExperience(activeFcx.status === 'fulfilled' ? activeFcx.value : null);
       setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
       // Reactions enrich the slideshow, but they should never hold the entire
       // dashboard behind a loading screen on a slow mobile connection.
@@ -133,6 +138,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
+    ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
     ...announcements.filter((announcement) =>
       !announcement.announcement_type?.startsWith('panel_image_')
@@ -465,10 +471,10 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityOverride={100}
-                  veilClassName={slide.kind === 'quote' || isReminder ? 'quote-picture-veil' : slide.kind === 'welcome' && slideIndex === 0 ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
+                  veilClassName={slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'fcx' ? 'fcx-slide-veil' : isReminder ? 'reminder-picture-veil' : slide.kind === 'welcome' ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
                   modeFilter={false}
                   textGradient={false}
-                  simple={slide.kind === 'quote' || isReminder}
+                  simple={slide.kind === 'quote' || slide.kind === 'fcx' || isReminder}
                 />
               )}
               <div className="relative flex items-start justify-between gap-3">
@@ -482,6 +488,8 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                       <p className="text-sm text-stone mt-1">{dateLabel}</p>
                     </>
                   )}
+
+                  {slide.kind === 'fcx' && <FcxExperienceSlide experience={slide.experience} />}
 
                   {slide.kind === 'verse' && (
                     <div className="max-w-2xl rounded-2xl border border-white/18 bg-surface/62 p-4 shadow-[0_18px_50px_rgba(7,24,43,0.16)] backdrop-blur-2xl ring-1 ring-black/5">

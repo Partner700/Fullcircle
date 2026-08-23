@@ -47,10 +47,23 @@ const externalQuestionMetadata = read('supabase/migrations/20260822130000_extern
 const quizLifecycle = read('supabase/migrations/20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql');
 const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_authoritative_streak_lifecycle.sql');
 const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_verified_streaks_forward.sql');
+const persistentBoardMovements = read('supabase/migrations/20260823120000_persist_board_movements_all_day.sql');
+const fcxExperienceRegistration = read('supabase/migrations/20260824100000_fcx_experience_registration.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.fcx_events',
+  'CREATE TABLE IF NOT EXISTS public.fcx_registrations',
+  'capacity integer NOT NULL DEFAULT 30',
+  'FOR UPDATE',
+  'Only the instructor can add FCX registrations',
+  'REVOKE INSERT, UPDATE, DELETE ON public.fcx_registrations FROM anon, authenticated',
+]) {
+  assert.ok(fcxExperienceRegistration.includes(required), `Missing FCX registration boundary: ${required}`);
+}
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -97,6 +110,7 @@ const sealedTables = [
   'daily_game_runs', 'daily_game_responses', 'daily_game_question_aids',
   'arena_question_decks', 'arena_trivia_responses', 'arena_machine_trivia_responses',
   'relic_usage_log', 'arena_rooms', 'arena_participants', 'scripture_insight_reactions',
+  'fcx_events', 'fcx_registrations',
 ];
 
 for (const file of sourceFiles(path.join(root, 'src'))) {
@@ -187,6 +201,10 @@ assert.match(doveComponent, /fallbackLoaded/);
 assert.match(boardRow, /<span>\{value\}<\/span>[\s\S]*?<ArrowUp/);
 assert.match(cadetLeaderboard, /baseline_value/);
 assert.match(cadetLeaderboard, /snapshot_date: today/);
+assert.match(persistentBoardMovements, /ADD COLUMN IF NOT EXISTS day_movement/);
+assert.match(persistentBoardMovements, /ELSE snapshot\.day_movement/);
+assert.match(persistentBoardMovements, /day_record = snapshot\.day_record OR live\.is_new_record/);
+assert.match(persistentBoardMovements, /timezone\('Africa\/Douala', now\(\)\)::date/);
 assert.match(cadetLeaderboard, /get_competitive_board_movements/);
 assert.match(cadetLeaderboard, /rowsFromBoardPayload/);
 assert.match(boardMovements, /CREATE TABLE IF NOT EXISTS public\.challenge_board_daily_snapshots/);
@@ -329,6 +347,8 @@ for (const migrationName of [
   '20260822120000_weekly_quiz_4pm_release.sql',
   '20260822130000_external_question_import_metadata.sql',
   '20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql',
+  '20260823120000_persist_board_movements_all_day.sql',
+  '20260824100000_fcx_experience_registration.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);

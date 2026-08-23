@@ -404,6 +404,29 @@ export interface PanelImageSetting {
   adjustments?: PanelImageAdjustments;
 }
 
+export interface FcxRegistration {
+  id: string;
+  event_id: string;
+  user_id: string | null;
+  guest_name: string | null;
+  payment_source: 'app' | 'external';
+  created_at: string;
+  display_name: string;
+  avatar_url: string | null;
+  is_app_member: boolean;
+}
+
+export interface FcxExperience {
+  id: string;
+  title: string;
+  event_month: string;
+  event_date: string | null;
+  capacity: number;
+  ticket_price_xaf: number | null;
+  is_active: boolean;
+  registrations: FcxRegistration[];
+}
+
 export interface PanelImageAdjustments {
   brightness: number;
   contrast: number;

@@ -7,6 +7,7 @@ import type {
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
   QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
+  FcxExperience,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
@@ -983,6 +984,57 @@ export async function fetchAllAnnouncements() {
     .limit(100);
   if (error) throw error;
   return data as ScheduledAnnouncement[];
+}
+
+export async function fetchActiveFcxExperience() {
+  const { data, error } = await supabase.rpc('get_active_fcx_experience');
+  if (error) throw error;
+  return data ? data as FcxExperience : null;
+}
+
+export async function saveFcxExperience(input: {
+  eventId?: string | null;
+  eventMonth: string;
+  eventDate?: string | null;
+  title: string;
+  capacity?: number;
+  ticketPriceXaf?: number | null;
+  isActive?: boolean;
+}) {
+  const { data, error } = await supabase.rpc('save_fcx_experience', {
+    p_event_id: input.eventId || null,
+    p_event_month: input.eventMonth,
+    p_event_date: input.eventDate || null,
+    p_title: input.title,
+    p_capacity: input.capacity ?? 30,
+    p_ticket_price_xaf: input.ticketPriceXaf ?? null,
+    p_is_active: input.isActive ?? true,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function addFcxRegistration(input: {
+  eventId: string;
+  userId?: string | null;
+  guestName?: string | null;
+  paymentSource: 'app' | 'external';
+}) {
+  const { data, error } = await supabase.rpc('add_fcx_registration', {
+    p_event_id: input.eventId,
+    p_user_id: input.userId || null,
+    p_guest_name: input.guestName?.trim() || null,
+    p_payment_source: input.paymentSource,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function removeFcxRegistration(registrationId: string) {
+  const { error } = await supabase.rpc('remove_fcx_registration', {
+    p_registration_id: registrationId,
+  });
+  if (error) throw error;
 }
 
 export async function createAnnouncement(announcement: Omit<ScheduledAnnouncement, 'id'>) {

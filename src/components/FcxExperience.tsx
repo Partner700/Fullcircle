@@ -1,0 +1,312 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarDays, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users } from 'lucide-react';
+import { AppSelect } from './AppSelect';
+import {
+  addFcxRegistration,
+  fetchActiveFcxExperience,
+  fetchAllProfiles,
+  removeFcxRegistration,
+  saveFcxExperience,
+} from '../lib/queries';
+import { cn, formatXaf, getTodayISODate } from '../lib/utils';
+import type { FcxExperience, Profile } from '../lib/types';
+
+function readableError(error: unknown, fallback: string) {
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return fallback;
+}
+
+function eventDateLabel(experience: FcxExperience) {
+  const date = experience.event_date || experience.event_month;
+  return new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
+    month: 'long',
+    day: experience.event_date ? 'numeric' : undefined,
+    year: 'numeric',
+  });
+}
+
+export function FcxExperienceSlide({ experience }: { experience: FcxExperience }) {
+  const registrations = experience.registrations || [];
+  const occupied = Math.min(registrations.length, experience.capacity);
+  const percent = Math.min(100, Math.round((occupied / Math.max(experience.capacity, 1)) * 100));
+  const seats = Array.from({ length: experience.capacity }, (_, index) => registrations[index] || null);
+
+  return (
+    <div className="w-full max-w-2xl pr-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="eyebrow mb-1 flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
+          <h2 className="font-display text-xl font-semibold leading-tight text-ink sm:text-2xl">{experience.title}</h2>
+          <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-stone">
+            <CalendarDays size={13} /> {eventDateLabel(experience)}
+            {experience.ticket_price_xaf != null && <span>· {formatXaf(experience.ticket_price_xaf)}</span>}
+          </p>
+        </div>
+        <div className="flex-shrink-0 text-right">
+          <p className="text-xl font-bold text-ink">{occupied}/{experience.capacity}</p>
+          <p className="text-[10px] font-semibold uppercase text-stone">spaces filled</p>
+        </div>
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full border border-white/20 bg-surface/45">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss transition-[width] duration-500"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      <div className="mt-3 grid max-w-[19rem] grid-cols-10 gap-1.5" aria-label={`${occupied} of ${experience.capacity} FCX spaces filled`}>
+        {seats.map((registration, index) => (
+          <div
+            key={registration?.id || `open-${index}`}
+            title={registration ? `${registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
+            className={cn(
+              'flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border shadow-sm',
+              registration
+                ? 'border-brass/55 bg-navy/78 text-[9px] font-bold text-gold'
+                : 'border-white/30 bg-surface/35',
+            )}
+          >
+            {registration?.avatar_url ? (
+              <img src={registration.avatar_url} alt={registration.display_name} className="h-full w-full object-cover" loading="lazy" />
+            ) : registration ? (
+              <span>{registration.display_name.charAt(0).toUpperCase()}</span>
+            ) : (
+              <img src="/icons/fullcircle-dove-clean.png" alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => void }) {
+  const defaultMonth = getTodayISODate().slice(0, 7);
+  const [experience, setExperience] = useState<FcxExperience | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [title, setTitle] = useState('Full Circle Experience (FCX)');
+  const [eventMonth, setEventMonth] = useState(defaultMonth);
+  const [eventDate, setEventDate] = useState('');
+  const [ticketPrice, setTicketPrice] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [paymentSource, setPaymentSource] = useState<'app' | 'external'>('app');
+  const [guestName, setGuestName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [active, allProfiles] = await Promise.all([
+        fetchActiveFcxExperience(),
+        fetchAllProfiles(),
+      ]);
+      setExperience(active);
+      setProfiles(allProfiles);
+      if (active) {
+        setTitle(active.title);
+        setEventMonth(active.event_month.slice(0, 7));
+        setEventDate(active.event_date || '');
+        setTicketPrice(active.ticket_price_xaf == null ? '' : String(active.ticket_price_xaf));
+      }
+    } catch (error) {
+      console.error('FCX manager load error:', error);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const registeredUserIds = useMemo(
+    () => new Set((experience?.registrations || []).map((entry) => entry.user_id).filter(Boolean)),
+    [experience],
+  );
+  const memberOptions = useMemo(() => [
+    { value: '', label: 'Choose an app member' },
+    ...profiles
+      .filter((profile) => !registeredUserIds.has(profile.id))
+      .sort((left, right) => left.display_name.localeCompare(right.display_name))
+      .map((profile) => ({ value: profile.id, label: profile.display_name })),
+  ], [profiles, registeredUserIds]);
+
+  const saveEvent = async () => {
+    if (!eventMonth) return;
+    setSaving(true);
+    try {
+      await saveFcxExperience({
+        eventId: experience?.event_month.slice(0, 7) === eventMonth ? experience.id : null,
+        eventMonth: `${eventMonth}-01`,
+        eventDate: eventDate || null,
+        title: title.trim() || 'Full Circle Experience (FCX)',
+        capacity: 30,
+        ticketPriceXaf: ticketPrice.trim() ? Number(ticketPrice) : null,
+      });
+      await load();
+    } catch (error: unknown) {
+      alert(readableError(error, 'Could not save FCX details.'));
+    }
+    setSaving(false);
+  };
+
+  const addMember = async () => {
+    if (!experience || !selectedUserId) return;
+    setSaving(true);
+    try {
+      await addFcxRegistration({
+        eventId: experience.id,
+        userId: selectedUserId,
+        paymentSource,
+      });
+      setSelectedUserId('');
+      await load();
+    } catch (error: unknown) {
+      alert(readableError(error, 'Could not add this FCX attendee.'));
+    }
+    setSaving(false);
+  };
+
+  const addGuest = async () => {
+    if (!experience || !guestName.trim()) return;
+    setSaving(true);
+    try {
+      await addFcxRegistration({
+        eventId: experience.id,
+        guestName: guestName.trim(),
+        paymentSource: 'external',
+      });
+      setGuestName('');
+      await load();
+    } catch (error: unknown) {
+      alert(readableError(error, 'Could not add this external attendee.'));
+    }
+    setSaving(false);
+  };
+
+  const removeRegistration = async (registrationId: string, displayName: string) => {
+    if (!window.confirm(`Remove ${displayName} from the paid FCX list?`)) return;
+    setSaving(true);
+    try {
+      await removeFcxRegistration(registrationId);
+      await load();
+    } catch (error: unknown) {
+      alert(readableError(error, 'Could not remove this FCX attendee.'));
+    }
+    setSaving(false);
+  };
+
+  const occupied = experience?.registrations.length || 0;
+  const percent = Math.round((occupied / 30) * 100);
+
+  return (
+    <div className="card p-5 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-peri-soft text-peri">
+            <Ticket size={22} />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-semibold text-ink">Full Circle Experience</h3>
+            <p className="text-sm text-stone">Manage the 30 paid spaces shown on the welcome panel.</p>
+          </div>
+        </div>
+        <button type="button" onClick={onEditArtwork} className="btn-secondary text-xs">
+          <ImageIcon size={14} /> FCX Artwork
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-5"><Loader2 size={20} className="animate-spin text-brass" /></div>
+      ) : (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            <label className="md:col-span-2">
+              <span className="mb-1 block text-xs text-stone">Event title</span>
+              <input className="input-field" value={title} onChange={(event) => setTitle(event.target.value)} />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs text-stone">Event month</span>
+              <input type="month" className="input-field" value={eventMonth} onChange={(event) => setEventMonth(event.target.value)} />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs text-stone">Event date</span>
+              <input type="date" className="input-field" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
+            </label>
+            <label className="md:col-span-2">
+              <span className="mb-1 block text-xs text-stone">Ticket price (XAF)</span>
+              <input type="number" min="0" className="input-field" value={ticketPrice} onChange={(event) => setTicketPrice(event.target.value)} placeholder="Optional" />
+            </label>
+            <div className="md:col-span-2 flex items-end">
+              <button type="button" onClick={saveEvent} disabled={saving || !eventMonth} className="btn-primary w-full">
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <CalendarDays size={15} />} Save FCX Details
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-stone">
+              <span>{occupied} of 30 paid spaces</span><span>{percent}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-surface-2">
+              <div className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss" style={{ width: `${Math.min(percent, 100)}%` }} />
+            </div>
+          </div>
+
+          {!experience ? (
+            <p className="rounded-lg border border-brass/30 bg-brass/10 p-3 text-sm text-stone">Save the FCX details once to begin adding paid attendees.</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
+                <div className="flex items-center gap-2"><Users size={16} className="text-peri" /><p className="text-sm font-semibold text-ink">Registered app member</p></div>
+                <AppSelect value={selectedUserId} onChange={setSelectedUserId} options={memberOptions} />
+                <AppSelect
+                  value={paymentSource}
+                  onChange={(value) => setPaymentSource(value as 'app' | 'external')}
+                  options={[
+                    { value: 'app', label: 'Paid in the app' },
+                    { value: 'external', label: 'Paid externally' },
+                  ]}
+                />
+                <button type="button" onClick={addMember} disabled={saving || !selectedUserId} className="btn-secondary w-full">
+                  <UserPlus size={15} /> Add Paid Member
+                </button>
+              </div>
+
+              <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
+                <div className="flex items-center gap-2"><UserPlus size={16} className="text-brass" /><p className="text-sm font-semibold text-ink">Unregistered cadet or guest</p></div>
+                <input className="input-field" value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Full name" />
+                <p className="text-xs text-stone">Use this for someone who paid externally but does not have an app account.</p>
+                <button type="button" onClick={addGuest} disabled={saving || !guestName.trim()} className="btn-secondary w-full">
+                  <UserPlus size={15} /> Add External Attendee
+                </button>
+              </div>
+            </div>
+          )}
+
+          {experience && experience.registrations.length > 0 && (
+            <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-2">
+              {experience.registrations.map((registration) => (
+                <div key={registration.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold">
+                    {registration.avatar_url
+                      ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
+                      : registration.display_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">{registration.display_name}</p>
+                    <p className="text-[10px] text-stone">{registration.is_app_member ? 'App member' : 'External attendee'} · paid {registration.payment_source === 'app' ? 'in app' : 'externally'}</p>
+                  </div>
+                  <button type="button" onClick={() => removeRegistration(registration.id, registration.display_name)} className="btn-ghost h-8 w-8 p-0 text-coral" title="Remove from FCX">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
