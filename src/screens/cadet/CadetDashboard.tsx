@@ -489,7 +489,12 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                     </>
                   )}
 
-                  {slide.kind === 'fcx' && <FcxExperienceSlide experience={slide.experience} />}
+                  {slide.kind === 'fcx' && (
+                    <FcxExperienceSlide
+                      experience={slide.experience}
+                      active={displayIndex === slideIndex}
+                    />
+                  )}
 
                   {slide.kind === 'verse' && (
                     <div className="max-w-2xl rounded-2xl border border-white/18 bg-surface/62 p-4 shadow-[0_18px_50px_rgba(7,24,43,0.16)] backdrop-blur-2xl ring-1 ring-black/5">

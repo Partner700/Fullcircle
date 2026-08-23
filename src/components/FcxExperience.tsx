@@ -27,11 +27,40 @@ function eventDateLabel(experience: FcxExperience) {
   });
 }
 
-export function FcxExperienceSlide({ experience }: { experience: FcxExperience }) {
+export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
   const registrations = experience.registrations || [];
   const occupied = Math.min(registrations.length, experience.capacity);
-  const percent = Math.min(100, Math.round((occupied / Math.max(experience.capacity, 1)) * 100));
+  const [animatedOccupied, setAnimatedOccupied] = useState(0);
+  const animatedPercent = Math.min(100, (animatedOccupied / Math.max(experience.capacity, 1)) * 100);
   const seats = Array.from({ length: experience.capacity }, (_, index) => registrations[index] || null);
+
+  useEffect(() => {
+    setAnimatedOccupied(0);
+    if (!active || occupied <= 0) return;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setAnimatedOccupied(occupied);
+      return;
+    }
+
+    let animationFrame = 0;
+    let startedAt: number | null = null;
+    const duration = Math.min(1400, 650 + occupied * 28);
+    const animate = (timestamp: number) => {
+      if (startedAt === null) startedAt = timestamp;
+      const progress = Math.min(1, (timestamp - startedAt) / duration);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      setAnimatedOccupied(Math.min(occupied, Math.floor(easedProgress * occupied)));
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(animate);
+      } else {
+        setAnimatedOccupied(occupied);
+      }
+    };
+
+    animationFrame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [active, occupied]);
 
   return (
     <div className="w-full max-w-2xl pr-1">
@@ -50,11 +79,27 @@ export function FcxExperienceSlide({ experience }: { experience: FcxExperience }
         </div>
       </div>
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full border border-white/20 bg-surface/45">
+      <div
+        className="relative mt-3 h-2 overflow-hidden rounded-full border border-white/20 bg-surface/45"
+        role="progressbar"
+        aria-label="FCX paid spaces"
+        aria-valuemin={0}
+        aria-valuemax={experience.capacity}
+        aria-valuenow={occupied}
+      >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss transition-[width] duration-500"
-          style={{ width: `${percent}%` }}
+          className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss"
+          style={{ width: `${animatedPercent}%` }}
         />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 grid"
+          style={{ gridTemplateColumns: `repeat(${Math.max(experience.capacity, 1)}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: Math.max(experience.capacity, 1) }, (_, index) => (
+            <span key={index} className={cn(index < experience.capacity - 1 && 'border-r border-white/20')} />
+          ))}
+        </div>
       </div>
 
       <div className="mt-3 grid max-w-[19rem] grid-cols-10 gap-1.5" aria-label={`${occupied} of ${experience.capacity} FCX spaces filled`}>
