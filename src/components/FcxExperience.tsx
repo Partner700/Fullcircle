@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users } from 'lucide-react';
+import { CalendarDays, Clock3, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import {
   addFcxRegistration,
@@ -8,7 +8,7 @@ import {
   removeFcxRegistration,
   saveFcxExperience,
 } from '../lib/queries';
-import { cn, formatXaf, getTodayISODate } from '../lib/utils';
+import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
 import type { FcxExperience, Profile } from '../lib/types';
 
 function readableError(error: unknown, fallback: string) {
@@ -27,17 +27,46 @@ function eventDateLabel(experience: FcxExperience) {
   });
 }
 
+function countdownParts(targetDate: string, nowMs: number) {
+  const remainingSeconds = Math.max(0, Math.floor((getAppDateTimeMs(targetDate) - nowMs) / 1000));
+  const days = Math.floor(remainingSeconds / 86400);
+  const hours = Math.floor((remainingSeconds % 86400) / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  const seconds = remainingSeconds % 60;
+  return [
+    { label: 'days', shortLabel: 'd', value: days },
+    { label: 'hours', shortLabel: 'h', value: hours },
+    { label: 'minutes', shortLabel: 'm', value: minutes },
+    { label: 'seconds', shortLabel: 's', value: seconds },
+  ];
+}
+
 export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const registrations = visibleExperience.registrations || [];
   const occupied = Math.min(registrations.length, visibleExperience.capacity);
   const targetPercent = Math.min(100, (occupied / Math.max(visibleExperience.capacity, 1)) * 100);
   const seats = Array.from({ length: visibleExperience.capacity }, (_, index) => registrations[index] || null);
+  const countdownDate = visibleExperience.event_date || visibleExperience.event_month;
+  const eventIsToday = countdownDate === getTodayISODate();
+  const eventHasStarted = getAppDateTimeMs(countdownDate) <= countdownNow;
+  const countdown = useMemo(
+    () => countdownParts(countdownDate, countdownNow),
+    [countdownDate, countdownNow],
+  );
 
   useEffect(() => {
     setVisibleExperience(experience);
   }, [experience]);
+
+  useEffect(() => {
+    if (!active) return;
+    setCountdownNow(Date.now());
+    const interval = window.setInterval(() => setCountdownNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [active, countdownDate]);
 
   useEffect(() => {
     if (!active) return;
@@ -97,6 +126,26 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
           <p className="text-xl font-bold text-ink">{occupied}/{visibleExperience.capacity}</p>
           <p className="text-[10px] font-semibold uppercase text-stone">spaces filled</p>
         </div>
+      </div>
+
+      <div className="mt-2.5 inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/25 bg-surface/55 px-2.5 py-1.5 shadow-sm backdrop-blur-md">
+        <Clock3 size={14} className="shrink-0 text-brass" />
+        {eventIsToday ? (
+          <p className="text-xs font-bold text-ink">FCX is today</p>
+        ) : eventHasStarted ? (
+          <p className="text-xs font-bold text-ink">FCX day has arrived</p>
+        ) : (
+          <>
+            <span className="text-[9px] font-bold uppercase text-stone">Starts in</span>
+            <div className="grid grid-cols-4 gap-1" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
+              {countdown.map((part) => (
+                <span key={part.label} className="min-w-7 text-center text-[10px] font-bold tabular-nums text-ink">
+                  {String(part.value).padStart(2, '0')}<span className="ml-0.5 text-[8px] font-semibold text-stone">{part.shortLabel}</span>
+                </span>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div

@@ -236,9 +236,12 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
             {!subStatus && 'Choose your mobile money network to continue.'}
           </p>
           {plan && (
-            <div className="mt-4 inline-flex items-baseline gap-2 rounded-full border border-border-bright bg-surface/80 px-4 py-2 backdrop-blur-md">
+            <div className="mt-4 inline-flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 rounded-full border border-border-bright bg-surface/80 px-4 py-2 backdrop-blur-md">
               <span className="font-display text-xl font-bold text-ink">{formatXaf(plan.amount_xaf)}</span>
               <span className="text-xs text-stone">for {plan.duration_days} days</span>
+              {plan.checkout_mode === 'demo' && (
+                <span className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[9px] font-bold uppercase text-gold">CamPay demo</span>
+              )}
             </div>
           )}
         </div>

@@ -1885,6 +1885,7 @@ export type SubscriptionPlan = {
   amount_xaf: number;
   duration_days: number;
   is_active: boolean;
+  checkout_mode: 'demo' | 'live';
 };
 
 async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
@@ -1946,17 +1947,44 @@ export async function startCampayCheckout(
 }
 
 export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
-  const { data, error } = await supabase
-    .from('subscription_plans')
-    .select('id,name,amount_xaf,duration_days,is_active')
-    .eq('is_active', true)
-    .single();
-  if (error) throw error;
+  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-session`;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  const userId = sessionData.session?.user.id;
+  if (!accessToken || !userId) throw new Error('You must be signed in to view subscription checkout.');
+
+  const response = await fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      purchase_kind: 'subscription',
+      subscription_plan_id: 'monthly',
+      quote_only: true,
+      user_id: userId,
+    }),
+  });
+  const rawBody = await response.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    data = { message: rawBody };
+  }
+  if (!response.ok) {
+    throw new Error(String(data.error || data.message || `Subscription quote failed (${response.status})`));
+  }
   return {
-    ...data,
-    amount_xaf: Number(data.amount_xaf),
+    id: String(data.plan_id || 'monthly'),
+    name: String(data.name || 'Full Circle Monthly'),
+    amount_xaf: Number(data.amount_local),
     duration_days: Number(data.duration_days),
-  } as SubscriptionPlan;
+    is_active: true,
+    checkout_mode: data.checkout_mode === 'demo' ? 'demo' : 'live',
+  };
 }
 
 export async function startSubscriptionCheckout(

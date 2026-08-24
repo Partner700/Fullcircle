@@ -19,6 +19,7 @@ type SubscriptionPlan = {
   id: string;
   name: string;
   amount_xaf: string | number;
+  demo_amount_xaf: string | number;
   duration_days: number;
   is_active: boolean;
 };
@@ -31,6 +32,9 @@ type CheckoutProduct = {
   amountUsd: number;
   purchaseKind: "relic" | "subscription";
   metadata: Record<string, unknown>;
+  planId?: string;
+  durationDays?: number;
+  checkoutMode?: "demo" | "live";
 };
 
 type CampayCollectResponse = {
@@ -396,7 +400,7 @@ async function fetchRelicProduct(relicSlug: string): Promise<CheckoutProduct> {
 
 async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct> {
   const planRes = await fetch(
-    `${supabaseUrl}/rest/v1/subscription_plans?id=eq.${encodeURIComponent(planId)}&is_active=eq.true&select=id,name,amount_xaf,duration_days,is_active`,
+    `${supabaseUrl}/rest/v1/subscription_plans?id=eq.${encodeURIComponent(planId)}&is_active=eq.true&select=id,name,amount_xaf,demo_amount_xaf,duration_days,is_active`,
     {
       headers: {
         apikey: supabaseServiceKey,
@@ -409,7 +413,10 @@ async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct
   const plans: SubscriptionPlan[] = await planRes.json();
   const plan = plans[0];
   if (!plan) throw new Error("The subscription plan is not available.");
-  const amountXaf = Math.round(Number(plan.amount_xaf));
+  const checkoutMode = campayEnvironment === "DEV" ? "demo" : "live";
+  const amountXaf = Math.round(Number(
+    checkoutMode === "demo" ? plan.demo_amount_xaf : plan.amount_xaf,
+  ));
   if (!Number.isFinite(amountXaf) || amountXaf <= 0) {
     throw new Error("The subscription plan has no valid checkout price.");
   }
@@ -420,7 +427,10 @@ async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct
     amountXaf,
     amountUsd: Number((amountXaf / xafPerUsdForLegacy()).toFixed(2)),
     purchaseKind: "subscription",
-    metadata: { plan_id: plan.id, duration_days: plan.duration_days },
+    metadata: { plan_id: plan.id, duration_days: plan.duration_days, checkout_mode: checkoutMode },
+    planId: plan.id,
+    durationDays: plan.duration_days,
+    checkoutMode,
   };
 }
 
@@ -432,7 +442,7 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
@@ -459,6 +469,28 @@ Deno.serve(async (req: Request) => {
       : await fetchRelicProduct(String(relic_slug));
     const amountXaf = product.amountXaf;
     const amountUsd = product.amountUsd;
+
+    if (quote_only === true) {
+      if (product.purchaseKind !== "subscription") {
+        return new Response(JSON.stringify({ error: "Quote-only checkout is available for subscriptions." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({
+        status: "quote",
+        plan_id: product.planId,
+        name: product.name,
+        amount_local: amountXaf,
+        currency_code: checkoutCurrency,
+        amount_display: formatXaf(amountXaf),
+        duration_days: product.durationDays,
+        checkout_mode: product.checkoutMode,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const displayedAmountXaf = Number(displayed_amount_xaf);
     if (
       Number.isFinite(displayedAmountXaf) &&
