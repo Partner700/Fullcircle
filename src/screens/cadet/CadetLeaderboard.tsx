@@ -126,6 +126,14 @@ function previousBoardValue(row: CompetitiveRow): number | null {
 }
 
 function rankMovement(row: CompetitiveRow, currentValue?: number): number | null {
+  // The competitive-board RPC latches movement for the whole Douala day.
+  // Prefer that authoritative value so a later live refresh cannot recalculate
+  // an earned arrow back to zero before midnight.
+  if (row.movement !== null && row.movement !== undefined) {
+    const authoritativeMovement = Number(row.movement);
+    if (Number.isFinite(authoritativeMovement)) return Math.sign(authoritativeMovement);
+  }
+
   const previousValue = previousBoardValue(row);
   if (typeof currentValue === 'number' && previousValue !== null) {
     if (currentValue > previousValue) return 1;
@@ -135,7 +143,6 @@ function rankMovement(row: CompetitiveRow, currentValue?: number): number | null
     if (previousRank && currentRank && previousRank !== currentRank) return previousRank - currentRank;
     return 0;
   }
-  if (typeof row.movement === 'number') return row.movement;
   const previous = Number(row.previous_rank ?? row.rank_yesterday);
   const current = Number(row.rank);
   if (previous && current && previous !== current) return previous - current;

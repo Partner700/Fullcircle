@@ -1,6 +1,6 @@
 const RELEASE_CACHE_KEY = 'full-circle-release-cache-version';
-const RELEASE_CACHE_VERSION = '2026-08-24-v83';
-const RETAINED_CACHE_PREFIXES = ['full-circle-v83'];
+const RELEASE_CACHE_VERSION = '2026-08-24-v84';
+const RETAINED_CACHE_PREFIXES = ['full-circle-v84'];
 
 export function prepareFreshReleaseCache() {
   if (typeof window === 'undefined') return;
