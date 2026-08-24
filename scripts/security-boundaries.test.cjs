@@ -57,6 +57,7 @@ const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_au
 const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_verified_streaks_forward.sql');
 const persistentBoardMovements = read('supabase/migrations/20260823120000_persist_board_movements_all_day.sql');
 const fcxExperienceRegistration = read('supabase/migrations/20260824100000_fcx_experience_registration.sql');
+const atomicStreakSnapshots = read('supabase/migrations/20260824130000_courage_28_and_atomic_streak_snapshots.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -182,6 +183,17 @@ assert.match(authoritativeStreakLifecycle, /THEN 27[\s\S]*THEN 26/);
 assert.match(authoritativeStreakLifecycle, /Restored verified Courage Webnjoh 26-day streak/);
 assert.match(authoritativeStreakLifecycle, /SELECT public\.refresh_all_streak_snapshots\(\)/);
 assert.match(authoritativeStreakLifecycle, /full-circle-streak-snapshots/);
+for (const required of [
+  'streakboard_one_user_per_day_idx',
+  'ON CONFLICT (snapshot_date, user_id) DO UPDATE',
+  "date '2026-08-24'",
+  'current_streak = 28',
+  'Verified Courage Webnjoh at 28 through 2026-08-24',
+  'SELECT public.refresh_all_streak_snapshots()',
+  "'7 * * * *'",
+]) {
+  assert.ok(atomicStreakSnapshots.includes(required), `Missing atomic streak repair: ${required}`);
+}
 assert.match(verifiedStreakRollForward, /date '2026-08-22'/);
 assert.match(verifiedStreakRollForward, /THEN 27[\s\S]*THEN 26/);
 assert.match(verifiedStreakRollForward, /replay later evidence/);
@@ -407,6 +419,7 @@ for (const migrationName of [
   '20260824110000_campay_subscriptions.sql',
   '20260824113000_campay_demo_subscription_price.sql',
   '20260824120000_enforce_subscription_feature_access.sql',
+  '20260824130000_courage_28_and_atomic_streak_snapshots.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
