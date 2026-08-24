@@ -109,7 +109,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         aria-valuetext={`${occupied} of ${visibleExperience.capacity} spaces filled`}
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss shadow-[0_0_10px_rgba(224,181,73,0.72)] will-change-[width]"
+          className="fcx-progress-fill h-full rounded-full will-change-[width]"
           style={{ width: `${animatedPercent}%` }}
         />
       </div>

@@ -596,6 +596,15 @@
       rgba(255, 255, 255, 0.72) 100%
     );
   }
+  .fcx-progress-fill,
+  [data-theme="night"] .fcx-progress-fill {
+    background: #ffe347;
+    box-shadow: 0 0 6px rgba(255, 227, 71, 0.95), 0 0 16px rgba(255, 227, 71, 0.72);
+  }
+  [data-theme="day"] .fcx-progress-fill {
+    background: #6d28d9;
+    box-shadow: 0 0 6px rgba(109, 40, 217, 0.86), 0 0 15px rgba(109, 40, 217, 0.58);
+  }
   .quote-rhude-icon {
     color: #d9c8ff;
   }
