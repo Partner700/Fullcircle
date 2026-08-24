@@ -1,39 +1,39 @@
 {
-  "_DeleteAccountSection-CXRh6lPz.js": {
-    "file": "assets/DeleteAccountSection-CXRh6lPz.js",
+  "_DeleteAccountSection-DQ2Pv4Yp.js": {
+    "file": "assets/DeleteAccountSection-DQ2Pv4Yp.js",
     "name": "DeleteAccountSection",
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js"
     ]
   },
-  "_FcxExperience-DXdZ3RcM.js": {
-    "file": "assets/FcxExperience-DXdZ3RcM.js",
+  "_FcxExperience-y-QDd2hi.js": {
+    "file": "assets/FcxExperience-y-QDd2hi.js",
     "name": "FcxExperience",
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js"
     ]
   },
-  "_MeditationHistoryPanel-ZD3333zP.js": {
-    "file": "assets/MeditationHistoryPanel-ZD3333zP.js",
+  "_MeditationHistoryPanel-DSaqAtOF.js": {
+    "file": "assets/MeditationHistoryPanel-DSaqAtOF.js",
     "name": "MeditationHistoryPanel",
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js"
+      "_scriptureNavigation-D24EYeaG.js"
     ]
   },
-  "_StreakCelebration-CkjP8gL-.js": {
-    "file": "assets/StreakCelebration-CkjP8gL-.js",
+  "_StreakCelebration-DmhaL_6z.js": {
+    "file": "assets/StreakCelebration-DmhaL_6z.js",
     "name": "StreakCelebration",
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js"
     ]
   },
-  "_gameEngines-e8QjsFVf.js": {
-    "file": "assets/gameEngines-e8QjsFVf.js",
+  "_gameEngines-BcqUoC59.js": {
+    "file": "assets/gameEngines-BcqUoC59.js",
     "name": "gameEngines",
     "imports": [
       "index.html"
@@ -50,8 +50,8 @@
       "_icons-DNu2nq80.js"
     ]
   },
-  "_scriptureNavigation-DmqIi34A.js": {
-    "file": "assets/scriptureNavigation-DmqIi34A.js",
+  "_scriptureNavigation-D24EYeaG.js": {
+    "file": "assets/scriptureNavigation-D24EYeaG.js",
     "name": "scriptureNavigation",
     "imports": [
       "index.html",
@@ -70,7 +70,7 @@
     "name": "supabase"
   },
   "index.html": {
-    "file": "assets/index-C1WdmFq7.js",
+    "file": "assets/index-DU4iFiaF.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -85,7 +85,7 @@
       "src/screens/instructor/InstructorApp.tsx"
     ],
     "css": [
-      "assets/index-CzROTXxx.css"
+      "assets/index-CwQ9B2-J.css"
     ],
     "assets": [
       "assets/dove-clean-BeQoHgAq.png"
@@ -112,16 +112,16 @@
     "src": "src/assets/brand-real/squares-symbol.svg"
   },
   "src/screens/cadet/CadetApp.tsx": {
-    "file": "assets/CadetApp-B-RVmo-8.js",
+    "file": "assets/CadetApp-CA6VysEF.js",
     "name": "CadetApp",
     "src": "src/screens/cadet/CadetApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
-      "_StreakCelebration-CkjP8gL-.js",
-      "_FcxExperience-DXdZ3RcM.js",
+      "_scriptureNavigation-D24EYeaG.js",
+      "_StreakCelebration-DmhaL_6z.js",
+      "_FcxExperience-y-QDd2hi.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ],
@@ -139,167 +139,167 @@
     ]
   },
   "src/screens/cadet/CadetArena.tsx": {
-    "file": "assets/CadetArena-D8lJBXsM.js",
+    "file": "assets/CadetArena-6EbO1Ygi.js",
     "name": "CadetArena",
     "src": "src/screens/cadet/CadetArena.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetAwards.tsx": {
-    "file": "assets/CadetAwards-BEtvloI8.js",
+    "file": "assets/CadetAwards-CPZGHA4Y.js",
     "name": "CadetAwards",
     "src": "src/screens/cadet/CadetAwards.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetGame.tsx": {
-    "file": "assets/CadetGame-DKezTfk_.js",
+    "file": "assets/CadetGame-Cxkfv31a.js",
     "name": "CadetGame",
     "src": "src/screens/cadet/CadetGame.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
-      "_gameEngines-e8QjsFVf.js",
+      "_scriptureNavigation-D24EYeaG.js",
+      "_gameEngines-BcqUoC59.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetLeaderboard.tsx": {
-    "file": "assets/CadetLeaderboard-TmZIfJC3.js",
+    "file": "assets/CadetLeaderboard-0S-VU7Ce.js",
     "name": "CadetLeaderboard",
     "src": "src/screens/cadet/CadetLeaderboard.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetNarrative.tsx": {
-    "file": "assets/CadetNarrative-grjvtTjE.js",
+    "file": "assets/CadetNarrative-Cb-qXLJt.js",
     "name": "CadetNarrative",
     "src": "src/screens/cadet/CadetNarrative.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetQuiz.tsx": {
-    "file": "assets/CadetQuiz-Bhyd0wpG.js",
+    "file": "assets/CadetQuiz-B5vNgsPV.js",
     "name": "CadetQuiz",
     "src": "src/screens/cadet/CadetQuiz.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetSettings.tsx": {
-    "file": "assets/CadetSettings-CK5jUzho.js",
+    "file": "assets/CadetSettings-BPiHxNfL.js",
     "name": "CadetSettings",
     "src": "src/screens/cadet/CadetSettings.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
-      "_DeleteAccountSection-CXRh6lPz.js",
+      "_scriptureNavigation-D24EYeaG.js",
+      "_DeleteAccountSection-DQ2Pv4Yp.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetStore.tsx": {
-    "file": "assets/CadetStore-oJTZceiT.js",
+    "file": "assets/CadetStore-DgQhXRiF.js",
     "name": "CadetStore",
     "src": "src/screens/cadet/CadetStore.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetStreak.tsx": {
-    "file": "assets/CadetStreak-CozAj81b.js",
+    "file": "assets/CadetStreak-DPqyS3ZS.js",
     "name": "CadetStreak",
     "src": "src/screens/cadet/CadetStreak.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/cadet/CadetTent.tsx": {
-    "file": "assets/CadetTent-ZvayULWV.js",
+    "file": "assets/CadetTent-ICm_oWBj.js",
     "name": "CadetTent",
     "src": "src/screens/cadet/CadetTent.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
+      "_scriptureNavigation-D24EYeaG.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/instructor/InstructorApp.tsx": {
-    "file": "assets/InstructorApp-wPuRsn5P.js",
+    "file": "assets/InstructorApp-DhvZL2TC.js",
     "name": "InstructorApp",
     "src": "src/screens/instructor/InstructorApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
-      "_MeditationHistoryPanel-ZD3333zP.js",
-      "_DeleteAccountSection-CXRh6lPz.js",
+      "_scriptureNavigation-D24EYeaG.js",
+      "_MeditationHistoryPanel-DSaqAtOF.js",
+      "_DeleteAccountSection-DQ2Pv4Yp.js",
       "src/screens/cadet/CadetLeaderboard.tsx",
-      "_FcxExperience-DXdZ3RcM.js",
-      "_gameEngines-e8QjsFVf.js",
+      "_FcxExperience-y-QDd2hi.js",
+      "_gameEngines-BcqUoC59.js",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js"
     ]
   },
   "src/screens/sentry/SentryApp.tsx": {
-    "file": "assets/SentryApp-w0nu8oOw.js",
+    "file": "assets/SentryApp-DSe9LVFv.js",
     "name": "SentryApp",
     "src": "src/screens/sentry/SentryApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_icons-DNu2nq80.js",
-      "_scriptureNavigation-DmqIi34A.js",
-      "_DeleteAccountSection-CXRh6lPz.js",
-      "_MeditationHistoryPanel-ZD3333zP.js",
-      "_StreakCelebration-CkjP8gL-.js",
+      "_scriptureNavigation-D24EYeaG.js",
+      "_DeleteAccountSection-DQ2Pv4Yp.js",
+      "_MeditationHistoryPanel-DSaqAtOF.js",
+      "_StreakCelebration-DmhaL_6z.js",
       "src/screens/cadet/CadetGame.tsx",
       "src/screens/cadet/CadetStreak.tsx",
       "src/screens/cadet/CadetNarrative.tsx",
@@ -307,7 +307,7 @@
       "src/screens/cadet/CadetLeaderboard.tsx",
       "_react-vendor-CXl2GSF9.js",
       "_supabase-wIXNjVJv.js",
-      "_gameEngines-e8QjsFVf.js"
+      "_gameEngines-BcqUoC59.js"
     ],
     "dynamicImports": [
       "src/screens/cadet/CadetArena.tsx",

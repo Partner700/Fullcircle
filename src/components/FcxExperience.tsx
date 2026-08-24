@@ -28,81 +28,93 @@ function eventDateLabel(experience: FcxExperience) {
 }
 
 export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
-  const registrations = experience.registrations || [];
-  const occupied = Math.min(registrations.length, experience.capacity);
-  const [animatedOccupied, setAnimatedOccupied] = useState(0);
-  const animatedPercent = Math.min(100, (animatedOccupied / Math.max(experience.capacity, 1)) * 100);
-  const seats = Array.from({ length: experience.capacity }, (_, index) => registrations[index] || null);
+  const [visibleExperience, setVisibleExperience] = useState(experience);
+  const [animatedPercent, setAnimatedPercent] = useState(0);
+  const registrations = visibleExperience.registrations || [];
+  const occupied = Math.min(registrations.length, visibleExperience.capacity);
+  const targetPercent = Math.min(100, (occupied / Math.max(visibleExperience.capacity, 1)) * 100);
+  const seats = Array.from({ length: visibleExperience.capacity }, (_, index) => registrations[index] || null);
 
   useEffect(() => {
-    setAnimatedOccupied(0);
-    if (!active || occupied <= 0) return;
+    setVisibleExperience(experience);
+  }, [experience]);
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+
+    void fetchActiveFcxExperience()
+      .then((latestExperience) => {
+        if (!cancelled && latestExperience?.id === experience.id) {
+          setVisibleExperience(latestExperience);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => { cancelled = true; };
+  }, [active, experience.id]);
+
+  useEffect(() => {
+    setAnimatedPercent(0);
+    if (!active || targetPercent <= 0) return;
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setAnimatedOccupied(occupied);
+      setAnimatedPercent(targetPercent);
       return;
     }
 
     let animationFrame = 0;
     let startedAt: number | null = null;
-    const duration = Math.min(1400, 650 + occupied * 28);
+    const duration = 1000;
     const animate = (timestamp: number) => {
       if (startedAt === null) startedAt = timestamp;
       const progress = Math.min(1, (timestamp - startedAt) / duration);
       const easedProgress = 1 - Math.pow(1 - progress, 3);
-      setAnimatedOccupied(Math.min(occupied, Math.floor(easedProgress * occupied)));
+      setAnimatedPercent(targetPercent * easedProgress);
       if (progress < 1) {
         animationFrame = window.requestAnimationFrame(animate);
       } else {
-        setAnimatedOccupied(occupied);
+        setAnimatedPercent(targetPercent);
       }
     };
 
     animationFrame = window.requestAnimationFrame(animate);
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [active, occupied]);
+  }, [active, targetPercent]);
 
   return (
     <div className="w-full max-w-2xl pr-1">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="eyebrow mb-1 flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
-          <h2 className="font-display text-xl font-semibold leading-tight text-ink sm:text-2xl">{experience.title}</h2>
+          <h2 className="font-display text-xl font-semibold leading-tight text-ink sm:text-2xl">{visibleExperience.title}</h2>
           <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-stone">
-            <CalendarDays size={13} /> {eventDateLabel(experience)}
-            {experience.ticket_price_xaf != null && <span>· {formatXaf(experience.ticket_price_xaf)}</span>}
+            <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
+            {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
           </p>
         </div>
         <div className="flex-shrink-0 text-right">
-          <p className="text-xl font-bold text-ink">{occupied}/{experience.capacity}</p>
+          <p className="text-xl font-bold text-ink">{occupied}/{visibleExperience.capacity}</p>
           <p className="text-[10px] font-semibold uppercase text-stone">spaces filled</p>
         </div>
       </div>
 
       <div
-        className="relative mt-3 h-2 overflow-hidden rounded-full border border-white/20 bg-surface/45"
+        className="relative mt-3 h-3 overflow-hidden rounded-full border border-white/25 bg-surface/45 p-[2px] shadow-inner"
         role="progressbar"
         aria-label="FCX paid spaces"
         aria-valuemin={0}
-        aria-valuemax={experience.capacity}
+        aria-valuemax={visibleExperience.capacity}
         aria-valuenow={occupied}
+        aria-valuetext={`${occupied} of ${visibleExperience.capacity} spaces filled`}
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss"
+          className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-moss shadow-[0_0_10px_rgba(224,181,73,0.72)] will-change-[width]"
           style={{ width: `${animatedPercent}%` }}
         />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 grid"
-          style={{ gridTemplateColumns: `repeat(${Math.max(experience.capacity, 1)}, minmax(0, 1fr))` }}
-        >
-          {Array.from({ length: Math.max(experience.capacity, 1) }, (_, index) => (
-            <span key={index} className={cn(index < experience.capacity - 1 && 'border-r border-white/20')} />
-          ))}
-        </div>
       </div>
 
-      <div className="mt-3 grid max-w-[19rem] grid-cols-10 gap-1.5" aria-label={`${occupied} of ${experience.capacity} FCX spaces filled`}>
+      <div className="mt-3 grid max-w-[19rem] grid-cols-10 gap-1.5" aria-label={`${occupied} of ${visibleExperience.capacity} FCX spaces filled`}>
         {seats.map((registration, index) => (
           <div
             key={registration?.id || `open-${index}`}
