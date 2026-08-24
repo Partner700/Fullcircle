@@ -34,7 +34,7 @@ jobs:
       - name: Build GitHub Pages mirror
         run: |
           cp .env.example .env.production
-          npm run build -- --base=/Fullcircle/
+          npm run build -- --base="/${{ github.event.repository.name }}/"
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
 
