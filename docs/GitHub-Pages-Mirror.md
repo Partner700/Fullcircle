@@ -1,28 +1,41 @@
-# GitHub Pages Mirror
+# Full Circle Production Recovery
 
-Full Circle can be served from any GitHub repository without using Hostinger or
-the `partnertai.com` DNS zone. The workflow derives the site path from the
-repository name, so both of these mirrors are supported:
+The independent production address is:
 
-- `https://partner700.github.io/Fullcircle/`
 - `https://tnsorganization.github.io/Full-Circle/`
 
-## One-time activation
+It does not depend on Hostinger, its FTP account, or the `partnertai.com` DNS
+zone. GitHub Pages serves the built application directly from the `gh-pages`
+branch of `TNSorganization/Full-Circle`.
 
-1. Open the repository that will host the mirror. Use
-   `TNSorganization/Full-Circle` when Partner700's Pages settings are not
-   available to your account.
-2. Open **Settings**, then **Pages** under **Code and automation**.
-3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-4. Open **Actions**, select **Deploy Full Circle mirror**, and run it if the
-   latest push has not already started it.
+## Automatic recovery
 
-Every later push to `main` rebuilds and publishes that repository's mirror
-automatically.
-The mirror uses the repository path as its application base and deploys one
-executable release file, so it does not depend on Hostinger's file upload order.
+The mirror repository runs `Keep Full Circle Online` every ten minutes. It
+checks the public release, publishes a newer production build when available,
+and republishes its independent recovery copy if the primary repository cannot
+be reached. A failed update leaves the last working release online.
 
-For password-reset emails to return to a mirror, add its URL pattern under
+## Manual recovery
+
+Run this from Terminal when an immediate publication is needed:
+
+```bash
+bash /Users/bameelhakol/Documents/Codex/2026-07-23/los/publish-fullcircle-without-hostinger.sh
+```
+
+The script publishes the current `dist` build directly to `gh-pages`, selects
+branch-based GitHub Pages, requests a build, and waits until the exact release
+asset is visible at the public address.
+
+## Installation
+
+Every browser visit offers installation automatically once per session. A
+compact **Install** control remains available until the app is installed.
+Chromium browsers use the native installation prompt; iPhone and iPad users see
+the Safari **Add to Home Screen** instructions; in-app browsers receive steps
+for opening the site in a browser that supports installation.
+
+For password-reset emails to return to this address, add its URL pattern under
 **Supabase → Authentication → URL Configuration → Redirect URLs**. For the
 TNS-owned mirror, use `https://tnsorganization.github.io/Full-Circle/**`. Normal
 email-and-password sign-in does not need that additional redirect entry.
