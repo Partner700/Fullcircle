@@ -7,6 +7,7 @@ import { playNotificationSound } from '../lib/soundscape';
 import { DoveMark } from './Dove';
 import type { UserNotification } from '../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../lib/scriptureNavigation';
+import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -29,6 +30,12 @@ function notificationSymbol(type: string) {
   if (['payment', 'purchase', 'economy'].includes(key)) return '/notification-symbols/payment.svg';
   if (key === 'challenge') return '/notification-symbols/challenge.svg';
   return '/notification-symbols/reading.svg';
+}
+
+function isProtectedMessageNotification(notification: UserNotification) {
+  return ['message', 'direct_message', 'message_mention'].includes(
+    String(notification.notification_type || '').toLowerCase(),
+  );
 }
 
 async function showDeviceNotification(notification: UserNotification) {
@@ -54,6 +61,7 @@ async function showDeviceNotification(notification: UserNotification) {
 /** A role-neutral, resilient notification bell backed by public.user_notifications. */
 export function NotificationCenter({ onNavigate }: Props) {
   const { profile } = useAuth();
+  const { requireSubscription } = useSubscriptionAccess();
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -110,6 +118,11 @@ export function NotificationCenter({ onNavigate }: Props) {
   }, [open]);
 
   const markRead = async (notification: UserNotification, navigate = false) => {
+    if (navigate && isProtectedMessageNotification(notification) && !requireSubscription()) {
+      setOpen(false);
+      setToast(null);
+      return;
+    }
     if (!notification.read_at) {
       setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
       await markNotificationRead(notification.id).catch(() => void load());

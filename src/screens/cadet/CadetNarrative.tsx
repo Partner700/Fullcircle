@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -16,6 +17,7 @@ import {
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
   MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight,
+  Lock,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -224,6 +226,7 @@ export function CadetNarrative({
   streakCount?: number;
 }) {
   const { profile } = useAuth();
+  const { hasAccess, requireSubscription } = useSubscriptionAccess();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [loading, setLoading] = useState(true);
   const [meditation, setMeditation] = useState('');
@@ -333,7 +336,7 @@ export function CadetNarrative({
   }, []);
 
   useEffect(() => {
-    if (!profile || !isSundayRest || isHistoricalReading) return;
+    if (!profile || !hasAccess || !isSundayRest || isHistoricalReading) return;
     let cancelled = false;
     const creditSundayReading = async () => {
       try {
@@ -345,7 +348,7 @@ export function CadetNarrative({
     };
     void creditSundayReading();
     return () => { cancelled = true; };
-  }, [activeDate, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
+  }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
 
   const loadHistory = async () => {
     if (!profile || historyLoading) return;
@@ -451,6 +454,7 @@ export function CadetNarrative({
     appClock.hour > MEDITATION_CUTOFF_HOUR ||
     (appClock.hour === MEDITATION_CUTOFF_HOUR && appClock.minute >= MEDITATION_CUTOFF_MINUTE);
   const canSubmitMeditation =
+    hasAccess &&
     !isHistoricalReading &&
     !afterMeditationCutoff &&
     bestVerse.trim().length > 0 &&
@@ -459,6 +463,7 @@ export function CadetNarrative({
     quoteWordCount <= 10;
 
   const saveMeditation = async () => {
+    if (!requireSubscription()) return;
     if (!profile || isHistoricalReading || !canSubmitMeditation) return;
     setSaving(true);
     const { error } = await supabase.rpc('submit_daily_meditation', {
@@ -478,6 +483,7 @@ export function CadetNarrative({
   };
 
   const saveChallenge = async () => {
+    if (!requireSubscription()) return;
     if (!profile || isHistoricalReading) return;
     const format = narrative?.challenge_proof_format || 'text';
     const proof = format === 'link' ? challengeLink.trim() : challengeText.trim();
@@ -501,6 +507,7 @@ export function CadetNarrative({
   };
 
   const submitVerseInsight = async (reference: string) => {
+    if (!requireSubscription()) return;
     if (!profile || !narrative?.id) return;
     const body = (myInsightDrafts[reference] || '').trim();
     if (!body) return;
@@ -517,6 +524,7 @@ export function CadetNarrative({
   };
 
   const submitInsightReply = async (insight: any) => {
+    if (!requireSubscription()) return;
     if (!profile || !narrative?.id) return;
     const body = (replyDrafts[insight.id] || '').trim();
     if (!body) return;
@@ -542,6 +550,7 @@ export function CadetNarrative({
   };
 
   const submitInsightEdit = async () => {
+    if (!requireSubscription()) return;
     if (!editingInsightId || !editingInsightBody.trim() || !narrative?.id) return;
     try {
       await editVerseInsight(editingInsightId, editingInsightBody.trim());
@@ -552,6 +561,7 @@ export function CadetNarrative({
   };
 
   const submitInsightCommentEdit = async () => {
+    if (!requireSubscription()) return;
     if (!editingCommentId || !editingCommentBody.trim() || !narrative?.id) return;
     try {
       await editVerseInsightComment(editingCommentId, editingCommentBody.trim());
@@ -743,7 +753,10 @@ export function CadetNarrative({
                 <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
-                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => setOpenUserInsights(userExpanded ? null : verse.reference)}>
+                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                      if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
+                      setOpenUserInsights(userExpanded ? null : verse.reference);
+                    }}>
                       {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
                     </button>
                   </div>
@@ -767,7 +780,7 @@ export function CadetNarrative({
                                     <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
                                   </div>
                                 ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
-                                {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
+                                {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
                               </div>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
@@ -801,6 +814,7 @@ export function CadetNarrative({
                               })}
                             </div>
                             <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
+                              if (!requireSubscription()) return;
                               setOpenInsightReplies(repliesOpen ? null : item.id);
                               setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
                               setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
@@ -818,8 +832,9 @@ export function CadetNarrative({
                                         <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
                                       </div>
                                     ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
-                                    {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
+                                    {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
                                     <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
+                                      if (!requireSubscription()) return;
                                       const displayName = comment.profile?.display_name || 'Reader';
                                       setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
                                       setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
@@ -838,16 +853,24 @@ export function CadetNarrative({
                           </div>
                         );
                       })}
-                      <MentionTextarea
-                        className="input-field min-h-[5.5rem] w-full text-sm"
-                        value={myInsightDrafts[verse.reference] || ''}
-                        onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
-                        candidates={campMentionCandidates}
-                        placeholder="Write your insight on this verse. Type @ to tag someone..."
-                      />
-                      <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference)}>
-                        {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
-                      </button>
+                      {hasAccess ? (
+                        <>
+                          <MentionTextarea
+                            className="input-field min-h-[5.5rem] w-full text-sm"
+                            value={myInsightDrafts[verse.reference] || ''}
+                            onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
+                            candidates={campMentionCandidates}
+                            placeholder="Write your insight on this verse. Type @ to tag someone..."
+                          />
+                          <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference)}>
+                            {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
+                          </button>
+                        </>
+                      ) : (
+                        <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => requireSubscription()}>
+                          <Lock size={13} /> Subscribe to write an insight
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -881,7 +904,21 @@ export function CadetNarrative({
       )}
 
       {/* ── Meditation submission — three sections ── */}
-      {!isSundayRest && !isHistoricalReading && <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+      {!isSundayRest && !isHistoricalReading && <div
+        className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
+        aria-disabled={!hasAccess}
+        onClickCapture={(event) => {
+          if (hasAccess || !(event.target as HTMLElement).closest('button,input,textarea,[role="button"],label')) return;
+          event.preventDefault();
+          event.stopPropagation();
+          requireSubscription();
+        }}
+        onFocusCapture={(event) => {
+          if (hasAccess) return;
+          (event.target as HTMLElement).blur();
+          requireSubscription();
+        }}
+      >
         <PanelImageBackdrop
           image={meditationImage}
           opacityFallback={100}
@@ -1012,7 +1049,21 @@ export function CadetNarrative({
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}
       {!isSundayRest && !isHistoricalReading && narrative.challenge_active && narrative.challenge_title && (
-        <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+        <div
+          className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
+          aria-disabled={!hasAccess}
+          onClickCapture={(event) => {
+            if (hasAccess || !(event.target as HTMLElement).closest('button,input,textarea,[role="button"],label')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            requireSubscription();
+          }}
+          onFocusCapture={(event) => {
+            if (hasAccess) return;
+            (event.target as HTMLElement).blur();
+            requireSubscription();
+          }}
+        >
           <PanelImageBackdrop
             image={challengeImage}
             opacityFallback={100}

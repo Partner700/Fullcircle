@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
@@ -123,6 +124,7 @@ export function SentryApp() {
   const [sentryDenarii, setSentryDenarii] = useState(0);
   const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [subStatus, setSubStatus] = useState<SubscriptionStatusView | null>(null);
+  const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [uploadingTentPhoto, setUploadingTentPhoto] = useState(false);
   const hasLoadedRef = useRef(false);
@@ -262,7 +264,11 @@ export function SentryApp() {
   useEffect(() => {
     if (profile?.id) void supabase.rpc('process_automatic_sentry_promotion', { p_user_id: profile.id });
   }, [profile?.id]);
-  const isExpired = subStatus?.status === 'expired';
+  const isExpired = subscriptionIsExpired(subStatus, subscriptionClock);
+  useEffect(() => {
+    const interval = window.setInterval(() => setSubscriptionClock(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
   const handleNavigate = useCallback((next: Tab) => {
     setTab(isExpired && PREMIUM_TABS.has(next) ? 'subscribe' : next);
   }, [isExpired]);
@@ -357,6 +363,7 @@ export function SentryApp() {
   };
 
   return (
+    <SubscriptionAccessProvider isExpired={isExpired} onSubscriptionRequired={() => setTab('subscribe')}>
     <>
     <AppShell
       navItems={NAV_ITEMS}
@@ -491,6 +498,7 @@ export function SentryApp() {
     </AppShell>
     <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
     </>
+    </SubscriptionAccessProvider>
   );
 }
 

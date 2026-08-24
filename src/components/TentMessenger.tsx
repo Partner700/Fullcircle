@@ -6,6 +6,7 @@ import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../l
 import { X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
+import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -16,6 +17,7 @@ interface TentMessengerProps {
 }
 
 export function TentMessenger({ recipient, senderId, tentId, onClose, onMessagesRead }: TentMessengerProps) {
+  const { hasAccess, requireSubscription } = useSubscriptionAccess();
   const [messages, setMessages] = useState<((TentMessage | DirectMessage) & { sender?: { display_name: string; avatar_url: string | null } })[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,11 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   const [editingBody, setEditingBody] = useState('');
 
   const load = useCallback(async () => {
+    if (!hasAccess) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
     try {
       const msgs = tentId
         ? await fetchTentMessages(tentId, senderId)
@@ -43,11 +50,18 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
       }
     } catch (e) { console.error('TentMessenger load error:', e); }
     setLoading(false);
-  }, [tentId, senderId, recipient.id, onMessagesRead]);
+  }, [hasAccess, tentId, senderId, recipient.id, onMessagesRead]);
+
+  useEffect(() => {
+    if (hasAccess) return;
+    requireSubscription();
+    onClose();
+  }, [hasAccess, onClose, requireSubscription]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
+    if (!hasAccess) return;
     const table = tentId ? 'tent_messages' : 'direct_messages';
     const channelName = tentId ? `tent_messages_${tentId}` : `direct_messages_${senderId}_${recipient.id}`;
     const channel = supabase
@@ -56,9 +70,10 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [tentId, senderId, recipient.id, load]);
+  }, [hasAccess, tentId, senderId, recipient.id, load]);
 
   const handleSend = async () => {
+    if (!requireSubscription()) return;
     if (!input.trim() || sending) return;
     setSending(true);
     try {
@@ -71,6 +86,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   };
 
   const handleEdit = async () => {
+    if (!requireSubscription()) return;
     if (!editingId || !editingBody.trim() || sending) return;
     setSending(true);
     try {
@@ -82,6 +98,8 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
     } catch (e) { console.error('Edit message error:', e); }
     setSending(false);
   };
+
+  if (!hasAccess) return null;
 
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
@@ -173,6 +191,7 @@ export function TentGroupMessenger({
   tentName: string;
   onClose: () => void;
 }) {
+  const { hasAccess, requireSubscription } = useSubscriptionAccess();
   const [messages, setMessages] = useState<TentGroupMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -181,25 +200,38 @@ export function TentGroupMessenger({
   const [editingBody, setEditingBody] = useState('');
 
   const load = useCallback(async () => {
+    if (!hasAccess) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
     try {
       setMessages(await fetchTentGroupMessages(tentId) as TentGroupMessage[]);
     } catch (e) {
       console.error('TentGroupMessenger load error:', e);
     }
     setLoading(false);
-  }, [tentId]);
+  }, [hasAccess, tentId]);
+
+  useEffect(() => {
+    if (hasAccess) return;
+    requireSubscription();
+    onClose();
+  }, [hasAccess, onClose, requireSubscription]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
+    if (!hasAccess) return;
     const channel = supabase
       .channel(`tent_group_messages_${tentId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tent_group_messages', filter: `tent_id=eq.${tentId}` }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [load, tentId]);
+  }, [hasAccess, load, tentId]);
 
   const handleSend = async () => {
+    if (!requireSubscription()) return;
     if (!input.trim() || sending) return;
     setSending(true);
     try {
@@ -213,6 +245,7 @@ export function TentGroupMessenger({
   };
 
   const handleEdit = async () => {
+    if (!requireSubscription()) return;
     if (!editingId || !editingBody.trim() || sending) return;
     setSending(true);
     try {
@@ -223,6 +256,8 @@ export function TentGroupMessenger({
     } catch (e) { console.error('Edit group message error:', e); }
     setSending(false);
   };
+
+  if (!hasAccess) return null;
 
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/50 animate-fade-in sm:items-center" onClick={onClose}>
@@ -318,6 +353,7 @@ export function TentAvatar({
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
+  const { requireSubscription } = useSubscriptionAccess();
 
   const profile: Profile | undefined =
     'user_id' in member ? member.profiles : (member as Profile);
@@ -334,6 +370,7 @@ export function TentAvatar({
       <button
         onClick={() => {
           if (isMe) return;
+          if (!requireSubscription()) return;
           setShowMessenger(true);
           onOpenChange?.(true);
           document.body.dataset.fullCircleMessengerOpen = 'true';
@@ -399,6 +436,7 @@ export function MessageAvatar({
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
+  const { requireSubscription } = useSubscriptionAccess();
   const sizeClass = size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = profile.id === currentUserId;
   const unreadCount = !isMe && currentUserId ? unreadBySender[profile.id] || 0 : 0;
@@ -409,6 +447,7 @@ export function MessageAvatar({
         type="button"
         onClick={() => {
           if (isMe || !currentUserId) return;
+          if (!requireSubscription()) return;
           setShowMessenger(true);
           onOpenChange?.(true);
           document.body.dataset.fullCircleMessengerOpen = 'true';

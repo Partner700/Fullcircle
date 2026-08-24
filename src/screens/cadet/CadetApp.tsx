@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell } from '../../components/AppShell';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
@@ -61,6 +62,7 @@ type CadetNotification = {
   read?: boolean;
   createdAt?: string;
   metadata?: Record<string, unknown>;
+  sourceType?: string;
 };
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
@@ -243,13 +245,19 @@ export function CadetApp() {
   const [walletRefreshKey, setWalletRefreshKey] = useState(0);
   const [cadetRefreshKey, setCadetRefreshKey] = useState(0);
   const [subStatus, setSubStatus] = useState<{ status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null>(null);
+  const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
   const streakLoadedRef = useRef(false);
   const toolbarStatsRef = useRef({ userId: '', denarii: 0, streak: 0 });
   const lastForegroundRefreshRef = useRef(0);
 
-  const isExpired = subStatus?.status === 'expired';
+  const isExpired = subscriptionIsExpired(subStatus, subscriptionClock);
   const trialCountdown = getCountdownParts(subStatus?.trial_ends_at);
   const trialDaysLeft = trialCountdown.days;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setSubscriptionClock(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const userId = toolbarUserId;
@@ -439,6 +447,7 @@ export function CadetApp() {
           read: !!notification.read_at,
           createdAt: notification.created_at,
           metadata: notification.metadata,
+          sourceType: notification.notification_type,
         });
       });
     } catch {}
@@ -528,6 +537,7 @@ export function CadetApp() {
             actionTab: 'tent',
             actionLabel: 'Open Tent',
             createdAt: message.created_at,
+            sourceType: 'message',
           });
         });
     } catch {}
@@ -918,6 +928,11 @@ export function CadetApp() {
   };
 
   const handleNotificationOpen = async (notification: CadetNotification) => {
+    if (isExpired && ['message', 'direct_message', 'message_mention'].includes(String(notification.sourceType || '').toLowerCase())) {
+      setTab('subscribe');
+      setShowNotifications(false);
+      return;
+    }
     if (!notification.read) {
       await markLinkedNotificationRead(notification);
       markLocalNotificationsRead([notification.id]);
@@ -971,6 +986,7 @@ export function CadetApp() {
   }, [showNotifications]);
 
   return (
+    <SubscriptionAccessProvider isExpired={isExpired} onSubscriptionRequired={() => setTab('subscribe')}>
     <>
     <AppShell
       navItems={NAV_ITEMS}
@@ -1107,6 +1123,7 @@ export function CadetApp() {
     )}
     <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
     </>
+    </SubscriptionAccessProvider>
   );
 }
 

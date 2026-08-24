@@ -16,7 +16,11 @@ const campayWebhook = read('supabase/functions/campay-webhook/index.ts');
 const campayCheckout = read('supabase/functions/create-checkout-session/index.ts');
 const campaySubscriptions = read('supabase/migrations/20260824110000_campay_subscriptions.sql');
 const campayDemoSubscription = read('supabase/migrations/20260824113000_campay_demo_subscription_price.sql');
+const subscriptionAccess = read('supabase/migrations/20260824120000_enforce_subscription_feature_access.sql');
 const subscriptionScreen = read('src/components/SubscriptionScreen.tsx');
+const subscriptionAccessContext = read('src/context/SubscriptionAccessContext.tsx');
+const tentMessenger = read('src/components/TentMessenger.tsx');
+const cadetNarrative = read('src/screens/cadet/CadetNarrative.tsx');
 const calendarUtilities = read('src/lib/utils.ts');
 const toolbarStats = read('supabase/migrations/20260814172000_authoritative_toolbar_stats.sql');
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
@@ -131,15 +135,15 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v82'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '82'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v83'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '83'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '82'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '83'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\('\/index\.html\?fc-connectivity='/);
 assert.match(offlinePage, /window\.location\.replace\('\/index\.html\?fc-recovered='/);
@@ -323,6 +327,33 @@ for (const required of [
 assert.match(subscriptionScreen, /MTN MoMo/);
 assert.match(subscriptionScreen, /Orange Money/);
 assert.doesNotMatch(subscriptionScreen, /checkout is not connected yet/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.has_current_subscription_access',
+  "subscription.status = 'trial'",
+  'subscription.trial_ends_at > now()',
+  "subscription.status = 'active'",
+  'subscription.current_period_end > now()',
+  'SUBSCRIPTION_REQUIRED',
+  'enforce_subscription_daily_records',
+  'enforce_subscription_daily_game_runs',
+  'enforce_subscription_game_attempts',
+  'enforce_subscription_quiz_attempts',
+  'enforce_subscription_denarii_ledger',
+  'enforce_subscription_scripture_insights',
+  'enforce_subscription_tent_messages',
+  'enforce_subscription_tent_group_messages',
+  'enforce_subscription_direct_messages',
+  "notification_type NOT IN ('message', 'direct_message', 'message_mention')",
+  'public.has_current_subscription_access(auth.uid())',
+]) {
+  assert.ok(subscriptionAccess.includes(required), `Missing expired-subscription boundary: ${required}`);
+}
+assert.match(subscriptionAccessContext, /trial_ends_at[\s\S]*getTime\(\) <= nowMs/);
+assert.match(subscriptionAccessContext, /current_period_end[\s\S]*getTime\(\) <= nowMs/);
+assert.match(tentMessenger, /requireSubscription\(\)/);
+assert.match(tentMessenger, /if \(!hasAccess\) return null/);
+assert.match(cadetNarrative, /Subscribe to write an insight/);
+assert.match(cadetNarrative, /if \(!requireSubscription\(\)\) return/);
 assert.match(sentryApp, /DashboardHeroSlideshow/);
 assert.match(sentryApp, /kind: 'custom'/);
 
@@ -375,6 +406,7 @@ for (const migrationName of [
   '20260824100000_fcx_experience_registration.sql',
   '20260824110000_campay_subscriptions.sql',
   '20260824113000_campay_demo_subscription_price.sql',
+  '20260824120000_enforce_subscription_feature_access.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
