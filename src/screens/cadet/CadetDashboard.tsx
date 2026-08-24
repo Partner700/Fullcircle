@@ -11,6 +11,7 @@ import { FcxExperienceSlide } from '../../components/FcxExperience';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
+import { publicAsset } from '../../lib/publicAsset';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
@@ -29,7 +30,7 @@ export type DashboardHeroSlide =
   | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem };
 
 const STARTUP_WELCOME_ARTWORK: PanelImageSetting = {
-  url: '/fullcircle-startup-artwork.jpeg',
+  url: publicAsset('fullcircle-startup-artwork.jpeg'),
   positionX: 50,
   positionY: 50,
 };

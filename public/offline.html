@@ -117,7 +117,7 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '85';
+    var RECOVERY_VERSION = '86';
     var recoveryInProgress = false;
 
     async function clearRetiredAppCaches() {
@@ -133,7 +133,7 @@
 
     async function installRecoveryWorker() {
       if (!('serviceWorker' in navigator)) return;
-      var registration = await navigator.serviceWorker.register('/sw.js?v=' + RECOVERY_VERSION, { updateViaCache: 'none' });
+      var registration = await navigator.serviceWorker.register(new URL('sw.js?v=' + RECOVERY_VERSION, window.location.href), { updateViaCache: 'none' });
       await registration.update().catch(function() {});
       if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     }
@@ -149,11 +149,11 @@
         // network wait for a service-worker controller handoff. Some mobile
         // browsers delay that handoff even while the site is fully reachable.
         installRecoveryWorker().catch(function() {});
-        var response = await fetch('/index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), { cache: 'no-store' });
+        var response = await fetch(new URL('index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href), { cache: 'no-store' });
         if (!response.ok) throw new Error('Full Circle is not reachable yet.');
         var html = await response.text();
         if (html.indexOf('id="root"') === -1) throw new Error('The application shell is not ready yet.');
-        window.location.replace('/index.html?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now());
+        window.location.replace(new URL('index.html?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
       } catch (error) {
         recoveryInProgress = false;
         button.innerHTML = '<span class="status-dot"></span> Retry Connection';

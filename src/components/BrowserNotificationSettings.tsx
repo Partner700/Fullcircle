@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, BellRing, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { enableWebPush, getCurrentPushSubscription, isInstalledApp, isIOSDevice, supportsWebPush } from '../lib/pushNotifications';
+import { publicAsset } from '../lib/publicAsset';
 
 const ENABLED_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -57,8 +58,8 @@ export function BrowserNotificationSettings() {
       if (registration) {
         await registration.showNotification('Full Circle notifications are on', {
           body: 'You will hear from us when something needs your attention.',
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-96.png',
+          icon: publicAsset('icons/icon-192.png'),
+          badge: publicAsset('icons/icon-96.png'),
           tag: 'full-circle-notification-confirmation',
         });
       }

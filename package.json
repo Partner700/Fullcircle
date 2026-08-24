@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/preserve-release-assets.cjs snapshot",
     "build": "vite build",
-    "postbuild": "node scripts/copy-hostinger-fallback.cjs && node scripts/preserve-release-assets.cjs restore",
+    "postbuild": "node scripts/copy-hostinger-fallback.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --experimental-strip-types scripts/road-home-engine.test.ts && node --experimental-strip-types scripts/question-import.test.ts && node scripts/security-boundaries.test.cjs",

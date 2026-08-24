@@ -2,9 +2,9 @@
   "name": "Full Circle — Discipleship, Quizzes & Leaderboards",
   "short_name": "Full Circle",
   "description": "Full Circle is a gamified discipleship platform with daily Bible quizzes, streak tracking, tent houses, leaderboards, and scripture meditation.",
-  "id": "/",
-  "start_url": "/?fc-launch=85",
-  "scope": "/",
+  "id": ".",
+  "start_url": "./?fc-launch=86",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
   "orientation": "portrait",
@@ -15,103 +15,103 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "/icons/icon-72.png?v=7",
+      "src": "icons/icon-72.png?v=7",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-96.png?v=7",
+      "src": "icons/icon-96.png?v=7",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-128.png?v=7",
+      "src": "icons/icon-128.png?v=7",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-144.png?v=7",
+      "src": "icons/icon-144.png?v=7",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-152.png?v=7",
+      "src": "icons/icon-152.png?v=7",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-167.png?v=7",
+      "src": "icons/icon-167.png?v=7",
       "sizes": "167x167",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-192.png?v=7",
+      "src": "icons/icon-192.png?v=7",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-384.png?v=7",
+      "src": "icons/icon-384.png?v=7",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png?v=7",
+      "src": "icons/icon-512.png?v=7",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/maskable-72.png?v=7",
+      "src": "icons/maskable-72.png?v=7",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-96.png?v=7",
+      "src": "icons/maskable-96.png?v=7",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-128.png?v=7",
+      "src": "icons/maskable-128.png?v=7",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-144.png?v=7",
+      "src": "icons/maskable-144.png?v=7",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-152.png?v=7",
+      "src": "icons/maskable-152.png?v=7",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-192.png?v=7",
+      "src": "icons/maskable-192.png?v=7",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-384.png?v=7",
+      "src": "icons/maskable-384.png?v=7",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/maskable-512.png?v=7",
+      "src": "icons/maskable-512.png?v=7",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -122,10 +122,10 @@
       "name": "Daily Quiz",
       "short_name": "Quiz",
       "description": "Start today's Bible quiz",
-      "url": "/?action=quiz",
+      "url": "./?action=quiz",
       "icons": [
         {
-          "src": "/icons/icon-96.png?v=7",
+          "src": "icons/icon-96.png?v=7",
           "sizes": "96x96",
           "type": "image/png"
         }
@@ -135,10 +135,10 @@
       "name": "Leaderboard",
       "short_name": "Leaderboard",
       "description": "View the leaderboard rankings",
-      "url": "/?action=leaderboard",
+      "url": "./?action=leaderboard",
       "icons": [
         {
-          "src": "/icons/icon-96.png?v=7",
+          "src": "icons/icon-96.png?v=7",
           "sizes": "96x96",
           "type": "image/png"
         }
@@ -148,10 +148,10 @@
       "name": "Tent House",
       "short_name": "Tent",
       "description": "Visit your tent house",
-      "url": "/?action=tent",
+      "url": "./?action=tent",
       "icons": [
         {
-          "src": "/icons/icon-96.png?v=7",
+          "src": "icons/icon-96.png?v=7",
           "sizes": "96x96",
           "type": "image/png"
         }
@@ -161,10 +161,10 @@
       "name": "Profile",
       "short_name": "Profile",
       "description": "View your profile and streaks",
-      "url": "/?action=profile",
+      "url": "./?action=profile",
       "icons": [
         {
-          "src": "/icons/icon-96.png?v=7",
+          "src": "icons/icon-96.png?v=7",
           "sizes": "96x96",
           "type": "image/png"
         }

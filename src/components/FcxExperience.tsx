@@ -9,6 +9,7 @@ import {
   saveFcxExperience,
 } from '../lib/queries';
 import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
+import { publicAsset } from '../lib/publicAsset';
 import type { FcxExperience, Profile } from '../lib/types';
 
 function readableError(error: unknown, fallback: string) {
@@ -180,7 +181,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             ) : registration ? (
               <span>{registration.display_name.charAt(0).toUpperCase()}</span>
             ) : (
-              <img src="/icons/fullcircle-dove-clean.png" alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
+              <img src={publicAsset('icons/fullcircle-dove-clean.png')} alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
             )}
           </div>
         ))}

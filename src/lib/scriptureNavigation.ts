@@ -26,7 +26,8 @@ export function scriptureTargetUrl(actionKey: string | null | undefined, metadat
   if (target?.narrativeId) params.set('fc-narrative', target.narrativeId);
   if (target?.verseReference) params.set('fc-verse', target.verseReference);
   if (target?.insightId) params.set('fc-insight', target.insightId);
-  return params.size ? `/#${params.toString()}` : '/';
+  const base = import.meta.env.BASE_URL;
+  return params.size ? `${base}#${params.toString()}` : base;
 }
 
 export function storeScriptureTarget(target: ScriptureNavigationTarget | null) {

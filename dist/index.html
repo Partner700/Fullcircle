@@ -32,7 +32,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="/manifest.webmanifest?v=85" />
+  <link rel="manifest" href="/manifest.webmanifest?v=86" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=7" />
@@ -96,16 +96,13 @@
     // React starts.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js?v=85', { updateViaCache: 'none' })
+        .register('/sw.js?v=86', { updateViaCache: 'none' })
         .then(function (registration) { return registration.update(); })
         .catch(function () {});
     }
   </script>
-  <script type="module" crossorigin src="/assets/index-BwzGPl2h.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/icons-Dh6Mq8j6.js">
-  <link rel="modulepreload" crossorigin href="/assets/react-vendor-D66SJ6yT.js">
-  <link rel="modulepreload" crossorigin href="/assets/supabase-wIXNjVJv.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-BvornnNY.css">
+  <script type="module" crossorigin src="/assets/index-DZt2_gOh.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/style-BvornnNY.css">
 </head>
 <body>
   <main id="root"></main>

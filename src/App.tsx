@@ -1,21 +1,15 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { AuthScreen } from './screens/AuthScreen';
+import { CadetApp } from './screens/cadet/CadetApp';
+import { SentryApp } from './screens/sentry/SentryApp';
+import { InstructorApp } from './screens/instructor/InstructorApp';
 import { Dove } from './components/Dove';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { useFrenchUiTranslation } from './lib/frenchUi';
-
-// Role applications are large, independent experiences. Load only the one the
-// signed-in person needs instead of making every user download all three.
-const loadCadetApp = () => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }));
-const loadSentryApp = () => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }));
-const loadInstructorApp = () => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp }));
-const CadetApp = lazy(loadCadetApp);
-const SentryApp = lazy(loadSentryApp);
-const InstructorApp = lazy(loadInstructorApp);
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -51,14 +45,6 @@ export default function App() {
     }, 3000);
     return () => clearInterval(interval);
   }, [loading]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const hintedRole = role || window.localStorage.getItem('full-circle-role-hint');
-    if (hintedRole === 'instructor') void loadInstructorApp();
-    else if (hintedRole === 'sentry') void loadSentryApp();
-    else if (hintedRole === 'cadet') void loadCadetApp();
-  }, [role]);
 
   useEffect(() => {
     document.documentElement.lang = profile?.language_code || 'en';
@@ -154,14 +140,5 @@ export default function App() {
       ? <SentryApp />
       : <CadetApp />;
 
-  return <>{overlays}<Suspense fallback={<RoleLoading />}>{app}</Suspense></>;
-}
-
-function RoleLoading() {
-  return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-navy gap-4">
-      <Dove size={64} className="relative z-10 animate-float" />
-      <p className="relative z-10 text-peri-dim text-sm">Preparing your Full Circle...</p>
-    </div>
-  );
+  return <>{overlays}{app}</>;
 }

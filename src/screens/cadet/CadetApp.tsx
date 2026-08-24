@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell } from '../../components/AppShell';
@@ -7,6 +7,16 @@ import { StreakCelebration } from '../../components/StreakCelebration';
 import { SubscriptionGate, SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { DoveMark } from '../../components/Dove';
 import { CadetDashboard } from './CadetDashboard';
+import { CadetNarrative } from './CadetNarrative';
+import { CadetGame } from './CadetGame';
+import { CadetQuiz } from './CadetQuiz';
+import { CadetLeaderboard } from './CadetLeaderboard';
+import { CadetAwards } from './CadetAwards';
+import { CadetTent } from './CadetTent';
+import { CadetSettings } from './CadetSettings';
+import { CadetStore } from './CadetStore';
+import { CadetArena } from './CadetArena';
+import { CadetStreak } from './CadetStreak';
 import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
@@ -26,24 +36,12 @@ import { formatDenarii, getDayType, getTodayISODate, getDateDaysAgoISO } from '.
 import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
 import type { Tent, TentMember, Profile, StreakProtectionState, UserNotification } from '../../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../../lib/scriptureNavigation';
+import { publicAsset } from '../../lib/publicAsset';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag, Swords,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
 } from 'lucide-react';
-
-// Keep the first dashboard paint light. Each sizeable workspace is downloaded
-// only when the cadet actually opens it.
-const CadetNarrative = lazy(() => import('./CadetNarrative').then((module) => ({ default: module.CadetNarrative })));
-const CadetGame = lazy(() => import('./CadetGame').then((module) => ({ default: module.CadetGame })));
-const CadetQuiz = lazy(() => import('./CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
-const CadetLeaderboard = lazy(() => import('./CadetLeaderboard').then((module) => ({ default: module.CadetLeaderboard })));
-const CadetAwards = lazy(() => import('./CadetAwards').then((module) => ({ default: module.CadetAwards })));
-const CadetTent = lazy(() => import('./CadetTent').then((module) => ({ default: module.CadetTent })));
-const CadetSettings = lazy(() => import('./CadetSettings').then((module) => ({ default: module.CadetSettings })));
-const CadetStore = lazy(() => import('./CadetStore').then((module) => ({ default: module.CadetStore })));
-const CadetArena = lazy(() => import('./CadetArena').then((module) => ({ default: module.CadetArena })));
-const CadetStreak = lazy(() => import('./CadetStreak').then((module) => ({ default: module.CadetStreak })));
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
@@ -70,14 +68,14 @@ const TOPBAR_STATS_CACHE_PREFIX = 'full-circle-topbar-stats';
 
 function notificationSymbolForType(type: string) {
   const key = String(type || '').toLowerCase();
-  if (['message', 'direct_message', 'message_mention'].includes(key)) return '/notification-symbols/message.svg';
-  if (key === 'arena' || key.startsWith('arena_')) return '/notification-symbols/arena.svg';
-  if (key === 'award') return '/notification-symbols/award.svg';
-  if (key === 'streak') return '/notification-symbols/streak.svg';
-  if (['relic', 'reward'].includes(key)) return '/notification-symbols/relic.svg';
-  if (['payment', 'purchase', 'economy'].includes(key)) return '/notification-symbols/payment.svg';
-  if (key === 'challenge') return '/notification-symbols/challenge.svg';
-  return '/notification-symbols/reading.svg';
+  if (['message', 'direct_message', 'message_mention'].includes(key)) return publicAsset('notification-symbols/message.svg');
+  if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
+  if (key === 'award') return publicAsset('notification-symbols/award.svg');
+  if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
+  if (['relic', 'reward'].includes(key)) return publicAsset('notification-symbols/relic.svg');
+  if (['payment', 'purchase', 'economy'].includes(key)) return publicAsset('notification-symbols/payment.svg');
+  if (key === 'challenge') return publicAsset('notification-symbols/challenge.svg');
+  return publicAsset('notification-symbols/reading.svg');
 }
 
 function topbarStatsCacheKey(userId: string) {
@@ -116,8 +114,8 @@ async function showDeviceNotification(notification: UserNotification) {
     const registration = await navigator.serviceWorker?.ready;
     const options = {
       body: notification.body || 'You have a new update.',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-96.png',
+      icon: publicAsset('icons/icon-192.png'),
+      badge: publicAsset('icons/icon-96.png'),
       image: notificationSymbolForType(notification.notification_type),
       tag: `full-circle-${notification.id}`,
       data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },
@@ -1090,8 +1088,7 @@ export function CadetApp() {
       }
       navBadges={notificationBadges}
     >
-      <Suspense fallback={<TabLoading />}>
-        {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
+      {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
         {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
@@ -1112,7 +1109,6 @@ export function CadetApp() {
             }}
           />
         )}
-      </Suspense>
     </AppShell>
     {toastNotification && (
       <button type="button" onClick={() => { const linked = notifications.find((item) => item.persistedId === toastNotification.id); if (linked) void handleNotificationOpen(linked); else setShowNotifications(true); setToastNotification(null); }} className="fixed bottom-5 left-1/2 z-[160] flex w-[min(92vw,25rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border-bright bg-surface/95 px-3.5 py-3 text-left shadow-2xl backdrop-blur-md animate-slide-up">
@@ -1125,8 +1121,4 @@ export function CadetApp() {
     </>
     </SubscriptionAccessProvider>
   );
-}
-
-function TabLoading() {
-  return <div className="py-16 text-center text-sm text-stone animate-fade-in">Loading this space...</div>;
 }

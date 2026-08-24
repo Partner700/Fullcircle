@@ -8,6 +8,7 @@ import { DoveMark } from './Dove';
 import type { UserNotification } from '../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../lib/scriptureNavigation';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
+import { publicAsset } from '../lib/publicAsset';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -22,14 +23,14 @@ function notificationTone(notification: UserNotification) {
 
 function notificationSymbol(type: string) {
   const key = String(type || '').toLowerCase();
-  if (['message', 'direct_message', 'message_mention'].includes(key)) return '/notification-symbols/message.svg';
-  if (key === 'award') return '/notification-symbols/award.svg';
-  if (key === 'arena' || key.startsWith('arena_')) return '/notification-symbols/arena.svg';
-  if (key === 'streak') return '/notification-symbols/streak.svg';
-  if (['relic', 'reward'].includes(key)) return '/notification-symbols/relic.svg';
-  if (['payment', 'purchase', 'economy'].includes(key)) return '/notification-symbols/payment.svg';
-  if (key === 'challenge') return '/notification-symbols/challenge.svg';
-  return '/notification-symbols/reading.svg';
+  if (['message', 'direct_message', 'message_mention'].includes(key)) return publicAsset('notification-symbols/message.svg');
+  if (key === 'award') return publicAsset('notification-symbols/award.svg');
+  if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
+  if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
+  if (['relic', 'reward'].includes(key)) return publicAsset('notification-symbols/relic.svg');
+  if (['payment', 'purchase', 'economy'].includes(key)) return publicAsset('notification-symbols/payment.svg');
+  if (key === 'challenge') return publicAsset('notification-symbols/challenge.svg');
+  return publicAsset('notification-symbols/reading.svg');
 }
 
 function isProtectedMessageNotification(notification: UserNotification) {
@@ -43,8 +44,8 @@ async function showDeviceNotification(notification: UserNotification) {
   if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
   const options = {
     body: notification.body || 'You have a new update.',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-96.png',
+    icon: publicAsset('icons/icon-192.png'),
+    badge: publicAsset('icons/icon-96.png'),
     image: notificationSymbol(notification.notification_type),
     tag: `full-circle-${notification.id}`,
     data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },

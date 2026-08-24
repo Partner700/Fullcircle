@@ -1,7 +1,8 @@
 import { cn } from '../lib/utils';
+import { publicAsset } from '../lib/publicAsset';
 import doveArtwork from '../assets/brand-real/dove-clean.png';
 
-const stableDoveArtwork = '/icons/fullcircle-dove-clean.png';
+const stableDoveArtwork = publicAsset('icons/fullcircle-dove-clean.png');
 
 /**
  * Dove — the supplied Full Circle dove artwork, including its cloud.

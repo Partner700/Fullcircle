@@ -10,23 +10,17 @@ export default defineConfig({
   build: {
     // Enable source maps for production debugging (not inlined to avoid large bundles)
     sourcemap: false,
-    // Chunk splitting strategy
+    // Shared hosting can publish index.html before every split chunk arrives.
+    // Keep the executable application together so a loaded dashboard always
+    // has every workspace required by that release.
     rollupOptions: {
       output: {
-        manualChunks: {
-          // React core
-          'react-vendor': ['react', 'react-dom'],
-          // Supabase
-          supabase: ['@supabase/supabase-js'],
-          // UI icons
-          icons: ['lucide-react'],
-        },
+        inlineDynamicImports: true,
       },
     },
     // Minify with esbuild (faster than terser)
     minify: 'esbuild',
-    // CSS code splitting
-    cssCodeSplit: true,
+    cssCodeSplit: false,
     // Generate manifest.json for asset tracking
     manifest: true,
   },

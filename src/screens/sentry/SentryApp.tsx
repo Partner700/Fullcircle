@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
@@ -35,6 +35,9 @@ import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
+import { CadetArena } from '../cadet/CadetArena';
+import { CadetQuiz } from '../cadet/CadetQuiz';
+import { CadetAwards } from '../cadet/CadetAwards';
 import { DashboardHeroSlideshow, type DashboardHeroSlide } from '../cadet/CadetDashboard';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
@@ -42,10 +45,6 @@ import {
   Camera, ImagePlus, ShoppingBag, FileQuestion, Award, Trophy,
   Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock,
 } from 'lucide-react';
-
-const CadetArena = lazy(() => import('../cadet/CadetArena').then((module) => ({ default: module.CadetArena })));
-const CadetQuiz = lazy(() => import('../cadet/CadetQuiz').then((module) => ({ default: module.CadetQuiz })));
-const CadetAwards = lazy(() => import('../cadet/CadetAwards').then((module) => ({ default: module.CadetAwards })));
 
 type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'game' | 'arena' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
@@ -452,25 +451,19 @@ export function SentryApp() {
       {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} />)}
       {tab === 'arena' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
-          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
-            <CadetArena onBalanceChanged={load} />
-          </Suspense>
+          <CadetArena onBalanceChanged={load} />
         )
       )}
       {tab === 'streak' && <CadetStreak />}
       {tab === 'quiz' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
-          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
-            <CadetQuiz onQuizSubmitted={load} />
-          </Suspense>
+          <CadetQuiz onQuizSubmitted={load} />
         )
       )}
       {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard allowAudienceSwitch />)}
       {tab === 'awards' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
-          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brass" /></div>}>
-            <CadetAwards />
-          </Suspense>
+          <CadetAwards />
         )
       )}
       {tab === 'store' && (
