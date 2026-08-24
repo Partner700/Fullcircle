@@ -16,9 +16,23 @@
   <meta name="msapplication-config" content="/browserconfig.xml" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <link rel="canonical" href="https://fullcircle.partnertai.com/" />
+
+  <script>
+    // Some older home-screen shortcuts were saved with a www hostname. Once
+    // that hostname reaches Hostinger, move it to the single supported origin
+    // before loading the manifest, worker, fonts, or application bundle.
+    if (window.location.hostname.toLowerCase() === 'www.fullcircle.partnertai.com') {
+      var canonicalUrl = new URL(window.location.href);
+      canonicalUrl.protocol = 'https:';
+      canonicalUrl.hostname = 'fullcircle.partnertai.com';
+      canonicalUrl.port = '';
+      window.location.replace(canonicalUrl.toString());
+    }
+  </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="/manifest.webmanifest?v=84" />
+  <link rel="manifest" href="/manifest.webmanifest?v=85" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=7" />
@@ -82,7 +96,7 @@
     // React starts.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js?v=84', { updateViaCache: 'none' })
+        .register('/sw.js?v=85', { updateViaCache: 'none' })
         .then(function (registration) { return registration.update(); })
         .catch(function () {});
     }

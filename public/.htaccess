@@ -1,5 +1,12 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
+  # Full Circle's installed app and shared links use the apex host. Redirect
+  # the legacy www host before the SPA fallback so both old shortcuts and
+  # browser bookmarks converge on one origin.
+  RewriteCond %{HTTP_HOST} ^www\.fullcircle\.partnertai\.com$ [NC]
+  RewriteRule ^ https://fullcircle.partnertai.com%{REQUEST_URI} [R=308,L,NE]
+
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f

@@ -141,24 +141,29 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v84'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '84'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v85'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '85'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '84'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '85'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\('\/index\.html\?fc-connectivity='/);
 assert.match(offlinePage, /window\.location\.replace\('\/index\.html\?fc-recovered='/);
-assert.match(serviceWorkerRegistration, /register\('\/sw\.js\?v=84'/);
-assert.match(staleBundleRecovery, /set\('fc-release', '84'\)/);
-assert.match(releaseCache, /2026-08-24-v84/);
-assert.match(appIndex, /manifest\.webmanifest\?v=84/);
-assert.match(appIndex, /register\('\/sw\.js\?v=84'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\/\?fc-launch=84"/);
+assert.match(serviceWorkerRegistration, /register\('\/sw\.js\?v=85'/);
+assert.match(staleBundleRecovery, /set\('fc-release', '85'\)/);
+assert.match(releaseCache, /2026-08-24-v85/);
+assert.match(appIndex, /manifest\.webmanifest\?v=85/);
+assert.match(appIndex, /register\('\/sw\.js\?v=85'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\/\?fc-launch=85"/);
+assert.match(appIndex, /rel="canonical" href="https:\/\/fullcircle\.partnertai\.com\/"/);
+assert.match(appIndex, /hostname\.toLowerCase\(\) === 'www\.fullcircle\.partnertai\.com'/);
+assert.match(appIndex, /canonicalUrl\.hostname = 'fullcircle\.partnertai\.com'/);
+assert.match(hostingerHeaders, /\^www\\\.fullcircle\\\.partnertai\\\.com\$/);
+assert.match(hostingerHeaders, /https:\/\/fullcircle\.partnertai\.com%\{REQUEST_URI\}/);
 assert.ok(
   hostingerHeaders.lastIndexOf('^(index\\.html|sw\\.js|manifest\\.webmanifest|offline\\.html)$')
     > hostingerHeaders.indexOf('^(?!sw\\.js$).*\\.(js|css)$'),
