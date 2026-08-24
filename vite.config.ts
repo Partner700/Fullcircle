@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Keep production assets relative to the document. The same verified build
+  // can then run at a domain root, a repository subpath, or an emergency CDN
+  // mirror without rebuilding or rewriting its asset URLs.
+  base: './',
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],

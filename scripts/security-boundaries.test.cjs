@@ -245,7 +245,7 @@ assert.ok(!packageManifest.includes('preserve-release-assets'), 'Builds must not
 assert.match(viteConfig, /inlineDynamicImports:\s*true/);
 assert.ok(!rootApp.includes('lazy('), 'Role applications must ship in the executable release.');
 assert.ok(!cadetApp.includes('lazy('), 'Cadet workspaces must not depend on later Hostinger chunk uploads.');
-assert.match(pagesWorkflow, /npm run build -- --base=\/Fullcircle\//);
+assert.match(pagesWorkflow, /npm run build -- --base="\/\$\{\{ github\.event\.repository\.name \}\}\/"/);
 assert.match(pagesWorkflow, /actions\/deploy-pages@v4/);
 assert.match(doveComponent, /stableDoveArtwork = publicAsset\('icons\/fullcircle-dove-clean\.png'\)/);
 assert.match(doveComponent, /fallbackLoaded/);
