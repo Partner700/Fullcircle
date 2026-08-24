@@ -578,6 +578,8 @@ export interface MobileMoneyPayment {
   user_id: string;
   relic_slug: string;
   relic_name: string;
+  purchase_kind?: 'relic' | 'subscription';
+  purchase_metadata?: Record<string, unknown>;
   amount_usd: number;
   amount_local: number;
   currency_code: string;

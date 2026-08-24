@@ -93,6 +93,7 @@ type StoredPayment = {
   id: string;
   user_id: string;
   relic_slug: string;
+  purchase_kind: "relic" | "subscription";
   status: string;
   amount_local: number;
   currency_code: string;
@@ -150,7 +151,7 @@ async function fetchPaymentByReference(reference: string): Promise<StoredPayment
 
   for (const column of columns) {
     const payRes = await fetch(
-      `${supabaseUrl}/rest/v1/mobile_money_payments?${column}=eq.${encodeURIComponent(reference)}&select=id,user_id,relic_slug,relic_name,status,amount_local,currency_code,created_at`,
+      `${supabaseUrl}/rest/v1/mobile_money_payments?${column}=eq.${encodeURIComponent(reference)}&select=id,user_id,relic_slug,relic_name,purchase_kind,status,amount_local,currency_code,created_at`,
       {
         headers: {
           apikey: supabaseServiceKey,
@@ -354,7 +355,10 @@ Deno.serve(async (req: Request) => {
       ).toUpperCase();
       const providerReference = String(verifyData.reference || verifyDetails.reference || reference);
 
-      const finalization = await callPaymentRpc("finalize_campay_payment", {
+      const finalizationRpc = payment.purchase_kind === "subscription"
+        ? "finalize_subscription_payment"
+        : "finalize_campay_payment";
+      const finalization = await callPaymentRpc(finalizationRpc, {
         p_payment_id: payment.id,
         p_provider_reference: providerReference,
         p_verified_amount: verifiedAmount,

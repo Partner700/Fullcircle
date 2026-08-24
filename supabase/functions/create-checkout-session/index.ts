@@ -15,6 +15,24 @@ type Relic = {
   money_price_usd: string | number | null;
 };
 
+type SubscriptionPlan = {
+  id: string;
+  name: string;
+  amount_xaf: string | number;
+  duration_days: number;
+  is_active: boolean;
+};
+
+type CheckoutProduct = {
+  slug: string;
+  name: string;
+  description: string;
+  amountXaf: number;
+  amountUsd: number;
+  purchaseKind: "relic" | "subscription";
+  metadata: Record<string, unknown>;
+};
+
 type CampayCollectResponse = {
   reference?: string;
   external_reference?: string;
@@ -143,8 +161,12 @@ async function finalizePayment(
   providerReference: string | null,
   amountXaf: number,
   verification: Record<string, unknown>,
+  purchaseKind: "relic" | "subscription",
 ): Promise<PaymentFinalization> {
-  const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/finalize_campay_payment`, {
+  const rpcName = purchaseKind === "subscription"
+    ? "finalize_subscription_payment"
+    : "finalize_campay_payment";
+  const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpcName}`, {
     method: "POST",
     headers: {
       apikey: supabaseServiceKey,
@@ -161,7 +183,7 @@ async function finalizePayment(
   });
   if (!rpcRes.ok) {
     const body = await rpcRes.text();
-    throw new Error(`finalize_campay_payment failed: ${rpcRes.status} ${body}`);
+    throw new Error(`${rpcName} failed: ${rpcRes.status} ${body}`);
   }
   return await rpcRes.json();
 }
@@ -345,6 +367,63 @@ function legacyUsdForRecord(relic: Relic, amountXaf: number): number {
   return Number((amountXaf / xafPerUsdForLegacy()).toFixed(2));
 }
 
+async function fetchRelicProduct(relicSlug: string): Promise<CheckoutProduct> {
+  const relicRes = await fetch(
+    `${supabaseUrl}/rest/v1/relic_types?slug=eq.${encodeURIComponent(relicSlug)}&select=id,slug,name,description,money_price_xaf,money_price_usd`,
+    {
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  if (!relicRes.ok) throw new Error(`Failed to fetch relic: ${relicRes.status}`);
+  const relics: Relic[] = await relicRes.json();
+  const relic = relics[0];
+  if (!relic) throw new Error("Relic not found");
+  const amountXaf = moneyPriceXafForRelic(relic);
+  return {
+    slug: relic.slug,
+    name: relic.name,
+    description: relic.description || relic.name,
+    amountXaf,
+    amountUsd: legacyUsdForRecord(relic, amountXaf),
+    purchaseKind: "relic",
+    metadata: {},
+  };
+}
+
+async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct> {
+  const planRes = await fetch(
+    `${supabaseUrl}/rest/v1/subscription_plans?id=eq.${encodeURIComponent(planId)}&is_active=eq.true&select=id,name,amount_xaf,duration_days,is_active`,
+    {
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  if (!planRes.ok) throw new Error(`Failed to fetch subscription plan: ${planRes.status}`);
+  const plans: SubscriptionPlan[] = await planRes.json();
+  const plan = plans[0];
+  if (!plan) throw new Error("The subscription plan is not available.");
+  const amountXaf = Math.round(Number(plan.amount_xaf));
+  if (!Number.isFinite(amountXaf) || amountXaf <= 0) {
+    throw new Error("The subscription plan has no valid checkout price.");
+  }
+  return {
+    slug: `subscription-${plan.id}`,
+    name: plan.name,
+    description: `${plan.name} subscription for ${plan.duration_days} days`,
+    amountXaf,
+    amountUsd: Number((amountXaf / xafPerUsdForLegacy()).toFixed(2)),
+    purchaseKind: "subscription",
+    metadata: { plan_id: plan.id, duration_days: plan.duration_days },
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -353,11 +432,15 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id,
     } = await req.json();
 
-    if (!relic_slug || !user_id) {
-      return new Response(JSON.stringify({ error: "relic_slug and user_id are required" }), {
+    const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
+      ? "subscription"
+      : "relic";
+
+    if (!user_id || (purchaseKind === "relic" && !relic_slug)) {
+      return new Response(JSON.stringify({ error: "A product and user_id are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -371,23 +454,11 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const relicRes = await fetch(
-      `${supabaseUrl}/rest/v1/relic_types?slug=eq.${encodeURIComponent(relic_slug)}&select=id,slug,name,description,money_price_xaf,money_price_usd`,
-      {
-        headers: {
-          apikey: supabaseServiceKey,
-          Authorization: `Bearer ${supabaseServiceKey}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-    if (!relicRes.ok) throw new Error(`Failed to fetch relic: ${relicRes.status}`);
-    const relics: Relic[] = await relicRes.json();
-    const relic = relics[0];
-    if (!relic) throw new Error("Relic not found");
-
-    const amountXaf = moneyPriceXafForRelic(relic);
-    const amountUsd = legacyUsdForRecord(relic, amountXaf);
+    const product = purchaseKind === "subscription"
+      ? await fetchSubscriptionProduct(String(subscription_plan_id || "monthly"))
+      : await fetchRelicProduct(String(relic_slug));
+    const amountXaf = product.amountXaf;
+    const amountUsd = product.amountUsd;
     const displayedAmountXaf = Number(displayed_amount_xaf);
     if (
       Number.isFinite(displayedAmountXaf) &&
@@ -431,7 +502,7 @@ Deno.serve(async (req: Request) => {
         amount: localAmount,
         currency: checkoutCurrency,
         from: customer_phone,
-        description: relic.description || relic.name,
+        description: product.description,
         external_reference: externalReference,
       };
 
@@ -440,8 +511,10 @@ Deno.serve(async (req: Request) => {
       // a transaction to verify and settle.
       const paymentId = await createPaymentRecord({
         user_id,
-        relic_slug: relic.slug,
-        relic_name: relic.name,
+        relic_slug: product.slug,
+        relic_name: product.name,
+        purchase_kind: product.purchaseKind,
+        purchase_metadata: product.metadata,
         amount_usd: amountUsd,
         amount_local: amountXaf,
         currency_code: checkoutCurrency,
@@ -505,6 +578,7 @@ Deno.serve(async (req: Request) => {
           providerReference,
           amountXaf,
           collectJson as Record<string, unknown>,
+          product.purchaseKind,
         );
         if (finalization.newly_granted) {
           await attemptCampayPayout(paymentId, amountXaf, externalReference, token);
@@ -529,8 +603,12 @@ Deno.serve(async (req: Request) => {
         operator: collectJson.operator || null,
         ussd_code: collectJson.ussd_code || null,
         message: isSuccessful(collectJson.status)
-          ? "Payment confirmed. Your relic has been added to your inventory."
-          : collectJson.message || "Payment request sent. Approve the prompt on your phone. The relic will be added after confirmation.",
+          ? product.purchaseKind === "subscription"
+            ? "Payment confirmed. Your Full Circle subscription is active."
+            : "Payment confirmed. Your relic has been added to your inventory."
+          : collectJson.message || (product.purchaseKind === "subscription"
+            ? "Payment request sent. Approve the prompt on your phone. Your subscription will activate after confirmation."
+            : "Payment request sent. Approve the prompt on your phone. The relic will be added after confirmation."),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

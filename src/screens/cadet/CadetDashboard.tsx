@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type TouchEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode, type TouchEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -20,8 +20,9 @@ import {
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
 
-type DashboardHeroSlide =
+export type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
+  | { id: string; kind: 'custom'; content: ReactNode; image?: PanelImageSetting | null; veilClassName?: string }
   | { id: string; kind: 'fcx'; experience: FcxExperience }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
@@ -364,7 +365,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   );
 }
 
-function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange }: {
+export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -461,6 +462,8 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
             && REMINDER_ANNOUNCEMENT_TYPES.has(slide.announcement.announcement_type);
           const slideImage = slide.kind === 'welcome'
             ? panelImages.welcome || STARTUP_WELCOME_ARTWORK
+            : slide.kind === 'custom'
+              ? slide.image
             : slide.kind === 'announcement'
               ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
               : panelImages[slide.kind];
@@ -471,14 +474,16 @@ function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentH
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityOverride={100}
-                  veilClassName={slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'fcx' ? 'fcx-slide-veil' : isReminder ? 'reminder-picture-veil' : slide.kind === 'welcome' ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
+                  veilClassName={slide.kind === 'custom' ? slide.veilClassName || 'welcome-slide-veil' : slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'fcx' ? 'fcx-slide-veil' : isReminder ? 'reminder-picture-veil' : slide.kind === 'welcome' ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
                   modeFilter={false}
                   textGradient={false}
                   simple={slide.kind === 'quote' || slide.kind === 'fcx' || isReminder}
                 />
               )}
               <div className="relative flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className={cn('min-w-0', slide.kind === 'custom' && 'w-full')}>
+                  {slide.kind === 'custom' && slide.content}
+
                   {slide.kind === 'welcome' && (
                     <>
                       <p className="eyebrow mb-1">{dayLabel}</p>

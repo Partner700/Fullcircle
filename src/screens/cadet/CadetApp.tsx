@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/AppShell';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
+import { SubscriptionGate, SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { DoveMark } from '../../components/Dove';
 import { CadetDashboard } from './CadetDashboard';
 import { supabase } from '../../lib/supabase';
@@ -26,7 +27,7 @@ import type { Tent, TentMember, Profile, StreakProtectionState, UserNotification
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../../lib/scriptureNavigation';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
-  Lock, CreditCard, Settings as SettingsIcon, ShoppingBag, Swords,
+  Lock, Settings as SettingsIcon, ShoppingBag, Swords,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
 } from 'lucide-react';
 
@@ -44,6 +45,8 @@ const CadetArena = lazy(() => import('./CadetArena').then((module) => ({ default
 const CadetStreak = lazy(() => import('./CadetStreak').then((module) => ({ default: module.CadetStreak })));
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+
+const PREMIUM_TABS = new Set<Tab>(['game', 'arena', 'quiz', 'leaderboard', 'awards', 'store']);
 
 type CadetNotificationType = 'info' | 'warning' | 'success';
 
@@ -748,6 +751,10 @@ export function CadetApp() {
   }, [loadTentInfo, refreshWallet, loadSubStatus]);
 
   useEffect(() => {
+    if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
+  }, [isExpired, tab]);
+
+  useEffect(() => {
     if (!profile) {
       setReadNotificationIds(new Set());
       return;
@@ -859,8 +866,8 @@ export function CadetApp() {
   };
 
   const handleNavigate = (k: string) => {
-    // Gate premium tabs when trial is expired
-    if (isExpired && (k === 'game' || k === 'quiz' || k === 'leaderboard' || k === 'awards')) {
+    const requestedTab = k as Tab;
+    if (isExpired && PREMIUM_TABS.has(requestedTab)) {
       setTab('subscribe');
       return;
     }
@@ -868,7 +875,7 @@ export function CadetApp() {
       setTab('quiz');
       return;
     }
-    const nextTab = k as Tab;
+    const nextTab = requestedTab;
     const destinationIds = notifications
       .filter((notification) => !notification.read && notification.actionTab === nextTab)
       .map((notification) => notification.id);
@@ -1071,15 +1078,24 @@ export function CadetApp() {
         {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
         {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
-        {tab === 'game' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
-        {tab === 'arena' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
-        {tab === 'quiz' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
+        {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
+        {tab === 'arena' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
+        {tab === 'quiz' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
         {tab === 'tent' && <CadetTent />}
-        {tab === 'leaderboard' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
-        {tab === 'awards' && (isExpired ? <SubscribeGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
-        {tab === 'store' && <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />}
+        {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
+        {tab === 'awards' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
+        {tab === 'store' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />)}
         {tab === 'settings' && <CadetSettings refreshKey={cadetRefreshKey} currentStreak={streakCount} />}
-      {tab === 'subscribe' && <SubscribeScreen subStatus={subStatus} />}
+        {tab === 'subscribe' && (
+          <SubscriptionScreen
+            subStatus={subStatus}
+            onActivated={async (status) => {
+              setSubStatus(status);
+              await refreshCadetState();
+              setTab('dashboard');
+            }}
+          />
+        )}
       </Suspense>
     </AppShell>
     {toastNotification && (
@@ -1096,95 +1112,4 @@ export function CadetApp() {
 
 function TabLoading() {
   return <div className="py-16 text-center text-sm text-stone animate-fade-in">Loading this space...</div>;
-}
-
-function SubscribeGate({ onSubscribe }: { onSubscribe: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
-      <div className="w-16 h-16 rounded-full bg-coral-soft flex items-center justify-center mb-4">
-        <Lock size={32} className="text-coral" />
-      </div>
-      <h2 className="font-display text-xl font-semibold text-ink mb-2">Your free trial has ended</h2>
-      <p className="text-sm text-stone max-w-md mb-6">
-        You can still read the daily narrative and submit meditations. But games, quizzes, denarii, leaderboards, and purchases require an active subscription.
-      </p>
-      <button onClick={onSubscribe} className="btn-primary">
-        <CreditCard size={16} /> Subscribe Now
-      </button>
-    </div>
-  );
-}
-
-function SubscribeScreen({ subStatus }: { subStatus: { status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedMethod, setSelectedMethod] = useState<string>('mobile_money');
-
-  const paymentMethods = [
-    { id: 'mobile_money', label: 'Mobile Money', desc: 'MTN, Airtel, Orange, Moov' },
-    { id: 'bank_transfer', label: 'Bank Transfer', desc: 'Direct bank payment' },
-    { id: 'card', label: 'Card Payment', desc: 'Visa / Mastercard' },
-    { id: 'ussd', label: 'USSD Code', desc: 'Dial a code to pay' },
-  ];
-
-  const handleSubscribe = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const method = paymentMethods.find((item) => item.id === selectedMethod)?.label || 'this method';
-      setError(`${method} subscription checkout is not connected yet. No payment was taken.`);
-    } catch (e: any) {
-      setError(e.message);
-    }
-    setLoading(false);
-  };
-
-  const trialEndsAt = subStatus?.trial_ends_at ? new Date(subStatus.trial_ends_at).getTime() : NaN;
-  const trialDaysLeft = Number.isFinite(trialEndsAt) ? Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000)) : 0;
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-      <div className="card p-6 text-center">
-        <div className="w-14 h-14 rounded-full bg-gold-soft flex items-center justify-center mx-auto mb-4">
-          <CreditCard size={28} className="text-gold" />
-        </div>
-        <h2 className="font-display text-2xl font-semibold text-ink mb-2">Subscription</h2>
-        <p className="text-sm text-stone mb-4">
-          {subStatus?.status === 'trial' && `You're on a free trial — ${trialDaysLeft} days remaining.`}
-          {subStatus?.status === 'active' && 'Your subscription is active.'}
-          {subStatus?.status === 'expired' && 'Your free trial has ended. Subscribe to unlock games, denarii, leaderboards, and more.'}
-        </p>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="font-display font-semibold text-ink mb-4">Choose Payment Method</h3>
-        <div className="space-y-2">
-          {paymentMethods.map((method) => (
-            <button
-              key={method.id}
-              onClick={() => setSelectedMethod(method.id)}
-              className={`w-full flex items-center justify-between p-4 rounded-lg border transition-all text-left ${selectedMethod === method.id ? 'border-gold bg-gold-soft' : 'border-border hover:border-border-bright'}`}
-            >
-              <div>
-                <p className="text-sm font-medium text-ink">{method.label}</p>
-                <p className="text-xs text-stone">{method.desc}</p>
-              </div>
-              <div className={`w-5 h-5 rounded-full border-2 ${selectedMethod === method.id ? 'border-gold bg-gold' : 'border-border'}`} />
-            </button>
-          ))}
-        </div>
-        {error && (
-          <div className="mt-4 p-3 rounded-lg bg-gold-soft border border-gold/30 text-sm text-gold">
-            {error}
-          </div>
-        )}
-        <button onClick={handleSubscribe} disabled={loading} className="btn-primary w-full mt-4 disabled:opacity-50">
-          {loading ? 'Processing…' : 'Continue to Payment'}
-        </button>
-        <p className="text-xs text-stone text-center mt-3">
-          You can still read daily narratives and submit meditations for free.
-        </p>
-      </div>
-    </div>
-  );
 }

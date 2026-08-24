@@ -1879,17 +1879,15 @@ export type CampayPaymentResult = {
   message?: string;
 };
 
-export async function startCampayCheckout(
-  relicSlug: string,
-  userId: string,
-  paymentMethod: string,
-  customerEmail?: string,
-  customerName?: string,
-  customerPhone?: string,
-  otherProvider?: string,
-  paymentNote?: string,
-  displayedAmountXaf?: number,
-): Promise<CampayPaymentResult> {
+export type SubscriptionPlan = {
+  id: string;
+  name: string;
+  amount_xaf: number;
+  duration_days: number;
+  is_active: boolean;
+};
+
+async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
   const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-session`;
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
@@ -1902,18 +1900,7 @@ export async function startCampayCheckout(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      relic_slug: relicSlug,
-      user_id: userId,
-      payment_provider: 'campay',
-      payment_method: paymentMethod,
-      customer_email: customerEmail,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      other_provider: otherProvider,
-      payment_note: paymentNote,
-      displayed_amount_xaf: displayedAmountXaf,
-    }),
+    body: JSON.stringify(payload),
   });
   const rawBody = await res.text();
   let data: any = {};
@@ -1930,6 +1917,68 @@ export async function startCampayCheckout(
     ...data,
     reference: data.reference || data.tx_ref,
   } as CampayPaymentResult;
+}
+
+export async function startCampayCheckout(
+  relicSlug: string,
+  userId: string,
+  paymentMethod: string,
+  customerEmail?: string,
+  customerName?: string,
+  customerPhone?: string,
+  otherProvider?: string,
+  paymentNote?: string,
+  displayedAmountXaf?: number,
+): Promise<CampayPaymentResult> {
+  return requestCampayCheckout({
+    purchase_kind: 'relic',
+    relic_slug: relicSlug,
+    user_id: userId,
+    payment_provider: 'campay',
+    payment_method: paymentMethod,
+    customer_email: customerEmail,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    other_provider: otherProvider,
+    payment_note: paymentNote,
+    displayed_amount_xaf: displayedAmountXaf,
+  });
+}
+
+export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
+  const { data, error } = await supabase
+    .from('subscription_plans')
+    .select('id,name,amount_xaf,duration_days,is_active')
+    .eq('is_active', true)
+    .single();
+  if (error) throw error;
+  return {
+    ...data,
+    amount_xaf: Number(data.amount_xaf),
+    duration_days: Number(data.duration_days),
+  } as SubscriptionPlan;
+}
+
+export async function startSubscriptionCheckout(
+  planId: string,
+  userId: string,
+  paymentMethod: 'mtn_momo' | 'orange_money',
+  customerPhone: string,
+  displayedAmountXaf: number,
+  customerEmail?: string,
+  customerName?: string,
+): Promise<CampayPaymentResult> {
+  return requestCampayCheckout({
+    purchase_kind: 'subscription',
+    subscription_plan_id: planId,
+    user_id: userId,
+    payment_provider: 'campay',
+    payment_method: paymentMethod,
+    customer_email: customerEmail,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    displayed_amount_xaf: displayedAmountXaf,
+  });
 }
 
 export async function verifyCampayPayment(reference: string) {

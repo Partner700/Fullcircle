@@ -13,6 +13,9 @@ const serviceWorker = read('public/sw.js');
 const offlinePage = read('public/offline.html');
 const supabaseConfig = read('supabase/config.toml');
 const campayWebhook = read('supabase/functions/campay-webhook/index.ts');
+const campayCheckout = read('supabase/functions/create-checkout-session/index.ts');
+const campaySubscriptions = read('supabase/migrations/20260824110000_campay_subscriptions.sql');
+const subscriptionScreen = read('src/components/SubscriptionScreen.tsx');
 const calendarUtilities = read('src/lib/utils.ts');
 const toolbarStats = read('supabase/migrations/20260814172000_authoritative_toolbar_stats.sql');
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
@@ -127,15 +130,15 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v80'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '80'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v81'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '81'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '80'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '81'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\('\/index\.html\?fc-connectivity='/);
 assert.match(offlinePage, /window\.location\.replace\('\/index\.html\?fc-recovered='/);
@@ -301,6 +304,23 @@ assert.match(supabaseConfig, /\[functions\.send-push-notification\][\s\S]*?verif
 assert.match(campayWebhook, /requestedPayment\.user_id !== authenticatedUserId/);
 assert.doesNotMatch(campayWebhook, /ageMs >= 35_000/);
 assert.match(campayWebhook, /Keep an unconfirmed transaction pending/);
+assert.match(campayWebhook, /payment\.purchase_kind === "subscription"/);
+assert.match(campayCheckout, /fetchSubscriptionProduct/);
+assert.match(campayCheckout, /displayedAmountXaf[\s\S]*?!== amountXaf/);
+for (const required of [
+  'subscription_payment_deliveries',
+  'finalize_subscription_payment',
+  "purchase_kind <> 'subscription'",
+  'REVOKE INSERT, UPDATE, DELETE ON public.subscriptions FROM anon, authenticated',
+  'ON CONFLICT (payment_id) DO NOTHING',
+]) {
+  assert.ok(campaySubscriptions.includes(required), `Missing subscription payment boundary: ${required}`);
+}
+assert.match(subscriptionScreen, /MTN MoMo/);
+assert.match(subscriptionScreen, /Orange Money/);
+assert.doesNotMatch(subscriptionScreen, /checkout is not connected yet/);
+assert.match(sentryApp, /DashboardHeroSlideshow/);
+assert.match(sentryApp, /kind: 'custom'/);
 
 for (const required of [
   "APP_TIME_ZONE = 'Africa/Douala'",
@@ -349,6 +369,7 @@ for (const migrationName of [
   '20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql',
   '20260823120000_persist_board_movements_all_day.sql',
   '20260824100000_fcx_experience_registration.sql',
+  '20260824110000_campay_subscriptions.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
