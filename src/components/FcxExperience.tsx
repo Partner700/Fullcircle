@@ -48,6 +48,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
+  const displayTitle = visibleExperience.title.replace(/\s*\(FCX\)\s*/gi, ' ').trim() || 'Full Circle Experience';
   const registrations = visibleExperience.registrations || [];
   const occupied = Math.min(registrations.length, visibleExperience.capacity);
   const targetPercent = Math.min(100, (occupied / Math.max(visibleExperience.capacity, 1)) * 100);
@@ -116,29 +117,30 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
 
   return (
     <div className="w-full max-w-2xl pr-1">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="eyebrow mb-1 flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-stone">
-            <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
-            <span>· 12:00 PM</span>
-            {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
-          </p>
+      <div className="flex items-start justify-between gap-5">
+        <div className="flex min-w-0 items-center gap-2.5" aria-label={`${displayTitle}, FCX`}>
+          <img
+            src={publicAsset('icons/fullcircle-dove-clean.png')}
+            alt=""
+            className="h-8 w-8 shrink-0 object-contain drop-shadow-sm"
+          />
+          <span className="max-w-[11rem] text-left text-[11px] font-black uppercase leading-snug text-ink">
+            {displayTitle} <span className="whitespace-nowrap text-[#ffd400] drop-shadow-sm">(FCX)</span>
+          </span>
         </div>
         <div className="flex-shrink-0 text-right">
-          <div className="mb-1 flex items-center justify-end gap-1.5" aria-label="Full Circle Experience, FCX">
-            <img
-              src={publicAsset('icons/fullcircle-dove-clean.png')}
-              alt=""
-              className="h-7 w-7 shrink-0 object-contain drop-shadow-sm"
-            />
-            <span className="max-w-[7.5rem] text-left text-[9px] font-black uppercase leading-tight text-ink">
-              {visibleExperience.title}
-            </span>
-          </div>
           <p className="text-xl font-bold text-ink">{occupied}/{visibleExperience.capacity}</p>
           <p className="text-[10px] font-semibold uppercase text-stone">spaces filled</p>
         </div>
+      </div>
+
+      <div className="mt-4 min-w-0">
+        <p className="eyebrow flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold text-stone">
+          <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
+          <span>· 12:00 PM</span>
+          {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
+        </p>
       </div>
 
       <div className="mt-2.5 inline-flex min-h-12 max-w-full items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
