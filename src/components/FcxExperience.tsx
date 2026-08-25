@@ -141,17 +141,17 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         </div>
       </div>
 
-      <div className="mt-2.5 inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/25 bg-surface/55 px-2.5 py-1.5 shadow-sm backdrop-blur-md">
-        <Clock3 size={14} className="shrink-0 text-brass" />
+      <div className="mt-2.5 inline-flex min-h-12 max-w-full items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
+        <Clock3 size={17} className="shrink-0 text-brass" />
         {eventHasStarted ? (
-          <p className="text-xs font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
+          <p className="text-sm font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
         ) : (
           <>
-            <span className="text-[9px] font-bold uppercase text-stone">Starts in</span>
-            <div className="grid grid-cols-4 gap-1" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
+            <span className="text-[10px] font-bold uppercase text-stone">Starts in</span>
+            <div className="grid grid-cols-4 gap-1.5" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
               {countdown.map((part) => (
-                <span key={part.label} className="min-w-7 text-center text-[10px] font-bold tabular-nums text-ink">
-                  {String(part.value).padStart(2, '0')}<span className="ml-0.5 text-[8px] font-semibold text-stone">{part.shortLabel}</span>
+                <span key={part.label} className="min-w-8 whitespace-nowrap text-center text-base font-black tabular-nums leading-none text-ink">
+                  {String(part.value).padStart(2, '0')}<span className="ml-0.5 text-[9px] font-bold text-stone">{part.shortLabel}</span>
                 </span>
               ))}
             </div>
