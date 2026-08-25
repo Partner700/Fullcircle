@@ -12,6 +12,8 @@ import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
 import { publicAsset } from '../lib/publicAsset';
 import type { FcxExperience, Profile } from '../lib/types';
 
+const FCX_START_HOUR = 12;
+
 function readableError(error: unknown, fallback: string) {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
     return error.message;
@@ -29,7 +31,7 @@ function eventDateLabel(experience: FcxExperience) {
 }
 
 function countdownParts(targetDate: string, nowMs: number) {
-  const remainingSeconds = Math.max(0, Math.floor((getAppDateTimeMs(targetDate) - nowMs) / 1000));
+  const remainingSeconds = Math.max(0, Math.floor((getAppDateTimeMs(targetDate, FCX_START_HOUR) - nowMs) / 1000));
   const days = Math.floor(remainingSeconds / 86400);
   const hours = Math.floor((remainingSeconds % 86400) / 3600);
   const minutes = Math.floor((remainingSeconds % 3600) / 60);
@@ -52,7 +54,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   const seats = Array.from({ length: visibleExperience.capacity }, (_, index) => registrations[index] || null);
   const countdownDate = visibleExperience.event_date || visibleExperience.event_month;
   const eventIsToday = countdownDate === getTodayISODate();
-  const eventHasStarted = getAppDateTimeMs(countdownDate) <= countdownNow;
+  const eventHasStarted = getAppDateTimeMs(countdownDate, FCX_START_HOUR) <= countdownNow;
   const countdown = useMemo(
     () => countdownParts(countdownDate, countdownNow),
     [countdownDate, countdownNow],
@@ -118,12 +120,23 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         <div className="min-w-0">
           <p className="eyebrow mb-1 flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
           <h2 className="font-display text-xl font-semibold leading-tight text-ink sm:text-2xl">{visibleExperience.title}</h2>
-          <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-stone">
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-stone">
             <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
+            <span>· 12:00 PM</span>
             {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
           </p>
         </div>
         <div className="flex-shrink-0 text-right">
+          <div className="mb-1 flex items-center justify-end gap-1.5" aria-label="Full Circle Experience, FCX">
+            <img
+              src={publicAsset('icons/fullcircle-dove-clean.png')}
+              alt=""
+              className="h-7 w-7 shrink-0 object-contain drop-shadow-sm"
+            />
+            <span className="max-w-[6.5rem] text-left text-[9px] font-black uppercase leading-tight text-ink">
+              Full Circle Experience <span className="text-brass">(FCX)</span>
+            </span>
+          </div>
           <p className="text-xl font-bold text-ink">{occupied}/{visibleExperience.capacity}</p>
           <p className="text-[10px] font-semibold uppercase text-stone">spaces filled</p>
         </div>
@@ -131,10 +144,8 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
 
       <div className="mt-2.5 inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/25 bg-surface/55 px-2.5 py-1.5 shadow-sm backdrop-blur-md">
         <Clock3 size={14} className="shrink-0 text-brass" />
-        {eventIsToday ? (
-          <p className="text-xs font-bold text-ink">FCX is today</p>
-        ) : eventHasStarted ? (
-          <p className="text-xs font-bold text-ink">FCX day has arrived</p>
+        {eventHasStarted ? (
+          <p className="text-xs font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
         ) : (
           <>
             <span className="text-[9px] font-bold uppercase text-stone">Starts in</span>
@@ -338,7 +349,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
               <input type="month" className="input-field" value={eventMonth} onChange={(event) => setEventMonth(event.target.value)} />
             </label>
             <label>
-              <span className="mb-1 block text-xs text-stone">Event date</span>
+              <span className="mb-1 block text-xs text-stone">Event date · starts at 12:00 PM</span>
               <input type="date" className="input-field" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
             </label>
             <label className="md:col-span-2">
