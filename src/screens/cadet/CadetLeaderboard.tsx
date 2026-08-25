@@ -255,7 +255,7 @@ function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; v
 
 export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch = false }: { instructorMode?: boolean; allowAudienceSwitch?: boolean } = {}) {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<BoardTab>('leader');
+  const [tab, setTab] = useState<BoardTab>('streak');
   const [audience, setAudience] = useState<BoardAudience>('cadet');
   const [streakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
   const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
@@ -317,6 +317,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       let quizRowsWithHistory: (QuizScoreboardRow & CompetitiveRow)[];
       let rhudeRowsWithHistory: (RhudeBoardRow & CompetitiveRow)[];
       let marksRowsWithHistory: (MarksBoardRow & CompetitiveRow)[];
+      const historyPrefix = `full-circle-board-history-${audience}`;
 
       if (authoritativeMovements.length > 0) {
         streakRowsWithHistory = rowsFromBoardPayload<StreakLeaderboardRow>(authoritativeMovements, 'streak');
@@ -325,6 +326,27 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         quizRowsWithHistory = rowsFromBoardPayload<QuizScoreboardRow>(authoritativeMovements, 'figs');
         rhudeRowsWithHistory = rowsFromBoardPayload<RhudeBoardRow>(authoritativeMovements, 'rhude');
         marksRowsWithHistory = rowsFromBoardPayload<MarksBoardRow>(authoritativeMovements, 'marks');
+
+        // A partial movement payload must never make the primary board vanish.
+        // Recover the live streak rows independently while retaining the other
+        // authoritative boards that did arrive.
+        if (
+          streakRowsWithHistory.length === 0
+          || streakRowsWithHistory.some((row) => !row.user_id || !row.profiles?.display_name)
+        ) {
+          const streakFallback = await Promise.allSettled([
+            withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board recovery'),
+          ]);
+          const streakRowsRaw = streakFallback[0].status === 'fulfilled' ? streakFallback[0].value : [];
+          if (streakRowsRaw.length > 0) {
+            streakRowsWithHistory = hydrateBoardHistory(
+              streakRowsRaw,
+              `${historyPrefix}-streak`,
+              (row) => row.user_id,
+              (row) => Number(row.current_streak ?? row.consistency ?? 0),
+            );
+          }
+        }
       } else {
         // Keep the existing board RPCs as a rollout fallback until the new
         // migration reaches production. Once deployed, phones use one payload.
@@ -344,8 +366,6 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === audience);
         const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === audience);
         const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === audience);
-        const historyPrefix = `full-circle-board-history-${audience}`;
-
         streakRowsWithHistory = hydrateBoardHistory(streakRowsRaw, `${historyPrefix}-streak`, (row) => row.user_id, (row) => Number(row.current_streak ?? row.consistency ?? 0));
         liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `${historyPrefix}-denarii`, (row) => row.user_id, (row) => Number(row.total_denarii ?? 0));
         tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number(row.combined_score ?? 0));
@@ -432,13 +452,11 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     };
   }, [load, scheduleSilentRefresh]);
 
-  if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading challenge boards…</div>;
-
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
     ? [{ key: 'instructor', label: 'Instructor Board', icon: <Cross size={16} /> }]
     : [
-      { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
       { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
+      { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
       { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
       { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
       ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Cross size={16} /> }] : []),
@@ -452,32 +470,45 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     </div>
   );
 
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="card relative overflow-hidden p-3">
-        <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
-        <div className="relative z-10 mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow">Challenge Boards</p>
-            <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {(allowAudienceSwitch || instructorMode) && (
-              <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5" role="group" aria-label="Board audience">
-                <button type="button" onClick={() => { setAudience('cadet'); setTab('leader'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'cadet' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Cadet Boards</button>
-                <button type="button" onClick={() => { setAudience('sentry'); setTab('leader'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'sentry' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Sentry Boards</button>
-                {instructorMode && <button type="button" onClick={() => { setAudience('instructor'); setTab('instructor'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'instructor' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Instructor Boards</button>}
-              </div>
-            )}
-            <span className="badge badge-brass text-[10px]">Camp Stats</span>
-          </div>
+  const boardNavigation = (
+    <div className="card relative overflow-hidden p-3">
+      <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+      <div className="relative z-10 mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="eyebrow">Challenge Boards</p>
+          <h2 className="font-display text-xl font-black text-ink">Competitive tables</h2>
         </div>
-        <div className="relative z-10 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <div className="flex items-center gap-2">
+          {(allowAudienceSwitch || instructorMode) && (
+            <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5" role="group" aria-label="Board audience">
+              <button type="button" onClick={() => { setAudience('cadet'); setTab('streak'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'cadet' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Cadet Boards</button>
+              <button type="button" onClick={() => { setAudience('sentry'); setTab('streak'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'sentry' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Sentry Boards</button>
+              {instructorMode && <button type="button" onClick={() => { setAudience('instructor'); setTab('instructor'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'instructor' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Instructor Boards</button>}
+            </div>
+          )}
+          <span className="badge badge-brass text-[10px]">Camp Stats</span>
+        </div>
+      </div>
+      <div className="relative z-10 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         {tabs.map((item) => (
           <BoardTabButton key={item.key} active={tab === item.key} onClick={() => setTab(item.key)} icon={item.icon} label={item.label} />
         ))}
-        </div>
       </div>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="space-y-5 animate-fade-in">
+        {boardNavigation}
+        <div className="card py-12 text-center text-stone">Loading the Streak Board…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      {boardNavigation}
 
       {instructorMode && audience === 'instructor' && tab === 'instructor' && (
         <div className="space-y-4">
@@ -659,7 +690,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                   if (isPodium && tint) {
                     return (
                       <div
-                        key={row.id}
+                        key={row.id || row.user_id}
                         className={cn(
                           'flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors',
                           row.user_id === profile?.id
@@ -674,7 +705,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className={cn('text-sm font-medium truncate', row.user_id === profile?.id ? 'text-brass' : 'text-ink')}>
-                              {row.profiles.display_name}
+                              {row.profiles?.display_name || 'Camp member'}
                             </p>
                             {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
                           </div>
@@ -694,14 +725,14 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
                   return (
                     <BoardRow
-                      key={row.id}
+                      key={row.id || row.user_id}
                       rank={row.rank}
-                      name={row.profiles.display_name}
+                      name={row.profiles?.display_name || 'Camp member'}
                       value={`${currentStreak}`}
                       houseId={row.tent_house_id || undefined}
                       isCurrentUser={row.user_id === profile?.id}
                       userId={row.user_id}
-                      avatarUrl={row.profiles.avatar_url}
+                      avatarUrl={row.profiles?.avatar_url || null}
                       currentUserId={profile?.id}
                       movement={rankMovement(row as unknown as CompetitiveRow, currentStreak)}
                       isRecord={isNewRecord(row as unknown as CompetitiveRow, currentStreak)}
