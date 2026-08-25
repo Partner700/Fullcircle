@@ -61,8 +61,8 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
       <div className="flex flex-col items-end justify-center text-right leading-none">
         <div className={cn(
           'relative inline-flex min-h-6 min-w-[42px] items-center justify-center gap-1 rounded-md border px-1 py-0.5 text-[11px] font-bold transition-colors',
-          movement !== null && movement !== undefined && movement > 0 ? 'border-sage/55 bg-sage/20 text-sage' :
-          movement !== null && movement !== undefined && movement < 0 ? 'border-coral/55 bg-coral/20 text-coral' :
+          movement !== null && movement !== undefined && movement > 0 ? 'border-[#259c62]/60 bg-[#259c62]/15 text-[#16834d] dark:border-[#69e5a0]/65 dark:bg-[#69e5a0]/15 dark:text-[#82f0b3]' :
+          movement !== null && movement !== undefined && movement < 0 ? 'border-[#d95357]/60 bg-[#d95357]/15 text-[#c43c42] dark:border-[#ff8885]/65 dark:bg-[#ff8885]/15 dark:text-[#ff9d99]' :
           'border-border bg-surface text-ink',
         )}>
           {isRecord && (
@@ -72,13 +72,13 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
           )}
           <span>{value}</span>
           {movement !== null && movement !== undefined && movement > 0 && (
-            <span className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-sage/20" title="Increased">
-              <ArrowUp size={13} strokeWidth={3.25} aria-label="Increased" />
+            <span data-board-movement="up" className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center" title="Increased">
+              <ArrowUp size={15} strokeWidth={3.4} aria-label="Increased" />
             </span>
           )}
           {movement !== null && movement !== undefined && movement < 0 && (
-            <span className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-coral/20" title="Decreased">
-              <ArrowDown size={13} strokeWidth={3.25} aria-label="Decreased" />
+            <span data-board-movement="down" className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center" title="Decreased">
+              <ArrowDown size={15} strokeWidth={3.4} aria-label="Decreased" />
             </span>
           )}
         </div>

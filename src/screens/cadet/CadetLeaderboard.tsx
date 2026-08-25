@@ -8,6 +8,7 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { supabase } from '../../lib/supabase';
 import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
+import { resolveBoardMovement } from '../../lib/boardMovement';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 
@@ -126,28 +127,14 @@ function previousBoardValue(row: CompetitiveRow): number | null {
 }
 
 function rankMovement(row: CompetitiveRow, currentValue?: number): number | null {
-  // The competitive-board RPC latches movement for the whole Douala day.
-  // Prefer that authoritative value so a later live refresh cannot recalculate
-  // an earned arrow back to zero before midnight.
-  if (row.movement !== null && row.movement !== undefined) {
-    const authoritativeMovement = Number(row.movement);
-    if (Number.isFinite(authoritativeMovement)) return Math.sign(authoritativeMovement);
-  }
-
   const previousValue = previousBoardValue(row);
-  if (typeof currentValue === 'number' && previousValue !== null) {
-    if (currentValue > previousValue) return 1;
-    if (currentValue < previousValue) return -1;
-    const previousRank = Number(row.previous_rank ?? row.rank_yesterday);
-    const currentRank = Number(row.rank);
-    if (previousRank && currentRank && previousRank !== currentRank) return previousRank - currentRank;
-    return 0;
-  }
-  const previous = Number(row.previous_rank ?? row.rank_yesterday);
-  const current = Number(row.rank);
-  if (previous && current && previous !== current) return previous - current;
-  if (previous && current) return 0;
-  return null;
+  return resolveBoardMovement({
+    currentValue,
+    previousValue,
+    currentRank: row.rank,
+    previousRank: row.previous_rank ?? row.rank_yesterday,
+    reportedMovement: row.movement,
+  });
 }
 
 function isNewRecord(row: CompetitiveRow, value?: number) {
@@ -233,7 +220,13 @@ function rowsFromBoardPayload<T>(movements: BoardMovementRow[], boardKey: string
       rank: Number(movement.current_rank),
       previous_value: Number(movement.previous_value),
       previous_rank: movement.previous_rank,
-      movement: Number(movement.movement),
+      movement: resolveBoardMovement({
+        currentValue: movement.current_value,
+        previousValue: movement.previous_value,
+        currentRank: movement.current_rank,
+        previousRank: movement.previous_rank,
+        reportedMovement: movement.movement,
+      }),
       is_new_record: Boolean(movement.is_new_record),
     })) as (T & CompetitiveRow)[];
 }

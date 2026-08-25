@@ -57,6 +57,7 @@ const scriptureInsightReactions = read('supabase/migrations/20260821160000_scrip
 const doveComponent = read('src/components/Dove.tsx');
 const boardRow = read('src/components/BoardRow.tsx');
 const cadetLeaderboard = read('src/screens/cadet/CadetLeaderboard.tsx');
+const boardMovementResolver = read('src/lib/boardMovement.ts');
 const boardMovements = read('supabase/migrations/20260821210000_authoritative_board_movements.sql');
 const statFirstBoardMovements = read('supabase/migrations/20260822100000_stat_first_board_movements.sql');
 const saturdayQuizReminders = read('supabase/migrations/20260822110000_saturday_quiz_reminders.sql');
@@ -69,6 +70,7 @@ const persistentBoardMovements = read('supabase/migrations/20260823120000_persis
 const fcxExperienceRegistration = read('supabase/migrations/20260824100000_fcx_experience_registration.sql');
 const atomicStreakSnapshots = read('supabase/migrations/20260824130000_courage_28_and_atomic_streak_snapshots.sql');
 const accountBootstrapAndLiveActivity = read('supabase/migrations/20260825100000_account_bootstrap_and_live_activity.sql');
+const repairedBoardMovements = read('supabase/migrations/20260825110000_repair_board_movement_visibility.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -148,24 +150,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v88'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '88'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v89'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '89'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '88'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '89'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=88`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '88'\)/);
-assert.match(releaseCache, /2026-08-25-v88/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=88/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=88'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=88"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=89`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '89'\)/);
+assert.match(releaseCache, /2026-08-25-v89/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=89/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=89'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=89"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);
@@ -265,11 +267,15 @@ assert.match(persistentBoardMovements, /day_record = snapshot\.day_record OR liv
 assert.match(persistentBoardMovements, /timezone\('Africa\/Douala', now\(\)\)::date/);
 assert.match(cadetLeaderboard, /get_competitive_board_movements/);
 assert.match(cadetLeaderboard, /rowsFromBoardPayload/);
-const rankMovement = cadetLeaderboard.match(/function rankMovement\([\s\S]*?\n\}/)?.[0] || '';
-assert.ok(
-  rankMovement.indexOf('row.movement') < rankMovement.indexOf('previousBoardValue(row)'),
-  'The board must preserve the authoritative all-day movement before applying client fallbacks.',
-);
+assert.match(cadetLeaderboard, /resolveBoardMovement/);
+assert.match(boardMovementResolver, /if \(current > previous\) return 1/);
+assert.match(boardMovementResolver, /if \(rank > priorRank\) return -1/);
+assert.match(boardRow, /data-board-movement="up"/);
+assert.match(boardRow, /data-board-movement="down"/);
+assert.match(repairedBoardMovements, /FOR v_live IN/);
+assert.match(repairedBoardMovements, /WHEN v_live\.current_value > v_live\.previous_value THEN 1/);
+assert.match(repairedBoardMovements, /ELSE snapshot\.day_movement/);
+assert.match(repairedBoardMovements, /timezone\('Africa\/Douala', now\(\)\)::date/);
 assert.match(boardMovements, /CREATE TABLE IF NOT EXISTS public\.challenge_board_daily_snapshots/);
 assert.match(boardMovements, /row_data jsonb/);
 assert.match(boardMovements, /WHEN row\.current_value > COALESCE\(prior\.current_value, saved\.opening_value\) THEN 1/);
@@ -464,6 +470,7 @@ for (const migrationName of [
   '20260824120000_enforce_subscription_feature_access.sql',
   '20260824130000_courage_28_and_atomic_streak_snapshots.sql',
   '20260825100000_account_bootstrap_and_live_activity.sql',
+  '20260825110000_repair_board_movement_visibility.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
