@@ -12,6 +12,7 @@ import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
+import { supabase } from '../../lib/supabase';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
@@ -137,6 +138,40 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   }, [profile, today]);
 
   useEffect(() => { void load(); }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    let refreshTimer: number | null = null;
+
+    const refreshInteractions = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void Promise.allSettled([
+          quotes.length ? fetchDailyQuoteReactions(quotes, profile.id) : Promise.resolve({}),
+          narrative?.verse_of_day ? fetchDailyVerseReactions([narrative.narrative_date], profile.id) : Promise.resolve({}),
+        ]).then(([quoteResult, verseResult]) => {
+          if (cancelled) return;
+          if (quoteResult.status === 'fulfilled') setQuoteReactions(quoteResult.value as Record<string, QuoteReactionState>);
+          if (verseResult.status === 'fulfilled') setVerseReactions(verseResult.value as Record<string, QuoteReactionState>);
+        });
+      }, 120);
+    };
+
+    const channel = supabase
+      .channel(`dashboard_interactions_${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_reactions' }, refreshInteractions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_comments' }, refreshInteractions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_reactions' }, refreshInteractions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_comments' }, refreshInteractions)
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [narrative, profile?.id, quotes]);
 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },

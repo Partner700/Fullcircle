@@ -152,10 +152,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
     let listenerSession: Session | null | undefined;
+    let recoveredSession: Session | null = null;
     const initialise = async () => {
       try {
         const { data } = await waitFor(supabase.auth.getSession(), 8_000, 'Session check');
         if (!active) return;
+        recoveredSession = data.session;
         setSession(data.session);
         if (data.session) {
           await waitFor(loadProfile(data.session.user.id), 8_000, 'Profile loading');
@@ -164,9 +166,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // A slow/offline Supabase request must not strand the app on its loading screen.
         console.warn('Auth initialisation could not complete:', error);
         if (active && !listenerSession) {
-          setSession(null);
-          setProfile(null);
-          setRoleAssignment(null);
+          setSession(recoveredSession);
+          if (!recoveredSession) {
+            setProfile(null);
+            setRoleAssignment(null);
+          }
         }
       } finally {
         if (active) setLoading(false);

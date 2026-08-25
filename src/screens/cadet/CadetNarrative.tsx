@@ -411,6 +411,34 @@ export function CadetNarrative({
   }, [narrative?.id, profile?.id]);
 
   useEffect(() => {
+    if (!narrative?.id || !profile?.id) return;
+    let cancelled = false;
+    let refreshTimer: number | null = null;
+
+    const refreshInsights = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void fetchVerseInsights(narrative.id, profile.id).then((items) => {
+          if (!cancelled) setVerseInsights(items);
+        });
+      }, 120);
+    };
+
+    const channel = supabase
+      .channel(`reading_insights_${narrative.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `narrative_id=eq.${narrative.id}` }, refreshInsights)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_insight_comments' }, refreshInsights)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_insight_reactions' }, refreshInsights)
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [narrative?.id, profile?.id]);
+
+  useEffect(() => {
     const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
     window.addEventListener('full-circle-open-scripture', receiveTarget);
     return () => window.removeEventListener('full-circle-open-scripture', receiveTarget);
@@ -698,11 +726,13 @@ export function CadetNarrative({
 
       {/* ── Scripture text ── */}
       <div
-        className="card reading-glass-panel p-5 animate-slide-up border-border"
+        className="card reading-glass-panel relative isolate overflow-hidden p-5 animate-slide-up border-border"
         style={{
           backdropFilter: 'blur(26px) saturate(1.22)',
         }}
       >
+        <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
+        <div className="relative z-10">
         <div className="flex items-center gap-2 mb-3">
           <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
           <span className="eyebrow text-stone">Scripture</span>
@@ -883,6 +913,7 @@ export function CadetNarrative({
           ))}
         </div>
         <ScrollEdge position="bottom" className="text-brass mt-4" />
+        </div>
       </div>
 
       {/* ── Reflection prompts ── */}

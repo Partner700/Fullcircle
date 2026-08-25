@@ -9,7 +9,9 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
+import { DenariiGainAnimation } from './components/DenariiGainAnimation';
 import { useFrenchUiTranslation } from './lib/frenchUi';
+import { LogOut, RefreshCw } from 'lucide-react';
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -31,8 +33,9 @@ function isPasswordRecoveryUrl() {
 }
 
 export default function App() {
-  const { session, profile, role, configError, loading } = useAuth();
+  const { session, profile, role, configError, loading, refreshProfile, signOut } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
+  const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);
   useFrenchUiTranslation(profile?.language_code);
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
@@ -50,9 +53,33 @@ export default function App() {
     document.documentElement.lang = profile?.language_code || 'en';
   }, [profile?.language_code]);
 
+  useEffect(() => {
+    if (!session || profile || loading) return;
+    let active = true;
+
+    const recover = async () => {
+      if (!active) return;
+      setProfileRecoveryBusy(true);
+      try {
+        await refreshProfile();
+      } catch (error) {
+        console.warn('Account profile recovery is still pending:', error);
+      } finally {
+        if (active) setProfileRecoveryBusy(false);
+      }
+    };
+
+    void recover();
+    const interval = window.setInterval(() => { void recover(); }, 6_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [loading, profile, refreshProfile, session]);
+
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
-  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /></>;
+  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /></>;
 
   if (loading) {
     return (
@@ -112,7 +139,7 @@ export default function App() {
     );
   }
 
-  if (!session || !profile) {
+  if (!session) {
     return (
       <>
         {overlays}
@@ -120,6 +147,32 @@ export default function App() {
           initialMode={passwordRecovery ? 'signin' : 'signup'}
           initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
         />
+      </>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <>
+        {overlays}
+        <main className="min-h-screen bg-navy px-4 py-10 flex items-center justify-center">
+          <section className="card w-full max-w-md p-6 text-center" aria-live="polite">
+            <Dove size={72} className="mx-auto" />
+            <h1 className="mt-4 font-display text-2xl font-bold text-ink">Restoring your account</h1>
+            <p className="mt-2 text-sm leading-relaxed text-stone">
+              You are signed in. Full Circle is reconnecting your camp profile, so you will not be sent back through signup.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <button type="button" className="btn-primary" disabled={profileRecoveryBusy} onClick={() => void refreshProfile()}>
+                <RefreshCw size={16} className={profileRecoveryBusy ? 'animate-spin' : ''} />
+                {profileRecoveryBusy ? 'Restoring...' : 'Retry now'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => void signOut()}>
+                <LogOut size={16} /> Sign out
+              </button>
+            </div>
+          </section>
+        </main>
       </>
     );
   }

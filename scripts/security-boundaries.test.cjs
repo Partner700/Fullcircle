@@ -68,6 +68,7 @@ const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_
 const persistentBoardMovements = read('supabase/migrations/20260823120000_persist_board_movements_all_day.sql');
 const fcxExperienceRegistration = read('supabase/migrations/20260824100000_fcx_experience_registration.sql');
 const atomicStreakSnapshots = read('supabase/migrations/20260824130000_courage_28_and_atomic_streak_snapshots.sql');
+const accountBootstrapAndLiveActivity = read('supabase/migrations/20260825100000_account_bootstrap_and_live_activity.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -147,24 +148,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v87'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '87'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v88'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '88'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '87'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '88'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=87`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '87'\)/);
-assert.match(releaseCache, /2026-08-25-v87/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=87/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=87'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=87"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=88`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '88'\)/);
+assert.match(releaseCache, /2026-08-25-v88/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=88/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=88'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=88"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);
@@ -462,10 +463,28 @@ for (const migrationName of [
   '20260824113000_campay_demo_subscription_price.sql',
   '20260824120000_enforce_subscription_feature_access.sql',
   '20260824130000_courage_28_and_atomic_streak_snapshots.sql',
+  '20260825100000_account_bootstrap_and_live_activity.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
 }
+
+for (const required of [
+  'INSERT INTO public.profiles',
+  "VALUES (v_user_id, 'cadet', 'active'",
+  "publication_table.pubname = 'supabase_realtime'",
+  "'daily_records'",
+  "'denarii_ledger_entries'",
+  "'scripture_verse_insights'",
+]) {
+  assert.ok(accountBootstrapAndLiveActivity.includes(required), `Missing account/live-activity repair: ${required}`);
+}
+
+assert.match(rootApp, /Restoring your account/);
+assert.match(rootApp, /DenariiGainAnimation/);
+assert.match(authContext, /setSession\(recoveredSession\)/);
+assert.equal((cadetNarrative.match(/PanelImageBackdrop image=\{scriptureImage\}/g) || []).length, 2);
+assert.match(cadetApp, /data-denarii-target/);
 
 for (const required of [
   "v_cost integer := 6000",

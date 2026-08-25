@@ -789,3 +789,42 @@
 @media (prefers-reduced-motion: reduce) {
   .sound-meter.is-playing > span { animation: none; transform: scaleY(0.62); }
 }
+
+.denarii-flight-coin {
+  position: fixed;
+  display: inline-flex;
+  color: #f2c94c;
+  opacity: 0;
+  filter: drop-shadow(0 2px 6px rgba(242, 201, 76, 0.48));
+  animation: denarii-flight 1.25s cubic-bezier(0.22, 0.72, 0.22, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.denarii-flight-amount {
+  position: fixed;
+  color: #f6d86b;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-shadow: 0 2px 8px rgba(16, 23, 55, 0.72);
+  transform: translate(-50%, 0);
+  animation: denarii-amount-rise 1.05s ease-out forwards;
+}
+
+@keyframes denarii-flight {
+  0% { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.55) rotate(-12deg); }
+  14% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--denarii-flight-x), var(--denarii-flight-y), 0) scale(0.32) rotate(20deg); }
+}
+
+@keyframes denarii-amount-rise {
+  0% { opacity: 0; transform: translate(-50%, 12px) scale(0.92); }
+  20%, 68% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -42px) scale(1.03); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .denarii-flight-coin { animation-duration: 0.35s; }
+  .denarii-flight-amount { animation-duration: 0.55s; }
+}

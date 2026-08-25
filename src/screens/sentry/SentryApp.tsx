@@ -30,6 +30,7 @@ import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
+import { announceDenariiGain } from '../../lib/denariiAnimation';
 import { CadetGame } from '../cadet/CadetGame';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
@@ -284,15 +285,27 @@ export function SentryApp() {
       void load();
     };
     const refreshOnFocus = () => { refreshVisibleStats(); };
+    const refreshRealtimeStats = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
     const protectionInterval = window.setInterval(refreshVisibleStats, 60_000);
     document.addEventListener('visibilitychange', refreshVisibleStats);
     window.addEventListener('focus', refreshOnFocus);
     window.addEventListener('full-circle-wallet-refresh', refreshOnFocus);
     const channel = supabase
       .channel(`sentry_topbar_${profile.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` }, refreshOnFocus)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          announceDenariiGain(Number((payload.new as { amount?: number }).amount) || 0);
+        }
+        refreshRealtimeStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, refreshRealtimeStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` }, refreshRealtimeStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_reactions' }, refreshRealtimeStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_comments' }, refreshRealtimeStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_reactions' }, refreshRealtimeStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_comments' }, refreshRealtimeStats)
       .subscribe();
     return () => {
       document.removeEventListener('visibilitychange', refreshVisibleStats);
@@ -385,7 +398,7 @@ export function SentryApp() {
             const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets', challenges: 'challenges', subscribe: 'subscribe' };
             if (destination[key]) handleNavigate(destination[key]);
           }} />
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
+          <div data-denarii-target className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
             <Coins size={16} className="text-gold" />
             <span className="font-display font-bold text-gold text-[13px]">
               {sentryDenarii >= 1000 ? `${(sentryDenarii / 1000).toFixed(1)}K` : sentryDenarii}

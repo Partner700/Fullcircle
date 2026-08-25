@@ -37,6 +37,7 @@ import { playNotificationSound, playSoundEffect } from '../../lib/soundscape';
 import type { Tent, TentMember, Profile, StreakProtectionState, UserNotification } from '../../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../../lib/scriptureNavigation';
 import { publicAsset } from '../../lib/publicAsset';
+import { announceDenariiGain } from '../../lib/denariiAnimation';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag, Swords,
@@ -821,13 +822,21 @@ export function CadetApp() {
 
   useEffect(() => {
     if (!profile) return;
-    const refreshCadetWallet = () => { void refreshCadetState(); };
+    const refreshCadetWallet = () => {
+      setCadetRefreshKey((key) => key + 1);
+      void refreshCadetState();
+    };
     const channel = supabase
       .channel(`cadet_wallet_${profile.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'denarii_ledger_entries', filter: `user_id=eq.${profile.id}` },
-        refreshCadetWallet,
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            announceDenariiGain(Number((payload.new as { amount?: number }).amount) || 0);
+          }
+          refreshCadetWallet();
+        },
       )
       .on(
         'postgres_changes',
@@ -1078,7 +1087,7 @@ export function CadetApp() {
             )}
           </div>
           {/* Denarii */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright">
+          <div data-denarii-target className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${denariiTotal.toLocaleString()} Denarii`}>
             <Coins size={16} className="text-gold" />
             <span className="font-display font-bold text-gold text-[13px]">
               {toolbarReady ? (denariiTotal >= 1000 ? `${(denariiTotal / 1000).toFixed(1)}K` : denariiTotal) : '…'}
