@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Clock3, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
+import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
   addFcxRegistration,
   fetchActiveFcxExperience,
   fetchAllProfiles,
   removeFcxRegistration,
   saveFcxExperience,
+  uploadFcxGuestAvatar,
 } from '../lib/queries';
 import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
 import { publicAsset } from '../lib/publicAsset';
@@ -203,6 +205,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
 }
 
 export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => void }) {
+  const guestPhotoInputRef = useRef<HTMLInputElement>(null);
   const defaultMonth = getTodayISODate().slice(0, 7);
   const [experience, setExperience] = useState<FcxExperience | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -213,6 +216,10 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
   const [selectedUserId, setSelectedUserId] = useState('');
   const [paymentSource, setPaymentSource] = useState<'app' | 'external'>('app');
   const [guestName, setGuestName] = useState('');
+  const [guestPhoto, setGuestPhoto] = useState<File | null>(null);
+  const [guestPhotoPreview, setGuestPhotoPreview] = useState('');
+  const [guestCropFile, setGuestCropFile] = useState<File | null>(null);
+  const [guestPhotoTarget, setGuestPhotoTarget] = useState<{ kind: 'new' } | { kind: 'existing'; guestName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -238,6 +245,16 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!guestPhoto) {
+      setGuestPhotoPreview('');
+      return;
+    }
+    const objectUrl = URL.createObjectURL(guestPhoto);
+    setGuestPhotoPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [guestPhoto]);
 
   const registeredUserIds = useMemo(
     () => new Set((experience?.registrations || []).map((entry) => entry.user_id).filter(Boolean)),
@@ -291,17 +308,53 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
     if (!experience || !guestName.trim()) return;
     setSaving(true);
     try {
+      const guestAvatarUrl = guestPhoto
+        ? await uploadFcxGuestAvatar(experience.id, guestPhoto)
+        : null;
       await addFcxRegistration({
         eventId: experience.id,
         guestName: guestName.trim(),
+        guestAvatarUrl,
         paymentSource: 'external',
       });
       setGuestName('');
+      setGuestPhoto(null);
       await load();
     } catch (error: unknown) {
       alert(readableError(error, 'Could not add this external attendee.'));
     }
     setSaving(false);
+  };
+
+  const chooseGuestPhoto = (target: { kind: 'new' } | { kind: 'existing'; guestName: string }) => {
+    setGuestPhotoTarget(target);
+    guestPhotoInputRef.current?.click();
+  };
+
+  const saveGuestCrop = async (file: File) => {
+    if (!experience || !guestPhotoTarget) return;
+    if (guestPhotoTarget.kind === 'new') {
+      setGuestPhoto(file);
+      setGuestCropFile(null);
+      setGuestPhotoTarget(null);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const guestAvatarUrl = await uploadFcxGuestAvatar(experience.id, file);
+      await addFcxRegistration({
+        eventId: experience.id,
+        guestName: guestPhotoTarget.guestName,
+        guestAvatarUrl,
+        paymentSource: 'external',
+      });
+      setGuestCropFile(null);
+      setGuestPhotoTarget(null);
+      await load();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const removeRegistration = async (registrationId: string, displayName: string) => {
@@ -396,6 +449,21 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
               <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
                 <div className="flex items-center gap-2"><UserPlus size={16} className="text-brass" /><p className="text-sm font-semibold text-ink">Unregistered cadet or guest</p></div>
                 <input className="input-field" value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Full name" />
+                <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/40 bg-navy text-gold">
+                    {guestPhotoPreview
+                      ? <img src={guestPhotoPreview} alt="External participant preview" className="h-full w-full object-cover" />
+                      : <ImageIcon size={19} />}
+                  </div>
+                  <button type="button" onClick={() => chooseGuestPhoto({ kind: 'new' })} disabled={saving} className="btn-secondary min-w-0 flex-1 justify-center text-xs">
+                    <Camera size={14} /> {guestPhoto ? 'Change participant photo' : 'Add participant photo'}
+                  </button>
+                  {guestPhoto && (
+                    <button type="button" onClick={() => setGuestPhoto(null)} disabled={saving} className="icon-button h-9 w-9 shrink-0 text-coral" title="Remove participant photo" aria-label="Remove participant photo">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs text-stone">Use this for someone who paid externally but does not have an app account.</p>
                 <button type="button" onClick={addGuest} disabled={saving || !guestName.trim()} className="btn-secondary w-full">
                   <UserPlus size={15} /> Add External Attendee
@@ -408,11 +476,29 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
             <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-2">
               {experience.registrations.map((registration) => (
                 <div key={registration.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold">
-                    {registration.avatar_url
-                      ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
-                      : registration.display_name.charAt(0).toUpperCase()}
-                  </div>
+                  {registration.is_app_member ? (
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold">
+                      {registration.avatar_url
+                        ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
+                        : registration.display_name.charAt(0).toUpperCase()}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => chooseGuestPhoto({ kind: 'existing', guestName: registration.display_name })}
+                      disabled={saving}
+                      className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold"
+                      title="Add or adjust participant photo"
+                      aria-label={`Add or adjust ${registration.display_name}'s photo`}
+                    >
+                      {registration.avatar_url
+                        ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
+                        : registration.display_name.charAt(0).toUpperCase()}
+                      <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-peri text-white shadow-sm">
+                        <Camera size={9} />
+                      </span>
+                    </button>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-ink">{registration.display_name}</p>
                     <p className="text-[10px] text-stone">{registration.is_app_member ? 'App member' : 'External attendee'} · paid {registration.payment_source === 'app' ? 'in app' : 'externally'}</p>
@@ -425,6 +511,34 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
             </div>
           )}
         </>
+      )}
+      <input
+        ref={guestPhotoInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        className="hidden"
+        onChange={(event) => {
+          const selected = event.target.files?.[0];
+          event.target.value = '';
+          if (!selected) return;
+          if (selected.size > 12 * 1024 * 1024) {
+            alert('Choose a participant photo smaller than 12 MB.');
+            return;
+          }
+          setGuestCropFile(selected);
+        }}
+      />
+      {guestCropFile && (
+        <AvatarCropDialog
+          file={guestCropFile}
+          saving={saving}
+          title="Crop participant photo"
+          onCancel={() => {
+            setGuestCropFile(null);
+            setGuestPhotoTarget(null);
+          }}
+          onConfirm={saveGuestCrop}
+        />
       )}
     </div>
   );

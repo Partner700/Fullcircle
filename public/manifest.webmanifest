@@ -3,7 +3,7 @@
   "short_name": "Full Circle",
   "description": "Full Circle is a gamified discipleship platform with daily Bible quizzes, streak tracking, tent houses, leaderboards, and scripture meditation.",
   "id": ".",
-  "start_url": "./?fc-launch=94",
+  "start_url": "./?fc-launch=95",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],

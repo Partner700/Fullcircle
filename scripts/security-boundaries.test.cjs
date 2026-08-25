@@ -68,6 +68,7 @@ const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_au
 const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_verified_streaks_forward.sql');
 const persistentBoardMovements = read('supabase/migrations/20260823120000_persist_board_movements_all_day.sql');
 const fcxExperienceRegistration = read('supabase/migrations/20260824100000_fcx_experience_registration.sql');
+const fcxGuestPhotos = read('supabase/migrations/20260825120000_fcx_guest_photos.sql');
 const fcxExperience = read('src/components/FcxExperience.tsx');
 const profilePhotoEditor = read('src/components/ProfilePhotoEditor.tsx');
 const atomicStreakSnapshots = read('supabase/migrations/20260824130000_courage_28_and_atomic_streak_snapshots.sql');
@@ -99,6 +100,18 @@ assert.match(profilePhotoEditor, /createPortal\(dialog, document\.body\)/);
 assert.match(profilePhotoEditor, /type="range"[\s\S]*aria-label="Profile photo zoom"/);
 assert.match(profilePhotoEditor, /context\.drawImage\(/);
 assert.match(profilePhotoEditor, /await uploadAvatar\(profile\.id, file\)/);
+assert.match(profilePhotoEditor, /fetch\(profile\.avatar_url, \{ cache: 'no-store' \}\)/);
+assert.match(profilePhotoEditor, /Crop and adjust current profile photo/);
+assert.match(fcxExperience, /uploadFcxGuestAvatar/);
+assert.match(fcxExperience, /Crop participant photo/);
+for (const required of [
+  'ADD COLUMN IF NOT EXISTS guest_avatar_url text',
+  "'avatar_url', COALESCE(profile.avatar_url, entry.guest_avatar_url)",
+  'p_guest_avatar_url text DEFAULT NULL',
+  'Only the instructor can add FCX registrations',
+]) {
+  assert.ok(fcxGuestPhotos.includes(required), `Missing FCX guest-photo boundary: ${required}`);
+}
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -162,24 +175,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v94'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '94'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v95'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '95'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '94'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '95'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=94`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '94'\)/);
-assert.match(releaseCache, /2026-08-25-v94/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=94/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=94'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=94"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=95`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '95'\)/);
+assert.match(releaseCache, /2026-08-25-v95/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=95/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=95'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=95"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);
@@ -486,6 +499,7 @@ for (const migrationName of [
   '20260824130000_courage_28_and_atomic_streak_snapshots.sql',
   '20260825100000_account_bootstrap_and_live_activity.sql',
   '20260825110000_repair_board_movement_visibility.sql',
+  '20260825120000_fcx_guest_photos.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);

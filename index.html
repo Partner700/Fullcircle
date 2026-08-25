@@ -32,7 +32,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=94" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=95" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -96,7 +96,7 @@
     // React starts.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('%BASE_URL%sw.js?v=94', { updateViaCache: 'none' })
+        .register('%BASE_URL%sw.js?v=95', { updateViaCache: 'none' })
         .then(function (registration) { return registration.update(); })
         .catch(function () {});
     }

@@ -17,6 +17,7 @@ type AvatarCropDialogProps = {
   saving: boolean;
   onCancel: () => void;
   onConfirm: (file: File) => Promise<void>;
+  title?: string;
 };
 
 type ProfilePhotoEditorProps = {
@@ -46,7 +47,13 @@ function canvasBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
-function AvatarCropDialog({ file, saving, onCancel, onConfirm }: AvatarCropDialogProps) {
+export function AvatarCropDialog({
+  file,
+  saving,
+  onCancel,
+  onConfirm,
+  title = 'Crop profile photo',
+}: AvatarCropDialogProps) {
   const imageRef = useRef<HTMLImageElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -151,7 +158,7 @@ function AvatarCropDialog({ file, saving, onCancel, onConfirm }: AvatarCropDialo
     try {
       await onConfirm(await createCroppedFile());
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'The profile photo could not be saved.');
+      alert(error instanceof Error ? error.message : 'The photo could not be saved.');
     } finally {
       setPreparing(false);
     }
@@ -163,7 +170,7 @@ function AvatarCropDialog({ file, saving, onCancel, onConfirm }: AvatarCropDialo
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Crop size={18} className="shrink-0 text-brass" />
-            <h2 id="profile-photo-crop-title" className="truncate font-display text-lg font-semibold text-ink">Crop profile photo</h2>
+            <h2 id="profile-photo-crop-title" className="truncate font-display text-lg font-semibold text-ink">{title}</h2>
           </div>
           <button type="button" onClick={onCancel} disabled={saving || preparing} className="icon-button h-9 w-9" title="Close" aria-label="Close photo cropper">
             <X size={18} />
@@ -199,7 +206,7 @@ function AvatarCropDialog({ file, saving, onCancel, onConfirm }: AvatarCropDialo
               <img
                 ref={imageRef}
                 src={previewUrl}
-                alt="Profile crop preview"
+                alt="Photo crop preview"
                 draggable={false}
                 onLoad={(event) => {
                   setImageSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
@@ -265,6 +272,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
   const inputRef = useRef<HTMLInputElement>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [loadingCurrent, setLoadingCurrent] = useState(false);
 
   const closeCropper = () => {
     setCropFile(null);
@@ -285,23 +293,70 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
     }
   };
 
+  const editCurrentPhoto = async () => {
+    if (!profile) return;
+    if (!profile.avatar_url) {
+      inputRef.current?.click();
+      return;
+    }
+
+    setLoadingCurrent(true);
+    try {
+      const response = await fetch(profile.avatar_url, { cache: 'no-store' });
+      if (!response.ok) throw new Error('The current profile photo could not be opened.');
+      const blob = await response.blob();
+      const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+      setCropFile(new File([blob], `current-profile-photo.${extension}`, {
+        type: blob.type || 'image/jpeg',
+      }));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'The current profile photo could not be opened.');
+    } finally {
+      setLoadingCurrent(false);
+    }
+  };
+
   return (
     <>
       <div className={cn(
         'relative shrink-0 overflow-visible rounded-full',
         size === 'md' ? 'h-16 w-16' : 'h-20 w-20',
       )}>
-        <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-border-bright bg-peri-soft shadow-sm">
+        <button
+          type="button"
+          onClick={editCurrentPhoto}
+          disabled={!profile || uploading || loadingCurrent}
+          className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-border-bright bg-peri-soft shadow-sm transition-transform hover:scale-[1.02] disabled:opacity-70"
+          title={profile?.avatar_url ? 'Adjust current profile photo' : 'Choose profile photo'}
+          aria-label={profile?.avatar_url ? 'Adjust current profile photo' : 'Choose profile photo'}
+        >
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" />
           ) : (
             fallback || <span className="font-display text-2xl font-bold text-peri">{profile?.display_name?.charAt(0).toUpperCase() || '?'}</span>
           )}
-        </div>
+          {loadingCurrent && (
+            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/45 text-white">
+              <Loader2 size={18} className="animate-spin" />
+            </span>
+          )}
+        </button>
+        {profile?.avatar_url && (
+          <button
+            type="button"
+            onClick={editCurrentPhoto}
+            disabled={uploading || loadingCurrent}
+            className="absolute -bottom-1 -left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-brass text-navy shadow-md transition-transform hover:scale-105 disabled:opacity-60"
+            title="Crop and adjust current photo"
+            aria-label="Crop and adjust current profile photo"
+          >
+            {loadingCurrent ? <Loader2 size={15} className="animate-spin" /> : <Crop size={15} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={!profile || uploading}
+          disabled={!profile || uploading || loadingCurrent}
           className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-peri text-white shadow-md transition-transform hover:scale-105 disabled:opacity-60"
           title="Change profile photo"
           aria-label="Change profile photo"

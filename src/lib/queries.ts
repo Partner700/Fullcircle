@@ -1018,6 +1018,7 @@ export async function addFcxRegistration(input: {
   eventId: string;
   userId?: string | null;
   guestName?: string | null;
+  guestAvatarUrl?: string | null;
   paymentSource: 'app' | 'external';
 }) {
   const { data, error } = await supabase.rpc('add_fcx_registration', {
@@ -1025,6 +1026,7 @@ export async function addFcxRegistration(input: {
     p_user_id: input.userId || null,
     p_guest_name: input.guestName?.trim() || null,
     p_payment_source: input.paymentSource,
+    p_guest_avatar_url: input.guestAvatarUrl || null,
   });
   if (error) throw error;
   return data as string;
@@ -2196,6 +2198,23 @@ export async function uploadAvatar(userId: string, file: File) {
   const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
   if (profileError) throw profileError;
   return publicUrl;
+}
+
+export async function uploadFcxGuestAvatar(eventId: string, file: File) {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!authData.user) throw new Error('Sign in before adding an FCX participant photo.');
+
+  const prepared = await prepareImageUpload(file, { maxDimension: 1024, maxBytes: 8 * 1024 * 1024 });
+  const version = Date.now();
+  const path = `${authData.user.id}/fcx/${eventId}/guest-${version}.${prepared.extension}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
+    upsert: false,
+    contentType: prepared.file.type,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return `${data.publicUrl}?v=${version}`;
 }
 
 export async function uploadTentProfileImage(userId: string, tentId: string, file: File) {
