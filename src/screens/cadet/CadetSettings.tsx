@@ -1,17 +1,18 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchStrictStreak, fetchLedgerTotal, uploadAvatar, getSubscriptionStatus } from '../../lib/queries';
+import { fetchStrictStreak, fetchLedgerTotal, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { AppSelect } from '../../components/AppSelect';
 import { DeleteAccountSection } from '../../components/DeleteAccountSection';
+import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import {
-  User, Phone, Camera, Loader2, Save, Flame, Coins, Award,
+  User, Phone, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
   Cake, Globe2, KeyRound, Languages,
 } from 'lucide-react';
@@ -38,7 +39,6 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
   const [language, setLanguage] = useState(profile?.language_code || 'en');
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState({
     denarii: 0, currentStreak: 0, longestStreak: 0, awardsCount: 0,
     gamesPlayed: 0, quizzesTaken: 0, narrativesRead: 0, relicsOwned: 0,
@@ -46,7 +46,6 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
   const [subStatus, setSubStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [passwordPage, setPasswordPage] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -146,19 +145,6 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
     setSaving(false);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !profile) return;
-    setUploadingAvatar(true);
-    try {
-      await uploadAvatar(profile.id, file);
-      await refreshProfile();
-    } catch (err: any) {
-      alert(err.message || 'Failed to upload avatar');
-    }
-    setUploadingAvatar(false);
-  };
-
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
   if (passwordPage) return <PasswordUpdateFlow email={profile?.email || ''} onDone={() => setPasswordPage(false)} />;
 
@@ -185,25 +171,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
       <div className="card p-5">
         <h4 className="font-display font-semibold text-ink mb-4">Profile</h4>
         <div className="flex items-center gap-4 mb-4">
-          <div className="relative group">
-            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-border bg-surface-2 flex items-center justify-center">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="font-display font-bold text-2xl text-stone">
-                  {profile?.display_name?.charAt(0).toUpperCase() || '?'}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingAvatar}
-              className="absolute inset-0 rounded-full bg-ink/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-            >
-              {uploadingAvatar ? <Loader2 size={20} className="animate-spin text-white" /> : <Camera size={20} className="text-white" />}
-            </button>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-          </div>
+          <ProfilePhotoEditor profile={profile} onUploaded={refreshProfile} />
           <div className="flex-1">
             <p className="font-display font-semibold text-ink text-lg">{profile?.display_name}</p>
             <p className="text-sm text-stone">{profile?.email}</p>

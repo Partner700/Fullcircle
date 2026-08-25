@@ -17,6 +17,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { FcxExperienceManager } from '../../components/FcxExperience';
+import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -3553,8 +3554,13 @@ function InstructorSettings({ profile, tents, members }: {
 
       <div className="card p-4 space-y-3">
         <h4 className="font-display font-semibold text-ink">Your Profile</h4>
-        <p className="text-sm text-stone">{profile?.display_name}</p>
-        <p className="text-sm text-stone">{profile?.email}</p>
+        <div className="flex items-center gap-4">
+          <ProfilePhotoEditor profile={profile} onUploaded={refreshProfile} />
+          <div className="min-w-0">
+            <p className="truncate font-display text-lg font-semibold text-ink">{profile?.display_name}</p>
+            <p className="truncate text-sm text-stone">{profile?.email}</p>
+          </div>
+        </div>
         <div>
           <label className="text-xs text-stone block mb-1">WhatsApp Number (for cadets/sentries to contact you)</label>
           <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />

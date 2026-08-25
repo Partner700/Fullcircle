@@ -69,6 +69,7 @@ const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_
 const persistentBoardMovements = read('supabase/migrations/20260823120000_persist_board_movements_all_day.sql');
 const fcxExperienceRegistration = read('supabase/migrations/20260824100000_fcx_experience_registration.sql');
 const fcxExperience = read('src/components/FcxExperience.tsx');
+const profilePhotoEditor = read('src/components/ProfilePhotoEditor.tsx');
 const atomicStreakSnapshots = read('supabase/migrations/20260824130000_courage_28_and_atomic_streak_snapshots.sql');
 const accountBootstrapAndLiveActivity = read('supabase/migrations/20260825100000_account_bootstrap_and_live_activity.sql');
 const repairedBoardMovements = read('supabase/migrations/20260825110000_repair_board_movement_visibility.sql');
@@ -91,7 +92,12 @@ for (const required of [
 assert.match(fcxExperience, /const FCX_START_HOUR = 12/);
 assert.match(fcxExperience, /getAppDateTimeMs\(countdownDate, FCX_START_HOUR\)/);
 assert.match(fcxExperience, /fullcircle-dove-clean\.png/);
-assert.match(fcxExperience, /Full Circle Experience <span className="text-brass">\(FCX\)<\/span>/);
+assert.match(fcxExperience, /fullcircle-dove-clean\.png[\s\S]*\{visibleExperience\.title\}/);
+assert.doesNotMatch(fcxExperience, /<h2[^>]*>\{visibleExperience\.title\}<\/h2>/);
+assert.match(profilePhotoEditor, /createPortal\(dialog, document\.body\)/);
+assert.match(profilePhotoEditor, /type="range"[\s\S]*aria-label="Profile photo zoom"/);
+assert.match(profilePhotoEditor, /context\.drawImage\(/);
+assert.match(profilePhotoEditor, /await uploadAvatar\(profile\.id, file\)/);
 
 for (const required of [
   "v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id",
@@ -155,24 +161,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v91'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '91'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v92'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '92'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '91'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '92'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=91`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '91'\)/);
-assert.match(releaseCache, /2026-08-25-v91/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=91/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=91'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=91"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=92`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '92'\)/);
+assert.match(releaseCache, /2026-08-25-v92/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=92/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=92'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=92"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);

@@ -119,7 +119,6 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="eyebrow mb-1 flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
-          <h2 className="font-display text-xl font-semibold leading-tight text-ink sm:text-2xl">{visibleExperience.title}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold text-stone">
             <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
             <span>· 12:00 PM</span>
@@ -133,8 +132,8 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
               alt=""
               className="h-7 w-7 shrink-0 object-contain drop-shadow-sm"
             />
-            <span className="max-w-[6.5rem] text-left text-[9px] font-black uppercase leading-tight text-ink">
-              Full Circle Experience <span className="text-brass">(FCX)</span>
+            <span className="max-w-[7.5rem] text-left text-[9px] font-black uppercase leading-tight text-ink">
+              {visibleExperience.title}
             </span>
           </div>
           <p className="text-xl font-bold text-ink">{occupied}/{visibleExperience.capacity}</p>

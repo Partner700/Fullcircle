@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, uploadAvatar, fetchStrictStreak, fetchQuizScoreboard, fetchRhudeBoard, fetchMarksBoard } from '../lib/queries';
+import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, fetchStrictStreak, fetchQuizScoreboard, fetchRhudeBoard, fetchMarksBoard } from '../lib/queries';
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
@@ -16,7 +16,8 @@ import {
 import { TentHouseBadge } from './TentHouseSymbol';
 import { AppSelect } from './AppSelect';
 import { DeleteAccountSection } from './DeleteAccountSection';
-import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Camera, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
+import { ProfilePhotoEditor } from './ProfilePhotoEditor';
+import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -33,7 +34,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
     denarii: 0, streak: 0, longestStreak: 0, awards: [], relics: 0, figs: 0, rhudes: 0, marks: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showWaMsg, setShowWaMsg] = useState(false);
   const [waMsg, setWaMsg] = useState('');
   const [passwordPage, setPasswordPage] = useState(false);
@@ -160,34 +160,12 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       {/* Profile header card */}
       <div className="card p-6 animate-slide-up">
         <div className="flex items-center gap-4 mb-5">
-          <div className="relative w-16 h-16 rounded-2xl overflow-hidden border border-border-bright bg-peri-soft flex items-center justify-center flex-shrink-0">
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt={profile?.display_name} className="w-full h-full object-cover" />
-            ) : (
-              <RoleIcon size={32} className="text-peri" />
-            )}
-            <button
-              onClick={() => document.getElementById('avatar-upload-input')?.click()}
-              className="absolute bottom-0 right-0 w-6 h-6 rounded-tl-lg bg-peri text-white flex items-center justify-center"
-              title="Upload photo"
-            >
-              <Camera size={12} />
-            </button>
-            <input
-              id="avatar-upload-input"
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file || !profile) return;
-                setUploadingAvatar(true);
-                try { await uploadAvatar(profile.id, file); await refreshProfile(); await load(); } catch (err: any) { alert(err.message || 'Upload failed'); }
-                setUploadingAvatar(false);
-              }}
-            />
-            {uploadingAvatar && <div className="absolute inset-0 bg-ink/50 flex items-center justify-center"><Loader2 size={16} className="animate-spin text-white" /></div>}
-          </div>
+          <ProfilePhotoEditor
+            profile={profile}
+            size="md"
+            fallback={<RoleIcon size={32} className="text-peri" />}
+            onUploaded={async () => { await refreshProfile(); await load(); }}
+          />
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-2xl text-peri truncate">{profile?.display_name}</h2>
             <p className="text-peri-dim text-sm flex items-center gap-1.5 mt-0.5">
