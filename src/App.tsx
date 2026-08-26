@@ -144,7 +144,7 @@ export default function App() {
       <>
         {overlays}
         <AuthScreen
-          initialMode={passwordRecovery ? 'signin' : 'signup'}
+          initialMode="signin"
           initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
         />
       </>

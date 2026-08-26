@@ -180,6 +180,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, sess) => {
       listenerSession = sess;
+      // A retained-session replacement can emit a late SIGNED_OUT/INITIAL_SESSION
+      // event while signIn is already establishing the requested account. The
+      // successful password session is authoritative during that handoff.
+      if (!sess && authOperationRef.current) return;
       if (event === 'INITIAL_SESSION') {
         if (!active) return;
         if (!sess) {
@@ -242,15 +246,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileRef.current = null;
     setRoleAssignment(null);
     try {
-      // Only close an actual retained session. Removing Supabase storage while
-      // its mobile auth client is active can race Safari's storage lock.
-      const existing = await waitFor(supabase.auth.getSession(), 5_000, 'Previous session check');
-      if (existing.data.session) {
-        await waitFor(supabase.auth.signOut({ scope: 'local' }), 5_000, 'Previous session close');
-      } else {
-        clearLocalAuthStorage();
-      }
-
+      // signInWithPassword replaces any retained local session atomically.
+      // Signing out first creates a race where a delayed SIGNED_OUT event can
+      // erase the new session after a successful login on slower devices.
       const { data, error } = await waitFor(
         supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
         20_000,

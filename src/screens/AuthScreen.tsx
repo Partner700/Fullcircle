@@ -14,7 +14,7 @@ const VERSE_FRAGMENTS = [
 ];
 
 export function AuthScreen({
-  initialMode = 'signup',
+  initialMode = 'signin',
   initialNotice,
 }: {
   initialMode?: 'signin' | 'signup';
