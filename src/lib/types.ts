@@ -690,9 +690,19 @@ export interface MarksBoardRow {
   tent_name: string | null;
   tent_house_id: string | null;
   total_denarii: number;
+  qualifying_denarii?: number;
+  talents?: number;
   total_figs: number;
   current_streak: number;
   rhudes: number;
   marks: number;
   rank: number;
+}
+
+export interface FullCircleEconomyRules {
+  streaks_per_mark: number;
+  denarii_per_talent: number;
+  talents_per_mark: number;
+  rhudes_per_mark: number;
+  figs_per_mark: number;
 }

@@ -37,7 +37,9 @@ export type RoadHomePlayer = {
   startOffset: number;
   isBot: boolean;
   forfeited?: boolean;
-  denarii: number;
+  matchDenarii: number;
+  /** @deprecated Compatibility with public states from older matches. */
+  denarii?: number;
   pawns: RoadHomePawn[];
   relics: string[];
   finishedRank: number | null;
@@ -47,8 +49,12 @@ export type RoadHomePlayer = {
     inheritedExpired: number;
     captured: number;
     lost: number;
-    denariiEarned: number;
-    denariiSpent: number;
+    matchDenariiEarned: number;
+    matchDenariiSpent: number;
+    /** @deprecated Compatibility with public states from older matches. */
+    denariiEarned?: number;
+    /** @deprecated Compatibility with public states from older matches. */
+    denariiSpent?: number;
     relicsFound: number;
     relicsUsed: number;
     prisonEscapes: number;
@@ -97,7 +103,7 @@ export type RoadHomeState = {
   activePrisonPawnId: string | null;
   challengeQueue: RoadHomeChallenge[];
   pendingSurprise: {
-    category: 'question' | 'verse' | 'denarii' | 'relic';
+    category: 'question' | 'verse' | 'match_denarii' | 'relic' | 'denarii';
     title: string;
     detail: string;
     reward?: number;

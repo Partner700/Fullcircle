@@ -3,6 +3,8 @@ import {
   applyRoadHomeCommand,
   createRoadHomeGame,
   legalPawnIds,
+  normalizeRoadHomeEconomyState,
+  publicRoadHomeState,
   ROAD_HOME_CONFIG,
   type RoadHomeState,
 } from '../supabase/functions/_shared/road-home-engine.ts';
@@ -24,19 +26,29 @@ function makeSelectable(state: RoadHomeState, value: number, pawnId: string) {
   state.moveContinuation = 'END_TURN';
 }
 
-// Correct normal question: roll 4, earn 10 scaled Denarii, then move four.
+assert.equal(ROAD_HOME_CONFIG.startingMatchDenarii, 50);
+assert.deepEqual(ROAD_HOME_CONFIG.rewards, {
+  ownQuestion: 10,
+  inheritedQuestion: 20,
+  inheritedPenalty: 20,
+  capture: 30,
+  pawnHome: 40,
+  firstPlace: 100,
+});
+
+// Correct normal question: roll 4, earn 10 Match Denarii, then move four.
 {
   let state = game();
   const player = state.players[0];
   player.pawns[0].progress = 0;
-  const before = player.denarii;
+  const before = player.matchDenarii;
   state = applyRoadHomeCommand(state, player.id, { action: 'ROLL' }, [], fixed(0.51));
   assert.equal(state.diceValue, 4);
   assert.equal(state.currentQuestion?.timerSeconds, 14);
   const answer = state.currentQuestion!.correctAnswer;
   state = applyRoadHomeCommand(state, player.id, { action: 'ANSWER', answer }, [], fixed(0.1));
   assert.equal(state.phase, 'SELECTING_PAWN');
-  assert.equal(state.players[0].denarii, before + ROAD_HOME_CONFIG.rewards.ownQuestion);
+  assert.equal(state.players[0].matchDenarii, before + ROAD_HOME_CONFIG.rewards.ownQuestion);
   state = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: player.pawns[0].id }, [], fixed(0.1));
   assert.equal(state.players[0].pawns[0].progress, 4);
 }
@@ -97,7 +109,7 @@ function makeSelectable(state: RoadHomeState, value: number, pawnId: string) {
   assert.deepEqual(legalPawnIds(state, player.id, 2), [player.pawns[0].id]);
 }
 
-// Capture returns a single unsafe opponent pawn to base and awards 30 Denarii.
+// Capture returns a single unsafe opponent pawn to base and awards 30 Match Denarii.
 {
   let state = game();
   const attacker = state.players[0];
@@ -105,11 +117,11 @@ function makeSelectable(state: RoadHomeState, value: number, pawnId: string) {
   attacker.pawns[0].progress = 0;
   const targetGlobal = (attacker.startOffset + 3) % 52;
   victim.pawns[0].progress = (targetGlobal - victim.startOffset + 52) % 52;
-  const before = attacker.denarii;
+  const before = attacker.matchDenarii;
   makeSelectable(state, 3, attacker.pawns[0].id);
   state = applyRoadHomeCommand(state, attacker.id, { action: 'MOVE', pawnId: attacker.pawns[0].id }, [], fixed(0.1));
   assert.equal(state.players[1].pawns[0].progress, -1);
-  assert.equal(state.players[0].denarii, before + ROAD_HOME_CONFIG.rewards.capture);
+  assert.equal(state.players[0].matchDenarii, before + ROAD_HOME_CONFIG.rewards.capture);
 }
 
 // Two enemy pawns form a blockade that cannot be crossed.
@@ -123,6 +135,25 @@ function makeSelectable(state: RoadHomeState, value: number, pawnId: string) {
   blocker.pawns[0].progress = blockerProgress;
   blocker.pawns[1].progress = blockerProgress;
   assert.deepEqual(legalPawnIds(state, mover.id, 4), []);
+}
+
+// Private state upgrades old temporary Denarii without changing the amount.
+{
+  const legacy = game() as RoadHomeState;
+  const expected = legacy.players[0].matchDenarii;
+  delete (legacy.players[0] as any).matchDenarii;
+  (legacy.players[0] as any).denarii = expected;
+  delete (legacy.players[0].stats as any).matchDenariiEarned;
+  delete (legacy.players[0].stats as any).matchDenariiSpent;
+  (legacy.players[0].stats as any).denariiEarned = 12;
+  (legacy.players[0].stats as any).denariiSpent = 4;
+  const normalized = normalizeRoadHomeEconomyState(legacy);
+  assert.equal(normalized.players[0].matchDenarii, expected);
+  assert.equal(normalized.players[0].stats.matchDenariiEarned, 12);
+  assert.equal(normalized.players[0].stats.matchDenariiSpent, 4);
+  assert.equal(normalized.players[0].denarii, undefined);
+  const publicState = publicRoadHomeState(normalized);
+  assert.equal(publicState.players[0].denarii, expected, 'cached old clients receive a read-only public alias');
 }
 
 console.log('Road Home engine acceptance tests passed.');

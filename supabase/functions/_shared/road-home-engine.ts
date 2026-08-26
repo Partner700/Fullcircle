@@ -3,7 +3,7 @@ export const ROAD_HOME_CONFIG = {
   homeLaneLength: 6,
   finalHome: 58,
   maxBonusRolls: 2,
-  startingDenarii: 50,
+  startingMatchDenarii: 50,
   rewards: {
     ownQuestion: 10,
     inheritedQuestion: 20,
@@ -68,8 +68,12 @@ export type RoadHomeStats = {
   inheritedExpired: number;
   captured: number;
   lost: number;
-  denariiEarned: number;
-  denariiSpent: number;
+  matchDenariiEarned: number;
+  matchDenariiSpent: number;
+  /** @deprecated Compatibility for matches saved before economy normalization. */
+  denariiEarned?: number;
+  /** @deprecated Compatibility for matches saved before economy normalization. */
+  denariiSpent?: number;
   relicsFound: number;
   relicsUsed: number;
   prisonEscapes: number;
@@ -84,7 +88,9 @@ export type RoadHomePlayer = {
   startOffset: number;
   isBot: boolean;
   forfeited?: boolean;
-  denarii: number;
+  matchDenarii: number;
+  /** @deprecated Compatibility for matches saved before economy normalization. */
+  denarii?: number;
   pawns: RoadHomePawn[];
   relics: string[];
   finishedRank: number | null;
@@ -112,7 +118,7 @@ export type RoadHomeEvent = {
 };
 
 export type RoadHomeSurprise = {
-  category: 'question' | 'verse' | 'denarii' | 'relic';
+  category: 'question' | 'verse' | 'match_denarii' | 'relic' | 'denarii';
   title: string;
   detail: string;
   reward?: number;
@@ -211,7 +217,7 @@ function uid(prefix = 'road-home') {
 }
 
 function stats(): RoadHomeStats {
-  return { correct: 0, inheritedClaimed: 0, inheritedExpired: 0, captured: 0, lost: 0, denariiEarned: 0, denariiSpent: 0, relicsFound: 0, relicsUsed: 0, prisonEscapes: 0, totalMovement: 0 };
+  return { correct: 0, inheritedClaimed: 0, inheritedExpired: 0, captured: 0, lost: 0, matchDenariiEarned: 0, matchDenariiSpent: 0, relicsFound: 0, relicsUsed: 0, prisonEscapes: 0, totalMovement: 0 };
 }
 
 function addEvent(state: RoadHomeState, type: string, message: string, playerId?: string | null) {
@@ -219,13 +225,43 @@ function addEvent(state: RoadHomeState, type: string, message: string, playerId?
   state.eventLog = state.eventLog.slice(-100);
 }
 
-function addDenarii(state: RoadHomeState, player: RoadHomePlayer, amount: number, reason: string) {
-  const before = player.denarii;
-  player.denarii = Math.max(0, Math.min(9990, player.denarii + amount));
-  const actual = player.denarii - before;
-  if (actual >= 0) player.stats.denariiEarned += actual;
-  else player.stats.denariiSpent += Math.abs(actual);
-  addEvent(state, actual >= 0 ? 'DENARII_EARNED' : 'DENARII_SPENT', `${player.name} ${actual >= 0 ? 'earned' : 'spent'} ${Math.abs(actual)} denarii: ${reason}.`, player.id);
+function addMatchDenarii(state: RoadHomeState, player: RoadHomePlayer, amount: number, reason: string) {
+  const before = player.matchDenarii;
+  player.matchDenarii = Math.max(0, Math.min(9990, player.matchDenarii + amount));
+  const actual = player.matchDenarii - before;
+  if (actual >= 0) player.stats.matchDenariiEarned += actual;
+  else player.stats.matchDenariiSpent += Math.abs(actual);
+  addEvent(state, actual >= 0 ? 'MATCH_DENARII_EARNED' : 'MATCH_DENARII_SPENT', `${player.name} ${actual >= 0 ? 'earned' : 'spent'} ${Math.abs(actual)} Match Denarii: ${reason}.`, player.id);
+}
+
+export function normalizeRoadHomeEconomyState(stateInput: RoadHomeState): RoadHomeState {
+  const state = structuredClone(stateInput) as RoadHomeState;
+  state.players = (state.players || []).map((player) => {
+    const legacyStats = player.stats || stats();
+    const matchDenarii = Number.isFinite(Number(player.matchDenarii))
+      ? Number(player.matchDenarii)
+      : Number.isFinite(Number(player.denarii))
+        ? Number(player.denarii)
+        : ROAD_HOME_CONFIG.startingMatchDenarii;
+    const normalizedPlayer: RoadHomePlayer = {
+      ...player,
+      matchDenarii: Math.max(0, Math.min(9990, matchDenarii)),
+      stats: {
+        ...legacyStats,
+        matchDenariiEarned: Number(legacyStats.matchDenariiEarned ?? legacyStats.denariiEarned ?? 0),
+        matchDenariiSpent: Number(legacyStats.matchDenariiSpent ?? legacyStats.denariiSpent ?? 0),
+      },
+    };
+    delete normalizedPlayer.denarii;
+    delete normalizedPlayer.stats.denariiEarned;
+    delete normalizedPlayer.stats.denariiSpent;
+    return normalizedPlayer;
+  });
+  if (state.pendingSurprise?.category === 'denarii') {
+    state.pendingSurprise.category = 'match_denarii';
+    state.pendingSurprise.detail = state.pendingSurprise.detail.replace(/\bdenarii\b/gi, 'Match Denarii');
+  }
+  return state;
 }
 
 function activePlayer(state: RoadHomeState) {
@@ -441,7 +477,7 @@ function finishGameIfReady(state: RoadHomeState, player: RoadHomePlayer) {
     state.rankings.push(player.id);
     if (player.finishedRank === 1) {
       state.winnerId = player.id;
-      addDenarii(state, player, ROAD_HOME_CONFIG.rewards.firstPlace, 'first place');
+      addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.firstPlace, 'first place');
     }
     addEvent(state, 'PLAYER_FINISHED', `${player.name} finished in position ${player.finishedRank}.`, player.id);
   }
@@ -459,7 +495,7 @@ function finishGameIfReady(state: RoadHomeState, player: RoadHomePlayer) {
 }
 
 export function forfeitRoadHomePlayer(stateInput: RoadHomeState, playerId: string) {
-  const state = structuredClone(stateInput) as RoadHomeState;
+  const state = normalizeRoadHomeEconomyState(stateInput);
   if (state.phase === 'GAME_OVER') return state;
   const playerIndex = state.players.findIndex((player) => player.id === playerId);
   if (playerIndex < 0) throw new Error('That player is not in this Road Home match.');
@@ -510,12 +546,12 @@ function drawPrisonSentence(random: RandomFn) {
 
 function drawSurprise(random: RandomFn): RoadHomeSurprise {
   const value = random();
-  if (value < 0.35) return { category: 'question', title: 'Wisdom at the Crossroads', detail: 'Answer an extra Bible question for 30 denarii.', reward: 30 };
-  if (value < 0.6) return { category: 'verse', title: 'Speak the Word', detail: 'Complete a Scripture challenge for 50 denarii.', reward: 50 };
+  if (value < 0.35) return { category: 'question', title: 'Wisdom at the Crossroads', detail: 'Answer an extra Bible question for 30 Match Denarii.', reward: 30 };
+  if (value < 0.6) return { category: 'verse', title: 'Speak the Word', detail: 'Complete a Scripture challenge for 50 Match Denarii.', reward: 50 };
   if (value < 0.85) {
     const amounts = [20, 20, 20, 20, 40, 40, 40, 60, 60, 80];
     const reward = amounts[Math.floor(random() * amounts.length)];
-    return { category: 'denarii', title: reward >= 80 ? 'Treasury' : reward >= 60 ? 'Abundance' : reward >= 40 ? 'Provision' : 'Small Blessing', detail: `Receive ${reward} denarii.`, reward };
+    return { category: 'match_denarii', title: reward >= 80 ? 'Treasury' : reward >= 60 ? 'Abundance' : reward >= 40 ? 'Provision' : 'Small Blessing', detail: `Receive ${reward} Match Denarii.`, reward };
   }
   const relics = ['Lamp of Guidance', 'Manna Pouch', 'Sandals of Readiness', 'Shield of Faith', 'Key of Deliverance', 'Scroll of Recall', "Shepherd's Staff", "David's Sling", 'Purse of Provision', 'Trumpet of Breakthrough', 'Rod of Passage', 'Crown of Wisdom', 'Golden Scroll', 'Chariot of Fire'];
   const relic = relics[Math.floor(Math.pow(random(), 1.8) * relics.length)];
@@ -551,7 +587,7 @@ function finishMovement(state: RoadHomeState) {
 
 function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: RoadHomePawn, random: RandomFn) {
   if (pawn.progress === ROAD_HOME_CONFIG.finalHome) {
-    addDenarii(state, player, ROAD_HOME_CONFIG.rewards.pawnHome, 'a pawn reached Home');
+    addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.pawnHome, 'a pawn reached Home');
     addEvent(state, 'PAWN_HOME', `${player.name}'s pawn ${pawn.number} reached Home.`, player.id);
     if (finishGameIfReady(state, player)) return;
   }
@@ -570,7 +606,7 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
         victim.prisonRounds = 0;
         opponent.stats.lost += 1;
         player.stats.captured += 1;
-        addDenarii(state, player, ROAD_HOME_CONFIG.rewards.capture, 'captured a pawn');
+        addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.capture, 'captured a pawn');
         addEvent(state, 'PAWN_CAPTURED', `${player.name} captured ${opponent.name}'s pawn ${victim.number}.`, player.id);
       }
     }
@@ -623,7 +659,7 @@ function resolveAnswer(state: RoadHomeState, answer: string) {
     player.stats.correct += 1;
     addEvent(state, 'QUESTION_CORRECT', `${player.name} chose "${answer}" — correct${question.reference ? ` (${question.reference})` : ''}.`, player.id);
     if (purpose === 'own') {
-      addDenarii(state, player, ROAD_HOME_CONFIG.rewards.ownQuestion, 'correct movement question');
+      addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.ownQuestion, 'correct movement question');
       state.pendingMoveValue = state.diceValue;
       state.legalPawnIds = legalPawnIds(state, player.id, state.pendingMoveValue || 0);
       state.moveContinuation = 'BONUS_OR_END';
@@ -634,11 +670,11 @@ function resolveAnswer(state: RoadHomeState, answer: string) {
       const challenge = state.challengeQueue.find((item) => item.id === state.activeChallengeId);
       if (challenge) challenge.status = 'CLAIMED';
       player.stats.inheritedClaimed += 1;
-      addDenarii(state, player, ROAD_HOME_CONFIG.rewards.inheritedQuestion, 'claimed an inherited question');
+      addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.inheritedQuestion, 'claimed an inherited question');
       state.pendingMoveValue = challenge?.rolledValue || 0;
       state.legalPawnIds = legalPawnIds(state, player.id, state.pendingMoveValue);
       if (state.legalPawnIds.length === 0) {
-        addDenarii(state, player, Math.ceil(state.pendingMoveValue / 2) * 10, 'converted an inherited move with no legal pawn');
+        addMatchDenarii(state, player, Math.ceil(state.pendingMoveValue / 2) * 10, 'converted an inherited move with no legal pawn');
         state.phase = 'AWAITING_ROLL';
         state.activeChallengeId = null;
         state.currentQuestion = null;
@@ -660,7 +696,7 @@ function resolveAnswer(state: RoadHomeState, answer: string) {
       continueAfterPrison(state);
       return;
     }
-    addDenarii(state, player, state.pendingSurprise?.reward || (purpose === 'verse' ? 50 : 30), purpose === 'verse' ? 'Scripture challenge' : 'surprise question');
+    addMatchDenarii(state, player, state.pendingSurprise?.reward || (purpose === 'verse' ? 50 : 30), purpose === 'verse' ? 'Scripture challenge' : 'surprise question');
     state.pendingSurprise = null;
     finishMovement(state);
     return;
@@ -678,7 +714,7 @@ function resolveAnswer(state: RoadHomeState, answer: string) {
       challenge.attemptedPlayerIds.push(player.id);
       expireChallengeIfComplete(state, challenge);
     }
-    addDenarii(state, player, -ROAD_HOME_CONFIG.rewards.inheritedPenalty, 'missed an inherited question');
+    addMatchDenarii(state, player, -ROAD_HOME_CONFIG.rewards.inheritedPenalty, 'missed an inherited question');
     state.activeChallengeId = null;
     state.currentQuestion = null;
     state.questionPurpose = null;
@@ -714,7 +750,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
       startOffset: ROAD_HOME_CONFIG.startOffsets[playerIndex],
       isBot: Boolean(participant.isBot),
       forfeited: false,
-      denarii: ROAD_HOME_CONFIG.startingDenarii,
+      matchDenarii: ROAD_HOME_CONFIG.startingMatchDenarii,
       relics: [],
       finishedRank: null,
       stats: stats(),
@@ -747,7 +783,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
 
 export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random) {
   if (command.action === 'FORFEIT') return forfeitRoadHomePlayer(stateInput, actorId);
-  const state = structuredClone(stateInput) as RoadHomeState;
+  const state = normalizeRoadHomeEconomyState(stateInput);
   const questions = normalizeQuestions(questionsInput);
   const player = activePlayer(state);
   if (state.phase === 'GAME_OVER') throw new Error('This Road Home match is complete.');
@@ -792,8 +828,8 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     state.activePrisonPawnId = target.pawn.id;
     if (command.decision === 'pay') {
       const fine = target.pawn.prisonRounds * 40;
-      if (player.denarii < fine) throw new Error(`You need ${fine} denarii to pay this fine.`);
-      addDenarii(state, player, -fine, 'prison fine');
+      if (player.matchDenarii < fine) throw new Error(`You need ${fine} Match Denarii to pay this fine.`);
+      addMatchDenarii(state, player, -fine, 'prison fine');
       target.pawn.prisonRounds = 0;
       target.pawn.imprisonedTurn = null;
       player.stats.prisonEscapes += 1;
@@ -812,8 +848,8 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
   } else if (command.action === 'ACK_SURPRISE') {
     if (state.phase !== 'SURPRISE_CARD' || !state.pendingSurprise) throw new Error('There is no Surprise Card to resolve.');
     const card = state.pendingSurprise;
-    if (card.category === 'denarii') {
-      addDenarii(state, player, card.reward || 0, card.title);
+    if (card.category === 'match_denarii' || card.category === 'denarii') {
+      addMatchDenarii(state, player, card.reward || 0, card.title);
       state.pendingSurprise = null;
       finishMovement(state);
     } else if (card.category === 'relic') {
@@ -822,7 +858,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
         player.stats.relicsFound += 1;
         addEvent(state, 'RELIC_FOUND', `${player.name} found ${card.relic}.`, player.id);
       } else {
-        addDenarii(state, player, 20, 'converted an overflowing relic');
+        addMatchDenarii(state, player, 20, 'converted an overflowing relic');
       }
       state.pendingSurprise = null;
       finishMovement(state);
@@ -832,7 +868,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
   } else if (command.action === 'USE_RELIC') {
     const relicIndex = player.relics.indexOf(command.relic);
     if (relicIndex < 0) throw new Error('You do not own that relic in this match.');
-    if (command.relic === 'Manna Pouch') addDenarii(state, player, 40, 'Manna Pouch');
+    if (command.relic === 'Manna Pouch') addMatchDenarii(state, player, 40, 'Manna Pouch');
     else if (command.relic === 'Key of Deliverance') {
       const imprisoned = player.pawns.find((pawn) => pawn.prisonRounds > 0);
       if (!imprisoned) throw new Error('No pawn needs the Key of Deliverance.');
@@ -879,7 +915,7 @@ export function runRoadHomeBots(
   random: RandomFn = Math.random,
   machineDifficulty: 'easy' | 'medium' | 'hard' = 'medium',
 ) {
-  let state = stateInput;
+  let state = normalizeRoadHomeEconomyState(stateInput);
   let guard = 0;
   while (state.phase !== 'GAME_OVER' && activePlayer(state).isBot && guard < 80) {
     guard += 1;
@@ -887,7 +923,7 @@ export function runRoadHomeBots(
     if (state.phase === 'PRISON_MANAGEMENT') {
       const pawn = bot.pawns.find((item) => item.prisonRounds > 0)!;
       const fine = pawn.prisonRounds * 40;
-      state = applyRoadHomeCommand(state, bot.id, { action: 'PRISON_ACTION', pawnId: pawn.id, decision: bot.denarii >= fine ? 'pay' : 'serve' }, questionsInput, random);
+      state = applyRoadHomeCommand(state, bot.id, { action: 'PRISON_ACTION', pawnId: pawn.id, decision: bot.matchDenarii >= fine ? 'pay' : 'serve' }, questionsInput, random);
     } else if (state.phase === 'INHERITED_OFFER') {
       state = applyRoadHomeCommand(state, bot.id, { action: 'CHALLENGE_DECISION', decision: random() < 0.72 ? 'accept' : 'decline' }, questionsInput, random);
     } else if (state.phase === 'AWAITING_ROLL') {
@@ -911,7 +947,7 @@ export function runRoadHomeBots(
 }
 
 export function publicRoadHomeState(stateInput: RoadHomeState) {
-  const state = structuredClone(stateInput) as RoadHomeState;
+  const state = normalizeRoadHomeEconomyState(stateInput);
   state.questionPool = [];
   if (state.currentQuestion) {
     state.currentQuestion.correctAnswer = '';
@@ -925,6 +961,17 @@ export function publicRoadHomeState(stateInput: RoadHomeState) {
       correctAnswer: challenge.status === 'ANSWER_REVEALED' ? challenge.question.correctAnswer : '',
       acceptedAnswers: [],
       explanation: challenge.status === 'ANSWER_REVEALED' ? challenge.question.explanation : '',
+    },
+  }));
+  // Keep a read-only legacy alias in public responses while cached pre-release
+  // clients finish active matches. Private authoritative state is Match-only.
+  state.players = state.players.map((player) => ({
+    ...player,
+    denarii: player.matchDenarii,
+    stats: {
+      ...player.stats,
+      denariiEarned: player.stats.matchDenariiEarned,
+      denariiSpent: player.stats.matchDenariiSpent,
     },
   }));
   return state;

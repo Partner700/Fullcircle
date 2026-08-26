@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, fetchStrictStreak, fetchQuizScoreboard, fetchRhudeBoard, fetchMarksBoard } from '../lib/queries';
+import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, fetchStrictStreak, fetchQuizScoreboard, fetchRhudeBoard, fetchMarksBoard, fetchUserLiveStats } from '../lib/queries';
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
@@ -78,7 +78,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
 
     let figTotal = figBoard.status === 'fulfilled' ? Number(figBoard.value.find((row) => row.user_id === profile.id)?.total_score || 0) : 0;
     let rhudeTotal = rhudeBoard.status === 'fulfilled' ? Number(rhudeBoard.value.find((row) => row.user_id === profile.id)?.rhudes || 0) : 0;
-    let marksTotal = marksBoard.status === 'fulfilled' ? Math.round(Number(marksBoard.value.find((row) => row.user_id === profile.id)?.marks || 0)) : 0;
+    let marksTotal = marksBoard.status === 'fulfilled' ? Number(marksBoard.value.find((row) => row.user_id === profile.id)?.marks || 0) : 0;
 
     if (!figTotal || !rhudeTotal || !marksTotal) {
       const [quizAttempts, gameAttempts, arenaWins] = await Promise.allSettled([
@@ -97,9 +97,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       }
       if (!rhudeTotal && arenaWins.status === 'fulfilled') rhudeTotal = Number(arenaWins.value.count || 0);
       if (!marksTotal) {
-        const denariiTotal = balance.status === 'fulfilled' ? balance.value : 0;
-        const streakTotal = streakInfo.status === 'fulfilled' ? streakInfo.value.current_streak : 0;
-        marksTotal = Math.round(denariiTotal + figTotal * 100 + streakTotal * 1000 + rhudeTotal * 5000);
+        const liveStats = await fetchUserLiveStats(profile.id).catch(() => null);
+        marksTotal = Number(liveStats?.marks || 0);
       }
     }
 
@@ -273,7 +272,12 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         <StatCard icon={FlameIcon} label="Streak" value={stats.streak} sublabel={`Best: ${stats.longestStreak}`} color="#E05252" />
         <StatCard icon={BadgeCheck} label="Figs" value={stats.figs} color="#7C8CFF" />
         <StatCard icon={Shield} label="Rhudes" value={stats.rhudes} color="#5BAD7F" />
-        <StatCard icon={Cross} label="Marks" value={stats.marks} color="#DDE3FF" />
+        <StatCard
+          icon={Cross}
+          label="Marks"
+          value={stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          color="#DDE3FF"
+        />
         <StatCard icon={AwardIcon} label="Awards" value={stats.awards.length} color="#D6A849" />
         <StatCard icon={TrophyIcon} label="Relics" value={stats.relics} color="#A7B0C6" />
       </div>

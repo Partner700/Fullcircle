@@ -75,6 +75,7 @@ const atomicStreakSnapshots = read('supabase/migrations/20260824130000_courage_2
 const accountBootstrapAndLiveActivity = read('supabase/migrations/20260825100000_account_bootstrap_and_live_activity.sql');
 const accountAccessBootstrapRepair = read('supabase/migrations/20260826100000_account_access_bootstrap_repair.sql');
 const repairedBoardMovements = read('supabase/migrations/20260825110000_repair_board_movement_visibility.sql');
+const normalizedEconomy = read('supabase/migrations/20260826110000_normalize_full_circle_economy.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -161,6 +162,7 @@ const sealedTables = [
   'arena_question_decks', 'arena_trivia_responses', 'arena_machine_trivia_responses',
   'relic_usage_log', 'arena_rooms', 'arena_participants', 'scripture_insight_reactions',
   'fcx_events', 'fcx_registrations',
+  'denarii_achievement_entries', 'full_circle_economy_rules',
 ];
 
 for (const file of sourceFiles(path.join(root, 'src'))) {
@@ -177,24 +179,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v96'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '96'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v97'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '97'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '96'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '97'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=96`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '96'\)/);
-assert.match(releaseCache, /2026-08-26-v96/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=96/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=96'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=96"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=97`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '97'\)/);
+assert.match(releaseCache, /2026-08-26-v97/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=97/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=97'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=97"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);
@@ -536,6 +538,29 @@ for (const required of [
 ]) {
   assert.ok(accountAccessBootstrapRepair.includes(required), `Missing account-access bootstrap repair: ${required}`);
 }
+
+for (const required of [
+  "VALUES ('canonical', 1, 6000, 1, 6, 300, now())",
+  'CREATE OR REPLACE FUNCTION public.calculate_normalized_marks',
+  'CREATE TABLE IF NOT EXISTS public.denarii_achievement_entries',
+  'CREATE UNIQUE INDEX IF NOT EXISTS denarii_achievement_reference_uidx',
+  'ALTER TABLE public.denarii_achievement_entries ENABLE ROW LEVEL SECURITY',
+  'REVOKE ALL ON TABLE public.denarii_achievement_entries FROM PUBLIC, anon, authenticated',
+  'CREATE TRIGGER denarii_achievement_capture',
+  'public.get_qualifying_denarii_total(active.user_id, NULL)',
+  'LEFT JOIN LATERAL public.compute_strict_streak(active.user_id)',
+  'public.calculate_normalized_marks(',
+  'CREATE TABLE IF NOT EXISTS public.normalized_economy_board_daily_snapshots',
+  "snapshot.formula_version = 'phase1-v1'",
+]) {
+  assert.ok(normalizedEconomy.includes(required), `Missing normalized-economy boundary: ${required}`);
+}
+assert.doesNotMatch(
+  normalizedEconomy.match(/CREATE OR REPLACE FUNCTION public\.get_marks_board_live\(\)[\s\S]*?\$\$;/)?.[0] || '',
+  /wallet_denarii\s*\+|total_denarii[^\n]*\+|rhudes[^\n]*\*\s*5000|total_figs[^\n]*\*\s*100/,
+);
+assert.match(normalizedEconomy, /REVOKE ALL ON FUNCTION public\.calculate_normalized_marks[\s\S]*FROM PUBLIC, anon, authenticated/);
+assert.match(normalizedEconomy, /GRANT EXECUTE ON FUNCTION public\.get_marks_board_live\(\) TO authenticated, service_role/);
 assert.equal((cadetNarrative.match(/PanelImageBackdrop image=\{scriptureImage\}/g) || []).length, 2);
 assert.match(cadetApp, /data-denarii-target/);
 

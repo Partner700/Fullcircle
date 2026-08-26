@@ -3,6 +3,7 @@ import {
   applyRoadHomeCommand,
   createRoadHomeGame,
   forfeitRoadHomePlayer,
+  normalizeRoadHomeEconomyState,
   normalizeQuestions,
   publicRoadHomeState,
   runRoadHomeBots,
@@ -85,11 +86,6 @@ async function roomContext(roomId: string) {
 
 async function privateGame(roomId: string) {
   const rows = await rest(`arena_ludo_games?room_id=eq.${roomId}&select=version,private_state`);
-  return rows?.[0] || null;
-}
-
-async function publicGame(roomId: string) {
-  const rows = await rest(`arena_ludo_public_states?room_id=eq.${roomId}&select=version,public_state,updated_at`);
   return rows?.[0] || null;
 }
 
@@ -208,7 +204,7 @@ async function finishArenaRoom(room: any, state: RoadHomeState) {
 }
 
 async function synchronizeForfeits(context: any, existingPrivate: any) {
-  const previous = existingPrivate.private_state as RoadHomeState;
+  const previous = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
   let next = previous;
   for (const playerId of context.forfeitedIds || []) {
     const player = next.players.find((candidate) => candidate.id === playerId);
@@ -220,8 +216,10 @@ async function synchronizeForfeits(context: any, existingPrivate: any) {
     await finishArenaRoom(context.room, next);
     return publicState;
   } catch {
-    const latest = await publicGame(context.room.id);
-    return latest?.public_state || publicRoadHomeState(next);
+    const latest = await privateGame(context.room.id);
+    return publicRoadHomeState(
+      normalizeRoadHomeEconomyState((latest?.private_state || next) as RoadHomeState),
+    );
   }
 }
 
@@ -261,8 +259,11 @@ Deno.serve(async (request) => {
 
     if (action === "INIT") {
       if (context.room.status !== "playing") return json({ error: "Start the room before beginning The Road Home." }, 409);
-      const existing = await publicGame(roomId);
-      if (existing) return json({ state: existing.public_state, version: existing.version });
+      const existing = await privateGame(roomId);
+      if (existing) {
+        const normalized = normalizeRoadHomeEconomyState(existing.private_state as RoadHomeState);
+        return json({ state: publicRoadHomeState(normalized), version: normalized.version });
+      }
       let state = createRoadHomeGame(roomId, context.participants, context.questions, secureRandom);
       state = runRoadHomeBots(state, context.questions, secureRandom, machineDifficulty(String(context.room.room_name || '')));
       const publicState = await createGame(roomId, state);
@@ -272,15 +273,15 @@ Deno.serve(async (request) => {
     const existingPrivate = await privateGame(roomId);
     if (!existingPrivate) return json({ error: "The Road Home state has not been initialised.", needsInitialization: true }, 409);
     if (await commandExists(roomId, commandId)) {
-      const existingPublic = await publicGame(roomId);
-      return json({ state: existingPublic?.public_state || publicRoadHomeState(existingPrivate.private_state), version: existingPrivate.version, duplicate: true });
+      const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
+      return json({ state: publicRoadHomeState(normalized), version: normalized.version, duplicate: true });
     }
     if (body.expectedVersion != null && Number(body.expectedVersion) !== Number(existingPrivate.version)) {
-      const latest = await publicGame(roomId);
-      return json({ error: "The board changed on another device.", state: latest?.public_state, version: latest?.version }, 409);
+      const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
+      return json({ error: "The board changed on another device.", state: publicRoadHomeState(normalized), version: normalized.version }, 409);
     }
 
-    const previous = existingPrivate.private_state as RoadHomeState;
+    const previous = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
     if (context.forfeitedIds.includes(actorId) && action !== "FORFEIT") return json({ error: "You have forfeited this match." }, 409);
     if (action === "FORFEIT") {
       await rest(`arena_participants?room_id=eq.${roomId}&user_id=eq.${actorId}`, {

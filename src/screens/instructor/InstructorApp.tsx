@@ -2479,14 +2479,14 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           })),
         });
 
-        // Rumor is the weekly Vallum. Both awards use the same authoritative
-        // Marks table: denarii + figs*100 + streak*1000 + Rhudes*5000.
+        // Rumor is the weekly Vallum. Both awards consume the authoritative
+        // normalized Marks table rather than rebuilding its economy formula.
         const cadetRanking = ((marksBoardResult.data || []) as any[])
           .filter((row) => row.role === 'cadet' && cadetIds.includes(row.user_id))
           .sort((left, right) => Number(right.marks) - Number(left.marks) || Number(left.rank) - Number(right.rank))
           .slice(0, 4);
         const marksDetail = (row: any, cadence: 'week' | 'month') => (
-          `${Math.round(Number(row.marks || 0))} Marks leading the same all-round table used for the ${cadence === 'week' ? 'weekly Rumor' : 'monthly Vallum'}.`
+          `${Number(row.marks || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} Marks leading the same all-round table used for the ${cadence === 'week' ? 'weekly Rumor' : 'monthly Vallum'}.`
         );
         const topCadet = cadetRanking[0];
         if (topCadet) next.push({

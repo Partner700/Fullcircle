@@ -6,11 +6,11 @@ import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
-import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting, fetchFullCircleEconomyRules } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
 import { resolveBoardMovement } from '../../lib/boardMovement';
-import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
+import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
+import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles, Info } from 'lucide-react';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'instructor';
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
@@ -69,6 +69,10 @@ function withBoardTimeout<T>(promise: PromiseLike<T>, label: string, millisecond
 function sentryLine(names: string[] | null | undefined): string | undefined {
   if (!names || names.length === 0) return undefined;
   return `Sentr${names.length === 1 ? 'y' : 'ies'}: ${names.join(', ')}`;
+}
+
+function formatMarks(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(Math.max(0, Number(value) || 0));
 }
 
 type CompetitiveRow = {
@@ -264,6 +268,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
   const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
   const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [economyRules, setEconomyRules] = useState<FullCircleEconomyRules | null>(null);
+  const [marksInfoOpen, setMarksInfoOpen] = useState(false);
   const [instructorRows, setInstructorRows] = useState<(InstructorBoardRow & CompetitiveRow)[]>([]);
   const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -431,6 +437,14 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       .catch(() => { if (!cancelled) setBoardImage(null); });
     return () => { cancelled = true; };
   }, []);
+  useEffect(() => {
+    if (!instructorMode) return;
+    let cancelled = false;
+    fetchFullCircleEconomyRules()
+      .then((rules) => { if (!cancelled) setEconomyRules(rules); })
+      .catch(() => { if (!cancelled) setEconomyRules(null); });
+    return () => { cancelled = true; };
+  }, [instructorMode]);
   useEffect(() => {
     const channel = supabase
       .channel('cadet_quiz_scoreboard_live')
@@ -902,10 +916,27 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
               <Cross size={20} className="text-brass" />
               <h3 className="font-display font-semibold text-ink">Leaderboard</h3>
               <span className="badge badge-brass text-[10px]">Grand Total</span>
+              <button
+                type="button"
+                onClick={() => setMarksInfoOpen((open) => !open)}
+                className="btn-ghost ml-auto h-8 w-8 p-0"
+                aria-label="Explain Marks"
+                aria-expanded={marksInfoOpen}
+                title="Explain Marks"
+              >
+                <Info size={16} />
+              </button>
             </div>
             <p className="text-xs text-stone">
-              Marks combine denarii, figs, streaks, and Rhudes. This powers Rumor, Vallum, and Grand Vallum tracking.
+              Marks normalize earned achievements without consuming them. This powers Rumor, Vallum, and Grand Vallum tracking.
             </p>
+            {marksInfoOpen && economyRules && (
+              <div className="mt-3 rounded-lg border border-border bg-surface/80 px-3 py-2 text-xs leading-relaxed text-stone">
+                <p className="font-bold text-ink">1 Mark equals</p>
+                <p>{formatMarks(economyRules.streaks_per_mark)} Streak · {formatMarks(economyRules.talents_per_mark)} Talent · {formatMarks(economyRules.rhudes_per_mark)} Rhudes · {formatMarks(economyRules.figs_per_mark)} Figs</p>
+                <p className="mt-1">1 Talent = {formatDenarii(economyRules.denarii_per_talent)} Denarii earned.</p>
+              </div>
+            )}
           </BoardPanel>
 
           {marksRows.length > 0 ? (
@@ -918,7 +949,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                     key={row.user_id}
                     rank={row.rank}
                     name={row.display_name}
-                    value={`${Math.round(Number(row.marks || 0))}`}
+                    value={formatMarks(Number(row.marks || 0))}
                     houseId={row.tent_house_id || undefined}
                     isCurrentUser={row.user_id === profile?.id}
                     userId={row.user_id}
@@ -932,7 +963,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
               </BoardList>
             </BoardPanel>
           ) : (
-            <EmptyState icon={(props) => <Cross {...props} />} title="No Marks yet" message="Marks appear once users begin earning denarii, figs, streaks, or Rhudes." />
+            <EmptyState icon={(props) => <Cross {...props} />} title="No Marks yet" message="Marks appear once users begin earning qualifying Denarii, Figs, Streaks, or Rhudes." />
           )}
         </div>
       )}
@@ -980,12 +1011,12 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                             <p className="text-sm font-medium truncate text-ink">{row.tent_name}</p>
                             {row.tent_house_id && <TentHouseSymbol houseId={row.tent_house_id} size={18} className="flex-shrink-0" />}
                           </div>
-		                          <span className="text-xs text-stone">{row.cadet_count} cadets · {Math.round(Number(row.combined_score || 0))} Marks · {tint.label} honor</span>
+		                          <span className="text-xs text-stone">{row.cadet_count} cadets · {formatMarks(Number(row.combined_score || 0))} Marks · {tint.label} honor</span>
                               <p className="text-[11px] text-stone truncate mt-0.5">{Number(row.total_figs || 0)} figs · {formatDenarii(row.total_denarii)}D</p>
 		                          {sentries && <p className="text-[11px] text-stone truncate mt-0.5">{sentries}</p>}
 		                        </div>
                         <div className="text-right flex-shrink-0">
-	                          <span className="text-sm font-medium text-ink">{Math.round(Number(row.combined_score || 0))}</span>
+	                          <span className="text-sm font-medium text-ink">{formatMarks(Number(row.combined_score || 0))}</span>
 	                          <p className="text-[10px] text-stone">Marks</p>
                         </div>
                       </div>
@@ -997,7 +1028,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 	                        key={row.tent_id}
 	                      rank={row.rank}
 	                      name={row.tent_name}
-		                      value={`${Math.round(Number(row.combined_score || 0))}`}
+	                      value={formatMarks(Number(row.combined_score || 0))}
 		                      houseId={row.tent_house_id || undefined}
 		                      isCurrentUser={false}
                           avatarUrl={row.tent_profile_image_url}

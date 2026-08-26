@@ -2621,3 +2621,17 @@ export async function fetchMarksBoard() {
   if (error) throw error;
   return (data || []) as import('./types').MarksBoardRow[];
 }
+
+export async function fetchFullCircleEconomyRules() {
+  const { data, error } = await supabase.rpc('get_full_circle_economy_rules');
+  if (error) throw error;
+  const row = (data || [])[0] as import('./types').FullCircleEconomyRules | undefined;
+  if (!row) throw new Error('The Full Circle economy rules are unavailable.');
+  return {
+    streaks_per_mark: Number(row.streaks_per_mark),
+    denarii_per_talent: Number(row.denarii_per_talent),
+    talents_per_mark: Number(row.talents_per_mark),
+    rhudes_per_mark: Number(row.rhudes_per_mark),
+    figs_per_mark: Number(row.figs_per_mark),
+  } satisfies import('./types').FullCircleEconomyRules;
+}
