@@ -933,7 +933,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
             {marksInfoOpen && economyRules && (
               <div className="mt-3 rounded-lg border border-border bg-surface/80 px-3 py-2 text-xs leading-relaxed text-stone">
                 <p className="font-bold text-ink">1 Mark equals</p>
-                <p>{formatMarks(economyRules.streaks_per_mark)} Streak · {formatMarks(economyRules.talents_per_mark)} Talent · {formatMarks(economyRules.rhudes_per_mark)} Rhudes · {formatMarks(economyRules.figs_per_mark)} Figs</p>
+                <p>{formatMarks(economyRules.streaks_per_mark)} qualifying Streak day · {formatMarks(economyRules.talents_per_mark)} Talent · {formatMarks(economyRules.rhudes_per_mark)} Rhudes · {formatMarks(economyRules.figs_per_mark)} Figs</p>
                 <p className="mt-1">1 Talent = {formatDenarii(economyRules.denarii_per_talent)} Denarii earned.</p>
               </div>
             )}

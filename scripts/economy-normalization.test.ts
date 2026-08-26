@@ -7,6 +7,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const migration = read('supabase/migrations/20260826110000_normalize_full_circle_economy.sql');
+const cumulativeStreakMigration = read(
+  'supabase/migrations/20260826120000_cumulative_streak_achievement_marks.sql',
+);
 const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
 const roadHomeEndpoint = read('supabase/functions/road-home-game/index.ts');
 const roadHomeSettlement = read('supabase/migrations/20260810142000_road_home_atomic_settlement.sql');
@@ -37,30 +40,56 @@ assert.deepEqual(rules, {
 });
 
 function normalizedMarks({
-  streaks = 0,
+  lifetimeQualifyingStreakDays = 0,
   qualifyingDenarii = 0,
   rhudes = 0,
   figs = 0,
 }: {
-  streaks?: number;
+  lifetimeQualifyingStreakDays?: number;
   qualifyingDenarii?: number;
   rhudes?: number;
   figs?: number;
 }) {
-  return Math.max(streaks, 0) / rules.streaksPerMark
+  return Math.max(lifetimeQualifyingStreakDays, 0) / rules.streaksPerMark
     + (Math.max(qualifyingDenarii, 0) / rules.denariiPerTalent) / rules.talentsPerMark
     + Math.max(rhudes, 0) / rules.rhudesPerMark
     + Math.max(figs, 0) / rules.figsPerMark;
 }
 
-assert.equal(normalizedMarks({ streaks: 1 }), 1);
+assert.equal(normalizedMarks({ lifetimeQualifyingStreakDays: 1 }), 1);
 assert.equal(normalizedMarks({ figs: 300 }), 1);
 assert.equal(normalizedMarks({ figs: 150 }), 0.5);
 assert.equal(normalizedMarks({ rhudes: 6 }), 1);
 assert.equal(normalizedMarks({ rhudes: 3 }), 0.5);
 assert.equal(normalizedMarks({ qualifyingDenarii: 6000 }), 1);
 assert.equal(normalizedMarks({ qualifyingDenarii: 3000 }), 0.5);
-assert.equal(normalizedMarks({ streaks: 2, qualifyingDenarii: 6000, rhudes: 12, figs: 600 }), 7);
+assert.equal(normalizedMarks({
+  lifetimeQualifyingStreakDays: 2,
+  qualifyingDenarii: 6000,
+  rhudes: 12,
+  figs: 600,
+}), 7);
+
+// A current streak can reset without erasing cumulative Streak achievement.
+// The Set mirrors the database primary key on (user_id, achievement_date).
+const lifetimeStreakDays = new Set(
+  Array.from({ length: 10 }, (_, index) => `2026-08-${String(index + 1).padStart(2, '0')}`),
+);
+let currentStreak = 10;
+assert.equal(lifetimeStreakDays.size, 10);
+assert.equal(normalizedMarks({ lifetimeQualifyingStreakDays: lifetimeStreakDays.size }), 10);
+
+currentStreak = 0;
+assert.equal(currentStreak, 0);
+assert.equal(lifetimeStreakDays.size, 10);
+assert.equal(normalizedMarks({ lifetimeQualifyingStreakDays: lifetimeStreakDays.size }), 10);
+
+lifetimeStreakDays.add('2026-08-12');
+assert.equal(lifetimeStreakDays.size, 11);
+assert.equal(normalizedMarks({ lifetimeQualifyingStreakDays: lifetimeStreakDays.size }), 11);
+
+lifetimeStreakDays.add('2026-08-12');
+assert.equal(lifetimeStreakDays.size, 11, 'A retry for one user/date must not add another achievement.');
 
 // Wallet balance is intentionally absent from the formula. Spending changes
 // liquidity, not the already captured lifetime achievement.
@@ -97,12 +126,57 @@ assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_tent_leaderboard
 assert.match(migration, /normalized_economy_board_daily_snapshots[\s\S]*formula_version/);
 assert.match(migration, /LEFT JOIN LATERAL public\.compute_strict_streak\(active\.user_id\)/);
 
+for (const cumulativeBoundary of [
+  'CREATE TABLE IF NOT EXISTS public.streak_achievement_days',
+  'PRIMARY KEY (user_id, achievement_date)',
+  'CREATE TABLE IF NOT EXISTS public.streak_achievement_baselines',
+  'CREATE OR REPLACE FUNCTION public.streak_achievement_source',
+  'CREATE OR REPLACE FUNCTION public.record_streak_achievement_day',
+  'CREATE OR REPLACE FUNCTION public.get_lifetime_qualifying_streak_days',
+  'public.get_lifetime_qualifying_streak_days(active.user_id, NULL)',
+  'raw.lifetime_qualifying_streak_days',
+  "snapshot.formula_version = 'phase1b-v2'",
+  "'phase1b-v2',",
+  'REVOKE ALL ON TABLE public.streak_achievement_days FROM PUBLIC, anon, authenticated',
+]) {
+  assert.ok(
+    cumulativeStreakMigration.includes(cumulativeBoundary),
+    `Missing cumulative Streak boundary: ${cumulativeBoundary}`,
+  );
+}
+assert.match(
+  cumulativeStreakMigration,
+  /RETURN 'earned';[\s\S]*RETURN 'restored';[\s\S]*RETURN 'purchased';/,
+);
+assert.match(
+  cumulativeStreakMigration,
+  /Ordinary daily\/weekly freezers hold a current streak[\s\S]*RETURN NULL;/,
+);
+assert.match(
+  cumulativeStreakMigration,
+  /ON CONFLICT \(user_id, achievement_date\) DO UPDATE/,
+);
+assert.match(
+  cumulativeStreakMigration,
+  /public\.calculate_normalized_marks\(\s*raw\.lifetime_qualifying_streak_days,/,
+);
+assert.doesNotMatch(
+  cumulativeStreakMigration.match(
+    /CREATE OR REPLACE FUNCTION public\.get_member_mark_components\(\)[\s\S]*?\$\$;/,
+  )?.[0] || '',
+  /public\.calculate_normalized_marks\(\s*raw\.current_streak,/,
+);
+
 // A simple ranking acceptance example proves fractional Marks remain useful
 // and that the board orders by the normalized value rather than wallet cash.
 const standings = [
   { id: 'spent-wallet', wallet: 0, marks: normalizedMarks({ qualifyingDenarii: 6000 }) },
   { id: 'fig-progress', wallet: 9000, marks: normalizedMarks({ figs: 150 }) },
-  { id: 'mixed-leader', wallet: 0, marks: normalizedMarks({ streaks: 1, rhudes: 3 }) },
+  {
+    id: 'mixed-leader',
+    wallet: 0,
+    marks: normalizedMarks({ lifetimeQualifyingStreakDays: 1, rhudes: 3 }),
+  },
 ].sort((left, right) => right.marks - left.marks);
 assert.deepEqual(standings.map((entry) => entry.id), ['mixed-leader', 'spent-wallet', 'fig-progress']);
 

@@ -76,6 +76,7 @@ const accountBootstrapAndLiveActivity = read('supabase/migrations/20260825100000
 const accountAccessBootstrapRepair = read('supabase/migrations/20260826100000_account_access_bootstrap_repair.sql');
 const repairedBoardMovements = read('supabase/migrations/20260825110000_repair_board_movement_visibility.sql');
 const normalizedEconomy = read('supabase/migrations/20260826110000_normalize_full_circle_economy.sql');
+const cumulativeStreakEconomy = read('supabase/migrations/20260826120000_cumulative_streak_achievement_marks.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -163,6 +164,7 @@ const sealedTables = [
   'relic_usage_log', 'arena_rooms', 'arena_participants', 'scripture_insight_reactions',
   'fcx_events', 'fcx_registrations',
   'denarii_achievement_entries', 'full_circle_economy_rules',
+  'streak_achievement_days', 'streak_achievement_baselines',
 ];
 
 for (const file of sourceFiles(path.join(root, 'src'))) {
@@ -561,6 +563,40 @@ assert.doesNotMatch(
 );
 assert.match(normalizedEconomy, /REVOKE ALL ON FUNCTION public\.calculate_normalized_marks[\s\S]*FROM PUBLIC, anon, authenticated/);
 assert.match(normalizedEconomy, /GRANT EXECUTE ON FUNCTION public\.get_marks_board_live\(\) TO authenticated, service_role/);
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.streak_achievement_days',
+  'PRIMARY KEY (user_id, achievement_date)',
+  'CREATE TABLE IF NOT EXISTS public.streak_achievement_baselines',
+  'ALTER TABLE public.streak_achievement_days ENABLE ROW LEVEL SECURITY',
+  'REVOKE ALL ON TABLE public.streak_achievement_days FROM PUBLIC, anon, authenticated',
+  'ALTER TABLE public.streak_achievement_baselines ENABLE ROW LEVEL SECURITY',
+  'REVOKE ALL ON TABLE public.streak_achievement_baselines FROM PUBLIC, anon, authenticated',
+  'CREATE OR REPLACE FUNCTION public.record_streak_achievement_day',
+  'CREATE OR REPLACE FUNCTION public.get_lifetime_qualifying_streak_days',
+  'public.get_lifetime_qualifying_streak_days(active.user_id, NULL)',
+  'raw.lifetime_qualifying_streak_days',
+  "snapshot.formula_version = 'phase1b-v2'",
+]) {
+  assert.ok(
+    cumulativeStreakEconomy.includes(required),
+    `Missing cumulative Streak economy boundary: ${required}`,
+  );
+}
+assert.match(
+  cumulativeStreakEconomy,
+  /REVOKE ALL ON FUNCTION public\.record_streak_achievement_day\(uuid, date\)[\s\S]*FROM PUBLIC, anon, authenticated/,
+);
+assert.match(
+  cumulativeStreakEconomy,
+  /public\.calculate_normalized_marks\(\s*raw\.lifetime_qualifying_streak_days,/,
+);
+assert.doesNotMatch(
+  cumulativeStreakEconomy.match(
+    /CREATE OR REPLACE FUNCTION public\.get_member_mark_components\(\)[\s\S]*?\$\$;/,
+  )?.[0] || '',
+  /public\.calculate_normalized_marks\(\s*raw\.current_streak,/,
+);
 assert.equal((cadetNarrative.match(/PanelImageBackdrop image=\{scriptureImage\}/g) || []).length, 2);
 assert.match(cadetApp, /data-denarii-target/);
 
