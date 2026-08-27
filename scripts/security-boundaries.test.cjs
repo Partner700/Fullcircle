@@ -78,6 +78,7 @@ const repairedBoardMovements = read('supabase/migrations/20260825110000_repair_b
 const normalizedEconomy = read('supabase/migrations/20260826110000_normalize_full_circle_economy.sql');
 const cumulativeStreakEconomy = read('supabase/migrations/20260826120000_cumulative_streak_achievement_marks.sql');
 const correctedStreakAchievement = read('supabase/migrations/20260826123000_close_streak_achievement_loophole.sql');
+const attendanceCorrection = read('supabase/migrations/20260827100000_preserve_attendance_corrections.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -513,6 +514,7 @@ for (const migrationName of [
   '20260825110000_repair_board_movement_visibility.sql',
   '20260825120000_fcx_guest_photos.sql',
   '20260826100000_account_access_bootstrap_repair.sql',
+  '20260827100000_preserve_attendance_corrections.sql',
 ]) {
   const migration = read(`supabase/migrations/${migrationName}`);
   assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, `Unbalanced SQL function delimiter in ${migrationName}`);
@@ -613,6 +615,27 @@ for (const required of [
     `Missing corrected Streak-achievement boundary: ${required}`,
   );
 }
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.mark_cadet_attendance',
+  'WHEN public.daily_records.attendance_marked_at IS NOT NULL',
+  'THEN public.daily_records.attendance_marked_at',
+  'THEN coalesce(public.daily_records.attendance_late, false)',
+  "record.record_date = date '2026-08-27'",
+  "record.attendance_status = 'present'",
+  'coalesce(record.meditation_submitted, false)',
+  'public.record_verified_streak_restoration(',
+  'public.refresh_user_streak_snapshot(v_user_id)',
+]) {
+  assert.ok(attendanceCorrection.includes(required), `Missing attendance-correction boundary: ${required}`);
+}
+assert.match(
+  attendanceCorrection,
+  /v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id/,
+);
+assert.match(
+  attendanceCorrection,
+  /REVOKE ALL ON FUNCTION public\.mark_cadet_attendance\(uuid, uuid, text, text\)[\s\S]*FROM PUBLIC, anon/,
+);
 const correctedStreakSource = correctedStreakAchievement.match(
   /CREATE OR REPLACE FUNCTION public\.streak_achievement_source\([\s\S]*?\n\$\$;/,
 )?.[0] || '';
