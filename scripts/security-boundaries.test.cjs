@@ -79,6 +79,7 @@ const normalizedEconomy = read('supabase/migrations/20260826110000_normalize_ful
 const cumulativeStreakEconomy = read('supabase/migrations/20260826120000_cumulative_streak_achievement_marks.sql');
 const correctedStreakAchievement = read('supabase/migrations/20260826123000_close_streak_achievement_loophole.sql');
 const attendanceCorrection = read('supabase/migrations/20260827100000_preserve_attendance_corrections.sql');
+const spadesStreakRestoration = read('supabase/migrations/20260827103000_restore_spades_streaks.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -628,6 +629,20 @@ for (const required of [
 ]) {
   assert.ok(attendanceCorrection.includes(required), `Missing attendance-correction boundary: ${required}`);
 }
+for (const required of [
+  "IN ('opondelindakarenb', 'geraldine', 'sentinelvedette')",
+  "WHEN 'opondelindakarenb' THEN 29",
+  "WHEN 'geraldine' THEN 4",
+  "WHEN 'sentinelvedette' THEN 29",
+  'IF v_target_count <> 3 THEN',
+  'streak_manual_adjustments AS adjustment',
+  'current_streak = greatest(',
+  'public.refresh_user_streak_snapshot(v_target.user_id)',
+  'IF v_restored_count <> 3 THEN',
+]) {
+  assert.ok(spadesStreakRestoration.includes(required), `Missing targeted streak-restoration boundary: ${required}`);
+}
+assert.doesNotMatch(spadesStreakRestoration, /UPDATE public\.daily_records/);
 assert.match(
   attendanceCorrection,
   /v_caller IS NULL OR v_caller IS DISTINCT FROM p_sentry_id/,
