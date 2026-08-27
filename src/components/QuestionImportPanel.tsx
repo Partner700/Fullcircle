@@ -111,7 +111,7 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
           <span className="min-w-0">
             <span className="block font-display text-sm font-semibold text-ink">Import Question Set</span>
             <span className="block truncate text-xs text-stone">
-              {destination === 'quiz' ? 'Weekly Quiz' : 'Daily Game levels and rounds'}
+              {destination === 'quiz' ? 'Weekly Quiz' : 'Daily Trivia levels and rounds'}
             </span>
           </span>
         </span>

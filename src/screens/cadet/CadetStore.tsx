@@ -580,7 +580,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                         </span>
                       )}
                       {owned > 0 && slug === RELIC_SLUGS.SWORD_GOLIATH && (
-                        <span className="text-[10px] text-stone">Use in Daily Game or Quiz</span>
+                        <span className="text-[10px] text-stone">Use in Daily Trivia or Quiz</span>
                       )}
                       {owned > 0 && slug === RELIC_SLUGS.LAZARUS_COIN && (
                         <span className="text-[10px] text-stone">Use inside Saturday Quiz before 2:45 PM</span>

@@ -636,7 +636,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
               </BoardList>
             </BoardPanel>
           ) : (
-            <EmptyState icon={(props) => <Trophy {...props} />} title="No data yet" message="Play the daily game or take the Saturday quiz to appear on the board." />
+            <EmptyState icon={(props) => <Trophy {...props} />} title="No data yet" message="Play Daily Trivia or take the Saturday quiz to appear on the board." />
           )}
 
           {leaderRows.length > 0 && (

@@ -31,7 +31,10 @@ import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, Streak
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
+import { dailyGamesNavigationKey } from '../../lib/dailyGames';
 import { CadetGame } from '../cadet/CadetGame';
+import { DailyGamesHub } from '../cadet/DailyGamesHub';
+import { StoryModeShell } from '../cadet/story-mode/StoryModeShell';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
@@ -47,9 +50,10 @@ import {
   Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock,
 } from 'lucide-react';
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'game' | 'arena' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
-const PREMIUM_TABS = new Set<Tab>(['game', 'arena', 'quiz', 'leaderboard', 'awards', 'store']);
+const SENTRY_TABS: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'games', 'game', 'arena', 'story', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+const PREMIUM_TABS = new Set<Tab>(['games', 'game', 'arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
 
 type StrictStreakData = {
   current_streak: number;
@@ -64,8 +68,7 @@ const NAV_ITEMS = [
   { key: 'cadets', label: 'My Cadets', icon: CadetIcon },
   { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
-  { key: 'game', label: 'Daily Game', icon: GamepadIcon },
-  { key: 'arena', label: 'The Arena', icon: Swords },
+  { key: 'games', label: 'Daily Games', icon: GamepadIcon },
   { key: 'streak', label: 'My Streak', icon: Shield },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
   { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
@@ -79,8 +82,7 @@ function getInitialSentryTab(): Tab {
   if (typeof window === 'undefined') return 'overview';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
   if (key === 'narrative') return 'reading';
-  const tabs: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'game', 'arena', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
-  return tabs.includes(key as Tab) ? key as Tab : 'overview';
+  return SENTRY_TABS.includes(key as Tab) ? key as Tab : 'overview';
 }
 
 const TENT_REQUIRED_TABS = new Set<Tab>(['overview', 'attendance', 'cadets', 'challenges']);
@@ -363,8 +365,10 @@ export function SentryApp() {
     cadets: 'My Cadets',
     challenges: 'Challenge Review',
     reading: "Today's Reading",
-    game: 'Daily Game',
-    arena: 'The Arena',
+    games: 'Daily Games',
+    game: 'Daily Trivia',
+    arena: 'Arena',
+    story: 'Story Mode',
     streak: 'My Streak',
     quiz: 'Weekly Quiz',
     leaderboard: 'Challenge Boards',
@@ -380,6 +384,7 @@ export function SentryApp() {
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
+      navActiveKey={dailyGamesNavigationKey(tab)}
       onNavigate={(k) => handleNavigate(k as Tab)}
       headerTitle={tabLabels[tab]}
       headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
@@ -461,12 +466,20 @@ export function SentryApp() {
       {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} onChanged={load} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
-      {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} />)}
+      {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
+        <DailyGamesHub
+          onOpenTrivia={() => handleNavigate('game')}
+          onOpenArena={() => handleNavigate('arena')}
+          onOpenStory={() => handleNavigate('story')}
+        />
+      ))}
+      {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />)}
       {tab === 'arena' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
-          <CadetArena onBalanceChanged={load} />
+          <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')} />
         )
       )}
+      {tab === 'story' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <StoryModeShell onBackToDailyGames={() => handleNavigate('games')} />)}
       {tab === 'streak' && <CadetStreak />}
       {tab === 'quiz' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
@@ -524,8 +537,8 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
         </button>
-        <button onClick={() => onNavigate('game')} className="btn-secondary">
-          <GamepadIcon size={18} /> Game
+        <button onClick={() => onNavigate('games')} className="btn-secondary">
+          <GamepadIcon size={18} /> Daily Games
         </button>
         <button onClick={() => onNavigate('arena')} className="btn-secondary">
           <Swords size={18} /> Arena
@@ -814,8 +827,8 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <button onClick={() => onNavigate('attendance')} className="btn-primary">
           <ClipboardCheck size={18} /> Mark Attendance
         </button>
-        <button onClick={() => onNavigate('game')} className="btn-secondary">
-          <GamepadIcon size={18} /> Play Daily Game
+        <button onClick={() => onNavigate('games')} className="btn-secondary">
+          <GamepadIcon size={18} /> Daily Games
         </button>
         <button onClick={() => onNavigate('quiz')} className={dayType === 'saturday' ? 'btn-primary' : 'btn-secondary'}>
           <FileQuestion size={18} /> {dayType === 'saturday' ? 'Take Weekly Quiz' : 'Weekly Quiz'}

@@ -9,6 +9,8 @@ import { DoveMark } from '../../components/Dove';
 import { CadetDashboard } from './CadetDashboard';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
+import { DailyGamesHub } from './DailyGamesHub';
+import { StoryModeShell } from './story-mode/StoryModeShell';
 import { CadetQuiz } from './CadetQuiz';
 import { CadetLeaderboard } from './CadetLeaderboard';
 import { CadetAwards } from './CadetAwards';
@@ -38,15 +40,17 @@ import type { Tent, TentMember, Profile, StreakProtectionState, UserNotification
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../../lib/scriptureNavigation';
 import { publicAsset } from '../../lib/publicAsset';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
+import { dailyGamesNavigationKey } from '../../lib/dailyGames';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
-  Lock, Settings as SettingsIcon, ShoppingBag, Swords,
+  Lock, Settings as SettingsIcon, ShoppingBag,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
-const PREMIUM_TABS = new Set<Tab>(['game', 'arena', 'quiz', 'leaderboard', 'awards', 'store']);
+const CADET_TABS: Tab[] = ['dashboard', 'narrative', 'streak', 'games', 'game', 'arena', 'story', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+const PREMIUM_TABS = new Set<Tab>(['games', 'game', 'arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
 
 type CadetNotificationType = 'info' | 'warning' | 'success';
 
@@ -137,8 +141,7 @@ const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
   { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
   { key: 'streak', label: 'My Streak', icon: Flame },
-  { key: 'game', label: 'Daily Game', icon: Gamepad2 },
-  { key: 'arena', label: 'The Arena', icon: Swords },
+  { key: 'games', label: 'Daily Games', icon: Gamepad2 },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
   { key: 'tent', label: 'My Tent', icon: TentIcon },
   { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
@@ -150,13 +153,12 @@ const NAV_ITEMS = [
 function getInitialCadetTab(): Tab {
   if (typeof window === 'undefined') return 'dashboard';
   const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  const tabs: Tab[] = ['dashboard', 'narrative', 'streak', 'game', 'arena', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
-  return tabs.includes(key as Tab) ? key as Tab : 'dashboard';
+  return CADET_TABS.includes(key as Tab) ? key as Tab : 'dashboard';
 }
 
 function actionKeyToTab(actionKey: string | null | undefined): Tab | undefined {
   if (!actionKey) return undefined;
-  return NAV_ITEMS.some((item) => item.key === actionKey) || actionKey === 'subscribe'
+  return CADET_TABS.includes(actionKey as Tab)
     ? actionKey as Tab
     : undefined;
 }
@@ -168,7 +170,9 @@ function actionLabelForTab(tab?: Tab): string | undefined {
     store: 'Open Market',
     tent: 'Open Tent',
     narrative: 'Open Reading',
-    game: 'Open Game',
+    games: 'Open Daily Games',
+    game: 'Open Daily Trivia',
+    story: 'Open Story Mode',
     quiz: 'Open Quiz',
     dashboard: 'Open Dashboard',
     streak: 'Open Streak',
@@ -871,8 +875,10 @@ export function CadetApp() {
     dashboard: 'Cadet Dashboard',
     narrative: 'Today\'s Reading',
     streak: 'My Streak',
-    game: 'Daily Game',
-    arena: 'The Arena',
+    games: 'Daily Games',
+    game: 'Daily Trivia',
+    arena: 'Arena',
+    story: 'Story Mode',
     quiz: 'Weekly Quiz',
     tent: 'My Tent',
     leaderboard: 'Challenge Boards',
@@ -998,6 +1004,7 @@ export function CadetApp() {
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
+      navActiveKey={dailyGamesNavigationKey(tab)}
       onNavigate={handleNavigate}
       headerTitle={tabLabels[tab]}
       headerSubtitle={houseName ? `${tentName} · ${houseName}` : 'Cadet'}
@@ -1095,13 +1102,24 @@ export function CadetApp() {
           </div>
         </div>
       }
-      navBadges={notificationBadges}
+      navBadges={{
+        ...notificationBadges,
+        games: (notificationBadges.game || 0) + (notificationBadges.arena || 0),
+      }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
         {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
-        {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} />)}
-        {tab === 'arena' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} />)}
+        {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
+          <DailyGamesHub
+            onOpenTrivia={() => handleNavigate('game')}
+            onOpenArena={() => handleNavigate('arena')}
+            onOpenStory={() => handleNavigate('story')}
+          />
+        ))}
+        {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
+        {tab === 'arena' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
+        {tab === 'story' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <StoryModeShell onBackToDailyGames={() => handleNavigate('games')} />)}
         {tab === 'quiz' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
         {tab === 'tent' && <CadetTent />}
         {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}

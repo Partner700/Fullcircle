@@ -87,6 +87,7 @@ interface ShellProps {
   children: ReactNode;
   navItems: NavItem[];
   activeKey: string;
+  navActiveKey?: string;
   onNavigate: (key: string) => void;
   headerTitle: string;
   headerSubtitle?: string;
@@ -95,7 +96,7 @@ interface ShellProps {
   showTopSignOut?: boolean;
 }
 
-export function AppShell({ children, navItems, activeKey, onNavigate, headerTitle, headerSubtitle, rightHeader, navBadges = {}, showTopSignOut = true }: ShellProps) {
+export function AppShell({ children, navItems, activeKey, navActiveKey = activeKey, onNavigate, headerTitle, headerSubtitle, rightHeader, navBadges = {}, showTopSignOut = true }: ShellProps) {
   const { profile, role, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [weeklyBackground, setWeeklyBackground] = useState<PanelImageSetting | null>(null);
@@ -258,10 +259,10 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
             <button
               key={item.key}
               onClick={() => navigate(item.key)}
-              aria-current={activeKey === item.key ? 'page' : undefined}
+              aria-current={navActiveKey === item.key ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150',
-                activeKey === item.key
+                navActiveKey === item.key
                   ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                   : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
               )}
@@ -388,10 +389,10 @@ export function AppShell({ children, navItems, activeKey, onNavigate, headerTitl
                 <button
                   key={item.key}
                   onClick={() => navigate(item.key)}
-                  aria-current={activeKey === item.key ? 'page' : undefined}
+                  aria-current={navActiveKey === item.key ? 'page' : undefined}
                   className={cn(
                     'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all',
-                    activeKey === item.key
+                    navActiveKey === item.key
                       ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                       : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
                   )}

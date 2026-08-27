@@ -343,8 +343,8 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_progress', label: "Today's Progress", audience: 'all' },
   { type: 'panel_image_recent_denarii', label: 'Recent Denarii', audience: 'all' },
   { type: 'panel_image_quick_links', label: 'Quick Links', audience: 'all' },
-  { type: 'panel_image_game', label: 'Daily Game', audience: 'all' },
-  { type: 'panel_image_daily_game_reminder', label: 'Daily Game Reminder', audience: 'all' },
+  { type: 'panel_image_game', label: 'Daily Trivia', audience: 'all' },
+  { type: 'panel_image_daily_game_reminder', label: 'Daily Trivia Reminder', audience: 'all' },
   { type: 'panel_image_weekly_quiz_reminder', label: 'Weekly Quiz Reminder', audience: 'all' },
   { type: 'panel_image_arena', label: 'Arena', audience: 'all' },
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
@@ -377,14 +377,14 @@ const SOUND_SLOTS = [
   { type: 'sound_welcome', label: 'Welcome / Sign-in', description: 'Plays during the welcome and sign-in experience.', audience: 'all' },
   { type: 'sound_reading', label: "Today's Reading", description: 'Loops in scripture and meditation spaces.', audience: 'all' },
   { type: 'sound_tent', label: 'Tent Space', description: 'Loops during tent conversations and activity.', audience: 'all' },
-  { type: 'sound_game_lobby', label: 'Daily Game Lobby', description: 'Loops on the daily-game landing space.', audience: 'all' },
-  { type: 'sound_game_start', label: 'Daily Game Start', description: 'Plays when a daily game begins.', audience: 'all' },
+  { type: 'sound_game_lobby', label: 'Daily Trivia Lobby', description: 'Loops on the Daily Trivia landing space.', audience: 'all' },
+  { type: 'sound_game_start', label: 'Daily Trivia Start', description: 'Plays when Daily Trivia begins.', audience: 'all' },
   { type: 'sound_game_correct', label: 'Correct Answer', description: 'Plays after a correct daily-game answer.', audience: 'all' },
   { type: 'sound_game_incorrect', label: 'Incorrect Answer', description: 'Plays after a missed daily-game answer.', audience: 'all' },
-  { type: 'sound_game_finish', label: 'Daily Game Finish', description: 'Plays when a daily game is completed.', audience: 'all' },
+  { type: 'sound_game_finish', label: 'Daily Trivia Finish', description: 'Plays when Daily Trivia is completed.', audience: 'all' },
   ...Array.from({ length: DAILY_GAME_LEVELS }, (_, index) => ({
     type: `sound_game_level_${index + 1}`,
-    label: `Daily Game Level ${index + 1}`,
+    label: `Daily Trivia Level ${index + 1}`,
     description: `Looping soundtrack for Level ${index + 1} only.`,
     audience: 'all',
   })),
@@ -831,7 +831,7 @@ function AnnouncementManager() {
               { value: 'panel_image_verse_day_tr', label: 'Panel Image: Verse of the Day TR' },
               { value: 'panel_image_meditation', label: 'Panel Image: Daily Meditation' },
               { value: 'panel_image_challenge', label: 'Panel Image: Daily Challenge' },
-              { value: 'panel_image_daily_game_reminder', label: 'Panel Image: Daily Game Reminder' },
+              { value: 'panel_image_daily_game_reminder', label: 'Panel Image: Daily Trivia Reminder' },
             ]} />
           </div>
           <div>
@@ -4298,7 +4298,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
 
   const importGameQuestionSet = async (imported: ImportedQuestion[]) => {
     const incoming = imported.filter((question) => question.destination === 'game');
-    if (incoming.length === 0) return { imported: 0, skipped: imported.length, message: 'No Daily Game questions were found in this set.' };
+    if (incoming.length === 0) return { imported: 0, skipped: imported.length, message: 'No Daily Trivia questions were found in this set.' };
 
     const narrativeByDate = new Map(narratives.map((narrative) => [narrative.narrative_date, narrative]));
     const targetDates = Array.from(new Set(incoming.map((question) => question.narrativeDate || selectedNarrativeDate).filter(Boolean))) as string[];
@@ -4312,7 +4312,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     const existingKeys = new Set(existing.map((question) => questionImportKey(question.question_text)));
     const additions = incoming.filter((question) => !existingKeys.has(questionImportKey(question.question)));
     if (additions.length === 0) {
-      return { imported: 0, skipped: incoming.length, message: 'Every question already exists in the selected Daily Game bank.' };
+      return { imported: 0, skipped: incoming.length, message: 'Every question already exists in the selected Daily Trivia bank.' };
     }
 
     const nextIndexBySegment = new Map<string, number>();
@@ -4366,7 +4366,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     return {
       imported: rowsToInsert.length,
       skipped: incoming.length - rowsToInsert.length,
-      message: `${rowsToInsert.length} questions segmented into their Daily Game levels and rounds.`,
+      message: `${rowsToInsert.length} questions segmented into their Daily Trivia levels and rounds.`,
     };
   };
 
@@ -4775,7 +4775,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
             <h4 className="font-display font-semibold text-ink">
               {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
             </h4>
-            <p className="mt-1 text-xs text-stone">Only approved questions are available to cadets in the Daily Game.</p>
+            <p className="mt-1 text-xs text-stone">Only approved questions are available to cadets in Daily Trivia.</p>
           </div>
           <button onClick={approveVisibleQuestions} disabled={!rows.some((question) => !question.is_approved)} className="btn-primary text-xs disabled:opacity-50">
             <CheckCircle2 size={12} /> Approve visible

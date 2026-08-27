@@ -31,23 +31,24 @@ import {
 import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
+import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import type { DailyNarrative, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
-  Shield,
+  Shield, ArrowLeft,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
 type InvitePlayer = RoleAssignment & { profiles: Profile };
-const activeArenaRoomKey = (userId: string) => `full-circle-active-arena-room-${userId}`;
 const dismissedArenaRoomsKey = (userId: string) => `full-circle-dismissed-arena-rooms-${userId}`;
 
 interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
+  onBackToDailyGames?: () => void;
 }
 
-export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
+export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [rooms, setRooms] = useState<any[]>([]);
@@ -91,20 +92,20 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
 
   useEffect(() => {
     if (!profile) return;
-    const savedRoomId = window.localStorage.getItem(activeArenaRoomKey(profile.id));
+    const savedRoomId = window.localStorage.getItem(activeArenaRoomStorageKey(profile.id));
     const dismissed = new Set(JSON.parse(window.localStorage.getItem(dismissedArenaRoomsKey(profile.id)) || '[]'));
     if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
-    if (savedRoomId && dismissed.has(savedRoomId)) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+    if (savedRoomId && dismissed.has(savedRoomId)) window.localStorage.removeItem(activeArenaRoomStorageKey(profile.id));
   }, [profile]);
 
   useEffect(() => {
     if (!profile || !activeRoomId) return;
-    window.localStorage.setItem(activeArenaRoomKey(profile.id), activeRoomId);
+    window.localStorage.setItem(activeArenaRoomStorageKey(profile.id), activeRoomId);
   }, [profile, activeRoomId]);
 
   const clearActiveRoom = useCallback((dismiss = false) => {
     if (profile && activeRoomId) {
-      window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+      window.localStorage.removeItem(activeArenaRoomStorageKey(profile.id));
       if (dismiss) {
         const key = dismissedArenaRoomsKey(profile.id);
         const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem(key) || '[]'));
@@ -123,7 +124,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
       const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem(dismissedKey) || '[]'));
       dismissed.delete(roomId);
       window.localStorage.setItem(dismissedKey, JSON.stringify(Array.from(dismissed)));
-      window.localStorage.setItem(activeArenaRoomKey(profile.id), roomId);
+      window.localStorage.setItem(activeArenaRoomStorageKey(profile.id), roomId);
     }
     setActiveRoomId(roomId);
     setPhase(nextPhase);
@@ -241,7 +242,7 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
           setFinishSummary({ room, rhudes: null });
         }
         setPhase('finished');
-        if (profile) window.localStorage.removeItem(activeArenaRoomKey(profile.id));
+        if (profile) window.localStorage.removeItem(activeArenaRoomStorageKey(profile.id));
       }
     }
     const myParticipant = (room.arena_participants || []).find((participant: any) => participant.user_id === profile?.id);
@@ -380,7 +381,16 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
     setInviting(false);
   };
 
-  if (loading && phase === 'lobby') return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+  if (loading && phase === 'lobby') return (
+    <div className="space-y-4 animate-fade-in">
+      {onBackToDailyGames && (
+        <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
+          <ArrowLeft size={15} /> Back to Daily Games
+        </button>
+      )}
+      <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>
+    </div>
+  );
 
   if (phase === 'playing' && activeRoomId) {
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
@@ -646,6 +656,11 @@ export function CadetArena({ onBalanceChanged }: CadetArenaProps) {
   // Lobby
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
+      {onBackToDailyGames && (
+        <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
+          <ArrowLeft size={15} /> Back to Daily Games
+        </button>
+      )}
       <div className="card relative overflow-hidden p-4 sm:p-5">
         <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="bg-navy-2/78" />
         <div className="relative z-10">

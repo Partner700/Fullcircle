@@ -13,6 +13,7 @@ import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempt
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { supabase } from '../../lib/supabase';
+import { DAILY_GAME_LEVELS } from '../../lib/constants';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
@@ -20,7 +21,7 @@ import {
   Quote, Megaphone, Tent as TentIcon, ShoppingBag, Award,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'narrative' | 'streak' | 'game' | 'arena' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
+type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
 
 export type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
@@ -281,7 +282,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         <StatCard icon={Flame} label="Current Streak" value={`${streak.current_streak}`} sublabel={`Best: ${streak.longest_streak}`} color="#B8553E" />
         <StatCard icon={Coins} label="Denarii" value={formatDenarii(denariiTotal)} sublabel={`+${todayDenarii} today`} color="#C9A227" />
         <StatCard icon={Calendar} label="Valid Days" value={streak.volume_this_month} sublabel="This month" color="#6B8E5A" />
-        <StatCard icon={Gamepad2} label="Levels Done" value={`${completedLevels}/10`} sublabel="Today" color="#C9A227" />
+        <StatCard icon={Gamepad2} label="Levels Done" value={`${completedLevels}/${DAILY_GAME_LEVELS}`} sublabel="Today" color="#C9A227" />
       </div>
 
       {/* Today's status bar */}
@@ -315,10 +316,10 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
             />
             <TodayCheckItem
               icon={Gamepad2}
-              label="Daily game progress"
+              label="Daily Trivia progress"
               done={completedLevels > 0}
               n_a={false}
-              note={`${completedLevels} of 10 levels cleared`}
+              note={`${completedLevels} of ${DAILY_GAME_LEVELS} levels cleared`}
               onClick={() => onNavigate('game')}
             />
             <TodayCheckItem
@@ -377,7 +378,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
               ))}
             </div>
           ) : (
-            <EmptyState icon={TrendingUp} title="No denarii yet" message="Play the daily game or take the Saturday quiz to start earning." />
+            <EmptyState icon={TrendingUp} title="No denarii yet" message="Play Daily Trivia or take the Saturday quiz to start earning." />
           )}
           </div>
         </div>
@@ -388,7 +389,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         <PanelImageBackdrop image={panelImages.quick_links} />
         <div className="relative grid grid-cols-2 gap-3 md:grid-cols-4">
           <QuickLink icon={dayType === 'saturday' ? FileQuestion : BookOpen} label={dayType === 'saturday' ? 'Take Quiz' : 'Read Today'} badge={notificationBadges[dayType === 'saturday' ? 'quiz' : 'narrative'] || 0} onClick={() => onNavigate(dayType === 'saturday' ? 'quiz' : 'narrative')} />
-          <QuickLink icon={Gamepad2} label="Play Game" badge={notificationBadges.game || 0} onClick={() => onNavigate('game')} />
+          <QuickLink icon={Gamepad2} label="Daily Games" badge={(notificationBadges.game || 0) + (notificationBadges.arena || 0)} onClick={() => onNavigate('games')} />
           <QuickLink icon={TentIcon} label="My Tent" badge={notificationBadges.tent || 0} onClick={() => onNavigate('tent')} />
           <QuickLink icon={Award} label="Awards Hub" badge={notificationBadges.awards || 0} onClick={() => onNavigate('awards')} />
           <QuickLink icon={Flame} label="My Streak" badge={notificationBadges.streak || 0} onClick={() => onNavigate('streak')} />

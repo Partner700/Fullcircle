@@ -19,7 +19,7 @@ import type { DailyNarrative, GameAttempt, QuestionPayload, PanelImageSetting } 
 import {
   Gamepad2, Lock, CheckCircle2, XCircle, Trophy, Coins, RotateCcw,
   Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
-  SkipForward, BookOpen, Volume2, Wand2,
+  SkipForward, BookOpen, Volume2, Wand2, ArrowLeft,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -70,7 +70,10 @@ type RoundTimeout = {
   nextIndex: number | null;
 };
 
-export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
+export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
+  onRewardEarned: () => void;
+  onBackToDailyGames?: () => void;
+}) {
   const { profile } = useAuth();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [attempts, setAttempts] = useState<GameAttempt[]>([]);
@@ -134,20 +137,45 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
   const inPracticeMode = totalEarned >= DAILY_GAME_CAP;
   const passedCount = Array.from({ length: DAILY_GAME_LEVELS }, (_, i) => i + 1).filter(levelPassed).length;
 
-  if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading game…</div>;
+  if (loading) return (
+    <div className="space-y-4 animate-fade-in">
+      {onBackToDailyGames && (
+        <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
+          <ArrowLeft size={15} /> Back to Daily Games
+        </button>
+      )}
+      <div className="py-12 text-center text-stone">Loading Daily Trivia…</div>
+    </div>
+  );
 
   if (paused) {
     return (
-      <EmptyState
-        icon={(props) => <Pause {...props} />}
-        title="Games Paused"
-        message="The Daily Game pauses after Saturday's quiz. The week's games reopen on Sunday."
-      />
+      <div className="space-y-4 animate-fade-in">
+        {onBackToDailyGames && (
+          <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
+            <ArrowLeft size={15} /> Back to Daily Games
+          </button>
+        )}
+        <EmptyState
+          icon={(props) => <Pause {...props} />}
+          title="Daily Trivia Paused"
+          message="Daily Trivia pauses after Saturday's quiz. The week's games reopen on Sunday."
+        />
+      </div>
     );
   }
 
   if (!narrative) {
-    return <EmptyState icon={(props) => <Gamepad2 {...props} />} title="No game today" message="Today's narrative hasn't been published yet." />;
+    return (
+      <div className="space-y-4 animate-fade-in">
+        {onBackToDailyGames && (
+          <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
+            <ArrowLeft size={15} /> Back to Daily Games
+          </button>
+        )}
+        <EmptyState icon={(props) => <Gamepad2 {...props} />} title="No Daily Trivia today" message="Today's narrative hasn't been published yet." />
+      </div>
+    );
   }
 
   const sundayGamePicker = isSunday && sundayGames.length > 0 ? (
@@ -201,11 +229,16 @@ export function CadetGame({ onRewardEarned }: { onRewardEarned: () => void }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {onBackToDailyGames && (
+        <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
+          <ArrowLeft size={15} /> Back to Daily Games
+        </button>
+      )}
       {sundayGamePicker}
       <div className="card p-5 relative overflow-hidden animate-slide-up">
         <div className="relative z-10 flex items-center justify-between gap-3">
           <div>
-            <p className="eyebrow mb-1">Daily Campaign</p>
+            <p className="eyebrow mb-1">Daily Trivia</p>
             <h2 className="font-display text-xl font-semibold text-ink">
               {passedCount} of {DAILY_GAME_LEVELS} levels cleared
             </h2>
