@@ -77,6 +77,7 @@ const accountAccessBootstrapRepair = read('supabase/migrations/20260826100000_ac
 const repairedBoardMovements = read('supabase/migrations/20260825110000_repair_board_movement_visibility.sql');
 const normalizedEconomy = read('supabase/migrations/20260826110000_normalize_full_circle_economy.sql');
 const cumulativeStreakEconomy = read('supabase/migrations/20260826120000_cumulative_streak_achievement_marks.sql');
+const correctedStreakAchievement = read('supabase/migrations/20260826123000_close_streak_achievement_loophole.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const authContext = read('src/context/AuthContext.tsx');
@@ -596,6 +597,40 @@ assert.doesNotMatch(
     /CREATE OR REPLACE FUNCTION public\.get_member_mark_components\(\)[\s\S]*?\$\$;/,
   )?.[0] || '',
   /public\.calculate_normalized_marks\(\s*raw\.current_streak,/,
+);
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.streak_achievement_verified_restorations',
+  'ALTER TABLE public.streak_achievement_verified_restorations ENABLE ROW LEVEL SECURITY',
+  'REVOKE ALL ON TABLE public.streak_achievement_verified_restorations',
+  'CREATE OR REPLACE FUNCTION public.record_verified_streak_restoration',
+  'DROP TRIGGER IF EXISTS capture_streak_achievement_from_freezer',
+  'DROP TRIGGER IF EXISTS capture_streak_achievement_baseline_change',
+  "CHECK (source_kind IN ('earned', 'restored'))",
+  'Legacy phase 1B continuity anchors retained for audit only',
+]) {
+  assert.ok(
+    correctedStreakAchievement.includes(required),
+    `Missing corrected Streak-achievement boundary: ${required}`,
+  );
+}
+const correctedStreakSource = correctedStreakAchievement.match(
+  /CREATE OR REPLACE FUNCTION public\.streak_achievement_source\([\s\S]*?\n\$\$;/,
+)?.[0] || '';
+assert.match(correctedStreakSource, /public\.streak_requirement_met\(p_user_id, p_achievement_date\)/);
+assert.match(correctedStreakSource, /public\.streak_achievement_verified_restorations/);
+assert.doesNotMatch(
+  correctedStreakSource,
+  /streak_day_is_(?:purchased|protected|restored)|streak_freezers|streak_manual_adjustments|streakboard_snapshots/,
+);
+assert.match(
+  correctedStreakAchievement,
+  /REVOKE ALL ON FUNCTION public\.record_verified_streak_restoration\(uuid, date, text, uuid\)[\s\S]*FROM PUBLIC, anon, authenticated/,
+);
+assert.doesNotMatch(
+  correctedStreakAchievement.match(
+    /CREATE OR REPLACE FUNCTION public\.get_lifetime_qualifying_streak_days\([\s\S]*?\n\$\$;/,
+  )?.[0] || '',
+  /streak_achievement_baselines|current_streak|longest_streak/,
 );
 assert.equal((cadetNarrative.match(/PanelImageBackdrop image=\{scriptureImage\}/g) || []).length, 2);
 assert.match(cadetApp, /data-denarii-target/);

@@ -10,6 +10,9 @@ const migration = read('supabase/migrations/20260826110000_normalize_full_circle
 const cumulativeStreakMigration = read(
   'supabase/migrations/20260826120000_cumulative_streak_achievement_marks.sql',
 );
+const streakAchievementCorrection = read(
+  'supabase/migrations/20260826123000_close_streak_achievement_loophole.sql',
+);
 const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
 const roadHomeEndpoint = read('supabase/functions/road-home-game/index.ts');
 const roadHomeSettlement = read('supabase/migrations/20260810142000_road_home_atomic_settlement.sql');
@@ -91,6 +94,69 @@ assert.equal(normalizedMarks({ lifetimeQualifyingStreakDays: lifetimeStreakDays.
 lifetimeStreakDays.add('2026-08-12');
 assert.equal(lifetimeStreakDays.size, 11, 'A retry for one user/date must not add another achievement.');
 
+type StreakEvidence = {
+  completed?: boolean;
+  verifiedRestoration?: boolean;
+  purchasedProtection?: boolean;
+  freezerProtection?: boolean;
+  manualContinuityExtension?: boolean;
+};
+
+const qualifyingStreakSource = ({ completed, verifiedRestoration }: StreakEvidence) => {
+  if (completed) return 'earned';
+  if (verifiedRestoration) return 'restored';
+  return null;
+};
+
+const phase1cAchievementDays = new Set<string>();
+const attemptStreakAchievement = (date: string, evidence: StreakEvidence) => {
+  const source = qualifyingStreakSource(evidence);
+  if (source) phase1cAchievementDays.add(date);
+  return source;
+};
+
+assert.equal(attemptStreakAchievement('2026-08-13', { completed: true }), 'earned');
+assert.equal(phase1cAchievementDays.size, 1, 'Genuine completion must add one achievement.');
+assert.equal(
+  attemptStreakAchievement('2026-08-14', { freezerProtection: true }),
+  null,
+  'A freezer-protected miss must not add an achievement.',
+);
+assert.equal(
+  attemptStreakAchievement('2026-08-15', { purchasedProtection: true }),
+  null,
+  'Purchased streak continuity must not add an achievement.',
+);
+assert.equal(
+  attemptStreakAchievement('2026-08-16', { verifiedRestoration: true }),
+  'restored',
+  'Verified recovery of an actually completed day must add one achievement.',
+);
+assert.equal(
+  attemptStreakAchievement('2026-08-17', { manualContinuityExtension: true }),
+  null,
+  'Unsupported manual continuity must not add an achievement.',
+);
+assert.equal(phase1cAchievementDays.size, 2);
+
+let protectedCurrentStreak = 9;
+const achievementsBeforeProtection = phase1cAchievementDays.size;
+protectedCurrentStreak += 1;
+attemptStreakAchievement('2026-08-18', { purchasedProtection: true });
+assert.equal(protectedCurrentStreak, 10, 'Current streak continuity may still be preserved.');
+assert.equal(
+  phase1cAchievementDays.size,
+  achievementsBeforeProtection,
+  'Preserved current streak must not imply demonstrated lifetime achievement.',
+);
+
+attemptStreakAchievement('2026-08-16', { verifiedRestoration: true });
+assert.equal(
+  phase1cAchievementDays.size,
+  achievementsBeforeProtection,
+  'The same user/date must remain idempotent after a duplicate qualifying event.',
+);
+
 // Wallet balance is intentionally absent from the formula. Spending changes
 // liquidity, not the already captured lifetime achievement.
 const marksBeforePurchase = normalizedMarks({ qualifyingDenarii: 6000 });
@@ -146,10 +212,6 @@ for (const cumulativeBoundary of [
 }
 assert.match(
   cumulativeStreakMigration,
-  /RETURN 'earned';[\s\S]*RETURN 'restored';[\s\S]*RETURN 'purchased';/,
-);
-assert.match(
-  cumulativeStreakMigration,
   /Ordinary daily\/weekly freezers hold a current streak[\s\S]*RETURN NULL;/,
 );
 assert.match(
@@ -165,6 +227,57 @@ assert.doesNotMatch(
     /CREATE OR REPLACE FUNCTION public\.get_member_mark_components\(\)[\s\S]*?\$\$;/,
   )?.[0] || '',
   /public\.calculate_normalized_marks\(\s*raw\.current_streak,/,
+);
+
+for (const phase1cBoundary of [
+  'CREATE TABLE IF NOT EXISTS public.streak_achievement_verified_restorations',
+  'PRIMARY KEY (user_id, achievement_date)',
+  'CREATE OR REPLACE FUNCTION public.record_verified_streak_restoration',
+  'DROP TRIGGER IF EXISTS capture_streak_achievement_from_freezer',
+  'DROP TRIGGER IF EXISTS capture_streak_achievement_baseline_change',
+  "CHECK (source_kind IN ('earned', 'restored'))",
+  'No freezer, Simon, relic, manual',
+  'SELECT count(*)::bigint',
+  'achievement.achievement_date < clock.exclusive_end',
+]) {
+  assert.ok(
+    streakAchievementCorrection.includes(phase1cBoundary),
+    `Missing Phase 1C Streak boundary: ${phase1cBoundary}`,
+  );
+}
+
+const correctedSourceFunction = streakAchievementCorrection.match(
+  /CREATE OR REPLACE FUNCTION public\.streak_achievement_source\([\s\S]*?\n\$\$;/,
+)?.[0] || '';
+assert.match(correctedSourceFunction, /public\.streak_requirement_met\(p_user_id, p_achievement_date\)/);
+assert.match(correctedSourceFunction, /public\.streak_achievement_verified_restorations/);
+assert.match(correctedSourceFunction, /RETURN 'earned';[\s\S]*RETURN 'restored';[\s\S]*RETURN NULL;/);
+for (const forbiddenContinuitySource of [
+  'public.streak_day_is_purchased',
+  'public.streak_day_is_restored',
+  'public.streak_day_is_protected',
+  'public.streak_freezers',
+  'public.streak_manual_adjustments',
+  'public.streakboard_snapshots',
+]) {
+  assert.ok(
+    !correctedSourceFunction.includes(forbiddenContinuitySource),
+    `Continuity-only evidence leaked into Streak achievement: ${forbiddenContinuitySource}`,
+  );
+}
+assert.match(
+  streakAchievementCorrection,
+  /REVOKE ALL ON TABLE public\.streak_achievement_verified_restorations[\s\S]*FROM PUBLIC, anon, authenticated/,
+);
+assert.match(
+  streakAchievementCorrection,
+  /REVOKE ALL ON FUNCTION public\.record_verified_streak_restoration\(uuid, date, text, uuid\)[\s\S]*FROM PUBLIC, anon, authenticated/,
+);
+assert.doesNotMatch(
+  streakAchievementCorrection.match(
+    /CREATE OR REPLACE FUNCTION public\.get_lifetime_qualifying_streak_days\([\s\S]*?\n\$\$;/,
+  )?.[0] || '',
+  /streak_achievement_baselines|current_streak|longest_streak/,
 );
 
 // A simple ranking acceptance example proves fractional Marks remain useful
