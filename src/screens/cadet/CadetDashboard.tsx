@@ -8,6 +8,7 @@ import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
+import { QuizResponders } from '../../components/QuizResponders';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
@@ -586,6 +587,12 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       )}
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Hey Everyone</h2>
                       <p className="text-sm text-stone mt-2 leading-relaxed max-w-2xl whitespace-pre-wrap">{slide.announcement.content}</p>
+                      {slide.announcement.announcement_type === 'weekly_quiz_reminder' && (
+                        <QuizResponders
+                          variant="slide"
+                          active={displayIndex === slideIndex}
+                        />
+                      )}
                       <p className="text-[10px] text-stone-dim mt-2">
                         Posted {new Date(slide.announcement.publish_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>

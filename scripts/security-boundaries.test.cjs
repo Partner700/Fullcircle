@@ -81,12 +81,39 @@ const correctedStreakAchievement = read('supabase/migrations/20260826123000_clos
 const attendanceCorrection = read('supabase/migrations/20260827100000_preserve_attendance_corrections.sql');
 const spadesStreakRestoration = read('supabase/migrations/20260827103000_restore_spades_streaks.sql');
 const spadesStreakAdvancement = read('supabase/migrations/20260827104000_advance_restored_spades_streaks.sql');
+const quizRespondersAndMonthlyWatch = read('supabase/migrations/20260829100000_quiz_responders_and_monthly_vallum_watch.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
+const quizResponders = read('src/components/QuizResponders.tsx');
 const authContext = read('src/context/AuthContext.tsx');
 const authScreen = read('src/screens/AuthScreen.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
 const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_quiz_responders',
+  "attempt.status IN ('submitted', 'timed_out')",
+  'FROM public.question_responses response',
+  'REVOKE ALL ON FUNCTION public.get_quiz_responders(uuid) FROM PUBLIC, anon',
+  'CREATE OR REPLACE FUNCTION public.get_monthly_vallum_watch',
+  "assignment.role = 'instructor'",
+  'punctual_actions',
+  'insights_written',
+  'comments_written',
+  'reactions_given',
+]) {
+  assert.ok(quizRespondersAndMonthlyWatch.includes(required), `Missing quiz/monthly-watch boundary: ${required}`);
+}
+assert.doesNotMatch(quizRespondersAndMonthlyWatch, /RETURNS TABLE[\s\S]{0,500}(question_payload|correct_answer|response\.answer|talents_scored|score)/i);
+assert.match(quizResponders, /fetchQuizResponders/);
+assert.match(quizResponders, /Already answered/);
+assert.match(quizResponders, /table: 'quiz_attempts'/);
+assert.match(cadetDashboard, /announcement_type === 'weekly_quiz_reminder'[\s\S]*<QuizResponders/);
+assert.match(cadetQuiz, /const responderPanel = <QuizResponders sessionId=\{session\.id\}/);
+assert.match(instructorApp, /title: 'Bethel Stone', description: 'Overall Best Tent of the Month'/);
+assert.match(instructorApp, /title: 'Temple Mount', description: 'Overall Best Tent of the Year'/);
+assert.match(instructorApp, /Monthly Award Watches/);
+assert.match(instructorApp, /Vallum watches Marks together with punctual attendance and meditation, scripture insights, comments, and reactions/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.fcx_events',
@@ -185,24 +212,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v97'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '97'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v98'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '98'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '97'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '98'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=97`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '97'\)/);
-assert.match(releaseCache, /2026-08-26-v97/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=97/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=97'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=97"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=98`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '98'\)/);
+assert.match(releaseCache, /2026-08-29-v98/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=98/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=98'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=98"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);

@@ -244,6 +244,28 @@ export interface QuizAttempt {
   created_at: string;
 }
 
+export interface QuizResponder {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  answered_at: string;
+}
+
+export interface MonthlyVallumWatchRow {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  marks: number;
+  punctual_actions: number;
+  insights_written: number;
+  comments_written: number;
+  reactions_given: number;
+  monthly_figs: number;
+  monthly_rhudes: number;
+  activity_points: number;
+  rank: number;
+}
+
 export interface WeeklyQuizReleasedResult {
   released: boolean;
   release_at: string;

@@ -1,13 +1,13 @@
 import { supabase } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
-  QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, WeeklyQuizReleasedResult,
+  QuizSession, GeneratedQuestion, QuizAttempt, QuizResponder, QuestionResponse, WeeklyQuizReleasedResult,
   DenariiLedgerEntry, GameAttempt, RelicType, RelicInventory,
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
   QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
-  FcxExperience,
+  FcxExperience, MonthlyVallumWatchRow,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
@@ -479,6 +479,22 @@ export async function fetchQuizAttempt(_userId: string, sessionId: string) {
   });
   if (error) throw error;
   return data as QuizAttempt | null;
+}
+
+export async function fetchQuizResponders(sessionId: string) {
+  const { data, error } = await supabase.rpc('get_quiz_responders', {
+    p_quiz_session_id: sessionId,
+  });
+  if (error) throw error;
+  return (data || []) as QuizResponder[];
+}
+
+export async function fetchMonthlyVallumWatch(month: string) {
+  const { data, error } = await supabase.rpc('get_monthly_vallum_watch', {
+    p_month: `${month}-01`,
+  });
+  if (error) throw error;
+  return (data || []) as MonthlyVallumWatchRow[];
 }
 
 export async function fetchMyWeeklyQuizResult(sessionId: string) {

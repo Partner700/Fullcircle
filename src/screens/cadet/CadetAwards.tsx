@@ -24,12 +24,12 @@ const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   vallum: Cross,
   monthly_scribe: PenTool,
   monthly_valley_champion: Shield,
-  portion_of_priests: Users,
   grand_vallum: Crown,
   grand_scribe: PenTool,
   grand_valley_champion: Shield,
   grand_orator: MessageCircle,
   bethel_stone: Trophy,
+  temple_mount: Trophy,
 };
 
 // Warm-palette award colors (brass / roman / moss / etc.)
@@ -46,12 +46,12 @@ const AWARD_COLOR_MAP: Record<string, string> = {
   vallum: '#DDE3FF',
   monthly_scribe: '#7C8CFF',
   monthly_valley_champion: '#5BAD7F',
-  portion_of_priests: '#D4A03C',
   grand_vallum: '#C9A227',
   grand_scribe: '#7C8CFF',
   grand_valley_champion: '#5BAD7F',
   grand_orator: '#C9A227',
   bethel_stone: '#B8553E',
+  temple_mount: '#C9A227',
 };
 
 const AWARD_BADGE_MAP: Record<string, string> = {
@@ -67,12 +67,12 @@ const AWARD_BADGE_MAP: Record<string, string> = {
   vallum: 'badge badge-neutral',
   monthly_scribe: 'badge badge-neutral',
   monthly_valley_champion: 'badge badge-moss',
-  portion_of_priests: 'badge badge-brass',
   grand_vallum: 'badge badge-brass',
   grand_scribe: 'badge badge-neutral',
   grand_valley_champion: 'badge badge-moss',
   grand_orator: 'badge badge-brass',
   bethel_stone: 'badge badge-roman',
+  temple_mount: 'badge badge-brass',
 };
 
 const AWARD_LABEL_MAP: Record<string, string> = {
@@ -88,12 +88,12 @@ const AWARD_LABEL_MAP: Record<string, string> = {
   vallum: 'Vallum',
   monthly_scribe: 'Monthly Scribe',
   monthly_valley_champion: 'Monthly Valley Champion',
-  portion_of_priests: 'Portion of the Priests',
   grand_vallum: 'Grand Vallum',
   grand_scribe: 'Grand Scribe',
   grand_valley_champion: 'Grand Valley Champion',
   grand_orator: 'Grand Orator',
   bethel_stone: 'Bethel Stone',
+  temple_mount: 'Temple Mount',
 };
 
 export function CadetAwards() {
@@ -313,7 +313,7 @@ export function CadetAwards() {
           <ul className="space-y-1.5 text-xs text-stone">
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Marks</span> — grand total for Rumor, Vallum, and Grand Vallum.</span>
+              <span><span className="text-ink font-medium">Marks</span> — the grand total used alongside monthly app activity when watching Vallum.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
@@ -333,7 +333,7 @@ export function CadetAwards() {
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Tent Awards</span> — belong to tents, not tent houses.</span>
+              <span><span className="text-ink font-medium">Tent Awards</span> — The Lord's Secret weekly, Bethel Stone monthly, and Temple Mount annually.</span>
             </li>
           </ul>
         </div>

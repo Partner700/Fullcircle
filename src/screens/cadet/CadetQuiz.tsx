@@ -4,6 +4,7 @@ import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { Dove } from '../../components/Dove';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { QuizResponders } from '../../components/QuizResponders';
 import {
   fetchLatestQuizSession, fetchPlayableQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
   fetchNarratives, fetchRelicInventory, resetQuizAttemptWithLazarus, startQuizAttempt,
@@ -290,16 +291,17 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   };
 
   const resultsReleaseAt = localQuizResultsRelease(session.session_date);
+  const responderPanel = <QuizResponders sessionId={session.id} />;
 
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}<ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+      return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}<SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
     }
-    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} /><ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
   }
 
   // In quiz
@@ -337,6 +339,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           </p>
         </div>
       </div>
+
+      {responderPanel}
 
       <QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />
 
