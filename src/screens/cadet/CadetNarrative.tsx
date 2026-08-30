@@ -252,6 +252,7 @@ export function CadetNarrative({
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
   const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
+  const [closedSundayInsights, setClosedSundayInsights] = useState<string[]>([]);
   const [myInsightDrafts, setMyInsightDrafts] = useState<Record<string, string>>({});
   const [savingInsight, setSavingInsight] = useState<string | null>(null);
   const [openInsightReplies, setOpenInsightReplies] = useState<string | null>(null);
@@ -372,6 +373,10 @@ export function CadetNarrative({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setClosedSundayInsights([]);
+  }, [activeDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -530,8 +535,10 @@ export function CadetNarrative({
     if (!reference) return;
     const index = readerVerses.findIndex((verse) => verse.reference === reference);
     if (index < 0) return;
+    const targetSourceNarrativeId = readerVerses[index].sourceNarrativeId || narrative.id;
     setOpenVerse(index);
     setOpenUserInsights(reference);
+    setClosedSundayInsights((current) => current.filter((key) => key !== `${targetSourceNarrativeId}:${reference}`));
     window.setTimeout(() => verseRefs.current[reference]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
     clearScriptureTarget();
     setNavigationTarget(null);
@@ -830,7 +837,10 @@ export function CadetNarrative({
               ),
             );
             const expanded = isSundayRest || openVerse === index;
-            const userExpanded = isSundayRest || openUserInsights === verse.reference;
+            const sundayInsightKey = `${sourceNarrativeId}:${verse.reference}`;
+            const userExpanded = isSundayRest
+              ? !closedSundayInsights.includes(sundayInsightKey)
+              : openUserInsights === verse.reference;
             const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
             return (
               <article
@@ -862,14 +872,21 @@ export function CadetNarrative({
                 <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
-                    {!isSundayRest && (
-                      <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                      if (isSundayRest) {
+                        if (userExpanded) {
+                          setClosedSundayInsights((current) => current.includes(sundayInsightKey) ? current : [...current, sundayInsightKey]);
+                          return;
+                        }
                         if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
-                        setOpenUserInsights(userExpanded ? null : verse.reference);
-                      }}>
-                        {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
-                      </button>
-                    )}
+                        setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
+                        return;
+                      }
+                      if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
+                      setOpenUserInsights(userExpanded ? null : verse.reference);
+                    }}>
+                      {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                    </button>
                   </div>
                   {userExpanded && (
                     <div className="mt-3 space-y-3">
@@ -932,9 +949,9 @@ export function CadetNarrative({
                               ).values()).slice(0, 5);
                               if (!actors.length) return null;
                               return (
-                                <div className="mt-2 flex items-center -space-x-1.5" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                <div className="mt-2 flex items-center -space-x-1" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
                                   {actors.map((actor: any) => (
-                                    <span key={actor.user_id} title={actor.display_name} className="inline-flex h-5 w-5 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-[8px] font-bold leading-5 text-peri shadow-sm">
+                                    <span key={actor.user_id} title={actor.display_name} className="inline-flex h-4 w-4 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-[6px] font-bold leading-4 text-peri shadow-sm">
                                       {actor.avatar_url ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" /> : actor.display_name.charAt(0)}
                                     </span>
                                   ))}

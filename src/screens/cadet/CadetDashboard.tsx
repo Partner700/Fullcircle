@@ -99,7 +99,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchAnnouncements(),
         fetchActiveFcxExperience(),
         fetchPanelImageSettings([
-          'welcome', 'fcx', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'welcome', 'fcx', 'honors', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);

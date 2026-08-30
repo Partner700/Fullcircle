@@ -429,7 +429,7 @@ export function MessageAvatar({
 }: {
   profile: Profile;
   currentUserId?: string | null;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   showName?: boolean;
   className?: string;
   onOpenChange?: (open: boolean) => void;
@@ -437,7 +437,7 @@ export function MessageAvatar({
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
   const { requireSubscription } = useSubscriptionAccess();
-  const sizeClass = size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
+  const sizeClass = size === 'xs' ? 'h-4 w-4 text-[6px]' : size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = profile.id === currentUserId;
   const unreadCount = !isMe && currentUserId ? unreadBySender[profile.id] || 0 : 0;
 
@@ -464,7 +464,10 @@ export function MessageAvatar({
             )}
           </span>
           {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 z-10 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-bg bg-coral px-1 text-[9px] font-black leading-none text-white shadow-md">
+            <span className={cn(
+              'absolute z-10 inline-flex items-center justify-center rounded-full border border-bg bg-coral font-black leading-none text-white shadow-md',
+              size === 'xs' ? '-right-1.5 -top-1.5 min-h-3 min-w-3 px-0.5 text-[6px]' : '-right-1 -top-1 min-h-4 min-w-4 px-1 text-[9px]',
+            )}>
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}

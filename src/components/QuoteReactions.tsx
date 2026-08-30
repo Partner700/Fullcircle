@@ -172,7 +172,7 @@ export function QuoteReactions({
       </div>
 
       {reactionActors.length > 0 && (
-        <div className="flex items-center -space-x-2" aria-label={`${reactionActors.length} camp members reacted`}>
+        <div className="flex items-center -space-x-1" aria-label={`${reactionActors.length} camp members reacted`}>
           {reactionActors.map((actor) => (
             <MessageAvatar
               key={actor.user_id}
@@ -187,7 +187,7 @@ export function QuoteReactions({
                 created_at: '',
               }}
               currentUserId={currentUserId}
-              size="sm"
+              size="xs"
               onOpenChange={onMessageOpenChange || onCommentOpenChange}
             />
           ))}

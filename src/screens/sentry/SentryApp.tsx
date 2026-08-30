@@ -159,7 +159,7 @@ export function SentryApp() {
       const subscriptionPromise = getSubscriptionStatus(profile.id).catch(() => null);
       const announcementPromise = fetchAnnouncements(['all', 'cadets', 'sentries']).catch(() => []);
       const imagePromise = fetchPanelImageSettings([
-        'welcome', 'fcx', 'verse', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'welcome', 'fcx', 'honors', 'verse', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
         'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
       ], ['all', 'cadets', 'sentries']).catch(() => ({}));
 
