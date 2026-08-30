@@ -89,6 +89,28 @@ const authContext = read('src/context/AuthContext.tsx');
 const authScreen = read('src/screens/AuthScreen.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
 const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
+const sundayPublicReading = read('supabase/migrations/20260830120000_sunday_readings_public_conversations.sql');
+const publicShareScreen = read('src/screens/PublicShareScreen.tsx');
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.ensure_sunday_highlight_reading',
+  "'Sunday Scripture Highlights'",
+  "'auto_sunday_highlights', true",
+  "'5 23 * * 6'",
+  'CREATE OR REPLACE FUNCTION public.get_previous_muralis',
+  'CREATE OR REPLACE FUNCTION public.get_shared_daily_reading_v2',
+  'CREATE TABLE IF NOT EXISTS public.public_scripture_insight_reactions',
+  'REVOKE ALL ON TABLE public.public_scripture_insight_reactions FROM PUBLIC, anon, authenticated',
+  'CREATE OR REPLACE FUNCTION public.toggle_public_scripture_insight_reaction',
+]) {
+  assert.ok(sundayPublicReading.includes(required), `Missing Sunday/public-reading boundary: ${required}`);
+}
+assert.match(quoteQueries, /ensure_sunday_highlight_reading/);
+assert.match(fcxExperience, /fetchPreviousMuralis/);
+assert.match(publicShareScreen, /function SharedReadingView/);
+assert.match(publicShareScreen, /toggleSharedInsightReaction/);
+assert.match(publicShareScreen, /insight\.comments\.map/);
+assert.match(publicShareScreen, /Join Full Circle to share an insight, comment, or reply/);
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.get_quiz_responders',
@@ -196,6 +218,7 @@ const sealedTables = [
   'fcx_events', 'fcx_registrations',
   'denarii_achievement_entries', 'full_circle_economy_rules',
   'streak_achievement_days', 'streak_achievement_baselines',
+  'public_scripture_insight_reactions',
 ];
 
 for (const file of sourceFiles(path.join(root, 'src'))) {

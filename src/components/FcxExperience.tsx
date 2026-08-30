@@ -7,6 +7,7 @@ import {
   fetchActiveFcxExperience,
   fetchAwards,
   fetchAllProfiles,
+  fetchPreviousMuralis,
   removeFcxRegistration,
   saveFcxExperience,
   uploadFcxGuestAvatar,
@@ -95,14 +96,15 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    void fetchAwards()
-      .then((awards) => {
-        const winner = awards.find((award) => (
+    void fetchPreviousMuralis(visibleExperience.event_month)
+      .catch(async () => {
+        const awards = await fetchAwards();
+        return awards.find((award) => (
           award.title.trim().toLowerCase() === 'muralis'
           && award.award_month.slice(0, 7) < visibleExperience.event_month.slice(0, 7)
         )) || null;
-        if (!cancelled) setPreviousWinner(winner);
       })
+      .then((winner) => { if (!cancelled) setPreviousWinner(winner); })
       .catch(() => { if (!cancelled) setPreviousWinner(null); });
     return () => { cancelled = true; };
   }, [active, visibleExperience.event_month]);

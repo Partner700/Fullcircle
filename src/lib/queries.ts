@@ -256,6 +256,22 @@ export async function fetchDailyRecordsForDate(date: string) {
 }
 
 export async function fetchNarrative(date: string) {
+  const first = await supabase
+    .from('daily_narratives')
+    .select('*')
+    .eq('narrative_date', date)
+    .maybeSingle();
+  if (first.error) throw first.error;
+  if (first.data || new Date(`${date}T12:00:00`).getDay() !== 0) {
+    return first.data as DailyNarrative | null;
+  }
+
+  // The cron job is authoritative, while this fallback makes the Sunday
+  // reading self-healing if the scheduler was unavailable at midnight.
+  const { error: publishError } = await supabase.rpc('ensure_sunday_highlight_reading', {
+    p_reading_date: date,
+  });
+  if (publishError) throw publishError;
   const { data, error } = await supabase
     .from('daily_narratives')
     .select('*')
@@ -335,10 +351,32 @@ export async function fetchLatestQuizSession() {
   return data as QuizSession | null;
 }
 
-export async function fetchSharedReading(date: string) {
-  const { data, error } = await supabase.rpc('get_shared_daily_reading', { p_narrative_date: date });
-  if (error) throw error;
-  return data as {
+export type SharedReadingInsight = {
+  id: string;
+  narrative_id: string;
+  verse_reference: string;
+  body: string;
+  created_at: string;
+  user_id: string;
+  profiles: { display_name: string; avatar_url: string | null };
+  comments: Array<{
+    id: string;
+    insight_id: string;
+    user_id: string;
+    parent_comment_id: string | null;
+    body: string;
+    created_at: string;
+    profile: { display_name: string; avatar_url: string | null };
+  }>;
+  reactions: Record<VerseInsightReactionType, {
+    count: number;
+    reacted: boolean;
+    actors: VerseInsightReactionActor[];
+  }>;
+};
+
+export type SharedReading = {
+    id: string;
     narrative_date: string;
     title: string;
     theme: string;
@@ -348,7 +386,57 @@ export async function fetchSharedReading(date: string) {
     highlighted_verses: Array<{ reference: string; text: string; meditation?: string }>;
     scripture_passages?: DailyNarrative['scripture_passages'];
     verse_of_day: string | null;
-  } | null;
+    reflection_prompts: string[];
+    weekly_highlights?: WeeklyVerseHighlight[];
+    insights: SharedReadingInsight[];
+    panel_images?: {
+      reading: PanelImageSetting | null;
+      scripture: PanelImageSetting | null;
+    };
+};
+
+function sharedPanelImage(raw: any): PanelImageSetting | null {
+  if (!raw?.content) return null;
+  return panelImageFromAnnouncement({
+    content: raw.content,
+    image_position_x: raw.image_position_x,
+    image_position_y: raw.image_position_y,
+  });
+}
+
+export async function fetchSharedReading(date: string, guestKey?: string) {
+  const result = await supabase.rpc('get_shared_daily_reading_v2', {
+    p_narrative_date: date,
+    p_guest_key: guestKey || null,
+  });
+  if (result.error) {
+    const fallback = await supabase.rpc('get_shared_daily_reading', { p_narrative_date: date });
+    if (fallback.error) throw result.error;
+    return fallback.data as SharedReading | null;
+  }
+  if (!result.data) return null;
+  const reading = result.data as any;
+  return {
+    ...reading,
+    panel_images: {
+      reading: sharedPanelImage(reading.panel_images?.reading),
+      scripture: sharedPanelImage(reading.panel_images?.scripture),
+    },
+  } as SharedReading;
+}
+
+export async function toggleSharedInsightReaction(
+  insightId: string,
+  guestKey: string,
+  reactionType: VerseInsightReactionType,
+) {
+  const { data, error } = await supabase.rpc('toggle_public_scripture_insight_reaction', {
+    p_insight_id: insightId,
+    p_guest_key: guestKey,
+    p_reaction_type: reactionType,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 export async function fetchSharedQuiz(sessionId: string) {
@@ -785,8 +873,10 @@ export async function recordSundayReadingOpen(userId: string, recordDate: string
 }
 
 export type WeeklyVerseHighlight = {
+  narrative_id: string;
   narrative_date: string;
   title: string;
+  translation?: string;
   reference: string;
   text: string;
   reaction_count: number;
@@ -794,6 +884,17 @@ export type WeeklyVerseHighlight = {
   insight_count: number;
   engagement_score: number;
 };
+
+export async function fetchPreviousMuralis(eventMonth: string) {
+  const normalizedMonth = /^\d{4}-\d{2}$/.test(eventMonth)
+    ? `${eventMonth}-01`
+    : eventMonth.slice(0, 10);
+  const { data, error } = await supabase.rpc('get_previous_muralis', {
+    p_event_month: normalizedMonth,
+  });
+  if (error) throw error;
+  return data ? data as AwardWithRecipient : null;
+}
 
 export async function fetchWeeklyVerseHighlights() {
   const { data, error } = await supabase.rpc('get_current_weekly_verse_highlights');
