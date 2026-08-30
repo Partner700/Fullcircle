@@ -1309,6 +1309,21 @@ export async function fetchUserNotifications(userId: string, limit = 30) {
   return data as UserNotification[];
 }
 
+export async function fetchUnreadFoundersGiftNotification(userId: string) {
+  const { data, error } = await supabase
+    .from('user_notifications')
+    .select('*')
+    .eq('recipient_id', userId)
+    .eq('notification_type', 'streak')
+    .contains('metadata', { gift_key: 'first_fcx_founders_gift_2026' })
+    .is('read_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as UserNotification | null;
+}
+
 export async function markNotificationRead(notificationId: string) {
   const { error } = await supabase
     .from('user_notifications')

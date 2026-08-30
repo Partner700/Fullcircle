@@ -10,9 +10,11 @@ export const DEFAULT_PANEL_IMAGE_ADJUSTMENTS: PanelImageAdjustments = {
   vibrance: 0,
   hue: 0,
   temperature: 0,
+  blur: 0,
   sharpness: 0,
   definition: 0,
   noise: 0,
+  roughness: 0,
   depth: 0,
   vignette: 0,
   grain: 0,
@@ -87,9 +89,11 @@ export function normaliseAdjustments(input?: Partial<PanelImageAdjustments> | nu
     vibrance: clamp(input?.vibrance, -100, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.vibrance),
     hue: clamp(input?.hue, -180, 180, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.hue),
     temperature: clamp(input?.temperature, -100, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.temperature),
+    blur: clamp(input?.blur, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.blur),
     sharpness: clamp(input?.sharpness, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.sharpness),
     definition: clamp(input?.definition, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.definition),
     noise: clamp(input?.noise, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.noise),
+    roughness: clamp(input?.roughness, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.roughness),
     depth: clamp(input?.depth, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.depth),
     vignette: clamp(input?.vignette, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.vignette),
     grain: clamp(input?.grain, 0, 100, DEFAULT_PANEL_IMAGE_ADJUSTMENTS.grain),
@@ -100,16 +104,17 @@ export function normaliseAdjustments(input?: Partial<PanelImageAdjustments> | nu
 
 export function panelImageFilter(image: PanelImageSetting | null | undefined) {
   const a = normaliseAdjustments(image?.adjustments);
-  const saturation = Math.max(0, a.saturation + Math.round(a.vibrance * 0.35) - Math.round(a.age * 0.35));
+  const saturation = Math.max(0, a.saturation + Math.round(a.vibrance * 0.35) - Math.round(a.age * 0.35) - Math.round(a.roughness * 0.12));
   const sepia = Math.max(0, Math.min(100, a.age + Math.max(0, a.temperature) * 0.25));
   const brightness = Math.max(0, a.brightness + Math.round((a.whitePoint - 100) * 0.35) - Math.round(a.blackPoint * 0.15));
-  const contrast = Math.max(0, a.contrast + Math.round(a.definition * 0.25) + Math.round(a.blackPoint * 0.2));
+  const contrast = Math.max(0, a.contrast + Math.round(a.definition * 0.25) + Math.round(a.blackPoint * 0.2) + Math.round(a.roughness * 0.08));
   return [
     `brightness(${brightness}%)`,
     `contrast(${contrast}%)`,
     `saturate(${saturation}%)`,
     `hue-rotate(${a.hue + Math.round(a.temperature * 0.18)}deg)`,
     `sepia(${sepia}%)`,
+    `blur(${(a.blur / 8).toFixed(2)}px)`,
   ].join(' ');
 }
 

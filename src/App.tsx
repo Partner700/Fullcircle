@@ -10,6 +10,7 @@ import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { DenariiGainAnimation } from './components/DenariiGainAnimation';
+import { FoundersGiftPopup } from './components/FoundersGiftPopup';
 import { PublicShareScreen } from './screens/PublicShareScreen';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { LogOut, RefreshCw } from 'lucide-react';
@@ -88,7 +89,7 @@ export default function App() {
 
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
-  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /></>;
+  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /><FoundersGiftPopup /></>;
 
   if (publicShare && !configError) {
     return <>{overlays}<PublicShareScreen kind={publicShare.kind} value={publicShare.value} /></>;

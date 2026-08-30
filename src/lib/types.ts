@@ -480,9 +480,11 @@ export interface PanelImageAdjustments {
   vibrance: number;
   hue: number;
   temperature: number;
+  blur: number;
   sharpness: number;
   definition: number;
   noise: number;
+  roughness: number;
   depth: number;
   vignette: number;
   grain: number;

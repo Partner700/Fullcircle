@@ -94,6 +94,11 @@ const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
 const sundayPublicReading = read('supabase/migrations/20260830120000_sunday_readings_public_conversations.sql');
 const sundayBiblicalOrder = read('supabase/migrations/20260830123000_sunday_biblical_order_and_streak_ranking.sql');
 const publicShareScreen = read('src/screens/PublicShareScreen.tsx');
+const panelImageTypes = read('src/lib/types.ts');
+const panelImages = read('src/lib/panelImages.ts');
+const panelImageBackdrop = read('src/components/PanelImageBackdrop.tsx');
+const foundersGiftRestoration = read('supabase/migrations/20260830130000_first_fcx_founders_streak_gift.sql');
+const foundersGiftPopup = read('src/components/FoundersGiftPopup.tsx');
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.ensure_sunday_highlight_reading',
@@ -272,7 +277,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v98'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v99'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '98'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -286,7 +291,7 @@ assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=98`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '98'\)/);
-assert.match(releaseCache, /2026-08-29-v98/);
+assert.match(releaseCache, /2026-08-30-v99/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=98/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=98'/);
 assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=98"/);
@@ -773,6 +778,74 @@ assert.doesNotMatch(
 );
 assert.equal((cadetNarrative.match(/PanelImageBackdrop image=\{scriptureImage\}/g) || []).length, 2);
 assert.match(cadetApp, /data-denarii-target/);
+
+for (const required of [
+  'blur: number',
+  'roughness: number',
+]) {
+  assert.ok(panelImageTypes.includes(required), `Missing panel-image adjustment type: ${required}`);
+}
+for (const required of [
+  'blur: 0',
+  'roughness: 0',
+  'input?.blur',
+  'input?.roughness',
+  '`blur(${(a.blur / 8).toFixed(2)}px)`',
+]) {
+  assert.ok(panelImages.includes(required), `Missing persisted panel-image adjustment: ${required}`);
+}
+for (const required of [
+  'adjustments.blur / 1800',
+  'adjustments.roughness / 560',
+  'adjustments.grain + adjustments.noise + adjustments.roughness',
+]) {
+  assert.ok(panelImageBackdrop.includes(required), `Missing rendered panel-image adjustment: ${required}`);
+}
+for (const required of [
+  "{ key: 'blur', label: 'Blur'",
+  "{ key: 'roughness', label: 'Roughness'",
+  "useState<keyof PanelImageAdjustments>('brightness')",
+  'Photo adjustment tools',
+  'activeImageAdjustmentControl',
+]) {
+  assert.ok(instructorApp.includes(required), `Missing phone-style image editor behavior: ${required}`);
+}
+for (const required of [
+  'fcx-slide-content',
+  'fcx-line',
+  'fcx-seat-line',
+]) {
+  assert.ok(fcxExperience.includes(required), `Missing FCX contrast hook: ${required}`);
+  assert.ok(read('src/index.css').includes(required), `Missing FCX light-mode contrast rule: ${required}`);
+}
+
+for (const required of [
+  "date '2026-08-28'",
+  "date '2026-08-29'",
+  'baseline.baseline_streak > 0',
+  'NOT public.streak_requirement_met(friday.user_id',
+  'NOT public.streak_day_is_restored(friday.user_id',
+  'NOT public.streak_day_is_purchased(friday.user_id',
+  'NOT public.streak_day_is_protected(friday.user_id',
+  "'founders_gift'",
+  'public.refresh_user_streak_snapshot(v_recipient.user_id)',
+  "'gift_key', 'first_fcx_founders_gift_2026'",
+  "'Founder''s Gift'",
+]) {
+  assert.ok(foundersGiftRestoration.includes(required), `Missing first-FCX streak gift boundary: ${required}`);
+}
+assert.doesNotMatch(foundersGiftRestoration, /INSERT INTO public\.streak_achievement/);
+assert.doesNotMatch(foundersGiftRestoration, /INSERT INTO public\.streak_manual_adjustments/);
+for (const required of [
+  'createPortal',
+  'fetchUnreadFoundersGiftNotification',
+  "const GIFT_KEY = 'first_fcx_founders_gift_2026'",
+  'markNotificationRead',
+  'Founder&apos;s Gift',
+]) {
+  assert.ok(foundersGiftPopup.includes(required), `Missing Founder gift popup behavior: ${required}`);
+}
+assert.match(rootApp, /FoundersGiftPopup/);
 
 for (const required of [
   "v_cost integer := 6000",

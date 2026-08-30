@@ -38,8 +38,10 @@ import {
   Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
-  Cake,
+  Cake, Aperture, Blend, CircleDot, Contrast, Droplets, EyeOff, Focus, Gauge,
+  MoveHorizontal, MoveVertical, Palette, ScanLine, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
 import { customQuestionToPayload, GAME_TYPE_LABELS } from '../../lib/gameEngines';
 import { importedQuestionToPayload, questionImportKey, type ImportedQuestion } from '../../lib/questionImport';
@@ -416,24 +418,27 @@ const IMAGE_ADJUSTMENT_CONTROLS: {
   min: number;
   max: number;
   suffix?: string;
+  icon: LucideIcon;
 }[] = [
-  { key: 'opacity', label: 'Transparency', min: 0, max: 100, suffix: '%' },
-  { key: 'brightness', label: 'Brightness', min: 0, max: 200, suffix: '%' },
-  { key: 'contrast', label: 'Contrast', min: 0, max: 200, suffix: '%' },
-  { key: 'blackPoint', label: 'Black Point', min: 0, max: 100, suffix: '%' },
-  { key: 'whitePoint', label: 'White Point', min: 0, max: 100, suffix: '%' },
-  { key: 'black', label: 'Black', min: 0, max: 100, suffix: '%' },
-  { key: 'saturation', label: 'Saturation', min: 0, max: 200, suffix: '%' },
-  { key: 'vibrance', label: 'Vibrance', min: -100, max: 100 },
-  { key: 'hue', label: 'Hue', min: -180, max: 180, suffix: 'deg' },
-  { key: 'temperature', label: 'Temperature', min: -100, max: 100 },
-  { key: 'sharpness', label: 'Sharpness', min: 0, max: 100, suffix: '%' },
-  { key: 'definition', label: 'Definition', min: 0, max: 100, suffix: '%' },
-  { key: 'noise', label: 'Noise', min: 0, max: 100, suffix: '%' },
-  { key: 'depth', label: 'Depth', min: 0, max: 100, suffix: '%' },
-  { key: 'vignette', label: 'Vignette', min: 0, max: 100, suffix: '%' },
-  { key: 'grain', label: 'Graininess', min: 0, max: 100, suffix: '%' },
-  { key: 'age', label: 'Age Feel', min: 0, max: 100, suffix: '%' },
+  { key: 'opacity', label: 'Transparency', min: 0, max: 100, suffix: '%', icon: EyeOff },
+  { key: 'brightness', label: 'Brightness', min: 0, max: 200, suffix: '%', icon: Sun },
+  { key: 'contrast', label: 'Contrast', min: 0, max: 200, suffix: '%', icon: Contrast },
+  { key: 'blackPoint', label: 'Black Point', min: 0, max: 100, suffix: '%', icon: CircleDot },
+  { key: 'whitePoint', label: 'White Point', min: 0, max: 100, suffix: '%', icon: Sun },
+  { key: 'black', label: 'Black', min: 0, max: 100, suffix: '%', icon: CircleDot },
+  { key: 'saturation', label: 'Saturation', min: 0, max: 200, suffix: '%', icon: Droplets },
+  { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, icon: Sparkles },
+  { key: 'hue', label: 'Hue', min: -180, max: 180, suffix: 'deg', icon: Palette },
+  { key: 'temperature', label: 'Temperature', min: -100, max: 100, icon: Thermometer },
+  { key: 'blur', label: 'Blur', min: 0, max: 100, suffix: '%', icon: Aperture },
+  { key: 'sharpness', label: 'Sharpness', min: 0, max: 100, suffix: '%', icon: Focus },
+  { key: 'definition', label: 'Definition', min: 0, max: 100, suffix: '%', icon: ScanLine },
+  { key: 'noise', label: 'Noise', min: 0, max: 100, suffix: '%', icon: Waves },
+  { key: 'roughness', label: 'Roughness', min: 0, max: 100, suffix: '%', icon: SlidersHorizontal },
+  { key: 'depth', label: 'Depth', min: 0, max: 100, suffix: '%', icon: Gauge },
+  { key: 'vignette', label: 'Vignette', min: 0, max: 100, suffix: '%', icon: CircleDot },
+  { key: 'grain', label: 'Graininess', min: 0, max: 100, suffix: '%', icon: Blend },
+  { key: 'age', label: 'Age Feel', min: 0, max: 100, suffix: '%', icon: Clock },
 ];
 
 function ImageAdjustmentSlider({
@@ -480,6 +485,7 @@ function AnnouncementManager() {
   const [uploadingSoundType, setUploadingSoundType] = useState<string | null>(null);
   const [savingImagePosition, setSavingImagePosition] = useState(false);
   const [imageAdjustments, setImageAdjustments] = useState<PanelImageAdjustments>(DEFAULT_PANEL_IMAGE_ADJUSTMENTS);
+  const [activeImageAdjustment, setActiveImageAdjustment] = useState<keyof PanelImageAdjustments>('brightness');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -594,6 +600,8 @@ function AnnouncementManager() {
   }));
 
   const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
+  const activeImageAdjustmentControl = IMAGE_ADJUSTMENT_CONTROLS.find((control) => control.key === activeImageAdjustment)
+    || IMAGE_ADJUSTMENT_CONTROLS[0];
   const standardAnnouncements = announcements.filter((announcement) =>
     announcement.announcement_type !== 'weekly_background'
     && !announcement.announcement_type?.startsWith('panel_image_')
@@ -616,6 +624,7 @@ function AnnouncementManager() {
     setImagePositionX(Number(setting?.item?.image_position_x ?? 50));
     setImagePositionY(Number(setting?.item?.image_position_y ?? 50));
     setImageAdjustments(normaliseAdjustments(setting?.image?.adjustments));
+    setActiveImageAdjustment('brightness');
   };
 
   const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
@@ -1083,10 +1092,15 @@ function AnnouncementManager() {
 
               {editingImageSetting.item && (
                 <div className="space-y-4 rounded-lg border border-border bg-surface-2 p-3">
+                  <div className="flex items-center gap-2">
+                    <Move size={15} className="text-brass" />
+                    <p className="text-xs font-semibold text-ink">Frame</p>
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2">
                       <span className="flex items-center justify-between text-xs font-semibold text-ink">
-                        Horizontal position <span className="text-stone">{imagePositionX}%</span>
+                        <span className="flex items-center gap-1.5"><MoveHorizontal size={13} /> Horizontal</span>
+                        <span className="text-stone">{imagePositionX}%</span>
                       </span>
                       <input
                         type="range"
@@ -1099,7 +1113,8 @@ function AnnouncementManager() {
                     </label>
                     <label className="space-y-2">
                       <span className="flex items-center justify-between text-xs font-semibold text-ink">
-                        Vertical position <span className="text-stone">{imagePositionY}%</span>
+                        <span className="flex items-center gap-1.5"><MoveVertical size={13} /> Vertical</span>
+                        <span className="text-stone">{imagePositionY}%</span>
                       </span>
                       <input
                         type="range"
@@ -1111,8 +1126,8 @@ function AnnouncementManager() {
                       />
                     </label>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold text-ink">Image Adjustments</p>
+                  <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+                    <p className="flex items-center gap-2 text-xs font-semibold text-ink"><SlidersHorizontal size={15} className="text-brass" /> Adjust</p>
                     <button
                       type="button"
                       onClick={() => setImageAdjustments(DEFAULT_PANEL_IMAGE_ADJUSTMENTS)}
@@ -1121,15 +1136,37 @@ function AnnouncementManager() {
                       <RotateCcw size={12} /> Reset
                     </button>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border bg-surface px-3 py-3">
+                    <ImageAdjustmentSlider
+                      control={activeImageAdjustmentControl}
+                      value={imageAdjustments[activeImageAdjustmentControl.key]}
+                      onChange={(value) => setImageAdjustments((prev) => normaliseAdjustments({ ...prev, [activeImageAdjustmentControl.key]: value }))}
+                    />
+                  </div>
+                  <div className="-mx-1 overflow-x-auto px-1 pb-1" aria-label="Photo adjustment tools">
+                    <div className="flex min-w-max gap-1.5">
                     {IMAGE_ADJUSTMENT_CONTROLS.map((control) => (
-                      <ImageAdjustmentSlider
+                      <button
+                        type="button"
                         key={control.key}
-                        control={control}
-                        value={imageAdjustments[control.key]}
-                        onChange={(value) => setImageAdjustments((prev) => normaliseAdjustments({ ...prev, [control.key]: value }))}
-                      />
+                        onClick={() => setActiveImageAdjustment(control.key)}
+                        className={cn(
+                          'flex w-[4.4rem] flex-col items-center gap-1 rounded-md px-1 py-1.5 text-center transition-colors',
+                          activeImageAdjustment === control.key ? 'bg-brass/15 text-brass' : 'text-stone hover:bg-surface hover:text-ink',
+                        )}
+                        aria-pressed={activeImageAdjustment === control.key}
+                        title={control.label}
+                      >
+                        <span className={cn(
+                          'flex h-9 w-9 items-center justify-center rounded-full border',
+                          activeImageAdjustment === control.key ? 'border-brass/55 bg-surface' : 'border-border bg-surface/70',
+                        )}>
+                          <control.icon size={16} strokeWidth={1.7} />
+                        </span>
+                        <span className="w-full truncate text-[9px] font-bold leading-tight">{control.label}</span>
+                      </button>
                     ))}
+                    </div>
                   </div>
                 </div>
               )}

@@ -138,7 +138,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   }, [active, targetPercent]);
 
   return (
-    <div className="w-full max-w-2xl pr-1">
+    <div className="fcx-slide-content w-full max-w-2xl pr-1">
       <div className="flex items-start justify-between gap-5">
         <div className="flex min-w-0 items-center gap-2.5" aria-label={`${displayTitle}, FCX`}>
           <img
@@ -165,7 +165,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         </p>
       </div>
 
-      <div className="mt-2.5 inline-flex min-h-12 max-w-full items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
+      <div className="fcx-line mt-2.5 inline-flex min-h-12 max-w-full items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
         <Clock3 size={17} className="shrink-0 text-brass" />
         {eventHasStarted ? (
           <p className="text-sm font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
@@ -184,7 +184,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       </div>
 
       <div
-        className="relative mt-3 h-3 overflow-hidden rounded-full border border-white/25 bg-surface/45 p-[2px] shadow-inner"
+        className="fcx-line relative mt-3 h-3 overflow-hidden rounded-full border border-white/25 bg-surface/45 p-[2px] shadow-inner"
         role="progressbar"
         aria-label="FCX paid spaces"
         aria-valuemin={0}
@@ -204,7 +204,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             key={registration?.id || `open-${index}`}
             title={registration ? `${registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
             className={cn(
-              'flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border shadow-sm',
+              'fcx-seat-line flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border shadow-sm',
               registration
                 ? 'border-brass/55 bg-navy/78 text-[9px] font-bold text-gold'
                 : 'border-white/30 bg-surface/35',
@@ -222,7 +222,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       </div>
 
       {previousWinner?.profiles && (
-        <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-white/20 bg-surface/45 px-2.5 py-2 backdrop-blur-sm">
+        <div className="fcx-line mt-3 flex items-center gap-2.5 rounded-lg border border-white/20 bg-surface/45 px-2.5 py-2 backdrop-blur-sm">
           <img
             src={previousWinner.profiles.avatar_url || publicAsset('icons/fullcircle-dove-clean.png')}
             alt={previousWinner.profiles.display_name}

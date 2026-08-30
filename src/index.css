@@ -69,10 +69,10 @@
   /* The weekly artwork is the app canvas, not a panel illustration. */
   [data-theme="night"] .weekly-app-background-image,
   :root:not([data-theme="day"]) .weekly-app-background-image {
-    filter: brightness(0.27) saturate(0.82) contrast(1.15) !important;
+    filter: brightness(0.27) saturate(0.82) contrast(1.15) var(--panel-image-adjustment-filter, none) !important;
   }
   [data-theme="day"] .weekly-app-background-image {
-    filter: brightness(1.72) saturate(0.82) contrast(0.9) !important;
+    filter: brightness(1.72) saturate(0.82) contrast(0.9) var(--panel-image-adjustment-filter, none) !important;
   }
 
   html {
@@ -604,6 +604,14 @@
   [data-theme="day"] .fcx-progress-fill {
     background: #0f2037;
     box-shadow: 0 0 6px rgba(15, 32, 55, 0.86), 0 0 15px rgba(43, 74, 154, 0.62);
+  }
+  [data-theme="day"] .fcx-slide-content .fcx-line {
+    border-color: rgba(13, 33, 55, 0.55) !important;
+    border-width: 2px;
+  }
+  [data-theme="day"] .fcx-slide-content .fcx-seat-line {
+    border-color: rgba(13, 33, 55, 0.5) !important;
+    border-width: 2px;
   }
   .quote-rhude-icon {
     color: #d9c8ff;
