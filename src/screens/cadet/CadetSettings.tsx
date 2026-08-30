@@ -4,7 +4,7 @@ import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchStrictStreak, fetchLedgerTotal, getSubscriptionStatus } from '../../lib/queries';
+import { fetchStrictStreak, fetchLedgerTotal, fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
 import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -14,7 +14,7 @@ import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import {
   User, Phone, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
-  Cake, Globe2, KeyRound, Languages,
+  BadgeCheck, Cake, Globe2, KeyRound, Languages, Shield,
 } from 'lucide-react';
 
 interface CadetSettingsProps {
@@ -41,7 +41,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({
     denarii: 0, currentStreak: 0, longestStreak: 0, awardsCount: 0,
-    gamesPlayed: 0, quizzesTaken: 0, narrativesRead: 0, relicsOwned: 0,
+    figs: 0, rhudes: 0, gamesPlayed: 0, quizzesTaken: 0, narrativesRead: 0, relicsOwned: 0,
   });
   const [subStatus, setSubStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -51,10 +51,11 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
     if (!profile) return;
     setLoading(true);
     try {
-      const [balance, streak, sub] = await Promise.all([
+      const [balance, streak, sub, liveStats] = await Promise.all([
         fetchLedgerTotal(profile.id),
         fetchStrictStreak(profile.id),
         getSubscriptionStatus(profile.id),
+        fetchUserLiveStats(profile.id).catch(() => null),
       ]);
 
       const { count: gamesPlayed } = await supabase
@@ -105,6 +106,8 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
         currentStreak: streak.current_streak,
         longestStreak: Math.max(streak.longest_streak, historicalLongest),
         awardsCount: awardsCount || 0,
+        figs: Number(liveStats?.total_figs || 0),
+        rhudes: Number(liveStats?.rhudes || 0),
         gamesPlayed: gamesPlayed || 0,
         quizzesTaken: quizzesTaken || 0,
         narrativesRead: narrativesRead || 0,
@@ -153,6 +156,8 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
 
   const statCards = [
     { label: 'Denarii', value: formatDenarii(stats.denarii), icon: Coins, color: 'text-gold' },
+    { label: 'Figs', value: stats.figs.toLocaleString(), icon: BadgeCheck, color: 'text-sage' },
+    { label: 'Rhudes', value: stats.rhudes.toLocaleString(), icon: Shield, color: 'text-royal' },
     { label: 'Current Streak', value: `${stats.currentStreak} days`, icon: Flame, color: 'text-brass' },
     { label: 'Longest Streak', value: `${stats.longestStreak} days`, icon: TrendingUp, color: 'text-roman' },
     { label: 'Awards', value: stats.awardsCount, icon: Award, color: 'text-royal' },

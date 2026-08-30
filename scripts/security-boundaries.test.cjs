@@ -31,6 +31,7 @@ const subscriptionScreen = read('src/components/SubscriptionScreen.tsx');
 const subscriptionAccessContext = read('src/context/SubscriptionAccessContext.tsx');
 const tentMessenger = read('src/components/TentMessenger.tsx');
 const cadetNarrative = read('src/screens/cadet/CadetNarrative.tsx');
+const cadetSettings = read('src/screens/cadet/CadetSettings.tsx');
 const calendarUtilities = read('src/lib/utils.ts');
 const toolbarStats = read('supabase/migrations/20260814172000_authoritative_toolbar_stats.sql');
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
@@ -141,6 +142,9 @@ assert.match(publicShareScreen, /inline-flex h-4 w-4 overflow-hidden rounded-ful
 assert.match(instructorApp, /panel_image_honors', label: 'Monthly Honors'/);
 assert.match(cadetDashboard, /'welcome', 'fcx', 'honors', 'verse'/);
 assert.match(sentryApp, /'welcome', 'fcx', 'honors', 'verse'/);
+assert.match(cadetSettings, /fetchUserLiveStats\(profile\.id\)/);
+assert.match(cadetSettings, /label: 'Figs', value: stats\.figs\.toLocaleString\(\)/);
+assert.match(cadetSettings, /label: 'Rhudes', value: stats\.rhudes\.toLocaleString\(\)/);
 assert.match(quoteQueries, /\.sort\(\(left, right\) => \(/);
 assert.match(quoteQueries, /Number\(right\.current_streak\)[\s\S]*Number\(left\.current_streak\)/);
 assert.match(quoteQueries, /\.map\(\(row, index\) => \(\{ \.\.\.row, rank: index \+ 1 \}\)\)/);
