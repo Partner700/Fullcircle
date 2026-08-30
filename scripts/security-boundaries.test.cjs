@@ -106,6 +106,7 @@ for (const required of [
   assert.ok(sundayPublicReading.includes(required), `Missing Sunday/public-reading boundary: ${required}`);
 }
 assert.match(quoteQueries, /ensure_sunday_highlight_reading/);
+assert.match(sundayPublicReading, /item\.ordinality::text \|\| '\. ' \|\| \(item\.value->>'text'\)/);
 assert.match(fcxExperience, /fetchPreviousMuralis/);
 assert.match(publicShareScreen, /function SharedReadingView/);
 assert.match(publicShareScreen, /toggleSharedInsightReaction/);

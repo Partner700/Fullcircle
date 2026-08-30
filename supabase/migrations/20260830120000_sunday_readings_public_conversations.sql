@@ -167,7 +167,7 @@ BEGIN
       'source_narrative_date', item.value->>'narrative_date'
     ) ORDER BY item.ordinality),
     string_agg(item.value->>'reference', ' · ' ORDER BY item.ordinality),
-    string_agg((item.ordinality::text || '. ' || item.value->>'text'), E'\n\n' ORDER BY item.ordinality),
+    string_agg((item.ordinality::text || '. ' || (item.value->>'text')), E'\n\n' ORDER BY item.ordinality),
     (array_agg(item.value->>'text' ORDER BY item.ordinality))[1]
   INTO v_highlighted, v_passages, v_reference, v_main_text, v_verse_of_day
   FROM jsonb_array_elements(v_items) WITH ORDINALITY AS item(value, ordinality);
