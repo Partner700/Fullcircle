@@ -158,13 +158,27 @@ export interface DailyNarrative {
   scripture_reference: string;
   translation: string;
   main_text: string;
-  highlighted_verses: { reference: string; text: string; meditation: string }[];
+  highlighted_verses: Array<{
+    reference: string;
+    text: string;
+    meditation: string;
+    source_narrative_id?: string;
+    source_narrative_date?: string;
+  }>;
   /** Additional passages published with the main daily reading. */
   scripture_passages?: Array<{
     reference: string;
     translation?: string;
     main_text: string;
-    highlighted_verses: { reference: string; text: string; meditation: string }[];
+    highlighted_verses: Array<{
+      reference: string;
+      text: string;
+      meditation: string;
+      source_narrative_id?: string;
+      source_narrative_date?: string;
+    }>;
+    source_narrative_id?: string;
+    source_narrative_date?: string;
   }>;
   reflection_prompts: string[];
   challenge_title: string | null;

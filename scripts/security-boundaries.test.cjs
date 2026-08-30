@@ -90,6 +90,7 @@ const authScreen = read('src/screens/AuthScreen.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
 const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
 const sundayPublicReading = read('supabase/migrations/20260830120000_sunday_readings_public_conversations.sql');
+const sundayBiblicalOrder = read('supabase/migrations/20260830123000_sunday_biblical_order_and_streak_ranking.sql');
 const publicShareScreen = read('src/screens/PublicShareScreen.tsx');
 
 for (const required of [
@@ -112,6 +113,26 @@ assert.match(publicShareScreen, /function SharedReadingView/);
 assert.match(publicShareScreen, /toggleSharedInsightReaction/);
 assert.match(publicShareScreen, /insight\.comments\.map/);
 assert.match(publicShareScreen, /Join Full Circle to share an insight, comment, or reply/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.bible_reference_sort_key',
+  'ORDER BY public.bible_reference_sort_key(reference)',
+  'LIMIT 10',
+  "'source_narrative_id', item.value->>'narrative_id'",
+  "scripture_reference = 'Sunday Scripture Highlights'",
+  "reflection_prompts = '[]'::jsonb",
+  'ORDER BY\n    coalesce(nullif(item.value->>\'engagement_score\'',
+]) {
+  assert.ok(sundayBiblicalOrder.includes(required), `Missing Sunday biblical-order boundary: ${required}`);
+}
+assert.match(cadetNarrative, /isSundayRest \? 'Verse of the Week' : 'Verse of the Day'/);
+assert.match(cadetNarrative, /sourceNarrativeId: verse\.source_narrative_id \|\| passage\.source_narrative_id/);
+assert.match(cadetNarrative, /item\.narrative_id === sourceNarrativeId/);
+assert.doesNotMatch(cadetNarrative, /fetchWeeklyVerseHighlights|setArchiveDate\(highlight\.narrative_date/);
+assert.match(publicShareScreen, /isSundayReading \? 'Verse of the Week' : 'Verse of the Day'/);
+assert.match(quoteQueries, /\.sort\(\(left, right\) => \(/);
+assert.match(quoteQueries, /Number\(right\.current_streak\)[\s\S]*Number\(left\.current_streak\)/);
+assert.match(quoteQueries, /\.map\(\(row, index\) => \(\{ \.\.\.row, rank: index \+ 1 \}\)\)/);
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.get_quiz_responders',

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookMarked, BookOpen, CheckCircle2, Heart, Lightbulb, Loader2, Lock, MessageCircle, ScrollText, Send, Sun, UserPlus } from 'lucide-react';
+import { BookMarked, CheckCircle2, Heart, Lightbulb, Loader2, Lock, MessageCircle, ScrollText, Send, Sun, UserPlus } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
@@ -50,14 +50,15 @@ function readingVerses(reading: SharedReading): SharedVerse[] {
       reference: reading.scripture_reference,
       main_text: reading.main_text,
       highlighted_verses: reading.highlighted_verses || [],
+      source_narrative_id: undefined,
     }];
 
   return passages.flatMap((passage) => {
     const verses = passage.highlighted_verses?.length
       ? passage.highlighted_verses
-      : [{ reference: passage.reference, text: passage.main_text, meditation: '' }];
+      : [{ reference: passage.reference, text: passage.main_text, meditation: '', source_narrative_id: undefined }];
     return verses.map((verse) => ({
-      narrativeId: reading.id,
+      narrativeId: verse.source_narrative_id || passage.source_narrative_id || reading.id,
       reference: verse.reference || passage.reference,
       text: verse.text,
       meditation: verse.meditation,
@@ -188,6 +189,7 @@ function SharedReadingView({
   onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
 }) {
   const verses = readingVerses(reading);
+  const isSundayReading = new Date(`${reading.narrative_date}T12:00:00`).getDay() === 0;
   return (
     <article className="today-reading-screen space-y-5">
       <section
@@ -196,10 +198,12 @@ function SharedReadingView({
       >
         <PanelImageBackdrop image={reading.panel_images?.reading} opacityOverride={58} veilClassName="" />
         <div className="relative">
-          <div className="eyebrow mb-2 flex items-center gap-2 text-brass">
-            <BookMarked size={14} strokeWidth={1.5} />
-            {reading.scripture_reference} · {reading.translation}
-          </div>
+          {!isSundayReading && (
+            <div className="eyebrow mb-2 flex items-center gap-2 text-brass">
+              <BookMarked size={14} strokeWidth={1.5} />
+              {reading.scripture_reference} · {reading.translation}
+            </div>
+          )}
           <h1 className="font-display text-2xl font-semibold leading-tight text-ink">{reading.title}</h1>
           <p className="mt-1.5 text-sm text-stone">{reading.theme}</p>
         </div>
@@ -209,7 +213,7 @@ function SharedReadingView({
         <section className="card reading-glass-panel relative overflow-hidden border-brass/30 p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
           <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
           <div className="relative z-10">
-            <div className="mb-3 flex items-center gap-2"><Sun size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">Verse of the Day</span></div>
+            <div className="mb-3 flex items-center gap-2"><Sun size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">{isSundayReading ? 'Verse of the Week' : 'Verse of the Day'}</span></div>
             <ScrollEdge position="top" className="mb-3 text-brass" />
             <p className="font-display text-xl leading-snug text-ink">&ldquo;{reading.verse_of_day}&rdquo;</p>
             <ScrollEdge position="bottom" className="mt-3 text-brass" />
@@ -229,7 +233,7 @@ function SharedReadingView({
               ));
               const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
               return (
-                <section key={`${verse.narrativeId}:${verse.reference}:${index}`} className={cn('rounded-xl border border-transparent px-2 py-2', insights.length && 'verse-highlight-insight')}>
+                <section key={`${verse.narrativeId}:${verse.reference}:${index}`} className={cn('rounded-xl border border-transparent px-2 py-2', insights.length > 0 && 'verse-highlight-insight')}>
                   <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
                   <p className="mt-2 text-[10px] font-bold uppercase text-brass">
                     {verse.reference}{verse.meditation?.trim() ? ' · Instructor annotation available' : ''}{insights.length ? ` · ${insights.length} reader insight${insights.length === 1 ? '' : 's'}` : ''}
@@ -258,7 +262,7 @@ function SharedReadingView({
         </div>
       </section>
 
-      {reading.reflection_prompts?.length > 0 && (
+      {!isSundayReading && reading.reflection_prompts?.length > 0 && (
         <section className="card border-border bg-surface p-5 animate-slide-up">
           <div className="mb-4 flex items-center gap-2">
             <Lightbulb size={18} className="text-moss" strokeWidth={1.5} />
@@ -306,8 +310,8 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
       .then((data) => {
         if (cancelled) return;
         if (!data) throw new Error('This shared item is no longer available.');
-        if (kind === 'reading') setReading(data);
-        else setQuiz(data);
+        if (kind === 'reading') setReading(data as SharedReading);
+        else setQuiz(data as NonNullable<Awaited<ReturnType<typeof fetchSharedQuiz>>>);
       })
       .catch((loadError: any) => { if (!cancelled) setError(loadError?.message || 'This shared item could not load.'); })
       .finally(() => { if (!cancelled) setLoading(false); });

@@ -383,7 +383,7 @@ export type SharedReading = {
     scripture_reference: string;
     translation: string;
     main_text: string;
-    highlighted_verses: Array<{ reference: string; text: string; meditation?: string }>;
+    highlighted_verses: DailyNarrative['highlighted_verses'];
     scripture_passages?: DailyNarrative['scripture_passages'];
     verse_of_day: string | null;
     reflection_prompts: string[];
@@ -918,13 +918,28 @@ export async function fetchRelicInventory(userId: string) {
   return data as (RelicInventory & { relic_types: RelicType })[];
 }
 
-async function mergePublicStreakValues<T extends { user_id: string; current_streak?: number; longest_streak?: number }>(rows: T[]): Promise<T[]> {
+async function mergePublicStreakValues<T extends {
+  user_id: string;
+  current_streak?: number;
+  longest_streak?: number;
+  volume?: number;
+  rank?: number;
+  profiles?: { display_name?: string | null } | null;
+}>(rows: T[], rerank = false): Promise<T[]> {
+  const rankByVisibleStreak = (items: T[]) => [...items]
+    .sort((left, right) => (
+      (Number(right.current_streak) || 0) - (Number(left.current_streak) || 0)
+      || (Number(right.longest_streak) || 0) - (Number(left.longest_streak) || 0)
+      || (Number(right.volume) || 0) - (Number(left.volume) || 0)
+      || String(left.profiles?.display_name || '').localeCompare(String(right.profiles?.display_name || ''))
+    ))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
   const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
   if (userIds.length === 0) return rows;
   const { data, error } = await supabase.rpc('get_public_streaks', { p_user_ids: userIds });
-  if (error) return rows;
+  if (error) return rerank ? rankByVisibleStreak(rows) : rows;
   const values = new Map<string, number>((data || []).map((row: any) => [String(row.user_id), Number(row.current_streak) || 0]));
-  return rows.map((row) => {
+  const mergedRows = rows.map((row) => {
     const visibleStreak = values.get(row.user_id);
     if (visibleStreak === undefined) return row;
     return {
@@ -933,6 +948,9 @@ async function mergePublicStreakValues<T extends { user_id: string; current_stre
       longest_streak: Math.max(Number(row.longest_streak) || 0, visibleStreak),
     };
   });
+  if (!rerank) return mergedRows;
+
+  return rankByVisibleStreak(mergedRows);
 }
 
 export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = 'cadet') {
@@ -941,17 +959,17 @@ export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = '
   // a sentry board time out before it renders.
   const { data: fastData, error: fastError } = await supabase.rpc('get_fast_streakboard_for_role', { p_role: audience });
   if (!fastError && Array.isArray(fastData) && fastData.length > 0) {
-    return mergePublicStreakValues(fastData as (StreakboardSnapshot & { role: 'cadet' | 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[]);
+    return mergePublicStreakValues(fastData as (StreakboardSnapshot & { role: 'cadet' | 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[], true);
   }
 
   if (audience === 'sentry') {
     const { data, error } = await supabase.rpc('get_streakboard_live_for_role', { p_role: 'sentry' });
     if (error) throw error;
-    return mergePublicStreakValues((data || []) as (StreakboardSnapshot & { role: 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[]);
+    return mergePublicStreakValues((data || []) as (StreakboardSnapshot & { role: 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[], true);
   }
   const { data: liveData, error: liveError } = await supabase.rpc('get_streakboard_live');
   if (!liveError && liveData) {
-    return mergePublicStreakValues(liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]);
+    return mergePublicStreakValues(liveData as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[], true);
   }
 
   const { data, error } = await supabase
@@ -968,7 +986,7 @@ export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = '
     .eq('snapshot_date', latestDate)
     .order('rank');
   if (err2) throw err2;
-  return mergePublicStreakValues(rows as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[]);
+  return mergePublicStreakValues(rows as (StreakboardSnapshot & { profiles: { display_name: string; avatar_url: string | null } })[], true);
 }
 
 export async function fetchLeaderboardSnapshots() {
@@ -1370,12 +1388,16 @@ function emptyVerseInsightReactionState(): VerseInsightReactionState {
   };
 }
 
-export async function fetchVerseInsights(narrativeId: string, reactorUserId?: string) {
-  const { data, error } = await supabase
+export async function fetchVerseInsights(narrativeId: string | string[], reactorUserId?: string) {
+  const narrativeIds = Array.from(new Set((Array.isArray(narrativeId) ? narrativeId : [narrativeId]).filter(Boolean)));
+  if (!narrativeIds.length) return [];
+  let insightQuery = supabase
     .from('scripture_verse_insights')
-    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)')
-    .eq('narrative_id', narrativeId)
-    .order('created_at', { ascending: false });
+    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)');
+  insightQuery = narrativeIds.length === 1
+    ? insightQuery.eq('narrative_id', narrativeIds[0])
+    : insightQuery.in('narrative_id', narrativeIds);
+  const { data, error } = await insightQuery.order('created_at', { ascending: false });
   if (error) {
     console.warn('Verse insights unavailable:', error.message);
     return [];

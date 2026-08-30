@@ -5,7 +5,7 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
-import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, fetchWeeklyVerseHighlights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -29,7 +29,13 @@ function splitScriptureVerses(text: string) {
   return text.split(/\n{2,}/).filter(Boolean).map((paragraph, index) => ({ number: String(index + 1), text: paragraph.trim() }));
 }
 
-type ScriptureVerse = { reference: string; text: string; meditation: string };
+type ScriptureVerse = {
+  reference: string;
+  text: string;
+  meditation: string;
+  sourceNarrativeId?: string;
+  sourceNarrativeDate?: string;
+};
 
 const INSIGHT_REACTIONS: { type: VerseInsightReactionType; label: string; icon: typeof Heart }[] = [
   { type: 'heart', label: 'Love this insight', icon: Heart },
@@ -264,9 +270,6 @@ export function CadetNarrative({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [archiveDate, setArchiveDate] = useState<string | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
-  const [weeklyHighlights, setWeeklyHighlights] = useState<Array<{
-    narrative_date: string; title: string; reference: string; text: string; reaction_count: number; comment_count: number; insight_count: number;
-  }>>([]);
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const today = getTodayISODate();
@@ -274,6 +277,23 @@ export function CadetNarrative({
   const isHistoricalReading = activeDate < today;
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
+  const conversationNarrativeIds = useMemo(() => {
+    const sourceIds = (narrative?.scripture_passages || [])
+      .map((passage) => passage.source_narrative_id)
+      .filter((value): value is string => Boolean(value));
+    if (sourceIds.length) return Array.from(new Set(sourceIds));
+    return narrative?.id ? [narrative.id] : [];
+  }, [narrative]);
+
+  const reloadVerseInsights = useCallback(async () => {
+    if (!conversationNarrativeIds.length) {
+      setVerseInsights([]);
+      return [];
+    }
+    const items = await fetchVerseInsights(conversationNarrativeIds, profile?.id);
+    setVerseInsights(items);
+    return items;
+  }, [conversationNarrativeIds, profile?.id]);
 
   const shareReading = async () => {
     const url = new URL(window.location.href);
@@ -376,18 +396,6 @@ export function CadetNarrative({
     return () => { cancelled = true; };
   }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
 
-  useEffect(() => {
-    if (!isSundayRest || isHistoricalReading) {
-      setWeeklyHighlights([]);
-      return;
-    }
-    let cancelled = false;
-    void fetchWeeklyVerseHighlights()
-      .then((items) => { if (!cancelled) setWeeklyHighlights(items); })
-      .catch(() => { if (!cancelled) setWeeklyHighlights([]); });
-    return () => { cancelled = true; };
-  }, [isHistoricalReading, isSundayRest]);
-
   const loadHistory = async () => {
     if (!profile || historyLoading) return;
     setHistoryLoading(true);
@@ -416,7 +424,11 @@ export function CadetNarrative({
         main_text: narrative.main_text,
         highlighted_verses: narrative.highlighted_verses || [],
       }];
-    const savedVerses = passages.flatMap((passage) => passage.highlighted_verses || []);
+    const savedVerses = passages.flatMap((passage) => (passage.highlighted_verses || []).map((verse) => ({
+      ...verse,
+      sourceNarrativeId: verse.source_narrative_id || passage.source_narrative_id || narrative.id,
+      sourceNarrativeDate: verse.source_narrative_date || passage.source_narrative_date || narrative.narrative_date,
+    })));
     setReaderVerses(savedVerses);
     if (savedVerses.length > 1 || passages.length > 1) {
       return;
@@ -431,7 +443,13 @@ export function CadetNarrative({
         const notesByReference = new Map(savedVerses.map((verse) => [verse.reference, verse.meditation]));
         const verses = data.verses.map((verse: { book_name: string; chapter: number; verse: number; text: string }) => {
           const reference = `${verse.book_name} ${verse.chapter}:${verse.verse}`;
-          return { reference, text: String(verse.text || '').trim(), meditation: notesByReference.get(reference) || '' };
+          return {
+            reference,
+            text: String(verse.text || '').trim(),
+            meditation: notesByReference.get(reference) || '',
+            sourceNarrativeId: narrative.id,
+            sourceNarrativeDate: narrative.narrative_date,
+          };
         });
         if (!cancelled) setReaderVerses(verses);
       } catch {
@@ -443,9 +461,9 @@ export function CadetNarrative({
   }, [narrative]);
 
   useEffect(() => {
-    if (!narrative?.id) return;
+    if (!conversationNarrativeIds.length) return;
     let cancelled = false;
-    fetchVerseInsights(narrative.id, profile?.id).then((items) => {
+    fetchVerseInsights(conversationNarrativeIds, profile?.id).then((items) => {
       if (!cancelled) {
         setVerseInsights(items);
         const drafts: Record<string, string> = {};
@@ -454,35 +472,33 @@ export function CadetNarrative({
       }
     });
     return () => { cancelled = true; };
-  }, [narrative?.id, profile?.id]);
+  }, [conversationNarrativeIds, profile?.id]);
 
   useEffect(() => {
-    if (!narrative?.id || !profile?.id) return;
-    let cancelled = false;
+    if (!narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
     let refreshTimer: number | null = null;
 
     const refreshInsights = () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
-        void fetchVerseInsights(narrative.id, profile.id).then((items) => {
-          if (!cancelled) setVerseInsights(items);
-        });
+        void reloadVerseInsights();
       }, 120);
     };
 
-    const channel = supabase
-      .channel(`reading_insights_${narrative.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `narrative_id=eq.${narrative.id}` }, refreshInsights)
+    const channel = supabase.channel(`reading_insights_${narrative.id}_${conversationNarrativeIds.length}`);
+    conversationNarrativeIds.forEach((narrativeId) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `narrative_id=eq.${narrativeId}` }, refreshInsights);
+    });
+    channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_insight_comments' }, refreshInsights)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_insight_reactions' }, refreshInsights)
       .subscribe();
 
     return () => {
-      cancelled = true;
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [narrative?.id, profile?.id]);
+  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights]);
 
   useEffect(() => {
     const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
@@ -580,15 +596,15 @@ export function CadetNarrative({
     load();
   };
 
-  const submitVerseInsight = async (reference: string) => {
+  const submitVerseInsight = async (reference: string, sourceNarrativeId?: string) => {
     if (!requireSubscription()) return;
     if (!profile || !narrative?.id) return;
     const body = (myInsightDrafts[reference] || '').trim();
     if (!body) return;
     setSavingInsight(reference);
     try {
-      await saveVerseInsight(narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
-      setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
+      await saveVerseInsight(sourceNarrativeId || narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
+      await reloadVerseInsights();
       setOpenUserInsights(reference);
       setMyInsightDrafts((current) => ({ ...current, [reference]: '' }));
     } catch (error: any) {
@@ -613,7 +629,7 @@ export function CadetNarrative({
         mentionedUserIds: mentionedUserIds(body, campMentionCandidates),
         parentCommentId: target?.parentCommentId || null,
       });
-      setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
+      await reloadVerseInsights();
       setReplyDrafts((current) => ({ ...current, [insight.id]: '' }));
       setReplyTargets((current) => ({ ...current, [insight.id]: null }));
       setOpenInsightReplies(insight.id);
@@ -630,7 +646,7 @@ export function CadetNarrative({
       await editVerseInsight(editingInsightId, editingInsightBody.trim());
       setEditingInsightId(null);
       setEditingInsightBody('');
-      setVerseInsights(await fetchVerseInsights(narrative.id, profile?.id));
+      await reloadVerseInsights();
     } catch (error: any) { alert(error.message || 'Could not edit your insight.'); }
   };
 
@@ -641,7 +657,7 @@ export function CadetNarrative({
       await editVerseInsightComment(editingCommentId, editingCommentBody.trim());
       setEditingCommentId(null);
       setEditingCommentBody('');
-      setVerseInsights(await fetchVerseInsights(narrative.id, profile?.id));
+      await reloadVerseInsights();
     } catch (error: any) { alert(error.message || 'Could not edit your reply.'); }
   };
 
@@ -666,9 +682,7 @@ export function CadetNarrative({
 
     try {
       await toggleVerseInsightReaction(insightId, reactionType);
-      if (narrative?.id) {
-        setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
-      }
+      if (narrative?.id) await reloadVerseInsights();
     } catch (error: any) {
       setVerseInsights((current) => current.map((item: any) => item.id === insightId ? {
         ...item,
@@ -711,7 +725,11 @@ export function CadetNarrative({
   const challengeRejected = challenge?.status === 'rejected';
   const challengeApproved = challenge?.status === 'approved';
   const proofFormat: ChallengeProofFormat = (narrative.challenge_proof_format as ChallengeProofFormat) || 'text';
-  const displayVerses = readerVerses.length ? readerVerses : (narrative.highlighted_verses || []);
+  const displayVerses: ScriptureVerse[] = readerVerses.length ? readerVerses : (narrative.highlighted_verses || []).map((verse) => ({
+    ...verse,
+    sourceNarrativeId: verse.source_narrative_id || narrative.id,
+    sourceNarrativeDate: verse.source_narrative_date || narrative.narrative_date,
+  }));
   const verseChoices = displayVerses.map((verse) => ({ value: verse.reference, label: verse.reference }));
   const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
 
@@ -737,10 +755,12 @@ export function CadetNarrative({
       >
         <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="" />
         <div className="relative">
-          <div className="eyebrow text-brass flex items-center gap-2 mb-2">
-            <BookMarked size={14} strokeWidth={1.5} />
-            {narrative.scripture_reference} · {narrative.translation}
-          </div>
+          {!isSundayRest && (
+            <div className="eyebrow text-brass flex items-center gap-2 mb-2">
+              <BookMarked size={14} strokeWidth={1.5} />
+              {narrative.scripture_reference} · {narrative.translation}
+            </div>
+          )}
           <div className="flex items-start justify-between gap-3">
             <h2 className="font-display text-2xl font-semibold text-ink leading-tight">
               {narrative.title}
@@ -750,7 +770,7 @@ export function CadetNarrative({
             </button>
           </div>
           <p className="text-sm text-stone mt-1.5">{narrative.theme}</p>
-          {(narrative.scripture_passages?.length || 0) > 1 && (
+          {!isSundayRest && (narrative.scripture_passages?.length || 0) > 1 && (
             <p className="mt-2 text-[11px] font-semibold text-brass">
               Also reading: {narrative.scripture_passages!.slice(1).map((passage) => passage.reference).join(' · ')}
             </p>
@@ -769,7 +789,7 @@ export function CadetNarrative({
           <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <Sun size={18} className="text-brass" strokeWidth={1.5} />
-            <span className="eyebrow text-stone">Verse of the Day</span>
+            <span className="eyebrow text-stone">{isSundayRest ? 'Verse of the Week' : 'Verse of the Day'}</span>
           </div>
           <ScrollEdge position="top" className="text-brass mb-3" />
           <p className="font-display text-xl text-ink leading-snug">
@@ -778,40 +798,6 @@ export function CadetNarrative({
           <ScrollEdge position="bottom" className="text-brass mt-3" />
           </div>
         </div>
-      )}
-
-      {isSundayRest && weeklyHighlights.length > 0 && (
-        <section className="card overflow-hidden p-5 animate-slide-up">
-          <div className="mb-4 flex items-center gap-2">
-            <Sparkles size={18} className="text-brass" />
-            <div>
-              <p className="eyebrow text-brass">Sunday recap</p>
-              <h3 className="font-display text-lg font-semibold text-ink">This Week's Most Engaged Verses</h3>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {weeklyHighlights.map((highlight, index) => (
-              <button
-                key={`${highlight.narrative_date}:${highlight.reference}`}
-                type="button"
-                onClick={() => { setArchiveDate(highlight.narrative_date); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="block w-full rounded-xl border border-border bg-surface-2/70 p-3 text-left transition-colors hover:border-brass/45"
-              >
-                <div className="flex items-start gap-2">
-                  <span className="mt-0.5 text-xs font-black text-brass">{index + 1}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold uppercase text-brass">{highlight.reference}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-ink">{highlight.text}</p>
-                    <p className="mt-2 text-[10px] font-semibold text-stone">
-                      {highlight.reaction_count} reactions · {highlight.insight_count} insights · {highlight.comment_count} comments
-                    </p>
-                  </div>
-                  <ChevronRight size={16} className="mt-1 shrink-0 text-stone" />
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
       )}
 
       {/* ── Scripture text ── */}
@@ -830,7 +816,10 @@ export function CadetNarrative({
         <ScrollEdge position="top" className="text-brass mb-4" />
         <div className="space-y-4 sm:space-y-5">
           {displayVerses.length ? displayVerses.map((verse, index) => {
-            const userInsights = verseInsights.filter((item: any) => item.verse_reference === verse.reference);
+            const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
+            const userInsights = verseInsights.filter((item: any) => (
+              item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
+            ));
             const hasInsight = Boolean(verse.meditation?.trim());
             const hasReaderInsight = userInsights.length > 0;
             const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
@@ -840,8 +829,8 @@ export function CadetNarrative({
                 comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
               ),
             );
-            const expanded = openVerse === index;
-            const userExpanded = openUserInsights === verse.reference;
+            const expanded = isSundayRest || openVerse === index;
+            const userExpanded = isSundayRest || openUserInsights === verse.reference;
             const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
             return (
               <article
@@ -855,8 +844,8 @@ export function CadetNarrative({
               >
                 <button
                   type="button"
-                  onClick={() => hasInsight && setOpenVerse(expanded ? null : index)}
-                  className={cn('w-full px-1 py-1 text-left transition-colors', hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
+                  onClick={() => !isSundayRest && hasInsight && setOpenVerse(expanded ? null : index)}
+                  className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
                   aria-expanded={hasInsight ? expanded : undefined}
                 >
                   <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
@@ -873,12 +862,14 @@ export function CadetNarrative({
                 <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
-                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
-                      if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
-                      setOpenUserInsights(userExpanded ? null : verse.reference);
-                    }}>
-                      {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
-                    </button>
+                    {!isSundayRest && (
+                      <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                        if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
+                        setOpenUserInsights(userExpanded ? null : verse.reference);
+                      }}>
+                        {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                      </button>
+                    )}
                   </div>
                   {userExpanded && (
                     <div className="mt-3 space-y-3">
@@ -886,6 +877,7 @@ export function CadetNarrative({
                         const authorName = item.profiles?.display_name || 'Reader';
                         const comments = item.comments || [];
                         const repliesOpen = openInsightReplies === item.id;
+                        const commentsVisible = isSundayRest || repliesOpen;
                         return (
                           <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
                             <div className="flex items-start gap-2.5">
@@ -957,7 +949,7 @@ export function CadetNarrative({
                             }}>
                               <MessageCircle size={13} /> {comments.length ? `${comments.length} ${comments.length === 1 ? 'reply' : 'replies'}` : 'Reply'}
                             </button>
-                            {repliesOpen && (
+                            {commentsVisible && (comments.length > 0 || repliesOpen) && (
                               <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
                                 {comments.map((comment: any) => (
                                   <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
@@ -972,18 +964,23 @@ export function CadetNarrative({
                                     <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
                                       if (!requireSubscription()) return;
                                       const displayName = comment.profile?.display_name || 'Reader';
+                                      setOpenInsightReplies(item.id);
                                       setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
                                       setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
                                     }}><Reply size={11} /> Reply</button>
                                   </div>
                                 ))}
-                                {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
-                                <div className="flex items-end gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
-                                  </div>
-                                  <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
-                                </div>
+                                {repliesOpen && (
+                                  <>
+                                    {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
+                                    <div className="flex items-end gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
+                                      </div>
+                                      <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>
@@ -998,7 +995,7 @@ export function CadetNarrative({
                             candidates={campMentionCandidates}
                             placeholder="Write your insight on this verse. Type @ to tag someone..."
                           />
-                          <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference)}>
+                          <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference, sourceNarrativeId)}>
                             {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
                           </button>
                         </>
@@ -1023,7 +1020,7 @@ export function CadetNarrative({
       </div>
 
       {/* ── Reflection prompts ── */}
-      {narrative.reflection_prompts && narrative.reflection_prompts.length > 0 && (
+      {!isSundayRest && narrative.reflection_prompts && narrative.reflection_prompts.length > 0 && (
         <div className="card p-5 animate-slide-up bg-surface border-border">
           <div className="flex items-center gap-2 mb-4">
             <Lightbulb size={18} className="text-moss" strokeWidth={1.5} />
@@ -1161,18 +1158,6 @@ export function CadetNarrative({
             <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{meditation}</p>
             {dailyQuote && <p className="mt-3 text-sm italic text-stone">&ldquo;{dailyQuote}&rdquo;</p>}
           </div>
-        </div>
-      )}
-
-      {isSundayRest && (
-        <div className="card p-5 animate-slide-up bg-surface border-border">
-          <div className="flex items-center gap-2">
-            <Sun size={18} className="text-brass" strokeWidth={1.5} />
-            <span className="eyebrow text-stone">Day of Rest</span>
-          </div>
-          <p className="mt-3 text-sm text-stone">
-            No daily meditation is required on Sunday. Receive the Verse of the Day, rest, and return tomorrow.
-          </p>
         </div>
       )}
 
