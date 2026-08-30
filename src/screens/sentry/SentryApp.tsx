@@ -23,11 +23,11 @@ import {
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
-  reactToDailyVerse, getSubscriptionStatus,
+  reactToDailyVerse, getSubscriptionStatus, fetchAwards,
 } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience, AwardWithRecipient } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
@@ -587,6 +587,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
+  const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
   const tentPhotoInputRef = useRef<HTMLInputElement>(null);
   const dayType = getDayType(new Date());
   const todayDate = new Date();
@@ -619,6 +620,16 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       supabase.removeChannel(channel);
     };
   }, [currentUserId, tent.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAwards()
+      .then((awards) => {
+        if (!cancelled) setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === today.slice(0, 7)).slice(0, 10));
+      })
+      .catch(() => { if (!cancelled) setMonthlyHonors([]); });
+    return () => { cancelled = true; };
+  }, [today]);
 
   const chargeContent = (
     <div className="flex w-full items-start justify-between gap-4">
@@ -683,6 +694,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       veilClassName: 'welcome-first-slide-veil',
     },
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
+    ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
     ...announcements.filter((announcement) =>
       !announcement.announcement_type?.startsWith('panel_image_')

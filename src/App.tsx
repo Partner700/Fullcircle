@@ -10,6 +10,7 @@ import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { DenariiGainAnimation } from './components/DenariiGainAnimation';
+import { PublicShareScreen } from './screens/PublicShareScreen';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { LogOut, RefreshCw } from 'lucide-react';
 
@@ -40,6 +41,14 @@ export default function App() {
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
   }, []);
+  const publicShare = useMemo(() => {
+    const search = new URLSearchParams(window.location.search);
+    const kind = search.get('share');
+    if (kind === 'reading' && search.get('date')) return { kind: 'reading' as const, value: search.get('date')! };
+    if (kind === 'quiz' && search.get('id')) return { kind: 'quiz' as const, value: search.get('id')! };
+    return null;
+  }, []);
+  const signupRequested = useMemo(() => new URLSearchParams(window.location.search).get('signup') === '1', []);
 
   useEffect(() => {
     if (!loading) return;
@@ -80,6 +89,10 @@ export default function App() {
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
   const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /></>;
+
+  if (publicShare && !configError) {
+    return <>{overlays}<PublicShareScreen kind={publicShare.kind} value={publicShare.value} /></>;
+  }
 
   if (loading) {
     return (
@@ -143,10 +156,17 @@ export default function App() {
     return (
       <>
         {overlays}
-        <AuthScreen
-          initialMode="signin"
-          initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
-        />
+        {signupRequested ? (
+          <AuthScreen
+            initialMode="signup"
+            initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+          />
+        ) : (
+          <AuthScreen
+            initialMode="signin"
+            initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+          />
+        )}
       </>
     );
   }

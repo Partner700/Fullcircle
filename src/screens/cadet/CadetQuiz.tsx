@@ -23,7 +23,7 @@ import type {
 import {
   FileQuestion, Clock, CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronLeft, ChevronRight,
   Trophy, Zap, Lock, Ban, BookOpen, Swords, RefreshCw, Lightbulb, Wand2,
-  SkipForward, Volume2, Eye, Sparkles,
+  SkipForward, Volume2, Eye, Sparkles, Share2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -293,6 +293,29 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const resultsReleaseAt = localQuizResultsRelease(session.session_date);
   const responderPanel = <QuizResponders sessionId={session.id} />;
 
+  const shareQuiz = async () => {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('share', 'quiz');
+    url.searchParams.set('id', session.id);
+    const shareData = {
+      title: session.title || 'Full Circle Weekly Quiz',
+      text: 'Take this week\'s Full Circle quiz, then join the camp to see your result.',
+      url: url.toString(),
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('Quiz link copied.');
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') alert('Could not share this quiz.');
+    }
+  };
+
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
     return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}<ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
@@ -337,6 +360,9 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <p className="text-sm text-stone mt-1">
             {formatDate(session.session_date)}
           </p>
+          <button type="button" className="btn-secondary mt-4 text-xs" onClick={() => void shareQuiz()}>
+            <Share2 size={14} /> Share quiz
+          </button>
         </div>
       </div>
 

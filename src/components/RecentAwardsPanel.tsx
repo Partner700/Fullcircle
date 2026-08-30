@@ -135,7 +135,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
               </p>
               {activeAward.target_tent && <p className="text-xs text-stone">Family trophy · Sentry: {activeAward.target_tent.sentry?.display_name || 'Not assigned'}</p>}
               {activeAward.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{activeAward.description}</p>}
-              <AwardReactions state={reactions[activeAward.id]} disabled={!!reacting?.startsWith(`${activeAward.id}:`)} onReact={(type) => void handleReaction(activeAward.id, type)} />
+              <AwardReactions state={reactions[activeAward.id]} disabled={!!reacting?.startsWith(`${activeAward.id}:`)} currentUserId={profile?.id} onMessageOpenChange={setMessageOpen} onReact={(type) => void handleReaction(activeAward.id, type)} />
             </div>
             <AwardIcon size={22} className="flex-shrink-0 text-gold" aria-hidden="true" />
           </div>

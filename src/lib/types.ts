@@ -159,6 +159,13 @@ export interface DailyNarrative {
   translation: string;
   main_text: string;
   highlighted_verses: { reference: string; text: string; meditation: string }[];
+  /** Additional passages published with the main daily reading. */
+  scripture_passages?: Array<{
+    reference: string;
+    translation?: string;
+    main_text: string;
+    highlighted_verses: { reference: string; text: string; meditation: string }[];
+  }>;
   reflection_prompts: string[];
   challenge_title: string | null;
   challenge_instructions: string | null;

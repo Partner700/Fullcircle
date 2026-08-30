@@ -5,6 +5,7 @@ import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
   addFcxRegistration,
   fetchActiveFcxExperience,
+  fetchAwards,
   fetchAllProfiles,
   removeFcxRegistration,
   saveFcxExperience,
@@ -12,7 +13,8 @@ import {
 } from '../lib/queries';
 import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
 import { publicAsset } from '../lib/publicAsset';
-import type { FcxExperience, Profile } from '../lib/types';
+import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
+import { TentHouseSymbol } from './TentHouseSymbol';
 
 const FCX_START_HOUR = 12;
 
@@ -50,6 +52,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
+  const [previousWinner, setPreviousWinner] = useState<AwardWithRecipient | null>(null);
   const displayTitle = visibleExperience.title.replace(/\s*\(FCX\)\s*/gi, ' ').trim() || 'Full Circle Experience';
   const registrations = visibleExperience.registrations || [];
   const occupied = Math.min(registrations.length, visibleExperience.capacity);
@@ -88,6 +91,21 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
 
     return () => { cancelled = true; };
   }, [active, experience.id]);
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    void fetchAwards()
+      .then((awards) => {
+        const winner = awards.find((award) => (
+          award.title.trim().toLowerCase() === 'muralis'
+          && award.award_month.slice(0, 7) < visibleExperience.event_month.slice(0, 7)
+        )) || null;
+        if (!cancelled) setPreviousWinner(winner);
+      })
+      .catch(() => { if (!cancelled) setPreviousWinner(null); });
+    return () => { cancelled = true; };
+  }, [active, visibleExperience.event_month]);
 
   useEffect(() => {
     setAnimatedPercent(0);
@@ -200,6 +218,23 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
           </div>
         ))}
       </div>
+
+      {previousWinner?.profiles && (
+        <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-white/20 bg-surface/45 px-2.5 py-2 backdrop-blur-sm">
+          <img
+            src={previousWinner.profiles.avatar_url || publicAsset('icons/fullcircle-dove-clean.png')}
+            alt={previousWinner.profiles.display_name}
+            className="h-8 w-8 rounded-full border border-brass/55 object-cover"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase text-stone">Last month's experience</p>
+            <p className="truncate text-xs font-black text-ink">Muralis · {previousWinner.profiles.display_name}</p>
+          </div>
+          {previousWinner.recipient_tent?.tent_house_id && (
+            <TentHouseSymbol houseId={previousWinner.recipient_tent.tent_house_id} size={22} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

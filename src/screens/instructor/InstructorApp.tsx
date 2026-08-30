@@ -2320,6 +2320,8 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
       { title: 'Vallum', description: 'Overall Best Cadet of the Month by Marks' },
       { title: 'Monthly Scribe', description: 'Highest Monthly Fig Total' },
       { title: 'Monthly Valley Champion', description: 'Most Monthly Arena Victories' },
+      { title: 'Muralis', description: 'Winner of the previous Full Circle Experience' },
+      { title: 'Centurion', description: 'Best Sentry of the Month', forSentry: true },
     ],
   },
   {

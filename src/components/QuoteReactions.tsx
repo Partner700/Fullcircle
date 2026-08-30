@@ -4,7 +4,13 @@ import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
 import { MessageAvatar } from './TentMessenger';
 
-export type QuoteReactionState = Record<string, { count: number; reacted: boolean }>;
+export type ReactionActor = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+};
+
+export type QuoteReactionState = Record<string, { count: number; reacted: boolean; actors?: ReactionActor[] }>;
 
 const REACTIONS = [
   { type: 'amen', label: 'Amen', icon: HeartHandshake },
@@ -121,6 +127,10 @@ export function QuoteReactions({
     }
     return map;
   }, {});
+  const reactionActors = Array.from(new Map(
+    REACTIONS.flatMap((reaction) => state?.[reaction.type]?.actors || [])
+      .map((actor) => [actor.user_id, actor]),
+  ).values()).slice(0, 5);
 
   return (
     <div className="mt-6 space-y-3 pt-2">
@@ -160,6 +170,29 @@ export function QuoteReactions({
           </button>
         )}
       </div>
+
+      {reactionActors.length > 0 && (
+        <div className="flex items-center -space-x-2" aria-label={`${reactionActors.length} camp members reacted`}>
+          {reactionActors.map((actor) => (
+            <MessageAvatar
+              key={actor.user_id}
+              profile={{
+                id: actor.user_id,
+                display_name: actor.display_name,
+                email: null,
+                avatar_url: actor.avatar_url,
+                whatsapp_number: null,
+                language_code: null,
+                country_code: null,
+                created_at: '',
+              }}
+              currentUserId={currentUserId}
+              size="sm"
+              onOpenChange={onMessageOpenChange || onCommentOpenChange}
+            />
+          ))}
+        </div>
+      )}
 
       {commentsEnabled && previewComments.length > 0 && (
         <div className="space-y-1.5">

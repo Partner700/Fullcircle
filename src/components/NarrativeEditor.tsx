@@ -4,12 +4,19 @@ import { AppSelect } from './AppSelect';
 import { getTodayISODate, getDayType, getAppClock, shiftISODate, cn } from '../lib/utils';
 import { CHALLENGE_PROOF_FORMATS } from '../lib/constants';
 import type { DailyNarrative, GameSeedData, ChallengeProofFormat } from '../lib/types';
-import { Loader2, Save, X, BookOpen, Sparkles, CalendarDays, KeyRound, Wand2 } from 'lucide-react';
+import { Loader2, Save, X, BookOpen, Sparkles, CalendarDays, KeyRound, Wand2, Plus } from 'lucide-react';
 
 interface HighlightedVerse {
   reference: string;
   text: string;
   meditation: string;
+}
+
+interface ScripturePassage {
+  reference: string;
+  translation: string;
+  main_text: string;
+  highlighted_verses: HighlightedVerse[];
 }
 
 interface NarrativeEditorProps {
@@ -229,6 +236,16 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
   const [highlightedVerses, setHighlightedVerses] = useState<HighlightedVerse[]>(
     narrative?.highlighted_verses || [],
   );
+  const [additionalReference, setAdditionalReference] = useState('');
+  const [additionalPassages, setAdditionalPassages] = useState<ScripturePassage[]>(
+    narrative?.scripture_passages?.slice(1).map((passage) => ({
+      reference: passage.reference,
+      translation: passage.translation || narrative.translation || 'web',
+      main_text: passage.main_text,
+      highlighted_verses: passage.highlighted_verses || [],
+    })) || [],
+  );
+  const [addingPassage, setAddingPassage] = useState(false);
 
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -317,6 +334,38 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
     }
   };
 
+  const addAdditionalPassage = async () => {
+    const reference = additionalReference.trim();
+    if (!reference) {
+      setFetchError('Enter another scripture reference before adding it.');
+      return;
+    }
+    setAddingPassage(true);
+    setFetchError(null);
+    try {
+      const response = await fetch(`https://bible-api.com/${encodeURIComponent(reference)}?translation=${form.translation}`);
+      const data: BibleApiResponse = await response.json();
+      if (!response.ok || data.error || !Array.isArray(data.verses) || data.verses.length === 0) {
+        throw new Error(data.error || 'No verses were found for that reference.');
+      }
+      setAdditionalPassages((current) => [...current, {
+        reference: data.reference || reference,
+        translation: data.translation_id || form.translation,
+        main_text: (data.text || data.verses.map((verse) => verse.text.trim()).join(' ')).trim(),
+        highlighted_verses: data.verses.map((verse) => ({
+          reference: verseRef(verse),
+          text: verse.text.trim(),
+          meditation: '',
+        })),
+      }]);
+      setAdditionalReference('');
+    } catch (error: any) {
+      setFetchError(error?.message || 'Could not fetch that additional scripture.');
+    } finally {
+      setAddingPassage(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setSaveError(null);
@@ -360,6 +409,12 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
         verseOfDay: form.verse_of_day,
       };
       const syncedSeed = syncKeyVerse(parsedSeed, packetSource);
+      const primaryPassage: ScripturePassage = {
+        reference: form.scripture_reference.trim() || (isSundayRest ? 'Verse of the Day' : ''),
+        translation: form.translation,
+        main_text: form.main_text.trim() || (isSundayRest ? form.verse_of_day.trim() : ''),
+        highlighted_verses: highlightedVerses,
+      };
       await upsertNarrative({
         // Republish mode intentionally omits the old id so the target date is created or replaced.
         ...(narrative?.id && !republishMode ? { id: narrative.id } : {}),
@@ -370,6 +425,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
         translation: form.translation,
         main_text: form.main_text.trim() || (isSundayRest ? form.verse_of_day.trim() : ''),
         highlighted_verses: highlightedVerses,
+        scripture_passages: [primaryPassage, ...additionalPassages],
         // Preserve fields not exposed in this form.
         reflection_prompts: narrative?.reflection_prompts || [],
         challenge_proof_type: narrative?.challenge_proof_type || 'text',
@@ -510,6 +566,35 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
           Fetching pulls the passage from a free Bible API (bible-api.com) and lists each verse as a
           selectable card. Highlighted verses appear in the cadets’ Passage of the Day.
         </p>
+
+        <div className="rounded-lg border border-border-bright bg-surface-2/60 p-3">
+          <label className="block text-xs font-bold text-peri-dim">Additional Scripture</label>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={additionalReference}
+              onChange={(event) => setAdditionalReference(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void addAdditionalPassage(); } }}
+              className="input-field min-w-0 flex-1 text-sm"
+              placeholder="Add another passage, e.g. Psalm 23"
+            />
+            <button type="button" className="btn-secondary shrink-0 text-xs" disabled={addingPassage} onClick={() => void addAdditionalPassage()}>
+              {addingPassage ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add
+            </button>
+          </div>
+          {additionalPassages.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {additionalPassages.map((passage, index) => (
+                <span key={`${passage.reference}-${index}`} className="inline-flex items-center gap-1 rounded-full border border-brass/30 bg-brass-soft px-2 py-1 text-[10px] font-bold text-brass">
+                  {passage.reference}
+                  <button type="button" aria-label={`Remove ${passage.reference}`} onClick={() => setAdditionalPassages((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
         {fetchError && (
           <div className="text-sm text-coral bg-coral-soft rounded-lg p-3 border border-coral/20">

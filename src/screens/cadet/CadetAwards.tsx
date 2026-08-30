@@ -259,7 +259,7 @@ export function CadetAwards() {
                     {award.target_tent && (
                       <p className="text-xs text-stone">Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>
                     )}
-                    <AwardReactions state={reactions[award.id]} disabled={!!reacting?.startsWith(`${award.id}:`)} onReact={(type) => void handleReaction(award.id, type)} />
+                    <AwardReactions state={reactions[award.id]} disabled={!!reacting?.startsWith(`${award.id}:`)} currentUserId={profile?.id} onReact={(type) => void handleReaction(award.id, type)} />
                   </div>
                   <span className="text-xs text-stone flex-shrink-0">{formatShortDate(award.award_month)}</span>
                 </div>

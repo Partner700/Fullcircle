@@ -10,12 +10,12 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
 import { QuizResponders } from '../../components/QuizResponders';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience } from '../../lib/queries';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { supabase } from '../../lib/supabase';
 import { DAILY_GAME_LEVELS } from '../../lib/constants';
-import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience } from '../../lib/types';
+import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience, AwardWithRecipient } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
@@ -28,6 +28,7 @@ export type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
   | { id: string; kind: 'custom'; content: ReactNode; image?: PanelImageSetting | null; veilClassName?: string }
   | { id: string; kind: 'fcx'; experience: FcxExperience }
+  | { id: string; kind: 'honors'; awards: AwardWithRecipient[] }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
   | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem };
@@ -67,6 +68,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [quotes, setQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [fcxExperience, setFcxExperience] = useState<FcxExperience | null>(null);
+  const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [verseReactions, setVerseReactions] = useState<Record<string, QuoteReactionState>>({});
@@ -117,6 +119,12 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       // dashboard behind a loading screen on a slow mobile connection.
       setLoading(false);
       hasLoadedRef.current = true;
+      void fetchAwards()
+        .then((awards) => {
+          const currentMonth = today.slice(0, 7);
+          setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === currentMonth).slice(0, 10));
+        })
+        .catch(() => setMonthlyHonors([]));
       const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
         quoteItems.length > 0
           ? fetchDailyQuoteReactions(quoteItems, profile.id)
@@ -178,6 +186,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
+    ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
     ...announcements.filter((announcement) =>
       !announcement.announcement_type?.startsWith('panel_image_')
@@ -341,13 +350,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           <PanelImageBackdrop image={panelImages.reading} />
           <div className="relative">
             <SectionHeader title="Today's Reading" />
-            {dayType === 'saturday' ? (
-              <button onClick={() => onNavigate('quiz')} className="text-left w-full">
-                <h4 className="font-display font-medium text-ink">Saturday Quiz Day</h4>
-                <p className="text-sm text-stone mt-1">No daily reading or meditation is required today.</p>
-                <span className="text-xs text-brass mt-2 inline-block font-medium">Go to quiz →</span>
-              </button>
-            ) : narrative ? (
+            {narrative ? (
               <button onClick={() => onNavigate('narrative')} className="text-left w-full">
                 <h4 className="font-display font-medium text-ink">{narrative.title}</h4>
                 <p className="text-sm text-stone mt-1">{narrative.scripture_reference} · {narrative.theme}</p>
@@ -389,7 +392,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       <div className="relative overflow-hidden rounded-2xl">
         <PanelImageBackdrop image={panelImages.quick_links} />
         <div className="relative grid grid-cols-2 gap-3 md:grid-cols-4">
-          <QuickLink icon={dayType === 'saturday' ? FileQuestion : BookOpen} label={dayType === 'saturday' ? 'Take Quiz' : 'Read Today'} badge={notificationBadges[dayType === 'saturday' ? 'quiz' : 'narrative'] || 0} onClick={() => onNavigate(dayType === 'saturday' ? 'quiz' : 'narrative')} />
+          <QuickLink icon={BookOpen} label="Read Today" badge={notificationBadges.narrative || 0} onClick={() => onNavigate('narrative')} />
           <QuickLink icon={Gamepad2} label="Daily Games" badge={(notificationBadges.game || 0) + (notificationBadges.arena || 0)} onClick={() => onNavigate('games')} />
           <QuickLink icon={TentIcon} label="My Tent" badge={notificationBadges.tent || 0} onClick={() => onNavigate('tent')} />
           <QuickLink icon={Award} label="Awards Hub" badge={notificationBadges.awards || 0} onClick={() => onNavigate('awards')} />
@@ -519,7 +522,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                 />
               )}
               <div className="relative flex items-start justify-between gap-3">
-                <div className={cn('min-w-0', slide.kind === 'custom' && 'w-full')}>
+                <div className={cn('min-w-0', (slide.kind === 'custom' || slide.kind === 'honors') && 'w-full')}>
                   {slide.kind === 'custom' && slide.content}
 
                   {slide.kind === 'welcome' && (
@@ -537,6 +540,39 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       experience={slide.experience}
                       active={displayIndex === slideIndex}
                     />
+                  )}
+
+                  {slide.kind === 'honors' && (
+                    <div className="w-full max-w-2xl">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Award size={17} className="text-brass" />
+                        <div>
+                          <p className="eyebrow">Full Circle</p>
+                          <h2 className="font-display text-xl font-black text-ink">Monthly Honors</h2>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {slide.awards.slice(0, 6).map((award) => {
+                          const recipient = award.profiles;
+                          const tent = award.target_tent || award.recipient_tent;
+                          const name = recipient?.display_name || tent?.name || 'Camp honor';
+                          return (
+                            <div key={award.id} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-white/20 bg-surface/55 px-2.5 py-2 backdrop-blur-sm">
+                              <img
+                                src={recipient?.avatar_url || award.target_tent?.profile_image_url || STARTUP_WELCOME_ARTWORK.url}
+                                alt={name}
+                                className="h-8 w-8 shrink-0 rounded-full border border-brass/45 object-cover"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-black text-ink">{name}</p>
+                                <p className="truncate text-[10px] font-semibold text-brass">{award.title}</p>
+                              </div>
+                              {tent?.tent_house_id && <TentHouseSymbol houseId={tent.tent_house_id} size={20} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
 
                   {slide.kind === 'verse' && (

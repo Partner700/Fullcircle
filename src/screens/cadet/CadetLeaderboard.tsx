@@ -276,6 +276,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const loadInFlightRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
+  const lastStreakRowsRef = useRef<StreakLeaderboardRow[]>([]);
 
   const load = useCallback(async (silent = false) => {
     if (silent && typeof document !== 'undefined' && document.body.dataset.fullCircleMessengerOpen === 'true') return;
@@ -305,9 +306,12 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         return;
       }
 
-      const [leaders, boardMovements] = await Promise.allSettled([
+      const [leaders, boardMovements, independentStreaks] = await Promise.allSettled([
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
         withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: audience }), 'Challenge boards'),
+        // The streak board has its own quick, published feed so a slow
+        // movement query can never hide it from sentries.
+        withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board', 5_500),
       ]);
       const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
       setLeaderRows(leaderRowsRaw as any);
@@ -315,6 +319,9 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       const movementResult = boardMovements.status === 'fulfilled' ? boardMovements.value : null;
       const authoritativeMovements = movementResult && !movementResult.error
         ? ((movementResult.data || []) as BoardMovementRow[])
+        : [];
+      const independentStreakRows = independentStreaks.status === 'fulfilled'
+        ? independentStreaks.value
         : [];
 
       let streakRowsWithHistory: (StreakLeaderboardRow & CompetitiveRow)[];
@@ -336,7 +343,14 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         // A partial movement payload must never make the primary board vanish.
         // Recover the live streak rows independently while retaining the other
         // authoritative boards that did arrive.
-        if (
+        if (independentStreakRows.length > 0) {
+          streakRowsWithHistory = hydrateBoardHistory(
+            independentStreakRows,
+            `${historyPrefix}-streak`,
+            (row) => row.user_id,
+            (row) => Number(row.current_streak ?? row.consistency ?? 0),
+          );
+        } else if (
           streakRowsWithHistory.length === 0
           || streakRowsWithHistory.some((row) => !row.user_id || !row.profiles?.display_name)
         ) {
@@ -356,15 +370,13 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       } else {
         // Keep the existing board RPCs as a rollout fallback until the new
         // migration reaches production. Once deployed, phones use one payload.
-        const [streaks, live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
-          withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board fallback'),
+        const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
           withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: audience }), 'Denarii board fallback'),
           withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board fallback'),
           withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board fallback'),
           withBoardTimeout(fetchRhudeBoard(), 'Valley board fallback'),
           withBoardTimeout(fetchMarksBoard(), 'Marks board fallback'),
         ]);
-        const streakRowsRaw = streaks.status === 'fulfilled' ? streaks.value : [];
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
         const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows);
@@ -372,7 +384,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === audience);
         const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === audience);
         const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === audience);
-        streakRowsWithHistory = hydrateBoardHistory(streakRowsRaw, `${historyPrefix}-streak`, (row) => row.user_id, (row) => Number(row.current_streak ?? row.consistency ?? 0));
+        streakRowsWithHistory = hydrateBoardHistory(independentStreakRows, `${historyPrefix}-streak`, (row) => row.user_id, (row) => Number(row.current_streak ?? row.consistency ?? 0));
         liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `${historyPrefix}-denarii`, (row) => row.user_id, (row) => Number(row.total_denarii ?? 0));
         tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number(row.combined_score ?? 0));
         quizRowsWithHistory = hydrateBoardHistory(quizRowsRaw, `${historyPrefix}-figs`, (row) => row.user_id, (row) => Number(row.total_score ?? 0));
@@ -380,7 +392,13 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         marksRowsWithHistory = hydrateBoardHistory(marksRowsRaw, `${historyPrefix}-marks`, (row) => row.user_id, (row) => Number(row.marks ?? 0));
       }
 
-	      setStreakRows(streakRowsWithHistory);
+      if (streakRowsWithHistory.length > 0) {
+        lastStreakRowsRef.current = streakRowsWithHistory;
+        setStreakRows(streakRowsWithHistory);
+      } else if (lastStreakRowsRef.current.length > 0) {
+        // Preserve the last usable board through a brief network hiccup.
+        setStreakRows(lastStreakRowsRef.current);
+      }
 	      setLiveRows(liveRowsWithHistory);
 	      setTentRows(tentRowsWithHistory);
 	      setQuizRows(quizRowsWithHistory);

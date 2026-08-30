@@ -335,6 +335,49 @@ export async function fetchLatestQuizSession() {
   return data as QuizSession | null;
 }
 
+export async function fetchSharedReading(date: string) {
+  const { data, error } = await supabase.rpc('get_shared_daily_reading', { p_narrative_date: date });
+  if (error) throw error;
+  return data as {
+    narrative_date: string;
+    title: string;
+    theme: string;
+    scripture_reference: string;
+    translation: string;
+    main_text: string;
+    highlighted_verses: Array<{ reference: string; text: string; meditation?: string }>;
+    scripture_passages?: DailyNarrative['scripture_passages'];
+    verse_of_day: string | null;
+  } | null;
+}
+
+export async function fetchSharedQuiz(sessionId: string) {
+  const { data, error } = await supabase.rpc('get_shared_quiz', { p_quiz_session_id: sessionId });
+  if (error) throw error;
+  return data as {
+    session: Pick<QuizSession, 'id' | 'title' | 'session_date' | 'live_opens_at' | 'live_closes_at' | 'status'>;
+    questions: Array<{ id: string; question_index: number; question_payload: Omit<QuestionPayload, 'correct_answer' | 'accepted_answers' | 'explanation'> }>;
+  } | null;
+}
+
+export async function saveSharedQuizAnswer(sessionId: string, guestKey: string, questionId: string, answer: string | number) {
+  const { error } = await supabase.rpc('save_shared_quiz_answer', {
+    p_quiz_session_id: sessionId,
+    p_guest_key: guestKey,
+    p_question_id: questionId,
+    p_answer: answer,
+  });
+  if (error) throw error;
+}
+
+export async function completeSharedQuiz(sessionId: string, guestKey: string) {
+  const { error } = await supabase.rpc('complete_shared_quiz', {
+    p_quiz_session_id: sessionId,
+    p_guest_key: guestKey,
+  });
+  if (error) throw error;
+}
+
 export async function createQuizSession(session: Partial<QuizSession>) {
   const { data, error } = await supabase
     .from('quiz_sessions')
@@ -741,6 +784,24 @@ export async function recordSundayReadingOpen(userId: string, recordDate: string
   return Boolean(data);
 }
 
+export type WeeklyVerseHighlight = {
+  narrative_date: string;
+  title: string;
+  reference: string;
+  text: string;
+  reaction_count: number;
+  comment_count: number;
+  insight_count: number;
+  engagement_score: number;
+};
+
+export async function fetchWeeklyVerseHighlights() {
+  const { data, error } = await supabase.rpc('get_current_weekly_verse_highlights');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row?.items || []) as WeeklyVerseHighlight[];
+}
+
 export async function fetchRelicTypes() {
   const { data, error } = await supabase.from('relic_types').select('*');
   if (error) throw error;
@@ -774,6 +835,14 @@ async function mergePublicStreakValues<T extends { user_id: string; current_stre
 }
 
 export async function fetchStreakboardSnapshots(audience: 'cadet' | 'sentry' = 'cadet') {
+  // This is intentionally a published-snapshot feed. The older live function
+  // recalculates every person's streak on every board refresh, which can make
+  // a sentry board time out before it renders.
+  const { data: fastData, error: fastError } = await supabase.rpc('get_fast_streakboard_for_role', { p_role: audience });
+  if (!fastError && Array.isArray(fastData) && fastData.length > 0) {
+    return mergePublicStreakValues(fastData as (StreakboardSnapshot & { role: 'cadet' | 'sentry'; profiles: { display_name: string; avatar_url: string | null } })[]);
+  }
+
   if (audience === 'sentry') {
     const { data, error } = await supabase.rpc('get_streakboard_live_for_role', { p_role: 'sentry' });
     if (error) throw error;
@@ -877,7 +946,13 @@ export async function insertAward(award: Partial<Award>) {
   if (error) throw error;
 }
 
-export type AwardReactionState = Record<string, { count: number; reacted: boolean }>;
+export type AwardReactionActor = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+};
+
+export type AwardReactionState = Record<string, { count: number; reacted: boolean; actors: AwardReactionActor[] }>;
 
 export async function fetchAwardReactions(awardIds: string[], reactorId?: string) {
   if (awardIds.length === 0) return {} as Record<string, AwardReactionState>;
@@ -886,11 +961,25 @@ export async function fetchAwardReactions(awardIds: string[], reactorId?: string
     .select('award_id, reactor_id, reaction_type')
     .in('award_id', awardIds);
   if (error) throw error;
+  const reactorIds = Array.from(new Set((data || []).map((row) => row.reactor_id).filter(Boolean)));
+  const { data: reactorProfiles, error: profileError } = reactorIds.length
+    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', reactorIds)
+    : { data: [], error: null };
+  if (profileError) throw profileError;
+  const profilesById = new Map((reactorProfiles || []).map((actor) => [actor.id, actor]));
   const result: Record<string, AwardReactionState> = {};
   (data || []).forEach((row: any) => {
     result[row.award_id] ||= {};
-    result[row.award_id][row.reaction_type] ||= { count: 0, reacted: false };
+    result[row.award_id][row.reaction_type] ||= { count: 0, reacted: false, actors: [] };
     result[row.award_id][row.reaction_type].count += 1;
+    const actor = profilesById.get(row.reactor_id);
+    if (actor && !result[row.award_id][row.reaction_type].actors.some((existing) => existing.user_id === row.reactor_id)) {
+      result[row.award_id][row.reaction_type].actors.push({
+        user_id: row.reactor_id,
+        display_name: actor.display_name || 'Camp member',
+        avatar_url: actor.avatar_url || null,
+      });
+    }
     if (reactorId && row.reactor_id === reactorId) result[row.award_id][row.reaction_type].reacted = true;
   });
   return result;
@@ -1161,15 +1250,22 @@ export async function uploadChallengeEvidence(userId: string, file: File) {
 
 export type VerseInsightReactionType = 'heart' | 'lightbulb';
 
+export type VerseInsightReactionActor = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+};
+
 export type VerseInsightReactionState = Record<VerseInsightReactionType, {
   count: number;
   reacted: boolean;
+  actors: VerseInsightReactionActor[];
 }>;
 
 function emptyVerseInsightReactionState(): VerseInsightReactionState {
   return {
-    heart: { count: 0, reacted: false },
-    lightbulb: { count: 0, reacted: false },
+    heart: { count: 0, reacted: false, actors: [] },
+    lightbulb: { count: 0, reacted: false, actors: [] },
   };
 }
 
@@ -1211,11 +1307,26 @@ export async function fetchVerseInsights(narrativeId: string, reactorUserId?: st
     }
     reactionsByInsight.set(reaction.insight_id, state);
   });
-  const profileIds = Array.from(new Set((comments || []).flatMap((comment) => [comment.user_id, comment.mentioned_user_id]).filter(Boolean))) as string[];
+  const profileIds = Array.from(new Set([
+    ...(comments || []).flatMap((comment) => [comment.user_id, comment.mentioned_user_id]),
+    ...(reactionResult.data || []).map((reaction: any) => reaction.reactor_user_id),
+  ].filter(Boolean))) as string[];
   const { data: commentProfiles } = profileIds.length
     ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', profileIds)
     : { data: [] };
   const profilesById = new Map((commentProfiles || []).map((commentProfile) => [commentProfile.id, commentProfile]));
+  (reactionResult.data || []).forEach((reaction: any) => {
+    if (reaction.reaction_type !== 'heart' && reaction.reaction_type !== 'lightbulb') return;
+    const reactionType = reaction.reaction_type as VerseInsightReactionType;
+    const state = reactionsByInsight.get(reaction.insight_id);
+    const actor = profilesById.get(reaction.reactor_user_id);
+    if (!state || !actor || state[reactionType].actors.some((existing) => existing.user_id === reaction.reactor_user_id)) return;
+    state[reactionType].actors.push({
+      user_id: reaction.reactor_user_id,
+      display_name: actor.display_name || 'Camp member',
+      avatar_url: actor.avatar_url || null,
+    });
+  });
   return insights.map((insight) => ({
     ...insight,
     reactions: reactionsByInsight.get(insight.id) || emptyVerseInsightReactionState(),
@@ -1679,14 +1790,24 @@ export async function fetchDailyQuoteReactions(quotes: { user_id: string; record
   if (reactionResult.error) throw reactionResult.error;
   if (commentResult.error) throw commentResult.error;
 
+  const reactorIds = Array.from(new Set((reactionResult.data || []).map((row: any) => row.reactor_user_id).filter(Boolean)));
+  const { data: reactorProfiles } = reactorIds.length
+    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', reactorIds)
+    : { data: [] as Array<{ id: string; display_name: string; avatar_url: string | null }> };
+  const profileById = new Map((reactorProfiles || []).map((profile: any) => [profile.id, profile]));
+
   const wanted = new Set(quotes.map((q) => `${q.user_id}:${q.record_date}`));
-  const map: Record<string, Record<string, { count: number; reacted: boolean }>> = {};
+  const map: Record<string, Record<string, { count: number; reacted: boolean; actors?: { user_id: string; display_name: string; avatar_url: string | null }[] }>> = {};
   (reactionResult.data || []).forEach((row: any) => {
     const key = `${row.quote_user_id}:${row.quote_record_date}`;
     if (!wanted.has(key)) return;
     if (!map[key]) map[key] = {};
-    if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false };
+    if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false, actors: [] };
     map[key][row.reaction_type].count += 1;
+    const profile = profileById.get(row.reactor_user_id);
+    if (profile && !map[key][row.reaction_type].actors?.some((actor) => actor.user_id === row.reactor_user_id)) {
+      map[key][row.reaction_type].actors?.push({ user_id: row.reactor_user_id, display_name: profile.display_name, avatar_url: profile.avatar_url || null });
+    }
     if (reactorId && row.reactor_user_id === reactorId) map[key][row.reaction_type].reacted = true;
   });
   (commentResult.data || []).forEach((row: any) => {
@@ -1752,12 +1873,21 @@ export async function fetchDailyVerseReactions(narrativeDates: string[], reactor
     .in('narrative_date', narrativeDates);
   if (error) throw error;
 
-  const map: Record<string, Record<string, { count: number; reacted: boolean }>> = {};
+  const reactorIds = Array.from(new Set((data || []).map((row: any) => row.reactor_user_id).filter(Boolean)));
+  const { data: reactorProfiles } = reactorIds.length
+    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', reactorIds)
+    : { data: [] as Array<{ id: string; display_name: string; avatar_url: string | null }> };
+  const profileById = new Map((reactorProfiles || []).map((profile: any) => [profile.id, profile]));
+  const map: Record<string, Record<string, { count: number; reacted: boolean; actors?: { user_id: string; display_name: string; avatar_url: string | null }[] }>> = {};
   (data || []).forEach((row: any) => {
     const key = row.narrative_date;
     if (!map[key]) map[key] = {};
-    if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false };
+    if (!map[key][row.reaction_type]) map[key][row.reaction_type] = { count: 0, reacted: false, actors: [] };
     map[key][row.reaction_type].count += 1;
+    const profile = profileById.get(row.reactor_user_id);
+    if (profile && !map[key][row.reaction_type].actors?.some((actor) => actor.user_id === row.reactor_user_id)) {
+      map[key][row.reaction_type].actors?.push({ user_id: row.reactor_user_id, display_name: profile.display_name, avatar_url: profile.avatar_url || null });
+    }
     if (reactorId && row.reactor_user_id === reactorId) map[key][row.reaction_type].reacted = true;
   });
   return map;

@@ -5,7 +5,7 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
-import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, fetchWeeklyVerseHighlights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -17,7 +17,7 @@ import {
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
   MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight,
-  Lock,
+  Lock, Share2,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -264,6 +264,9 @@ export function CadetNarrative({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [archiveDate, setArchiveDate] = useState<string | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
+  const [weeklyHighlights, setWeeklyHighlights] = useState<Array<{
+    narrative_date: string; title: string; reference: string; text: string; reaction_count: number; comment_count: number; insight_count: number;
+  }>>([]);
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const today = getTodayISODate();
@@ -271,6 +274,29 @@ export function CadetNarrative({
   const isHistoricalReading = activeDate < today;
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
+
+  const shareReading = async () => {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('share', 'reading');
+    url.searchParams.set('date', activeDate);
+    const shareData = {
+      title: narrative?.title || 'Full Circle Daily Reading',
+      text: narrative?.scripture_reference || 'Read today\'s scripture with Full Circle.',
+      url: url.toString(),
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('Reading link copied.');
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') alert('Could not share this reading.');
+    }
+  };
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -350,6 +376,18 @@ export function CadetNarrative({
     return () => { cancelled = true; };
   }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
 
+  useEffect(() => {
+    if (!isSundayRest || isHistoricalReading) {
+      setWeeklyHighlights([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchWeeklyVerseHighlights()
+      .then((items) => { if (!cancelled) setWeeklyHighlights(items); })
+      .catch(() => { if (!cancelled) setWeeklyHighlights([]); });
+    return () => { cancelled = true; };
+  }, [isHistoricalReading, isSundayRest]);
+
   const loadHistory = async () => {
     if (!profile || historyLoading) return;
     setHistoryLoading(true);
@@ -370,9 +408,17 @@ export function CadetNarrative({
 
   useEffect(() => {
     if (!narrative) return;
-    const savedVerses = narrative.highlighted_verses || [];
+    const passages = narrative.scripture_passages?.length
+      ? narrative.scripture_passages
+      : [{
+        reference: narrative.scripture_reference,
+        translation: narrative.translation,
+        main_text: narrative.main_text,
+        highlighted_verses: narrative.highlighted_verses || [],
+      }];
+    const savedVerses = passages.flatMap((passage) => passage.highlighted_verses || []);
     setReaderVerses(savedVerses);
-    if (savedVerses.length > 1) {
+    if (savedVerses.length > 1 || passages.length > 1) {
       return;
     }
 
@@ -619,8 +665,8 @@ export function CadetNarrative({
     } : item));
 
     try {
-      const reacted = await toggleVerseInsightReaction(insightId, reactionType);
-      if (reacted !== nextReacted && narrative?.id) {
+      await toggleVerseInsightReaction(insightId, reactionType);
+      if (narrative?.id) {
         setVerseInsights(await fetchVerseInsights(narrative.id, profile.id));
       }
     } catch (error: any) {
@@ -695,10 +741,20 @@ export function CadetNarrative({
             <BookMarked size={14} strokeWidth={1.5} />
             {narrative.scripture_reference} · {narrative.translation}
           </div>
-          <h2 className="font-display text-2xl font-semibold text-ink leading-tight">
-            {narrative.title}
-          </h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-display text-2xl font-semibold text-ink leading-tight">
+              {narrative.title}
+            </h2>
+            <button type="button" className="icon-btn shrink-0" aria-label="Share this reading" title="Share this reading" onClick={() => void shareReading()}>
+              <Share2 size={16} />
+            </button>
+          </div>
           <p className="text-sm text-stone mt-1.5">{narrative.theme}</p>
+          {(narrative.scripture_passages?.length || 0) > 1 && (
+            <p className="mt-2 text-[11px] font-semibold text-brass">
+              Also reading: {narrative.scripture_passages!.slice(1).map((passage) => passage.reference).join(' · ')}
+            </p>
+          )}
         </div>
       </div>
 
@@ -722,6 +778,40 @@ export function CadetNarrative({
           <ScrollEdge position="bottom" className="text-brass mt-3" />
           </div>
         </div>
+      )}
+
+      {isSundayRest && weeklyHighlights.length > 0 && (
+        <section className="card overflow-hidden p-5 animate-slide-up">
+          <div className="mb-4 flex items-center gap-2">
+            <Sparkles size={18} className="text-brass" />
+            <div>
+              <p className="eyebrow text-brass">Sunday recap</p>
+              <h3 className="font-display text-lg font-semibold text-ink">This Week's Most Engaged Verses</h3>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {weeklyHighlights.map((highlight, index) => (
+              <button
+                key={`${highlight.narrative_date}:${highlight.reference}`}
+                type="button"
+                onClick={() => { setArchiveDate(highlight.narrative_date); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className="block w-full rounded-xl border border-border bg-surface-2/70 p-3 text-left transition-colors hover:border-brass/45"
+              >
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 text-xs font-black text-brass">{index + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase text-brass">{highlight.reference}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-ink">{highlight.text}</p>
+                    <p className="mt-2 text-[10px] font-semibold text-stone">
+                      {highlight.reaction_count} reactions · {highlight.insight_count} insights · {highlight.comment_count} comments
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="mt-1 shrink-0 text-stone" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* ── Scripture text ── */}
@@ -843,6 +933,22 @@ export function CadetNarrative({
                                 );
                               })}
                             </div>
+                            {(() => {
+                              const actors = Array.from(new Map(
+                                INSIGHT_REACTIONS.flatMap(({ type }) => item.reactions?.[type]?.actors || [])
+                                  .map((actor: any) => [actor.user_id, actor]),
+                              ).values()).slice(0, 5);
+                              if (!actors.length) return null;
+                              return (
+                                <div className="mt-2 flex items-center -space-x-1.5" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                  {actors.map((actor: any) => (
+                                    <span key={actor.user_id} title={actor.display_name} className="inline-flex h-5 w-5 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-[8px] font-bold leading-5 text-peri shadow-sm">
+                                      {actor.avatar_url ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" /> : actor.display_name.charAt(0)}
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                             <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
                               if (!requireSubscription()) return;
                               setOpenInsightReplies(repliesOpen ? null : item.id);
