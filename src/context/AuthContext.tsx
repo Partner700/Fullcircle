@@ -12,7 +12,7 @@ interface AuthContextValue {
   configError: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, displayName: string, role: Role, matricule?: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, displayName: string, role: Role, matricule?: string) => Promise<{ error: string | null; notice?: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -204,6 +204,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }, 0);
         return;
       }
+      // Password sign-in and signup finish their own profile handoff. Letting
+      // this callback expose the session first can unmount the form before
+      // complete_signup has created the profile on slower phones.
+      if (sess && authOperationRef.current && event !== 'TOKEN_REFRESHED') return;
       setSession(sess);
       // A refreshed token does not change the profile or role. Avoid turning a
       // quick token refresh into a full-screen loading state.
@@ -282,26 +286,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, displayName: string, role: Role, matricule?: string) => {
       if (supabaseConfigError) return { error: supabaseConfigError };
 
+      authOperationRef.current = true;
       const normalizedEmail = email.trim().toLowerCase();
       const trimmedDisplayName = displayName.trim();
 
       const finishPlatformSetup = async (userId: string) => {
-        const { error: rpcError } = await supabase.rpc('complete_signup', {
-          p_display_name: trimmedDisplayName,
-          p_role: role,
-          p_matricule: matricule || null,
-        });
-        if (rpcError) return rpcError.message;
+        try {
+          const { error: rpcError } = await waitFor(
+            Promise.resolve(
+              supabase.rpc('complete_signup', {
+                p_display_name: trimmedDisplayName,
+                p_role: role,
+                p_matricule: matricule || null,
+              }),
+            ),
+            20_000,
+            'Account setup',
+          );
+          if (rpcError) return rpcError.message;
 
-        await loadProfile(userId);
-        return null;
+          await waitFor(loadProfile(userId), 15_000, 'Profile loading');
+          return null;
+        } catch (setupError) {
+          const message = setupError instanceof Error ? setupError.message : '';
+          return /timed out/i.test(message)
+            ? 'The connection took too long while preparing your profile. Please try again.'
+            : 'Your profile could not be prepared. Please try again.';
+        }
       };
 
       const signInAndFinishSetup = async () => {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
+        const { data: signInData, error: signInError } = await waitFor(
+          supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          }),
+          20_000,
+          'Account sign-in',
+        );
         if (signInError) {
           return {
             error: 'This email already has an account, but that password did not match. Please use the original password on Sign In, or reset the password.',
@@ -314,34 +336,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (setupError) return { error: `Signed in, but setup failed: ${setupError}` };
         }
 
-        if (signInData.session) setSession(signInData.session);
+        if (!signInData.session) return { error: 'Your account could not open a session. Please use Sign In and try again.' };
+        setSession(signInData.session);
         return { error: null };
       };
 
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: { data: { display_name: trimmedDisplayName } },
-      });
-      if (error) {
-        if (/already registered|already exists|already been registered/i.test(error.message)) {
-          return signInAndFinishSetup();
+      try {
+        const { data, error } = await waitFor(
+          supabase.auth.signUp({
+            email: normalizedEmail,
+            password,
+            options: { data: { display_name: trimmedDisplayName } },
+          }),
+          20_000,
+          'Account creation',
+        );
+        if (error) {
+          if (/already registered|already exists|already been registered/i.test(error.message)) {
+            return await signInAndFinishSetup();
+          }
+          return { error: error.message };
         }
-        return { error: error.message };
-      }
 
-      if (data.user) {
-        if (data.session) {
-          setSession(data.session);
+        // Supabase can conceal an existing address by returning a user with no
+        // identities. Try the supplied password so the person receives a clear
+        // existing-account message instead of an apparently inactive button.
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          return await signInAndFinishSetup();
+        }
+
+        if (data.user) {
+          if (!data.session) {
+            return {
+              error: null,
+              notice: 'Your account was created. Check your email to confirm it, then return here and sign in.',
+            };
+          }
+
           const setupError = await finishPlatformSetup(data.user.id);
           if (setupError) return { error: `Account created, but setup failed: ${setupError}` };
+          setSession(data.session);
           return { error: null };
         }
 
-        return signInAndFinishSetup();
+        return { error: 'Account creation did not finish. Please try again.' };
+      } catch (signUpError) {
+        console.warn('Account creation could not complete:', signUpError);
+        const message = signUpError instanceof Error ? signUpError.message : '';
+        return {
+          error: /timed out/i.test(message)
+            ? 'The connection took too long. Check your internet connection and try again.'
+            : 'Your account could not be created. Please try again.',
+        };
+      } finally {
+        authOperationRef.current = false;
       }
-
-      return { error: null };
     },
     [loadProfile],
   );

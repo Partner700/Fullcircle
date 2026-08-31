@@ -51,24 +51,55 @@ export function AuthScreen({
     e.preventDefault();
     setError(null);
     setNotice(null);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Your password must contain at least 6 characters.');
+      return;
+    }
+
+    if (mode === 'signup') {
+      if (!displayName.trim()) {
+        setError('Please enter your display name.');
+        return;
+      }
+      if (displayName.trim().length < 2) {
+        setError('Your display name must contain at least 2 characters.');
+        return;
+      }
+      if (!confirmPassword) {
+        setError('Please enter your password again.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('The passwords do not match. Please enter them again.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (mode === 'signin') {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(normalizedEmail, password);
         if (error) setError(error);
       } else {
-        if (!displayName.trim()) {
-          setError('Please enter your display name.');
-          return;
-        }
-        if (password !== confirmPassword) {
-          setError('The passwords do not match. Please enter them again.');
-          return;
-        }
         // New accounts are always created as cadet. Instructors promote cadets to sentry,
         // and the current instructor can hand over to a sentry.
-        const { error } = await signUp(email, password, displayName, 'cadet');
+        const { error, notice: signupNotice } = await signUp(normalizedEmail, password, displayName, 'cadet');
         if (error) setError(error);
+        else if (signupNotice) setNotice(signupNotice);
       }
     } catch (submitError) {
       console.warn('Authentication request failed:', submitError);
@@ -132,12 +163,14 @@ export function AuthScreen({
         <div className="card p-6">
           <div className="flex gap-1 mb-6 p-1 bg-navy-3 rounded-xl">
             <button
+              type="button"
               onClick={() => { setMode('signin'); setError(null); }}
               className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'signin' ? 'bg-peri text-navy' : 'text-peri-dim'}`}
             >
               Sign In
             </button>
             <button
+              type="button"
               onClick={() => { setMode('signup'); setError(null); }}
               className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'signup' ? 'bg-peri text-navy' : 'text-peri-dim'}`}
             >
@@ -145,7 +178,7 @@ export function AuthScreen({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {mode === 'signup' && (
               <div>
                 <label className="block text-sm font-bold text-peri mb-1.5">Display Name</label>
@@ -236,8 +269,8 @@ export function AuthScreen({
               </button>
             )}
 
-            {error && <div className="text-sm text-coral bg-coral-soft rounded-lg p-3">{error}</div>}
-            {notice && <div className="text-sm text-sage bg-sage/10 rounded-lg p-3">{notice}</div>}
+            {error && <div role="alert" aria-live="assertive" className="text-sm text-coral bg-coral-soft rounded-lg p-3">{error}</div>}
+            {notice && <div role="status" aria-live="polite" className="text-sm text-sage bg-sage/10 rounded-lg p-3">{notice}</div>}
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? <Loader2 size={18} className="animate-spin" /> : null}
