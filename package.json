@@ -9,7 +9,7 @@
     "postbuild": "node scripts/copy-hostinger-fallback.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types scripts/road-home-engine.test.ts && node --experimental-strip-types scripts/economy-normalization.test.ts && node --experimental-strip-types scripts/question-import.test.ts && node --experimental-strip-types scripts/board-movement.test.ts && node --experimental-strip-types scripts/daily-games-hub.test.ts && node scripts/security-boundaries.test.cjs",
+    "test": "node --experimental-strip-types scripts/road-home-engine.test.ts && node --experimental-strip-types scripts/economy-normalization.test.ts && node --experimental-strip-types scripts/question-import.test.ts && node --experimental-strip-types scripts/board-movement.test.ts && node --experimental-strip-types scripts/daily-games-hub.test.ts && node --experimental-strip-types scripts/story-mode-engine.test.ts && node scripts/story-mode-security.test.cjs && node scripts/security-boundaries.test.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "check": "npm run typecheck && npm run test && npm run lint"
   },

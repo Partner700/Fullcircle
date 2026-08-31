@@ -106,7 +106,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
         <div>
           <p className="eyebrow text-brass">Daily Games</p>
           <h2 className="mt-1 font-display text-2xl font-semibold text-ink">Choose today&apos;s challenge</h2>
-          <p className="mt-1 max-w-2xl text-sm text-stone">Train in Scripture, enter the Arena, or preview the journey ahead.</p>
+          <p className="mt-1 max-w-2xl text-sm text-stone">Train in Scripture, enter the Arena, or continue your journey through the Bible.</p>
         </div>
         {loading && (
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-stone">
@@ -206,7 +206,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
                 <Map size={22} />
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-peri backdrop-blur-sm">
-                <Sparkles size={11} /> In development
+                <Sparkles size={11} /> Book I open
               </span>
             </div>
             <div className="mt-5">
@@ -214,7 +214,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
               <h3 className="mt-1 font-display text-xl font-semibold text-white">Story Mode</h3>
               <p className="mt-1 text-sm font-medium text-peri-dim">Journey through the Bible.</p>
             </div>
-            <p className="mt-5 max-w-xs text-sm leading-relaxed text-peri-dim">From the beginning to what is to come.</p>
+            <p className="mt-5 max-w-xs text-sm leading-relaxed text-peri-dim">Begin in Genesis with Chapter 1: Brothers and the Abel Offering level.</p>
             <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-peri-dim">
               <span>Book</span><ArrowRight size={12} /><span>Chapter</span><ArrowRight size={12} /><span>Level</span>
             </div>

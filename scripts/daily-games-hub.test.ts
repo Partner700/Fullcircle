@@ -80,8 +80,10 @@ assert.match(arena, /if \(phase === 'waiting' && activeRoomId\)/);
 
 assert.match(story, /Story Mode/);
 assert.match(story, /Back to Daily Games/);
-assert.match(story, /Book[\s\S]*Chapter[\s\S]*Level/);
-for (const forbiddenStoryDependency of ['supabase', 'fetchNarrative', 'reward', 'question', 'game_attempts']) {
+assert.match(story, /StoryModeHome/);
+assert.match(story, /AbelOfferingLevel/);
+assert.match(story, /startStoryModeLevel\(ABEL_LEVEL_SLUG\)/);
+for (const forbiddenStoryDependency of ['fetchNarrative', 'game_attempts', 'startDailyGameLevel', 'finishArenaGame']) {
   assert.ok(!story.toLowerCase().includes(forbiddenStoryDependency), `Story shell must not depend on ${forbiddenStoryDependency}.`);
 }
 
