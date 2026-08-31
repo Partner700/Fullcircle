@@ -8,12 +8,14 @@ export type StoryPhase =
   | 'reading'
   | 'walking'
   | 'running'
+  | 'cinematic'
   | 'question_approach'
   | 'question_active'
   | 'correct_action'
   | 'wrong_action'
   | 'failure'
   | 'checkpoint'
+  | 'canonical_transition'
   | 'character_transition'
   | 'level_complete'
   | 'chapter_complete'
@@ -32,7 +34,7 @@ export type StoryMachineEvent =
   | { type: 'HOME_READY' }
   | { type: 'OPEN_BROWSER' }
   | { type: 'CLOSE_BROWSER' }
-  | { type: 'START_LEVEL'; checkpointId: string; checkpointState: 'intro' | 'question_approach' | 'level_complete'; questionActive?: boolean; paused?: boolean }
+  | { type: 'START_LEVEL'; checkpointId: string; checkpointState: 'intro' | 'question_approach' | 'canonical_event' | 'level_complete' | 'chapter_complete'; questionActive?: boolean; paused?: boolean }
   | { type: 'INTRO_COMPLETE' }
   | { type: 'OPEN_READ'; returnPhase?: StoryPhase }
   | { type: 'READ_COMPLETE' }
@@ -43,6 +45,8 @@ export type StoryMachineEvent =
   | { type: 'ANSWER_CORRECT'; result: StoryAnswerResult }
   | { type: 'ANSWER_WRONG'; result: StoryAnswerResult }
   | { type: 'ACTION_COMPLETE' }
+  | { type: 'CANONICAL_EVENT_REACHED'; checkpointId: string }
+  | { type: 'CANONICAL_EVENT_SETTLED'; result: StoryAnswerResult }
   | { type: 'RETRY' }
   | { type: 'RESTART_FROM_CHECKPOINT' }
   | { type: 'CHECKPOINT_READY' }
@@ -62,7 +66,7 @@ export const INITIAL_STORY_MACHINE: StoryMachineState = {
 };
 
 function playablePhase(phase: StoryPhase) {
-  return !['loading', 'home', 'browser', 'failure', 'level_complete', 'chapter_complete', 'book_complete', 'paused'].includes(phase);
+  return !['loading', 'home', 'browser', 'failure', 'canonical_transition', 'character_transition', 'level_complete', 'chapter_complete', 'book_complete', 'paused'].includes(phase);
 }
 
 export function transitionStoryState(state: StoryMachineState, event: StoryMachineEvent): StoryMachineState {
@@ -75,8 +79,13 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
       return state.phase === 'browser' ? { ...state, phase: 'home' } : state;
     case 'START_LEVEL': {
       const restoredAtQuestion = event.checkpointState === 'question_approach';
+      const restoredAtCanonicalEvent = event.checkpointState === 'canonical_event';
       const phase: StoryPhase = event.paused
         ? 'paused'
+        : event.checkpointState === 'chapter_complete'
+          ? 'chapter_complete'
+        : restoredAtCanonicalEvent
+          ? 'canonical_transition'
         : event.questionActive
           ? 'question_active'
           : event.checkpointState === 'level_complete'
@@ -87,7 +96,7 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
       return {
         phase,
         resumePhase: event.paused
-          ? (event.questionActive ? 'question_active' : event.checkpointState === 'level_complete' ? 'level_complete' : restoredAtQuestion ? 'checkpoint' : 'intro')
+          ? (restoredAtCanonicalEvent ? 'canonical_transition' : event.questionActive ? 'question_active' : event.checkpointState === 'level_complete' ? 'level_complete' : restoredAtQuestion ? 'checkpoint' : 'intro')
           : null,
         checkpointId: event.checkpointId,
         action: restoredAtQuestion ? 'stop' : 'idle',
@@ -123,9 +132,27 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
         ? { ...state, phase: 'wrong_action', action: 'carry', result: event.result }
         : state;
     case 'ACTION_COMPLETE':
-      if (state.phase === 'correct_action') return { ...state, phase: 'level_complete', action: 'offer' };
+      if (state.phase === 'correct_action') {
+        if (state.result?.canonicalEventPending) return { ...state, phase: 'canonical_transition', action: 'confront' };
+        if (state.result?.chapterComplete) return { ...state, phase: 'chapter_complete', action: 'idle' };
+        if (state.result?.levelComplete) return { ...state, phase: 'level_complete', action: 'offer' };
+        return { ...state, phase: 'checkpoint', checkpointId: state.result?.checkpointId || state.checkpointId, action: 'idle' };
+      }
       if (state.phase === 'wrong_action') return { ...state, phase: 'failure', action: 'fall' };
       return state;
+    case 'CANONICAL_EVENT_REACHED':
+      return state.phase === 'walking' || state.phase === 'cinematic'
+        ? { ...state, phase: 'canonical_transition', checkpointId: event.checkpointId, action: 'confront' }
+        : state;
+    case 'CANONICAL_EVENT_SETTLED':
+      if (state.phase !== 'canonical_transition' && state.phase !== 'character_transition') return state;
+      return {
+        ...state,
+        phase: event.result.chapterComplete ? 'chapter_complete' : 'level_complete',
+        checkpointId: event.result.checkpointId,
+        action: event.result.chapterComplete ? 'character_swap' : 'lie_still',
+        result: event.result,
+      };
     case 'RETRY':
       return state.phase === 'failure'
         ? { ...state, phase: 'checkpoint', action: 'idle', result: null }
@@ -138,7 +165,7 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
     case 'CHECKPOINT_READY':
       return state.phase === 'checkpoint' ? { ...state, phase: 'question_approach', action: 'stop' } : state;
     case 'BEGIN_CHARACTER_TRANSITION':
-      return state.phase === 'level_complete' ? { ...state, phase: 'character_transition', action: 'fade' } : state;
+      return state.phase === 'level_complete' ? { ...state, phase: 'character_transition', action: 'character_swap' } : state;
     case 'COMPLETE_CHAPTER':
       return state.phase === 'level_complete' || state.phase === 'character_transition'
         ? { ...state, phase: 'chapter_complete', action: 'idle' }
@@ -170,7 +197,11 @@ export function storyPhaseProgress(phase: StoryPhase) {
     wrong_action: 67,
     failure: 55,
     checkpoint: 55,
+    cinematic: 68,
+    canonical_transition: 72,
+    character_transition: 72,
     level_complete: 82,
+    chapter_complete: 90,
     paused: 55,
   };
   return positions[phase] ?? 10;

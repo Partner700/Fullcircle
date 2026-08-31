@@ -1,18 +1,25 @@
-import type { StoryActionName } from './types';
 import { STORY_ACTIONS } from './actions';
+import type { StoryActionName, StoryCharacterId, StoryCharacterRole } from './types';
 
 interface StoryCharacterProps {
-  character: 'abel';
+  character: StoryCharacterId;
+  role: StoryCharacterRole;
   action: StoryActionName;
+  facing?: 'left' | 'right';
 }
 
-export function StoryCharacter({ character, action }: StoryCharacterProps) {
-  const label = character === 'abel' ? 'Abel' : character;
+const CHARACTER_LABELS: Record<StoryCharacterId, string> = {
+  abel: 'Abel',
+  cain: 'Cain',
+  seth: 'Seth',
+};
+
+export function StoryCharacter({ character, role, action, facing = 'right' }: StoryCharacterProps) {
   return (
     <svg
       viewBox="0 0 120 220"
-      className={`story-character ${STORY_ACTIONS[action].cssClass}`}
-      aria-label={label}
+      className={`story-character story-character-${character} story-role-${role} story-facing-${facing} ${STORY_ACTIONS[action].cssClass}`}
+      aria-label={`${CHARACTER_LABELS[character]}, ${role}`}
       role="img"
     >
       <g className="story-character-shadow" fill="rgba(0,0,0,0.22)">
@@ -27,6 +34,7 @@ export function StoryCharacter({ character, action }: StoryCharacterProps) {
         <path d="M66 148l8 51c1 8 5 12 11 11 6-1 9-5 8-12-2-19-5-37-9-54z" className="story-leg story-leg-front" />
         <path d="M43 28c4-15 33-17 39 1-8-5-14-6-20-3-7-4-13-3-19 2z" />
       </g>
+      <path className="story-character-sash" d="M44 65c17 17 27 35 36 61" fill="none" strokeWidth="7" strokeLinecap="round" />
       <g className="story-carried-lamb">
         <ellipse cx="95" cy="91" rx="23" ry="15" fill="#d9d0b3" />
         <circle cx="113" cy="86" r="9" fill="#c8bea0" />

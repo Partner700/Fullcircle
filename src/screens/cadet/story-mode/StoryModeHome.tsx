@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Flag, Lock, Map, Play, RotateCcw, Sparkles } from 'lucide-react';
-import { ABEL_OFFERING_LEVEL, STORY_BOOKS } from './content';
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Flag, Lock, Map as MapIcon, Play, RotateCcw, Sparkles } from 'lucide-react';
+import { STORY_BOOKS } from './content';
 import type { StoryProgress } from './types';
 
 interface StoryModeHomeProps {
@@ -10,15 +10,29 @@ interface StoryModeHomeProps {
   onBackToDailyGames: () => void;
   onBrowse: () => void;
   onCloseBrowse: () => void;
-  onStart: () => void;
+  onStart: (levelSlug: string) => void;
 }
 
-export function StoryModeHome({ progress, browsing, starting, error, onBackToDailyGames, onBrowse, onCloseBrowse, onStart }: StoryModeHomeProps) {
+export function StoryModeHome({
+  progress,
+  browsing,
+  starting,
+  error,
+  onBackToDailyGames,
+  onBrowse,
+  onCloseBrowse,
+  onStart,
+}: StoryModeHomeProps) {
   const book = STORY_BOOKS[0];
   const chapter = book.chapters[0];
-  const levelProgress = progress.levels.find((level) => level.levelSlug === ABEL_OFFERING_LEVEL.slug);
-  const completed = Boolean(levelProgress?.completed);
-  const percent = progress.totalLevelCount > 0 ? Math.round((progress.completedLevelCount / progress.totalLevelCount) * 100) : 0;
+  const levelState = new Map(progress.levels.map((item) => [item.levelSlug, item]));
+  const currentLevel = chapter.levels.find((level) => level.slug === progress.currentLevelSlug)
+    || chapter.levels.find((level) => levelState.get(level.slug)?.unlocked && !levelState.get(level.slug)?.completed)
+    || chapter.levels[chapter.levels.length - 1];
+  const currentState = levelState.get(currentLevel.slug);
+  const percent = progress.totalLevelCount > 0
+    ? Math.round((progress.completedLevelCount / progress.totalLevelCount) * 100)
+    : 0;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 animate-fade-in">
@@ -33,21 +47,26 @@ export function StoryModeHome({ progress, browsing, starting, error, onBackToDai
             <div>
               <p className="eyebrow text-gold">A chronological Scripture journey</p>
               <h2 className="mt-2 font-display text-3xl font-semibold text-white sm:text-4xl">Story Mode</h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-peri">Walk through Scripture. Your answers cause the story to unfold.</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-peri">Walk through Scripture. Your answers cause the canonical story to unfold.</p>
             </div>
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border border-gold/35 bg-gold/10 text-gold backdrop-blur-sm"><Map size={23} /></span>
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border border-gold/35 bg-gold/10 text-gold backdrop-blur-sm"><MapIcon size={23} /></span>
           </div>
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div>
-              <p className="text-xs font-bold text-peri-dim">Current journey</p>
+              <p className="text-xs font-bold text-peri-dim">{progress.chapterCompleted ? 'Completed journey' : 'Current journey'}</p>
               <p className="mt-1 font-display text-xl font-semibold text-white">{book.numeral}: {book.title}</p>
-              <p className="text-sm text-peri">Chapter {chapter.order}: {chapter.title} · {ABEL_OFFERING_LEVEL.title}</p>
+              <p className="text-sm text-peri">Chapter {chapter.order}: {chapter.title} · {currentLevel.title}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={onBrowse} className="btn-secondary border-white/20 bg-white/10 text-white"><Map size={15} /> Browse Journey</button>
-              <button type="button" onClick={onStart} disabled={starting || !levelProgress?.unlocked} className="btn-primary disabled:opacity-60">
-                {completed ? <RotateCcw size={15} /> : <Play size={15} fill="currentColor" />}
-                {progress.activeAttemptId ? 'Continue Journey' : completed ? 'Replay Level' : 'Continue Journey'}
+              <button type="button" onClick={onBrowse} className="btn-secondary border-white/20 bg-white/10 text-white"><MapIcon size={15} /> Browse Journey</button>
+              <button
+                type="button"
+                onClick={() => onStart(currentLevel.slug)}
+                disabled={starting || !currentState?.unlocked}
+                className="btn-primary disabled:opacity-60"
+              >
+                {currentState?.completed ? <RotateCcw size={15} /> : <Play size={15} fill="currentColor" />}
+                {progress.activeAttemptId ? 'Continue Journey' : currentState?.completed ? 'Replay Level' : 'Continue Journey'}
               </button>
             </div>
           </div>
@@ -58,7 +77,7 @@ export function StoryModeHome({ progress, browsing, starting, error, onBackToDai
 
       <section className="grid gap-4 lg:grid-cols-[1fr_18rem]">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center justify-between text-xs text-stone"><span>Book I progress</span><strong className="text-ink">{percent}%</strong></div>
+          <div className="mb-2 flex items-center justify-between text-xs text-stone"><span>Chapter 1 progress</span><strong className="text-ink">{percent}%</strong></div>
           <div className="h-2 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${percent}%` }} /></div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-4 py-3">
@@ -75,23 +94,38 @@ export function StoryModeHome({ progress, browsing, starting, error, onBackToDai
           </div>
           <div className="relative pl-7">
             <div className="absolute bottom-5 left-[0.85rem] top-5 w-px bg-border-bright" aria-hidden="true" />
-            <div className="relative">
-              <span className="absolute -left-7 top-4 flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 bg-bg text-gold"><BookOpen size={14} /></span>
-              <p className="text-xs font-bold text-stone">Chapter {chapter.order}</p>
-              <h4 className="font-display text-lg font-semibold text-ink">{chapter.title}</h4>
-              <button
-                type="button"
-                onClick={onStart}
-                disabled={starting || !levelProgress?.unlocked}
-                className="mt-3 flex w-full items-center gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:border-gold/35 disabled:opacity-55"
-              >
-                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${completed ? 'bg-sage-soft text-sage' : levelProgress?.unlocked ? 'bg-gold-soft text-gold' : 'bg-surface-2 text-stone'}`}>
-                  {completed ? <CheckCircle2 size={19} /> : levelProgress?.unlocked ? <Flag size={18} /> : <Lock size={17} />}
-                </span>
-                <span className="min-w-0 flex-1"><strong className="block text-sm text-ink">Level 1 · {ABEL_OFFERING_LEVEL.title}</strong><span className="block truncate text-xs text-stone">{completed ? `Completed ${levelProgress?.timesCompleted || 1} time${levelProgress?.timesCompleted === 1 ? '' : 's'} · replay available` : ABEL_OFFERING_LEVEL.subtitle}</span></span>
-                <ArrowRight size={16} className="flex-shrink-0 text-stone" />
-              </button>
-              <p className="mt-3 text-xs text-stone">Chapter continues in a future update.</p>
+            <div className="relative space-y-3">
+              <span className="absolute -left-7 top-1 flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 bg-bg text-gold"><BookOpen size={14} /></span>
+              <div className="pb-1"><p className="text-xs font-bold text-stone">Chapter {chapter.order}</p><h4 className="font-display text-lg font-semibold text-ink">{chapter.title}</h4></div>
+              {chapter.levels.map((level) => {
+                const item = levelState.get(level.slug);
+                const completed = Boolean(item?.completed);
+                const current = level.slug === currentLevel.slug && !progress.chapterCompleted;
+                return (
+                  <button
+                    key={level.slug}
+                    type="button"
+                    onClick={() => onStart(level.slug)}
+                    disabled={starting || !item?.unlocked}
+                    className={`flex w-full items-center gap-3 rounded-lg border bg-surface p-3 text-left transition-colors disabled:opacity-55 ${current ? 'border-gold/45' : 'border-border hover:border-gold/35'}`}
+                  >
+                    <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${completed ? 'bg-sage-soft text-sage' : item?.unlocked ? 'bg-gold-soft text-gold' : 'bg-surface-2 text-stone'}`}>
+                      {completed ? <CheckCircle2 size={19} /> : item?.unlocked ? <Flag size={18} /> : <Lock size={17} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-sm text-ink">Level {level.order} · {level.title}</strong>
+                      <span className="block truncate text-xs text-stone">
+                        {completed ? `Completed ${item?.timesCompleted || 1} time${item?.timesCompleted === 1 ? '' : 's'} · replay available` : level.subtitle}
+                      </span>
+                    </span>
+                    <ArrowRight size={16} className="flex-shrink-0 text-stone" />
+                  </button>
+                );
+              })}
+              <div className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-surface-2/60 p-3 text-left opacity-75">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-surface-2 text-stone"><Lock size={17} /></span>
+                <span className="min-w-0 flex-1"><strong className="block text-sm text-ink">The journey continues with Seth</strong><span className="block text-xs text-stone">Future playable content · locked</span></span>
+              </div>
             </div>
           </div>
         </section>

@@ -20,6 +20,7 @@ import {
   pauseStoryAttempt,
   resumeStoryAttempt,
   saveStoryCheckpoint,
+  settleStoryCanonicalEvent,
   submitStoryAnswer,
 } from './api';
 import { playStorySound, startStoryAmbience, stopStoryAmbience } from './audio';
@@ -32,6 +33,7 @@ import type {
   StoryAttempt,
   StoryDeadline,
   StoryLevelDefinition,
+  StoryQuestionPayload,
   StorySceneDefinition,
 } from './types';
 
@@ -46,44 +48,26 @@ export interface StoryLevelPlayerProps {
   onProgressChanged: () => Promise<void>;
 }
 
-type PendingSubmission = {
-  answer: string | null;
-  timedOut: boolean;
-  id: string;
-};
-
-type RequiredScenes = {
-  intro: StorySceneDefinition;
-  movement: StorySceneDefinition;
-  question: StorySceneDefinition;
-  completion: StorySceneDefinition;
-};
+type PendingSubmission = { answer: string | null; timedOut: boolean; id: string };
 
 const ACTIVE_PHASES = new Set<StoryPhase>([
-  'intro',
-  'walking',
-  'running',
-  'question_approach',
-  'question_active',
-  'checkpoint',
+  'intro', 'reading', 'walking', 'running', 'question_approach', 'question_active', 'checkpoint',
 ]);
 
-function requiredScenes(level: StoryLevelDefinition, questionId: string): RequiredScenes {
-  const intro = level.scenes.find((scene) => scene.id === level.openingSceneId)
-    || level.scenes.find((scene) => scene.kind === 'narrative');
-  const movement = level.scenes.find((scene) => scene.kind === 'movement');
-  const question = level.scenes.find((scene) => scene.kind === 'question_event' && scene.questionId === questionId);
-  const completion = level.scenes.find((scene) => scene.kind === 'completion');
-  if (!intro || !movement || !question || !completion || !question.checkpointId) {
-    throw new Error(`Story level ${level.slug} is missing a required scene or checkpoint.`);
-  }
-  return { intro, movement, question, completion };
+function sceneOfKind(level: StoryLevelDefinition, kind: StorySceneDefinition['kind']) {
+  return level.scenes.find((scene) => scene.kind === kind) || null;
+}
+
+function questionScene(level: StoryLevelDefinition, question: StoryQuestionPayload | null) {
+  if (!question) return null;
+  return level.scenes.find((scene) => scene.id === question.sceneId)
+    || level.scenes.find((scene) => scene.kind === 'question_event' && scene.questionPoolId === question.poolId)
+    || null;
 }
 
 function localDeadline(deadline: StoryDeadline) {
   if (!deadline.deadline) return null;
-  const remaining = Math.max(0, Date.parse(deadline.deadline) - Date.parse(deadline.serverNow));
-  return Date.now() + remaining;
+  return Date.now() + Math.max(0, Date.parse(deadline.deadline) - Date.parse(deadline.serverNow));
 }
 
 function submissionId() {
@@ -94,16 +78,9 @@ function submissionId() {
   });
 }
 
-function characterName(scene: StorySceneDefinition) {
-  return scene.character === 'abel' ? 'Abel' : scene.character;
-}
-
-function currentScene(machine: StoryMachineState, scenes: RequiredScenes) {
-  const phase = machine.phase === 'paused' ? machine.resumePhase : machine.phase;
-  if (phase === 'intro' || phase === 'reading') return scenes.intro;
-  if (phase === 'walking' || phase === 'running') return scenes.movement;
-  if (phase === 'level_complete' || phase === 'chapter_complete' || phase === 'book_complete') return scenes.completion;
-  return scenes.question;
+function activeCharacterName(scene: StorySceneDefinition) {
+  if (!scene.activeCharacterId) return 'The story';
+  return scene.activeCharacterId === 'abel' ? 'Abel' : scene.activeCharacterId === 'cain' ? 'Cain' : 'Seth';
 }
 
 export function StoryLevelPlayer({
@@ -116,133 +93,164 @@ export function StoryLevelPlayer({
   onBrowse,
   onProgressChanged,
 }: StoryLevelPlayerProps) {
-  const scenes = useMemo(
-    () => requiredScenes(level, attempt.question.id),
-    [attempt.question.id, level],
+  const introScene = useMemo(() => level.scenes.find((scene) => scene.id === level.openingSceneId) || sceneOfKind(level, 'narrative'), [level]);
+  const readScene = useMemo(() => sceneOfKind(level, 'read'), [level]);
+  const movementScene = useMemo(() => sceneOfKind(level, 'movement'), [level]);
+  const canonicalScene = useMemo(
+    () => sceneOfKind(level, 'canonical_event') || sceneOfKind(level, 'character_transition'),
+    [level],
   );
+  const completionScene = useMemo(() => sceneOfKind(level, 'completion'), [level]);
+  if (!introScene || !movementScene || !completionScene) throw new Error(`Story level ${level.slug} is missing a required scene.`);
+
+  const [activeQuestion, setActiveQuestion] = useState<StoryQuestionPayload | null>(attempt.question);
+  const [pendingEventId, setPendingEventId] = useState<string | null>(attempt.pendingEventId);
+  const activeQuestionScene = useMemo(() => questionScene(level, activeQuestion), [activeQuestion, level]);
+  if (activeQuestion && !activeQuestionScene) throw new Error(`Story question ${activeQuestion.id} has no scene in ${level.slug}.`);
+
+  const visiblePhase = machine.phase === 'paused' ? machine.resumePhase : machine.phase;
+  const activeScene = visiblePhase === 'intro' || visiblePhase === 'reading'
+    ? (visiblePhase === 'reading' && readScene ? readScene : introScene)
+    : visiblePhase === 'walking' || visiblePhase === 'running' || visiblePhase === 'cinematic'
+      ? movementScene
+      : visiblePhase === 'canonical_transition' || visiblePhase === 'character_transition'
+        ? (canonicalScene || movementScene)
+        : visiblePhase === 'level_complete' || visiblePhase === 'chapter_complete' || visiblePhase === 'book_complete'
+          ? completionScene
+          : (activeQuestionScene || movementScene);
   const location = findStoryLocation(level.slug);
-  const questionCheckpoint = scenes.question.checkpointId as string;
   const correctSequence = useMemo<StoryActionName[]>(
-    () => scenes.question.correctActions?.length ? scenes.question.correctActions : ['offer'],
-    [scenes.question.correctActions],
+    () => activeQuestionScene?.correctActions?.length ? activeQuestionScene.correctActions : ['walk'],
+    [activeQuestionScene],
   );
   const wrongSequence = useMemo<StoryActionName[]>(
-    () => scenes.question.wrongActions?.length ? scenes.question.wrongActions : ['trip', 'fall', 'fade'],
-    [scenes.question.wrongActions],
+    () => activeQuestionScene?.wrongActions?.length ? activeQuestionScene.wrongActions : ['trip', 'fall'],
+    [activeQuestionScene],
   );
-  const activeScene = currentScene(machine, scenes);
-  const activeCharacter = characterName(activeScene);
 
   const [action, setAction] = useState<StoryActionName>(machine.action);
-  const [remainingMs, setRemainingMs] = useState(attempt.question.timerSeconds * 1_000);
+  const [remainingMs, setRemainingMs] = useState((activeQuestion?.timerSeconds || 5) * 1_000);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedSubmission, setFailedSubmission] = useState<PendingSubmission | null>(null);
+  const [readSeen, setReadSeen] = useState(false);
+  const [canonicalRetry, setCanonicalRetry] = useState(0);
   const deadlineRef = useRef<number | null>(null);
   const submittingRef = useRef(false);
   const pendingSubmissionRef = useRef<PendingSubmission | null>(null);
+  const pendingNextQuestionRef = useRef<StoryQuestionPayload | null>(null);
+  const canonicalSubmissionRef = useRef<string | null>(null);
+  const canonicalSettlingRef = useRef(false);
   const mountedRef = useRef(true);
 
   const applyDeadline = useCallback((deadline: StoryDeadline) => {
     const nextDeadline = localDeadline(deadline);
     deadlineRef.current = nextDeadline;
     setRemainingMs(nextDeadline === null
-      ? attempt.question.timerSeconds * 1_000
+      ? (activeQuestion?.timerSeconds || 5) * 1_000
       : Math.max(0, nextDeadline - Date.now()));
     return nextDeadline;
-  }, [attempt.question.timerSeconds]);
+  }, [activeQuestion?.timerSeconds]);
 
   useEffect(() => {
     mountedRef.current = true;
     void startStoryAmbience();
-    if (attempt.questionDeadline) {
-      applyDeadline({
-        deadline: attempt.questionDeadline,
-        serverNow: attempt.serverNow,
-        paused: attempt.paused,
-      });
-    }
     return () => {
       mountedRef.current = false;
       void stopStoryAmbience();
     };
-  }, [applyDeadline, attempt.paused, attempt.questionDeadline, attempt.serverNow]);
+  }, []);
+
+  useEffect(() => { setAction(machine.action); }, [machine.action]);
 
   useEffect(() => {
-    setAction(machine.action);
-  }, [machine.action]);
-
-  useEffect(() => {
+    setActiveQuestion(attempt.question);
+    setPendingEventId(attempt.pendingEventId);
+    setReadSeen(attempt.checkpointId !== introScene.checkpointId);
     submittingRef.current = false;
     pendingSubmissionRef.current = null;
+    pendingNextQuestionRef.current = null;
+    canonicalSubmissionRef.current = null;
+    canonicalSettlingRef.current = false;
     const restoredDeadline = attempt.questionDeadline
       ? localDeadline({ deadline: attempt.questionDeadline, serverNow: attempt.serverNow, paused: attempt.paused })
       : null;
     deadlineRef.current = restoredDeadline;
     setSelectedAnswer(null);
     setRemainingMs(restoredDeadline === null
-      ? attempt.question.timerSeconds * 1_000
+      ? (attempt.question?.timerSeconds || 5) * 1_000
       : Math.max(0, restoredDeadline - Date.now()));
     setBusy(false);
     setError(null);
     setFailedSubmission(null);
-  }, [attempt.attemptId, attempt.paused, attempt.question.timerSeconds, attempt.questionDeadline, attempt.serverNow]);
+  }, [attempt, introScene.checkpointId]);
 
   useEffect(() => {
     if (machine.phase === 'intro') {
-      const timeout = window.setTimeout(
-        () => dispatch({ type: 'INTRO_COMPLETE' }),
-        scenes.intro.durationMs ?? 1_650,
-      );
+      const timeout = window.setTimeout(() => {
+        if (readScene && !readSeen) dispatch({ type: 'OPEN_READ', returnPhase: 'intro' });
+        else dispatch({ type: 'INTRO_COMPLETE' });
+      }, introScene.durationMs ?? 1_650);
       return () => window.clearTimeout(timeout);
     }
     if (machine.phase === 'walking') {
-      void playStorySound('footsteps', 0.34);
+      void playStorySound('footsteps', 0.3);
       const timeout = window.setTimeout(() => {
+        if (!activeQuestion) {
+          if (pendingEventId && canonicalScene?.checkpointId) {
+            dispatch({ type: 'CANONICAL_EVENT_REACHED', checkpointId: canonicalScene.checkpointId });
+          } else {
+            setError('This Story Mode scene has no server-authorized next event.');
+          }
+          return;
+        }
         setBusy(true);
         setError(null);
-        saveStoryCheckpoint(attempt.attemptId, questionCheckpoint)
-          .then(() => dispatch({ type: 'EVENT_REACHED', checkpointId: questionCheckpoint }))
+        saveStoryCheckpoint(attempt.attemptId, activeQuestion.checkpointId)
+          .then(() => dispatch({ type: 'EVENT_REACHED', checkpointId: activeQuestion.checkpointId }))
           .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'The checkpoint could not be saved.'))
           .finally(() => setBusy(false));
-      }, scenes.movement.durationMs ?? 4_150);
+      }, movementScene.durationMs ?? 3_200);
       return () => window.clearTimeout(timeout);
     }
     if (machine.phase === 'checkpoint') {
-      const timeout = window.setTimeout(() => dispatch({ type: 'CHECKPOINT_READY' }), 650);
+      const timeout = window.setTimeout(() => dispatch({ type: 'CHECKPOINT_READY' }), 620);
       return () => window.clearTimeout(timeout);
     }
-    if (machine.phase === 'question_approach') {
+    if (machine.phase === 'question_approach' && activeQuestion && activeQuestionScene) {
       const timeout = window.setTimeout(() => {
         setBusy(true);
         setError(null);
-        activateStoryQuestion(attempt.attemptId, attempt.question.id)
+        activateStoryQuestion(attempt.attemptId, activeQuestion.id)
           .then((deadline) => {
             applyDeadline(deadline);
             dispatch({ type: 'QUESTION_READY' });
-            void playStorySound('transition', 0.42);
+            void playStorySound('transition', 0.4);
           })
           .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'The question could not begin.'))
           .finally(() => setBusy(false));
-      }, scenes.question.durationMs ?? 720);
+      }, activeQuestionScene.durationMs ?? 680);
       return () => window.clearTimeout(timeout);
     }
     return undefined;
   }, [
+    activeQuestion,
+    activeQuestionScene,
     applyDeadline,
     attempt.attemptId,
-    attempt.question.id,
+    canonicalScene?.checkpointId,
     dispatch,
+    introScene.durationMs,
     machine.phase,
-    questionCheckpoint,
-    scenes.intro.durationMs,
-    scenes.movement.durationMs,
-    scenes.question.durationMs,
+    movementScene.durationMs,
+    pendingEventId,
+    readScene,
+    readSeen,
   ]);
 
   const submit = useCallback(async (answer: string | null, timedOut: boolean) => {
-    if (submittingRef.current || machine.phase !== 'question_active') return;
+    if (!activeQuestion || submittingRef.current || machine.phase !== 'question_active') return;
     submittingRef.current = true;
     const pending = pendingSubmissionRef.current || { answer, timedOut, id: submissionId() };
     pendingSubmissionRef.current = pending;
@@ -253,7 +261,7 @@ export function StoryLevelPlayer({
     try {
       const result = await submitStoryAnswer({
         attemptId: attempt.attemptId,
-        questionId: attempt.question.id,
+        questionId: activeQuestion.id,
         selectedAnswer: pending.answer,
         timedOut: pending.timedOut,
         submissionId: pending.id,
@@ -261,9 +269,11 @@ export function StoryLevelPlayer({
       if (!mountedRef.current) return;
       deadlineRef.current = null;
       pendingSubmissionRef.current = null;
+      pendingNextQuestionRef.current = result.nextQuestion;
+      if (result.canonicalEventId) setPendingEventId(result.canonicalEventId);
       setRemainingMs(0);
       dispatch({ type: result.correct ? 'ANSWER_CORRECT' : 'ANSWER_WRONG', result });
-      void playStorySound(result.correct ? 'correct' : 'failure', 0.56);
+      void playStorySound(result.correct ? 'correct' : 'failure', 0.52);
       if (result.levelComplete) void onProgressChanged().catch(() => undefined);
     } catch (reason) {
       if (!mountedRef.current) return;
@@ -274,7 +284,7 @@ export function StoryLevelPlayer({
     } finally {
       if (mountedRef.current) setBusy(false);
     }
-  }, [attempt.attemptId, attempt.question.id, dispatch, machine.phase, onProgressChanged]);
+  }, [activeQuestion, attempt.attemptId, dispatch, machine.phase, onProgressChanged]);
 
   useEffect(() => {
     if (machine.phase !== 'question_active') return undefined;
@@ -294,7 +304,7 @@ export function StoryLevelPlayer({
     if (machine.phase !== 'correct_action' && machine.phase !== 'wrong_action') return undefined;
     const sequence = machine.phase === 'correct_action' ? correctSequence : wrongSequence;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const duration = reducedMotion ? 520 : storyActionDuration(sequence);
+    const duration = reducedMotion ? 420 : storyActionDuration(sequence);
     const startedAt = performance.now();
     let frame = 0;
     const animate = (now: number) => {
@@ -302,13 +312,48 @@ export function StoryLevelPlayer({
       setAction(reducedMotion ? sequence[sequence.length - 1] : storyActionAt(sequence, elapsed).name);
       if (elapsed < duration) frame = window.requestAnimationFrame(animate);
       else {
+        if (machine.phase === 'correct_action' && pendingNextQuestionRef.current) {
+          setActiveQuestion(pendingNextQuestionRef.current);
+          pendingNextQuestionRef.current = null;
+          submittingRef.current = false;
+          setSelectedAnswer(null);
+        }
         dispatch({ type: 'ACTION_COMPLETE' });
-        if (machine.phase === 'correct_action') void playStorySound('complete', 0.58);
+        if (machine.phase === 'correct_action') void playStorySound('complete', 0.5);
       }
     };
     frame = window.requestAnimationFrame(animate);
     return () => window.cancelAnimationFrame(frame);
   }, [correctSequence, dispatch, machine.phase, wrongSequence]);
+
+  useEffect(() => {
+    if (machine.phase !== 'canonical_transition' || !pendingEventId || !canonicalScene) return undefined;
+    if (canonicalSettlingRef.current) return undefined;
+    canonicalSettlingRef.current = true;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const wait = reducedMotion ? 700 : (canonicalScene.durationMs ?? 2_700);
+    if (canonicalScene.kind === 'canonical_event') void playStorySound('impact', 0.42);
+    const timeout = window.setTimeout(() => {
+      const id = canonicalSubmissionRef.current || submissionId();
+      canonicalSubmissionRef.current = id;
+      setBusy(true);
+      setError(null);
+      settleStoryCanonicalEvent({ attemptId: attempt.attemptId, eventId: pendingEventId, submissionId: id })
+        .then((result) => {
+          if (!mountedRef.current) return;
+          dispatch({ type: 'CANONICAL_EVENT_SETTLED', result });
+          setPendingEventId(null);
+          void onProgressChanged().catch(() => undefined);
+          void playStorySound('transition', 0.48);
+        })
+        .catch((reason: unknown) => {
+          canonicalSettlingRef.current = false;
+          setError(reason instanceof Error ? reason.message : 'The canonical transition could not be settled.');
+        })
+        .finally(() => { if (mountedRef.current) setBusy(false); });
+    }, wait);
+    return () => window.clearTimeout(timeout);
+  }, [attempt.attemptId, canonicalRetry, canonicalScene, dispatch, machine.phase, onProgressChanged, pendingEventId]);
 
   const pause = useCallback(async () => {
     if (!ACTIVE_PHASES.has(machine.phase) || busy) return;
@@ -316,8 +361,7 @@ export function StoryLevelPlayer({
     setError(null);
     try {
       const deadline = await pauseStoryAttempt(attempt.attemptId);
-      const nextDeadline = applyDeadline(deadline);
-      if (nextDeadline !== null) setRemainingMs(Math.max(0, nextDeadline - Date.now()));
+      applyDeadline(deadline);
       dispatch({ type: 'PAUSE' });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Story Mode could not be paused.');
@@ -331,8 +375,7 @@ export function StoryLevelPlayer({
     setBusy(true);
     setError(null);
     try {
-      const deadline = await resumeStoryAttempt(attempt.attemptId);
-      applyDeadline(deadline);
+      applyDeadline(await resumeStoryAttempt(attempt.attemptId));
       dispatch({ type: 'RESUME' });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Story Mode could not resume.');
@@ -353,7 +396,7 @@ export function StoryLevelPlayer({
     setBusy(true);
     setError(null);
     try {
-      if (machine.phase !== 'level_complete') await pauseStoryAttempt(attempt.attemptId);
+      if (!['level_complete', 'chapter_complete'].includes(machine.phase)) await pauseStoryAttempt(attempt.attemptId);
       onExit();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The journey could not be safely paused.');
@@ -366,7 +409,7 @@ export function StoryLevelPlayer({
     setBusy(true);
     setError(null);
     try {
-      if (machine.phase !== 'level_complete') await pauseStoryAttempt(attempt.attemptId);
+      if (!['level_complete', 'chapter_complete'].includes(machine.phase)) await pauseStoryAttempt(attempt.attemptId);
       await onBrowse();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The journey browser could not open safely.');
@@ -375,23 +418,11 @@ export function StoryLevelPlayer({
     }
   }, [attempt.attemptId, machine.phase, onBrowse]);
 
-  const replayLevel = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await onReplay();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The replay could not begin.');
-    } finally {
-      if (mountedRef.current) setBusy(false);
-    }
-  }, [onReplay]);
-
   const retry = () => {
     submittingRef.current = false;
     pendingSubmissionRef.current = null;
     setSelectedAnswer(null);
-    setRemainingMs(attempt.question.timerSeconds * 1_000);
+    setRemainingMs((activeQuestion?.timerSeconds || 5) * 1_000);
     setError(null);
     setFailedSubmission(null);
     setAction('idle');
@@ -399,11 +430,7 @@ export function StoryLevelPlayer({
   };
 
   const result = machine.result;
-  const pauseDisabled = busy
-    || machine.phase === 'correct_action'
-    || machine.phase === 'wrong_action'
-    || machine.phase === 'level_complete'
-    || machine.phase === 'failure';
+  const pauseDisabled = busy || ['correct_action', 'wrong_action', 'canonical_transition', 'level_complete', 'chapter_complete', 'failure'].includes(machine.phase);
   const locationLabel = location
     ? `${location.book.numeral} · Chapter ${location.chapter.order} · Level ${level.order}`
     : `Level ${level.order}`;
@@ -411,12 +438,8 @@ export function StoryLevelPlayer({
   return (
     <div className="mx-auto max-w-6xl space-y-3 animate-fade-in">
       <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={() => void exitLevel()} className="btn-ghost text-sm">
-          <ArrowLeft size={15} /> Story Mode
-        </button>
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone">
-          <Flag size={13} /> {locationLabel}
-        </span>
+        <button type="button" onClick={() => void exitLevel()} className="btn-ghost text-sm"><ArrowLeft size={15} /> Story Mode</button>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone"><Flag size={13} /> {locationLabel}</span>
       </div>
 
       <StoryWorld
@@ -431,21 +454,33 @@ export function StoryLevelPlayer({
         {machine.phase === 'intro' && (
           <div className="story-narrative-card story-narrative-bottom">
             <span className="story-narrative-icon"><BookOpen size={16} /></span>
-            <div><p>{scenes.intro.narrativeText}</p><small>{scenes.intro.scriptureReference}</small></div>
+            <div><p>{introScene.narrativeText}</p><small>{introScene.scriptureReference}</small></div>
+          </div>
+        )}
+
+        {machine.phase === 'reading' && readScene && (
+          <div className="story-read-panel" role="dialog" aria-modal="true" aria-labelledby="story-read-title">
+            <p className="eyebrow text-gold">Read</p>
+            <h3 id="story-read-title">{readScene.scriptureReference}</h3>
+            <p>{readScene.readText}</p>
+            <p className="story-read-timer-note">The question timer is stopped while Scripture is open.</p>
+            <button type="button" className="btn-primary mt-4" onClick={() => { setReadSeen(true); dispatch({ type: 'READ_COMPLETE' }); }}>
+              <BookOpen size={15} /> Continue from Scripture
+            </button>
           </div>
         )}
 
         {machine.phase === 'walking' && (
-          <div className="story-guide-label"><Leaf size={14} /> {scenes.movement.narrativeText}</div>
+          <div className="story-guide-label"><Leaf size={14} /> {movementScene.narrativeText}</div>
         )}
 
-        {(machine.phase === 'question_approach' || machine.phase === 'checkpoint') && (
-          <div className="story-event-prompt"><Sparkles size={17} /> {scenes.question.narrativeText}</div>
+        {(machine.phase === 'question_approach' || machine.phase === 'checkpoint') && activeQuestionScene && (
+          <div className="story-event-prompt"><Sparkles size={17} /> {activeQuestionScene.narrativeText}</div>
         )}
 
-        {machine.phase === 'question_active' && (
+        {machine.phase === 'question_active' && activeQuestion && (
           <StoryQuestionOverlay
-            question={attempt.question}
+            question={activeQuestion}
             remainingMs={remainingMs}
             selectedAnswer={selectedAnswer}
             submitting={busy || Boolean(failedSubmission)}
@@ -453,12 +488,20 @@ export function StoryLevelPlayer({
           />
         )}
 
-        {machine.phase === 'correct_action' && (
-          <div className="story-action-caption story-action-caption-correct"><CheckCircle2 size={17} /> {scenes.question.correctNarrativeText}</div>
+        {machine.phase === 'correct_action' && activeQuestionScene && (
+          <div className="story-action-caption story-action-caption-correct"><CheckCircle2 size={17} /> {activeQuestionScene.correctNarrativeText}</div>
         )}
 
-        {machine.phase === 'wrong_action' && (
-          <div className="story-action-caption story-action-caption-wrong"><XCircle size={17} /> {scenes.question.wrongNarrativeText}</div>
+        {machine.phase === 'wrong_action' && activeQuestionScene && (
+          <div className="story-action-caption story-action-caption-wrong"><XCircle size={17} /> {activeQuestionScene.wrongNarrativeText}</div>
+        )}
+
+        {machine.phase === 'canonical_transition' && canonicalScene && (
+          <div className="story-canonical-caption" role="status" aria-live="polite">
+            <p className="eyebrow text-gold">Character transition</p>
+            <strong>{canonicalScene.narrativeText}</strong>
+            <small>{canonicalScene.scriptureReference}</small>
+          </div>
         )}
 
         {machine.phase === 'failure' && result && (
@@ -478,7 +521,7 @@ export function StoryLevelPlayer({
           <div className="story-result-panel" role="dialog" aria-modal="true" aria-labelledby="story-paused-title">
             <span className="story-result-symbol"><Pause size={24} fill="currentColor" /></span>
             <p className="eyebrow text-peri">Journey paused</p>
-            <h3 id="story-paused-title">{activeCharacter} waits</h3>
+            <h3 id="story-paused-title">{activeCharacterName(activeScene)} waits</h3>
             <p>Your checkpoint and question time are preserved.</p>
             <button type="button" onClick={() => void resume()} disabled={busy} className="btn-primary mt-4">
               {busy ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />} Resume
@@ -491,16 +534,35 @@ export function StoryLevelPlayer({
             <span className="story-result-symbol story-result-complete"><Sparkles size={25} /></span>
             <p className="eyebrow text-gold">Level complete</p>
             <h3 id="story-complete-title">{level.title}</h3>
-            <p>{scenes.completion.narrativeText} {level.continuationText}</p>
+            <p>{completionScene.narrativeText} {level.continuationText}</p>
             <div className="story-completion-stats">
-              <span><Leaf size={15} /><strong>{result.figsEarned}</strong><small>Figs earned</small></span>
+              <span><Leaf size={15} /><strong>{result.totalFigs}</strong><small>Figs earned</small></span>
               <span><Coins size={15} /><strong>{result.denariiEarned}</strong><small>Denarii</small></span>
               <span><CheckCircle2 size={15} /><strong>{result.correctCount}/{result.questionCount}</strong><small>Correct</small></span>
               <span><Flag size={15} /><strong>{result.completionPercentage}%</strong><small>Complete</small></span>
             </div>
             {result.replay && <p className="story-replay-note">Practice replay complete. Rewards remain settled once.</p>}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <button type="button" onClick={() => void replayLevel()} disabled={busy} className="btn-primary"><RotateCcw size={15} /> Replay level</button>
+              <button type="button" onClick={() => void onReplay()} disabled={busy} className="btn-primary"><RotateCcw size={15} /> Replay level</button>
+              <button type="button" onClick={() => void browseLevel()} className="btn-secondary"><Map size={15} /> Browse journey</button>
+            </div>
+          </div>
+        )}
+
+        {machine.phase === 'chapter_complete' && result && (
+          <div className="story-result-panel story-complete-panel" role="dialog" aria-modal="true" aria-labelledby="story-chapter-title">
+            <span className="story-result-symbol story-result-complete"><Sparkles size={25} /></span>
+            <p className="eyebrow text-gold">Chapter complete</p>
+            <h3 id="story-chapter-title">Brothers</h3>
+            <p>The journey continues with Seth. His playable story remains locked for the next chapter.</p>
+            <div className="story-completion-stats">
+              <span><Leaf size={15} /><strong>{result.totalFigs}</strong><small>Chapter Figs</small></span>
+              <span><Coins size={15} /><strong>0</strong><small>Denarii</small></span>
+              <span><CheckCircle2 size={15} /><strong>{result.correctCount}/{result.questionCount}</strong><small>Correct</small></span>
+              <span><Flag size={15} /><strong>{result.levelsCompleted}/6</strong><small>Levels</small></span>
+            </div>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button type="button" onClick={() => void onReplay()} disabled={busy} className="btn-primary"><RotateCcw size={15} /> Replay epilogue</button>
               <button type="button" onClick={() => void browseLevel()} className="btn-secondary"><Map size={15} /> Browse journey</button>
             </div>
           </div>
@@ -514,8 +576,15 @@ export function StoryLevelPlayer({
       {error && (
         <div className="flex items-start justify-between gap-3 rounded-lg border border-coral/35 bg-coral-soft px-4 py-3 text-sm text-coral" role="alert">
           <span>{error}</span>
-          {(machine.phase === 'walking' || machine.phase === 'question_approach') && <button type="button" onClick={() => { setError(null); dispatch({ type: 'RESTART_FROM_CHECKPOINT' }); }} className="font-bold underline">Retry</button>}
-          {machine.phase === 'question_active' && failedSubmission && <button type="button" onClick={() => void submit(failedSubmission.answer, failedSubmission.timedOut)} className="font-bold underline">Retry answer</button>}
+          {(machine.phase === 'walking' || machine.phase === 'question_approach') && (
+            <button type="button" onClick={() => { setError(null); dispatch({ type: 'RESTART_FROM_CHECKPOINT' }); }} className="font-bold underline">Retry</button>
+          )}
+          {machine.phase === 'question_active' && failedSubmission && (
+            <button type="button" onClick={() => void submit(failedSubmission.answer, failedSubmission.timedOut)} className="font-bold underline">Retry answer</button>
+          )}
+          {machine.phase === 'canonical_transition' && (
+            <button type="button" onClick={() => { setError(null); canonicalSettlingRef.current = false; setCanonicalRetry((value) => value + 1); }} className="font-bold underline">Retry transition</button>
+          )}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const migration = read('supabase/migrations/20260831110000_story_mode_abel_vertical_slice.sql');
+const brothersMigration = read('supabase/migrations/20260831160000_complete_brothers_chapter.sql');
 const api = read('src/screens/cadet/story-mode/api.ts');
 
 for (const table of [
@@ -79,5 +80,51 @@ for (const externalSystem of ['game_attempts', 'arena_rooms', 'arena_participant
   assert.doesNotMatch(migration, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`), `Story Mode must not mutate ${externalSystem}.`);
 }
 assert.equal((migration.match(/\$\$/g) || []).length % 2, 0, 'Story migration SQL delimiters are unbalanced.');
+
+for (const table of [
+  'story_mode_question_pools',
+  'story_mode_attempt_questions',
+  'story_mode_canonical_events',
+  'story_mode_event_settlements',
+  'story_mode_chapter_completions',
+]) {
+  assert.match(brothersMigration, new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${table}`));
+  assert.match(brothersMigration, new RegExp(`ALTER TABLE public\\.${table} ENABLE ROW LEVEL SECURITY`));
+}
+assert.match(brothersMigration, /REVOKE ALL ON TABLE[\s\S]*story_mode_chapter_completions[\s\S]*FROM PUBLIC, anon, authenticated/);
+assert.match(brothersMigration, /CREATE OR REPLACE FUNCTION public\.settle_story_mode_canonical_event/);
+assert.match(brothersMigration, /REVOKE ALL ON FUNCTION public\.settle_story_mode_canonical_event\(uuid, text, uuid\) FROM PUBLIC, anon/);
+assert.match(brothersMigration, /GRANT EXECUTE ON FUNCTION public\.settle_story_mode_canonical_event\(uuid, text, uuid\) TO authenticated, service_role/);
+
+const phase3bPayload = brothersMigration.match(/CREATE OR REPLACE FUNCTION public\.story_mode_question_payload[\s\S]*?\$\$;/)?.[0] || '';
+assert.ok(phase3bPayload);
+assert.doesNotMatch(phase3bPayload, /correct_answer|explanation|correct_action_id|wrong_action_id/);
+assert.match(phase3bPayload, /'scene_id', question\.scene_id/);
+assert.match(phase3bPayload, /'is_read_follow_up', question\.is_read_follow_up/);
+
+assert.match(brothersMigration, /story_mode_attempt_questions[\s\S]*answered_correct boolean/);
+assert.match(brothersMigration, /ORDER BY md5\(v_attempt\.id::text \|\| ':' \|\| question\.id\)/);
+assert.match(brothersMigration, /This Story Mode question is not unlocked yet/);
+assert.match(brothersMigration, /Only the next server-selected Story Mode checkpoint can be saved/);
+assert.match(brothersMigration, /Terminal Story Mode checkpoints must be settled by the server/);
+assert.match(brothersMigration, /Complete the server-selected questions before the canonical transition/);
+assert.match(brothersMigration, /The canonical transition cannot be skipped or reached out of order/);
+assert.match(brothersMigration, /IF v_correct AND NOT v_attempt\.is_replay THEN/);
+assert.match(brothersMigration, /ON CONFLICT \(user_id, question_id\) DO NOTHING/);
+assert.match(brothersMigration, /WHERE user_id = v_user_id AND NOT v_attempt\.is_replay/);
+assert.match(brothersMigration, /'denarii_earned', 0/);
+assert.doesNotMatch(brothersMigration, /story_mode_marks|INSERT INTO public\.[a-z_]*marks|award_[a-z_]*mark/);
+
+const canonicalApi = api.match(/export async function settleStoryCanonicalEvent[\s\S]*?^}/m)?.[0] || '';
+assert.ok(canonicalApi);
+assert.match(canonicalApi, /attemptId: string/);
+assert.match(canonicalApi, /eventId: string/);
+assert.match(canonicalApi, /submissionId: string/);
+assert.doesNotMatch(canonicalApi, /survived|outcome|correct|figs|denarii|chapterComplete|levelComplete/);
+
+for (const externalSystem of ['game_attempts', 'arena_rooms', 'arena_participants', 'denarii_ledger_entries']) {
+  assert.doesNotMatch(brothersMigration, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`));
+}
+assert.equal((brothersMigration.match(/\$\$/g) || []).length % 2, 0, 'Phase 3B SQL delimiters are unbalanced.');
 
 console.log('Story Mode server-authority and economy-isolation checks passed.');

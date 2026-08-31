@@ -1,7 +1,8 @@
 import { Pause, Play } from 'lucide-react';
+import type { CSSProperties, ReactNode } from 'react';
 import { StoryCharacter } from './StoryCharacter';
 import { storyPhaseProgress, type StoryMachineState, type StoryPhase } from './engine';
-import type { StoryActionName, StoryEnvironment, StorySceneDefinition } from './types';
+import type { StoryActionName, StorySceneDefinition } from './types';
 
 interface StoryWorldProps {
   machine: StoryMachineState;
@@ -11,34 +12,36 @@ interface StoryWorldProps {
   busy: boolean;
   onPause: () => void;
   onResume: () => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 function visualPhase(machine: StoryMachineState): StoryPhase {
   return machine.phase === 'paused' && machine.resumePhase ? machine.resumePhase : machine.phase;
 }
 
+function obstacleStyle(x: number, scale = 1): CSSProperties {
+  return { left: `${x}%`, transform: `translateX(-50%) scale(${scale})` };
+}
+
 export function StoryWorld({ machine, scene, action, paused, busy, onPause, onResume, children }: StoryWorldProps) {
   const phase = visualPhase(machine);
-  const environment: StoryEnvironment = scene.environment;
-  const characterLabel = scene.character === 'abel' ? 'Abel' : scene.character;
-  const position = storyPhaseProgress(phase);
-  const farShift = -Math.max(0, position - 10) * 0.08;
-  const nearShift = -Math.max(0, position - 10) * 0.16;
-  const fieldShift = -Math.max(0, position - 10) * 0.24;
-  const correct = phase === 'correct_action' || phase === 'level_complete';
+  const progressPosition = storyPhaseProgress(phase);
+  const farShift = -Math.max(0, progressPosition - 10) * 0.08;
+  const nearShift = -Math.max(0, progressPosition - 10) * 0.16;
+  const fieldShift = -Math.max(0, progressPosition - 10) * 0.24;
+  const correct = phase === 'correct_action' || phase === 'level_complete' || phase === 'chapter_complete';
   const wrong = phase === 'wrong_action' || phase === 'failure';
+  const labels = scene.characters.map((placement) => placement.id).join(' and ') || 'the narrative';
 
   return (
     <section
-      className={`story-world story-world-${environment.palette} story-time-${environment.timeOfDay} story-weather-${environment.weather} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
+      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${scene.environment.weather} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
       style={{
-        '--story-character-x': `${position}%`,
         '--story-far-shift': `${farShift}%`,
         '--story-near-shift': `${nearShift}%`,
         '--story-field-shift': `${fieldShift}%`,
-      } as React.CSSProperties}
-      aria-label={`${characterLabel} in ${environment.id.replace(/-/g, ' ')}`}
+      } as CSSProperties}
+      aria-label={`${labels} in ${scene.environment.id.replace(/-/g, ' ')}`}
     >
       <div className="story-sky" aria-hidden="true">
         <span className="story-sun" />
@@ -49,19 +52,38 @@ export function StoryWorld({ machine, scene, action, paused, busy, onPause, onRe
       <div className="story-hills story-hills-near" aria-hidden="true" />
       <div className="story-field-bands" aria-hidden="true" />
       <div className="story-grass story-grass-back" aria-hidden="true" />
-      <div className="story-altar" aria-hidden="true">
-        <span /><span /><span />
-        <i className="story-altar-glow" />
-      </div>
+      <div className="story-altar" aria-hidden="true"><span /><span /><span /><i className="story-altar-glow" /></div>
       <div className="story-offering story-offering-flock" aria-hidden="true">
-        <span className="story-lamb-body" /><span className="story-lamb-head" /><span className="story-lamb-leg story-lamb-leg-one" /><span className="story-lamb-leg story-lamb-leg-two" />
+        <span className="story-lamb-body" /><span className="story-lamb-head" />
+        <span className="story-lamb-leg story-lamb-leg-one" /><span className="story-lamb-leg story-lamb-leg-two" />
       </div>
       <div className="story-offering story-offering-produce" aria-hidden="true">
-        <span className="story-basket" /><span className="story-fruit story-fruit-one" /><span className="story-fruit story-fruit-two" /><span className="story-fruit story-fruit-three" />
+        <span className="story-basket" /><span className="story-fruit story-fruit-one" />
+        <span className="story-fruit story-fruit-two" /><span className="story-fruit story-fruit-three" />
       </div>
-      <div className="story-character-track" aria-hidden="true">
-        <StoryCharacter character={scene.character} action={action} />
-      </div>
+
+      {scene.obstacles?.map((obstacle) => (
+        <span
+          key={obstacle.id}
+          className={`story-obstacle story-obstacle-${obstacle.type}`}
+          style={obstacleStyle(obstacle.x, obstacle.scale)}
+          aria-hidden="true"
+        />
+      ))}
+
+      {scene.characters.map((placement) => {
+        const position = placement.active && ['walking', 'running'].includes(phase) ? progressPosition : placement.x;
+        const characterAction = placement.id === scene.activeCharacterId ? action : placement.action;
+        return (
+          <div
+            key={`${scene.id}-${placement.id}`}
+            className={`story-character-track story-character-track-${placement.role}`}
+            style={{ left: `${position}%` } as CSSProperties}
+          >
+            <StoryCharacter character={placement.id} role={placement.role} action={characterAction} facing={placement.facing} />
+          </div>
+        );
+      })}
       <div className="story-grass story-grass-front" aria-hidden="true" />
 
       <div className="absolute left-3 top-3 z-30 flex items-center gap-2 sm:left-4 sm:top-4">

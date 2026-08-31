@@ -14,6 +14,16 @@ export type StoryActionName =
   | 'offer'
   | 'trip'
   | 'fall'
+  | 'follow'
+  | 'pursue'
+  | 'turn'
+  | 'confront'
+  | 'strike'
+  | 'recoil'
+  | 'collapse'
+  | 'lie_still'
+  | 'look_back'
+  | 'character_swap'
   | 'fade';
 
 export type FutureStoryActionName =
@@ -25,10 +35,29 @@ export type FutureStoryActionName =
   | 'enter'
   | 'exit'
   | 'hide'
-  | 'strike'
   | 'fly'
-  | 'transform'
-  | 'character_swap';
+  | 'transform';
+
+export type StoryCharacterId = 'abel' | 'cain' | 'seth';
+export type StoryCharacterRole = 'player' | 'npc' | 'threat' | 'transition' | 'observer';
+
+export type StoryCharacterPlacement = {
+  id: StoryCharacterId;
+  role: StoryCharacterRole;
+  x: number;
+  facing?: 'left' | 'right';
+  action: StoryActionName;
+  active?: boolean;
+};
+
+export type StoryObstacleType = 'rock' | 'ditch' | 'log' | 'thorn' | 'narrow_path';
+
+export type StoryObstacleDefinition = {
+  id: string;
+  type: StoryObstacleType;
+  x: number;
+  scale?: number;
+};
 
 export type StoryPowerUpDefinition = {
   id: string;
@@ -45,16 +74,31 @@ export type StoryRelicReference = {
 
 export type StoryEnvironment = {
   id: string;
-  palette: 'abel-field';
-  weather: 'clear' | 'wind';
-  timeOfDay: 'morning' | 'evening';
+  palette:
+    | 'abel-field'
+    | 'regard-field'
+    | 'warning-path'
+    | 'ominous-field'
+    | 'aftermath-ground'
+    | 'seth-dawn';
+  weather: 'clear' | 'wind' | 'still' | 'haze';
+  timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'dawn';
 };
 
 export type StorySceneDefinition = {
   id: string;
-  kind: 'narrative' | 'movement' | 'read' | 'question_event' | 'completion';
+  kind:
+    | 'narrative'
+    | 'movement'
+    | 'read'
+    | 'question_event'
+    | 'canonical_event'
+    | 'character_transition'
+    | 'completion';
   environment: StoryEnvironment;
-  character: 'abel';
+  activeCharacterId: StoryCharacterId | null;
+  characters: StoryCharacterPlacement[];
+  obstacles?: StoryObstacleDefinition[];
   action: StoryActionName;
   durationMs?: number;
   narrativeText?: string;
@@ -63,6 +107,10 @@ export type StorySceneDefinition = {
   scriptureReference?: string;
   checkpointId?: string;
   questionId?: string;
+  questionPoolId?: string;
+  readText?: string;
+  canonicalEventId?: string;
+  canonicalActions?: StoryActionName[];
   correctActions?: StoryActionName[];
   wrongActions?: StoryActionName[];
   nextSceneId?: string;
@@ -78,6 +126,7 @@ export type StoryLevelDefinition = {
   order: number;
   openingSceneId: string;
   continuationText?: string;
+  chapterConclusion?: boolean;
   scenes: StorySceneDefinition[];
 };
 
@@ -101,12 +150,16 @@ export type StoryBookDefinition = {
 export type StoryQuestionPayload = {
   id: string;
   levelSlug: string;
+  checkpointId: string;
+  poolId: string;
+  sceneId: string;
   type: StoryQuestionType;
   prompt: string;
   options: string[];
   timerSeconds: StoryTimerSeconds;
   difficulty: StoryDifficulty;
   scriptureReference: string;
+  isReadFollowUp: boolean;
 };
 
 export type StoryLevelProgress = {
@@ -128,20 +181,24 @@ export type StoryProgress = {
   totalLevelCount: number;
   levels: StoryLevelProgress[];
   activeAttemptId: string | null;
+  chapterCompleted: boolean;
+  chapterFigsEarned: number;
+  chapterDenariiEarned: number;
 };
 
 export type StoryAttempt = {
   attemptId: string;
   levelSlug: string;
   checkpointId: string;
-  checkpointState: 'intro' | 'question_approach' | 'level_complete';
+  checkpointState: 'intro' | 'question_approach' | 'canonical_event' | 'level_complete' | 'chapter_complete';
   isReplay: boolean;
   restored: boolean;
   paused: boolean;
   questionStartedAt: string | null;
   questionDeadline: string | null;
   serverNow: string;
-  question: StoryQuestionPayload;
+  question: StoryQuestionPayload | null;
+  pendingEventId: string | null;
 };
 
 export type StoryAnswerResult = {
@@ -154,10 +211,15 @@ export type StoryAnswerResult = {
   questionCount: number;
   completionPercentage: number;
   levelComplete: boolean;
+  chapterComplete: boolean;
+  canonicalEventPending: boolean;
+  canonicalEventId: string | null;
   checkpointId: string;
   actionId: string;
   explanation: string;
   replay: boolean;
+  nextQuestion: StoryQuestionPayload | null;
+  levelsCompleted: number;
 };
 
 export type StoryDeadline = {

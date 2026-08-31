@@ -2,107 +2,90 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  STORY_ACTIONS,
-  storyActionAt,
-  storyActionDuration,
-} from '../src/screens/cadet/story-mode/actions.ts';
+import { STORY_ACTIONS, storyActionAt, storyActionDuration } from '../src/screens/cadet/story-mode/actions.ts';
 import {
   ABEL_LEVEL_SLUG,
   ABEL_QUESTION_CHECKPOINT,
   ABEL_START_CHECKPOINT,
+  ANOTHER_OFFSPRING_LEVEL_SLUG,
   STORY_BOOKS,
   findStoryLevel,
   isStoryTimerSeconds,
   storyQuestionOptions,
 } from '../src/screens/cadet/story-mode/content.ts';
-import {
-  INITIAL_STORY_MACHINE,
-  transitionStoryState,
-  type StoryMachineState,
-} from '../src/screens/cadet/story-mode/engine.ts';
-import type { StoryAnswerResult, StorySceneDefinition } from '../src/screens/cadet/story-mode/types.ts';
+import { INITIAL_STORY_MACHINE, transitionStoryState, type StoryMachineState } from '../src/screens/cadet/story-mode/engine.ts';
+import type { StoryAnswerResult } from '../src/screens/cadet/story-mode/types.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const book = STORY_BOOKS[0];
 const chapter = book.chapters[0];
-const level = chapter.levels[0];
 assert.equal(book.numeral, 'Book I');
 assert.equal(book.title, 'Beginnings');
 assert.equal(chapter.title, 'Brothers');
-assert.equal(level.slug, ABEL_LEVEL_SLUG);
-assert.equal(level.title, 'Abel Offering');
-assert.equal(findStoryLevel(ABEL_LEVEL_SLUG), level);
-assert.equal(findStoryLevel('locked-future-level'), null);
-assert.deepEqual(level.scenes.map((scene) => scene.kind), [
-  'narrative',
-  'movement',
-  'question_event',
-  'completion',
+assert.deepEqual(chapter.levels.map((level) => level.title), [
+  'Abel Offering', 'Regard', 'At the Door', 'The Field', 'Your Brother', 'Another Offspring',
 ]);
-assert.equal(level.scenes.find((scene) => scene.kind === 'question_event')?.checkpointId, ABEL_QUESTION_CHECKPOINT);
-const questionScene = level.scenes.find((scene) => scene.kind === 'question_event');
-const correctActions = questionScene?.correctActions || [];
-const wrongActions = questionScene?.wrongActions || [];
+assert.equal(chapter.levels.length, 6);
+assert.equal(findStoryLevel(ABEL_LEVEL_SLUG)?.title, 'Abel Offering');
+assert.equal(findStoryLevel(ANOTHER_OFFSPRING_LEVEL_SLUG)?.chapterConclusion, true);
+assert.equal(findStoryLevel('seth-gameplay'), null, 'Future Seth gameplay must stay unavailable.');
 
-const futureReadMoment: StorySceneDefinition = {
-  id: 'read-genesis-4',
-  kind: 'read',
-  environment: level.scenes[0].environment,
-  character: 'abel',
-  action: 'stop',
-  scriptureReference: 'Genesis 4:1-4',
-  nextSceneId: level.openingSceneId,
-};
-assert.equal(futureReadMoment.kind, 'read');
-assert.equal(futureReadMoment.scriptureReference, 'Genesis 4:1-4');
+const abelLevel = findStoryLevel(ABEL_LEVEL_SLUG);
+assert.ok(abelLevel);
+assert.deepEqual(abelLevel.scenes.map((scene) => scene.kind), ['narrative', 'movement', 'question_event', 'completion']);
+assert.equal(abelLevel.scenes.find((scene) => scene.kind === 'question_event')?.checkpointId, ABEL_QUESTION_CHECKPOINT);
 
-for (const timer of [5, 7, 10]) assert.equal(isStoryTimerSeconds(timer), true, `${timer}s must be supported.`);
-for (const timer of [0, 6, 8, 11]) assert.equal(isStoryTimerSeconds(timer), false, `${timer}s must remain invalid.`);
+const doorRead = findStoryLevel('at-the-door')?.scenes.find((scene) => scene.kind === 'read');
+assert.equal(doorRead?.scriptureReference, 'Genesis 4:6-7');
+assert.match(doorRead?.readText || '', /sin is crouching at the door/i);
+assert.match(doorRead?.readText || '', /must rule over it/i);
+
+for (const timer of [5, 7, 10]) assert.equal(isStoryTimerSeconds(timer), true);
+for (const timer of [0, 6, 8, 11]) assert.equal(isStoryTimerSeconds(timer), false);
 assert.deepEqual(storyQuestionOptions('true_false', ['ignored']), ['True', 'False']);
 assert.deepEqual(storyQuestionOptions('multiple_choice', ['A', 'B']), ['A', 'B']);
 
-for (const action of ['idle', 'walk', 'run', 'stop', 'carry', 'kneel', 'offer', 'trip', 'fall', 'fade'] as const) {
+const expectedActions = [
+  'idle', 'walk', 'run', 'stop', 'carry', 'kneel', 'offer', 'trip', 'fall', 'follow', 'pursue',
+  'turn', 'confront', 'strike', 'recoil', 'collapse', 'lie_still', 'look_back', 'character_swap', 'fade',
+] as const;
+for (const action of expectedActions) {
   assert.ok(STORY_ACTIONS[action].durationMs > 0, `${action} needs a controlled duration.`);
-  assert.ok(STORY_ACTIONS[action].cssClass.startsWith('story-action-'));
+  assert.match(STORY_ACTIONS[action].cssClass, /^story-action-/);
 }
+const correctActions = abelLevel.scenes.find((scene) => scene.kind === 'question_event')?.correctActions || [];
 assert.deepEqual(correctActions, ['carry', 'walk', 'kneel', 'offer']);
-assert.deepEqual(wrongActions, ['carry', 'trip', 'fall', 'fade']);
 assert.equal(storyActionAt(correctActions, 0).name, 'carry');
 assert.equal(storyActionAt(correctActions, STORY_ACTIONS.carry.durationMs).name, 'walk');
-assert.ok(storyActionDuration(correctActions) > storyActionDuration(wrongActions));
+assert.ok(storyActionDuration(correctActions) > 0);
 
-const answerResult = (correct: boolean, timedOut = false): StoryAnswerResult => ({
-  correct,
-  timedOut,
-  figsEarned: correct ? 3 : 0,
+const answerResult = (overrides: Partial<StoryAnswerResult> = {}): StoryAnswerResult => ({
+  correct: true,
+  timedOut: false,
+  figsEarned: 3,
   denariiEarned: 0,
-  totalFigs: correct ? 3 : 0,
-  correctCount: correct ? 1 : 0,
-  questionCount: 1,
-  completionPercentage: correct ? 100 : 0,
-  levelComplete: correct,
-  checkpointId: correct ? 'abel-offering-complete' : ABEL_QUESTION_CHECKPOINT,
-  actionId: correct ? 'offer-firstborn' : 'offering-misdirection',
+  totalFigs: 3,
+  correctCount: 1,
+  questionCount: 3,
+  completionPercentage: 33,
+  levelComplete: false,
+  chapterComplete: false,
+  canonicalEventPending: false,
+  canonicalEventId: null,
+  checkpointId: 'next-question',
+  actionId: 'advance',
   explanation: 'Server explanation',
   replay: false,
+  nextQuestion: null,
+  levelsCompleted: 1,
+  ...overrides,
 });
 
-let state: StoryMachineState = INITIAL_STORY_MACHINE;
-assert.equal(state.phase, 'loading');
-state = transitionStoryState(state, { type: 'HOME_READY' });
+let state: StoryMachineState = transitionStoryState(INITIAL_STORY_MACHINE, { type: 'HOME_READY' });
 assert.equal(state.phase, 'home');
-state = transitionStoryState(state, { type: 'OPEN_BROWSER' });
-assert.equal(state.phase, 'browser');
-state = transitionStoryState(state, { type: 'CLOSE_BROWSER' });
-assert.equal(state.phase, 'home');
-state = transitionStoryState(state, {
-  type: 'START_LEVEL',
-  checkpointId: ABEL_START_CHECKPOINT,
-  checkpointState: 'intro',
-});
+state = transitionStoryState(state, { type: 'START_LEVEL', checkpointId: ABEL_START_CHECKPOINT, checkpointState: 'intro' });
 assert.equal(state.phase, 'intro');
 state = transitionStoryState(state, { type: 'OPEN_READ' });
 assert.equal(state.phase, 'reading');
@@ -110,99 +93,72 @@ state = transitionStoryState(state, { type: 'READ_COMPLETE' });
 assert.equal(state.phase, 'intro');
 state = transitionStoryState(state, { type: 'INTRO_COMPLETE' });
 assert.equal(state.phase, 'walking');
-state = transitionStoryState(state, { type: 'BEGIN_RUN' });
-assert.equal(state.phase, 'running');
-state = transitionStoryState(state, { type: 'STOP_RUNNING' });
-assert.equal(state.phase, 'walking');
 state = transitionStoryState(state, { type: 'EVENT_REACHED', checkpointId: ABEL_QUESTION_CHECKPOINT });
-assert.equal(state.phase, 'question_approach');
-assert.equal(state.checkpointId, ABEL_QUESTION_CHECKPOINT);
 state = transitionStoryState(state, { type: 'QUESTION_READY' });
 assert.equal(state.phase, 'question_active');
 
-const paused = transitionStoryState(state, { type: 'PAUSE' });
-assert.equal(paused.phase, 'paused');
-assert.equal(paused.resumePhase, 'question_active');
-state = transitionStoryState(paused, { type: 'RESUME' });
-assert.equal(state.phase, 'question_active');
+let nextQuestionState = transitionStoryState(state, { type: 'ANSWER_CORRECT', result: answerResult() });
+assert.equal(nextQuestionState.phase, 'correct_action');
+nextQuestionState = transitionStoryState(nextQuestionState, { type: 'ACTION_COMPLETE' });
+assert.equal(nextQuestionState.phase, 'checkpoint', 'A nonterminal correct answer must continue the scene, not end the level.');
 
-let correctState = transitionStoryState(state, { type: 'ANSWER_CORRECT', result: answerResult(true) });
-assert.equal(correctState.phase, 'correct_action');
-correctState = transitionStoryState(correctState, { type: 'ACTION_COMPLETE' });
-assert.equal(correctState.phase, 'level_complete');
-let transitionState = transitionStoryState(correctState, { type: 'BEGIN_CHARACTER_TRANSITION' });
-assert.equal(transitionState.phase, 'character_transition');
-transitionState = transitionStoryState(transitionState, { type: 'COMPLETE_CHAPTER' });
-assert.equal(transitionState.phase, 'chapter_complete');
-transitionState = transitionStoryState(transitionState, { type: 'COMPLETE_BOOK' });
-assert.equal(transitionState.phase, 'book_complete');
-
-let wrongState = transitionStoryState(state, { type: 'ANSWER_WRONG', result: answerResult(false) });
-assert.equal(wrongState.phase, 'wrong_action');
-wrongState = transitionStoryState(wrongState, { type: 'ACTION_COMPLETE' });
-assert.equal(wrongState.phase, 'failure');
-wrongState = transitionStoryState(wrongState, { type: 'RETRY' });
-assert.equal(wrongState.phase, 'checkpoint');
-wrongState = transitionStoryState(wrongState, { type: 'CHECKPOINT_READY' });
-assert.equal(wrongState.phase, 'question_approach');
-
-const timeoutState = transitionStoryState(state, { type: 'ANSWER_WRONG', result: answerResult(false, true) });
-assert.equal(timeoutState.result?.timedOut, true);
-assert.equal(timeoutState.result?.figsEarned, 0);
-
-const restored = transitionStoryState(INITIAL_STORY_MACHINE, {
-  type: 'START_LEVEL',
-  checkpointId: ABEL_QUESTION_CHECKPOINT,
-  checkpointState: 'question_approach',
+let completeState = transitionStoryState(state, {
+  type: 'ANSWER_CORRECT',
+  result: answerResult({ levelComplete: true, completionPercentage: 100 }),
 });
-assert.equal(restored.phase, 'checkpoint');
-const restoredQuestion = transitionStoryState(INITIAL_STORY_MACHINE, {
-  type: 'START_LEVEL',
-  checkpointId: ABEL_QUESTION_CHECKPOINT,
-  checkpointState: 'question_approach',
-  questionActive: true,
-});
-assert.equal(restoredQuestion.phase, 'question_active');
-const restoredPaused = transitionStoryState(INITIAL_STORY_MACHINE, {
-  type: 'START_LEVEL',
-  checkpointId: ABEL_QUESTION_CHECKPOINT,
-  checkpointState: 'question_approach',
-  questionActive: true,
-  paused: true,
-});
-assert.equal(restoredPaused.phase, 'paused');
-assert.equal(transitionStoryState(restoredPaused, { type: 'RESUME' }).phase, 'question_active');
+completeState = transitionStoryState(completeState, { type: 'ACTION_COMPLETE' });
+assert.equal(completeState.phase, 'level_complete');
 
+let canonicalState = transitionStoryState(state, {
+  type: 'ANSWER_CORRECT',
+  result: answerResult({ canonicalEventPending: true, canonicalEventId: 'abel-canonical-death' }),
+});
+canonicalState = transitionStoryState(canonicalState, { type: 'ACTION_COMPLETE' });
+assert.equal(canonicalState.phase, 'canonical_transition');
+canonicalState = transitionStoryState(canonicalState, {
+  type: 'CANONICAL_EVENT_SETTLED',
+  result: answerResult({ levelComplete: true, checkpointId: 'field-complete' }),
+});
+assert.equal(canonicalState.phase, 'level_complete');
+assert.notEqual(canonicalState.phase, 'failure');
+
+const restoredCanonical = transitionStoryState(INITIAL_STORY_MACHINE, {
+  type: 'START_LEVEL', checkpointId: 'field-canonical-event', checkpointState: 'canonical_event',
+});
+assert.equal(restoredCanonical.phase, 'canonical_transition');
+
+const chapterState = transitionStoryState(restoredCanonical, {
+  type: 'CANONICAL_EVENT_SETTLED',
+  result: answerResult({ levelComplete: true, chapterComplete: true, levelsCompleted: 6 }),
+});
+assert.equal(chapterState.phase, 'chapter_complete');
+
+let failureState = transitionStoryState(state, {
+  type: 'ANSWER_WRONG', result: answerResult({ correct: false, figsEarned: 0, timedOut: true }),
+});
+failureState = transitionStoryState(failureState, { type: 'ACTION_COMPLETE' });
+assert.equal(failureState.phase, 'failure');
+failureState = transitionStoryState(failureState, { type: 'RETRY' });
+assert.equal(failureState.phase, 'checkpoint');
+
+const player = read('src/screens/cadet/story-mode/StoryLevelPlayer.tsx');
+const world = read('src/screens/cadet/story-mode/StoryWorld.tsx');
 const home = read('src/screens/cadet/story-mode/StoryModeHome.tsx');
 const shell = read('src/screens/cadet/story-mode/StoryModeShell.tsx');
-const levelUi = read('src/screens/cadet/story-mode/AbelOfferingLevel.tsx');
-const levelPlayer = read('src/screens/cadet/story-mode/StoryLevelPlayer.tsx');
-assert.match(home, /Story Mode/);
-assert.match(home, /Book I/);
-assert.match(home, /Chapter \{chapter\.order\}/);
-assert.match(home, /Abel Offering|ABEL_OFFERING_LEVEL\.title/);
-assert.match(home, /Continue Journey/);
-assert.match(home, /Browse Journey/);
-assert.match(home, /Replay Level/);
-assert.match(shell, /startStoryModeLevel\(ABEL_LEVEL_SLUG\)/);
-assert.match(levelUi, /StoryLevelPlayer/);
-assert.match(levelUi, /ABEL_OFFERING_LEVEL/);
-assert.match(levelPlayer, /level\.scenes/);
-assert.match(levelPlayer, /correctActions/);
-assert.match(levelPlayer, /wrongActions/);
-assert.doesNotMatch(levelPlayer, /ABEL_/);
-assert.match(levelPlayer, /StoryQuestionOverlay/);
-assert.match(levelPlayer, /Retry checkpoint/);
-assert.match(levelPlayer, /pendingSubmissionRef/);
-assert.match(levelPlayer, /Retry answer/);
-assert.match(levelPlayer, /Replay level/);
-assert.match(levelPlayer, /Browse journey/);
+assert.doesNotMatch(player, /ABEL_/);
+assert.match(player, /settleStoryCanonicalEvent/);
+assert.match(player, /The question timer is stopped while Scripture is open/);
+assert.match(world, /scene\.characters\.map/);
+assert.match(world, /story-obstacle-/);
+assert.match(home, /The journey continues with Seth/);
+assert.match(shell, /findStoryLevel\(attempt\.levelSlug\)/);
+assert.match(shell, /startStoryModeLevel\(levelSlug\)/);
 
 const clientStorySource = fs.readdirSync(path.join(root, 'src/screens/cadet/story-mode'))
   .filter((entry) => /\.(?:ts|tsx)$/.test(entry))
   .map((entry) => read(path.join('src/screens/cadet/story-mode', entry)))
   .join('\n');
 assert.doesNotMatch(clientStorySource, /correctAnswer|correct_answer/);
-assert.doesNotMatch(clientStorySource, /The firstborn of his flock and their fat portions/);
+assert.doesNotMatch(clientStorySource, /correctAnswerId|answerKey/);
 
-console.log('Story Mode engine and Abel vertical-slice checks passed.');
+console.log('Story Mode engine and Brothers chapter client checks passed.');

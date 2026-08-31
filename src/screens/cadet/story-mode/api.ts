@@ -11,7 +11,8 @@ function requiredObject(value: unknown, label: string): Record<string, unknown> 
   return value as Record<string, unknown>;
 }
 
-function parseQuestion(value: unknown): StoryQuestionPayload {
+function parseQuestion(value: unknown): StoryQuestionPayload | null {
+  if (value === null || value === undefined) return null;
   const row = requiredObject(value, 'Story question');
   const timerSeconds = Number(row.timer_seconds);
   if (!isStoryTimerSeconds(timerSeconds)) throw new Error('Story question timer is invalid.');
@@ -20,17 +21,21 @@ function parseQuestion(value: unknown): StoryQuestionPayload {
   return {
     id: String(row.id || ''),
     levelSlug: String(row.level_slug || ''),
+    checkpointId: String(row.checkpoint_id || ''),
+    poolId: String(row.pool_id || ''),
+    sceneId: String(row.scene_id || ''),
     type,
     prompt: String(row.prompt || ''),
     options: storyQuestionOptions(type, options),
     timerSeconds,
     difficulty: row.difficulty === 'hard' ? 'hard' : row.difficulty === 'easy' ? 'easy' : 'moderate',
     scriptureReference: String(row.scripture_reference || ''),
+    isReadFollowUp: Boolean(row.is_read_follow_up),
   };
 }
 
 function parseCheckpointState(value: unknown): StoryAttempt['checkpointState'] {
-  if (value === 'question_approach' || value === 'level_complete') return value;
+  if (value === 'question_approach' || value === 'canonical_event' || value === 'level_complete' || value === 'chapter_complete') return value;
   return 'intro';
 }
 
@@ -47,6 +52,9 @@ export async function fetchStoryModeProgress(): Promise<StoryProgress> {
     completedLevelCount: Number(row.completed_level_count) || 0,
     totalLevelCount: Number(row.total_level_count) || 1,
     activeAttemptId: row.active_attempt_id ? String(row.active_attempt_id) : null,
+    chapterCompleted: Boolean(row.chapter_completed),
+    chapterFigsEarned: Number(row.chapter_figs_earned) || 0,
+    chapterDenariiEarned: Number(row.chapter_denarii_earned) || 0,
     levels: levels.map((item) => {
       const level = requiredObject(item, 'Story level progress');
       return {
@@ -78,6 +86,7 @@ export async function startStoryModeLevel(levelSlug: string): Promise<StoryAttem
     questionDeadline: row.question_deadline ? String(row.question_deadline) : null,
     serverNow: String(row.server_now || new Date().toISOString()),
     question: parseQuestion(row.question),
+    pendingEventId: row.pending_event_id ? String(row.pending_event_id) : null,
   };
 }
 
@@ -134,7 +143,11 @@ export async function submitStoryAnswer(input: {
     p_submission_id: input.submissionId,
   });
   if (error) throw error;
-  const row = requiredObject(rpcRow(data), 'Story answer');
+  return parseStoryResult(data, 'Story answer');
+}
+
+function parseStoryResult(data: unknown, label: string): StoryAnswerResult {
+  const row = requiredObject(rpcRow(data), label);
   return {
     correct: Boolean(row.correct),
     timedOut: Boolean(row.timed_out),
@@ -145,9 +158,28 @@ export async function submitStoryAnswer(input: {
     questionCount: Number(row.question_count) || 0,
     completionPercentage: Number(row.completion_percentage) || 0,
     levelComplete: Boolean(row.level_complete),
+    chapterComplete: Boolean(row.chapter_complete),
+    canonicalEventPending: Boolean(row.canonical_event_pending),
+    canonicalEventId: row.canonical_event_id ? String(row.canonical_event_id) : null,
     checkpointId: String(row.checkpoint_id || ''),
     actionId: String(row.action_id || ''),
     explanation: String(row.explanation || ''),
     replay: Boolean(row.replay),
+    nextQuestion: parseQuestion(row.next_question),
+    levelsCompleted: Number(row.levels_completed) || 0,
   };
+}
+
+export async function settleStoryCanonicalEvent(input: {
+  attemptId: string;
+  eventId: string;
+  submissionId: string;
+}): Promise<StoryAnswerResult> {
+  const { data, error } = await supabase.rpc('settle_story_mode_canonical_event', {
+    p_attempt_id: input.attemptId,
+    p_event_id: input.eventId,
+    p_submission_id: input.submissionId,
+  });
+  if (error) throw error;
+  return parseStoryResult(data, 'Story canonical event');
 }

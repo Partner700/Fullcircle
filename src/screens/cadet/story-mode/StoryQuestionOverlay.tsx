@@ -27,6 +27,7 @@ export function StoryQuestionOverlay({ question, remainingMs, selectedAnswer, su
           <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-peri-dim">
             <span className="inline-flex items-center gap-1"><BookOpen size={11} /> {question.scriptureReference}</span>
             <span className="rounded-full border border-white/15 px-2 py-0.5 capitalize">{question.difficulty}</span>
+            {question.isReadFollowUp && <span className="rounded-full border border-gold/35 bg-gold/10 px-2 py-0.5 text-gold">READ follow-up</span>}
           </div>
           <h3 className="mt-1.5 font-display text-base font-semibold leading-snug text-white sm:text-lg">{question.prompt}</h3>
         </div>

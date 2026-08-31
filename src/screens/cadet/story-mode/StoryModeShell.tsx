@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { ArrowLeft, Loader2, RefreshCcw } from 'lucide-react';
-import { AbelOfferingLevel } from './AbelOfferingLevel';
 import { fetchStoryModeProgress, startStoryModeLevel } from './api';
-import { ABEL_LEVEL_SLUG } from './content';
+import { findStoryLevel } from './content';
 import { INITIAL_STORY_MACHINE, transitionStoryState } from './engine';
+import { StoryLevelPlayer } from './StoryLevelPlayer';
 import { StoryModeHome } from './StoryModeHome';
 import type { StoryAttempt, StoryProgress } from './types';
 
@@ -40,12 +40,12 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
     return () => { cancelled = true; };
   }, []);
 
-  const startLevel = useCallback(async () => {
+  const startLevel = useCallback(async (levelSlug: string) => {
     if (starting) return;
     setStarting(true);
     setError(null);
     try {
-      const nextAttempt = await startStoryModeLevel(ABEL_LEVEL_SLUG);
+      const nextAttempt = await startStoryModeLevel(levelSlug);
       setAttempt(nextAttempt);
       dispatch({
         type: 'START_LEVEL',
@@ -97,13 +97,16 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
   }
 
   if (attempt && !['home', 'browser'].includes(machine.phase)) {
+    const level = findStoryLevel(attempt.levelSlug);
+    if (!level) throw new Error(`Story Mode content is missing ${attempt.levelSlug}.`);
     return (
-      <AbelOfferingLevel
+      <StoryLevelPlayer
+        level={level}
         attempt={attempt}
         machine={machine}
         dispatch={dispatch}
         onExit={leaveLevel}
-        onReplay={startLevel}
+        onReplay={() => startLevel(attempt.levelSlug)}
         onBrowse={browseJourney}
         onProgressChanged={() => loadProgress().then(() => undefined)}
       />
@@ -119,7 +122,7 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
       onBackToDailyGames={onBackToDailyGames}
       onBrowse={() => dispatch({ type: 'OPEN_BROWSER' })}
       onCloseBrowse={() => dispatch({ type: 'CLOSE_BROWSER' })}
-      onStart={() => { void startLevel().catch(() => undefined); }}
+      onStart={(levelSlug) => { void startLevel(levelSlug).catch(() => undefined); }}
     />
   );
 }

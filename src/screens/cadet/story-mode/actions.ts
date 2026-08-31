@@ -16,6 +16,16 @@ export const STORY_ACTIONS: Record<StoryActionName, StoryActionDefinition> = {
   offer: { name: 'offer', cssClass: 'story-action-offer', durationMs: 1_500 },
   trip: { name: 'trip', cssClass: 'story-action-trip', durationMs: 750 },
   fall: { name: 'fall', cssClass: 'story-action-fall', durationMs: 850 },
+  follow: { name: 'follow', cssClass: 'story-action-follow', durationMs: 1_500 },
+  pursue: { name: 'pursue', cssClass: 'story-action-pursue', durationMs: 1_350 },
+  turn: { name: 'turn', cssClass: 'story-action-turn', durationMs: 650 },
+  confront: { name: 'confront', cssClass: 'story-action-confront', durationMs: 900 },
+  strike: { name: 'strike', cssClass: 'story-action-strike', durationMs: 720 },
+  recoil: { name: 'recoil', cssClass: 'story-action-recoil', durationMs: 620 },
+  collapse: { name: 'collapse', cssClass: 'story-action-collapse', durationMs: 1_050 },
+  lie_still: { name: 'lie_still', cssClass: 'story-action-lie-still', durationMs: 1_300 },
+  look_back: { name: 'look_back', cssClass: 'story-action-look-back', durationMs: 680 },
+  character_swap: { name: 'character_swap', cssClass: 'story-action-character-swap', durationMs: 1_100 },
   fade: { name: 'fade', cssClass: 'story-action-fade', durationMs: 700 },
 };
 

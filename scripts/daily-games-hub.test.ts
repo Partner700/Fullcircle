@@ -81,8 +81,9 @@ assert.match(arena, /if \(phase === 'waiting' && activeRoomId\)/);
 assert.match(story, /Story Mode/);
 assert.match(story, /Back to Daily Games/);
 assert.match(story, /StoryModeHome/);
-assert.match(story, /AbelOfferingLevel/);
-assert.match(story, /startStoryModeLevel\(ABEL_LEVEL_SLUG\)/);
+assert.match(story, /StoryLevelPlayer/);
+assert.match(story, /findStoryLevel\(attempt\.levelSlug\)/);
+assert.match(story, /startStoryModeLevel\(levelSlug\)/);
 for (const forbiddenStoryDependency of ['fetchNarrative', 'game_attempts', 'startDailyGameLevel', 'finishArenaGame']) {
   assert.ok(!story.toLowerCase().includes(forbiddenStoryDependency), `Story shell must not depend on ${forbiddenStoryDependency}.`);
 }
