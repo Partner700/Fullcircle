@@ -79,21 +79,27 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [heroHeld, setHeroHeld] = useState(false);
   const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
+  const loadRequestRef = useRef<Promise<void> | null>(null);
+  const lastForegroundRefreshRef = useRef(0);
 
   const today = getTodayISODate();
   const todayDate = new Date();
   const dayType = getDayType(todayDate);
 
-  const load = useCallback(async () => {
-    if (!profile) { setLoading(false); return; }
+  const load = useCallback(() => {
+    if (!profile) { setLoading(false); return Promise.resolve(); }
+    if (loadRequestRef.current) return loadRequestRef.current;
     if (!hasLoadedRef.current) setLoading(true);
-    try {
-      const [narr, recs, led, gms, chal, strict, quoteFeed, activeAnnouncements, activeFcx, activePanelImages] = await Promise.allSettled([
+
+    const request = (async () => {
+      const coreRequest = Promise.allSettled([
         fetchNarrative(today),
-        fetchDailyRecords(profile.id),
+        fetchDailyRecords(profile.id, `${today.slice(0, 7)}-01`),
         fetchLedgerEntries(profile.id, 100),
         fetchGameAttempts(profile.id, today),
         fetchChallengeSubmission(profile.id, today),
+      ]);
+      const secondaryRequest = Promise.allSettled([
         fetchStrictStreak(profile.id),
         fetchDailyQuoteFeed(12),
         fetchAnnouncements(),
@@ -103,51 +109,78 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);
-      setNarrative(narr.status === 'fulfilled' ? narr.value : null);
+
+      const [narr, recs, led, gms, chal] = await coreRequest;
+      if (narr.status === 'fulfilled') setNarrative(narr.value);
       const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
-      setRecords(recs.status === 'fulfilled' ? recs.value : []);
-      setLedger(led.status === 'fulfilled' ? led.value : []);
-      setGames(gms.status === 'fulfilled' ? gms.value : []);
-      setChallenge(chal.status === 'fulfilled' ? chal.value : null);
-      setStreakData(strict.status === 'fulfilled' ? strict.value : null);
-      const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
-      setQuotes(quoteItems);
-      setAnnouncements(activeAnnouncements.status === 'fulfilled' ? activeAnnouncements.value : []);
-      setFcxExperience(activeFcx.status === 'fulfilled' ? activeFcx.value : null);
-      setPanelImages(activePanelImages.status === 'fulfilled' ? activePanelImages.value : {});
-      // Reactions enrich the slideshow, but they should never hold the entire
-      // dashboard behind a loading screen on a slow mobile connection.
+      if (recs.status === 'fulfilled') setRecords(recs.value);
+      if (led.status === 'fulfilled') setLedger(led.value);
+      if (gms.status === 'fulfilled') setGames(gms.value);
+      if (chal.status === 'fulfilled') setChallenge(chal.value);
       setLoading(false);
       hasLoadedRef.current = true;
+
+      const [strict, quoteFeed, activeAnnouncements, activeFcx, activePanelImages] = await secondaryRequest;
+      if (strict.status === 'fulfilled') setStreakData(strict.value);
+      const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
+      if (quoteFeed.status === 'fulfilled') setQuotes(quoteItems);
+      if (activeAnnouncements.status === 'fulfilled') setAnnouncements(activeAnnouncements.value);
+      if (activeFcx.status === 'fulfilled') setFcxExperience(activeFcx.value);
+      if (activePanelImages.status === 'fulfilled') setPanelImages(activePanelImages.value);
       void fetchAwards()
         .then((awards) => {
           const currentMonth = today.slice(0, 7);
           setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === currentMonth).slice(0, 10));
         })
-        .catch(() => setMonthlyHonors([]));
+        .catch(() => undefined);
       const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
-        quoteItems.length > 0
+        quoteFeed.status === 'fulfilled' && quoteItems.length > 0
           ? fetchDailyQuoteReactions(quoteItems, profile.id)
           : Promise.resolve({}),
         activeNarrative?.verse_of_day
           ? fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id)
           : Promise.resolve({}),
       ]);
-      setQuoteReactions(
-        quoteReactionResult.status === 'fulfilled'
-          ? quoteReactionResult.value as Record<string, QuoteReactionState>
-          : {},
-      );
-      setVerseReactions(
-        verseReactionResult.status === 'fulfilled'
-          ? verseReactionResult.value as Record<string, QuoteReactionState>
-          : {},
-      );
-    } catch (e) { console.error('Dashboard load error:', e); }
-    setLoading(false);
+      if (quoteReactionResult.status === 'fulfilled' && quoteFeed.status === 'fulfilled') {
+        setQuoteReactions(quoteReactionResult.value as Record<string, QuoteReactionState>);
+      }
+      if (verseReactionResult.status === 'fulfilled' && narr.status === 'fulfilled') {
+        setVerseReactions(verseReactionResult.value as Record<string, QuoteReactionState>);
+      }
+    })().catch((error) => {
+      console.error('Dashboard load error:', error);
+      setLoading(false);
+    });
+
+    const shared = request.finally(() => {
+      if (loadRequestRef.current === shared) loadRequestRef.current = null;
+    });
+    loadRequestRef.current = shared;
+    return shared;
   }, [profile, today]);
 
   useEffect(() => { void load(); }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundRefreshRef.current < 20_000) return;
+      lastForegroundRefreshRef.current = now;
+      void load();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 120_000);
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [load, profile?.id]);
 
   useEffect(() => {
     if (!profile?.id) return;

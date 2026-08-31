@@ -99,6 +99,8 @@ const panelImages = read('src/lib/panelImages.ts');
 const panelImageBackdrop = read('src/components/PanelImageBackdrop.tsx');
 const foundersGiftRestoration = read('supabase/migrations/20260830130000_first_fcx_founders_streak_gift.sql');
 const foundersGiftPopup = read('src/components/FoundersGiftPopup.tsx');
+const messagingContext = read('src/context/MessagingContext.tsx');
+const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.ensure_sunday_highlight_reading',
@@ -435,6 +437,30 @@ assert.match(scriptureInsightReactions, /v_user_id uuid := auth\.uid\(\)/);
 assert.match(scriptureInsightReactions, /REVOKE ALL ON TABLE public\.scripture_insight_reactions FROM PUBLIC, anon, authenticated/);
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
+assert.ok(!cadetApp.includes('fetchLedgerTotal'), 'Cadet toolbar refresh must not duplicate the reliable balance request.');
+assert.ok(!cadetApp.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
+assert.match(cadetApp, /toolbarRequestRef/);
+assert.match(cadetApp, /notificationRefreshQueuedRef/);
+assert.match(cadetDashboard, /if \(narr\.status === 'fulfilled'\) setNarrative\(narr\.value\)/);
+assert.ok(
+  !cadetDashboard.includes("setNarrative(narr.status === 'fulfilled' ? narr.value : null)"),
+  'A transient dashboard request failure must not erase confirmed content.',
+);
+assert.match(sentryApp, /fetchPublicStreakDetails\(memberIds\)/);
+assert.ok(!sentryApp.includes('Promise.all(memberIds.map'), 'Sentry startup must batch cadet streak reads.');
+assert.match(batchedStreakHydration, /CREATE OR REPLACE FUNCTION public\.get_public_streak_details/);
+assert.match(batchedStreakHydration, /LEFT JOIN LATERAL public\.get_authoritative_streak/);
+assert.match(batchedStreakHydration, /REVOKE ALL ON FUNCTION public\.get_public_streak_details\(uuid\[\]\) FROM PUBLIC, anon/);
+assert.match(batchedStreakHydration, /GRANT EXECUTE ON FUNCTION public\.get_public_streak_details\(uuid\[\]\)[\s\S]*authenticated, service_role/);
+assert.match(sentryApp, /scheduleMemberRefresh/);
+assert.match(quoteQueries, /bootstrapDailyRemindersInBackground\(\)/);
+assert.ok(
+  !quoteQueries.includes("try { await supabase.rpc('ensure_daily_reminders')"),
+  'Reading announcements must not wait for reminder maintenance.',
+);
+assert.match(messagingContext, /if \(error\) return/);
+assert.match(messagingContext, /window\.addEventListener\('online', refreshWhenVisible\)/);
+assert.match(instructorApp, /if \(t\.status === 'fulfilled'\) setTents\(t\.value\)/);
 assert.match(frenchUi, /const lastAppliedText = new WeakMap<Text, string>\(\)/);
 assert.match(frenchUi, /current !== lastApplied/);
 assert.match(relicRecovery, /denarii_cost = 60000/);

@@ -29,8 +29,6 @@ import {
   fetchUnreadTentMessagesForUser,
   markTentMessageRead,
   fetchLedgerEntries,
-  fetchLedgerTotal,
-  fetchStrictStreak,
   fetchArenaRooms,
   fetchStreakProtectionState,
 } from '../../lib/queries';
@@ -251,6 +249,10 @@ export function CadetApp() {
   const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
   const streakLoadedRef = useRef(false);
   const toolbarStatsRef = useRef({ userId: '', denarii: 0, streak: 0 });
+  const toolbarRequestRef = useRef<Promise<void> | null>(null);
+  const notificationRequestRef = useRef<Promise<void> | null>(null);
+  const notificationRefreshQueuedRef = useRef(false);
+  const notificationLoaderRef = useRef<(() => Promise<void>) | null>(null);
   const lastForegroundRefreshRef = useRef(0);
 
   const isExpired = subscriptionIsExpired(subStatus, subscriptionClock);
@@ -293,59 +295,49 @@ export function CadetApp() {
       setTentInfo({ tent: null, members: [] });
       return;
     }
-    const { data: member } = await supabase
+    const { data: member, error: memberError } = await supabase
       .from('tent_members')
       .select('tent_id')
       .eq('user_id', profile.id)
       .maybeSingle();
+    if (memberError) return;
     if (member) {
-      const { data: tent } = await supabase
-        .from('tents')
-        .select('*, tent_houses(*)')
-        .eq('id', member.tent_id)
-        .maybeSingle();
-      const { data: members } = await supabase
-        .from('tent_members')
-        .select('*, profiles(id,display_name,avatar_url,created_at)')
-        .eq('tent_id', member.tent_id)
-        .order('joined_at');
-      setTentInfo({ tent: tent as any, members: (members || []) as any });
+      const [tentResult, membersResult] = await Promise.all([
+        supabase
+          .from('tents')
+          .select('*, tent_houses(*)')
+          .eq('id', member.tent_id)
+          .maybeSingle(),
+        supabase
+          .from('tent_members')
+          .select('*, profiles(id,display_name,avatar_url,created_at)')
+          .eq('tent_id', member.tent_id)
+          .order('joined_at'),
+      ]);
+      setTentInfo((previous) => ({
+        tent: tentResult.error ? previous.tent : tentResult.data as any,
+        members: membersResult.error ? previous.members : (membersResult.data || []) as any,
+      }));
     } else {
       setTentInfo({ tent: null, members: [] });
     }
   }, [profile]);
 
-  const loadToolbarStats = useCallback(async () => {
-    if (!toolbarUserId) {
-      return;
-    }
+  const loadToolbarStats = useCallback(() => {
+    if (!toolbarUserId) return Promise.resolve();
+    if (toolbarRequestRef.current) return toolbarRequestRef.current;
 
-    try {
-      const protection = await fetchStreakProtectionState().catch(() => null);
-      if (protection) setStreakProtection(protection);
-      const [reliableResult, denariiResult, streakResult] = await Promise.allSettled([
+    const request = (async () => {
+      const [protectionResult, reliableResult] = await Promise.allSettled([
+        fetchStreakProtectionState(),
         fetchReliableToolbarStats(toolbarUserId),
-        fetchLedgerTotal(toolbarUserId),
-        fetchStrictStreak(toolbarUserId),
       ]);
-      const reliable = reliableResult.status === 'fulfilled' ? reliableResult.value : null;
-      const directDenarii = denariiResult.status === 'fulfilled' ? Number(denariiResult.value) || 0 : 0;
-      const directStreak = streakResult.status === 'fulfilled' ? streakResult.value : null;
-      if (!reliable && denariiResult.status === 'rejected' && !directStreak) {
-        throw new Error('Toolbar stats were unavailable.');
-      }
+      if (protectionResult.status === 'fulfilled') setStreakProtection(protectionResult.value);
+      if (reliableResult.status !== 'fulfilled') return;
 
-      const stableDenarii = reliable
-        ? Number(reliable.total_denarii) || 0
-        : denariiResult.status === 'fulfilled'
-          ? directDenarii
-          : toolbarStatsRef.current.denarii;
-      const stableStreak = reliable
-        ? Number(reliable.current_streak) || 0
-        : directStreak
-          ? Number(directStreak.current_streak) || 0
-          : toolbarStatsRef.current.streak;
-
+      const reliable = reliableResult.value;
+      const stableDenarii = Number(reliable.total_denarii) || 0;
+      const stableStreak = Number(reliable.current_streak) || 0;
       toolbarStatsRef.current = {
         userId: toolbarUserId,
         denarii: stableDenarii,
@@ -363,10 +355,13 @@ export function CadetApp() {
         return stableStreak;
       });
       writeCachedTopbarStats(toolbarUserId, { denarii: stableDenarii, streak: stableStreak });
-    } catch {
-      // Keep the last confirmed values visible during a temporary network or
-      // schema-cache failure instead of replacing them with misleading zeroes.
-    }
+    })();
+
+    const shared = request.finally(() => {
+      if (toolbarRequestRef.current === shared) toolbarRequestRef.current = null;
+    });
+    toolbarRequestRef.current = shared;
+    return shared;
   }, [toolbarUserId]);
 
   useEffect(() => {
@@ -401,7 +396,7 @@ export function CadetApp() {
 
   useEffect(() => {
     if (!toolbarUserId) return;
-    const retryTimers = [0, 1_200, 4_000].map((delay) => window.setTimeout(() => {
+    const retryTimers = [0, 4_000].map((delay) => window.setTimeout(() => {
       void loadToolbarStats();
     }, delay));
     const resolveTimer = window.setTimeout(() => setToolbarReady(true), 6_000);
@@ -420,7 +415,7 @@ export function CadetApp() {
     setWalletRefreshKey((key) => key + 1);
   }, [loadToolbarStats]);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotificationsNow = useCallback(async () => {
     if (!profile) return;
     const notifs: CadetNotification[] = [];
     const persistedLedgerIds = new Set<string>();
@@ -732,18 +727,35 @@ export function CadetApp() {
     });
     setNotifications(deduped.slice(0, 40));
   }, [profile, subStatus, trialDaysLeft, tentInfo.members, readNotificationIds]);
+  notificationLoaderRef.current = loadNotificationsNow;
+
+  const loadNotifications = useCallback(() => {
+    if (notificationRequestRef.current) {
+      notificationRefreshQueuedRef.current = true;
+      return notificationRequestRef.current;
+    }
+    const request = (async () => {
+      do {
+        notificationRefreshQueuedRef.current = false;
+        await notificationLoaderRef.current?.();
+      } while (notificationRefreshQueuedRef.current);
+    })();
+    const shared = request.finally(() => {
+      if (notificationRequestRef.current === shared) notificationRequestRef.current = null;
+    });
+    notificationRequestRef.current = shared;
+    return shared;
+  }, [loadNotificationsNow]);
 
   const refreshCadetState = useCallback(async () => {
-    await Promise.allSettled([
-      refreshWallet(),
-      loadNotifications(),
-    ]);
+    const walletRequest = refreshWallet();
+    void loadNotifications();
+    await walletRequest.catch(() => undefined);
     setCadetRefreshKey((key) => key + 1);
     // Realtime can announce a committed daily-record change before every
     // derived streak RPC observes it. Confirm once more after propagation.
     window.setTimeout(() => {
       void loadToolbarStats();
-      setCadetRefreshKey((key) => key + 1);
     }, 900);
   }, [refreshWallet, loadNotifications, loadToolbarStats]);
 
@@ -759,9 +771,8 @@ export function CadetApp() {
 
   useEffect(() => {
     loadTentInfo();
-    refreshWallet();
     loadSubStatus();
-  }, [loadTentInfo, refreshWallet, loadSubStatus]);
+  }, [loadTentInfo, loadSubStatus]);
 
   useEffect(() => {
     if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
@@ -779,28 +790,31 @@ export function CadetApp() {
     const refreshVisibleState = () => {
       if (document.visibilityState !== 'visible') return;
       const now = Date.now();
-      if (now - lastForegroundRefreshRef.current < 1_500) return;
+      if (now - lastForegroundRefreshRef.current < 10_000) return;
       lastForegroundRefreshRef.current = now;
       void refreshCadetState();
     };
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadNotifications();
-    }, 30_000);
+    }, 90_000);
 
     window.addEventListener('focus', refreshVisibleState);
+    window.addEventListener('online', refreshVisibleState);
     document.addEventListener('visibilitychange', refreshVisibleState);
     window.addEventListener('full-circle-wallet-refresh', refreshVisibleState);
 
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', refreshVisibleState);
+      window.removeEventListener('online', refreshVisibleState);
       document.removeEventListener('visibilitychange', refreshVisibleState);
       window.removeEventListener('full-circle-wallet-refresh', refreshVisibleState);
     };
   }, [loadNotifications, refreshCadetState]);
 
   useEffect(() => {
-    loadNotifications();
+    const timer = window.setTimeout(() => { void loadNotifications(); }, 650);
+    return () => window.clearTimeout(timer);
   }, [loadNotifications]);
 
   useEffect(() => {
@@ -826,10 +840,8 @@ export function CadetApp() {
 
   useEffect(() => {
     if (!profile) return;
-    const refreshCadetWallet = () => {
-      setCadetRefreshKey((key) => key + 1);
-      void refreshCadetState();
-    };
+    const refreshCadetWallet = () => { void refreshWallet(); };
+    const refreshCadetProgress = () => { void refreshCadetState(); };
     const channel = supabase
       .channel(`cadet_wallet_${profile.id}`)
       .on(
@@ -855,16 +867,16 @@ export function CadetApp() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'daily_records', filter: `user_id=eq.${profile.id}` },
-        refreshCadetWallet,
+        refreshCadetProgress,
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` },
-        refreshCadetWallet,
+        refreshCadetProgress,
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile, refreshCadetState]);
+  }, [profile, refreshCadetState, refreshWallet]);
 
   const houseName = tentInfo.tent?.tent_houses?.name;
   const tentName = tentInfo.tent?.name;

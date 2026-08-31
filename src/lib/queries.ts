@@ -16,6 +16,32 @@ import { getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
 
+const sharedReadRequests = new Map<string, Promise<unknown>>();
+let lastReminderBootstrapAt = 0;
+
+function shareReadRequest<T>(key: string, factory: () => Promise<T>): Promise<T> {
+  const existing = sharedReadRequests.get(key) as Promise<T> | undefined;
+  if (existing) return existing;
+
+  const tracked = factory().finally(() => {
+    if (sharedReadRequests.get(key) === tracked) sharedReadRequests.delete(key);
+  });
+  sharedReadRequests.set(key, tracked);
+  return tracked;
+}
+
+function bootstrapDailyRemindersInBackground() {
+  const now = Date.now();
+  if (now - lastReminderBootstrapAt < 5 * 60_000) return;
+  lastReminderBootstrapAt = now;
+  void shareReadRequest('daily-reminder-bootstrap', async () => {
+    const { error } = await supabase.rpc('ensure_daily_reminders');
+    if (error) throw error;
+  }).catch(() => {
+    // Scheduled reminders remain server-driven; this is only a client fallback.
+  });
+}
+
 export async function fetchTentHouses() {
   const { data, error } = await supabase.from('tent_houses').select('*');
   if (error) throw error;
@@ -225,12 +251,13 @@ export async function fetchSentryAddableCadets(sentryId: string) {
   return data as { user_id: string; display_name: string; avatar_url: string | null }[];
 }
 
-export async function fetchDailyRecords(userId: string) {
-  const { data, error } = await supabase
+export async function fetchDailyRecords(userId: string, fromDate?: string) {
+  let query = supabase
     .from('daily_records')
     .select('*')
-    .eq('user_id', userId)
-    .order('record_date', { ascending: true });
+    .eq('user_id', userId);
+  if (fromDate) query = query.gte('record_date', fromDate);
+  const { data, error } = await query.order('record_date', { ascending: true });
   if (error) throw error;
   return data as DailyRecord[];
 }
@@ -1114,37 +1141,40 @@ export async function reactToAward(awardId: string, reactorId: string, reactionT
 }
 
 export async function fetchAnnouncements(audiences: string[] = ['all', 'cadets']) {
-  const now = new Date().toISOString();
-  try { await supabase.rpc('ensure_daily_reminders'); } catch { /* optional reminder bootstrap */ }
-  const [announcementResult, birthdayResult] = await Promise.allSettled([
-    supabase
-      .from('scheduled_announcements')
-      .select('*')
-      .lte('publish_at', now)
-      .or(`expires_at.is.null,expires_at.gt.${now}`)
-      .eq('is_active', true)
-      .in('audience', audiences)
-      .not('announcement_type', 'like', 'panel_image_%')
-      .not('announcement_type', 'like', 'sound_%')
-      .neq('announcement_type', 'weekly_background')
-      .order('publish_at', { ascending: false })
-      .limit(12),
-    audiences.includes('all') ? supabase.rpc('get_today_birthday_announcements') : Promise.resolve({ data: [], error: null }),
-  ]);
+  bootstrapDailyRemindersInBackground();
+  const normalizedAudiences = Array.from(new Set(audiences)).sort();
+  return shareReadRequest(`announcements:${normalizedAudiences.join(',')}`, async () => {
+    const now = new Date().toISOString();
+    const [announcementResult, birthdayResult] = await Promise.allSettled([
+      supabase
+        .from('scheduled_announcements')
+        .select('*')
+        .lte('publish_at', now)
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
+        .eq('is_active', true)
+        .in('audience', normalizedAudiences)
+        .not('announcement_type', 'like', 'panel_image_%')
+        .not('announcement_type', 'like', 'sound_%')
+        .neq('announcement_type', 'weekly_background')
+        .order('publish_at', { ascending: false })
+        .limit(12),
+      normalizedAudiences.includes('all') ? supabase.rpc('get_today_birthday_announcements') : Promise.resolve({ data: [], error: null }),
+    ]);
 
-  if (announcementResult.status === 'rejected') throw announcementResult.reason;
-  if (announcementResult.value.error) throw announcementResult.value.error;
-  const announcements = (announcementResult.value.data || []) as ScheduledAnnouncement[];
-  const birthdays = birthdayResult.status === 'fulfilled' && !birthdayResult.value.error
-    ? (birthdayResult.value.data || []) as ScheduledAnnouncement[]
-    : [];
-  const byId = new Map<string, ScheduledAnnouncement>();
-  [...birthdays, ...announcements].forEach((announcement) => {
-    byId.set(`${announcement.announcement_type}-${announcement.id}`, announcement);
+    if (announcementResult.status === 'rejected') throw announcementResult.reason;
+    if (announcementResult.value.error) throw announcementResult.value.error;
+    const announcements = (announcementResult.value.data || []) as ScheduledAnnouncement[];
+    const birthdays = birthdayResult.status === 'fulfilled' && !birthdayResult.value.error
+      ? (birthdayResult.value.data || []) as ScheduledAnnouncement[]
+      : [];
+    const byId = new Map<string, ScheduledAnnouncement>();
+    [...birthdays, ...announcements].forEach((announcement) => {
+      byId.set(`${announcement.announcement_type}-${announcement.id}`, announcement);
+    });
+    return Array.from(byId.values())
+      .sort((left, right) => new Date(right.publish_at).getTime() - new Date(left.publish_at).getTime())
+      .slice(0, 14);
   });
-  return Array.from(byId.values())
-    .sort((left, right) => new Date(right.publish_at).getTime() - new Date(left.publish_at).getTime())
-    .slice(0, 14);
 }
 
 export async function fetchPanelImage(
@@ -1176,28 +1206,32 @@ export async function fetchPanelImageSettings(
       : `panel_image_${panelType}`
   ))));
   if (announcementTypes.length === 0) return {};
-  const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from('scheduled_announcements')
-    .select('announcement_type, content, image_position_x, image_position_y, audience, publish_at')
-    .in('announcement_type', announcementTypes)
-    .lte('publish_at', now)
-    .eq('is_active', true)
-    .in('audience', audiences)
-    .order('publish_at', { ascending: false })
-    .limit(Math.max(20, announcementTypes.length * 6));
-  if (error) throw error;
-  const rows = ((data || []) as (ScheduledAnnouncement & { audience: string })[])
-    .filter((row) => row.content && isPanelImageContent(row.content));
-  const images: Record<string, PanelImageSetting> = {};
+  const normalizedTypes = [...announcementTypes].sort();
+  const normalizedAudiences = Array.from(new Set(audiences)).sort();
+  return shareReadRequest(`panel-images:${normalizedTypes.join(',')}:${normalizedAudiences.join(',')}`, async () => {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('scheduled_announcements')
+      .select('announcement_type, content, image_position_x, image_position_y, audience, publish_at')
+      .in('announcement_type', normalizedTypes)
+      .lte('publish_at', now)
+      .eq('is_active', true)
+      .in('audience', normalizedAudiences)
+      .order('publish_at', { ascending: false })
+      .limit(Math.max(20, normalizedTypes.length * 6));
+    if (error) throw error;
+    const rows = ((data || []) as (ScheduledAnnouncement & { audience: string })[])
+      .filter((row) => row.content && isPanelImageContent(row.content));
+    const images: Record<string, PanelImageSetting> = {};
 
-  announcementTypes.forEach((type) => {
-    const candidates = rows.filter((row) => row.announcement_type === type);
-    const preferred = candidates.find((row) => row.audience !== 'all') || candidates[0];
-    if (preferred) images[type.replace('panel_image_', '')] = panelImageFromAnnouncement(preferred);
+    normalizedTypes.forEach((type) => {
+      const candidates = rows.filter((row) => row.announcement_type === type);
+      const preferred = candidates.find((row) => row.audience !== 'all') || candidates[0];
+      if (preferred) images[type.replace('panel_image_', '')] = panelImageFromAnnouncement(preferred);
+    });
+
+    return images;
   });
-
-  return images;
 }
 
 export async function fetchAllAnnouncements() {
@@ -1211,9 +1245,11 @@ export async function fetchAllAnnouncements() {
 }
 
 export async function fetchActiveFcxExperience() {
-  const { data, error } = await supabase.rpc('get_active_fcx_experience');
-  if (error) throw error;
-  return data ? data as FcxExperience : null;
+  return shareReadRequest('active-fcx-experience', async () => {
+    const { data, error } = await supabase.rpc('get_active_fcx_experience');
+    if (error) throw error;
+    return data ? data as FcxExperience : null;
+  });
 }
 
 export async function saveFcxExperience(input: {
@@ -1897,9 +1933,11 @@ export async function fetchQuizTaggedGameQuestions(limit = 50) {
 }
 
 export async function fetchDailyQuoteFeed(limit = 12) {
-  const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
-  if (error) throw error;
-  return mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
+  return shareReadRequest(`daily-quote-feed:${limit}`, async () => {
+    const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
+    if (error) throw error;
+    return mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
+  });
 }
 
 export async function fetchPublicQuoteStreak(userId: string) {
@@ -2854,6 +2892,27 @@ export async function fetchArenaRoom(roomId: string) {
 }
 
 // ── Strict streak ──
+
+export type PublicStreakDetails = {
+  current_streak: number;
+  longest_streak: number;
+  consecutive_inactive: number;
+  cumulative_inactive: number;
+};
+
+export async function fetchPublicStreakDetails(userIds: string[]) {
+  const ids = Array.from(new Set(userIds.filter(Boolean)));
+  if (ids.length === 0) return {} as Record<string, PublicStreakDetails>;
+  const { data, error } = await supabase.rpc('get_public_streak_details', { p_user_ids: ids });
+  if (error) throw error;
+  const rows = (data || []) as Array<{ user_id: string; current_streak: number; longest_streak: number; consecutive_inactive: number; cumulative_inactive: number }>;
+  return Object.fromEntries(rows.map((row) => [String(row.user_id), {
+    current_streak: Number(row.current_streak) || 0,
+    longest_streak: Number(row.longest_streak) || 0,
+    consecutive_inactive: Number(row.consecutive_inactive) || 0,
+    cumulative_inactive: Number(row.cumulative_inactive) || 0,
+  }])) as Record<string, PublicStreakDetails>;
+}
 
 export async function fetchStrictStreak(userId: string) {
   try {

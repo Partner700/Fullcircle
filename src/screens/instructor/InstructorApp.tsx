@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
@@ -196,37 +196,78 @@ export function InstructorApp() {
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
   const [awards, setAwards] = useState<AwardWithRecipient[]>([]);
   const [loading, setLoading] = useState(true);
+  const dashboardLoadRef = useRef<Promise<void> | null>(null);
+  const fullLoadRef = useRef<Promise<void> | null>(null);
+  const hasLoadedRef = useRef(false);
+  const lastForegroundRefreshRef = useRef(0);
 
-  const loadDashboardData = useCallback(async () => {
-    setLoading(true);
-    const [t, m, r, n] = await Promise.allSettled([
-      fetchTents(), fetchTentMembers(), fetchAllRoleAssignments(), fetchAllNarratives(),
-    ]);
-    setTents(t.status === 'fulfilled' ? t.value : []);
-    setMembers(m.status === 'fulfilled' ? m.value : []);
-    setRoles(r.status === 'fulfilled' ? r.value : []);
-    setNarratives(n.status === 'fulfilled' ? n.value : []);
-    setLoading(false);
+  const loadDashboardData = useCallback(() => {
+    if (dashboardLoadRef.current) return dashboardLoadRef.current;
+    if (!hasLoadedRef.current) setLoading(true);
+    const request = (async () => {
+      const [t, m, r, n] = await Promise.allSettled([
+        fetchTents(), fetchTentMembers(), fetchAllRoleAssignments(), fetchAllNarratives(),
+      ]);
+      if (t.status === 'fulfilled') setTents(t.value);
+      if (m.status === 'fulfilled') setMembers(m.value);
+      if (r.status === 'fulfilled') setRoles(r.value);
+      if (n.status === 'fulfilled') setNarratives(n.value);
+      hasLoadedRef.current = true;
+      setLoading(false);
+    })();
+    const shared = request.finally(() => {
+      if (dashboardLoadRef.current === shared) dashboardLoadRef.current = null;
+    });
+    dashboardLoadRef.current = shared;
+    return shared;
   }, []);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    const [t, m, p, r, n, a] = await Promise.allSettled([
-      fetchTents(), fetchTentMembers(), fetchAllProfiles(),
-      fetchAllRoleAssignments(), fetchAllNarratives(), fetchAwards(),
-    ]);
-    setTents(t.status === 'fulfilled' ? t.value : []);
-    setMembers(m.status === 'fulfilled' ? m.value : []);
-    setProfiles(p.status === 'fulfilled' ? p.value : []);
-    setRoles(r.status === 'fulfilled' ? r.value : []);
-    setNarratives(n.status === 'fulfilled' ? n.value : []);
-    setAwards(a.status === 'fulfilled' ? a.value : []);
-    setLoading(false);
+  const loadAll = useCallback(() => {
+    if (fullLoadRef.current) return fullLoadRef.current;
+    if (!hasLoadedRef.current) setLoading(true);
+    const request = (async () => {
+      const [t, m, p, r, n, a] = await Promise.allSettled([
+        fetchTents(), fetchTentMembers(), fetchAllProfiles(),
+        fetchAllRoleAssignments(), fetchAllNarratives(), fetchAwards(),
+      ]);
+      if (t.status === 'fulfilled') setTents(t.value);
+      if (m.status === 'fulfilled') setMembers(m.value);
+      if (p.status === 'fulfilled') setProfiles(p.value);
+      if (r.status === 'fulfilled') setRoles(r.value);
+      if (n.status === 'fulfilled') setNarratives(n.value);
+      if (a.status === 'fulfilled') setAwards(a.value);
+      hasLoadedRef.current = true;
+      setLoading(false);
+    })();
+    const shared = request.finally(() => {
+      if (fullLoadRef.current === shared) fullLoadRef.current = null;
+    });
+    fullLoadRef.current = shared;
+    return shared;
   }, []);
 
   // The landing dashboard does not need every profile or historical award.
   // Defer those larger management datasets until a management screen is opened.
   useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundRefreshRef.current < 30_000) return;
+      lastForegroundRefreshRef.current = now;
+      void loadDashboardData();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 2 * 60_000);
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [loadDashboardData]);
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', quiz: 'Quiz Builder',
