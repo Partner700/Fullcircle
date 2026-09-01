@@ -55,6 +55,45 @@ function messageProfile(userId: string, displayName: string, avatarUrl?: string 
   };
 }
 
+type InsightParticipantSource = {
+  user_id: string;
+  profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
+  comments?: Array<{
+    user_id: string;
+    profile?: { display_name?: string | null; avatar_url?: string | null } | null;
+  }>;
+  reactions?: Partial<Record<VerseInsightReactionType, {
+    actors?: Array<{ user_id: string; display_name?: string | null; avatar_url?: string | null }>;
+  }>>;
+};
+
+function insightParticipants(insights: InsightParticipantSource[]) {
+  const participants = new Map<string, { userId: string; displayName: string; avatarUrl: string | null }>();
+  const addParticipant = (userId?: string | null, displayName?: string | null, avatarUrl?: string | null) => {
+    if (!userId) return;
+    const existing = participants.get(userId);
+    participants.set(userId, {
+      userId,
+      displayName: displayName || existing?.displayName || 'Reader',
+      avatarUrl: avatarUrl || existing?.avatarUrl || null,
+    });
+  };
+
+  insights.forEach((insight) => {
+    addParticipant(insight.user_id, insight.profiles?.display_name, insight.profiles?.avatar_url);
+    (insight.comments || []).forEach((comment) => {
+      addParticipant(comment.user_id, comment.profile?.display_name, comment.profile?.avatar_url);
+    });
+    INSIGHT_REACTIONS.forEach(({ type }) => {
+      (insight.reactions?.[type]?.actors || []).forEach((actor) => {
+        addParticipant(actor.user_id, actor.display_name, actor.avatar_url);
+      });
+    });
+  });
+
+  return Array.from(participants.values());
+}
+
 function MentionTextarea({
   value,
   onChange,
@@ -910,6 +949,7 @@ export function CadetNarrative({
             ));
             const hasInsight = Boolean(verse.meditation?.trim());
             const hasReaderInsight = userInsights.length > 0;
+            const participants = insightParticipants(userInsights);
             const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
             const taggedMe = userInsights.some((item: any) =>
               (item.mentioned_user_ids || []).includes(profile?.id)
@@ -969,6 +1009,22 @@ export function CadetNarrative({
                       {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
                     </button>
                   </div>
+                  {!userExpanded && participants.length > 0 && (
+                    <div
+                      className="mt-3 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1"
+                      aria-label={`${participants.length} reader insight participant${participants.length === 1 ? '' : 's'}`}
+                    >
+                      {participants.map((participant) => (
+                        <MessageAvatar
+                          key={participant.userId}
+                          profile={messageProfile(participant.userId, participant.displayName, participant.avatarUrl)}
+                          currentUserId={profile?.id}
+                          size="xs"
+                          className="shrink-0"
+                        />
+                      ))}
+                    </div>
+                  )}
                   {userExpanded && (
                     <div className="mt-3 space-y-3">
                       {userInsights.map((item: any) => {
@@ -1032,7 +1088,7 @@ export function CadetNarrative({
                               ).values()).slice(0, 5);
                               if (!actors.length) return null;
                               return (
-                                <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                <div className="mt-2 flex items-center -space-x-4" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
                                   {actors.map((actor: any) => (
                                     <MessageAvatar
                                       key={actor.user_id}

@@ -45,7 +45,7 @@ export function AwardReactions({ state = {}, disabled = false, currentUserId, on
         })}
       </div>
       {actors.length > 0 && (
-        <div className="flex items-center -space-x-1" aria-label={`${actors.length} camp members reacted`}>
+        <div className="flex items-center -space-x-4" aria-label={`${actors.length} camp members reacted`}>
           {actors.map((actor) => (
             <MessageAvatar
               key={actor.user_id}

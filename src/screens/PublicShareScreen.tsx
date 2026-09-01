@@ -136,9 +136,9 @@ function InsightThread({
         ).values()).slice(0, 5);
         if (!actors.length) return null;
         return (
-          <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp members reacted`}>
+          <div className="mt-2 flex items-center -space-x-4" aria-label={`${actors.length} camp members reacted`}>
             {actors.map((actor) => (
-              <span key={actor.user_id} title={actor.display_name} className="inline-flex h-8 w-8 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-center text-[10px] font-bold leading-8 text-peri shadow-sm">
+              <span key={actor.user_id} title={actor.display_name} className="inline-flex h-16 w-16 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-center text-sm font-bold leading-[4rem] text-peri shadow-sm">
                 {actor.avatar_url
                   ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" loading="lazy" />
                   : actor.display_name.charAt(0).toUpperCase()}
