@@ -437,7 +437,7 @@ export function MessageAvatar({
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
   const { requireSubscription } = useSubscriptionAccess();
-  const sizeClass = size === 'xs' ? 'h-16 w-16 text-sm' : size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
+  const sizeClass = size === 'xs' ? 'h-8 w-8 text-[10px]' : size === 'sm' ? 'w-9 h-9 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-10 h-10 text-sm';
   const isMe = profile.id === currentUserId;
   const unreadCount = !isMe && currentUserId ? unreadBySender[profile.id] || 0 : 0;
 
@@ -466,7 +466,7 @@ export function MessageAvatar({
           {unreadCount > 0 && (
             <span className={cn(
               'absolute z-10 inline-flex items-center justify-center rounded-full border border-bg bg-coral font-black leading-none text-white shadow-md',
-              size === 'xs' ? '-right-1 -top-1 min-h-5 min-w-5 px-1 text-[9px]' : '-right-1 -top-1 min-h-4 min-w-4 px-1 text-[9px]',
+              size === 'xs' ? '-right-1 -top-1 min-h-4 min-w-4 px-1 text-[8px]' : '-right-1 -top-1 min-h-4 min-w-4 px-1 text-[9px]',
             )}>
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
