@@ -102,6 +102,7 @@ const foundersGiftPopup = read('src/components/FoundersGiftPopup.tsx');
 const messagingContext = read('src/context/MessagingContext.tsx');
 const readingDrafts = read('src/lib/readingDrafts.ts');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
+const phStreakContinuity = read('supabase/migrations/20260902090000_preserve_ph_verified_streak_continuity.sql');
 const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_noah_ark_construction.sql');
 const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_book_completion.sql');
 
@@ -394,6 +395,20 @@ assert.match(authoritativeStreakLifecycle, /THEN 27[\s\S]*THEN 26/);
 assert.match(authoritativeStreakLifecycle, /Restored verified Courage Webnjoh 26-day streak/);
 assert.match(authoritativeStreakLifecycle, /SELECT public\.refresh_all_streak_snapshots\(\)/);
 assert.match(authoritativeStreakLifecycle, /full-circle-streak-snapshots/);
+for (const required of [
+  'v_manual_baseline_date',
+  'v_snapshot_baseline_date',
+  'snapshot.snapshot_date < v_today',
+  'snapshot.snapshot_date > v_manual_baseline_date',
+  'ORDER BY snapshot.snapshot_date DESC',
+  "date '2026-09-01'",
+  "= 'ph'",
+  "attendance_status = 'present'",
+  'Restored PH continuity after verified 1 September weekday completion',
+  'public.refresh_user_streak_snapshot(v_ph_user_id)',
+]) {
+  assert.ok(phStreakContinuity.includes(required), `Missing PH streak continuity boundary: ${required}`);
+}
 for (const required of [
   'streakboard_one_user_per_day_idx',
   'ON CONFLICT (snapshot_date, user_id) DO UPDATE',
