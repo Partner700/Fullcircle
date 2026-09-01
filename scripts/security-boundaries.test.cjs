@@ -102,6 +102,7 @@ const foundersGiftPopup = read('src/components/FoundersGiftPopup.tsx');
 const messagingContext = read('src/context/MessagingContext.tsx');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
 const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_noah_ark_construction.sql');
+const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_book_completion.sql');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -119,6 +120,26 @@ for (const required of [
 assert.doesNotMatch(noahArkConstruction, /story_mode_marks|INSERT INTO public\.[a-z_]*marks/);
 for (const externalSystem of ['game_attempts', 'arena_rooms', 'denarii_ledger_entries', 'daily_game_runs']) {
   assert.doesNotMatch(noahArkConstruction, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`));
+}
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.story_mode_environment_sequences',
+  'CREATE TABLE IF NOT EXISTS public.story_mode_environment_stages',
+  'CREATE TABLE IF NOT EXISTS public.story_mode_attempt_environment_progress',
+  'CREATE TABLE IF NOT EXISTS public.story_mode_book_completions',
+  'ALTER TABLE public.story_mode_attempt_environment_progress ENABLE ROW LEVEL SECURITY',
+  'FROM PUBLIC, anon, authenticated',
+  'Story Mode environment stages cannot be skipped or duplicated',
+  'Every mandatory Story Mode environment milestone must be settled before level completion',
+  'Book I cannot complete before the covenant and rainbow sequence',
+  'get_my_story_mode_environment_state',
+  'get_my_story_mode_book_completion',
+]) {
+  assert.ok(noahFloodBook.includes(required), `Missing Flood/Book I authority boundary: ${required}`);
+}
+assert.doesNotMatch(noahFloodBook, /story_mode_marks|INSERT INTO public\.[a-z_]*marks/);
+for (const externalSystem of ['game_attempts', 'arena_rooms', 'denarii_ledger_entries', 'daily_game_runs']) {
+  assert.doesNotMatch(noahFloodBook, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`));
 }
 
 for (const required of [

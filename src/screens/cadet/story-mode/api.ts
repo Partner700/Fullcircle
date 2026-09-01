@@ -5,7 +5,9 @@ import type {
   StoryAttempt,
   StoryBuildComponentKey,
   StoryBuildState,
+  StoryBookCompletionStats,
   StoryDeadline,
+  StoryEnvironmentState,
   StoryProgress,
   StoryQuestionPayload,
 } from './types';
@@ -43,7 +45,7 @@ function parseQuestion(value: unknown): StoryQuestionPayload | null {
 }
 
 function parseCheckpointState(value: unknown): StoryAttempt['checkpointState'] {
-  if (value === 'question_approach' || value === 'canonical_event' || value === 'level_complete' || value === 'chapter_complete') return value;
+  if (value === 'question_approach' || value === 'canonical_event' || value === 'level_complete' || value === 'chapter_complete' || value === 'book_complete') return value;
   return 'intro';
 }
 
@@ -69,8 +71,74 @@ function parseBuildState(value: unknown): StoryBuildState | null {
   };
 }
 
+function parseEnvironmentState(value: unknown): StoryEnvironmentState | null {
+  if (value === null || value === undefined) return null;
+  const row = requiredObject(value, 'Story environment state');
+  const weather = String(row.weather || 'none') as StoryEnvironmentState['weather'];
+  const waterTrend = String(row.water_trend || 'none') as StoryEnvironmentState['waterTrend'];
+  const terrainState = String(row.terrain_state || 'dry') as StoryEnvironmentState['terrainState'];
+  const traversalMode = String(row.traversal_mode || 'ground') as StoryEnvironmentState['traversalMode'];
+  const arkState = String(row.ark_state || 'prepared') as StoryEnvironmentState['arkState'];
+  const birdKind = String(row.bird_kind || 'none') as StoryEnvironmentState['birdKind'];
+  const birdState = String(row.bird_state || 'none') as StoryEnvironmentState['birdState'];
+  return {
+    sequenceId: String(row.sequence_id || ''),
+    label: String(row.label || 'Environment'),
+    stageOrder: Math.max(0, Number(row.stage_order) || 0),
+    stageSlug: String(row.stage_slug || 'ready'),
+    totalStages: Math.max(0, Number(row.total_stages) || 0),
+    completed: Boolean(row.completed),
+    weather,
+    weatherIntensity: Math.min(4, Math.max(0, Number(row.weather_intensity) || 0)) as StoryEnvironmentState['weatherIntensity'],
+    waterStage: Math.min(7, Math.max(0, Number(row.water_stage) || 0)),
+    waterTrend,
+    terrainState,
+    traversalMode,
+    arkState,
+    birdKind,
+    birdState,
+    oliveLeafVisible: Boolean(row.olive_leaf_visible),
+    altarVisible: Boolean(row.altar_visible),
+    rainbowVisible: Boolean(row.rainbow_visible),
+    checkpointId: String(row.checkpoint_id || ''),
+  };
+}
+
+function parseBookStats(value: unknown): StoryBookCompletionStats {
+  const row = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return {
+    bookSlug: String(row.book_slug || 'beginnings'),
+    completed: Boolean(row.completed),
+    chaptersCompleted: Number(row.chapters_completed) || 0,
+    levelsCompleted: Number(row.levels_completed) || 0,
+    questionsEncountered: Number(row.questions_encountered) || 0,
+    successfulResponses: Number(row.successful_responses) || 0,
+    completionPercentage: Number(row.completion_percentage) || 0,
+    figsEarned: Number(row.figs_earned) || 0,
+    denariiEarned: Number(row.denarii_earned) || 0,
+    completedAt: row.completed_at ? String(row.completed_at) : null,
+  };
+}
+
+async function fetchStoryBookCompletion(): Promise<StoryBookCompletionStats> {
+  const { data, error } = await supabase.rpc('get_my_story_mode_book_completion', { p_book_slug: 'beginnings' });
+  if (error) throw error;
+  return parseBookStats(rpcRow(data));
+}
+
+async function fetchStoryEnvironmentState(attemptId: string): Promise<StoryEnvironmentState | null> {
+  const { data, error } = await supabase.rpc('get_my_story_mode_environment_state', { p_attempt_id: attemptId });
+  if (error) throw error;
+  return parseEnvironmentState(rpcRow(data));
+}
+
 export async function fetchStoryModeProgress(): Promise<StoryProgress> {
-  const { data, error } = await supabase.rpc('get_my_story_mode_progress');
+  const [{ data, error }, bookStats] = await Promise.all([
+    supabase.rpc('get_my_story_mode_progress'),
+    fetchStoryBookCompletion(),
+  ]);
   if (error) throw error;
   const row = requiredObject(rpcRow(data), 'Story progress');
   const levels = Array.isArray(row.levels) ? row.levels : [];
@@ -86,6 +154,8 @@ export async function fetchStoryModeProgress(): Promise<StoryProgress> {
     chapterCompleted: Boolean(row.chapter_completed),
     chapterFigsEarned: Number(row.chapter_figs_earned) || 0,
     chapterDenariiEarned: Number(row.chapter_denarii_earned) || 0,
+    bookCompleted: bookStats.completed,
+    bookStats,
     chapters: chapters.map((item) => {
       const chapter = requiredObject(item, 'Story chapter progress');
       return {
@@ -117,8 +187,10 @@ export async function startStoryModeLevel(levelSlug: string): Promise<StoryAttem
   const { data, error } = await supabase.rpc('start_story_mode_level', { p_level_slug: levelSlug });
   if (error) throw error;
   const row = requiredObject(rpcRow(data), 'Story attempt');
+  const attemptId = String(row.attempt_id || '');
+  const environmentState = await fetchStoryEnvironmentState(attemptId);
   return {
-    attemptId: String(row.attempt_id || ''),
+    attemptId,
     levelSlug: String(row.level_slug || ''),
     checkpointId: String(row.checkpoint_id || ''),
     checkpointState: parseCheckpointState(row.checkpoint_state),
@@ -131,6 +203,7 @@ export async function startStoryModeLevel(levelSlug: string): Promise<StoryAttem
     question: parseQuestion(row.question),
     pendingEventId: row.pending_event_id ? String(row.pending_event_id) : null,
     buildState: parseBuildState(row.build_state),
+    environmentState,
   };
 }
 
@@ -187,7 +260,15 @@ export async function submitStoryAnswer(input: {
     p_submission_id: input.submissionId,
   });
   if (error) throw error;
-  return parseStoryResult(data, 'Story answer');
+  const result = parseStoryResult(data, 'Story answer');
+  result.environmentState = await fetchStoryEnvironmentState(input.attemptId);
+  if (result.levelComplete) {
+    const bookStats = await fetchStoryBookCompletion();
+    result.bookComplete = bookStats.completed;
+    result.bookStats = bookStats;
+    if (bookStats.completed) result.chapterComplete = true;
+  }
+  return result;
 }
 
 function parseStoryResult(data: unknown, label: string): StoryAnswerResult {
@@ -212,6 +293,9 @@ function parseStoryResult(data: unknown, label: string): StoryAnswerResult {
     nextQuestion: parseQuestion(row.next_question),
     levelsCompleted: Number(row.levels_completed) || 0,
     buildState: parseBuildState(row.build_state),
+    environmentState: parseEnvironmentState(row.environment_state),
+    bookComplete: Boolean(row.book_complete),
+    bookStats: row.book_stats ? parseBookStats(row.book_stats) : null,
   };
 }
 
@@ -226,7 +310,14 @@ export async function settleStoryCanonicalEvent(input: {
     p_submission_id: input.submissionId,
   });
   if (error) throw error;
-  return parseStoryResult(data, 'Story canonical event');
+  const result = parseStoryResult(data, 'Story canonical event');
+  result.environmentState = await fetchStoryEnvironmentState(input.attemptId);
+  if (result.levelComplete) {
+    const bookStats = await fetchStoryBookCompletion();
+    result.bookComplete = bookStats.completed;
+    result.bookStats = bookStats;
+  }
+  return result;
 }
 
 export async function reachStoryCanonicalEvent(attemptId: string, eventId: string) {

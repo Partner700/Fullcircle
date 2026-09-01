@@ -107,6 +107,7 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
         dispatch={dispatch}
         onExit={leaveLevel}
         onReplay={() => startLevel(attempt.levelSlug)}
+        onReplayBook={() => startLevel('abel-offering')}
         onBrowse={browseJourney}
         onProgressChanged={() => loadProgress().then(() => undefined)}
       />

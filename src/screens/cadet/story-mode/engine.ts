@@ -34,7 +34,7 @@ export type StoryMachineEvent =
   | { type: 'HOME_READY' }
   | { type: 'OPEN_BROWSER' }
   | { type: 'CLOSE_BROWSER' }
-  | { type: 'START_LEVEL'; checkpointId: string; checkpointState: 'intro' | 'question_approach' | 'canonical_event' | 'level_complete' | 'chapter_complete'; questionActive?: boolean; paused?: boolean }
+  | { type: 'START_LEVEL'; checkpointId: string; checkpointState: 'intro' | 'question_approach' | 'canonical_event' | 'level_complete' | 'chapter_complete' | 'book_complete'; questionActive?: boolean; paused?: boolean }
   | { type: 'INTRO_COMPLETE' }
   | { type: 'OPEN_READ'; returnPhase?: StoryPhase }
   | { type: 'READ_COMPLETE' }
@@ -82,6 +82,8 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
       const restoredAtCanonicalEvent = event.checkpointState === 'canonical_event';
       const phase: StoryPhase = event.paused
         ? 'paused'
+        : event.checkpointState === 'book_complete'
+          ? 'book_complete'
         : event.checkpointState === 'chapter_complete'
           ? 'chapter_complete'
         : restoredAtCanonicalEvent
@@ -96,7 +98,7 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
       return {
         phase,
         resumePhase: event.paused
-          ? (restoredAtCanonicalEvent ? 'canonical_transition' : event.questionActive ? 'question_active' : event.checkpointState === 'level_complete' ? 'level_complete' : restoredAtQuestion ? 'checkpoint' : 'intro')
+          ? (event.checkpointState === 'book_complete' ? 'book_complete' : restoredAtCanonicalEvent ? 'canonical_transition' : event.questionActive ? 'question_active' : event.checkpointState === 'level_complete' ? 'level_complete' : restoredAtQuestion ? 'checkpoint' : 'intro')
           : null,
         checkpointId: event.checkpointId,
         action: restoredAtQuestion ? 'stop' : 'idle',
@@ -134,6 +136,7 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
     case 'ACTION_COMPLETE':
       if (state.phase === 'correct_action') {
         if (state.result?.canonicalEventPending) return { ...state, phase: 'canonical_transition', action: 'confront' };
+        if (state.result?.bookComplete) return { ...state, phase: 'book_complete', action: 'observe' };
         if (state.result?.chapterComplete) return { ...state, phase: 'chapter_complete', action: 'idle' };
         if (state.result?.levelComplete) return { ...state, phase: 'level_complete', action: 'offer' };
         return { ...state, phase: 'checkpoint', checkpointId: state.result?.checkpointId || state.checkpointId, action: 'idle' };
@@ -148,9 +151,9 @@ export function transitionStoryState(state: StoryMachineState, event: StoryMachi
       if (state.phase !== 'canonical_transition' && state.phase !== 'character_transition') return state;
       return {
         ...state,
-        phase: event.result.chapterComplete ? 'chapter_complete' : 'level_complete',
+        phase: event.result.bookComplete ? 'book_complete' : event.result.chapterComplete ? 'chapter_complete' : 'level_complete',
         checkpointId: event.result.checkpointId,
-        action: event.result.chapterComplete ? 'character_swap' : 'lie_still',
+        action: event.result.bookComplete ? 'observe' : event.result.chapterComplete ? 'character_swap' : 'lie_still',
         result: event.result,
       };
     case 'RETRY':
@@ -202,6 +205,7 @@ export function storyPhaseProgress(phase: StoryPhase) {
     character_transition: 72,
     level_complete: 82,
     chapter_complete: 90,
+    book_complete: 100,
     paused: 55,
   };
   return positions[phase] ?? 10;

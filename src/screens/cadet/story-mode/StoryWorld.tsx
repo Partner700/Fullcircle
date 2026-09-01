@@ -5,7 +5,8 @@ import { STORY_CHARACTER_LABELS } from './characters';
 import { findStoryBuild } from './content';
 import { storyPhaseProgress, type StoryMachineState, type StoryPhase } from './engine';
 import { StoryConstruction } from './StoryConstruction';
-import type { StoryActionName, StoryBuildState, StorySceneDefinition } from './types';
+import { StoryEnvironmentEffects } from './StoryEnvironmentEffects';
+import type { StoryActionName, StoryBuildState, StoryEnvironmentState, StorySceneDefinition } from './types';
 
 interface StoryWorldProps {
   machine: StoryMachineState;
@@ -15,6 +16,7 @@ interface StoryWorldProps {
   paused: boolean;
   busy: boolean;
   buildState: StoryBuildState | null;
+  environmentState: StoryEnvironmentState | null;
   onPause: () => void;
   onResume: () => void;
   children?: ReactNode;
@@ -28,13 +30,13 @@ function obstacleStyle(x: number, scale = 1): CSSProperties {
   return { left: `${x}%`, transform: `translateX(-50%) scale(${scale})` };
 }
 
-export function StoryWorld({ machine, scene, action, scriptureLabel, paused, busy, buildState, onPause, onResume, children }: StoryWorldProps) {
+export function StoryWorld({ machine, scene, action, scriptureLabel, paused, busy, buildState, environmentState, onPause, onResume, children }: StoryWorldProps) {
   const phase = visualPhase(machine);
   const progressPosition = storyPhaseProgress(phase);
   const farShift = -Math.max(0, progressPosition - 10) * 0.08;
   const nearShift = -Math.max(0, progressPosition - 10) * 0.16;
   const fieldShift = -Math.max(0, progressPosition - 10) * 0.24;
-  const correct = phase === 'correct_action' || phase === 'level_complete' || phase === 'chapter_complete';
+  const correct = phase === 'correct_action' || phase === 'level_complete' || phase === 'chapter_complete' || phase === 'book_complete';
   const wrong = phase === 'wrong_action' || phase === 'failure';
   const labels = scene.characters.map((placement) => STORY_CHARACTER_LABELS[placement.id]).join(' and ') || 'the narrative';
   const timePassage = scene.environment.timePassage || 'none';
@@ -43,10 +45,13 @@ export function StoryWorld({ machine, scene, action, scriptureLabel, paused, bus
   const travelDuration = `${scene.durationMs || 4_100}ms`;
   const buildDefinition = scene.constructionId ? findStoryBuild(scene.constructionId) : null;
   const visibleBuildState = buildDefinition && buildState?.constructionId === buildDefinition.id ? buildState : null;
+  const environmentClasses = environmentState
+    ? `story-environment-${environmentState.stageSlug} story-terrain-${environmentState.terrainState} story-traversal-${environmentState.traversalMode} story-ark-${environmentState.arkState}`
+    : '';
 
   return (
     <section
-      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${scene.environment.weather} story-passage-${timePassage} story-locomotion-${locomotion} story-elevation-${elevation} story-camera-${scene.camera?.framing || 'follow'} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
+      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${environmentState?.weather || scene.environment.weather} story-weather-intensity-${environmentState?.weatherIntensity ?? scene.environment.weatherIntensity ?? 0} story-passage-${timePassage} story-locomotion-${locomotion} story-elevation-${elevation} story-camera-${scene.camera?.framing || 'follow'} story-phase-${phase} ${environmentClasses} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
       style={{
         '--story-far-shift': `${farShift}%`,
         '--story-near-shift': `${nearShift}%`,
@@ -69,6 +74,7 @@ export function StoryWorld({ machine, scene, action, scriptureLabel, paused, bus
       <div className="story-hills story-hills-near" aria-hidden="true" />
       <div className="story-field-bands" aria-hidden="true" />
       <div className="story-grass story-grass-back" aria-hidden="true" />
+      {environmentState ? <StoryEnvironmentEffects state={environmentState} /> : null}
       {scene.environment.palette === 'noah-corruption' ? (
         <div className="story-corruption-details" aria-hidden="true"><span /><span /><span /><span /></div>
       ) : null}
@@ -79,7 +85,7 @@ export function StoryWorld({ machine, scene, action, scriptureLabel, paused, bus
           failureEffect={wrong ? scene.buildFailureEffect : undefined}
         />
       ) : null}
-      <div className="story-altar" aria-hidden="true"><span /><span /><span /><i className="story-altar-glow" /></div>
+      <div className={`story-altar ${environmentState?.altarVisible ? 'story-altar-visible' : ''}`} aria-hidden="true"><span /><span /><span /><i className="story-altar-glow" /></div>
       <div className="story-offering story-offering-flock" aria-hidden="true">
         <span className="story-lamb-body" /><span className="story-lamb-head" />
         <span className="story-lamb-leg story-lamb-leg-one" /><span className="story-lamb-leg story-lamb-leg-two" />

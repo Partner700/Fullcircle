@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STORY_BOOKS, findStoryBuild, findStoryLevel } from '../src/screens/cadet/story-mode/content.ts';
+import { FLOOD_LEVELS } from '../src/screens/cadet/story-mode/floodContent.ts';
 import { ARK_CONSTRUCTION, ARK_CONSTRUCTION_ID, NOAH_LEVELS } from '../src/screens/cadet/story-mode/noahContent.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,12 +28,14 @@ assert.deepEqual(NOAH_LEVELS.map((level) => level.order), [1, 2, 3, 4, 5, 6, 7, 
 
 const noahChapter = STORY_BOOKS[0].chapters[2];
 assert.equal(noahChapter.title, 'Noah');
-assert.equal(noahChapter.levels, NOAH_LEVELS);
-assert.equal(noahChapter.plannedLevelCount, 11);
-assert.equal(noahChapter.lockedContinuation?.title, 'The Flood');
+assert.deepEqual(noahChapter.levels.slice(0, 10), NOAH_LEVELS);
+assert.deepEqual(noahChapter.levels.slice(10), FLOOD_LEVELS);
+assert.equal(noahChapter.plannedLevelCount, 24);
+assert.equal(noahChapter.lockedContinuation, undefined);
 assert.equal(findStoryLevel('corruption'), NOAH_LEVELS[0]);
 assert.equal(findStoryLevel('the-ark-stands'), NOAH_LEVELS[9]);
-assert.equal(findStoryLevel('the-flood'), null, 'Flood gameplay must not exist in client content.');
+assert.equal(findStoryLevel('enter-the-ark'), FLOOD_LEVELS[0]);
+assert.equal(findStoryLevel('the-flood'), null, 'The unpublished placeholder must never become a playable route.');
 assert.equal(findStoryBuild(ARK_CONSTRUCTION_ID), ARK_CONSTRUCTION);
 
 const allScenes = NOAH_LEVELS.flatMap((level) => level.scenes);
@@ -116,4 +119,4 @@ for (const forbiddenLevel of ['rain', 'raven', 'dove', 'rainbow', 'abraham']) {
 }
 assert.doesNotMatch(noahSource, /canonicalEventId/);
 
-console.log('Story Mode Noah structure, 48-question bank, Scripture, Flood lock, and reward-plan checks passed.');
+console.log('Story Mode Noah construction structure, 48-question bank, Scripture, continuation handoff, and reward-plan checks passed.');

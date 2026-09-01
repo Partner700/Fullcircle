@@ -28,6 +28,7 @@ import { playStorySound, startStoryAmbience, stopStoryAmbience } from './audio';
 import { findStoryLocation } from './content';
 import type { StoryMachineEvent, StoryMachineState, StoryPhase } from './engine';
 import { StoryQuestionOverlay } from './StoryQuestionOverlay';
+import { StoryBookComplete } from './StoryBookComplete';
 import { STORY_CHARACTER_LABELS } from './characters';
 import { StoryWorld } from './StoryWorld';
 import type {
@@ -35,6 +36,7 @@ import type {
   StoryAttempt,
   StoryBuildState,
   StoryDeadline,
+  StoryEnvironmentState,
   StoryLevelDefinition,
   StoryQuestionPayload,
   StorySceneDefinition,
@@ -47,6 +49,7 @@ export interface StoryLevelPlayerProps {
   dispatch: Dispatch<StoryMachineEvent>;
   onExit: () => void;
   onReplay: () => Promise<void>;
+  onReplayBook: () => Promise<void>;
   onBrowse: () => Promise<void>;
   onProgressChanged: () => Promise<void>;
 }
@@ -93,6 +96,7 @@ export function StoryLevelPlayer({
   dispatch,
   onExit,
   onReplay,
+  onReplayBook,
   onBrowse,
   onProgressChanged,
 }: StoryLevelPlayerProps) {
@@ -109,6 +113,7 @@ export function StoryLevelPlayer({
   const [activeQuestion, setActiveQuestion] = useState<StoryQuestionPayload | null>(attempt.question);
   const [pendingEventId, setPendingEventId] = useState<string | null>(attempt.pendingEventId);
   const [buildState, setBuildState] = useState<StoryBuildState | null>(attempt.buildState);
+  const [environmentState, setEnvironmentState] = useState<StoryEnvironmentState | null>(attempt.environmentState);
   const activeQuestionScene = useMemo(() => questionScene(level, activeQuestion), [activeQuestion, level]);
   if (activeQuestion && !activeQuestionScene) throw new Error(`Story question ${activeQuestion.id} has no scene in ${level.slug}.`);
 
@@ -172,6 +177,7 @@ export function StoryLevelPlayer({
     setActiveQuestion(attempt.question);
     setPendingEventId(attempt.pendingEventId);
     setBuildState(attempt.buildState);
+    setEnvironmentState(attempt.environmentState);
     setReadSeen(attempt.checkpointId !== introScene.checkpointId);
     submittingRef.current = false;
     pendingSubmissionRef.current = null;
@@ -285,6 +291,7 @@ export function StoryLevelPlayer({
       pendingNextQuestionRef.current = result.nextQuestion;
       if (result.canonicalEventId) setPendingEventId(result.canonicalEventId);
       if (result.buildState) setBuildState(result.buildState);
+      if (result.environmentState) setEnvironmentState(result.environmentState);
       setRemainingMs(0);
       dispatch({ type: result.correct ? 'ANSWER_CORRECT' : 'ANSWER_WRONG', result });
       void playStorySound(result.correct ? 'correct' : 'failure', 0.52);
@@ -361,6 +368,7 @@ export function StoryLevelPlayer({
           if (!mountedRef.current) return;
           dispatch({ type: 'CANONICAL_EVENT_SETTLED', result });
           if (result.buildState) setBuildState(result.buildState);
+          if (result.environmentState) setEnvironmentState(result.environmentState);
           setPendingEventId(null);
           void onProgressChanged().catch(() => undefined);
           void playStorySound('transition', 0.48);
@@ -446,7 +454,7 @@ export function StoryLevelPlayer({
     setBusy(true);
     setError(null);
     try {
-      if (!['level_complete', 'chapter_complete'].includes(machine.phase)) await pauseStoryAttempt(attempt.attemptId);
+      if (!['level_complete', 'chapter_complete', 'book_complete'].includes(machine.phase)) await pauseStoryAttempt(attempt.attemptId);
       onExit();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The journey could not be safely paused.');
@@ -459,7 +467,7 @@ export function StoryLevelPlayer({
     setBusy(true);
     setError(null);
     try {
-      if (!['level_complete', 'chapter_complete'].includes(machine.phase)) await pauseStoryAttempt(attempt.attemptId);
+      if (!['level_complete', 'chapter_complete', 'book_complete'].includes(machine.phase)) await pauseStoryAttempt(attempt.attemptId);
       await onBrowse();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The journey browser could not open safely.');
@@ -480,7 +488,7 @@ export function StoryLevelPlayer({
   };
 
   const result = machine.result;
-  const pauseDisabled = busy || ['correct_action', 'wrong_action', 'canonical_transition', 'level_complete', 'chapter_complete', 'failure'].includes(machine.phase);
+  const pauseDisabled = busy || ['correct_action', 'wrong_action', 'canonical_transition', 'level_complete', 'chapter_complete', 'book_complete', 'failure'].includes(machine.phase);
   const locationLabel = location
     ? `${location.book.numeral} · Chapter ${location.chapter.order} · Level ${level.order}`
     : `Level ${level.order}`;
@@ -500,6 +508,7 @@ export function StoryLevelPlayer({
         paused={machine.phase === 'paused'}
         busy={pauseDisabled}
         buildState={buildState}
+        environmentState={environmentState}
         onPause={() => void pause()}
         onResume={() => void resume()}
       >
@@ -618,6 +627,17 @@ export function StoryLevelPlayer({
               <button type="button" onClick={() => void browseLevel()} className="btn-secondary"><Map size={15} /> Browse journey</button>
             </div>
           </div>
+        )}
+
+        {machine.phase === 'book_complete' && result?.bookStats && (
+          <StoryBookComplete
+            stats={result.bookStats}
+            replay={result.replay}
+            busy={busy}
+            onReplayBook={() => { void onReplayBook(); }}
+            onBrowse={() => { void browseLevel(); }}
+            onHome={() => { void exitLevel(); }}
+          />
         )}
 
         {busy && machine.phase !== 'question_active' && machine.phase !== 'paused' && (

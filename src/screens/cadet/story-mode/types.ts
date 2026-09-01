@@ -25,6 +25,16 @@ export type StoryActionName =
   | 'animal_enter'
   | 'group_enter'
   | 'inspect'
+  | 'enter'
+  | 'exit'
+  | 'release'
+  | 'fly'
+  | 'return'
+  | 'receive'
+  | 'rest'
+  | 'sway'
+  | 'gather'
+  | 'circle'
   | 'kneel'
   | 'offer'
   | 'trip'
@@ -51,10 +61,7 @@ export type FutureStoryActionName =
   | 'jump'
   | 'duck'
   | 'climb'
-  | 'enter'
-  | 'exit'
   | 'hide'
-  | 'fly'
   | 'transform';
 
 export type StoryCharacterId =
@@ -87,7 +94,15 @@ export type StoryCharacterRole =
   | 'procession';
 
 export type StoryLocomotion = 'slow_walk' | 'walk' | 'brisk_walk' | 'run';
-export type StoryTimePassage = 'none' | 'dawn_to_day' | 'day_to_dusk' | 'seasons' | 'generations';
+export type StoryTimePassage =
+  | 'none'
+  | 'dawn_to_day'
+  | 'day_to_dusk'
+  | 'seasons'
+  | 'generations'
+  | 'seven_days'
+  | 'forty_days'
+  | 'flood_months';
 
 export type StoryCharacterPlacement = {
   id: StoryCharacterId;
@@ -143,8 +158,20 @@ export type StoryEnvironment = {
     | 'ark-site-early'
     | 'ark-site-middle'
     | 'ark-site-late'
-    | 'ark-storm';
-  weather: 'clear' | 'wind' | 'still' | 'haze' | 'clouding';
+    | 'ark-storm'
+    | 'flood-entry'
+    | 'flood-waiting'
+    | 'flood-rain'
+    | 'flood-rising'
+    | 'flood-high'
+    | 'flood-receding'
+    | 'flood-mountains'
+    | 'flood-birds'
+    | 'flood-dry'
+    | 'flood-altar'
+    | 'flood-covenant';
+  weather: 'none' | 'clear' | 'wind' | 'still' | 'haze' | 'clouding' | 'drizzle' | 'rain' | 'heavy_rain' | 'storm';
+  weatherIntensity?: 0 | 1 | 2 | 3 | 4;
   timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'dawn';
   elevation?: 0 | 1 | 2 | 3 | 4 | 5;
   timePassage?: StoryTimePassage;
@@ -152,7 +179,36 @@ export type StoryEnvironment = {
 
 export type StoryCameraDirective = {
   framing: 'follow' | 'focus' | 'reveal' | 'wide';
-  target?: 'character' | 'construction' | 'procession' | 'environment';
+  target?: 'character' | 'construction' | 'procession' | 'environment' | 'ark' | 'bird' | 'altar' | 'sky';
+};
+
+export type StoryWaterTrend = 'none' | 'rising' | 'stable' | 'falling';
+export type StoryTerrainState = 'dry' | 'wet' | 'covered' | 'submerged' | 'emerging' | 'muddy';
+export type StoryTraversalMode = 'ground' | 'ark_approach' | 'ark_interior' | 'ark_floating' | 'ark_resting' | 'dry_land';
+export type StoryArkState = 'prepared' | 'sealed' | 'floating' | 'resting' | 'opened';
+export type StoryBirdKind = 'none' | 'raven' | 'dove';
+export type StoryBirdState = 'none' | 'waiting' | 'released' | 'flying' | 'returned' | 'carrying' | 'no_return';
+
+export type StoryEnvironmentState = {
+  sequenceId: string;
+  label: string;
+  stageOrder: number;
+  stageSlug: string;
+  totalStages: number;
+  completed: boolean;
+  weather: StoryEnvironment['weather'];
+  weatherIntensity: 0 | 1 | 2 | 3 | 4;
+  waterStage: number;
+  waterTrend: StoryWaterTrend;
+  terrainState: StoryTerrainState;
+  traversalMode: StoryTraversalMode;
+  arkState: StoryArkState;
+  birdKind: StoryBirdKind;
+  birdState: StoryBirdState;
+  oliveLeafVisible: boolean;
+  altarVisible: boolean;
+  rainbowVisible: boolean;
+  checkpointId: string;
 };
 
 export type StoryBuildFailureEffect = 'lean' | 'collapse' | 'reject' | 'misplace' | 'block' | 'spill';
@@ -318,6 +374,19 @@ export type StoryChapterProgress = {
   denariiEarned: number;
 };
 
+export type StoryBookCompletionStats = {
+  bookSlug: string;
+  completed: boolean;
+  chaptersCompleted: number;
+  levelsCompleted: number;
+  questionsEncountered: number;
+  successfulResponses: number;
+  completionPercentage: number;
+  figsEarned: number;
+  denariiEarned: number;
+  completedAt: string | null;
+};
+
 export type StoryProgress = {
   currentBookSlug: string;
   currentChapterSlug: string;
@@ -331,13 +400,15 @@ export type StoryProgress = {
   chapterCompleted: boolean;
   chapterFigsEarned: number;
   chapterDenariiEarned: number;
+  bookCompleted: boolean;
+  bookStats: StoryBookCompletionStats;
 };
 
 export type StoryAttempt = {
   attemptId: string;
   levelSlug: string;
   checkpointId: string;
-  checkpointState: 'intro' | 'question_approach' | 'canonical_event' | 'level_complete' | 'chapter_complete';
+  checkpointState: 'intro' | 'question_approach' | 'canonical_event' | 'level_complete' | 'chapter_complete' | 'book_complete';
   isReplay: boolean;
   restored: boolean;
   paused: boolean;
@@ -347,6 +418,7 @@ export type StoryAttempt = {
   question: StoryQuestionPayload | null;
   pendingEventId: string | null;
   buildState: StoryBuildState | null;
+  environmentState: StoryEnvironmentState | null;
 };
 
 export type StoryAnswerResult = {
@@ -369,6 +441,9 @@ export type StoryAnswerResult = {
   nextQuestion: StoryQuestionPayload | null;
   levelsCompleted: number;
   buildState: StoryBuildState | null;
+  environmentState: StoryEnvironmentState | null;
+  bookComplete: boolean;
+  bookStats: StoryBookCompletionStats | null;
 };
 
 export type StoryDeadline = {

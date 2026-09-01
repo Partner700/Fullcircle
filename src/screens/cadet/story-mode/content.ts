@@ -7,9 +7,11 @@ import type {
   StoryTimerSeconds,
 } from './types';
 import { GENERATIONS_LEVELS } from './generationsContent.ts';
+import { FLOOD_LEVELS } from './floodContent.ts';
 import { ARK_CONSTRUCTION, NOAH_LEVELS } from './noahContent.ts';
 
 export { GENERATIONS_LEVELS } from './generationsContent.ts';
+export { FLOOD_LEVELS } from './floodContent.ts';
 export { ARK_CONSTRUCTION, NOAH_LEVELS } from './noahContent.ts';
 
 export const ABEL_LEVEL_SLUG = 'abel-offering';
@@ -371,9 +373,8 @@ export const STORY_BOOKS: StoryBookDefinition[] = [
       { id: 'story-book-1-chapter-1', slug: 'brothers', title: 'Brothers', order: 1, levels: BROTHERS_LEVELS },
       { id: 'story-book-1-chapter-2', slug: 'generations', title: 'Generations', order: 2, levels: GENERATIONS_LEVELS },
       {
-        id: 'story-book-1-chapter-3', slug: 'noah', title: 'Noah', order: 3, levels: NOAH_LEVELS,
-        plannedLevelCount: 11,
-        lockedContinuation: { title: 'The Flood', subtitle: 'Phase 3E continuation · locked' },
+        id: 'story-book-1-chapter-3', slug: 'noah', title: 'Noah', order: 3, levels: [...NOAH_LEVELS, ...FLOOD_LEVELS],
+        plannedLevelCount: 24,
       },
     ],
   },

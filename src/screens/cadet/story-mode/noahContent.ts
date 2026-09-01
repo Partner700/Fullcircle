@@ -493,7 +493,7 @@ export const PROVISIONS_LEVEL: StoryLevelDefinition = {
 export const ARK_STANDS_LEVEL: StoryLevelDefinition = {
   id: 'book-1-chapter-3-level-10', slug: ARK_STANDS_LEVEL_SLUG, title: 'The Ark Stands',
   subtitle: 'Inspect the completed preparation before the Flood.', bookSlug: 'beginnings', chapterSlug: 'noah',
-  order: 10, openingSceneId: 'ark-stands-intro', continuationText: 'The Flood is coming. Flood gameplay remains locked.', scriptureLabel: 'Genesis 6',
+  order: 10, openingSceneId: 'ark-stands-intro', continuationText: 'The completed Ark now opens directly into the Flood continuation.', scriptureLabel: 'Genesis 6',
   scenes: [
     {
       id: 'ark-stands-intro', kind: 'narrative', environment: STORM_HORIZON, activeCharacterId: 'noah', characters: [noah(20, 'inspect'), ...FAMILY],
@@ -503,7 +503,7 @@ export const ARK_STANDS_LEVEL: StoryLevelDefinition = {
     },
     {
       id: 'ark-stands-walk', kind: 'movement', environment: STORM_HORIZON, activeCharacterId: 'noah', characters: [noah(13, 'slow_walk'), ...FAMILY],
-      action: 'slow_walk', locomotion: 'slow_walk', durationMs: 5_400, narrativeText: 'Walk the prepared site one final time before the locked Flood continuation.',
+      action: 'slow_walk', locomotion: 'slow_walk', durationMs: 5_400, narrativeText: 'Walk the prepared site one final time before the household enters the Ark.',
       scriptureReference: 'Genesis 6:14-22', checkpointId: 'ark-stands-start', constructionId: ARK_CONSTRUCTION_ID,
       creatureGroups: ANIMAL_GROUPS, supplyGroups: SUPPLY_GROUPS, camera: { framing: 'wide', target: 'construction' }, nextSceneId: 'ark-stands-obedience',
     },

@@ -25,8 +25,10 @@ export function StoryModeHome({
 }: StoryModeHomeProps) {
   const book = STORY_BOOKS[0];
   const levels = book.chapters.flatMap((chapter) => chapter.levels);
+  const firstLevel = levels[0];
   const levelState = new Map(progress.levels.map((item) => [item.levelSlug, item]));
   const chapterState = new Map(progress.chapters.map((item) => [`${item.bookSlug}:${item.chapterSlug}`, item]));
+  const journeyComplete = progress.bookCompleted;
   const currentLevel = levels.find((level) => level.slug === progress.currentLevelSlug)
     || levels.find((level) => levelState.get(level.slug)?.unlocked && !levelState.get(level.slug)?.completed)
     || levels[levels.length - 1];
@@ -59,19 +61,25 @@ export function StoryModeHome({
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <div>
               <p className="text-xs font-bold text-peri-dim">Current journey</p>
-              <p className="mt-1 font-display text-xl font-semibold text-white">{book.numeral}: {book.title}</p>
-              <p className="text-sm text-peri">Chapter {currentChapter.order}: {currentChapter.title} · {currentLevel.title}</p>
+              <p className="mt-1 font-display text-xl font-semibold text-white">
+                {journeyComplete ? `${book.numeral}: ${book.title} Complete` : `${book.numeral}: ${book.title}`}
+              </p>
+              <p className="text-sm text-peri">
+                {journeyComplete
+                  ? `${progress.bookStats.chaptersCompleted} chapters · ${progress.bookStats.levelsCompleted} levels · replay available`
+                  : `Chapter ${currentChapter.order}: ${currentChapter.title} · ${currentLevel.title}`}
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={onBrowse} className="btn-secondary border-white/20 bg-white/10 text-white"><MapIcon size={15} /> Browse Journey</button>
               <button
                 type="button"
-                onClick={() => onStart(currentLevel.slug)}
-                disabled={starting || !currentState?.unlocked}
+                onClick={() => onStart(journeyComplete ? firstLevel.slug : currentLevel.slug)}
+                disabled={starting || (!journeyComplete && !currentState?.unlocked)}
                 className="btn-primary disabled:opacity-60"
               >
-                {currentState?.completed ? <RotateCcw size={15} /> : <Play size={15} fill="currentColor" />}
-                {progress.activeAttemptId ? 'Continue Journey' : currentState?.completed ? 'Replay Level' : 'Continue Journey'}
+                {journeyComplete || currentState?.completed ? <RotateCcw size={15} /> : <Play size={15} fill="currentColor" />}
+                {journeyComplete ? 'Replay Journey' : progress.activeAttemptId ? 'Continue Journey' : currentState?.completed ? 'Replay Level' : 'Continue Journey'}
               </button>
             </div>
           </div>
@@ -82,12 +90,25 @@ export function StoryModeHome({
 
       <section className="grid gap-4 lg:grid-cols-[1fr_18rem]">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center justify-between text-xs text-stone"><span>Chapter {currentChapter.order} progress</span><strong className="text-ink">{chapterPercent}%</strong></div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${chapterPercent}%` }} /></div>
+          <div className="mb-2 flex items-center justify-between text-xs text-stone">
+            <span>{journeyComplete ? `${book.numeral} progress` : `Chapter ${currentChapter.order} progress`}</span>
+            <strong className="text-ink">{journeyComplete ? progress.bookStats.completionPercentage : chapterPercent}%</strong>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="h-full rounded-full bg-gold transition-[width] duration-500"
+              style={{ width: `${journeyComplete ? progress.bookStats.completionPercentage : chapterPercent}%` }}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-4 py-3">
           <Sparkles size={18} className="text-gold" />
-          <div><p className="text-xs font-bold text-ink">{progress.completedLevelCount}/{progress.totalLevelCount} levels complete</p><p className="text-[11px] text-stone">Progress is saved across devices</p></div>
+          <div>
+            <p className="text-xs font-bold text-ink">{progress.completedLevelCount}/{progress.totalLevelCount} levels complete</p>
+            <p className="text-[11px] text-stone">
+              {journeyComplete ? `${progress.bookStats.figsEarned} Figs · completed ${progress.bookStats.completedAt ? new Date(progress.bookStats.completedAt).toLocaleDateString() : 'and saved'}` : 'Progress is saved across devices'}
+            </p>
+          </div>
         </div>
       </section>
 
