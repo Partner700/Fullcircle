@@ -1088,7 +1088,7 @@ export function CadetNarrative({
                               ).values()).slice(0, 5);
                               if (!actors.length) return null;
                               return (
-                                <div className="mt-2 flex items-center -space-x-4" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
                                   {actors.map((actor: any) => (
                                     <MessageAvatar
                                       key={actor.user_id}

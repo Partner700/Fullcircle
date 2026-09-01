@@ -185,14 +185,14 @@ assert.doesNotMatch(cadetNarrative, /fetchWeeklyVerseHighlights|setArchiveDate\(
 assert.match(publicShareScreen, /isSundayReading \? 'Verse of the Week' : 'Verse of the Day'/);
 assert.match(quoteReactions, /size="xs"/);
 assert.match(awardReactions, /size="xs"/);
-assert.match(tentMessenger, /size === 'xs' \? 'h-8 w-8 text-\[10px\]'/);
+assert.match(tentMessenger, /size === 'xs' \? 'h-4 w-4 text-\[7px\]'/);
 assert.match(cadetNarrative, /<MessageAvatar[\s\S]*?profile=\{messageProfile\(item\.user_id/);
 assert.match(cadetNarrative, /profile=\{messageProfile\(comment\.user_id/);
 assert.match(cadetNarrative, /profile=\{messageProfile\(actor\.user_id/);
 assert.match(cadetNarrative, /const participants = insightParticipants\(userInsights\)/);
 assert.match(cadetNarrative, /!userExpanded && participants\.length > 0/);
 assert.match(cadetNarrative, /reader insight participant/);
-assert.match(publicShareScreen, /inline-flex h-8 w-8 overflow-hidden rounded-full/);
+assert.match(publicShareScreen, /inline-flex h-4 w-4 overflow-hidden rounded-full/);
 assert.match(instructorApp, /panel_image_honors', label: 'Monthly Honors'/);
 assert.match(cadetDashboard, /'welcome', 'fcx', 'honors', 'verse'/);
 assert.match(sentryApp, /'welcome', 'fcx', 'honors', 'verse'/);
