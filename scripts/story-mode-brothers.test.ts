@@ -93,6 +93,7 @@ assert.match(home, /current/);
 assert.match(home, /unlocked/);
 assert.match(home, /locked/);
 assert.match(home, /replay available/);
-assert.match(home, /Future playable content · locked/);
+assert.match(home, /Next chronological character/);
+assert.match(home, />Noah</);
 
 console.log('Story Mode Brothers content, questions, navigation, and reward-plan checks passed.');

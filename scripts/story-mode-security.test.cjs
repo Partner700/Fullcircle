@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const migration = read('supabase/migrations/20260831110000_story_mode_abel_vertical_slice.sql');
 const brothersMigration = read('supabase/migrations/20260831160000_complete_brothers_chapter.sql');
+const generationsMigration = read('supabase/migrations/20260831200000_story_mode_generations_enoch_arc.sql');
 const api = read('src/screens/cadet/story-mode/api.ts');
 
 for (const table of [
@@ -126,5 +127,35 @@ for (const externalSystem of ['game_attempts', 'arena_rooms', 'arena_participant
   assert.doesNotMatch(brothersMigration, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`));
 }
 assert.equal((brothersMigration.match(/\$\$/g) || []).length % 2, 0, 'Phase 3B SQL delimiters are unbalanced.');
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.reach_story_mode_canonical_event',
+  'CREATE OR REPLACE FUNCTION public.submit_story_mode_answer',
+  'CREATE OR REPLACE FUNCTION public.settle_story_mode_canonical_event',
+  'Complete the server-selected questions before the canonical transition',
+  'The canonical transition cannot be skipped or reached out of order',
+  'v_current_order + 1 <> v_event_order',
+  'IF v_correct AND NOT v_attempt.is_replay THEN',
+  'ON CONFLICT (user_id, question_id) DO NOTHING',
+  "'denarii_earned', 0",
+]) {
+  assert.ok(generationsMigration.includes(required), `Missing Phase 3C authority boundary: ${required}`);
+}
+const reachCanonicalEvent = generationsMigration.match(
+  /CREATE OR REPLACE FUNCTION public\.reach_story_mode_canonical_event[\s\S]*?\$\$;/,
+)?.[0] || '';
+const settleGenerationsEvent = generationsMigration.match(
+  /CREATE OR REPLACE FUNCTION public\.settle_story_mode_canonical_event[\s\S]*?\$\$;/,
+)?.[0] || '';
+assert.ok(reachCanonicalEvent);
+assert.ok(settleGenerationsEvent);
+assert.doesNotMatch(reachCanonicalEvent, /p_(?:complete|success|taken|figs|denarii|marks)/i);
+assert.doesNotMatch(settleGenerationsEvent, /p_(?:outcome|success|level_complete|chapter_complete|figs|denarii|marks)/i);
+assert.doesNotMatch(generationsMigration, /story_mode_marks|INSERT INTO public\.[a-z_]*marks|award_[a-z_]*mark/);
+assert.doesNotMatch(generationsMigration, /\('noah', 'beginnings'/);
+for (const externalSystem of ['game_attempts', 'arena_rooms', 'arena_participants', 'denarii_ledger_entries']) {
+  assert.doesNotMatch(generationsMigration, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`));
+}
+assert.equal((generationsMigration.match(/\$\$/g) || []).length % 2, 0, 'Phase 3C SQL delimiters are unbalanced.');
 
 console.log('Story Mode server-authority and economy-isolation checks passed.');

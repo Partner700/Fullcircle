@@ -8,7 +8,9 @@ export type StoryActionDefinition = {
 
 export const STORY_ACTIONS: Record<StoryActionName, StoryActionDefinition> = {
   idle: { name: 'idle', cssClass: 'story-action-idle', durationMs: 900 },
+  slow_walk: { name: 'slow_walk', cssClass: 'story-action-slow-walk', durationMs: 5_800 },
   walk: { name: 'walk', cssClass: 'story-action-walk', durationMs: 4_200 },
+  brisk_walk: { name: 'brisk_walk', cssClass: 'story-action-brisk-walk', durationMs: 3_100 },
   run: { name: 'run', cssClass: 'story-action-run', durationMs: 2_100 },
   stop: { name: 'stop', cssClass: 'story-action-stop', durationMs: 450 },
   carry: { name: 'carry', cssClass: 'story-action-carry', durationMs: 1_100 },
@@ -26,6 +28,12 @@ export const STORY_ACTIONS: Record<StoryActionName, StoryActionDefinition> = {
   lie_still: { name: 'lie_still', cssClass: 'story-action-lie-still', durationMs: 1_300 },
   look_back: { name: 'look_back', cssClass: 'story-action-look-back', durationMs: 680 },
   character_swap: { name: 'character_swap', cssClass: 'story-action-character-swap', durationMs: 1_100 },
+  ascend: { name: 'ascend', cssClass: 'story-action-ascend', durationMs: 1_600 },
+  observe: { name: 'observe', cssClass: 'story-action-observe', durationMs: 900 },
+  age_transition: { name: 'age_transition', cssClass: 'story-action-age-transition', durationMs: 1_350 },
+  lineage_transition: { name: 'lineage_transition', cssClass: 'story-action-lineage-transition', durationMs: 1_450 },
+  appear: { name: 'appear', cssClass: 'story-action-appear', durationMs: 900 },
+  disappear: { name: 'disappear', cssClass: 'story-action-disappear', durationMs: 1_300 },
   fade: { name: 'fade', cssClass: 'story-action-fade', durationMs: 700 },
 };
 

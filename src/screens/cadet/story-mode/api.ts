@@ -44,6 +44,7 @@ export async function fetchStoryModeProgress(): Promise<StoryProgress> {
   if (error) throw error;
   const row = requiredObject(rpcRow(data), 'Story progress');
   const levels = Array.isArray(row.levels) ? row.levels : [];
+  const chapters = Array.isArray(row.chapters) ? row.chapters : [];
   return {
     currentBookSlug: String(row.current_book_slug || ''),
     currentChapterSlug: String(row.current_chapter_slug || ''),
@@ -55,6 +56,18 @@ export async function fetchStoryModeProgress(): Promise<StoryProgress> {
     chapterCompleted: Boolean(row.chapter_completed),
     chapterFigsEarned: Number(row.chapter_figs_earned) || 0,
     chapterDenariiEarned: Number(row.chapter_denarii_earned) || 0,
+    chapters: chapters.map((item) => {
+      const chapter = requiredObject(item, 'Story chapter progress');
+      return {
+        bookSlug: String(chapter.book_slug || ''),
+        chapterSlug: String(chapter.chapter_slug || ''),
+        completed: Boolean(chapter.completed),
+        timesCompleted: Number(chapter.times_completed) || 0,
+        firstCompletedAt: chapter.first_completed_at ? String(chapter.first_completed_at) : null,
+        figsEarned: Number(chapter.figs_earned) || 0,
+        denariiEarned: Number(chapter.denarii_earned) || 0,
+      };
+    }),
     levels: levels.map((item) => {
       const level = requiredObject(item, 'Story level progress');
       return {
@@ -182,4 +195,17 @@ export async function settleStoryCanonicalEvent(input: {
   });
   if (error) throw error;
   return parseStoryResult(data, 'Story canonical event');
+}
+
+export async function reachStoryCanonicalEvent(attemptId: string, eventId: string) {
+  const { data, error } = await supabase.rpc('reach_story_mode_canonical_event', {
+    p_attempt_id: attemptId,
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  const row = requiredObject(rpcRow(data), 'Story canonical checkpoint');
+  return {
+    checkpointId: String(row.checkpoint_id || ''),
+    eventId: String(row.event_id || ''),
+  };
 }

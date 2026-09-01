@@ -18,6 +18,7 @@ import { storyActionAt, storyActionDuration } from './actions';
 import {
   activateStoryQuestion,
   pauseStoryAttempt,
+  reachStoryCanonicalEvent,
   resumeStoryAttempt,
   saveStoryCheckpoint,
   settleStoryCanonicalEvent,
@@ -27,6 +28,7 @@ import { playStorySound, startStoryAmbience, stopStoryAmbience } from './audio';
 import { findStoryLocation } from './content';
 import type { StoryMachineEvent, StoryMachineState, StoryPhase } from './engine';
 import { StoryQuestionOverlay } from './StoryQuestionOverlay';
+import { STORY_CHARACTER_LABELS } from './characters';
 import { StoryWorld } from './StoryWorld';
 import type {
   StoryActionName,
@@ -80,7 +82,7 @@ function submissionId() {
 
 function activeCharacterName(scene: StorySceneDefinition) {
   if (!scene.activeCharacterId) return 'The story';
-  return scene.activeCharacterId === 'abel' ? 'Abel' : scene.activeCharacterId === 'cain' ? 'Cain' : 'Seth';
+  return STORY_CHARACTER_LABELS[scene.activeCharacterId];
 }
 
 export function StoryLevelPlayer({
@@ -195,11 +197,17 @@ export function StoryLevelPlayer({
       return () => window.clearTimeout(timeout);
     }
     if (machine.phase === 'walking') {
+      setAction(movementScene.locomotion || movementScene.action);
       void playStorySound('footsteps', 0.3);
       const timeout = window.setTimeout(() => {
         if (!activeQuestion) {
           if (pendingEventId && canonicalScene?.checkpointId) {
-            dispatch({ type: 'CANONICAL_EVENT_REACHED', checkpointId: canonicalScene.checkpointId });
+            setBusy(true);
+            setError(null);
+            reachStoryCanonicalEvent(attempt.attemptId, pendingEventId)
+              .then(({ checkpointId }) => dispatch({ type: 'CANONICAL_EVENT_REACHED', checkpointId }))
+              .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'The canonical checkpoint could not be reached.'))
+              .finally(() => setBusy(false));
           } else {
             setError('This Story Mode scene has no server-authorized next event.');
           }
@@ -243,7 +251,9 @@ export function StoryLevelPlayer({
     dispatch,
     introScene.durationMs,
     machine.phase,
+    movementScene.action,
     movementScene.durationMs,
+    movementScene.locomotion,
     pendingEventId,
     readScene,
     readSeen,
@@ -332,8 +342,12 @@ export function StoryLevelPlayer({
     canonicalSettlingRef.current = true;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const wait = reducedMotion ? 700 : (canonicalScene.durationMs ?? 2_700);
+    const sequence = canonicalScene.canonicalActions?.length ? canonicalScene.canonicalActions : [canonicalScene.action];
     if (canonicalScene.kind === 'canonical_event') void playStorySound('impact', 0.42);
-    const timeout = window.setTimeout(() => {
+    let cancelled = false;
+    let timeout = 0;
+    let frame = 0;
+    const settle = () => {
       const id = canonicalSubmissionRef.current || submissionId();
       canonicalSubmissionRef.current = id;
       setBusy(true);
@@ -351,8 +365,39 @@ export function StoryLevelPlayer({
           setError(reason instanceof Error ? reason.message : 'The canonical transition could not be settled.');
         })
         .finally(() => { if (mountedRef.current) setBusy(false); });
-    }, wait);
-    return () => window.clearTimeout(timeout);
+    };
+    setBusy(true);
+    setError(null);
+    reachStoryCanonicalEvent(attempt.attemptId, pendingEventId)
+      .then(() => {
+        if (cancelled) return;
+        setBusy(false);
+        if (reducedMotion) {
+          setAction(sequence[sequence.length - 1]);
+        } else {
+          const startedAt = performance.now();
+          const animate = (now: number) => {
+            const elapsed = now - startedAt;
+            const segment = Math.min(sequence.length - 1, Math.floor((elapsed / wait) * sequence.length));
+            setAction(sequence[segment]);
+            if (elapsed < wait) frame = window.requestAnimationFrame(animate);
+          };
+          frame = window.requestAnimationFrame(animate);
+        }
+        timeout = window.setTimeout(settle, wait);
+      })
+      .catch((reason: unknown) => {
+        canonicalSettlingRef.current = false;
+        if (mountedRef.current) {
+          setBusy(false);
+          setError(reason instanceof Error ? reason.message : 'The canonical transition could not be reached.');
+        }
+      });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      window.cancelAnimationFrame(frame);
+    };
   }, [attempt.attemptId, canonicalRetry, canonicalScene, dispatch, machine.phase, onProgressChanged, pendingEventId]);
 
   const pause = useCallback(async () => {
@@ -446,6 +491,7 @@ export function StoryLevelPlayer({
         machine={machine}
         scene={activeScene}
         action={action}
+        scriptureLabel={level.scriptureLabel || activeScene.scriptureReference || 'Scripture'}
         paused={machine.phase === 'paused'}
         busy={pauseDisabled}
         onPause={() => void pause()}
@@ -498,7 +544,7 @@ export function StoryLevelPlayer({
 
         {machine.phase === 'canonical_transition' && canonicalScene && (
           <div className="story-canonical-caption" role="status" aria-live="polite">
-            <p className="eyebrow text-gold">Character transition</p>
+            <p className="eyebrow text-gold">{canonicalScene.kind === 'canonical_event' ? 'Canonical event' : 'Generational transition'}</p>
             <strong>{canonicalScene.narrativeText}</strong>
             <small>{canonicalScene.scriptureReference}</small>
           </div>
@@ -553,13 +599,13 @@ export function StoryLevelPlayer({
           <div className="story-result-panel story-complete-panel" role="dialog" aria-modal="true" aria-labelledby="story-chapter-title">
             <span className="story-result-symbol story-result-complete"><Sparkles size={25} /></span>
             <p className="eyebrow text-gold">Chapter complete</p>
-            <h3 id="story-chapter-title">Brothers</h3>
-            <p>The journey continues with Seth. His playable story remains locked for the next chapter.</p>
+            <h3 id="story-chapter-title">{location?.chapter.title || 'Chapter'}</h3>
+            <p>{level.chapterCompletionText || level.continuationText} {level.nextCharacterName ? `Next: ${level.nextCharacterName}.` : ''}</p>
             <div className="story-completion-stats">
               <span><Leaf size={15} /><strong>{result.totalFigs}</strong><small>Chapter Figs</small></span>
               <span><Coins size={15} /><strong>0</strong><small>Denarii</small></span>
               <span><CheckCircle2 size={15} /><strong>{result.correctCount}/{result.questionCount}</strong><small>Correct</small></span>
-              <span><Flag size={15} /><strong>{result.levelsCompleted}/6</strong><small>Levels</small></span>
+              <span><Flag size={15} /><strong>{result.levelsCompleted}/{location?.chapter.levels.length || 1}</strong><small>Levels</small></span>
             </div>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <button type="button" onClick={() => void onReplay()} disabled={busy} className="btn-primary"><RotateCcw size={15} /> Replay epilogue</button>

@@ -6,7 +6,9 @@ export type StoryDifficulty = 'easy' | 'moderate' | 'hard';
 
 export type StoryActionName =
   | 'idle'
+  | 'slow_walk'
   | 'walk'
+  | 'brisk_walk'
   | 'run'
   | 'stop'
   | 'carry'
@@ -24,13 +26,18 @@ export type StoryActionName =
   | 'lie_still'
   | 'look_back'
   | 'character_swap'
+  | 'ascend'
+  | 'observe'
+  | 'age_transition'
+  | 'lineage_transition'
+  | 'appear'
+  | 'disappear'
   | 'fade';
 
 export type FutureStoryActionName =
   | 'jump'
   | 'duck'
   | 'climb'
-  | 'ascend'
   | 'build'
   | 'enter'
   | 'exit'
@@ -38,8 +45,27 @@ export type FutureStoryActionName =
   | 'fly'
   | 'transform';
 
-export type StoryCharacterId = 'abel' | 'cain' | 'seth';
-export type StoryCharacterRole = 'player' | 'npc' | 'threat' | 'transition' | 'observer';
+export type StoryCharacterId =
+  | 'abel'
+  | 'cain'
+  | 'seth'
+  | 'enosh'
+  | 'jared'
+  | 'enoch'
+  | 'methuselah'
+  | 'lamech'
+  | 'noah';
+export type StoryCharacterRole =
+  | 'player'
+  | 'npc'
+  | 'threat'
+  | 'transition'
+  | 'observer'
+  | 'lineage'
+  | 'future';
+
+export type StoryLocomotion = 'slow_walk' | 'walk' | 'brisk_walk' | 'run';
+export type StoryTimePassage = 'none' | 'dawn_to_day' | 'day_to_dusk' | 'seasons' | 'generations';
 
 export type StoryCharacterPlacement = {
   id: StoryCharacterId;
@@ -80,9 +106,19 @@ export type StoryEnvironment = {
     | 'warning-path'
     | 'ominous-field'
     | 'aftermath-ground'
-    | 'seth-dawn';
+    | 'seth-dawn'
+    | 'seth-path'
+    | 'lineage-dawn'
+    | 'enoch-plain'
+    | 'enoch-hills'
+    | 'enoch-ridge'
+    | 'enoch-summit'
+    | 'methuselah-seasons'
+    | 'noah-horizon';
   weather: 'clear' | 'wind' | 'still' | 'haze';
   timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'dawn';
+  elevation?: 0 | 1 | 2 | 3 | 4 | 5;
+  timePassage?: StoryTimePassage;
 };
 
 export type StorySceneDefinition = {
@@ -98,6 +134,10 @@ export type StorySceneDefinition = {
   environment: StoryEnvironment;
   activeCharacterId: StoryCharacterId | null;
   characters: StoryCharacterPlacement[];
+  locomotion?: StoryLocomotion;
+  lineage?: StoryCharacterId[];
+  transitionLabel?: string;
+  titleReveal?: string;
   obstacles?: StoryObstacleDefinition[];
   action: StoryActionName;
   durationMs?: number;
@@ -127,6 +167,9 @@ export type StoryLevelDefinition = {
   openingSceneId: string;
   continuationText?: string;
   chapterConclusion?: boolean;
+  nextCharacterName?: string;
+  chapterCompletionText?: string;
+  scriptureLabel?: string;
   scenes: StorySceneDefinition[];
 };
 
@@ -172,6 +215,16 @@ export type StoryLevelProgress = {
   denariiEarned: number;
 };
 
+export type StoryChapterProgress = {
+  bookSlug: string;
+  chapterSlug: string;
+  completed: boolean;
+  timesCompleted: number;
+  firstCompletedAt: string | null;
+  figsEarned: number;
+  denariiEarned: number;
+};
+
 export type StoryProgress = {
   currentBookSlug: string;
   currentChapterSlug: string;
@@ -180,6 +233,7 @@ export type StoryProgress = {
   completedLevelCount: number;
   totalLevelCount: number;
   levels: StoryLevelProgress[];
+  chapters: StoryChapterProgress[];
   activeAttemptId: string | null;
   chapterCompleted: boolean;
   chapterFigsEarned: number;

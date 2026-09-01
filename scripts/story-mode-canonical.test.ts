@@ -42,7 +42,7 @@ assert.match(engine, /canonical_transition/);
 assert.match(engine, /CANONICAL_EVENT_SETTLED/);
 assert.match(engine, /state\.result\?\.canonicalEventPending/);
 assert.doesNotMatch(engine.match(/case 'CANONICAL_EVENT_SETTLED':[\s\S]*?case /)?.[0] || '', /phase: 'failure'/);
-assert.match(player, /Character transition/);
+assert.match(player, /Generational transition/);
 assert.match(player, /prefers-reduced-motion: reduce/);
 
 const sethScene = ANOTHER_OFFSPRING_LEVEL.scenes.find((scene) => scene.canonicalEventId === 'seth-generational-transition');

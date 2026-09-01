@@ -909,6 +909,10 @@
     --story-far-shift: 0%;
     --story-near-shift: 0%;
     --story-field-shift: 0%;
+    --story-travel-duration: 4100ms;
+    --story-elevation-far: 0rem;
+    --story-elevation-near: 0rem;
+    --story-elevation-field: 0rem;
     position: relative;
     isolation: isolate;
     width: 100%;
@@ -955,12 +959,47 @@
     background: linear-gradient(180deg, #5d7190 0%, #c39b8a 52%, #e2b26e 100%);
   }
 
+  .story-world-seth-path .story-sky {
+    background: linear-gradient(180deg, #7088a6 0%, #c5a58b 52%, #e1b26d 100%);
+  }
+
+  .story-world-lineage-dawn .story-sky {
+    background: linear-gradient(180deg, #667f9d 0%, #bba99a 50%, #d7b676 100%);
+  }
+
+  .story-world-enoch-plain .story-sky {
+    background: linear-gradient(180deg, #708ca7 0%, #aeb5aa 55%, #b79b72 100%);
+  }
+
+  .story-world-enoch-hills .story-sky {
+    background: linear-gradient(180deg, #687f9d 0%, #9ba7ad 52%, #c19679 100%);
+  }
+
+  .story-world-enoch-ridge .story-sky {
+    background: linear-gradient(180deg, #566a86 0%, #8d94a0 50%, #b48d78 100%);
+  }
+
+  .story-world-enoch-summit .story-sky {
+    background: linear-gradient(180deg, #a9bbcc 0%, #d5d9d6 54%, #e6d2ad 100%);
+  }
+
+  .story-world-methuselah-seasons .story-sky {
+    background: linear-gradient(180deg, #667e95 0%, #a5a598 48%, #bd8868 100%);
+  }
+
+  .story-world-noah-horizon .story-sky {
+    background: linear-gradient(180deg, #536b86 0%, #9a9e9d 52%, #d0a36e 100%);
+  }
+
   .story-world-warning-path .story-hills-near,
   .story-world-ominous-field .story-hills-near,
   .story-world-aftermath-ground .story-hills-near { filter: saturate(0.55) brightness(0.72); }
 
   .story-world-seth-dawn .story-hills-near { filter: saturate(0.78) brightness(1.08); }
   .story-world-seth-dawn .story-sun { right: 50%; top: 18%; opacity: 0.7; transform: translateX(50%); }
+  .story-world-enoch-ridge .story-hills-near,
+  .story-world-enoch-summit .story-hills-near { filter: saturate(0.58) brightness(1.12); }
+  .story-world-enoch-summit .story-sun { top: 8%; right: 46%; opacity: 0.62; box-shadow: 0 0 5.5rem rgba(255, 247, 215, 0.86); }
 
   .story-sun {
     position: absolute;
@@ -998,13 +1037,34 @@
   .story-cloud-one { top: 17%; left: 14%; }
   .story-cloud-two { top: 30%; left: 53%; animation-delay: -12s; transform: scale(0.7); opacity: 0.58; }
 
+  .story-time-sweep {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 4%, rgba(255, 221, 157, 0.24) 46%, rgba(53, 67, 92, 0.3) 72%, transparent 96%);
+    opacity: 0;
+    transform: translateX(-70%);
+    pointer-events: none;
+  }
+
+  .story-passage-dawn_to_day .story-time-sweep,
+  .story-passage-day_to_dusk .story-time-sweep,
+  .story-passage-seasons .story-time-sweep,
+  .story-passage-generations .story-time-sweep {
+    opacity: 1;
+    animation: story-time-sweep var(--story-travel-duration) linear both;
+  }
+
+  .story-passage-seasons .story-time-sweep {
+    background: linear-gradient(100deg, rgba(112, 145, 93, 0.12), rgba(225, 184, 95, 0.26), rgba(111, 74, 75, 0.2), rgba(141, 162, 181, 0.2));
+  }
+
   .story-hills {
     position: absolute;
     left: -15%;
     width: 145%;
-    transform: translate3d(var(--story-far-shift), 0, 0);
+    transform: translate3d(var(--story-far-shift), var(--story-elevation-far), 0);
     transform-origin: center bottom;
-    transition: transform 4.1s linear, filter 700ms ease;
+    transition: transform var(--story-travel-duration) linear, filter 700ms ease;
     will-change: transform;
   }
 
@@ -1028,7 +1088,7 @@
       radial-gradient(ellipse at 10% 100%, #2f5342 0 39%, transparent 40%),
       radial-gradient(ellipse at 49% 100%, #355b45 0 41%, transparent 42%),
       radial-gradient(ellipse at 88% 100%, #274b3d 0 40%, transparent 41%);
-    transform: translate3d(var(--story-near-shift), 0, 0);
+    transform: translate3d(var(--story-near-shift), var(--story-elevation-near), 0);
   }
 
   .story-field-bands {
@@ -1041,8 +1101,8 @@
     background:
       repeating-linear-gradient(168deg, transparent 0 7%, rgba(232, 185, 88, 0.17) 7.5% 8.4%, transparent 9% 15%),
       linear-gradient(180deg, #4c704c, #294936 62%, #203a31);
-    transform: translate3d(var(--story-field-shift), 0, 0);
-    transition: transform 4.1s linear, filter 700ms ease;
+    transform: translate3d(var(--story-field-shift), var(--story-elevation-field), 0);
+    transition: transform var(--story-travel-duration) linear, filter 700ms ease;
     will-change: transform;
   }
 
@@ -1066,7 +1126,7 @@
     z-index: 18;
     width: clamp(4.4rem, 10vw, 7rem);
     transform: translate3d(-50%, 0, 0);
-    transition: left 4.1s linear;
+    transition: left var(--story-travel-duration) linear, bottom var(--story-travel-duration) ease;
     will-change: left;
   }
 
@@ -1074,6 +1134,8 @@
   .story-character-track-observer { z-index: 15; width: clamp(4rem, 9vw, 6.3rem); opacity: 0.94; }
   .story-character-track-threat { z-index: 19; width: clamp(4.5rem, 10vw, 7rem); }
   .story-character-track-transition { z-index: 18; }
+  .story-character-track-lineage { z-index: 14; width: clamp(3.5rem, 7.5vw, 5.4rem); opacity: 0.76; }
+  .story-character-track-future { z-index: 17; width: clamp(4rem, 8.5vw, 6rem); opacity: 0.84; }
 
   .story-character {
     display: block;
@@ -1095,21 +1157,42 @@
   .story-character-sash { stroke: #8098ad; opacity: 0.72; }
   .story-character-cain .story-character-sash { stroke: #7c463f; opacity: 0.9; }
   .story-character-seth .story-character-sash { stroke: #e1b450; opacity: 0.95; }
+  .story-character-enoch .story-character-sash { stroke: #c6d4df; opacity: 0.92; }
+  .story-character-methuselah .story-character-sash { stroke: #9b8063; opacity: 0.92; }
+  .story-character-noah .story-character-sash { stroke: #d9b44f; opacity: 0.9; }
   .story-role-threat { filter: drop-shadow(0 0.45rem 0.5rem rgba(33, 5, 10, 0.5)); }
+  .story-role-lineage { filter: drop-shadow(0 0.3rem 0.36rem rgba(8, 18, 28, 0.2)); }
+  .story-role-future { filter: drop-shadow(0 0 1rem rgba(237, 199, 105, 0.28)); }
 
   .story-carried-lamb { opacity: 0; transition: opacity 220ms ease; }
   .story-outcome-correct .story-carried-lamb,
   .story-action-carry .story-carried-lamb { opacity: 1; }
 
   .story-action-idle { animation: story-breathe 1.8s ease-in-out infinite; }
+  .story-action-slow-walk .story-leg-front,
+  .story-action-brisk-walk .story-leg-front,
   .story-action-walk .story-leg-front,
   .story-action-run .story-leg-front { animation: story-leg-forward 680ms ease-in-out infinite alternate; }
+  .story-action-slow-walk .story-leg-back,
+  .story-action-brisk-walk .story-leg-back,
   .story-action-walk .story-leg-back,
   .story-action-run .story-leg-back { animation: story-leg-back 680ms ease-in-out infinite alternate; }
+  .story-action-slow-walk .story-arm-front,
+  .story-action-brisk-walk .story-arm-front,
   .story-action-walk .story-arm-front,
   .story-action-run .story-arm-front { animation: story-arm-forward 680ms ease-in-out infinite alternate; }
+  .story-action-slow-walk .story-arm-back,
+  .story-action-brisk-walk .story-arm-back,
   .story-action-walk .story-arm-back,
   .story-action-run .story-arm-back { animation: story-arm-back 680ms ease-in-out infinite alternate; }
+  .story-action-slow-walk .story-leg-front,
+  .story-action-slow-walk .story-leg-back,
+  .story-action-slow-walk .story-arm-front,
+  .story-action-slow-walk .story-arm-back { animation-duration: 1120ms; }
+  .story-action-brisk-walk .story-leg-front,
+  .story-action-brisk-walk .story-leg-back,
+  .story-action-brisk-walk .story-arm-front,
+  .story-action-brisk-walk .story-arm-back { animation-duration: 510ms; }
   .story-action-run .story-leg-front,
   .story-action-run .story-leg-back,
   .story-action-run .story-arm-front,
@@ -1130,7 +1213,54 @@
   .story-action-lie-still { transform: rotate(78deg) translate(1.5rem, 1.15rem); }
   .story-action-look-back { animation: story-look-back 680ms ease-in-out forwards; }
   .story-action-character-swap { animation: story-character-swap 1.1s ease-out forwards; }
+  .story-action-ascend { animation: story-ascend 1.6s ease-in-out forwards; }
+  .story-action-observe { animation: story-observe 900ms ease-in-out both; }
+  .story-action-age-transition { animation: story-age-transition 1.35s ease-in-out both; }
+  .story-action-lineage-transition { animation: story-lineage-transition 1.45s ease-in-out both; }
+  .story-action-appear { animation: story-appear 900ms ease-out both; }
+  .story-action-disappear { animation: story-disappear 1.3s ease-in both; }
   .story-action-fade { animation: story-fade 680ms ease-out forwards; }
+
+  .story-lineage-indicator {
+    position: absolute;
+    left: 50%;
+    top: 3.9rem;
+    z-index: 28;
+    display: flex;
+    max-width: calc(100% - 2rem);
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 7px;
+    background: rgba(9, 22, 38, 0.54);
+    padding: 0.4rem 0.65rem;
+    color: #e4eaf4;
+    box-shadow: 0 8px 22px rgba(5, 13, 24, 0.16);
+    transform: translateX(-50%);
+    -webkit-backdrop-filter: blur(7px) saturate(1.06);
+    backdrop-filter: blur(7px) saturate(1.06);
+  }
+
+  .story-lineage-indicator span { display: inline-flex; min-width: 0; align-items: center; gap: 0.35rem; }
+  .story-lineage-indicator b { overflow: hidden; font-size: 0.6rem; text-overflow: ellipsis; white-space: nowrap; }
+  .story-lineage-indicator i { color: #e8b958; font-size: 0.65rem; font-style: normal; }
+
+  .story-transition-label,
+  .story-title-reveal {
+    position: absolute;
+    left: 50%;
+    z-index: 27;
+    color: rgba(255, 255, 255, 0.84);
+    text-align: center;
+    text-shadow: 0 2px 14px rgba(5, 12, 23, 0.46);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .story-transition-label { top: 6.6rem; font-size: 0.67rem; font-weight: 800; }
+  .story-title-reveal { top: 38%; font-family: var(--font-display); font-size: clamp(1.8rem, 6vw, 3.8rem); font-weight: 700; letter-spacing: 0; animation: story-title-reveal 1.3s ease-out both; }
 
   .story-world:not(.story-world-abel-field):not(.story-world-regard-field) .story-altar,
   .story-world:not(.story-world-abel-field):not(.story-world-regard-field) .story-offering { display: none; }
@@ -1219,7 +1349,9 @@
 
   .story-is-paused .story-hills,
   .story-is-paused .story-field-bands,
-  .story-is-paused .story-character-track {
+  .story-is-paused .story-character-track,
+  .story-is-paused .story-time-sweep {
+    animation-play-state: paused !important;
     transition: none !important;
   }
 
@@ -1389,7 +1521,15 @@
 @keyframes story-collapse { 0% { transform: rotate(0); } 100% { transform: rotate(78deg) translate(1.5rem, 1.15rem); } }
 @keyframes story-look-back { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
 @keyframes story-character-swap { from { opacity: 0; transform: translateY(1.4rem) scale(0.84); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes story-ascend { from { transform: translateY(0); } to { transform: translateY(-1.4rem) scale(0.98); } }
+@keyframes story-observe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.12rem) scale(1.015); } }
+@keyframes story-age-transition { 0% { opacity: 0.72; filter: saturate(0.8); } 50% { opacity: 1; filter: saturate(0.45) brightness(1.1); } 100% { opacity: 0.82; filter: saturate(0.62); } }
+@keyframes story-lineage-transition { 0% { opacity: 0.3; transform: translateX(-0.7rem); } 100% { opacity: 1; transform: translateX(0); } }
+@keyframes story-appear { from { opacity: 0; transform: translateY(1.1rem) scale(0.86); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes story-disappear { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-0.8rem) scale(0.94); } }
 @keyframes story-fade { from { opacity: 1; transform: rotate(76deg) translate(2rem, 1rem); } to { opacity: 0.2; transform: rotate(76deg) translate(2rem, 1.2rem); } }
+@keyframes story-time-sweep { from { transform: translateX(-70%); } to { transform: translateX(70%); } }
+@keyframes story-title-reveal { from { opacity: 0; transform: translate(-50%, 0.7rem); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes story-altar-pulse { 0%, 100% { filter: brightness(0.9); } 50% { filter: brightness(1.25); } }
 @keyframes story-produce-jolt { 0%, 100% { transform: translateX(0); } 35% { transform: translateX(-0.35rem) rotate(-3deg); } 70% { transform: translateX(0.25rem) rotate(2deg); } }
 @keyframes story-panel-enter { from { opacity: 0; transform: translate(-50%, calc(-50% + 0.65rem)) scale(0.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
@@ -1408,6 +1548,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .story-cloud,
+  .story-time-sweep,
+  .story-title-reveal,
   .story-character,
   .story-character-body,
   .story-arm,
@@ -1417,6 +1559,8 @@
   .story-read-panel,
   .story-canonical-caption,
   .story-result-panel { animation: none !important; }
+  .story-time-sweep { opacity: 0.34; transform: none; }
+  .story-title-reveal { opacity: 1; transform: translateX(-50%); }
   .story-hills,
   .story-field-bands,
   .story-character-track { transition-duration: 0.01ms !important; }

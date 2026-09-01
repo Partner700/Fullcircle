@@ -1,4 +1,5 @@
 import { STORY_ACTIONS } from './actions';
+import { STORY_CHARACTER_LABELS } from './characters';
 import type { StoryActionName, StoryCharacterId, StoryCharacterRole } from './types';
 
 interface StoryCharacterProps {
@@ -8,18 +9,12 @@ interface StoryCharacterProps {
   facing?: 'left' | 'right';
 }
 
-const CHARACTER_LABELS: Record<StoryCharacterId, string> = {
-  abel: 'Abel',
-  cain: 'Cain',
-  seth: 'Seth',
-};
-
 export function StoryCharacter({ character, role, action, facing = 'right' }: StoryCharacterProps) {
   return (
     <svg
       viewBox="0 0 120 220"
       className={`story-character story-character-${character} story-role-${role} story-facing-${facing} ${STORY_ACTIONS[action].cssClass}`}
-      aria-label={`${CHARACTER_LABELS[character]}, ${role}`}
+      aria-label={`${STORY_CHARACTER_LABELS[character]}, ${role}`}
       role="img"
     >
       <g className="story-character-shadow" fill="rgba(0,0,0,0.22)">

@@ -6,6 +6,9 @@ import type {
   StoryQuestionType,
   StoryTimerSeconds,
 } from './types';
+import { GENERATIONS_LEVELS } from './generationsContent.ts';
+
+export { GENERATIONS_LEVELS } from './generationsContent.ts';
 
 export const ABEL_LEVEL_SLUG = 'abel-offering';
 export const REGARD_LEVEL_SLUG = 'regard';
@@ -67,6 +70,7 @@ export const ABEL_OFFERING_LEVEL: StoryLevelDefinition = {
   order: 1,
   openingSceneId: 'abel-field-intro',
   continuationText: 'The two offerings now stand together.',
+  scriptureLabel: 'Genesis 4',
   scenes: [
     {
       id: 'abel-field-intro', kind: 'narrative', environment: ABEL_FIELD,
@@ -101,7 +105,7 @@ export const ABEL_OFFERING_LEVEL: StoryLevelDefinition = {
 export const REGARD_LEVEL: StoryLevelDefinition = {
   id: 'book-1-chapter-1-level-2', slug: REGARD_LEVEL_SLUG, title: 'Regard',
   subtitle: 'Observe the two offerings and the response to each.', bookSlug: 'beginnings', chapterSlug: 'brothers',
-  order: 2, openingSceneId: 'regard-intro', continuationText: 'Cain leaves the offering place angry, his face fallen.',
+  order: 2, openingSceneId: 'regard-intro', continuationText: 'Cain leaves the offering place angry, his face fallen.', scriptureLabel: 'Genesis 4',
   scenes: [
     {
       id: 'regard-intro', kind: 'narrative', environment: REGARD_FIELD,
@@ -150,7 +154,7 @@ export const REGARD_LEVEL: StoryLevelDefinition = {
 export const AT_THE_DOOR_LEVEL: StoryLevelDefinition = {
   id: 'book-1-chapter-1-level-3', slug: AT_THE_DOOR_LEVEL_SLUG, title: 'At the Door',
   subtitle: 'Read the warning given to Cain.', bookSlug: 'beginnings', chapterSlug: 'brothers',
-  order: 3, openingSceneId: 'door-intro', continuationText: 'The warning has been spoken. Cain must answer it.',
+  order: 3, openingSceneId: 'door-intro', continuationText: 'The warning has been spoken. Cain must answer it.', scriptureLabel: 'Genesis 4',
   scenes: [
     {
       id: 'door-intro', kind: 'narrative', environment: WARNING_PATH,
@@ -208,7 +212,7 @@ export const AT_THE_DOOR_LEVEL: StoryLevelDefinition = {
 export const THE_FIELD_LEVEL: StoryLevelDefinition = {
   id: 'book-1-chapter-1-level-4', slug: THE_FIELD_LEVEL_SLUG, title: 'The Field',
   subtitle: 'Walk the field without rewriting what Scripture records.', bookSlug: 'beginnings', chapterSlug: 'brothers',
-  order: 4, openingSceneId: 'field-intro', continuationText: 'Abel\'s canonical exit opens the aftermath.',
+  order: 4, openingSceneId: 'field-intro', continuationText: 'Abel\'s canonical exit opens the aftermath.', scriptureLabel: 'Genesis 4',
   scenes: [
     {
       id: 'field-intro', kind: 'narrative', environment: OMINOUS_FIELD,
@@ -267,7 +271,7 @@ export const THE_FIELD_LEVEL: StoryLevelDefinition = {
 export const YOUR_BROTHER_LEVEL: StoryLevelDefinition = {
   id: 'book-1-chapter-1-level-5', slug: YOUR_BROTHER_LEVEL_SLUG, title: 'Your Brother',
   subtitle: 'Hear the question, the answer, and the consequence.', bookSlug: 'beginnings', chapterSlug: 'brothers',
-  order: 5, openingSceneId: 'brother-intro', continuationText: 'The chapter now turns from Cain toward another offspring.',
+  order: 5, openingSceneId: 'brother-intro', continuationText: 'The chapter now turns from Cain toward another offspring.', scriptureLabel: 'Genesis 4',
   scenes: [
     {
       id: 'brother-intro', kind: 'narrative', environment: AFTERMATH_GROUND,
@@ -318,6 +322,8 @@ export const ANOTHER_OFFSPRING_LEVEL: StoryLevelDefinition = {
   id: 'book-1-chapter-1-level-6', slug: ANOTHER_OFFSPRING_LEVEL_SLUG, title: 'Another Offspring',
   subtitle: 'Close Brothers and turn toward the next generation.', bookSlug: 'beginnings', chapterSlug: 'brothers',
   order: 6, openingSceneId: 'seth-intro', continuationText: 'The journey continues with Seth.', chapterConclusion: true,
+  nextCharacterName: 'Seth', scriptureLabel: 'Genesis 4',
+  chapterCompletionText: 'Brothers is complete. Seth now opens the next chapter.',
   scenes: [
     {
       id: 'seth-intro', kind: 'narrative', environment: SETH_DAWN,
@@ -359,7 +365,10 @@ export const BROTHERS_LEVELS = [
 export const STORY_BOOKS: StoryBookDefinition[] = [
   {
     id: 'story-book-1', slug: 'beginnings', numeral: 'Book I', title: 'Beginnings', order: 1,
-    chapters: [{ id: 'story-book-1-chapter-1', slug: 'brothers', title: 'Brothers', order: 1, levels: BROTHERS_LEVELS }],
+    chapters: [
+      { id: 'story-book-1-chapter-1', slug: 'brothers', title: 'Brothers', order: 1, levels: BROTHERS_LEVELS },
+      { id: 'story-book-1-chapter-2', slug: 'generations', title: 'Generations', order: 2, levels: GENERATIONS_LEVELS },
+    ],
   },
 ];
 

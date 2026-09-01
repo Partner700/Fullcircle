@@ -1,6 +1,7 @@
 import { Pause, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { StoryCharacter } from './StoryCharacter';
+import { STORY_CHARACTER_LABELS } from './characters';
 import { storyPhaseProgress, type StoryMachineState, type StoryPhase } from './engine';
 import type { StoryActionName, StorySceneDefinition } from './types';
 
@@ -8,6 +9,7 @@ interface StoryWorldProps {
   machine: StoryMachineState;
   scene: StorySceneDefinition;
   action: StoryActionName;
+  scriptureLabel: string;
   paused: boolean;
   busy: boolean;
   onPause: () => void;
@@ -23,7 +25,7 @@ function obstacleStyle(x: number, scale = 1): CSSProperties {
   return { left: `${x}%`, transform: `translateX(-50%) scale(${scale})` };
 }
 
-export function StoryWorld({ machine, scene, action, paused, busy, onPause, onResume, children }: StoryWorldProps) {
+export function StoryWorld({ machine, scene, action, scriptureLabel, paused, busy, onPause, onResume, children }: StoryWorldProps) {
   const phase = visualPhase(machine);
   const progressPosition = storyPhaseProgress(phase);
   const farShift = -Math.max(0, progressPosition - 10) * 0.08;
@@ -31,15 +33,24 @@ export function StoryWorld({ machine, scene, action, paused, busy, onPause, onRe
   const fieldShift = -Math.max(0, progressPosition - 10) * 0.24;
   const correct = phase === 'correct_action' || phase === 'level_complete' || phase === 'chapter_complete';
   const wrong = phase === 'wrong_action' || phase === 'failure';
-  const labels = scene.characters.map((placement) => placement.id).join(' and ') || 'the narrative';
+  const labels = scene.characters.map((placement) => STORY_CHARACTER_LABELS[placement.id]).join(' and ') || 'the narrative';
+  const timePassage = scene.environment.timePassage || 'none';
+  const locomotion = scene.locomotion || 'walk';
+  const elevation = scene.environment.elevation || 0;
+  const travelDuration = `${scene.durationMs || 4_100}ms`;
 
   return (
     <section
-      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${scene.environment.weather} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
+      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${scene.environment.weather} story-passage-${timePassage} story-locomotion-${locomotion} story-elevation-${elevation} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
       style={{
         '--story-far-shift': `${farShift}%`,
         '--story-near-shift': `${nearShift}%`,
         '--story-field-shift': `${fieldShift}%`,
+        '--story-travel-duration': travelDuration,
+        '--story-elevation': elevation,
+        '--story-elevation-far': `${elevation * -0.42}rem`,
+        '--story-elevation-near': `${elevation * -0.57}rem`,
+        '--story-elevation-field': `${elevation * -0.17}rem`,
       } as CSSProperties}
       aria-label={`${labels} in ${scene.environment.id.replace(/-/g, ' ')}`}
     >
@@ -47,6 +58,7 @@ export function StoryWorld({ machine, scene, action, paused, busy, onPause, onRe
         <span className="story-sun" />
         <span className="story-cloud story-cloud-one" />
         <span className="story-cloud story-cloud-two" />
+        <span className="story-time-sweep" />
       </div>
       <div className="story-hills story-hills-far" aria-hidden="true" />
       <div className="story-hills story-hills-near" aria-hidden="true" />
@@ -72,7 +84,9 @@ export function StoryWorld({ machine, scene, action, paused, busy, onPause, onRe
       ))}
 
       {scene.characters.map((placement) => {
-        const position = placement.active && ['walking', 'running'].includes(phase) ? progressPosition : placement.x;
+        const position = placement.id === scene.activeCharacterId && ['walking', 'running'].includes(phase)
+          ? progressPosition
+          : placement.x;
         const characterAction = placement.id === scene.activeCharacterId ? action : placement.action;
         return (
           <div
@@ -86,9 +100,19 @@ export function StoryWorld({ machine, scene, action, paused, busy, onPause, onRe
       })}
       <div className="story-grass story-grass-front" aria-hidden="true" />
 
+      {scene.lineage?.length ? (
+        <div className="story-lineage-indicator" aria-label={`Lineage: ${scene.lineage.map((id) => STORY_CHARACTER_LABELS[id]).join(' to ')}`}>
+          {scene.lineage.map((id, index) => (
+            <span key={`${scene.id}-${id}`}><b>{STORY_CHARACTER_LABELS[id]}</b>{index < scene.lineage!.length - 1 ? <i aria-hidden="true">&rarr;</i> : null}</span>
+          ))}
+        </div>
+      ) : null}
+      {scene.transitionLabel ? <div className="story-transition-label" role="status">{scene.transitionLabel}</div> : null}
+      {scene.titleReveal ? <div className="story-title-reveal" role="status">{scene.titleReveal}</div> : null}
+
       <div className="absolute left-3 top-3 z-30 flex items-center gap-2 sm:left-4 sm:top-4">
         <span className="rounded-md border border-white/20 bg-navy/55 px-2.5 py-1.5 text-[10px] font-bold text-white backdrop-blur-sm">
-          Genesis 4
+          {scriptureLabel}
         </span>
       </div>
       <button
