@@ -303,10 +303,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             20_000,
             'Account setup',
           );
-          if (rpcError) return rpcError.message;
+          if (rpcError) {
+            // get_my_app_bootstrap is also allowed to create/repair the signed-in
+            // person's profile and first cadet role. Use that authoritative path
+            // before declaring a successfully authenticated signup a failure.
+            console.warn('Primary account setup failed; trying profile bootstrap:', rpcError);
+          }
 
           await waitFor(loadProfile(userId), 15_000, 'Profile loading');
-          return null;
+          if (profileRef.current?.id === userId) return null;
+          return rpcError?.message || 'Your profile could not be prepared.';
         } catch (setupError) {
           const message = setupError instanceof Error ? setupError.message : '';
           return /timed out/i.test(message)
@@ -325,6 +331,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Account sign-in',
         );
         if (signInError) {
+          if (/email not confirmed|confirm your email/i.test(signInError.message)) {
+            try {
+              await waitFor(
+                supabase.auth.resend({ type: 'signup', email: normalizedEmail }),
+                15_000,
+                'Confirmation email',
+              );
+            } catch (resendError) {
+              console.warn('Confirmation email could not be resent automatically:', resendError);
+            }
+            return {
+              error: null,
+              notice: 'Your account exists and is waiting for email confirmation. We sent a new confirmation link; open it, then sign in.',
+            };
+          }
           return {
             error: 'This email already has an account, but that password did not match. Please use the original password on Sign In, or reset the password.',
           };

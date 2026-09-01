@@ -5,13 +5,15 @@ import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { MessageAvatar } from '../../components/TentMessenger';
 import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
-import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting } from '../../lib/types';
+import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelImageSetting, Profile } from '../../lib/types';
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
+import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
 import {
   BookOpen, BookMarked, Heart, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
@@ -41,6 +43,17 @@ const INSIGHT_REACTIONS: { type: VerseInsightReactionType; label: string; icon: 
   { type: 'heart', label: 'Love this insight', icon: Heart },
   { type: 'lightbulb', label: 'This gave me an idea', icon: Lightbulb },
 ];
+
+function messageProfile(userId: string, displayName: string, avatarUrl?: string | null): Profile {
+  return {
+    id: userId,
+    display_name: displayName,
+    email: null,
+    avatar_url: avatarUrl || null,
+    whatsapp_number: null,
+    created_at: '',
+  };
+}
 
 function MentionTextarea({
   value,
@@ -257,7 +270,7 @@ export function CadetNarrative({
   const [savingInsight, setSavingInsight] = useState<string | null>(null);
   const [openInsightReplies, setOpenInsightReplies] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
-  const [replyTargets, setReplyTargets] = useState<Record<string, { userId: string; displayName: string; parentCommentId?: string } | null>>({});
+  const [replyTargets, setReplyTargets] = useState<Record<string, ReadingReplyTarget | null>>({});
   const [savingReply, setSavingReply] = useState<string | null>(null);
   const [editingInsightId, setEditingInsightId] = useState<string | null>(null);
   const [editingInsightBody, setEditingInsightBody] = useState('');
@@ -272,12 +285,50 @@ export function CadetNarrative({
   const [archiveDate, setArchiveDate] = useState<string | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
+  const draftHydratedKeyRef = useRef<string | null>(null);
+  const draftSnapshotRef = useRef<ReadingDraft>(emptyReadingDraft());
 
   const today = getTodayISODate();
   const activeDate = archiveDate || today;
   const isHistoricalReading = activeDate < today;
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
+  const draftStorageKey = profile ? readingDraftStorageKey(profile.id, activeDate) : null;
+  const draftSnapshot = useMemo<ReadingDraft>(() => ({
+    meditation: savedMeditation ? '' : meditation,
+    bestVerse: savedMeditation ? '' : bestVerse,
+    dailyQuote: savedMeditation ? '' : dailyQuote,
+    challengeText: challengeSaved || (challenge && challenge.status !== 'rejected') ? '' : challengeText,
+    challengeLink: challengeSaved || (challenge && challenge.status !== 'rejected') ? '' : challengeLink,
+    insightDrafts: myInsightDrafts,
+    replyDrafts,
+    replyTargets,
+    openUserInsights,
+    openInsightReplies,
+    editingInsightId,
+    editingInsightBody,
+    editingCommentId,
+    editingCommentBody,
+  }), [
+    bestVerse,
+    challenge,
+    challengeLink,
+    challengeSaved,
+    challengeText,
+    dailyQuote,
+    editingCommentBody,
+    editingCommentId,
+    editingInsightBody,
+    editingInsightId,
+    meditation,
+    myInsightDrafts,
+    openInsightReplies,
+    openUserInsights,
+    replyDrafts,
+    replyTargets,
+    savedMeditation,
+  ]);
+  draftSnapshotRef.current = draftSnapshot;
   const conversationNarrativeIds = useMemo(() => {
     const sourceIds = (narrative?.scripture_passages || [])
       .map((passage) => passage.source_narrative_id)
@@ -321,58 +372,91 @@ export function CadetNarrative({
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
+    const expectedDraftKey = readingDraftStorageKey(profile.id, activeDate);
+    const localDraft = readReadingDraft(profile.id, activeDate);
+    draftHydratedKeyRef.current = null;
     setLoading(true);
     setReaderVerses([]);
     setVerseInsights([]);
     setOpenVerse(null);
-    setOpenUserInsights(null);
-    setOpenInsightReplies(null);
-    try {
-    const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
-      fetchNarrative(activeDate),
-      isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profile.id, activeDate),
-      fetchPanelImageSetting('reading').catch(() => null),
-      fetchPanelImageSetting('scripture').catch(() => null),
-      fetchPanelImageSetting('verse_day_tr').catch(() => null),
-      fetchPanelImageSetting('challenge').catch(() => null),
-      fetchPanelImageSetting('meditation').catch(() => null),
-    ]);
-    setNarrative(narr);
-    setChallenge(chal);
-    setReadingImage(panelImage);
-      setScriptureImage(scripturePanelImage || legacyVersePanelImage);
-    setChallengeImage(challengePanelImage);
-    setMeditationImage(meditationPanelImage);
-    setMeditation('');
-    setBestVerse('');
-    setDailyQuote('');
+    setMeditation(localDraft.meditation);
+    setBestVerse(localDraft.bestVerse);
+    setDailyQuote(localDraft.dailyQuote);
     setSavedMeditation(false);
-    setChallengeText('');
-    setChallengeLink('');
-    if (chal?.proof_text) {
-      if (narr?.challenge_proof_format === 'link') setChallengeLink(chal.proof_text);
-      else setChallengeText(chal.proof_text);
-    }
+    setChallengeText(localDraft.challengeText);
+    setChallengeLink(localDraft.challengeLink);
+    setChallengeSaved(false);
+    setMyInsightDrafts(localDraft.insightDrafts);
+    setReplyDrafts(localDraft.replyDrafts);
+    setReplyTargets(localDraft.replyTargets);
+    setOpenUserInsights(localDraft.openUserInsights);
+    setOpenInsightReplies(localDraft.openInsightReplies);
+    setEditingInsightId(localDraft.editingInsightId);
+    setEditingInsightBody(localDraft.editingInsightBody);
+    setEditingCommentId(localDraft.editingCommentId);
+    setEditingCommentBody(localDraft.editingCommentBody);
+    try {
+      const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
+        fetchNarrative(activeDate),
+        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profile.id, activeDate),
+        fetchPanelImageSetting('reading').catch(() => null),
+        fetchPanelImageSetting('scripture').catch(() => null),
+        fetchPanelImageSetting('verse_day_tr').catch(() => null),
+        fetchPanelImageSetting('challenge').catch(() => null),
+        fetchPanelImageSetting('meditation').catch(() => null),
+      ]);
+      setNarrative(narr);
+      setChallenge(chal);
+      setReadingImage(panelImage);
+      setScriptureImage(scripturePanelImage || legacyVersePanelImage);
+      setChallengeImage(challengePanelImage);
+      setMeditationImage(meditationPanelImage);
+      if (chal?.proof_text) {
+        if (narr?.challenge_proof_format === 'link') setChallengeLink(chal.proof_text);
+        else setChallengeText(chal.proof_text);
+      }
 
-    const { data: record } = await supabase
-      .from('daily_records')
-      .select('meditation_text, meditation_submitted, best_verse, daily_quote')
-      .eq('user_id', profile.id)
-      .eq('record_date', activeDate)
-      .maybeSingle();
-    if (record?.meditation_text) {
-      setMeditation(record.meditation_text);
-      setSavedMeditation(record.meditation_submitted);
-    }
-    if (record?.best_verse) setBestVerse(record.best_verse);
-    if (record?.daily_quote) setDailyQuote(record.daily_quote);
+      const { data: record } = await supabase
+        .from('daily_records')
+        .select('meditation_text, meditation_submitted, best_verse, daily_quote')
+        .eq('user_id', profile.id)
+        .eq('record_date', activeDate)
+        .maybeSingle();
+      if (record?.meditation_text) setMeditation(record.meditation_text);
+      if (record?.best_verse) setBestVerse(record.best_verse);
+      if (record?.daily_quote) setDailyQuote(record.daily_quote);
+      setSavedMeditation(Boolean(record?.meditation_submitted));
     } catch (e) { console.error('Narrative load error:', e); }
+    draftHydratedKeyRef.current = expectedDraftKey;
     setLoading(false);
   }, [activeDate, isHistoricalReading, profile]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!profile || !draftStorageKey || draftHydratedKeyRef.current !== draftStorageKey) return;
+    writeReadingDraft(profile.id, activeDate, draftSnapshot);
+  }, [activeDate, draftSnapshot, draftStorageKey, profile]);
+
+  const flushReadingDraft = useCallback(() => {
+    if (!profile || !draftStorageKey || draftHydratedKeyRef.current !== draftStorageKey) return;
+    writeReadingDraft(profile.id, activeDate, draftSnapshotRef.current);
+  }, [activeDate, draftStorageKey, profile]);
+
+  useEffect(() => {
+    const persistWhenHidden = () => {
+      if (document.visibilityState === 'hidden') flushReadingDraft();
+    };
+    window.addEventListener('pagehide', flushReadingDraft);
+    document.addEventListener('visibilitychange', persistWhenHidden);
+    return () => {
+      flushReadingDraft();
+      window.removeEventListener('pagehide', flushReadingDraft);
+      document.removeEventListener('visibilitychange', persistWhenHidden);
+    };
+  }, [flushReadingDraft]);
 
   useEffect(() => {
     setClosedSundayInsights([]);
@@ -471,9 +555,6 @@ export function CadetNarrative({
     fetchVerseInsights(conversationNarrativeIds, profile?.id).then((items) => {
       if (!cancelled) {
         setVerseInsights(items);
-        const drafts: Record<string, string> = {};
-        items.filter((item: any) => item.user_id === profile?.id).forEach((item: any) => { drafts[item.verse_reference] = item.body || ''; });
-        setMyInsightDrafts(drafts);
       }
     });
     return () => { cancelled = true; };
@@ -898,9 +979,11 @@ export function CadetNarrative({
                         return (
                           <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
                             <div className="flex items-start gap-2.5">
-                              <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-border bg-peri-soft text-center text-xs font-bold leading-8 text-peri">
-                                {item.profiles?.avatar_url ? <img src={item.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : authorName.charAt(0)}
-                              </div>
+                              <MessageAvatar
+                                profile={messageProfile(item.user_id, authorName, item.profiles?.avatar_url)}
+                                currentUserId={profile?.id}
+                                size="sm"
+                              />
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-bold text-ink">{authorName}{item.user_id === profile?.id ? ' · You' : ''}</p>
                                 {editingInsightId === item.id ? (
@@ -949,11 +1032,14 @@ export function CadetNarrative({
                               ).values()).slice(0, 5);
                               if (!actors.length) return null;
                               return (
-                                <div className="mt-2 flex items-center -space-x-1" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
                                   {actors.map((actor: any) => (
-                                    <span key={actor.user_id} title={actor.display_name} className="inline-flex h-4 w-4 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-[6px] font-bold leading-4 text-peri shadow-sm">
-                                      {actor.avatar_url ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" /> : actor.display_name.charAt(0)}
-                                    </span>
+                                    <MessageAvatar
+                                      key={actor.user_id}
+                                      profile={messageProfile(actor.user_id, actor.display_name, actor.avatar_url)}
+                                      currentUserId={profile?.id}
+                                      size="xs"
+                                    />
                                   ))}
                                 </div>
                               );
@@ -970,21 +1056,30 @@ export function CadetNarrative({
                               <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
                                 {comments.map((comment: any) => (
                                   <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
-                                    <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'}</p>
-                                    {editingCommentId === comment.id ? (
-                                      <div className="mt-1 flex items-end gap-2">
-                                        <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
-                                        <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                    <div className="flex items-start gap-2.5">
+                                      <MessageAvatar
+                                        profile={messageProfile(comment.user_id, comment.profile?.display_name || 'Reader', comment.profile?.avatar_url)}
+                                        currentUserId={profile?.id}
+                                        size="sm"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'}</p>
+                                        {editingCommentId === comment.id ? (
+                                          <div className="mt-1 flex items-end gap-2">
+                                            <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
+                                            <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                          </div>
+                                        ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
+                                        {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
+                                        <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
+                                          if (!requireSubscription()) return;
+                                          const displayName = comment.profile?.display_name || 'Reader';
+                                          setOpenInsightReplies(item.id);
+                                          setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
+                                          setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
+                                        }}><Reply size={11} /> Reply</button>
                                       </div>
-                                    ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
-                                    {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
-                                    <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
-                                      if (!requireSubscription()) return;
-                                      const displayName = comment.profile?.display_name || 'Reader';
-                                      setOpenInsightReplies(item.id);
-                                      setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
-                                      setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
-                                    }}><Reply size={11} /> Reply</button>
+                                    </div>
                                   </div>
                                 ))}
                                 {repliesOpen && (

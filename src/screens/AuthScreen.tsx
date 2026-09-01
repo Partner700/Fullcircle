@@ -99,7 +99,12 @@ export function AuthScreen({
         // and the current instructor can hand over to a sentry.
         const { error, notice: signupNotice } = await signUp(normalizedEmail, password, displayName, 'cadet');
         if (error) setError(error);
-        else if (signupNotice) setNotice(signupNotice);
+        else if (signupNotice) {
+          setNotice(signupNotice);
+          setMode('signin');
+          setPassword('');
+          setConfirmPassword('');
+        }
       }
     } catch (submitError) {
       console.warn('Authentication request failed:', submitError);
