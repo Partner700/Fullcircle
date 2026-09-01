@@ -12,6 +12,19 @@ export type StoryActionName =
   | 'run'
   | 'stop'
   | 'carry'
+  | 'measure'
+  | 'cut'
+  | 'place'
+  | 'raise'
+  | 'hammer'
+  | 'seal'
+  | 'build'
+  | 'load'
+  | 'store'
+  | 'open_door'
+  | 'animal_enter'
+  | 'group_enter'
+  | 'inspect'
   | 'kneel'
   | 'offer'
   | 'trip'
@@ -38,7 +51,6 @@ export type FutureStoryActionName =
   | 'jump'
   | 'duck'
   | 'climb'
-  | 'build'
   | 'enter'
   | 'exit'
   | 'hide'
@@ -54,7 +66,14 @@ export type StoryCharacterId =
   | 'enoch'
   | 'methuselah'
   | 'lamech'
-  | 'noah';
+  | 'noah'
+  | 'noahs-wife'
+  | 'shem'
+  | 'ham'
+  | 'japheth'
+  | 'shems-wife'
+  | 'hams-wife'
+  | 'japheths-wife';
 export type StoryCharacterRole =
   | 'player'
   | 'npc'
@@ -62,7 +81,10 @@ export type StoryCharacterRole =
   | 'transition'
   | 'observer'
   | 'lineage'
-  | 'future';
+  | 'future'
+  | 'family'
+  | 'helper'
+  | 'procession';
 
 export type StoryLocomotion = 'slow_walk' | 'walk' | 'brisk_walk' | 'run';
 export type StoryTimePassage = 'none' | 'dawn_to_day' | 'day_to_dusk' | 'seasons' | 'generations';
@@ -114,11 +136,75 @@ export type StoryEnvironment = {
     | 'enoch-ridge'
     | 'enoch-summit'
     | 'methuselah-seasons'
-    | 'noah-horizon';
-  weather: 'clear' | 'wind' | 'still' | 'haze';
+    | 'noah-horizon'
+    | 'noah-corruption'
+    | 'noah-favor'
+    | 'ark-instruction'
+    | 'ark-site-early'
+    | 'ark-site-middle'
+    | 'ark-site-late'
+    | 'ark-storm';
+  weather: 'clear' | 'wind' | 'still' | 'haze' | 'clouding';
   timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'dawn';
   elevation?: 0 | 1 | 2 | 3 | 4 | 5;
   timePassage?: StoryTimePassage;
+};
+
+export type StoryCameraDirective = {
+  framing: 'follow' | 'focus' | 'reveal' | 'wide';
+  target?: 'character' | 'construction' | 'procession' | 'environment';
+};
+
+export type StoryBuildFailureEffect = 'lean' | 'collapse' | 'reject' | 'misplace' | 'block' | 'spill';
+
+export type StoryBuildComponentKey =
+  | 'foundation'
+  | 'frame'
+  | 'hull'
+  | 'opening'
+  | 'decks'
+  | 'household'
+  | 'animals'
+  | 'provisions'
+  | 'complete';
+
+export type StoryBuildStageDefinition = {
+  id: string;
+  order: number;
+  componentKey: StoryBuildComponentKey;
+  label: string;
+};
+
+export type StoryBuildDefinition = {
+  id: string;
+  label: string;
+  visual: 'ark';
+  stages: StoryBuildStageDefinition[];
+};
+
+export type StoryBuildState = {
+  constructionId: string;
+  label: string;
+  stageOrder: number;
+  stageSlug: string;
+  totalStages: number;
+  completed: boolean;
+  completedComponents: StoryBuildComponentKey[];
+  checkpointId: string;
+};
+
+export type StoryCreatureGroup = {
+  id: string;
+  category: 'land-animals' | 'birds' | 'creeping-things';
+  state: 'waiting' | 'entering' | 'stored';
+  x: number;
+};
+
+export type StorySupplyGroup = {
+  id: string;
+  kind: 'sacks' | 'bundles' | 'vessels';
+  state: 'waiting' | 'loading' | 'stored';
+  x: number;
 };
 
 export type StorySceneDefinition = {
@@ -138,6 +224,11 @@ export type StorySceneDefinition = {
   lineage?: StoryCharacterId[];
   transitionLabel?: string;
   titleReveal?: string;
+  camera?: StoryCameraDirective;
+  constructionId?: string;
+  creatureGroups?: StoryCreatureGroup[];
+  supplyGroups?: StorySupplyGroup[];
+  buildFailureEffect?: StoryBuildFailureEffect;
   obstacles?: StoryObstacleDefinition[];
   action: StoryActionName;
   durationMs?: number;
@@ -179,6 +270,8 @@ export type StoryChapterDefinition = {
   title: string;
   order: number;
   levels: StoryLevelDefinition[];
+  plannedLevelCount?: number;
+  lockedContinuation?: { title: string; subtitle: string };
 };
 
 export type StoryBookDefinition = {
@@ -253,6 +346,7 @@ export type StoryAttempt = {
   serverNow: string;
   question: StoryQuestionPayload | null;
   pendingEventId: string | null;
+  buildState: StoryBuildState | null;
 };
 
 export type StoryAnswerResult = {
@@ -274,6 +368,7 @@ export type StoryAnswerResult = {
   replay: boolean;
   nextQuestion: StoryQuestionPayload | null;
   levelsCompleted: number;
+  buildState: StoryBuildState | null;
 };
 
 export type StoryDeadline = {

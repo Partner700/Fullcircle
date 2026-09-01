@@ -61,8 +61,8 @@ assert.match(migration, /next_level\.unlock_after_level_slug = v_attempt\.level_
 const home = read('src/screens/cadet/story-mode/StoryModeHome.tsx');
 assert.match(home, /book\.chapters\.map/);
 assert.match(home, /replay available/);
-assert.match(home, /Next chronological character/);
-assert.match(home, />Noah</);
+assert.match(home, /chapter\.lockedContinuation/);
+assert.match(home, /lockedContinuation\.title/);
 assert.match(home, /locked/);
 
 console.log('Story Mode lineage transitions, time passage, navigation, and Noah-lock checks passed.');

@@ -34,8 +34,9 @@ export function StoryModeHome({
   const currentChapter = location?.chapter || book.chapters[0];
   const currentState = levelState.get(currentLevel.slug);
   const chapterCompletedCount = currentChapter.levels.filter((level) => levelState.get(level.slug)?.completed).length;
-  const chapterPercent = currentChapter.levels.length > 0
-    ? Math.round((chapterCompletedCount / currentChapter.levels.length) * 100)
+  const chapterLevelCount = currentChapter.plannedLevelCount || currentChapter.levels.length;
+  const chapterPercent = chapterLevelCount > 0
+    ? Math.round((chapterCompletedCount / chapterLevelCount) * 100)
     : 0;
 
   return (
@@ -131,13 +132,18 @@ export function StoryModeHome({
                       </button>
                     );
                   })}
+                  {chapter.lockedContinuation ? (
+                    <div className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-surface-2/60 p-3 text-left opacity-75">
+                      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-surface-2 text-stone"><Lock size={17} /></span>
+                      <span className="min-w-0 flex-1">
+                        <strong className="block text-sm text-ink">{chapter.lockedContinuation.title}</strong>
+                        <span className="block text-xs text-stone">{chapter.lockedContinuation.subtitle}</span>
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
-            <div className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-surface-2/60 p-3 text-left opacity-75">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-surface-2 text-stone"><Lock size={17} /></span>
-              <span className="min-w-0 flex-1"><strong className="block text-sm text-ink">Noah</strong><span className="block text-xs text-stone">Next chronological character · locked</span></span>
-            </div>
           </div>
         </section>
       )}

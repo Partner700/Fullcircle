@@ -1,6 +1,14 @@
 import { supabase } from '../../../lib/supabase';
 import { isStoryTimerSeconds, storyQuestionOptions } from './content';
-import type { StoryAnswerResult, StoryAttempt, StoryDeadline, StoryProgress, StoryQuestionPayload } from './types';
+import type {
+  StoryAnswerResult,
+  StoryAttempt,
+  StoryBuildComponentKey,
+  StoryBuildState,
+  StoryDeadline,
+  StoryProgress,
+  StoryQuestionPayload,
+} from './types';
 
 function rpcRow(data: unknown) {
   return Array.isArray(data) ? data[0] : data;
@@ -37,6 +45,28 @@ function parseQuestion(value: unknown): StoryQuestionPayload | null {
 function parseCheckpointState(value: unknown): StoryAttempt['checkpointState'] {
   if (value === 'question_approach' || value === 'canonical_event' || value === 'level_complete' || value === 'chapter_complete') return value;
   return 'intro';
+}
+
+const BUILD_COMPONENTS = new Set<StoryBuildComponentKey>([
+  'foundation', 'frame', 'hull', 'opening', 'decks', 'household', 'animals', 'provisions', 'complete',
+]);
+
+function parseBuildState(value: unknown): StoryBuildState | null {
+  if (value === null || value === undefined) return null;
+  const row = requiredObject(value, 'Story construction state');
+  const completedComponents = Array.isArray(row.completed_components)
+    ? row.completed_components.map(String).filter((item): item is StoryBuildComponentKey => BUILD_COMPONENTS.has(item as StoryBuildComponentKey))
+    : [];
+  return {
+    constructionId: String(row.construction_id || ''),
+    label: String(row.label || 'Construction'),
+    stageOrder: Math.max(0, Number(row.stage_order) || 0),
+    stageSlug: String(row.stage_slug || 'site'),
+    totalStages: Math.max(0, Number(row.total_stages) || 0),
+    completed: Boolean(row.completed),
+    completedComponents,
+    checkpointId: String(row.checkpoint_id || ''),
+  };
 }
 
 export async function fetchStoryModeProgress(): Promise<StoryProgress> {
@@ -100,6 +130,7 @@ export async function startStoryModeLevel(levelSlug: string): Promise<StoryAttem
     serverNow: String(row.server_now || new Date().toISOString()),
     question: parseQuestion(row.question),
     pendingEventId: row.pending_event_id ? String(row.pending_event_id) : null,
+    buildState: parseBuildState(row.build_state),
   };
 }
 
@@ -180,6 +211,7 @@ function parseStoryResult(data: unknown, label: string): StoryAnswerResult {
     replay: Boolean(row.replay),
     nextQuestion: parseQuestion(row.next_question),
     levelsCompleted: Number(row.levels_completed) || 0,
+    buildState: parseBuildState(row.build_state),
   };
 }
 

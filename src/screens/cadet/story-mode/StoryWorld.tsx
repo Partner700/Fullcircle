@@ -2,8 +2,10 @@ import { Pause, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { StoryCharacter } from './StoryCharacter';
 import { STORY_CHARACTER_LABELS } from './characters';
+import { findStoryBuild } from './content';
 import { storyPhaseProgress, type StoryMachineState, type StoryPhase } from './engine';
-import type { StoryActionName, StorySceneDefinition } from './types';
+import { StoryConstruction } from './StoryConstruction';
+import type { StoryActionName, StoryBuildState, StorySceneDefinition } from './types';
 
 interface StoryWorldProps {
   machine: StoryMachineState;
@@ -12,6 +14,7 @@ interface StoryWorldProps {
   scriptureLabel: string;
   paused: boolean;
   busy: boolean;
+  buildState: StoryBuildState | null;
   onPause: () => void;
   onResume: () => void;
   children?: ReactNode;
@@ -25,7 +28,7 @@ function obstacleStyle(x: number, scale = 1): CSSProperties {
   return { left: `${x}%`, transform: `translateX(-50%) scale(${scale})` };
 }
 
-export function StoryWorld({ machine, scene, action, scriptureLabel, paused, busy, onPause, onResume, children }: StoryWorldProps) {
+export function StoryWorld({ machine, scene, action, scriptureLabel, paused, busy, buildState, onPause, onResume, children }: StoryWorldProps) {
   const phase = visualPhase(machine);
   const progressPosition = storyPhaseProgress(phase);
   const farShift = -Math.max(0, progressPosition - 10) * 0.08;
@@ -38,10 +41,12 @@ export function StoryWorld({ machine, scene, action, scriptureLabel, paused, bus
   const locomotion = scene.locomotion || 'walk';
   const elevation = scene.environment.elevation || 0;
   const travelDuration = `${scene.durationMs || 4_100}ms`;
+  const buildDefinition = scene.constructionId ? findStoryBuild(scene.constructionId) : null;
+  const visibleBuildState = buildDefinition && buildState?.constructionId === buildDefinition.id ? buildState : null;
 
   return (
     <section
-      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${scene.environment.weather} story-passage-${timePassage} story-locomotion-${locomotion} story-elevation-${elevation} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
+      className={`story-world story-world-${scene.environment.palette} story-time-${scene.environment.timeOfDay} story-weather-${scene.environment.weather} story-passage-${timePassage} story-locomotion-${locomotion} story-elevation-${elevation} story-camera-${scene.camera?.framing || 'follow'} story-phase-${phase} ${correct ? 'story-outcome-correct' : ''} ${wrong ? 'story-outcome-wrong' : ''} ${paused ? 'story-is-paused' : ''}`}
       style={{
         '--story-far-shift': `${farShift}%`,
         '--story-near-shift': `${nearShift}%`,
@@ -64,6 +69,16 @@ export function StoryWorld({ machine, scene, action, scriptureLabel, paused, bus
       <div className="story-hills story-hills-near" aria-hidden="true" />
       <div className="story-field-bands" aria-hidden="true" />
       <div className="story-grass story-grass-back" aria-hidden="true" />
+      {scene.environment.palette === 'noah-corruption' ? (
+        <div className="story-corruption-details" aria-hidden="true"><span /><span /><span /><span /></div>
+      ) : null}
+      {buildDefinition && visibleBuildState ? (
+        <StoryConstruction
+          definition={buildDefinition}
+          state={visibleBuildState}
+          failureEffect={wrong ? scene.buildFailureEffect : undefined}
+        />
+      ) : null}
       <div className="story-altar" aria-hidden="true"><span /><span /><span /><i className="story-altar-glow" /></div>
       <div className="story-offering story-offering-flock" aria-hidden="true">
         <span className="story-lamb-body" /><span className="story-lamb-head" />
@@ -81,6 +96,28 @@ export function StoryWorld({ machine, scene, action, scriptureLabel, paused, bus
           style={obstacleStyle(obstacle.x, obstacle.scale)}
           aria-hidden="true"
         />
+      ))}
+
+      {scene.creatureGroups?.map((group) => (
+        <div
+          key={group.id}
+          className={`story-creature-group story-creature-${group.category} story-creature-${group.state}`}
+          style={{ '--story-group-x': `${group.x}%` } as CSSProperties}
+          aria-label={`${group.category.replace(/-/g, ' ')} ${group.state}`}
+        >
+          <span /><span /><span />
+        </div>
+      ))}
+
+      {scene.supplyGroups?.map((group) => (
+        <div
+          key={group.id}
+          className={`story-supply-group story-supply-${group.kind} story-supply-${group.state}`}
+          style={{ '--story-group-x': `${group.x}%` } as CSSProperties}
+          aria-label={`${group.kind} ${group.state}`}
+        >
+          <span /><span /><span />
+        </div>
       ))}
 
       {scene.characters.map((placement) => {

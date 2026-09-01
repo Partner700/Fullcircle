@@ -80,6 +80,7 @@ const answerResult = (overrides: Partial<StoryAnswerResult> = {}): StoryAnswerRe
   replay: false,
   nextQuestion: null,
   levelsCompleted: 1,
+  buildState: null,
   ...overrides,
 });
 
@@ -151,7 +152,8 @@ assert.match(player, /The question timer is stopped while Scripture is open/);
 assert.match(world, /scene\.characters\.map/);
 assert.match(world, /story-obstacle-/);
 assert.match(home, /book\.chapters\.map/);
-assert.match(home, /Next chronological character/);
+assert.match(home, /chapter\.lockedContinuation/);
+assert.match(home, /lockedContinuation\.title/);
 assert.match(shell, /findStoryLevel\(attempt\.levelSlug\)/);
 assert.match(shell, /startStoryModeLevel\(levelSlug\)/);
 

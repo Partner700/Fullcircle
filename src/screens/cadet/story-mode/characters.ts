@@ -10,4 +10,11 @@ export const STORY_CHARACTER_LABELS: Record<StoryCharacterId, string> = {
   methuselah: 'Methuselah',
   lamech: 'Lamech',
   noah: 'Noah',
+  'noahs-wife': "Noah's wife",
+  shem: 'Shem',
+  ham: 'Ham',
+  japheth: 'Japheth',
+  'shems-wife': "Shem's wife",
+  'hams-wife': "Ham's wife",
+  'japheths-wife': "Japheth's wife",
 };

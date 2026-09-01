@@ -33,6 +33,7 @@ import { StoryWorld } from './StoryWorld';
 import type {
   StoryActionName,
   StoryAttempt,
+  StoryBuildState,
   StoryDeadline,
   StoryLevelDefinition,
   StoryQuestionPayload,
@@ -107,6 +108,7 @@ export function StoryLevelPlayer({
 
   const [activeQuestion, setActiveQuestion] = useState<StoryQuestionPayload | null>(attempt.question);
   const [pendingEventId, setPendingEventId] = useState<string | null>(attempt.pendingEventId);
+  const [buildState, setBuildState] = useState<StoryBuildState | null>(attempt.buildState);
   const activeQuestionScene = useMemo(() => questionScene(level, activeQuestion), [activeQuestion, level]);
   if (activeQuestion && !activeQuestionScene) throw new Error(`Story question ${activeQuestion.id} has no scene in ${level.slug}.`);
 
@@ -169,6 +171,7 @@ export function StoryLevelPlayer({
   useEffect(() => {
     setActiveQuestion(attempt.question);
     setPendingEventId(attempt.pendingEventId);
+    setBuildState(attempt.buildState);
     setReadSeen(attempt.checkpointId !== introScene.checkpointId);
     submittingRef.current = false;
     pendingSubmissionRef.current = null;
@@ -281,6 +284,7 @@ export function StoryLevelPlayer({
       pendingSubmissionRef.current = null;
       pendingNextQuestionRef.current = result.nextQuestion;
       if (result.canonicalEventId) setPendingEventId(result.canonicalEventId);
+      if (result.buildState) setBuildState(result.buildState);
       setRemainingMs(0);
       dispatch({ type: result.correct ? 'ANSWER_CORRECT' : 'ANSWER_WRONG', result });
       void playStorySound(result.correct ? 'correct' : 'failure', 0.52);
@@ -356,6 +360,7 @@ export function StoryLevelPlayer({
         .then((result) => {
           if (!mountedRef.current) return;
           dispatch({ type: 'CANONICAL_EVENT_SETTLED', result });
+          if (result.buildState) setBuildState(result.buildState);
           setPendingEventId(null);
           void onProgressChanged().catch(() => undefined);
           void playStorySound('transition', 0.48);
@@ -494,6 +499,7 @@ export function StoryLevelPlayer({
         scriptureLabel={level.scriptureLabel || activeScene.scriptureReference || 'Scripture'}
         paused={machine.phase === 'paused'}
         busy={pauseDisabled}
+        buildState={buildState}
         onPause={() => void pause()}
         onResume={() => void resume()}
       >

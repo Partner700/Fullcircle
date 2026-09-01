@@ -101,6 +101,25 @@ const foundersGiftRestoration = read('supabase/migrations/20260830130000_first_f
 const foundersGiftPopup = read('src/components/FoundersGiftPopup.tsx');
 const messagingContext = read('src/context/MessagingContext.tsx');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
+const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_noah_ark_construction.sql');
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
+  'CREATE TABLE IF NOT EXISTS public.story_mode_world_build_stages',
+  'CREATE TABLE IF NOT EXISTS public.story_mode_user_build_progress',
+  'CREATE TABLE IF NOT EXISTS public.story_mode_attempt_build_progress',
+  'ALTER TABLE public.story_mode_attempt_build_progress ENABLE ROW LEVEL SECURITY',
+  'FROM PUBLIC, anon, authenticated',
+  'Story Mode construction stages cannot be skipped or duplicated',
+  'Every mandatory construction milestone must be settled before level completion',
+  "'denarii_earned', 0",
+]) {
+  assert.ok(noahArkConstruction.includes(required), `Missing Noah/Ark authority boundary: ${required}`);
+}
+assert.doesNotMatch(noahArkConstruction, /story_mode_marks|INSERT INTO public\.[a-z_]*marks/);
+for (const externalSystem of ['game_attempts', 'arena_rooms', 'denarii_ledger_entries', 'daily_game_runs']) {
+  assert.doesNotMatch(noahArkConstruction, new RegExp(`(?:INSERT INTO|UPDATE|DELETE FROM) public\\.${externalSystem}`));
+}
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.ensure_sunday_highlight_reading',
@@ -263,6 +282,7 @@ const sealedTables = [
   'denarii_achievement_entries', 'full_circle_economy_rules',
   'streak_achievement_days', 'streak_achievement_baselines',
   'public_scripture_insight_reactions',
+  'story_mode_user_build_progress', 'story_mode_attempt_build_progress',
 ];
 
 for (const file of sourceFiles(path.join(root, 'src'))) {
