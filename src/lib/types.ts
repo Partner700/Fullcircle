@@ -9,7 +9,7 @@ export type QuizAttemptStatus = 'not_started' | 'in_progress' | 'submitted' | 'f
 export type GameMode = 'normal' | 'blitz' | 'practice';
 export type GameStatus = 'in_progress' | 'passed' | 'failed';
 
-export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fortune_quiz_reward' | 'relic_purchase' | 'relic_reward' | 'admin_adjustment' | 'hint_purchase' | 'answer_reveal' | 'freezer_daily' | 'freezer_weekly' | 'attendance' | 'arena_stake' | 'arena_fee' | 'arena_reward' | 'mobile_money' | 'campay_payment' | 'notification_opt_in' | 'challenge_submission' | 'dove_question_cost' | 'dove_question_reward';
+export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fortune_quiz_reward' | 'relic_purchase' | 'relic_reward' | 'admin_adjustment' | 'hint_purchase' | 'answer_reveal' | 'freezer_daily' | 'freezer_weekly' | 'attendance' | 'arena_stake' | 'arena_fee' | 'arena_reward' | 'mobile_money' | 'campay_payment' | 'notification_opt_in' | 'challenge_submission' | 'dove_question_cost' | 'dove_question_reward' | 'hidden_item_purchase' | 'treasure_escrow' | 'treasure_reward' | 'treasure_refund' | 'mine_penalty' | 'mine_reward';
 
 export type ChallengeProofFormat = 'text' | 'png' | 'pdf' | 'link' | 'image';
 export type ChallengeSubmissionStatus = 'pending' | 'approved' | 'rejected';
@@ -18,6 +18,9 @@ export type FreezerType = 'daily' | 'weekly';
 export type DoveQuestionType = 'multiple_choice' | 'true_false' | 'fill_blank' | 'standard_text';
 export type DoveQuestionDeliveryMode = 'optional' | 'required';
 export type DoveQuestionStatus = 'active' | 'closed';
+export type HiddenItemType = 'treasure' | 'mine';
+export type HiddenChallengeDifficulty = 'easy' | 'moderate' | 'hard';
+export type HiddenChallengePlacement = 'direct_message' | 'verse' | 'todays_reading' | 'app_open' | 'daily_trivia' | 'daily_games';
 
 export interface DoveQuestion {
   id: string;
@@ -87,6 +90,74 @@ export interface PublishDoveQuestionInput {
   deliveryMode: DoveQuestionDeliveryMode;
   soundUrl?: string | null;
   expiresAt?: string | null;
+}
+
+export interface HiddenItemInventory {
+  treasure_boxes: number;
+  mines: number;
+  wallet_denarii: number;
+}
+
+export interface CreateHiddenChallengeInput {
+  itemType: HiddenItemType;
+  targetIds: string[];
+  difficulty: HiddenChallengeDifficulty;
+  placement: HiddenChallengePlacement;
+  referenceKey?: string | null;
+  messageBody?: string | null;
+  rewardDenarii?: number;
+  rewardRelicTypeId?: string | null;
+  rewardRelicQuantity?: number;
+  rewardFreezerType?: FreezerType | null;
+  rewardFreezerQuantity?: number;
+  minePenaltyDenarii?: number;
+}
+
+export interface OpenHiddenChallenge {
+  claim_id: string;
+  challenge_id: string;
+  item_type: HiddenItemType;
+  difficulty: HiddenChallengeDifficulty;
+  placement: HiddenChallengePlacement;
+  message_body: string | null;
+  question_text: string;
+  question_type: 'multiple_choice' | 'standard_text';
+  options: string[];
+  reference: string | null;
+  mine_penalty_denarii: number;
+  sender_name: string | null;
+  sender_avatar_url: string | null;
+  original_target_name: string;
+  original_target_avatar_url: string | null;
+  transfer_count: number;
+  last_outcome: 'wrong' | 'forfeited' | null;
+  opened_at: string;
+  attempt_deadline: string;
+  participant_count: number;
+}
+
+export interface HiddenChallengeResult {
+  claim_id: string;
+  item_type: HiddenItemType;
+  outcome: 'correct' | 'wrong' | 'forfeited';
+  is_correct: boolean;
+  correct_answer: string;
+  denarii_paid?: number;
+  reward_denarii?: number;
+  reward_relic_name?: string | null;
+  reward_relic_quantity?: number;
+  reward_freezer_type?: FreezerType | null;
+  reward_freezer_quantity?: number;
+  empty_box?: boolean;
+  transferred: boolean;
+}
+
+export interface HiddenChallengeParticipant {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  outcome: 'correct' | 'wrong' | 'forfeited';
+  answered_at: string;
 }
 
 export interface Profile {
@@ -177,6 +248,7 @@ export interface DirectMessage {
   read_at: string | null;
   created_at: string;
   edited_at?: string | null;
+  hidden_challenge_claim_id?: string | null;
 }
 
 export interface DailyRecord {
@@ -602,7 +674,7 @@ export interface StreakFreezer {
   id: string;
   user_id: string;
   freezer_type: FreezerType;
-  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'thiefs_request' | 'game_reward' | 'arena_reward';
+  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'simons_coin' | 'thiefs_request' | 'game_reward' | 'arena_reward' | 'founders_gift' | 'treasure_reward';
   purchased_at: string;
   used_at: string | null;
   applied_to_date: string | null;

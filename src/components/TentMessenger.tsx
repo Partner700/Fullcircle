@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage } from '../lib/queries';
 import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../lib/types';
-import { X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
+import { X, Send, Loader2, Users, Pencil, Check, LockKeyhole } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
+import { revealHiddenChallenge } from '../lib/hiddenChallenges';
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -41,6 +42,14 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         (m) => m.sender_id === recipient.id || m.recipient_id === recipient.id,
       );
       setMessages(filtered);
+      const hiddenClaimId = !tentId
+        ? filtered.find((message) => (
+          message.recipient_id === senderId && Boolean(message.hidden_challenge_claim_id)
+        ))?.hidden_challenge_claim_id
+        : null;
+      if (hiddenClaimId) {
+        window.setTimeout(() => revealHiddenChallenge({ claimId: hiddenClaimId }), 120);
+      }
       for (const m of filtered) {
         if (m.recipient_id === senderId && !m.read_at) {
           if (tentId) await markTentMessageRead(m.id);
@@ -148,6 +157,15 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
                         <button type="button" onClick={() => void handleEdit()} disabled={!editingBody.trim() || sending} className="icon-btn" aria-label="Save message"><Check size={15} /></button>
                       </div>
                     ) : <p className="whitespace-pre-wrap break-words">{m.body}</p>}
+                    {!isMe && 'hidden_challenge_claim_id' in m && m.hidden_challenge_claim_id && (
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-peri/30 bg-peri/10 px-2 py-1 text-[10px] font-bold text-peri"
+                        onClick={() => revealHiddenChallenge({ claimId: m.hidden_challenge_claim_id || undefined })}
+                      >
+                        <LockKeyhole size={11} /> Open hidden question
+                      </button>
+                    )}
                     {isMe && editingId !== m.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingId(m.id); setEditingBody(m.body); }}><Pencil size={10} /> Edit</button>}
                     <p className="text-[10px] text-stone mt-1">
                       {new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}

@@ -19,6 +19,7 @@ import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
+import { CadetStore } from '../cadet/CadetStore';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -40,7 +41,7 @@ import {
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
   Cake, Aperture, Blend, CircleDot, Contrast, Droplets, EyeOff, Focus, Gauge,
-  MoveHorizontal, MoveVertical, Palette, ScanLine, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves,
+  MoveHorizontal, MoveVertical, Palette, ScanLine, ShoppingBag, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
@@ -58,7 +59,7 @@ import {
   fetchMarksBoard, fetchMonthlyVallumWatch,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -183,6 +184,7 @@ const NAV_ITEMS = [
   { key: 'unassigned', label: 'Unassigned', icon: UserPlus },
   { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'mobile_money', label: 'Mobile Money', icon: Smartphone },
+  { key: 'store', label: 'Market', icon: ShoppingBag },
   { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
   { key: 'awards', label: 'Awards', icon: AwardIcon },
   { key: 'settings', label: 'Settings', icon: Shield },
@@ -275,7 +277,7 @@ export function InstructorApp() {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
     game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
-    challenges: 'Challenges', mobile_money: 'Mobile Money', settings: 'Settings',
+    challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', settings: 'Settings',
     unassigned: 'Unassigned Users',
   };
 
@@ -318,6 +320,7 @@ export function InstructorApp() {
       {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} />}
       {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
       {tab === 'mobile_money' && <MobileMoneyManager />}
+      {tab === 'store' && <CadetStore />}
       {tab === 'settings' && <InstructorSettings profile={profile} tents={tents} members={members} />}
     </AppShell>
   );

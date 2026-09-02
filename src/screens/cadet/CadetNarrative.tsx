@@ -14,6 +14,7 @@ import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelIm
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
+import { readingVerseChallengeKey, revealHiddenChallenge } from '../../lib/hiddenChallenges';
 import {
   BookOpen, BookMarked, Heart, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
@@ -333,6 +334,11 @@ export function CadetNarrative({
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
   const draftStorageKey = profile ? readingDraftStorageKey(profile.id, activeDate) : null;
+
+  useEffect(() => {
+    if (!profile || !narrative || isHistoricalReading) return;
+    revealHiddenChallenge({ placement: 'todays_reading', referenceKey: narrative.id });
+  }, [isHistoricalReading, narrative, profile]);
   const draftSnapshot = useMemo<ReadingDraft>(() => ({
     meditation: savedMeditation ? '' : meditation,
     bestVerse: savedMeditation ? '' : bestVerse,
@@ -653,7 +659,7 @@ export function CadetNarrative({
       : null;
     const reference = navigationTarget.verseReference || targetedInsight?.verse_reference;
     if (!reference) return;
-    const index = readerVerses.findIndex((verse) => verse.reference === reference);
+    const index = readerVerses.findIndex((verse) => verse.reference.toLowerCase() === reference.toLowerCase());
     if (index < 0) return;
     const targetSourceNarrativeId = readerVerses[index].sourceNarrativeId || narrative.id;
     setOpenVerse(index);
@@ -1001,10 +1007,20 @@ export function CadetNarrative({
                         }
                         if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
                         setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
+                        revealHiddenChallenge({
+                          placement: 'verse',
+                          referenceKey: readingVerseChallengeKey(sourceNarrativeId, verse.reference),
+                        });
                         return;
                       }
                       if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
                       setOpenUserInsights(userExpanded ? null : verse.reference);
+                      if (!userExpanded) {
+                        revealHiddenChallenge({
+                          placement: 'verse',
+                          referenceKey: readingVerseChallengeKey(sourceNarrativeId, verse.reference),
+                        });
+                      }
                     }}>
                       {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
                     </button>

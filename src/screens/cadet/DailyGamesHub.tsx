@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { DAILY_GAME_CAP, DAILY_GAME_LEVELS } from '../../lib/constants';
 import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
+import { revealHiddenChallenge } from '../../lib/hiddenChallenges';
 import { fetchGameAttempts, fetchNarrative, fetchPanelImageSetting } from '../../lib/queries';
 import type { DailyNarrative, GameAttempt, PanelImageSetting } from '../../lib/types';
 import { cn, formatDenarii, getDayType, getTodayISODate, isGamePausedNow } from '../../lib/utils';
@@ -46,6 +47,11 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
   const today = getTodayISODate();
   const sunday = getDayType(today) === 'sunday';
   const paused = isGamePausedNow();
+
+  useEffect(() => {
+    if (!profile) return;
+    revealHiddenChallenge({ placement: 'daily_games', referenceKey: today });
+  }, [profile, today]);
 
   useEffect(() => {
     if (!profile) {

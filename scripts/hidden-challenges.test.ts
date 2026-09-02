@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+
+const migration = read('supabase/migrations/20260902130000_treasures_and_mines.sql');
+const api = read('src/lib/hiddenChallenges.ts');
+const market = read('src/components/HiddenItemsMarket.tsx');
+const overlay = read('src/components/HiddenChallengeOverlay.tsx');
+const app = read('src/App.tsx');
+const messenger = read('src/components/TentMessenger.tsx');
+const reading = read('src/screens/cadet/CadetNarrative.tsx');
+const gamesHub = read('src/screens/cadet/DailyGamesHub.tsx');
+const trivia = read('src/screens/cadet/CadetGame.tsx');
+
+for (const table of [
+  'hidden_item_tokens',
+  'hidden_challenges',
+  'hidden_challenge_claims',
+  'hidden_challenge_attempts',
+]) {
+  assert.ok(migration.includes(`CREATE TABLE public.${table}`), `Missing ${table}.`);
+  assert.ok(migration.includes(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`), `Missing RLS for ${table}.`);
+  assert.ok(
+    migration.includes(`REVOKE ALL ON TABLE public.${table} FROM PUBLIC, anon, authenticated`),
+    `Direct access to ${table} must remain closed.`,
+  );
+}
+
+for (const boundary of [
+  'v_cost integer := 50',
+  'v_target_count NOT BETWEEN 1 AND 3',
+  'p_reward_denarii::bigint * v_target_count::bigint',
+  'p_reward_relic_quantity * v_target_count',
+  'p_reward_freezer_quantity * v_target_count',
+  "SET status = 'used', used_at = now()",
+  'FOR UPDATE SKIP LOCKED',
+  'pg_advisory_xact_lock',
+  'least(v_balance, v_challenge.mine_penalty_denarii)',
+  "placement = 'app_open'",
+  'current_target_id = v_next_target',
+  "'sender_hidden', true",
+  'ORDER BY pool.age_priority, random()',
+  'public.has_current_subscription_access',
+]) {
+  assert.ok(migration.includes(boundary), `Missing hidden-item authority boundary: ${boundary}`);
+}
+
+assert.match(migration, /CREATE UNIQUE INDEX hidden_challenge_settlement_ledger_uidx/);
+assert.match(migration, /UNIQUE \(claim_id, transfer_number\)/);
+assert.match(migration, /p_item_type = 'treasure' AND p_placement NOT IN \('direct_message', 'verse'\)/);
+assert.match(migration, /claim\.placement IN \('todays_reading', 'daily_trivia', 'daily_games'\)/);
+assert.match(migration, /claim\.status IN \('pending', 'opened'\)/);
+
+const openPayload = migration.match(
+  /RETURN jsonb_build_object\(\s*'claim_id', v_claim\.id,[\s\S]*?'participant_count', v_participant_count\s*\);/,
+)?.[0] || '';
+assert.ok(openPayload, 'The sanitized hidden-question payload is missing.');
+assert.doesNotMatch(openPayload, /'correct_answer'/, 'The answer must not reach the browser before settlement.');
+
+for (const rpc of [
+  'purchase_hidden_item_token',
+  'get_my_hidden_item_inventory',
+  'create_hidden_challenge',
+  'get_pending_hidden_challenge_claim',
+  'open_hidden_challenge',
+  'submit_hidden_challenge_answer',
+  'forfeit_hidden_challenge',
+  'get_hidden_challenge_result',
+  'get_hidden_challenge_participants',
+]) {
+  assert.ok(api.includes(`supabase.rpc('${rpc}'`), `Client API is missing ${rpc}.`);
+}
+
+for (const forbiddenWrite of [
+  ".from('denarii_ledger_entries')",
+  ".from('relic_inventory')",
+  ".from('streak_freezers')",
+  ".from('hidden_challenge_claims')",
+]) {
+  assert.ok(!api.includes(forbiddenWrite), `Hidden-item client must not directly write ${forbiddenWrite}.`);
+}
+
+assert.match(market, /50 Ð each/);
+assert.match(market, /targets\.length >= 3/);
+assert.match(market, /Empty boxes are allowed/);
+assert.match(market, /Question difficulty/);
+assert.match(overlay, /Leaving this panel forfeits your attempt/);
+assert.match(overlay, /ParticipantStack/);
+assert.match(overlay, /document\.visibilityState === 'hidden'/);
+assert.match(overlay, /retryAbandonedForfeit/);
+assert.match(app, /<HiddenChallengeOverlay \/>/);
+assert.match(messenger, /revealHiddenChallenge\(\{ claimId:/);
+assert.match(reading, /placement: 'todays_reading'/);
+assert.match(reading, /placement: 'verse'/);
+assert.match(gamesHub, /placement: 'daily_games'/);
+assert.match(trivia, /placement: 'daily_trivia'/);
+
+const mineCharge = (balance: number, penalty: number) => Math.min(Math.max(balance, 0), penalty);
+assert.equal(mineCharge(500, 100), 100);
+assert.equal(mineCharge(25, 100), 25);
+assert.equal(mineCharge(0, 100), 0);
+
+const escrow = (perRecipient: number, recipients: number) => perRecipient * recipients;
+assert.equal(escrow(300, 1), 300);
+assert.equal(escrow(300, 3), 900);
+
+console.log('Treasure and Mine authority checks passed.');

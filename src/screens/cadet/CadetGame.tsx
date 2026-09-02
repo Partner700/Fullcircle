@@ -14,6 +14,7 @@ import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants'
 import { getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
 import { isGamePausedNow, getTodayISODate, getDayType, shiftISODate, cn, formatDenarii } from '../../lib/utils';
 import { playRoundWarningBeep, playSoundEffect, setScenarioSound } from '../../lib/soundscape';
+import { revealHiddenChallenge } from '../../lib/hiddenChallenges';
 import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_PER_ROUND } from '../../lib/constants';
 import type { DailyNarrative, GameAttempt, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
@@ -88,6 +89,11 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const [gameDate, setGameDate] = useState(today);
   const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
   const paused = isGamePausedNow();
+
+  useEffect(() => {
+    if (!profile) return;
+    revealHiddenChallenge({ placement: 'daily_trivia', referenceKey: today });
+  }, [profile, today]);
 
   const load = useCallback(async () => {
     if (!profile) return;

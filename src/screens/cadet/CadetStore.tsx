@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
@@ -438,6 +439,14 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         </div>
         <span className="relative z-10 text-xs text-stone">Cash prices in FCFA</span>
       </div>
+
+      <HiddenItemsMarket
+        denarii={denarii}
+        relics={relics}
+        relicInventory={inventory}
+        freezers={freezers}
+        onChanged={refreshPurchaseState}
+      />
 
       {/* Streak Freezers */}
       <div className="card p-5 relative overflow-hidden">
