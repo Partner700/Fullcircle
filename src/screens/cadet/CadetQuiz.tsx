@@ -8,7 +8,7 @@ import { QuizResponders } from '../../components/QuizResponders';
 import {
   fetchLatestQuizSession, fetchPlayableQuestionsForSession, fetchQuizAttempt, fetchResponsesForAttempt,
   fetchNarratives, fetchRelicInventory, resetQuizAttemptWithLazarus, startQuizAttempt,
-  saveQuizResponse, consumeQuizQuestionRelic, completeQuizAttempt, forfeitQuizAttempt,
+  saveQuizResponse, consumeQuizQuestionRelic, completeQuizAttempt, fetchMyQuizRuntimeState,
   fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
   fetchMyWeeklyQuizResult,
 } from '../../lib/queries';
@@ -28,6 +28,76 @@ import {
 import type { LucideIcon } from 'lucide-react';
 
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
+
+const QUIZ_RETRY_DELAYS_MS = [0, 350, 900];
+
+function quizErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || '');
+  }
+  return String(error || '');
+}
+
+function isTransientQuizError(error: unknown) {
+  const message = quizErrorMessage(error);
+  return error instanceof TypeError
+    || /failed to fetch|network|load failed|timeout|connection|temporarily unavailable/i.test(message);
+}
+
+async function withQuizNetworkRetry<T>(request: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (const delay of QUIZ_RETRY_DELAYS_MS) {
+    if (delay > 0) await new Promise((resolve) => window.setTimeout(resolve, delay));
+    try {
+      return await request();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientQuizError(error)) throw error;
+    }
+  }
+  throw lastError;
+}
+
+function quizDraftStorageKey(attemptId: string) {
+  return `full-circle-quiz-draft:${attemptId}`;
+}
+
+function readQuizDrafts(attemptId: string): Record<string, unknown> {
+  try {
+    return JSON.parse(window.localStorage.getItem(quizDraftStorageKey(attemptId)) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function writeQuizDraft(attemptId: string, questionId: string, answer: unknown) {
+  try {
+    const drafts = readQuizDrafts(attemptId);
+    drafts[questionId] = answer;
+    window.localStorage.setItem(quizDraftStorageKey(attemptId), JSON.stringify(drafts));
+  } catch {
+    // Storage can be unavailable in private browsing; server-saved answers remain authoritative.
+  }
+}
+
+function clearQuizDraft(attemptId: string, questionId?: string) {
+  try {
+    if (!questionId) {
+      window.localStorage.removeItem(quizDraftStorageKey(attemptId));
+      return;
+    }
+    const drafts = readQuizDrafts(attemptId);
+    delete drafts[questionId];
+    if (Object.keys(drafts).length === 0) {
+      window.localStorage.removeItem(quizDraftStorageKey(attemptId));
+    } else {
+      window.localStorage.setItem(quizDraftStorageKey(attemptId), JSON.stringify(drafts));
+    }
+  } catch {
+    // Nothing to clear when storage is unavailable.
+  }
+}
 
 // Rotating scripture facts shown on the Dove waiting/countdown screen.
 const SCRIPTURE_FACTS = [
@@ -90,7 +160,25 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const [readingArchive, setReadingArchive] = useState<(DailyNarrative & { meditation_text?: string | null; best_verse?: string | null })[]>([]);
   const [reviewVerseIndex, setReviewVerseIndex] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
+  const [effectiveClosesAt, setEffectiveClosesAt] = useState<number | null>(null);
   const releasedResultsLoadedRef = useRef(false);
+
+  const applyRuntimeState = useCallback((runtime: Awaited<ReturnType<typeof fetchMyQuizRuntimeState>>) => {
+    const serverNow = new Date(runtime.server_now).getTime();
+    const effectiveClose = new Date(runtime.effective_closes_at).getTime();
+    if (Number.isFinite(serverNow)) {
+      setServerClockOffsetMs(serverNow - Date.now());
+      setNow(serverNow);
+    }
+    if (Number.isFinite(effectiveClose)) setEffectiveClosesAt(effectiveClose);
+    setAttempt(runtime.attempt);
+    if (runtime.can_play && runtime.attempt?.status === 'in_progress') {
+      setInQuiz(true);
+    } else if (!runtime.attempt || runtime.attempt.status !== 'in_progress') {
+      setInQuiz(false);
+    }
+  }, []);
 
   useEffect(() => {
     void setScenarioSound(inQuiz ? 'sound_quiz_start' : 'sound_quiz_waiting');
@@ -103,24 +191,50 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setLoadError(null);
     let shellReady = false;
     try {
-      const sess = await fetchLatestQuizSession();
+      const sess = await withQuizNetworkRetry(fetchLatestQuizSession);
       setSession(sess);
       if (sess) {
-        const [qs, att] = await Promise.allSettled([
-          fetchPlayableQuestionsForSession(sess.id),
-          fetchQuizAttempt(profile.id, sess.id),
+        const [qs, runtime] = await Promise.allSettled([
+          withQuizNetworkRetry(() => fetchPlayableQuestionsForSession(sess.id)),
+          withQuizNetworkRetry(() => fetchMyQuizRuntimeState(sess.id)),
         ]);
         if (qs.status === 'rejected') {
           throw qs.reason instanceof Error ? qs.reason : new Error('Quiz questions could not be loaded.');
         }
+        if (runtime.status === 'rejected') {
+          throw runtime.reason instanceof Error ? runtime.reason : new Error('Quiz timing could not be verified.');
+        }
         setQuestions(qs.value);
-        setAttempt(att.status === 'fulfilled' ? att.value : null);
-        if (att.status === 'fulfilled' && att.value) {
+        applyRuntimeState(runtime.value);
+        const serverNow = new Date(runtime.value.server_now).getTime();
+        const effectiveClose = new Date(runtime.value.effective_closes_at).getTime();
+        if (
+          runtime.value.attempt?.status === 'in_progress'
+          && !runtime.value.can_play
+          && Number.isFinite(serverNow)
+          && Number.isFinite(effectiveClose)
+          && serverNow >= effectiveClose
+        ) {
+          const completed = await withQuizNetworkRetry(() => (
+            completeQuizAttempt(runtime.value.attempt!.id, 'timed_out')
+          ));
+          setAttempt(completed.attempt);
+          setInQuiz(false);
+        }
+        if (runtime.value.attempt) {
           try {
-            const resps = await fetchResponsesForAttempt(att.value.id);
+            const resps = await withQuizNetworkRetry(() => fetchResponsesForAttempt(runtime.value.attempt!.id));
             setResponses(resps);
           } catch { setResponses([]); }
+        } else {
+          setResponses([]);
         }
+      } else {
+        setQuestions([]);
+        setAttempt(null);
+        setResponses([]);
+        setInQuiz(false);
+        setEffectiveClosesAt(null);
       }
       setLoading(false);
       shellReady = true;
@@ -150,11 +264,34 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       })().catch((error) => console.warn('Quiz extras could not load:', error));
     } catch (error) {
       console.error('Quiz load error:', error);
-      setLoadError(error instanceof Error ? error.message : 'The quiz could not be loaded.');
+      setLoadError(quizErrorMessage(error) || 'The quiz could not be loaded.');
     } finally {
       if (!shellReady) setLoading(false);
     }
-  }, [profile]);
+  }, [applyRuntimeState, profile]);
+
+  const syncRuntimeState = useCallback(async () => {
+    if (!session?.id) return null;
+    const runtime = await withQuizNetworkRetry(() => fetchMyQuizRuntimeState(session.id));
+    applyRuntimeState(runtime);
+    return runtime;
+  }, [applyRuntimeState, session?.id]);
+
+  const verifyQuizDeadline = useCallback(async () => {
+    try {
+      const runtime = await syncRuntimeState();
+      if (!runtime || runtime.attempt?.status !== 'in_progress') return false;
+      const serverNow = new Date(runtime.server_now).getTime();
+      const effectiveClose = new Date(runtime.effective_closes_at).getTime();
+      return Number.isFinite(serverNow)
+        && Number.isFinite(effectiveClose)
+        && serverNow >= effectiveClose
+        && !runtime.can_play;
+    } catch (error) {
+      console.warn('Quiz deadline could not yet be verified:', error);
+      return false;
+    }
+  }, [syncRuntimeState]);
 
   useEffect(() => {
     if (!session || !attempt || session.quiz_type !== 'saturday') return;
@@ -202,11 +339,34 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setReleasedResult(null);
   }, [session?.id]);
 
-  // Tick every second
+  // Keep the displayed phase and timer aligned to the database clock.
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const tick = () => setNow(Date.now() + serverClockOffsetMs);
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [serverClockOffsetMs]);
+
+  // Mobile browsers may suspend JavaScript while the screen sleeps or another
+  // app is open. Reconcile the same attempt as soon as this screen returns.
+  useEffect(() => {
+    const reconcile = () => {
+      if (document.hidden) return;
+      if (session?.id) {
+        void syncRuntimeState().catch((error) => console.warn('Quiz resume sync failed:', error));
+      } else if (loadError) {
+        void load();
+      }
+    };
+    window.addEventListener('focus', reconcile);
+    window.addEventListener('online', reconcile);
+    document.addEventListener('visibilitychange', reconcile);
+    return () => {
+      window.removeEventListener('focus', reconcile);
+      window.removeEventListener('online', reconcile);
+      document.removeEventListener('visibilitychange', reconcile);
+    };
+  }, [load, loadError, session?.id, syncRuntimeState]);
 
   if (loading) {
     return (
@@ -264,8 +424,9 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       return;
     }
     try {
-      const activeAttempt = await startQuizAttempt(session.id);
+      const activeAttempt = await withQuizNetworkRetry(() => startQuizAttempt(session.id));
       setAttempt(activeAttempt);
+      setEffectiveClosesAt(liveCloses);
       setLazarusMode(false);
       setInQuiz(true);
     } catch (error: any) {
@@ -278,9 +439,10 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setUsingLazarus(true);
     try {
       if (questions.length === 0) throw new Error('This quiz has no approved questions yet.');
-      const reopened = await resetQuizAttemptWithLazarus(profile.id, session.id);
+      const reopened = await withQuizNetworkRetry(() => resetQuizAttemptWithLazarus(profile.id, session.id));
       setAttempt(reopened);
       setResponses([]);
+      setEffectiveClosesAt(lazarusDeadline);
       setLazarusCount((count) => Math.max(0, count - 1));
       setLazarusMode(true);
       setInQuiz(true);
@@ -335,9 +497,10 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         initialResponses={responses}
         attempt={attempt}
         userId={profile!.id}
-        liveCloses={phase === 'live' && !lazarusMode ? liveCloses : lazarusDeadline}
+        liveCloses={effectiveClosesAt ?? (phase === 'live' && !lazarusMode ? liveCloses : lazarusDeadline)}
+        serverClockOffsetMs={serverClockOffsetMs}
+        verifyDeadline={verifyQuizDeadline}
         onSubmit={() => { setInQuiz(false); load(); onQuizSubmitted(); }}
-        onForfeit={() => { setInQuiz(false); load(); }}
       />
     );
   }
@@ -418,8 +581,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           >
             <Zap size={18} /> Enter Quiz
           </button>
-          <p className="text-xs text-roman mt-3 flex items-center justify-center gap-1">
-            <AlertTriangle size={12} /> Leaving the quiz in the background for more than 8 seconds forfeits the attempt
+          <p className="text-xs text-moss mt-3 flex items-center justify-center gap-1">
+            <CheckCircle2 size={12} /> Saved answers remain safe if the app sleeps or reconnects
           </p>
         </div>
       )}
@@ -453,7 +616,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <RuleItem icon={Clock} text={`${QUIZ_LIVE_DURATION_MINUTES}-minute live window — no late submissions`} />
           <RuleItem icon={ChevronRight} text="Forward-gated: can't skip ahead without answering" />
           <RuleItem icon={ChevronLeft} text="Can navigate back to review/change earlier answers" />
-          <RuleItem icon={AlertTriangle} text="Leaving the quiz in the background for more than 8 seconds forfeits the attempt" />
+          <RuleItem icon={CheckCircle2} text="Phone sleep, app switching, and reconnecting do not forfeit an attempt" />
           <RuleItem icon={RefreshCw} text="Lazarus Coin can reopen or retake the Saturday quiz before 2:45 PM" />
           <RuleItem
             icon={Trophy}
@@ -560,46 +723,58 @@ function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
   );
 }
 
-function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, onSubmit, onForfeit }: {
+function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, verifyDeadline, onSubmit }: {
   questions: GeneratedQuestion[];
   initialResponses: QuestionResponse[];
   attempt: QuizAttempt;
   userId: string;
   liveCloses: number;
+  serverClockOffsetMs: number;
+  verifyDeadline: () => Promise<boolean>;
   onSubmit: () => void;
-  onForfeit: () => void;
 }) {
-  const [currentIdx, setCurrentIdx] = useState(0);
+  const initialAnsweredIds = new Set(initialResponses.map((response) => response.question_id));
+  const firstUnansweredIndex = questions.findIndex((question) => !initialAnsweredIds.has(question.id));
+  const initialQuestionIndex = firstUnansweredIndex >= 0
+    ? firstUnansweredIndex
+    : Math.max(0, questions.length - 1);
+  const initialQuestion = questions[initialQuestionIndex];
+  const [currentIdx, setCurrentIdx] = useState(initialQuestionIndex);
   const [localResponses, setLocalResponses] = useState<Map<string, any>>(
     () => new Map(initialResponses.map((response) => [response.question_id, response.answer])),
   );
   const [selectedAnswer, setSelectedAnswer] = useState<any>(() => {
-    const saved = initialResponses.find((response) => response.question_id === questions[0]?.id)?.answer ?? null;
-    return questions[0]?.question_payload.type === 'order_sequence' && typeof saved === 'string'
+    const savedResponse = initialResponses.find((response) => response.question_id === initialQuestion?.id);
+    const saved = savedResponse
+      ? savedResponse.answer
+      : readQuizDrafts(attempt.id)[initialQuestion?.id || ''] ?? null;
+    return initialQuestion?.question_payload.type === 'order_sequence' && typeof saved === 'string'
       ? saved.split('|')
       : saved;
   });
   const [showFeedback, setShowFeedback] = useState(
-    () => initialResponses.some((response) => response.question_id === questions[0]?.id),
+    () => initialResponses.some((response) => response.question_id === initialQuestion?.id),
   );
   const [savingAnswer, setSavingAnswer] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor((liveCloses - Date.now()) / 1000)));
+  const [timeLeft, setTimeLeft] = useState(
+    Math.max(0, Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000)),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
   const [relicNotice, setRelicNotice] = useState<string | null>(null);
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
-  const forfeitedRef = useRef(false);
   const submissionStartedRef = useRef(false);
-  const forfeitTimerRef = useRef<number | null>(null);
+  const deadlineCheckRef = useRef(false);
 
   const handleSubmit = useCallback(async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
     if (submissionStartedRef.current) return;
     submissionStartedRef.current = true;
     setSubmitting(true);
     try {
-      await completeQuizAttempt(attempt.id, status, forcePerfect);
+      await withQuizNetworkRetry(() => completeQuizAttempt(attempt.id, status, forcePerfect));
+      clearQuizDraft(attempt.id);
       void playSoundEffect('sound_quiz_finish', 0.62);
       onSubmit();
     } catch (error: any) {
@@ -628,51 +803,22 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
     return () => { cancelled = true; };
   }, [userId]);
 
-  // Timer
+  // Display the database-aligned countdown, then ask the database to confirm
+  // expiry before submitting a timed-out attempt.
   useEffect(() => {
     const interval = setInterval(() => {
-      const remaining = Math.floor((liveCloses - Date.now()) / 1000);
+      const remaining = Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000);
       setTimeLeft(Math.max(0, remaining));
-      if (remaining <= 0) {
-        handleSubmit('timed_out');
-      }
+      if (remaining > 0 || deadlineCheckRef.current || submissionStartedRef.current) return;
+      deadlineCheckRef.current = true;
+      void verifyDeadline()
+        .then((expired) => {
+          if (expired) void handleSubmit('timed_out');
+        })
+        .finally(() => { deadlineCheckRef.current = false; });
     }, 1000);
     return () => clearInterval(interval);
-  }, [handleSubmit, liveCloses]);
-
-  // Browsers briefly hide or blur an app for system UI, notifications, and
-  // permission prompts. Only forfeit after a sustained, real background exit.
-  useEffect(() => {
-    const cancelPendingForfeit = () => {
-      if (forfeitTimerRef.current !== null) {
-        window.clearTimeout(forfeitTimerRef.current);
-        forfeitTimerRef.current = null;
-      }
-    };
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        cancelPendingForfeit();
-        return;
-      }
-      if (forfeitedRef.current || submissionStartedRef.current) return;
-      forfeitTimerRef.current = window.setTimeout(async () => {
-        if (!document.hidden || forfeitedRef.current || submissionStartedRef.current) return;
-        forfeitedRef.current = true;
-        try {
-          await forfeitQuizAttempt(attempt.id);
-          onForfeit();
-        } catch (error) {
-          forfeitedRef.current = false;
-          console.error('Quiz forfeiture could not be recorded:', error);
-        }
-      }, 8_000);
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      cancelPendingForfeit();
-    };
-  }, [attempt.id, onForfeit]);
+  }, [handleSubmit, liveCloses, serverClockOffsetMs, verifyDeadline]);
 
   if (questions.length === 0) {
     return (
@@ -704,12 +850,13 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
   const isLastQuestion = currentIdx === questions.length - 1;
 
   const saveResponse = async (answer: any) => {
-    const result = await saveQuizResponse(attempt.id, q.id, answer);
+    const result = await withQuizNetworkRetry(() => saveQuizResponse(attempt.id, q.id, answer));
     if (!result.accepted) {
       setRelicNotice(result.warning || 'That answer was not saved.');
       return false;
     }
     setLocalResponses((previous) => new Map(previous).set(q.id, answer));
+    clearQuizDraft(attempt.id, q.id);
     return true;
   };
 
@@ -732,7 +879,9 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
 
   const moveToQuestion = (nextIndex: number) => {
     const nextQuestion = questions[nextIndex];
-    const saved = localResponses.get(nextQuestion.id) ?? null;
+    const saved = localResponses.has(nextQuestion.id)
+      ? localResponses.get(nextQuestion.id)
+      : readQuizDrafts(attempt.id)[nextQuestion.id] ?? null;
     setCurrentIdx(nextIndex);
     setSelectedAnswer(nextQuestion.question_payload.type === 'order_sequence' && typeof saved === 'string'
       ? saved.split('|')
@@ -774,7 +923,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
     if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
     setUsingQuestionRelic(slug);
     try {
-      const result = await consumeQuizQuestionRelic(attempt.id, q.id, slug);
+      const result = await withQuizNetworkRetry(() => consumeQuizQuestionRelic(attempt.id, q.id, slug));
       setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
@@ -918,7 +1067,10 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                 placeholder="Type the verse from memory..."
                 autoFocus
                 value={selectedAnswer || ''}
-                onChange={(e) => setSelectedAnswer(e.target.value)}
+                onChange={(e) => {
+                  setSelectedAnswer(e.target.value);
+                  writeQuizDraft(attempt.id, q.id, e.target.value);
+                }}
               />
               <button
                 onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
@@ -947,7 +1099,10 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                 placeholder="Type the exact answer..."
                 autoFocus
                 value={selectedAnswer || ''}
-                onChange={(e) => setSelectedAnswer(e.target.value)}
+                onChange={(e) => {
+                  setSelectedAnswer(e.target.value);
+                  writeQuizDraft(attempt.id, q.id, e.target.value);
+                }}
               />
               <button
                 onClick={() => selectedAnswer?.trim() && handleAnswer(selectedAnswer.trim())}
@@ -1004,6 +1159,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
                       ? userOrder.filter((x) => x !== item)
                       : [...userOrder, item];
                     setSelectedAnswer(newOrder);
+                    writeQuizDraft(attempt.id, q.id, newOrder);
                   }}
                   disabled={savingAnswer}
                   className={cn(
@@ -1079,9 +1235,8 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, on
         <ScrollEdge position="bottom" className="text-stone mt-3" />
       </div>
 
-      {/* Warning */}
-      <div className="text-center text-xs text-roman flex items-center justify-center gap-1">
-        <AlertTriangle size={12} /> Keep this page open — an 8-second background exit forfeits the attempt
+      <div className="text-center text-xs text-moss flex items-center justify-center gap-1">
+        <CheckCircle2 size={12} /> Every saved answer remains attached to this attempt across reconnects
       </div>
     </div>
   );
@@ -1162,9 +1317,9 @@ function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazar
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-roman/10 border border-roman/30">
             <Ban size={32} className="text-roman" />
           </div>
-          <h2 className="font-display text-xl font-semibold text-roman mb-2">Quiz Forfeited</h2>
+          <h2 className="font-display text-xl font-semibold text-roman mb-2">Quiz Interrupted</h2>
           <p className="text-sm text-stone mb-4">
-            You left the quiz screen while it was live. The forfeiture is irreversible.
+            This older attempt was marked as forfeited before interruption recovery was added. New attempts remain safe through phone sleep, app switching, and reconnecting.
           </p>
           <div className="bg-roman/5 rounded-lg p-3 text-sm text-left space-y-2 border border-roman/20">
             <p className="text-roman font-medium">Consequences:</p>

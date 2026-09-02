@@ -104,9 +104,11 @@ const readingDrafts = read('src/lib/readingDrafts.ts');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
 const phStreakContinuity = read('supabase/migrations/20260902090000_preserve_ph_verified_streak_continuity.sql');
 const doveQuestions = read('supabase/migrations/20260902100000_dove_questions.sql');
+const resilientQuizAttempts = read('supabase/migrations/20260902110000_resilient_quiz_attempts.sql');
 const doveQuestionApi = read('src/lib/doveQuestions.ts');
 const doveQuestionManager = read('src/components/DoveQuestionManager.tsx');
 const doveQuestionOverlay = read('src/components/DoveQuestionOverlay.tsx');
+const appErrorBoundary = read('src/components/AppErrorBoundary.tsx');
 const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_noah_ark_construction.sql');
 const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_book_completion.sql');
 
@@ -332,8 +334,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v100'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '99'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v101'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '100'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -346,7 +348,7 @@ assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=99`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '99'\)/);
-assert.match(releaseCache, /2026-09-02-v100/);
+assert.match(releaseCache, /2026-09-02-v101/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=99/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=99'/);
 assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=99"/);
@@ -384,6 +386,34 @@ assert.match(quizLifecycle, /CREATE OR REPLACE FUNCTION public\.delete_quiz_sess
 assert.match(quizLifecycle, /v_session\.status = 'scheduled'/);
 assert.match(quizLifecycle, /greatest\(25,[\s\S]*Vedette/);
 assert.match(quizLifecycle, /Courage Webnjoh/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_my_quiz_runtime_state',
+  "'server_now', v_server_now",
+  'CREATE OR REPLACE FUNCTION public.prevent_early_quiz_timeout',
+  'CREATE TRIGGER trg_prevent_early_quiz_timeout',
+  'Quiz time is still running. Your attempt remains open.',
+  'Backgrounding the app does not forfeit a quiz attempt.',
+  'CREATE TEMP TABLE quiz_attempts_to_resume',
+  'CREATE TEMP TABLE quiz_false_forfeit_recovery',
+  'public.release_due_weekly_quiz_results()',
+  'public.refresh_user_streak_snapshot(recovered.user_id)',
+]) {
+  assert.ok(resilientQuizAttempts.includes(required), `Missing resilient quiz boundary: ${required}`);
+}
+for (const required of [
+  'fetchMyQuizRuntimeState',
+  'serverClockOffsetMs',
+  'verifyQuizDeadline',
+  'withQuizNetworkRetry',
+  'full-circle-quiz-draft:',
+  "document.addEventListener('visibilitychange', reconcile)",
+  'Saved answers remain safe if the app sleeps or reconnects',
+]) {
+  assert.ok(cadetQuiz.includes(required), `Missing resilient quiz client behavior: ${required}`);
+}
+assert.doesNotMatch(cadetQuiz, /forfeitQuizAttempt|forfeitTimerRef|8_000|8-second background/);
+assert.match(appErrorBoundary, /window\.addEventListener\('online', this\.retryAfterResume\)/);
+assert.match(appErrorBoundary, /document\.addEventListener\('visibilitychange', this\.retryAfterResume\)/);
 assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_restored/);
 assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_purchased/);
 assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_protected/);

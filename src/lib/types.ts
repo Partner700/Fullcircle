@@ -338,6 +338,13 @@ export interface QuizAttempt {
   created_at: string;
 }
 
+export interface QuizRuntimeState {
+  server_now: string;
+  effective_closes_at: string;
+  can_play: boolean;
+  attempt: QuizAttempt | null;
+}
+
 export interface QuizResponder {
   user_id: string;
   display_name: string;

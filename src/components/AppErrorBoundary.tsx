@@ -21,6 +21,12 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { error, retryKey: 0 };
   }
 
+  componentDidMount() {
+    window.addEventListener('online', this.retryAfterResume);
+    window.addEventListener('pageshow', this.retryAfterResume);
+    document.addEventListener('visibilitychange', this.retryAfterResume);
+  }
+
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (recoverFromStaleBundle(error)) return;
     console.error('Full Circle screen error:', error, errorInfo);
@@ -33,7 +39,17 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentWillUnmount() {
     if (this.retryTimer) window.clearTimeout(this.retryTimer);
+    window.removeEventListener('online', this.retryAfterResume);
+    window.removeEventListener('pageshow', this.retryAfterResume);
+    document.removeEventListener('visibilitychange', this.retryAfterResume);
   }
+
+  private retryAfterResume = () => {
+    if (!this.state.error || document.hidden) return;
+    this.recoveryAttempts = 0;
+    if (this.retryTimer) window.clearTimeout(this.retryTimer);
+    this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }));
+  };
 
   private retryQuietly() {
     // Let Vite finish replacing a screen after a hot update before conceding

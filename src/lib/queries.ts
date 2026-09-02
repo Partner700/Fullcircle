@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
-  QuizSession, GeneratedQuestion, QuizAttempt, QuizResponder, QuestionResponse, WeeklyQuizReleasedResult,
+  QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, QuestionResponse, WeeklyQuizReleasedResult,
   DenariiLedgerEntry, GameAttempt, RelicType, RelicInventory,
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
@@ -608,14 +608,6 @@ export async function completeQuizAttempt(
   };
 }
 
-export async function forfeitQuizAttempt(attemptId: string) {
-  const { data, error } = await supabase.rpc('forfeit_quiz_attempt', {
-    p_attempt_id: attemptId,
-  });
-  if (error) throw error;
-  return Boolean(data);
-}
-
 export async function insertQuestions(questions: Partial<GeneratedQuestion>[]) {
   const { error } = await supabase.from('generated_questions').insert(questions);
   if (error) throw error;
@@ -637,6 +629,14 @@ export async function fetchQuizAttempt(_userId: string, sessionId: string) {
   });
   if (error) throw error;
   return data as QuizAttempt | null;
+}
+
+export async function fetchMyQuizRuntimeState(sessionId: string) {
+  const { data, error } = await supabase.rpc('get_my_quiz_runtime_state', {
+    p_quiz_session_id: sessionId,
+  });
+  if (error) throw error;
+  return data as QuizRuntimeState;
 }
 
 export async function fetchQuizResponders(sessionId: string) {
