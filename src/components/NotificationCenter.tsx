@@ -29,7 +29,7 @@ function notificationSymbol(type: string) {
   if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
   if (['relic', 'reward'].includes(key)) return publicAsset('notification-symbols/relic.svg');
   if (['payment', 'purchase', 'economy'].includes(key)) return publicAsset('notification-symbols/payment.svg');
-  if (key === 'challenge') return publicAsset('notification-symbols/challenge.svg');
+  if (key === 'challenge' || key === 'dove_question') return publicAsset('notification-symbols/challenge.svg');
   return publicAsset('notification-symbols/reading.svg');
 }
 

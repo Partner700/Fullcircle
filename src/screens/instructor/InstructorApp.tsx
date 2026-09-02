@@ -18,6 +18,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
+import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -57,7 +58,7 @@ import {
   fetchMarksBoard, fetchMonthlyVallumWatch,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -173,6 +174,7 @@ const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
   { key: 'narratives', label: 'Narratives', icon: BookOpen },
   { key: 'announcements', label: 'Announcements', icon: Megaphone },
+  { key: 'dove_questions', label: 'Dove Questions', icon: MessageCircle },
   { key: 'quiz', label: 'Quiz Builder', icon: FileQuestion },
   { key: 'game_questions', label: 'Game Questions', icon: Gamepad2 },
   { key: 'tents', label: 'Tents', icon: TentIcon },
@@ -270,7 +272,7 @@ export function InstructorApp() {
   }, [loadDashboardData]);
 
   const tabLabels: Record<Tab, string> = {
-    dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', quiz: 'Quiz Builder',
+    dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
     game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
     challenges: 'Challenges', mobile_money: 'Mobile Money', settings: 'Settings',
@@ -304,6 +306,7 @@ export function InstructorApp() {
         />
       )}
       {tab === 'announcements' && <AnnouncementManager />}
+      {tab === 'dove_questions' && <DoveQuestionManager />}
       {tab === 'tents' && <><TentJoinRequests onRefresh={loadAll} /><TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} /></>}
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}

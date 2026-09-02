@@ -40,7 +40,7 @@ function notificationSymbol(type: string) {
   if (key === "streak") return "/notification-symbols/streak.svg";
   if (["relic", "reward"].includes(key)) return "/notification-symbols/relic.svg";
   if (["payment", "purchase", "economy"].includes(key)) return "/notification-symbols/payment.svg";
-  if (key === "challenge") return "/notification-symbols/challenge.svg";
+  if (key === "challenge" || key === "dove_question") return "/notification-symbols/challenge.svg";
   return "/notification-symbols/reading.svg";
 }
 

@@ -1,8 +1,8 @@
 // This worker is intentionally notification-only. Application requests must
 // always go to the network so an installed phone cannot be trapped on a stale
 // offline document or an obsolete JavaScript bundle.
-const CACHE_VERSION = 'full-circle-v99';
-const RECOVERY_MARKER = '98';
+const CACHE_VERSION = 'full-circle-v100';
+const RECOVERY_MARKER = '99';
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -17,6 +17,7 @@ const NOTIFICATION_SYMBOLS = {
   payment: 'notification-symbols/payment.svg',
   economy: 'notification-symbols/payment.svg',
   challenge: 'notification-symbols/challenge.svg',
+  dove_question: 'notification-symbols/challenge.svg',
   scripture: 'notification-symbols/reading.svg',
   reading: 'notification-symbols/reading.svg',
 };

@@ -9,12 +9,85 @@ export type QuizAttemptStatus = 'not_started' | 'in_progress' | 'submitted' | 'f
 export type GameMode = 'normal' | 'blitz' | 'practice';
 export type GameStatus = 'in_progress' | 'passed' | 'failed';
 
-export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fortune_quiz_reward' | 'relic_purchase' | 'relic_reward' | 'admin_adjustment' | 'hint_purchase' | 'answer_reveal' | 'freezer_daily' | 'freezer_weekly' | 'attendance' | 'arena_stake' | 'arena_fee' | 'arena_reward' | 'mobile_money' | 'campay_payment' | 'notification_opt_in' | 'challenge_submission';
+export type LedgerSourceType = 'game_level' | 'game_blitz' | 'quiz_reward' | 'fortune_quiz_reward' | 'relic_purchase' | 'relic_reward' | 'admin_adjustment' | 'hint_purchase' | 'answer_reveal' | 'freezer_daily' | 'freezer_weekly' | 'attendance' | 'arena_stake' | 'arena_fee' | 'arena_reward' | 'mobile_money' | 'campay_payment' | 'notification_opt_in' | 'challenge_submission' | 'dove_question_cost' | 'dove_question_reward';
 
 export type ChallengeProofFormat = 'text' | 'png' | 'pdf' | 'link' | 'image';
 export type ChallengeSubmissionStatus = 'pending' | 'approved' | 'rejected';
 export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'grace';
 export type FreezerType = 'daily' | 'weekly';
+export type DoveQuestionType = 'multiple_choice' | 'true_false' | 'fill_blank' | 'standard_text';
+export type DoveQuestionDeliveryMode = 'optional' | 'required';
+export type DoveQuestionStatus = 'active' | 'closed';
+
+export interface DoveQuestion {
+  id: string;
+  instructor_id: string;
+  question_text: string;
+  question_type: DoveQuestionType;
+  options: string[];
+  correct_answer: string;
+  accepted_answers: string[];
+  explanation: string | null;
+  entry_cost_denarii: number;
+  reward_denarii: number;
+  delivery_mode: DoveQuestionDeliveryMode;
+  sound_url: string | null;
+  status: DoveQuestionStatus;
+  published_at: string;
+  expires_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PendingDoveQuestion {
+  id: string;
+  question_text: string;
+  question_type: DoveQuestionType;
+  options: string[];
+  entry_cost_denarii: number;
+  reward_denarii: number;
+  delivery_mode: DoveQuestionDeliveryMode;
+  sound_url: string | null;
+  published_at: string;
+  expires_at: string | null;
+  participant_count: number;
+  wallet_denarii: number;
+}
+
+export interface DoveQuestionParticipant {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  answered_at: string;
+}
+
+export interface DoveQuestionAnswerResult {
+  question_id: string;
+  submitted_answer: string;
+  is_correct: boolean;
+  correct_answer: string;
+  explanation: string | null;
+  cost_paid: number;
+  cost_waived: boolean;
+  reward_paid: number;
+  wallet_denarii: number;
+  already_answered: boolean;
+}
+
+export interface PublishDoveQuestionInput {
+  questionText: string;
+  questionType: DoveQuestionType;
+  options: string[];
+  correctAnswer: string;
+  acceptedAnswers: string[];
+  explanation?: string | null;
+  entryCostDenarii: number;
+  rewardDenarii: number;
+  deliveryMode: DoveQuestionDeliveryMode;
+  soundUrl?: string | null;
+  expiresAt?: string | null;
+}
 
 export interface Profile {
   id: string;

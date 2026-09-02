@@ -103,6 +103,10 @@ const messagingContext = read('src/context/MessagingContext.tsx');
 const readingDrafts = read('src/lib/readingDrafts.ts');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
 const phStreakContinuity = read('supabase/migrations/20260902090000_preserve_ph_verified_streak_continuity.sql');
+const doveQuestions = read('supabase/migrations/20260902100000_dove_questions.sql');
+const doveQuestionApi = read('src/lib/doveQuestions.ts');
+const doveQuestionManager = read('src/components/DoveQuestionManager.tsx');
+const doveQuestionOverlay = read('src/components/DoveQuestionOverlay.tsx');
 const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_noah_ark_construction.sql');
 const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_book_completion.sql');
 
@@ -328,24 +332,24 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v99'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '98'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v100'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '99'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '98'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '99'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=98`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '98'\)/);
-assert.match(releaseCache, /2026-08-30-v99/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=98/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=98'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=98"/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=99`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '99'\)/);
+assert.match(releaseCache, /2026-09-02-v100/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=99/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=99'/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=99"/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);
@@ -409,6 +413,69 @@ for (const required of [
 ]) {
   assert.ok(phStreakContinuity.includes(required), `Missing PH streak continuity boundary: ${required}`);
 }
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.dove_questions',
+  'CREATE TABLE IF NOT EXISTS public.dove_question_targets',
+  'CREATE TABLE IF NOT EXISTS public.dove_question_answers',
+  'CREATE TABLE IF NOT EXISTS public.dove_question_participants',
+  'ALTER TABLE public.dove_question_answers ENABLE ROW LEVEL SECURITY',
+  'REVOKE ALL ON TABLE public.dove_question_answers FROM PUBLIC, anon, authenticated',
+  'CREATE OR REPLACE FUNCTION public.publish_dove_question',
+  'CREATE OR REPLACE FUNCTION public.get_pending_dove_question',
+  'CREATE OR REPLACE FUNCTION public.submit_dove_question_answer',
+  'CREATE OR REPLACE FUNCTION public.dismiss_dove_question',
+  'CREATE OR REPLACE FUNCTION public.close_dove_question',
+  'FOR UPDATE',
+  'pg_advisory_xact_lock',
+  "'dove_question_cost'",
+  "'dove_question_reward'",
+  'uq_dove_question_ledger_settlement',
+  "v_question.delivery_mode = 'required'",
+  'A mandatory question must never lock a low-balance user out forever',
+  "notification_type = 'dove_question'",
+  "'dove_question_participants'",
+]) {
+  assert.ok(doveQuestions.includes(required), `Missing Dove Question authority boundary: ${required}`);
+}
+const pendingDoveQuestionFunction = doveQuestions.match(/CREATE OR REPLACE FUNCTION public\.get_pending_dove_question\(\)[\s\S]*?(?=CREATE OR REPLACE FUNCTION public\.get_dove_question_participants)/)?.[0] || '';
+assert.ok(pendingDoveQuestionFunction, 'Pending Dove Question RPC could not be inspected.');
+assert.doesNotMatch(pendingDoveQuestionFunction, /'correct_answer'/, 'Pending users must not receive the correct answer.');
+for (const required of [
+  'publishDoveQuestion',
+  'fetchPendingDoveQuestion',
+  'submitDoveQuestionAnswer',
+  'dismissDoveQuestion',
+  'closeDoveQuestion',
+]) {
+  assert.ok(doveQuestionApi.includes(required), `Missing typed Dove Question operation: ${required}`);
+}
+for (const required of [
+  'Send a Dove Question',
+  'Send with the Dove',
+  "setDeliveryMode('optional')",
+  "setDeliveryMode('required')",
+  'sound-assets/dove-questions/',
+  'ParticipantStack',
+  'fetchInstructorDoveQuestionParticipants',
+]) {
+  assert.ok(doveQuestionManager.includes(required), `Missing instructor Dove Question behavior: ${required}`);
+}
+for (const required of [
+  'createPortal',
+  'fetchPendingDoveQuestion',
+  'submitDoveQuestionAnswer',
+  'dove_question_targets',
+  'dove_question_participants',
+  'Answer to continue',
+  'z-[2147483600]',
+  'isSoundscapeEnabled',
+  'audio.loop = true',
+]) {
+  assert.ok(doveQuestionOverlay.includes(required), `Missing global Dove Question behavior: ${required}`);
+}
+assert.match(pushDelivery, /key === "challenge" \|\| key === "dove_question"/);
+assert.match(rootApp, /DoveQuestionOverlay/);
+assert.match(instructorApp, /DoveQuestionManager/);
 for (const required of [
   'streakboard_one_user_per_day_idx',
   'ON CONFLICT (snapshot_date, user_id) DO UPDATE',
