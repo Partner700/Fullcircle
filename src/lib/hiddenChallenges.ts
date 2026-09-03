@@ -3,6 +3,8 @@ import type {
   CreateHiddenChallengeInput,
   HiddenChallengeParticipant,
   HiddenChallengePlacement,
+  HiddenChallengeRelic,
+  HiddenChallengeRelicResult,
   HiddenChallengeResult,
   HiddenItemInventory,
   HiddenItemType,
@@ -121,4 +123,27 @@ export async function fetchHiddenChallengeParticipants(challengeId: string) {
   });
   if (error) throw error;
   return (data || []) as HiddenChallengeParticipant[];
+}
+
+export async function fetchHiddenChallengeRelics(claimId: string) {
+  const { data, error } = await supabase.rpc('get_my_hidden_challenge_relics', {
+    p_claim_id: claimId,
+  });
+  if (error) throw error;
+  return (data || []) as HiddenChallengeRelic[];
+}
+
+export async function deployHiddenChallengeRelic(
+  claimId: string,
+  relicSlug: string,
+  answer?: string | null,
+) {
+  const { data, error } = await supabase.rpc('use_hidden_challenge_relic', {
+    p_claim_id: claimId,
+    p_open_nonce: pageNonce,
+    p_relic_slug: relicSlug,
+    p_answer: answer?.trim() || null,
+  });
+  if (error) throw error;
+  return data as HiddenChallengeRelicResult;
 }

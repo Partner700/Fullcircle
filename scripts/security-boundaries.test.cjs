@@ -94,6 +94,7 @@ const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
 const sundayPublicReading = read('supabase/migrations/20260830120000_sunday_readings_public_conversations.sql');
 const sundayBiblicalOrder = read('supabase/migrations/20260830123000_sunday_biblical_order_and_streak_ranking.sql');
 const publicShareScreen = read('src/screens/PublicShareScreen.tsx');
+const publicQuizResultClaim = read('src/components/PublicQuizResultClaim.tsx');
 const panelImageTypes = read('src/lib/types.ts');
 const panelImages = read('src/lib/panelImages.ts');
 const panelImageBackdrop = read('src/components/PanelImageBackdrop.tsx');
@@ -111,6 +112,8 @@ const doveQuestionOverlay = read('src/components/DoveQuestionOverlay.tsx');
 const appErrorBoundary = read('src/components/AppErrorBoundary.tsx');
 const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_noah_ark_construction.sql');
 const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_book_completion.sql');
+const paymentAndPublicShareRecovery = read('supabase/migrations/20260903100000_payment_and_public_share_recovery.sql');
+const hiddenChallengeHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -334,8 +337,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v102'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '101'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v103'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '102'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -348,7 +351,8 @@ assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=99`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '99'\)/);
-assert.match(releaseCache, /2026-09-02-v102/);
+assert.match(releaseCache, /2026-09-03-v103/);
+assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=99/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=99'/);
 assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=99"/);
@@ -1090,6 +1094,59 @@ for (const required of [
 ]) {
   assert.ok(activeAnswerIntegrity.includes(required), `Missing active-answer/payment boundary: ${required}`);
 }
+
+for (const required of [
+  'subscription_payment_deliveries',
+  "payment.purchase_kind = 'subscription'",
+  'ON CONFLICT (payment_id) DO NOTHING',
+  "session.status <> 'scheduled'",
+  'now() >= session.live_opens_at',
+  'Answer every question before submitting',
+  'claim_shared_quiz_result',
+  'claimed_by_user_id',
+  'This guest quiz has already been claimed by another account.',
+  'public_scripture_reaction_summary',
+  'public_scripture_insight_reactions',
+  "'Guest reader'",
+  'get_scripture_insight_reaction_summaries',
+]) {
+  assert.ok(
+    paymentAndPublicShareRecovery.includes(required),
+    `Missing payment/public-share recovery boundary: ${required}`,
+  );
+}
+assert.match(paymentAndPublicShareRecovery, /REVOKE ALL ON FUNCTION public\.public_scripture_reaction_summary[\s\S]*FROM PUBLIC, anon, authenticated/);
+assert.match(paymentAndPublicShareRecovery, /GRANT EXECUTE ON FUNCTION public\.get_scripture_insight_reaction_summaries[\s\S]*TO authenticated, service_role/);
+assert.match(subscriptionScreen, /RECOVERABLE_PAYMENT_AGE_MS/);
+assert.match(subscriptionScreen, /activePayment\.payment_id/);
+assert.match(campayWebhook, /objectValue\(verifyData\.data\)/);
+assert.match(campayWebhook, /authenticatedUserId/);
+assert.match(campayCheckout, /payment_id: paymentId/);
+assert.match(publicShareScreen, /payload\.question \|\| payload\.question_text/);
+assert.match(publicShareScreen, /<Dove size=\{14\} \/>/);
+assert.match(publicShareScreen, /\/>\s*Reply/);
+assert.match(publicShareScreen, /\/>\s*Add insight/);
+assert.match(publicShareScreen, /claim-quiz/);
+assert.match(publicShareScreen, /full-circle-pending-quiz-claim/);
+assert.match(publicQuizResultClaim, /claimSharedQuizResult/);
+assert.match(publicQuizResultClaim, /Your marked answer sheet stays sealed/);
+assert.match(rootApp, /<PublicQuizResultClaim \/>/);
+assert.match(quoteQueries, /supabase\.rpc\('claim_shared_quiz_result'/);
+assert.match(paymentAndPublicShareRecovery, /REVOKE ALL ON FUNCTION public\.claim_shared_quiz_result\(uuid, text\)[\s\S]*FROM PUBLIC, anon/);
+
+for (const required of [
+  "'shield-of-faith'",
+  "interval '15 seconds'",
+  'protection_relic_slug',
+  "'mine_blocked', true",
+  'settle_hidden_challenge_failure_unprotected',
+  'get_my_hidden_challenge_relics',
+  'use_hidden_challenge_relic',
+]) {
+  assert.ok(hiddenChallengeHardening.includes(required), `Missing hidden-challenge hardening boundary: ${required}`);
+}
+assert.match(hiddenChallengeHardening, /'shield-of-faith'[\s\S]*?100,/);
+assert.match(hiddenChallengeHardening, /REVOKE ALL ON FUNCTION public\.settle_hidden_challenge_failure_unprotected/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

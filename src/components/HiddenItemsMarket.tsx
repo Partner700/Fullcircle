@@ -2,8 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Box,
+  BookOpen,
+  BrainCircuit,
   Check,
   Coins,
+  DoorOpen,
+  Gamepad2,
   Gift,
   Loader2,
   LockKeyhole,
@@ -49,17 +53,17 @@ const DIFFICULTIES: Array<{ value: HiddenChallengeDifficulty; label: string }> =
 ];
 
 const TREASURE_PLACEMENTS = [
-  { value: 'direct_message', label: 'Direct message' },
-  { value: 'verse', label: 'Verse insights' },
+  { value: 'direct_message', label: 'Direct message', icon: MessageCircle },
+  { value: 'verse', label: 'Verse insights', icon: BookOpen },
 ];
 
 const MINE_PLACEMENTS = [
-  { value: 'direct_message', label: 'Direct message' },
-  { value: 'app_open', label: 'When they open the app' },
-  { value: 'todays_reading', label: "When they open Today's Reading" },
-  { value: 'verse', label: 'Inside verse insights' },
-  { value: 'daily_games', label: 'When they open Daily Games' },
-  { value: 'daily_trivia', label: 'When they open Daily Trivia' },
+  { value: 'direct_message', label: 'Direct message', icon: MessageCircle },
+  { value: 'app_open', label: 'App opening', icon: DoorOpen },
+  { value: 'todays_reading', label: "Today's Reading", icon: BookOpen },
+  { value: 'verse', label: 'Verse insights', icon: Sparkles },
+  { value: 'daily_games', label: 'Daily Games', icon: Gamepad2 },
+  { value: 'daily_trivia', label: 'Daily Trivia', icon: BrainCircuit },
 ];
 
 function wholeNumber(value: string, label: string, max = 100_000_000) {
@@ -274,8 +278,8 @@ function ItemComposer({
             </div>
           </section>
 
-          <section className="grid gap-4 sm:grid-cols-2">
-            <div>
+          <section className="space-y-4">
+            <div className="max-w-sm">
               <label className="mb-1 block text-xs font-bold text-ink">Question difficulty</label>
               <div className="grid grid-cols-3 rounded-md border border-border bg-surface-2 p-1">
                 {DIFFICULTIES.map((option) => (
@@ -284,8 +288,32 @@ function ItemComposer({
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-bold text-ink">Hiding place</label>
-              <AppSelect value={placement} onChange={(value) => setPlacement(value as HiddenChallengePlacement)} options={placements} />
+              <label className="mb-2 block text-xs font-bold text-ink">Hiding place</label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Hiding place">
+                {placements.map((option) => {
+                  const PlacementIcon = option.icon;
+                  const selected = placement === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setPlacement(option.value as HiddenChallengePlacement)}
+                      className={cn(
+                        'flex min-h-12 items-center gap-2 rounded-md border px-3 py-2 text-left text-[10px] font-bold transition-colors',
+                        selected
+                          ? 'border-peri bg-peri/15 text-ink ring-2 ring-peri/15'
+                          : 'border-border bg-surface-2 text-stone hover:border-peri/40 hover:text-ink',
+                      )}
+                    >
+                      <PlacementIcon size={15} className={selected ? 'text-peri' : 'text-stone'} />
+                      <span className="min-w-0 leading-tight">{option.label}</span>
+                      {selected && <Check size={13} className="ml-auto shrink-0 text-peri" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </section>
 

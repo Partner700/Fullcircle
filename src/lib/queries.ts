@@ -493,6 +493,36 @@ export async function completeSharedQuiz(sessionId: string, guestKey: string) {
   if (error) throw error;
 }
 
+export interface SharedQuizClaimQuestion {
+  id: string;
+  question_index: number;
+  question_text: string;
+  options: unknown[];
+  selected_answer: unknown;
+  correct_answer: unknown;
+  is_correct: boolean;
+}
+
+export interface SharedQuizClaimResult {
+  quiz_session_id: string;
+  title: string;
+  released: boolean;
+  release_at: string;
+  correct_count?: number;
+  question_count?: number;
+  figs?: number;
+  questions?: SharedQuizClaimQuestion[];
+}
+
+export async function claimSharedQuizResult(sessionId: string, guestKey: string) {
+  const { data, error } = await supabase.rpc('claim_shared_quiz_result', {
+    p_quiz_session_id: sessionId,
+    p_guest_key: guestKey,
+  });
+  if (error) throw error;
+  return data as SharedQuizClaimResult;
+}
+
 export async function createQuizSession(session: Partial<QuizSession>) {
   const { data, error } = await supabase
     .from('quiz_sessions')
@@ -1424,6 +1454,8 @@ export type VerseInsightReactionActor = {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  is_guest?: boolean;
+  is_current_guest?: boolean;
 };
 
 export type VerseInsightReactionState = Record<VerseInsightReactionType, {
@@ -1440,6 +1472,7 @@ function emptyVerseInsightReactionState(): VerseInsightReactionState {
 }
 
 export async function fetchVerseInsights(narrativeId: string | string[], reactorUserId?: string) {
+  void reactorUserId;
   const narrativeIds = Array.from(new Set((Array.isArray(narrativeId) ? narrativeId : [narrativeId]).filter(Boolean)));
   if (!narrativeIds.length) return [];
   let insightQuery = supabase
@@ -1462,10 +1495,9 @@ export async function fetchVerseInsights(narrativeId: string | string[], reactor
       .select('id,insight_id,user_id,mentioned_user_id,mentioned_user_ids,parent_comment_id,body,created_at')
       .in('insight_id', insightIds)
       .order('created_at', { ascending: true }),
-    supabase
-      .from('scripture_insight_reactions')
-      .select('insight_id,reactor_user_id,reaction_type')
-      .in('insight_id', insightIds),
+    supabase.rpc('get_scripture_insight_reaction_summaries', {
+      p_insight_ids: insightIds,
+    }),
   ]);
   if (commentResult.error) console.warn('Scripture insight replies unavailable:', commentResult.error.message);
   if (reactionResult.error) console.warn('Scripture insight reactions unavailable:', reactionResult.error.message);
@@ -1475,32 +1507,20 @@ export async function fetchVerseInsights(narrativeId: string | string[], reactor
     if (reaction.reaction_type !== 'heart' && reaction.reaction_type !== 'lightbulb') return;
     const reactionType = reaction.reaction_type as VerseInsightReactionType;
     const state = reactionsByInsight.get(reaction.insight_id) || emptyVerseInsightReactionState();
-    state[reactionType].count += 1;
-    if (reactorUserId && reaction.reactor_user_id === reactorUserId) {
-      state[reactionType].reacted = true;
-    }
+    state[reactionType] = {
+      count: Number(reaction.reaction_count || 0),
+      reacted: Boolean(reaction.reacted),
+      actors: Array.isArray(reaction.actors) ? reaction.actors : [],
+    };
     reactionsByInsight.set(reaction.insight_id, state);
   });
   const profileIds = Array.from(new Set([
     ...(comments || []).flatMap((comment) => [comment.user_id, comment.mentioned_user_id]),
-    ...(reactionResult.data || []).map((reaction: any) => reaction.reactor_user_id),
   ].filter(Boolean))) as string[];
   const { data: commentProfiles } = profileIds.length
     ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', profileIds)
     : { data: [] };
   const profilesById = new Map((commentProfiles || []).map((commentProfile) => [commentProfile.id, commentProfile]));
-  (reactionResult.data || []).forEach((reaction: any) => {
-    if (reaction.reaction_type !== 'heart' && reaction.reaction_type !== 'lightbulb') return;
-    const reactionType = reaction.reaction_type as VerseInsightReactionType;
-    const state = reactionsByInsight.get(reaction.insight_id);
-    const actor = profilesById.get(reaction.reactor_user_id);
-    if (!state || !actor || state[reactionType].actors.some((existing) => existing.user_id === reaction.reactor_user_id)) return;
-    state[reactionType].actors.push({
-      user_id: reaction.reactor_user_id,
-      display_name: actor.display_name || 'Camp member',
-      avatar_url: actor.avatar_url || null,
-    });
-  });
   return insights.map((insight) => ({
     ...insight,
     reactions: reactionsByInsight.get(insight.id) || emptyVerseInsightReactionState(),
@@ -2192,6 +2212,7 @@ export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(
 export type CampayPaymentResult = {
   status: string;
   reference: string;
+  payment_id?: string;
   payment_method?: string;
   amount_local?: number;
   currency_code?: string;

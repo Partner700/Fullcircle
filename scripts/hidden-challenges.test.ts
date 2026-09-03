@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath: string) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const migration = read('supabase/migrations/20260902130000_treasures_and_mines.sql');
+const mineHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
 const api = read('src/lib/hiddenChallenges.ts');
 const market = read('src/components/HiddenItemsMarket.tsx');
 const overlay = read('src/components/HiddenChallengeOverlay.tsx');
@@ -71,6 +72,8 @@ for (const rpc of [
   'forfeit_hidden_challenge',
   'get_hidden_challenge_result',
   'get_hidden_challenge_participants',
+  'get_my_hidden_challenge_relics',
+  'use_hidden_challenge_relic',
 ]) {
   assert.ok(api.includes(`supabase.rpc('${rpc}'`), `Client API is missing ${rpc}.`);
 }
@@ -88,10 +91,14 @@ assert.match(market, /50 Ð each/);
 assert.match(market, /targets\.length >= 3/);
 assert.match(market, /Empty boxes are allowed/);
 assert.match(market, /Question difficulty/);
+assert.match(market, /role="radiogroup" aria-label="Hiding place"/);
+assert.match(market, /setPlacement\(option\.value as HiddenChallengePlacement\)/);
 assert.match(overlay, /Leaving this panel forfeits your attempt/);
 assert.match(overlay, /ParticipantStack/);
 assert.match(overlay, /document\.visibilityState === 'hidden'/);
 assert.match(overlay, /retryAbandonedForfeit/);
+assert.match(overlay, /secondsLeft \/ 15/);
+assert.match(overlay, /deployHiddenChallengeRelic/);
 assert.match(app, /<HiddenChallengeOverlay \/>/);
 assert.match(messenger, /revealHiddenChallenge\(\{ claimId:/);
 assert.match(reading, /placement: 'todays_reading'/);
@@ -107,5 +114,27 @@ assert.equal(mineCharge(0, 100), 0);
 const escrow = (perRecipient: number, recipients: number) => perRecipient * recipients;
 assert.equal(escrow(300, 1), 300);
 assert.equal(escrow(300, 3), 900);
+
+for (const boundary of [
+  "'shield-of-faith'",
+  "denarii_cost,",
+  "'single_mine'",
+  "interval '15 seconds'",
+  'protection_relic_slug',
+  "'mine_blocked', true",
+  'settle_hidden_challenge_failure_unprotected',
+  'CREATE OR REPLACE FUNCTION public.get_my_hidden_challenge_relics',
+  'CREATE OR REPLACE FUNCTION public.use_hidden_challenge_relic',
+  "p_relic_slug IN ('skip', 'witch-ball-endor', 'sword-goliath')",
+  "p_relic_slug = 'freeze-timer'",
+  "p_relic_slug = 'eliminate'",
+  "p_relic_slug = 'talking-donkey'",
+  "p_relic_slug = 'reveal-reference'",
+]) {
+  assert.ok(mineHardening.includes(boundary), `Missing Mine/timer hardening boundary: ${boundary}`);
+}
+assert.match(mineHardening, /'shield-of-faith'[\s\S]*?100,/);
+assert.match(mineHardening, /REVOKE ALL ON FUNCTION public\.settle_hidden_challenge_failure_unprotected/);
+assert.match(mineHardening, /GRANT EXECUTE ON FUNCTION public\.use_hidden_challenge_relic[\s\S]*TO authenticated/);
 
 console.log('Treasure and Mine authority checks passed.');

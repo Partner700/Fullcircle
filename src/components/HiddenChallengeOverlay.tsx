@@ -2,31 +2,45 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CheckCircle2,
+  Clock3,
   Coins,
+  Eye,
   Gift,
+  Lightbulb,
   Loader2,
   LockKeyhole,
+  ListFilter,
+  BookOpen,
   Pickaxe,
   Send,
+  Shield,
+  ShieldCheck,
+  SkipForward,
   Snowflake,
+  Swords,
+  TimerReset,
   Users,
+  Volume2,
   X,
   XCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchHiddenChallengeParticipants,
+  fetchHiddenChallengeRelics,
   fetchHiddenChallengeResult,
   findHiddenChallengeClaim,
   forfeitHiddenChallenge,
   HIDDEN_CHALLENGE_EVENT,
   openHiddenChallenge,
   submitHiddenChallengeAnswer,
+  deployHiddenChallengeRelic,
   type HiddenChallengeEventDetail,
 } from '../lib/hiddenChallenges';
 import { supabase } from '../lib/supabase';
 import type {
   HiddenChallengeParticipant,
+  HiddenChallengeRelic,
   HiddenChallengeResult,
   OpenHiddenChallenge,
 } from '../lib/types';
@@ -61,6 +75,9 @@ function ParticipantStack({ participants }: { participants: HiddenChallengeParti
 
 function ResultSummary({ result }: { result: HiddenChallengeResult }) {
   if (result.item_type === 'mine') {
+    if (result.mine_blocked) {
+      return <p className="text-sm leading-relaxed text-sage">Your {result.protection_relic_name || 'Shield of Faith'} blocked the Mine. No Denarii were taken.</p>;
+    }
     return result.is_correct ? (
       <p className="text-sm leading-relaxed text-sage">You answered correctly and escaped the Mine. No Denarii were taken.</p>
     ) : (
@@ -96,7 +113,12 @@ export function HiddenChallengeOverlay() {
   const { profile } = useAuth();
   const [challenge, setChallenge] = useState<OpenHiddenChallenge | null>(null);
   const [participants, setParticipants] = useState<HiddenChallengeParticipant[]>([]);
+  const [relics, setRelics] = useState<HiddenChallengeRelic[]>([]);
   const [answer, setAnswer] = useState('');
+  const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
+  const [relicNotice, setRelicNotice] = useState<string | null>(null);
+  const [usingRelic, setUsingRelic] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(15);
   const [result, setResult] = useState<HiddenChallengeResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
@@ -128,10 +150,18 @@ export function HiddenChallengeOverlay() {
         if (!opened) return;
         setError(null);
         setAnswer('');
+        setEliminatedOptions([]);
+        setRelicNotice(null);
         setResult(null);
         abandonedRef.current = false;
         setChallenge(opened);
-        await loadParticipants(opened.challenge_id);
+        setSecondsLeft(Math.max(0, Math.ceil((new Date(opened.attempt_deadline).getTime() - Date.now()) / 1000)));
+        const [loadedParticipants, loadedRelics] = await Promise.all([
+          fetchHiddenChallengeParticipants(opened.challenge_id).catch(() => []),
+          opened.item_type === 'mine' ? fetchHiddenChallengeRelics(opened.claim_id).catch(() => []) : Promise.resolve([]),
+        ]);
+        setParticipants(loadedParticipants);
+        setRelics(loadedRelics);
       } catch (loadError) {
         const message = loadError instanceof Error ? loadError.message : 'The hidden question could not be opened.';
         setError(message);
@@ -143,7 +173,7 @@ export function HiddenChallengeOverlay() {
     });
     requestRef.current = tracked;
     return tracked;
-  }, [loadParticipants, profile]);
+  }, [profile]);
 
   const loadContext = useCallback(async (detail: HiddenChallengeEventDetail) => {
     if (detail.claimId) {
@@ -247,6 +277,18 @@ export function HiddenChallengeOverlay() {
 
   useEffect(() => {
     if (!challenge || result) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((new Date(challenge.attempt_deadline).getTime() - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining === 0) void settleForfeit(true);
+    };
+    tick();
+    const interval = window.setInterval(tick, 200);
+    return () => window.clearInterval(interval);
+  }, [challenge, result, settleForfeit]);
+
+  useEffect(() => {
+    if (!challenge || result) return;
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         abandonedRef.current = true;
@@ -322,10 +364,51 @@ export function HiddenChallengeOverlay() {
     }
   };
 
+  const deployRelic = async (relic: HiddenChallengeRelic) => {
+    if (!challenge || result || usingRelic || relic.automatic) return;
+    setUsingRelic(relic.slug);
+    setError(null);
+    try {
+      const deployed = await deployHiddenChallengeRelic(challenge.claim_id, relic.slug, answer);
+      setRelics((current) => current
+        .map((item) => item.slug === relic.slug ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item)
+        .filter((item) => item.quantity > 0));
+      setRelicNotice(deployed.relic_notice || null);
+      if (deployed.eliminated_options?.length) {
+        const newlyEliminated = deployed.eliminated_options;
+        setEliminatedOptions((current) => Array.from(new Set([...current, ...newlyEliminated])));
+        if (answer && newlyEliminated.includes(answer)) setAnswer('');
+      }
+      if (deployed.attempt_deadline) {
+        setChallenge((current) => current ? { ...current, attempt_deadline: deployed.attempt_deadline! } : current);
+      }
+      if (deployed.claim_id && typeof deployed.is_correct === 'boolean') {
+        const settled = deployed as HiddenChallengeResult;
+        abandonedRef.current = false;
+        resultRef.current = settled;
+        setResult(settled);
+        await loadParticipants(challenge.challenge_id);
+      }
+    } catch (deployError) {
+      const recovered = await fetchHiddenChallengeResult(challenge.claim_id).catch(() => null);
+      if (recovered) {
+        resultRef.current = recovered;
+        setResult(recovered);
+      } else {
+        setError(deployError instanceof Error ? deployError.message : 'This relic could not be used.');
+      }
+    } finally {
+      setUsingRelic(null);
+    }
+  };
+
   const finish = () => {
     setChallenge(null);
     setParticipants([]);
+    setRelics([]);
     setAnswer('');
+    setEliminatedOptions([]);
+    setRelicNotice(null);
     setResult(null);
     setError(null);
     abandonedRef.current = false;
@@ -369,6 +452,7 @@ export function HiddenChallengeOverlay() {
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <span className="badge badge-neutral text-[9px] capitalize">{challenge.difficulty}</span>
                   <span className="badge badge-neutral text-[9px]"><LockKeyhole size={10} /> One attempt</span>
+                  {!result && <span className={cn('badge text-[9px]', secondsLeft <= 5 ? 'border-coral/40 bg-coral/15 text-coral' : 'badge-neutral')}><Clock3 size={10} /> {secondsLeft}s</span>}
                 </div>
               </div>
             </div>
@@ -417,13 +501,19 @@ export function HiddenChallengeOverlay() {
 
           <ParticipantStack participants={participants} />
 
+          {!result && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-label={`${secondsLeft} seconds remaining`}>
+              <div className={cn('h-full rounded-full transition-[width] duration-200', secondsLeft <= 5 ? 'bg-coral' : 'bg-peri')} style={{ width: `${Math.min(100, (secondsLeft / 15) * 100)}%` }} />
+            </div>
+          )}
+
           {result ? (
             <div className="space-y-4 text-center">
               <div className={cn(
                 'mx-auto flex h-16 w-16 items-center justify-center rounded-full border',
-                result.is_correct ? 'border-sage/40 bg-sage/10 text-sage' : 'border-coral/40 bg-coral/10 text-coral',
+                result.is_correct || result.mine_blocked ? 'border-sage/40 bg-sage/10 text-sage' : 'border-coral/40 bg-coral/10 text-coral',
               )}>
-                {result.is_correct ? <CheckCircle2 size={34} /> : <XCircle size={34} />}
+                {result.mine_blocked ? <ShieldCheck size={34} /> : result.is_correct ? <CheckCircle2 size={34} /> : <XCircle size={34} />}
               </div>
               <ResultSummary result={result} />
               {!result.is_correct && result.correct_answer && (
@@ -438,9 +528,45 @@ export function HiddenChallengeOverlay() {
                 {challenge.reference && <p className="mt-1 text-[10px] font-bold uppercase text-brass">{challenge.reference}</p>}
               </div>
 
+              {!treasure && relics.length > 0 && (
+                <div className="rounded-md border border-border bg-surface-2 p-2.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {relics.map((relic) => {
+                      const Icon = relic.slug === 'shield-of-faith' ? Shield
+                        : relic.slug === 'hint' ? Lightbulb
+                          : relic.slug === 'eliminate' ? ListFilter
+                            : relic.slug === 'skip' ? SkipForward
+                              : relic.slug === 'freeze-timer' ? TimerReset
+                                : relic.slug === 'reveal-reference' ? BookOpen
+                                  : relic.slug === 'talking-donkey' ? Volume2
+                                    : relic.slug === 'sword-goliath' ? Swords
+                                      : Eye;
+                      return relic.automatic ? (
+                        <span key={relic.slug} className="inline-flex items-center gap-1 rounded-full border border-sage/35 bg-sage/10 px-2 py-1 text-[10px] font-bold text-sage" title="Used automatically if this Mine would charge you">
+                          <Icon size={12} /> Protected ({relic.quantity})
+                        </span>
+                      ) : (
+                        <button
+                          key={relic.slug}
+                          type="button"
+                          onClick={() => void deployRelic(relic)}
+                          disabled={Boolean(usingRelic) || secondsLeft === 0 || (relic.slug === 'talking-donkey' && !answer)}
+                          className="inline-flex items-center gap-1 rounded-full border border-peri/30 bg-peri/10 px-2 py-1 text-[10px] font-bold text-peri disabled:opacity-40"
+                          title={`Use ${relic.name}`}
+                        >
+                          {usingRelic === relic.slug ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                          {relic.name} ({relic.quantity})
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {relicNotice && <p className="mt-2 text-[10px] font-semibold text-sage">{relicNotice}</p>}
+                </div>
+              )}
+
               {challenge.options.length >= 2 ? (
                 <div className="grid gap-2">
-                  {challenge.options.map((option, index) => (
+                  {challenge.options.filter((option) => !eliminatedOptions.includes(option)).map((option, index) => (
                     <button
                       key={`${option}-${index}`}
                       type="button"
@@ -471,7 +597,7 @@ export function HiddenChallengeOverlay() {
               <button
                 type="button"
                 className="btn-primary w-full justify-center"
-                disabled={!answer.trim() || submitting || forfeiting}
+                disabled={!answer.trim() || submitting || forfeiting || secondsLeft === 0}
                 onClick={() => void submit()}
               >
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

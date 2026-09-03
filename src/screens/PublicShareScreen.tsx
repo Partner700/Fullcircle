@@ -17,14 +17,26 @@ import { cn } from '../lib/utils';
 
 type ShareKind = 'reading' | 'quiz';
 
+const memoryGuestKeys = new Map<string, string>();
+
 function publicGuestKey(scope: string) {
   const key = `full-circle-public:${scope}`;
-  const existing = window.localStorage.getItem(key);
+  let existing = memoryGuestKeys.get(key) || null;
+  try {
+    existing = window.localStorage.getItem(key) || existing;
+  } catch {
+    // Some mobile browsers disable storage while still allowing the shared page.
+  }
   if (existing) return existing;
   const value = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  window.localStorage.setItem(key, value);
+  memoryGuestKeys.set(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // The in-memory key still keeps this visit playable.
+  }
   return value;
 }
 
@@ -77,10 +89,12 @@ const PUBLIC_INSIGHT_REACTIONS: Array<{
 
 function InsightThread({
   insight,
+  signupHref,
   pending,
   onReact,
 }: {
   insight: SharedReadingInsight;
+  signupHref: string;
   pending: string | null;
   onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
 }) {
@@ -139,7 +153,9 @@ function InsightThread({
           <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp members reacted`}>
             {actors.map((actor) => (
               <span key={actor.user_id} title={actor.display_name} className="inline-flex h-4 w-4 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-center text-[7px] font-bold leading-4 text-peri shadow-sm">
-                {actor.avatar_url
+                {actor.is_guest
+                  ? <Dove size={14} />
+                  : actor.avatar_url
                   ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" loading="lazy" />
                   : actor.display_name.charAt(0).toUpperCase()}
               </span>
@@ -173,6 +189,9 @@ function InsightThread({
           })}
         </div>
       )}
+      <a href={signupHref} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri">
+        <MessageCircle size={13} /> Reply
+      </a>
     </div>
   );
 }
@@ -245,10 +264,15 @@ function SharedReadingView({
                     </div>
                   )}
                   <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
-                    <p className="text-[10px] font-bold uppercase text-stone">Reader insights</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-bold uppercase text-stone">Reader insights</p>
+                      <a href={signupHref} className="inline-flex items-center gap-1 text-[10px] font-bold text-peri">
+                        <Lightbulb size={12} /> Add insight
+                      </a>
+                    </div>
                     {insights.length ? (
                       <div className="mt-3 space-y-3">
-                        {insights.map((insight) => <InsightThread key={insight.id} insight={insight} pending={pendingReaction} onReact={onReact} />)}
+                        {insights.map((insight) => <InsightThread key={insight.id} insight={insight} signupHref={signupHref} pending={pendingReaction} onReact={onReact} />)}
                       </div>
                     ) : (
                       <p className="mt-2 text-xs text-stone">No reader insight has been shared on this verse yet.</p>
@@ -295,11 +319,23 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
   const [quiz, setQuiz] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [savingQuestion, setSavingQuestion] = useState<string | null>(null);
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [pendingReaction, setPendingReaction] = useState<string | null>(null);
 
-  const signupHref = useMemo(() => `${window.location.pathname}?signup=1`, []);
-  const readingGuestKey = useMemo(() => publicGuestKey(`reading:${value}`), [value]);
+  const signupHref = useMemo(() => {
+    const search = new URLSearchParams({ signup: '1' });
+    if (kind === 'quiz') search.set('claim-quiz', value);
+    return `${window.location.pathname}?${search.toString()}`;
+  }, [kind, value]);
+  const readingGuestKey = useMemo(
+    () => kind === 'reading' ? publicGuestKey(`reading:${value}`) : '',
+    [kind, value],
+  );
+  const quizGuestKey = useMemo(
+    () => kind === 'quiz' ? publicGuestKey(`quiz:${value}`) : '',
+    [kind, value],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -329,6 +365,13 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
         insights: current.insights.map((insight) => {
           if (insight.id !== insightId) return insight;
           const previous = insight.reactions?.[reactionType] || { count: 0, reacted: false, actors: [] };
+          const guestActor = {
+            user_id: `guest:${readingGuestKey.slice(0, 16)}`,
+            display_name: 'Guest reader',
+            avatar_url: null,
+            is_guest: true,
+            is_current_guest: true,
+          };
           return {
             ...insight,
             reactions: {
@@ -337,6 +380,11 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
                 ...previous,
                 reacted,
                 count: Math.max(0, previous.count + (reacted ? 1 : -1)),
+                actors: reacted
+                  ? previous.actors.some((actor) => actor.user_id === guestActor.user_id)
+                    ? previous.actors
+                    : [guestActor, ...previous.actors]
+                  : previous.actors.filter((actor) => !actor.is_current_guest && actor.user_id !== guestActor.user_id),
               },
             },
           };
@@ -354,7 +402,7 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
     setAnswers((current) => ({ ...current, [questionId]: answer }));
     setSavingQuestion(questionId);
     try {
-      await saveSharedQuizAnswer(quiz.session.id, publicGuestKey(`quiz:${quiz.session.id}`), questionId, answer);
+      await saveSharedQuizAnswer(quiz.session.id, quizGuestKey, questionId, answer);
     } catch (saveError: any) {
       setError(saveError?.message || 'Your answer could not be saved.');
     } finally {
@@ -363,12 +411,23 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
   };
 
   const submitQuiz = async () => {
-    if (!quiz?.session?.id) return;
+    if (!quiz?.session?.id || submittingQuiz) return;
+    setSubmittingQuiz(true);
     try {
-      await completeSharedQuiz(quiz.session.id, publicGuestKey(`quiz:${quiz.session.id}`));
+      await Promise.all(Object.entries(answers).map(([questionId, answer]) => (
+        saveSharedQuizAnswer(quiz.session.id, quizGuestKey, questionId, answer.trim())
+      )));
+      await completeSharedQuiz(quiz.session.id, quizGuestKey);
+      try {
+        window.localStorage.setItem('full-circle-pending-quiz-claim', quiz.session.id);
+      } catch {
+        // The claim query in the join URL remains available if storage is blocked.
+      }
       setSubmitted(true);
     } catch (submitError: any) {
       setError(submitError?.message || 'Your quiz could not be submitted.');
+    } finally {
+      setSubmittingQuiz(false);
     }
   };
 
@@ -412,9 +471,9 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
                   const payload = question.question_payload || {};
                   const options = Array.isArray(payload.options) ? payload.options : [];
                   const currentAnswer = answers[question.id] || '';
-                  return <section key={question.id} className="card p-5"><p className="text-xs font-bold text-brass">Question {index + 1}</p><p className="mt-2 text-base font-semibold leading-relaxed text-ink">{payload.question}</p>{options.length ? <div className="mt-4 space-y-2">{options.map((option: string, optionIndex: number) => <label key={`${option}-${optionIndex}`} className={cn('flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm', currentAnswer === option ? 'border-brass bg-brass-soft text-ink' : 'border-border bg-surface-2 text-stone')}><input type="radio" name={question.id} value={option} checked={currentAnswer === option} onChange={() => void saveAnswer(question.id, option)} /><span>{option}</span></label>)}</div> : <input className="input-field mt-4" value={currentAnswer} onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))} onBlur={(event) => { if (event.target.value.trim()) void saveAnswer(question.id, event.target.value.trim()); }} placeholder="Your answer" />}{savingQuestion === question.id && <p className="mt-2 text-[10px] text-stone">Saving...</p>}</section>;
+                  return <section key={question.id} className="card p-5"><p className="text-xs font-bold text-brass">Question {index + 1}</p><p className="mt-2 text-base font-semibold leading-relaxed text-ink">{payload.question || payload.question_text}</p>{options.length ? <div className="mt-4 space-y-2">{options.map((option: string, optionIndex: number) => <label key={`${option}-${optionIndex}`} className={cn('flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm', currentAnswer === option ? 'border-brass bg-brass-soft text-ink' : 'border-border bg-surface-2 text-stone')}><input type="radio" name={question.id} value={option} checked={currentAnswer === option} onChange={() => void saveAnswer(question.id, option)} /><span>{option}</span></label>)}</div> : <input className="input-field mt-4" value={currentAnswer} onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))} onBlur={(event) => { if (event.target.value.trim()) void saveAnswer(question.id, event.target.value.trim()); }} placeholder="Your answer" />}{savingQuestion === question.id && <p className="mt-2 text-[10px] text-stone">Saving...</p>}</section>;
                 })}
-                <button type="button" className="btn-primary w-full justify-center" disabled={Object.keys(answers).length < quiz.questions.length} onClick={() => void submitQuiz()}><Send size={16} /> Submit and join to see results</button>
+                <button type="button" className="btn-primary w-full justify-center" disabled={submittingQuiz || Boolean(savingQuestion) || quiz.questions.some((question: any) => !answers[question.id]?.trim())} onClick={() => void submitQuiz()}>{submittingQuiz ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit and join to see results</button>
               </>
             )}
           </article>

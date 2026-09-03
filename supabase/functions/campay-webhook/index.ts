@@ -8,6 +8,7 @@ const corsHeaders = {
 
 type CampayWebhookPayload = {
   reference?: string;
+  transaction_reference?: string;
   external_reference?: string;
   tx_ref?: string;
   status?: string;
@@ -15,6 +16,7 @@ type CampayWebhookPayload = {
   webhook_key?: string;
   amount?: string | number;
   currency?: string;
+  data?: unknown;
 };
 
 type MobileMoneySettings = {
@@ -82,7 +84,7 @@ function getIncomingWebhookKey(req: Request, payload: CampayWebhookPayload): str
 }
 
 function isSuccessful(status: string): boolean {
-  return ["successful", "success", "completed"].includes(status.toLowerCase());
+  return ["successful", "success", "completed", "confirmed", "complete", "paid"].includes(status.toLowerCase());
 }
 
 function isFailed(status: string): boolean {
@@ -112,6 +114,16 @@ function firstPositiveNumber(...values: unknown[]): number | null {
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
   }
   return null;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (Array.isArray(value) && value[0] && typeof value[0] === "object") {
+    return value[0] as Record<string, unknown>;
+  }
+  return {};
 }
 
 async function getAuthenticatedUserId(req: Request): Promise<string | null> {
@@ -285,12 +297,9 @@ Deno.serve(async (req: Request) => {
     const body = await req.text();
     const payload: CampayWebhookPayload = body ? JSON.parse(body) : {};
 
+    const payloadDetails = objectValue(payload.data);
     const incomingWebhookKey = getIncomingWebhookKey(req, payload);
-    if (!campayWebhookKey) {
-      throw new Error("Missing required environment variable: CAMPAY_WEBHOOK_KEY");
-    }
-
-    const isTrustedWebhook = incomingWebhookKey === campayWebhookKey;
+    const isTrustedWebhook = Boolean(campayWebhookKey && incomingWebhookKey === campayWebhookKey);
     const authenticatedUserId = isTrustedWebhook ? null : await getAuthenticatedUserId(req);
     if (!isTrustedWebhook && !authenticatedUserId) {
       return new Response(JSON.stringify({ error: "A valid webhook key or signed-in user is required." }), {
@@ -299,8 +308,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const reference = payload.reference || payload.tx_ref || payload.external_reference || "";
-    const status = payload.status || payload.state || "";
+    const reference = String(
+      payloadDetails.reference || payloadDetails.transaction_reference
+        || payloadDetails.external_reference || payloadDetails.tx_ref
+        || payload.reference || payload.transaction_reference
+        || payload.tx_ref || payload.external_reference || "",
+    );
+    const status = String(payloadDetails.status || payloadDetails.state || payload.status || payload.state || "");
 
     if (!reference) {
       return new Response(JSON.stringify({ error: "No reference provided" }), {
@@ -330,10 +344,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const verifyData: Record<string, unknown> = await verifyRes.json();
-    const verifyDetails = verifyData.data && typeof verifyData.data === "object"
-      ? verifyData.data as Record<string, unknown>
-      : {};
-    const paymentStatus = String(verifyData.status || verifyData.state || status || "").toLowerCase();
+    const verifyDetails = objectValue(verifyData.data);
+    const paymentStatus = String(
+      verifyDetails.status || verifyDetails.state || verifyData.status || verifyData.state || status || "",
+    ).toLowerCase();
 
     if (isSuccessful(paymentStatus)) {
       const payment = requestedPayment
@@ -348,12 +362,21 @@ Deno.serve(async (req: Request) => {
         verifyData.amount_received,
         verifyData.amount_local,
         verifyDetails.amount,
+        verifyDetails.amount_received,
+        verifyDetails.amount_local,
+        payloadDetails.amount,
+        payloadDetails.amount_received,
         payload.amount,
       );
       const verifiedCurrency = String(
-        verifyData.currency || verifyData.currency_code || verifyDetails.currency || payload.currency || "",
+        verifyDetails.currency || verifyDetails.currency_code
+          || verifyData.currency || verifyData.currency_code
+          || payloadDetails.currency || payloadDetails.currency_code || payload.currency || "",
       ).toUpperCase();
-      const providerReference = String(verifyData.reference || verifyDetails.reference || reference);
+      const providerReference = String(
+        verifyDetails.reference || verifyDetails.transaction_reference
+          || verifyData.reference || verifyData.transaction_reference || reference,
+      );
 
       const finalizationRpc = payment.purchase_kind === "subscription"
         ? "finalize_subscription_payment"

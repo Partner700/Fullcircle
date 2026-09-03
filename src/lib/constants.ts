@@ -108,6 +108,7 @@ export const RELIC_SLUGS = {
   LAZARUS_COIN: 'lazarus-coin',
   REDEMPTION_COIN: 'redemption-coin',
   SIMONS_COIN: 'simons-coin',
+  SHIELD_OF_FAITH: 'shield-of-faith',
 } as const;
 
 export const QUIZ_LIVE_DURATION_MINUTES = 30;

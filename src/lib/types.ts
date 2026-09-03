@@ -149,7 +149,27 @@ export interface HiddenChallengeResult {
   reward_freezer_type?: FreezerType | null;
   reward_freezer_quantity?: number;
   empty_box?: boolean;
+  mine_blocked?: boolean;
+  protection_relic_name?: string | null;
+  relic_used?: string;
+  relic_notice?: string;
   transferred: boolean;
+}
+
+export interface HiddenChallengeRelic {
+  slug: string;
+  name: string;
+  quantity: number;
+  automatic: boolean;
+}
+
+export interface HiddenChallengeRelicResult extends Partial<HiddenChallengeResult> {
+  success?: boolean;
+  relic_used?: string;
+  relic_notice?: string;
+  eliminated_options?: string[];
+  answer_safe?: boolean;
+  attempt_deadline?: string;
 }
 
 export interface HiddenChallengeParticipant {

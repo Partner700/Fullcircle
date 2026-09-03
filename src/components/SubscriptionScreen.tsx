@@ -39,6 +39,7 @@ interface SubscriptionScreenProps {
 }
 
 const CONFIRMED_STATUSES = new Set(['confirmed', 'successful', 'success', 'completed', 'granted']);
+const RECOVERABLE_PAYMENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function errorMessage(reason: unknown, fallback: string) {
   return reason instanceof Error && reason.message ? reason.message : fallback;
@@ -74,6 +75,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
   const [error, setError] = useState<string | null>(null);
   const paymentRef = useRef<CampayPaymentResult | null>(null);
   const pollingStartedAtRef = useRef(0);
+  const recoveryUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     paymentRef.current = payment;
@@ -123,11 +125,19 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         await verifyCampayPayment(reference).catch(() => null);
       }
       const payments = await fetchUserMobileMoneyPayments(profile.id);
-      const stored = payments.find((item) =>
-        item.reference === activePayment.reference
-        || item.external_reference === activePayment.reference
-        || item.provider_reference === activePayment.provider_reference,
-      );
+      const activeReferences = new Set([
+        activePayment.reference,
+        activePayment.provider_reference,
+      ].map((value) => String(value || '').trim()).filter(Boolean));
+      const stored = payments.find((item) => [
+        item.id,
+        item.reference,
+        item.external_reference,
+        item.provider_reference,
+      ].some((value) => {
+        const reference = String(value || '').trim();
+        return Boolean(reference) && (activeReferences.has(reference) || reference === activePayment.payment_id);
+      }));
       if (!stored) return false;
 
       setPayment((current) => current ? {
@@ -154,10 +164,56 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
   }, [finishActivation, profile]);
 
   useEffect(() => {
-    if (!profile || !payment || CONFIRMED_STATUSES.has(String(payment.status).toLowerCase())) return;
+    if (!profile || recoveryUserRef.current === profile.id) return;
+    recoveryUserRef.current = profile.id;
+    let cancelled = false;
+
+    const recoverRecentCheckout = async () => {
+      try {
+        const payments = await fetchUserMobileMoneyPayments(profile.id);
+        if (cancelled) return;
+        const recentSubscription = payments.find((item) => (
+          item.purchase_kind === 'subscription'
+          && Date.now() - new Date(item.created_at).getTime() <= RECOVERABLE_PAYMENT_AGE_MS
+          && (item.status === 'pending' || item.status === 'confirmed')
+        ));
+        if (!recentSubscription) return;
+
+        const recovered: CampayPaymentResult = {
+          status: recentSubscription.status,
+          payment_id: recentSubscription.id,
+          reference: recentSubscription.reference || recentSubscription.external_reference || recentSubscription.id,
+          provider_reference: recentSubscription.provider_reference,
+          payment_method: recentSubscription.payment_method || undefined,
+          amount_local: recentSubscription.amount_local,
+          currency_code: recentSubscription.currency_code,
+          provider: recentSubscription.provider,
+          operator: recentSubscription.operator,
+          ussd_code: recentSubscription.ussd_code,
+          message: recentSubscription.status === 'confirmed'
+            ? 'Payment confirmed. Restoring your subscription access.'
+            : 'Checking your recent mobile money approval.',
+        };
+        paymentRef.current = recovered;
+        pollingStartedAtRef.current = Date.now();
+        setPayment(recovered);
+        if (recentSubscription.status === 'confirmed') await finishActivation();
+        else await checkPayment(false);
+      } catch {
+        // A manual payment check remains available if recovery is temporarily offline.
+      }
+    };
+
+    void recoverRecentCheckout();
+    return () => { cancelled = true; };
+  }, [checkPayment, finishActivation, profile]);
+
+  useEffect(() => {
+    const activePayment = paymentRef.current;
+    if (!profile || !activePayment || CONFIRMED_STATUSES.has(String(activePayment.status).toLowerCase())) return;
     if (!pollingStartedAtRef.current) pollingStartedAtRef.current = Date.now();
     const interval = window.setInterval(() => {
-      if (Date.now() - pollingStartedAtRef.current > 180_000) {
+      if (Date.now() - pollingStartedAtRef.current > 15 * 60_000) {
         window.clearInterval(interval);
         return;
       }
@@ -172,7 +228,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
       .channel(`subscription_checkout_${profile.id}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${profile.id}` },
+        { event: '*', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${profile.id}` },
         () => void checkPayment(false),
       )
       .subscribe();

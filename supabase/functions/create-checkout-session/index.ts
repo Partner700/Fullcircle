@@ -46,6 +46,9 @@ type CampayCollectResponse = {
   operator?: string;
   code?: string;
   operator_reference?: string;
+  transaction_reference?: string;
+  state?: string;
+  data?: Record<string, unknown> | Array<Record<string, unknown>>;
 };
 
 type PaymentFinalization = {
@@ -151,9 +154,19 @@ function isMobileMoneyCollect(method?: string): boolean {
 
 function normalizeStatus(status?: string): string {
   const value = (status || "").toLowerCase();
-  if (["successful", "success", "completed"].includes(value)) return "confirmed";
+  if (["successful", "success", "completed", "confirmed", "complete", "paid"].includes(value)) return "confirmed";
   if (["failed", "cancelled", "canceled", "expired"].includes(value)) return "rejected";
   return "pending";
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (Array.isArray(value) && value[0] && typeof value[0] === "object") {
+    return value[0] as Record<string, unknown>;
+  }
+  return {};
 }
 
 function isSuccessful(status?: string): boolean {
@@ -594,17 +607,27 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      const providerReference = collectJson.reference || null;
-      const collectPaymentStatus = normalizeStatus(collectJson.status);
+      const collectDetails = objectValue(collectJson.data);
+      const collectStatus = String(
+        collectDetails.status || collectDetails.state || collectJson.status || collectJson.state || "",
+      );
+      const providerReference = String(
+        collectDetails.reference || collectDetails.transaction_reference
+          || collectJson.reference || collectJson.transaction_reference || "",
+      ) || null;
+      const collectPaymentStatus = normalizeStatus(collectStatus);
+      const operator = String(collectDetails.operator || collectJson.operator || "") || null;
+      const ussdCode = String(collectDetails.ussd_code || collectJson.ussd_code || "") || null;
+      const collectMessage = String(collectDetails.message || collectJson.message || "");
 
       await updatePaymentRecord(paymentId, {
         provider_reference: providerReference,
-        operator: collectJson.operator || null,
-        ussd_code: collectJson.ussd_code || null,
+        operator,
+        ussd_code: ussdCode,
       });
 
       let finalization: PaymentFinalization | null = null;
-      if (isSuccessful(collectJson.status)) {
+      if (isSuccessful(collectStatus)) {
         finalization = await finalizePayment(
           paymentId,
           providerReference,
@@ -619,26 +642,27 @@ Deno.serve(async (req: Request) => {
         await rejectPayment(
           paymentId,
           providerReference,
-          String(collectJson.status || collectJson.message || "Payment was rejected."),
+          String(collectStatus || collectMessage || "Payment was rejected."),
           collectJson as Record<string, unknown>,
         );
       }
 
       return new Response(JSON.stringify({
-        status: finalization?.status || collectJson.status || collectPaymentStatus || "pending",
+        status: finalization?.status || collectStatus || collectPaymentStatus || "pending",
+        payment_id: paymentId,
         reference: externalReference,
         amount_local: amountXaf,
         currency_code: checkoutCurrency,
         amount_display: formatXaf(amountXaf),
         provider_reference: providerReference,
         provider,
-        operator: collectJson.operator || null,
-        ussd_code: collectJson.ussd_code || null,
-        message: isSuccessful(collectJson.status)
+        operator,
+        ussd_code: ussdCode,
+        message: isSuccessful(collectStatus)
           ? product.purchaseKind === "subscription"
             ? "Payment confirmed. Your Full Circle subscription is active."
             : "Payment confirmed. Your relic has been added to your inventory."
-          : collectJson.message || (product.purchaseKind === "subscription"
+          : collectMessage || (product.purchaseKind === "subscription"
             ? "Payment request sent. Approve the prompt on your phone. Your subscription will activate after confirmation."
             : "Payment request sent. Approve the prompt on your phone. The relic will be added after confirmation."),
       }), {

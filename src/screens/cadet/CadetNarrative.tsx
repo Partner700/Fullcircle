@@ -6,6 +6,7 @@ import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { MessageAvatar } from '../../components/TentMessenger';
+import { Dove } from '../../components/Dove';
 import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
@@ -64,19 +65,20 @@ type InsightParticipantSource = {
     profile?: { display_name?: string | null; avatar_url?: string | null } | null;
   }>;
   reactions?: Partial<Record<VerseInsightReactionType, {
-    actors?: Array<{ user_id: string; display_name?: string | null; avatar_url?: string | null }>;
+    actors?: Array<{ user_id: string; display_name?: string | null; avatar_url?: string | null; is_guest?: boolean }>;
   }>>;
 };
 
 function insightParticipants(insights: InsightParticipantSource[]) {
-  const participants = new Map<string, { userId: string; displayName: string; avatarUrl: string | null }>();
-  const addParticipant = (userId?: string | null, displayName?: string | null, avatarUrl?: string | null) => {
+  const participants = new Map<string, { userId: string; displayName: string; avatarUrl: string | null; isGuest: boolean }>();
+  const addParticipant = (userId?: string | null, displayName?: string | null, avatarUrl?: string | null, isGuest = false) => {
     if (!userId) return;
     const existing = participants.get(userId);
     participants.set(userId, {
       userId,
       displayName: displayName || existing?.displayName || 'Reader',
       avatarUrl: avatarUrl || existing?.avatarUrl || null,
+      isGuest: isGuest || existing?.isGuest || false,
     });
   };
 
@@ -87,7 +89,7 @@ function insightParticipants(insights: InsightParticipantSource[]) {
     });
     INSIGHT_REACTIONS.forEach(({ type }) => {
       (insight.reactions?.[type]?.actors || []).forEach((actor) => {
-        addParticipant(actor.user_id, actor.display_name, actor.avatar_url);
+        addParticipant(actor.user_id, actor.display_name, actor.avatar_url, actor.is_guest);
       });
     });
   });
@@ -1030,7 +1032,15 @@ export function CadetNarrative({
                       className="mt-3 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1"
                       aria-label={`${participants.length} reader insight participant${participants.length === 1 ? '' : 's'}`}
                     >
-                      {participants.map((participant) => (
+                      {participants.map((participant) => participant.isGuest ? (
+                        <span
+                          key={participant.userId}
+                          title="Guest reader"
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft text-peri"
+                        >
+                          <Dove size={14} />
+                        </span>
+                      ) : (
                         <MessageAvatar
                           key={participant.userId}
                           profile={messageProfile(participant.userId, participant.displayName, participant.avatarUrl)}
@@ -1105,7 +1115,15 @@ export function CadetNarrative({
                               if (!actors.length) return null;
                               return (
                                 <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
-                                  {actors.map((actor: any) => (
+                                  {actors.map((actor: any) => actor.is_guest ? (
+                                    <span
+                                      key={actor.user_id}
+                                      title="Guest reader"
+                                      className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-peri shadow-sm"
+                                    >
+                                      <Dove size={14} />
+                                    </span>
+                                  ) : (
                                     <MessageAvatar
                                       key={actor.user_id}
                                       profile={messageProfile(actor.user_id, actor.display_name, actor.avatar_url)}

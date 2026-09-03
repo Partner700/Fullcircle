@@ -13,7 +13,7 @@ import type { CampayPaymentResult } from '../../lib/queries';
 import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
   ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
-  Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy,
+  Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield,
 } from 'lucide-react';
 
 const RELIC_ICONS: Record<string, any> = {
@@ -26,6 +26,7 @@ const RELIC_ICONS: Record<string, any> = {
   'lazarus-coin': Coins,
   'redemption-coin': Coins,
   'simons-coin': Wallet,
+  'shield-of-faith': Shield,
 };
 
 const RELIC_COLORS: Record<string, string> = {
@@ -38,6 +39,7 @@ const RELIC_COLORS: Record<string, string> = {
   'lazarus-coin': '#6B8E5A',
   'redemption-coin': '#C9A227',
   'simons-coin': '#C9A227',
+  'shield-of-faith': '#3D52C8',
 };
 
 const STORE_USABLE_RELICS = new Set<string>([
