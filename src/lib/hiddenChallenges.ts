@@ -20,6 +20,12 @@ export type HiddenChallengeEventDetail = {
   referenceKey?: string | null;
 };
 
+export type HiddenVerseChallengeMarker = {
+  claim_id: string;
+  reference_key: string;
+  item_type: HiddenItemType;
+};
+
 const pageNonce = typeof crypto !== 'undefined' && 'randomUUID' in crypto
   ? crypto.randomUUID()
   : `${Date.now()}-${Math.random()}`;
@@ -80,6 +86,14 @@ export async function findHiddenChallengeClaim(
   });
   if (error) throw error;
   return (data || null) as string | null;
+}
+
+export async function fetchPendingHiddenVerseMarkers(narrativeIds: string[]) {
+  const { data, error } = await supabase.rpc('get_my_pending_hidden_verse_markers', {
+    p_narrative_ids: narrativeIds,
+  });
+  if (error) throw error;
+  return (data || []) as HiddenVerseChallengeMarker[];
 }
 
 export async function openHiddenChallenge(claimId: string) {

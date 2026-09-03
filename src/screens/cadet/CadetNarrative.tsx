@@ -15,7 +15,12 @@ import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelIm
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
-import { readingVerseChallengeKey, revealHiddenChallenge } from '../../lib/hiddenChallenges';
+import {
+  fetchPendingHiddenVerseMarkers,
+  readingVerseChallengeKey,
+  revealHiddenChallenge,
+  type HiddenVerseChallengeMarker,
+} from '../../lib/hiddenChallenges';
 import {
   BookOpen, BookMarked, Heart, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
@@ -306,6 +311,7 @@ export function CadetNarrative({
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
+  const [hiddenVerseMarkers, setHiddenVerseMarkers] = useState<HiddenVerseChallengeMarker[]>([]);
   const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
   const [closedSundayInsights, setClosedSundayInsights] = useState<string[]>([]);
   const [myInsightDrafts, setMyInsightDrafts] = useState<Record<string, string>>({});
@@ -393,6 +399,22 @@ export function CadetNarrative({
     setVerseInsights(items);
     return items;
   }, [conversationNarrativeIds, profile?.id]);
+
+  const reloadHiddenVerseMarkers = useCallback(async () => {
+    if (!profile?.id || !conversationNarrativeIds.length) {
+      setHiddenVerseMarkers([]);
+      return [];
+    }
+    const markers = await fetchPendingHiddenVerseMarkers(conversationNarrativeIds);
+    setHiddenVerseMarkers(markers);
+    return markers;
+  }, [conversationNarrativeIds, profile?.id]);
+
+  const openHiddenVerseChallenge = useCallback((narrativeId: string, verseReference: string) => {
+    const referenceKey = readingVerseChallengeKey(narrativeId, verseReference);
+    setHiddenVerseMarkers((current) => current.filter((marker) => marker.reference_key !== referenceKey));
+    revealHiddenChallenge({ placement: 'verse', referenceKey });
+  }, []);
 
   const shareReading = async () => {
     const url = new URL(window.location.href);
@@ -608,6 +630,30 @@ export function CadetNarrative({
   }, [conversationNarrativeIds, profile?.id]);
 
   useEffect(() => {
+    if (!profile?.id || !conversationNarrativeIds.length) {
+      setHiddenVerseMarkers([]);
+      return;
+    }
+
+    void reloadHiddenVerseMarkers().catch(() => undefined);
+    const channel = supabase
+      .channel(`hidden_verse_markers_${profile.id}_${conversationNarrativeIds.join('_')}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
+        (payload) => {
+          const notification = payload.new as { metadata?: Record<string, unknown> };
+          if (notification.metadata?.placement === 'verse') {
+            void reloadHiddenVerseMarkers().catch(() => undefined);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [conversationNarrativeIds, profile?.id, reloadHiddenVerseMarkers]);
+
+  useEffect(() => {
     if (!narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
     let refreshTimer: number | null = null;
 
@@ -667,10 +713,11 @@ export function CadetNarrative({
     setOpenVerse(index);
     setOpenUserInsights(reference);
     setClosedSundayInsights((current) => current.filter((key) => key !== `${targetSourceNarrativeId}:${reference}`));
+    openHiddenVerseChallenge(targetSourceNarrativeId, reference);
     window.setTimeout(() => verseRefs.current[reference]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
     clearScriptureTarget();
     setNavigationTarget(null);
-  }, [navigationTarget, narrative?.id, readerVerses, verseInsights]);
+  }, [navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
 
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
@@ -959,7 +1006,9 @@ export function CadetNarrative({
             const hasReaderInsight = userInsights.length > 0;
             const participants = insightParticipants(userInsights);
             const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
-            const taggedMe = userInsights.some((item: any) =>
+            const verseReferenceKey = readingVerseChallengeKey(sourceNarrativeId, verse.reference);
+            const hiddenVerseMarker = hiddenVerseMarkers.find((marker) => marker.reference_key === verseReferenceKey);
+            const taggedMe = Boolean(hiddenVerseMarker) || userInsights.some((item: any) =>
               (item.mentioned_user_ids || []).includes(profile?.id)
               || (item.comments || []).some((comment: any) =>
                 comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
@@ -989,7 +1038,7 @@ export function CadetNarrative({
                 >
                   <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
                   <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
-                    {verse.reference}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
+                    {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
                   </span>
                 </button>
                 {hasInsight && expanded && (
@@ -1009,22 +1058,16 @@ export function CadetNarrative({
                         }
                         if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
                         setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
-                        revealHiddenChallenge({
-                          placement: 'verse',
-                          referenceKey: readingVerseChallengeKey(sourceNarrativeId, verse.reference),
-                        });
+                        openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
                         return;
                       }
                       if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
                       setOpenUserInsights(userExpanded ? null : verse.reference);
                       if (!userExpanded) {
-                        revealHiddenChallenge({
-                          placement: 'verse',
-                          referenceKey: readingVerseChallengeKey(sourceNarrativeId, verse.reference),
-                        });
+                        openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
                       }
                     }}>
-                      {userExpanded ? 'Close' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                      {userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
                     </button>
                   </div>
                   {!userExpanded && participants.length > 0 && (

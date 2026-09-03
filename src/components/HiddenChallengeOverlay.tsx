@@ -11,7 +11,7 @@ import {
   LockKeyhole,
   ListFilter,
   BookOpen,
-  Pickaxe,
+  Bomb,
   Send,
   Shield,
   ShieldCheck,
@@ -46,6 +46,8 @@ import type {
 } from '../lib/types';
 import { cn, formatDenarii } from '../lib/utils';
 import { Dove } from './Dove';
+
+const HIDDEN_CHALLENGE_SECONDS = 40;
 
 function ParticipantStack({ participants }: { participants: HiddenChallengeParticipant[] }) {
   const shown = participants.slice(-10);
@@ -118,7 +120,7 @@ export function HiddenChallengeOverlay() {
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
   const [relicNotice, setRelicNotice] = useState<string | null>(null);
   const [usingRelic, setUsingRelic] = useState<string | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(15);
+  const [secondsLeft, setSecondsLeft] = useState(HIDDEN_CHALLENGE_SECONDS);
   const [result, setResult] = useState<HiddenChallengeResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
@@ -381,7 +383,11 @@ export function HiddenChallengeOverlay() {
       setRelics((current) => current
         .map((item) => item.slug === relic.slug ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item)
         .filter((item) => item.quantity > 0));
-      setRelicNotice(deployed.relic_notice || null);
+      setRelicNotice(
+        relic.slug === 'freeze-timer'
+          ? `The timer has been reset to ${HIDDEN_CHALLENGE_SECONDS} seconds.`
+          : deployed.relic_notice || null,
+      );
       if (deployed.eliminated_options?.length) {
         const newlyEliminated = deployed.eliminated_options;
         setEliminatedOptions((current) => Array.from(new Set([...current, ...newlyEliminated])));
@@ -449,13 +455,13 @@ export function HiddenChallengeOverlay() {
                   'absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface shadow-md',
                   treasure ? 'bg-gold text-navy' : 'bg-coral text-white',
                 )}>
-                  {treasure ? <Gift size={15} /> : <Pickaxe size={15} />}
+                  {treasure ? <Gift size={15} /> : <Bomb size={15} />}
                 </span>
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase text-peri">Delivered by the Dove</p>
                 <h2 id="hidden-challenge-heading" className="font-display text-xl font-bold text-ink">
-                  {treasure ? 'A Treasure Box' : 'You found a Mine'}
+                  {treasure ? 'A Treasure Box' : 'You stepped on a Mine'}
                 </h2>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <span className="badge badge-neutral text-[9px] capitalize">{challenge.difficulty}</span>
@@ -511,7 +517,7 @@ export function HiddenChallengeOverlay() {
 
           {!result && (
             <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-label={`${secondsLeft} seconds remaining`}>
-              <div className={cn('h-full rounded-full transition-[width] duration-200', secondsLeft <= 5 ? 'bg-coral' : 'bg-peri')} style={{ width: `${Math.min(100, (secondsLeft / 15) * 100)}%` }} />
+              <div className={cn('h-full rounded-full transition-[width] duration-200', secondsLeft <= 5 ? 'bg-coral' : 'bg-peri')} style={{ width: `${Math.min(100, (secondsLeft / HIDDEN_CHALLENGE_SECONDS) * 100)}%` }} />
             </div>
           )}
 

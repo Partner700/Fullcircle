@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Box,
+  Bomb,
   BookOpen,
   BrainCircuit,
   Check,
@@ -13,7 +14,6 @@ import {
   LockKeyhole,
   MapPin,
   MessageCircle,
-  Pickaxe,
   Plus,
   Search,
   Snowflake,
@@ -257,7 +257,7 @@ function ItemComposer({
         <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
           <div className="flex items-center gap-3">
             <span className={cn('flex h-10 w-10 items-center justify-center rounded-md', itemType === 'treasure' ? 'bg-gold/15 text-gold' : 'bg-coral/15 text-coral')}>
-              {itemType === 'treasure' ? <Gift size={21} /> : <Pickaxe size={21} />}
+              {itemType === 'treasure' ? <Gift size={21} /> : <Bomb size={21} />}
             </span>
             <div>
               <h3 className="font-display text-lg font-bold text-ink">Hide a {itemType === 'treasure' ? 'Treasure Box' : 'Mine'}</h3>
@@ -526,7 +526,7 @@ export function HiddenItemsMarket({
 
           <div className="rounded-md border border-coral/30 bg-coral/5 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2"><Pickaxe size={18} className="text-coral" /><span className="text-sm font-bold text-ink">Mine</span></div>
+              <div className="flex items-center gap-2"><Bomb size={18} className="text-coral" /><span className="text-sm font-bold text-ink">Mine</span></div>
               <span className="text-lg font-black text-coral">{loading ? '...' : inventory.mines}</span>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-stone">Choose the difficulty, location, targets, and Denarii at risk.</p>
@@ -535,7 +535,7 @@ export function HiddenItemsMarket({
                 {buying === 'mine' ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Buy
               </button>
               <button type="button" className="btn-primary justify-center text-xs" disabled={inventory.mines < 1} onClick={() => setComposing('mine')}>
-                <Pickaxe size={13} /> Hide
+                <Bomb size={13} /> Hide
               </button>
             </div>
           </div>

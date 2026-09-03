@@ -8,6 +8,7 @@ const read = (relativePath: string) => fs.readFileSync(path.join(root, relativeP
 
 const migration = read('supabase/migrations/20260902130000_treasures_and_mines.sql');
 const mineHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
+const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mines_and_scripture_tags.sql');
 const api = read('src/lib/hiddenChallenges.ts');
 const market = read('src/components/HiddenItemsMarket.tsx');
 const overlay = read('src/components/HiddenChallengeOverlay.tsx');
@@ -67,6 +68,7 @@ for (const rpc of [
   'get_my_hidden_item_inventory',
   'create_hidden_challenge',
   'get_pending_hidden_challenge_claim',
+  'get_my_pending_hidden_verse_markers',
   'open_hidden_challenge',
   'submit_hidden_challenge_answer',
   'forfeit_hidden_challenge',
@@ -97,7 +99,10 @@ assert.match(overlay, /Leaving this panel forfeits your attempt/);
 assert.match(overlay, /ParticipantStack/);
 assert.match(overlay, /document\.visibilityState === 'hidden'/);
 assert.match(overlay, /retryAbandonedForfeit/);
-assert.match(overlay, /secondsLeft \/ 15/);
+assert.match(overlay, /secondsLeft \/ HIDDEN_CHALLENGE_SECONDS/);
+assert.match(overlay, /HIDDEN_CHALLENGE_SECONDS = 40/);
+assert.match(overlay, /You stepped on a Mine/);
+assert.doesNotMatch(overlay, /You found a Mine/);
 assert.match(overlay, /deployHiddenChallengeRelic/);
 assert.match(app, /<HiddenChallengeOverlay \/>/);
 assert.match(messenger, /revealHiddenChallenge\(\{ claimIds: hiddenClaimIds \}\)/);
@@ -105,6 +110,9 @@ assert.match(overlay, /for \(const claimId of detail\.claimIds\)/);
 assert.doesNotMatch(messenger, /Open hidden question/);
 assert.match(reading, /placement: 'todays_reading'/);
 assert.match(reading, /placement: 'verse'/);
+assert.match(reading, /Tagged for you/);
+assert.match(reading, /fetchPendingHiddenVerseMarkers/);
+assert.match(reading, /openHiddenVerseChallenge\(targetSourceNarrativeId, reference\)/);
 assert.match(gamesHub, /placement: 'daily_games'/);
 assert.match(trivia, /placement: 'daily_trivia'/);
 
@@ -138,5 +146,19 @@ for (const boundary of [
 assert.match(mineHardening, /'shield-of-faith'[\s\S]*?100,/);
 assert.match(mineHardening, /REVOKE ALL ON FUNCTION public\.settle_hidden_challenge_failure_unprotected/);
 assert.match(mineHardening, /GRANT EXECUTE ON FUNCTION public\.use_hidden_challenge_relic[\s\S]*TO authenticated/);
+
+for (const boundary of [
+  "interval '40 seconds'",
+  'get_my_pending_hidden_verse_markers',
+  'notify_scripture_mine_as_verse_tag',
+  "'scripture_insight_mention'",
+  "'hidden_challenge_claim_id', NEW.id",
+  "NEW.placement = 'verse'",
+]) {
+  assert.ok(mineVerseTags.includes(boundary), `Missing 40-second/Scripture Mine boundary: ${boundary}`);
+}
+assert.match(mineVerseTags, /claim\.current_target_id = auth\.uid\(\)/);
+assert.match(mineVerseTags, /challenge\.item_type = 'mine'/);
+assert.match(mineVerseTags, /GRANT EXECUTE ON FUNCTION public\.get_my_pending_hidden_verse_markers\(uuid\[\]\)[\s\S]*TO authenticated, service_role/);
 
 console.log('Treasure and Mine authority checks passed.');

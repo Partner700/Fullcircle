@@ -115,6 +115,7 @@ const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_
 const paymentAndPublicShareRecovery = read('supabase/migrations/20260903100000_payment_and_public_share_recovery.sql');
 const hiddenChallengeHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
 const quizDoveArrivals = read('supabase/migrations/20260903120000_dove_message_and_quiz_arrivals.sql');
+const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mines_and_scripture_tags.sql');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
 const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
@@ -343,7 +344,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v104'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v105'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '103'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -351,19 +352,19 @@ assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page naviga
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '100'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '101'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=100`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '100'\)/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=101`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '101'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-03-v104/);
+assert.match(releaseCache, /2026-09-03-v105/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=100/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=100'/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=101/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=101'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=100"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=101"/);
 assert.match(viteConfig, /target: 'es2017'/);
 assert.match(appIndex, /Array\.prototype\.flatMap/);
 assert.match(appIndex, /Object\.fromEntries/);
@@ -1163,6 +1164,24 @@ for (const required of [
 }
 assert.match(hiddenChallengeHardening, /'shield-of-faith'[\s\S]*?100,/);
 assert.match(hiddenChallengeHardening, /REVOKE ALL ON FUNCTION public\.settle_hidden_challenge_failure_unprotected/);
+
+for (const required of [
+  "interval '40 seconds'",
+  'get_my_pending_hidden_verse_markers',
+  'notify_scripture_mine_as_verse_tag',
+  "challenge.item_type <> 'mine'",
+  "'scripture_insight_mention'",
+  "'hidden_challenge_claim_id', NEW.id",
+  "NEW.placement = 'verse'",
+]) {
+  assert.ok(mineVerseTags.includes(required), `Missing 40-second/Scripture Mine boundary: ${required}`);
+}
+assert.match(mineVerseTags, /claim\.current_target_id = auth\.uid\(\)/);
+assert.match(mineVerseTags, /REVOKE ALL ON FUNCTION public\.get_my_pending_hidden_verse_markers\(uuid\[\]\)[\s\S]*FROM PUBLIC, anon/);
+assert.match(hiddenChallengeOverlay, /HIDDEN_CHALLENGE_SECONDS = 40/);
+assert.match(hiddenChallengeOverlay, /You stepped on a Mine/);
+assert.match(cadetNarrative, /Tagged for you/);
+assert.match(cadetNarrative, /fetchPendingHiddenVerseMarkers/);
 
 for (const required of [
   'deliver_quiz_release_notifications',
