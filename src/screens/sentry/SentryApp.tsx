@@ -5,6 +5,7 @@ import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { NotificationCenter } from '../../components/NotificationCenter';
+import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { SealBullet } from '../../components/AncientMotifs';
 import type { QuoteReactionState } from '../../components/QuoteReactions';
@@ -32,6 +33,7 @@ import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
 import { dailyGamesNavigationKey } from '../../lib/dailyGames';
+import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeShell } from '../cadet/story-mode/StoryModeShell';
@@ -360,6 +362,18 @@ export function SentryApp() {
   const handleNavigate = useCallback((next: Tab) => {
     setTab(isExpired && PREMIUM_TABS.has(next) ? 'subscribe' : next);
   }, [isExpired]);
+  const navigateFromAction = useCallback((key: string) => {
+    const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets', challenges: 'challenges', subscribe: 'subscribe' };
+    if (destination[key]) handleNavigate(destination[key]);
+  }, [handleNavigate]);
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const detail = (event as CustomEvent<AppNavigationDetail>).detail;
+      if (detail?.actionKey) navigateFromAction(detail.actionKey);
+    };
+    window.addEventListener(APP_NAVIGATION_EVENT, navigate);
+    return () => window.removeEventListener(APP_NAVIGATION_EVENT, navigate);
+  }, [navigateFromAction]);
   useEffect(() => {
     if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
   }, [isExpired, tab]);
@@ -505,10 +519,7 @@ export function SentryApp() {
             <StreakStatusIcon protection={streakProtection} />
             <span className="font-display font-bold text-coral text-[13px]">{sentryStreak}</span>
           </div>
-          <NotificationCenter onNavigate={(key) => {
-            const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets', challenges: 'challenges', subscribe: 'subscribe' };
-            if (destination[key]) handleNavigate(destination[key]);
-          }} />
+          <NotificationCenter onNavigate={navigateFromAction} />
           <div data-denarii-target className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
             <Coins size={16} className="text-gold" />
             <span className="font-display font-bold text-gold text-[13px]">
@@ -621,6 +632,7 @@ export function SentryApp() {
       )}
       {tab === 'settings' && <SettingsScreen onSignOut={signOut} />}
     </AppShell>
+    <DoveNotificationArrival onNavigate={navigateFromAction} />
     <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
     </>
     </SubscriptionAccessProvider>

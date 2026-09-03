@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle2, Clock3, Loader2, Trophy, X, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import {
   type SharedQuizClaimResult,
 } from '../lib/queries';
 import { cn } from '../lib/utils';
+import { requestAppNavigation } from '../lib/appNavigation';
 
 const PENDING_CLAIM_KEY = 'full-circle-pending-quiz-claim';
 
@@ -123,6 +124,7 @@ export function PublicQuizResultClaim() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const navigatedRef = useRef<string | null>(null);
   const querySessionId = useMemo(() => (
     typeof window === 'undefined'
       ? null
@@ -135,6 +137,10 @@ export function PublicQuizResultClaim() {
 
   useEffect(() => {
     if (!profile || !sessionId || dismissed) return;
+    if (navigatedRef.current !== sessionId) {
+      navigatedRef.current = sessionId;
+      requestAppNavigation('quiz', { quiz_session_id: sessionId });
+    }
     const guestKey = storedValue(`full-circle-public:quiz:${sessionId}`);
     let active = true;
     let retryTimer: number | undefined;

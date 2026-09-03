@@ -19,6 +19,60 @@
   <link rel="canonical" href="https://fullcircle.partnertai.com/" />
 
   <script>
+    // The app is also opened inside older Android and social-app WebViews.
+    // Supply the small ES2019/2020 helpers used by the single release bundle.
+    if (!Array.prototype.flatMap) {
+      Object.defineProperty(Array.prototype, 'flatMap', {
+        configurable: true,
+        writable: true,
+        value: function (callback, thisArg) {
+          return this.reduce(function (result, item, index, array) {
+            return result.concat(callback.call(thisArg, item, index, array));
+          }, []);
+        }
+      });
+    }
+    if (!Object.fromEntries) {
+      Object.fromEntries = function (entries) {
+        return Array.from(entries).reduce(function (result, entry) {
+          result[entry[0]] = entry[1];
+          return result;
+        }, {});
+      };
+    }
+    if (!String.prototype.matchAll) {
+      Object.defineProperty(String.prototype, 'matchAll', {
+        configurable: true,
+        writable: true,
+        value: function (expression) {
+          if (!(expression instanceof RegExp) || !expression.global) {
+            throw new TypeError('String.prototype.matchAll requires a global RegExp');
+          }
+          var source = String(this);
+          var matcher = new RegExp(expression.source, expression.flags);
+          var matches = [];
+          var match;
+          while ((match = matcher.exec(source)) !== null) {
+            matches.push(match);
+            if (match[0] === '') matcher.lastIndex += 1;
+          }
+          return matches;
+        }
+      });
+    }
+    if (!Promise.allSettled) {
+      Promise.allSettled = function (promises) {
+        return Promise.all(Array.from(promises).map(function (promise) {
+          return Promise.resolve(promise).then(
+            function (value) { return { status: 'fulfilled', value: value }; },
+            function (reason) { return { status: 'rejected', reason: reason }; }
+          );
+        }));
+      };
+    }
+  </script>
+
+  <script>
     // Some older home-screen shortcuts were saved with a www hostname. Once
     // that hostname reaches Hostinger, move it to the single supported origin
     // before loading the manifest, worker, fonts, or application bundle.
@@ -32,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=99" />
+  <link rel="manifest" href="./manifest.webmanifest?v=100" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -96,15 +150,24 @@
     // React starts.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('./sw.js?v=99', { updateViaCache: 'none' })
+        .register('./sw.js?v=100', { updateViaCache: 'none' })
         .then(function (registration) { return registration.update(); })
         .catch(function () {});
     }
   </script>
-  <script type="module" crossorigin src="./assets/index-BuYk2E5D.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/style-CLGLPoru.css">
+  <script type="module" crossorigin src="./assets/index-liB9pWS3.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/style-BeEYu5w1.css">
 </head>
 <body>
   <main id="root"></main>
+  <script>
+    // If an older phone cannot execute the application bundle, leave it a
+    // usable recovery action instead of a permanent blank screen.
+    window.__fullCircleBootWatchdog = window.setTimeout(function () {
+      var root = document.getElementById('root');
+      if (!root || root.hasChildNodes()) return;
+      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle needs a fresh start on this device.</p><button type="button" onclick="window.location.reload()" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Reload current app</button></div></div>';
+    }, 18000);
+  </script>
 </body>
 </html>

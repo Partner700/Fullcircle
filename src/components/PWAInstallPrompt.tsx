@@ -17,6 +17,22 @@ declare global {
 
 const SESSION_KEY = 'pwa_install_prompt_seen';
 
+function storageValue(storageName: 'localStorage' | 'sessionStorage', key: string) {
+  try {
+    return window[storageName].getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storeValue(storageName: 'localStorage' | 'sessionStorage', key: string, value: string) {
+  try {
+    window[storageName].setItem(key, value);
+  } catch {
+    // Installation guidance still works when embedded browsers block storage.
+  }
+}
+
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
     || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
@@ -41,7 +57,7 @@ export function PWAInstallPrompt() {
   const showTimerRef = useRef<number | null>(null);
 
   const canAutoShow = useCallback(() => (
-    !isStandalone() && !window.sessionStorage.getItem(SESSION_KEY)
+    !isStandalone() && !storageValue('sessionStorage', SESSION_KEY)
   ), []);
 
   const showSoon = useCallback(() => {
@@ -49,7 +65,7 @@ export function PWAInstallPrompt() {
     if (showTimerRef.current !== null) window.clearTimeout(showTimerRef.current);
     showTimerRef.current = window.setTimeout(() => {
       if (canAutoShow()) {
-        window.sessionStorage.setItem(SESSION_KEY, '1');
+        storeValue('sessionStorage', SESSION_KEY, '1');
         setVisible(true);
       }
       showTimerRef.current = null;
@@ -76,7 +92,7 @@ export function PWAInstallPrompt() {
 
   useEffect(() => {
     const handleInstalled = () => {
-      window.localStorage.setItem('pwa_install_completed', String(Date.now()));
+      storeValue('localStorage', 'pwa_install_completed', String(Date.now()));
       setInstalled(true);
       setVisible(false);
       setDeferredPrompt(null);
@@ -116,7 +132,7 @@ export function PWAInstallPrompt() {
     setDeferredPrompt(null);
     setVisible(false);
     if (outcome === 'accepted') {
-      window.localStorage.setItem('pwa_install_completed', String(Date.now()));
+      storeValue('localStorage', 'pwa_install_completed', String(Date.now()));
     }
   }, [deferredPrompt]);
 

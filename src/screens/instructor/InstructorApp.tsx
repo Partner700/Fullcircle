@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { NotificationCenter } from '../../components/NotificationCenter';
+import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
@@ -20,6 +21,7 @@ import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { CadetStore } from '../cadet/CadetStore';
+import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -282,21 +284,31 @@ export function InstructorApp() {
   };
 
   const [editingNarrative, setEditingNarrative] = useState<NarrativeSelection>('new');
+  const navigateFromAction = useCallback((key: string) => {
+    if (!NAV_ITEMS.some((item) => item.key === key)) return;
+    setTab(key as Tab);
+    if (key === 'narratives') setEditingNarrative('new');
+    if (['tents', 'cadets', 'sentries', 'awards'].includes(key) && profiles.length === 0) void loadAll();
+  }, [loadAll, profiles.length]);
+
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const detail = (event as CustomEvent<AppNavigationDetail>).detail;
+      if (detail?.actionKey) navigateFromAction(detail.actionKey);
+    };
+    window.addEventListener(APP_NAVIGATION_EVENT, navigate);
+    return () => window.removeEventListener(APP_NAVIGATION_EVENT, navigate);
+  }, [navigateFromAction]);
 
   return (
+    <>
     <AppShell
       navItems={NAV_ITEMS}
       activeKey={tab}
-      onNavigate={(k) => {
-        setTab(k as Tab);
-        if (k === 'narratives') setEditingNarrative('new');
-        if (['tents', 'cadets', 'sentries', 'awards'].includes(k) && profiles.length === 0) void loadAll();
-      }}
+      onNavigate={navigateFromAction}
       headerTitle={tabLabels[tab]}
       headerSubtitle="Instructor"
-      rightHeader={<NotificationCenter onNavigate={(key) => {
-        if (NAV_ITEMS.some((item) => item.key === key)) setTab(key as Tab);
-      }} />}
+      rightHeader={<NotificationCenter onNavigate={navigateFromAction} />}
     >
       {tab === 'dashboard' && <InstructorDashboard tents={tents} members={members} roles={roles} narratives={narratives} instructorId={profile?.id || null} onNavigate={setTab as (k: string) => void} />}
       {tab === 'narratives' && (
@@ -323,6 +335,8 @@ export function InstructorApp() {
       {tab === 'store' && <CadetStore />}
       {tab === 'settings' && <InstructorSettings profile={profile} tents={tents} members={members} />}
     </AppShell>
+    <DoveNotificationArrival onNavigate={navigateFromAction} />
+    </>
   );
 }
 

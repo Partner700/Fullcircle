@@ -65,9 +65,8 @@ const STOP_WORDS = new Set([
 ]);
 
 function splitSentences(text: string): string[] {
-  return text
-    .replace(/\s+/g, ' ')
-    .split(/(?<=[.!?])\s+/)
+  const normalized = text.replace(/\s+/g, ' ');
+  return (normalized.match(/[^.!?]+(?:[.!?]+|$)/g) || [])
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length > 20)
     .slice(0, 12);

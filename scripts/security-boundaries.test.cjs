@@ -114,6 +114,12 @@ const noahArkConstruction = read('supabase/migrations/20260901100000_story_mode_
 const noahFloodBook = read('supabase/migrations/20260901150000_story_mode_flood_book_completion.sql');
 const paymentAndPublicShareRecovery = read('supabase/migrations/20260903100000_payment_and_public_share_recovery.sql');
 const hiddenChallengeHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
+const quizDoveArrivals = read('supabase/migrations/20260903120000_dove_message_and_quiz_arrivals.sql');
+const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
+const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
+const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
+const notificationArrival = read('src/lib/notificationArrival.ts');
+const appNavigation = read('src/lib/appNavigation.ts');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -337,25 +343,33 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v103'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '102'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v104'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '103'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '99'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '100'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=99`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '99'\)/);
-assert.match(releaseCache, /2026-09-03-v103/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=100`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '100'\)/);
+assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
+assert.match(releaseCache, /2026-09-03-v104/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=99/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=99'/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=99"/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=100/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=100'/);
+assert.match(appIndex, /__fullCircleBootWatchdog/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=100"/);
+assert.match(viteConfig, /target: 'es2017'/);
+assert.match(appIndex, /Array\.prototype\.flatMap/);
+assert.match(appIndex, /Object\.fromEntries/);
+assert.match(appIndex, /String\.prototype\.matchAll/);
+assert.match(appIndex, /Promise\.allSettled/);
+assert.match(authContext, /function storeRoleHint/);
 assert.ok(!pwaInstallPrompt.includes('DISMISSAL_WINDOW_MS'), 'Install access must not disappear for days after dismissal.');
 assert.match(pwaInstallPrompt, /Install Full Circle on this device/);
 assert.match(pwaInstallPrompt, /Install app[\s\S]*Add to Home Screen/);
@@ -507,7 +521,7 @@ for (const required of [
 ]) {
   assert.ok(doveQuestionOverlay.includes(required), `Missing global Dove Question behavior: ${required}`);
 }
-assert.match(pushDelivery, /key === "challenge" \|\| key === "dove_question"/);
+assert.match(pushDelivery, /"challenge", "dove_question", "mine", "quiz", "quiz_release", "weekly_quiz_reminder"/);
 assert.match(rootApp, /DoveQuestionOverlay/);
 assert.match(instructorApp, /DoveQuestionManager/);
 for (const required of [
@@ -1128,7 +1142,9 @@ assert.match(publicShareScreen, /\/>\s*Reply/);
 assert.match(publicShareScreen, /\/>\s*Add insight/);
 assert.match(publicShareScreen, /claim-quiz/);
 assert.match(publicShareScreen, /full-circle-pending-quiz-claim/);
+assert.match(publicShareScreen, /window\.location\.assign\(signupHref\)/);
 assert.match(publicQuizResultClaim, /claimSharedQuizResult/);
+assert.match(publicQuizResultClaim, /requestAppNavigation\('quiz'/);
 assert.match(publicQuizResultClaim, /Your marked answer sheet stays sealed/);
 assert.match(rootApp, /<PublicQuizResultClaim \/>/);
 assert.match(quoteQueries, /supabase\.rpc\('claim_shared_quiz_result'/);
@@ -1147,6 +1163,46 @@ for (const required of [
 }
 assert.match(hiddenChallengeHardening, /'shield-of-faith'[\s\S]*?100,/);
 assert.match(hiddenChallengeHardening, /REVOKE ALL ON FUNCTION public\.settle_hidden_challenge_failure_unprotected/);
+
+for (const required of [
+  'deliver_quiz_release_notifications',
+  'notify_released_quiz_with_dove',
+  "notification.notification_type = 'quiz_release'",
+  "'quiz_session_id', v_session.id",
+  "'quiz'",
+]) {
+  assert.ok(quizDoveArrivals.includes(required), `Missing quiz Dove arrival boundary: ${required}`);
+}
+assert.match(quizDoveArrivals, /AFTER UPDATE OF status ON public\.quiz_sessions/);
+assert.match(quizDoveArrivals, /REVOKE ALL ON FUNCTION public\.deliver_quiz_release_notifications\(uuid\) FROM PUBLIC, anon, authenticated/);
+assert.match(hiddenItemsMarket, /<select[\s\S]*No relic/);
+assert.match(hiddenItemsMarket, /<select[\s\S]*No freezer/);
+assert.match(hiddenItemsMarket, /Choose the verse/);
+assert.match(hiddenItemsMarket, /matchAll/);
+assert.doesNotMatch(hiddenItemsMarket, /AppSelect/);
+assert.match(tentMessenger, /revealHiddenChallenge\(\{ claimIds: hiddenClaimIds \}\)/);
+assert.doesNotMatch(tentMessenger, /Open hidden question/);
+assert.match(hiddenChallengeOverlay, /for \(const claimId of detail\.claimIds\)/);
+for (const required of [
+  'direct_message',
+  'weekly_quiz_reminder',
+  'quiz_release',
+]) {
+  assert.ok(notificationArrival.includes(required), `Missing Dove notification classification: ${required}`);
+}
+for (const required of [
+  'Delivered by the Dove',
+  '<Mail',
+  '<FileQuestion',
+  'TentMessenger',
+  'TentGroupMessenger',
+]) {
+  assert.ok(doveNotificationArrival.includes(required), `Missing Dove arrival behavior: ${required}`);
+}
+assert.match(appNavigation, /full-circle:navigate/);
+assert.match(cadetApp, /<DoveNotificationArrival/);
+assert.match(sentryApp, /<DoveNotificationArrival/);
+assert.match(instructorApp, /<DoveNotificationArrival/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

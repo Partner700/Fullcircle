@@ -22,16 +22,34 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 function clearLocalAuthStorage() {
   if (typeof window === 'undefined') return;
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : null;
+  let projectRef: string | null = null;
+  try {
+    projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : null;
+  } catch {
+    projectRef = null;
+  }
   const expectedKey = projectRef ? `sb-${projectRef}-auth-token` : null;
 
-  [window.localStorage, window.sessionStorage].forEach((storage) => {
-    if (expectedKey) storage.removeItem(expectedKey);
-    for (let i = storage.length - 1; i >= 0; i -= 1) {
-      const key = storage.key(i);
-      if (key && /^sb-.+-auth-token$/.test(key)) storage.removeItem(key);
+  (['localStorage', 'sessionStorage'] as const).forEach((storageName) => {
+    try {
+      const storage = window[storageName];
+      if (expectedKey) storage.removeItem(expectedKey);
+      for (let i = storage.length - 1; i >= 0; i -= 1) {
+        const key = storage.key(i);
+        if (key && /^sb-.+-auth-token$/.test(key)) storage.removeItem(key);
+      }
+    } catch {
+      // Strict mobile privacy modes can expose storage while blocking access.
     }
   });
+}
+
+function storeRoleHint(role: Role) {
+  try {
+    window.localStorage.setItem('full-circle-role-hint', role);
+  } catch {
+    // The role is already held in React state when storage is unavailable.
+  }
 }
 
 function waitFor<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
@@ -83,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profileRef.current = prof;
           setProfile(prof);
           setRoleAssignment(assignment);
-          window.localStorage.setItem('full-circle-role-hint', assignment.role);
+          storeRoleHint(assignment.role);
           return;
         }
         if (attempt < 2 && !/could not find the function|get_my_app_bootstrap|schema cache/i.test(bootstrap.error?.message || '')) {
@@ -134,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         created_at: prof.created_at || new Date().toISOString(),
       };
       setRoleAssignment(assignment);
-      window.localStorage.setItem('full-circle-role-hint', assignment.role);
+      storeRoleHint(assignment.role);
     })();
 
     const shared = request.finally(() => {

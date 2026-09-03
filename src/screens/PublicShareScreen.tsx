@@ -424,6 +424,7 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
         // The claim query in the join URL remains available if storage is blocked.
       }
       setSubmitted(true);
+      window.setTimeout(() => window.location.assign(signupHref), 700);
     } catch (submitError: any) {
       setError(submitError?.message || 'Your quiz could not be submitted.');
     } finally {
@@ -464,7 +465,7 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
             {quiz.session.status !== 'live' ? (
               <section className="card p-6 text-center"><Lock size={28} className="mx-auto text-brass" /><h2 className="mt-3 font-display text-xl font-bold text-ink">Quiz window closed</h2><p className="mt-2 text-sm text-stone">Join Full Circle to take future quizzes and receive results.</p><a href={signupHref} className="btn-primary mt-4">Join Full Circle</a></section>
             ) : submitted ? (
-              <section className="card p-6 text-center"><CheckCircle2 size={32} className="mx-auto text-moss" /><h2 className="mt-3 font-display text-xl font-bold text-ink">Your answers are in.</h2><p className="mt-2 text-sm text-stone">Create your Full Circle account to see your result when it is released.</p><a href={signupHref} className="btn-primary mt-4">Join to see results</a></section>
+              <section className="card p-6 text-center"><CheckCircle2 size={32} className="mx-auto text-moss" /><h2 className="mt-3 font-display text-xl font-bold text-ink">Your answers are in.</h2><p className="mt-2 text-sm text-stone">Taking you to create your Full Circle account so this result can open in Weekly Quiz.</p><a href={signupHref} className="btn-primary mt-4">Continue now</a></section>
             ) : (
               <>
                 {quiz.questions.map((question: any, index: number) => {

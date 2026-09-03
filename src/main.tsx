@@ -9,6 +9,11 @@ import { recoverFromStaleBundle } from './lib/staleBundleRecovery.ts';
 import { prepareFreshReleaseCache } from './lib/releaseCache.ts';
 import './index.css';
 
+const bootWindow = window as Window & { __fullCircleBootWatchdog?: number };
+if (bootWindow.__fullCircleBootWatchdog !== undefined) {
+  window.clearTimeout(bootWindow.__fullCircleBootWatchdog);
+}
+
 prepareFreshReleaseCache();
 
 // Vite reports a missing lazy-loaded chunk before React renders its error boundary.

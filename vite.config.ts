@@ -12,6 +12,9 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
+    // Keep the installed app compatible with older Android WebViews and iOS
+    // home-screen browsers still used by camp members.
+    target: 'es2017',
     // Enable source maps for production debugging (not inlined to avoid large bundles)
     sourcemap: false,
     // Shared hosting can publish index.html before every split chunk arrives.

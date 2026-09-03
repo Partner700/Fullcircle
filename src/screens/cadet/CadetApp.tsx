@@ -6,6 +6,7 @@ import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
 import { SubscriptionGate, SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { DoveMark } from '../../components/Dove';
+import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
 import { CadetDashboard } from './CadetDashboard';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
@@ -39,6 +40,8 @@ import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget }
 import { publicAsset } from '../../lib/publicAsset';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
 import { dailyGamesNavigationKey } from '../../lib/dailyGames';
+import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
+import { isDoveArrival } from '../../lib/notificationArrival';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag,
@@ -77,7 +80,7 @@ function notificationSymbolForType(type: string) {
   if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
   if (['relic', 'reward', 'treasure'].includes(key)) return publicAsset('notification-symbols/relic.svg');
   if (['payment', 'purchase', 'economy'].includes(key)) return publicAsset('notification-symbols/payment.svg');
-  if (key === 'challenge' || key === 'mine') return publicAsset('notification-symbols/challenge.svg');
+  if (['challenge', 'mine', 'quiz', 'quiz_release', 'weekly_quiz_reminder'].includes(key)) return publicAsset('notification-symbols/challenge.svg');
   return publicAsset('notification-symbols/reading.svg');
 }
 
@@ -111,8 +114,12 @@ function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number
 }
 
 async function showDeviceNotification(notification: UserNotification) {
-  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
-  if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
+  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
+  } catch {
+    return;
+  }
   try {
     const registration = await navigator.serviceWorker?.ready;
     const options = {
@@ -827,7 +834,7 @@ export function CadetApp() {
         (payload) => {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
-          setToastNotification(notification);
+          if (!isDoveArrival(notification)) setToastNotification(notification);
           void showDeviceNotification(notification);
             void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
           }
@@ -900,7 +907,7 @@ export function CadetApp() {
     subscribe: 'Subscribe',
   };
 
-  const handleNavigate = (k: string) => {
+  const handleNavigate = useCallback((k: string) => {
     const requestedTab = k as Tab;
     if (isExpired && PREMIUM_TABS.has(requestedTab)) {
       setTab('subscribe');
@@ -922,7 +929,16 @@ export function CadetApp() {
       });
     }
     setTab(nextTab);
-  };
+  }, [isExpired, notifications]);
+
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const detail = (event as CustomEvent<AppNavigationDetail>).detail;
+      if (detail?.actionKey) handleNavigate(detail.actionKey);
+    };
+    window.addEventListener(APP_NAVIGATION_EVENT, navigate);
+    return () => window.removeEventListener(APP_NAVIGATION_EVENT, navigate);
+  }, [handleNavigate]);
 
   const markLocalNotificationsRead = useCallback((ids: string[]) => {
     if (ids.length === 0) return;
@@ -1149,6 +1165,7 @@ export function CadetApp() {
           />
         )}
     </AppShell>
+    <DoveNotificationArrival onNavigate={handleNavigate} />
     {toastNotification && (
       <button type="button" onClick={() => { const linked = notifications.find((item) => item.persistedId === toastNotification.id); if (linked) void handleNotificationOpen(linked); else setShowNotifications(true); setToastNotification(null); }} className="fixed bottom-5 left-1/2 z-[160] flex w-[min(92vw,25rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border-bright bg-surface/95 px-3.5 py-3 text-left shadow-2xl backdrop-blur-md animate-slide-up">
         <DoveMark size={28} className="shrink-0" />

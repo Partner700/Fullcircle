@@ -550,9 +550,8 @@ function sentenceBank(narrative: DailyNarrative): string[] {
     narrative.game_seed_data?.passage,
     narrative.highlighted_verses?.map((verse) => `${verse.reference}: ${verse.text}`).join(' '),
   ].filter(Boolean).join(' ');
-  return source
-    .replace(/\s+/g, ' ')
-    .split(/(?<=[.!?])\s+|\n+/)
+  const normalized = source.replace(/\s+/g, ' ');
+  return (normalized.match(/[^.!?]+(?:[.!?]+|$)/g) || [])
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length >= 35)
     .slice(0, 18);

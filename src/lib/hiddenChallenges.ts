@@ -15,6 +15,7 @@ export const HIDDEN_CHALLENGE_EVENT = 'full-circle:hidden-challenge';
 
 export type HiddenChallengeEventDetail = {
   claimId?: string;
+  claimIds?: string[];
   placement?: HiddenChallengePlacement;
   referenceKey?: string | null;
 };

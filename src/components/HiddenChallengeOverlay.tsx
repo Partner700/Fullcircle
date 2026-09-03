@@ -123,7 +123,7 @@ export function HiddenChallengeOverlay() {
   const [submitting, setSubmitting] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const requestRef = useRef<Promise<void> | null>(null);
+  const requestRef = useRef<Promise<boolean> | null>(null);
   const challengeRef = useRef<OpenHiddenChallenge | null>(null);
   const resultRef = useRef<HiddenChallengeResult | null>(null);
   const settlingRef = useRef(false);
@@ -142,12 +142,12 @@ export function HiddenChallengeOverlay() {
   }, []);
 
   const loadClaim = useCallback((claimId: string) => {
-    if (!profile || settlingRef.current || resultRef.current || challengeRef.current) return Promise.resolve();
+    if (!profile || settlingRef.current || resultRef.current || challengeRef.current) return Promise.resolve(false);
     if (requestRef.current) return requestRef.current;
     const request = (async () => {
       try {
         const opened = await openHiddenChallenge(claimId);
-        if (!opened) return;
+        if (!opened) return false;
         setError(null);
         setAnswer('');
         setEliminatedOptions([]);
@@ -162,10 +162,12 @@ export function HiddenChallengeOverlay() {
         ]);
         setParticipants(loadedParticipants);
         setRelics(loadedRelics);
+        return true;
       } catch (loadError) {
         const message = loadError instanceof Error ? loadError.message : 'The hidden question could not be opened.';
         setError(message);
         if (!/network|fetch|offline/i.test(message)) window.alert(message);
+        return false;
       }
     })();
     const tracked = request.finally(() => {
@@ -176,6 +178,12 @@ export function HiddenChallengeOverlay() {
   }, [profile]);
 
   const loadContext = useCallback(async (detail: HiddenChallengeEventDetail) => {
+    if (detail.claimIds?.length) {
+      for (const claimId of detail.claimIds) {
+        if (await loadClaim(claimId)) return;
+      }
+      return;
+    }
     if (detail.claimId) {
       await loadClaim(detail.claimId);
       return;

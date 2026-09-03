@@ -9,6 +9,7 @@ import type { UserNotification } from '../lib/types';
 import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget } from '../lib/scriptureNavigation';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 import { publicAsset } from '../lib/publicAsset';
+import { isDoveArrival } from '../lib/notificationArrival';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -29,7 +30,7 @@ function notificationSymbol(type: string) {
   if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
   if (['relic', 'reward', 'treasure'].includes(key)) return publicAsset('notification-symbols/relic.svg');
   if (['payment', 'purchase', 'economy'].includes(key)) return publicAsset('notification-symbols/payment.svg');
-  if (key === 'challenge' || key === 'dove_question' || key === 'mine') return publicAsset('notification-symbols/challenge.svg');
+  if (['challenge', 'dove_question', 'mine', 'quiz', 'quiz_release', 'weekly_quiz_reminder'].includes(key)) return publicAsset('notification-symbols/challenge.svg');
   return publicAsset('notification-symbols/reading.svg');
 }
 
@@ -41,7 +42,11 @@ function isProtectedMessageNotification(notification: UserNotification) {
 
 async function showDeviceNotification(notification: UserNotification) {
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
-  if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
+  try {
+    if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
+  } catch {
+    return;
+  }
   const options = {
     body: notification.body || 'You have a new update.',
     icon: publicAsset('icons/icon-192.png'),
@@ -99,7 +104,7 @@ export function NotificationCenter({ onNavigate }: Props) {
       (payload) => {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
-          setToast(notification);
+          if (!isDoveArrival(notification)) setToast(notification);
           void showDeviceNotification(notification);
           void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
         }

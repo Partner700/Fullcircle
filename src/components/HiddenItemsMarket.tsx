@@ -40,7 +40,6 @@ import type {
   StreakFreezer,
 } from '../lib/types';
 import { cn, formatDenarii, getTodayISODate } from '../lib/utils';
-import { AppSelect } from './AppSelect';
 
 type VerseOption = { label: string; key: string };
 
@@ -80,15 +79,43 @@ function narrativeVerseOptions(narrative: DailyNarrative | null): VerseOption[] 
     ? narrative.scripture_passages
     : [{
       reference: narrative.scripture_reference,
+      main_text: narrative.main_text,
       highlighted_verses: narrative.highlighted_verses || [],
       source_narrative_id: narrative.id,
     }];
 
   const seen = new Set<string>();
-  return passages.flatMap((passage) => (passage.highlighted_verses || []).map((verse) => {
-    const narrativeId = verse.source_narrative_id || passage.source_narrative_id || narrative.id;
-    const key = readingVerseChallengeKey(narrativeId, verse.reference);
-    return { key, label: verse.reference };
+  return passages.flatMap((passage) => {
+    const narrativeId = passage.source_narrative_id || narrative.id;
+    const highlighted = (passage.highlighted_verses || []).map((verse) => ({
+      reference: verse.reference,
+      narrativeId: verse.source_narrative_id || narrativeId,
+    }));
+    if (highlighted.length) return highlighted;
+
+    const compact = String(passage.main_text || '').replace(/\r/g, '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    const numbered = Array.from(compact.matchAll(/(?:^|\s)(\d{1,3})[.)]?\s+(.+?)(?=(?:\s+\d{1,3}[.)]?\s+(?=[A-Z“"]|$))|$)/g));
+    const chapter = passage.reference.match(/^(.+?\s+\d+):\d+/)?.[1];
+    if (chapter && numbered.length >= 2) {
+      return numbered.map((match) => ({ reference: `${chapter}:${match[1]}`, narrativeId }));
+    }
+
+    const range = passage.reference.match(/^(.+?\s+\d+):(\d+)(?:[-\u2013\u2014](\d+))?$/);
+    if (range) {
+      const first = Number(range[2]);
+      const last = Number(range[3] || range[2]);
+      if (last >= first && last - first <= 199) {
+        return Array.from({ length: last - first + 1 }, (_, index) => ({
+          reference: `${range[1]}:${first + index}`,
+          narrativeId,
+        }));
+      }
+    }
+
+    return passage.reference ? [{ reference: passage.reference, narrativeId }] : [];
+  }).map((verse) => ({
+    key: readingVerseChallengeKey(verse.narrativeId, verse.reference),
+    label: verse.reference,
   })).filter((verse) => {
     if (seen.has(verse.key)) return false;
     seen.add(verse.key);
@@ -321,8 +348,11 @@ function ItemComposer({
             <div>
               <label className="mb-1 block text-xs font-bold text-ink">Verse in today&apos;s reading</label>
               {verseOptions.length ? (
-                <AppSelect value={verseKey} onChange={setVerseKey} options={[{ value: '', label: 'Choose a verse' }, ...verseOptions.map((verse) => ({ value: verse.key, label: verse.label }))]} />
-              ) : <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-stone">Today&apos;s reading has no highlighted verses available for hiding.</p>}
+                <select value={verseKey} onChange={(event) => setVerseKey(event.target.value)} className="input-field w-full text-xs">
+                  <option value="">Choose a verse</option>
+                  {verseOptions.map((verse) => <option key={verse.key} value={verse.key}>{verse.label}</option>)}
+                </select>
+              ) : <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-stone">Today&apos;s reading has no selectable verse yet.</p>}
             </div>
           )}
 
@@ -347,13 +377,28 @@ function ItemComposer({
                   <input type="number" min="0" step="1" value={rewardDenarii} onChange={(event) => setRewardDenarii(event.target.value)} className="input-field mt-1 w-full text-xs" />
                 </label>
                 <label className="text-[10px] font-bold text-stone">Relic
-                  <AppSelect value={relicTypeId} onChange={setRelicTypeId} options={[{ value: 'none', label: 'No relic' }, ...ownedRelics.map((relic) => ({ value: relic.id, label: `${relic.name} (${relicInventory[relic.id]})` }))]} className="mt-1" />
+                  <select value={relicTypeId} onChange={(event) => {
+                    const next = event.target.value;
+                    setRelicTypeId(next);
+                    setRelicQuantity((current) => next === 'none' ? '0' : Number(current) > 0 ? current : '1');
+                  }} className="input-field mt-1 w-full text-xs">
+                    <option value="none">No relic</option>
+                    {ownedRelics.map((relic) => <option key={relic.id} value={relic.id}>{relic.name} ({relicInventory[relic.id]})</option>)}
+                  </select>
                 </label>
                 <label className="text-[10px] font-bold text-stone">Relics per person
                   <input type="number" min="0" max="100" step="1" value={relicQuantity} onChange={(event) => setRelicQuantity(event.target.value)} disabled={relicTypeId === 'none'} className="input-field mt-1 w-full text-xs disabled:opacity-40" />
                 </label>
                 <label className="text-[10px] font-bold text-stone">Freezer
-                  <AppSelect value={freezerType} onChange={(value) => setFreezerType(value as 'none' | FreezerType)} options={[{ value: 'none', label: 'No freezer' }, { value: 'daily', label: `Daily (${readyDaily})` }, { value: 'weekly', label: `Weekly (${readyWeekly})` }]} className="mt-1" />
+                  <select value={freezerType} onChange={(event) => {
+                    const next = event.target.value as 'none' | FreezerType;
+                    setFreezerType(next);
+                    setFreezerQuantity((current) => next === 'none' ? '0' : Number(current) > 0 ? current : '1');
+                  }} className="input-field mt-1 w-full text-xs">
+                    <option value="none">No freezer</option>
+                    <option value="daily">Daily ({readyDaily})</option>
+                    <option value="weekly">Weekly ({readyWeekly})</option>
+                  </select>
                 </label>
                 <label className="text-[10px] font-bold text-stone">Freezers per person
                   <input type="number" min="0" max="100" step="1" value={freezerQuantity} onChange={(event) => setFreezerQuantity(event.target.value)} disabled={freezerType === 'none'} className="input-field mt-1 w-full text-xs disabled:opacity-40" />
