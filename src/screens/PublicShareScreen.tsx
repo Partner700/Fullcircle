@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookMarked, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, PenLine, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
+import { BookMarked, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
@@ -222,7 +222,7 @@ function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuote
               <div>
                 <p className="eyebrow flex items-center gap-1.5 text-brass"><Quote size={14} /> Quotes From Daily Meditations</p>
                 {slide.kind === 'quote' ? (
-                  <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;{slide.quote.daily_quote}&rdquo;{slide.quote.has_public_meditation && <button type="button" className="ml-1 inline-flex align-baseline text-peri" aria-label="Join to read this meditation" title="Join to read this meditation" onClick={() => setJoinOpen(true)}><PenLine size={16} /></button>}</p>
+                  <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;{slide.quote.daily_quote}&rdquo;<button type="button" disabled={!slide.quote.has_public_meditation} className="ml-1 inline-flex align-baseline text-peri disabled:cursor-default disabled:text-stone-dim disabled:opacity-45" aria-label={slide.quote.has_public_meditation ? 'Join to read this meditation' : 'This meditation is private'} title={slide.quote.has_public_meditation ? 'Join to read this meditation' : 'This meditation is private'} onClick={() => { if (slide.quote.has_public_meditation) setJoinOpen(true); }}><ScrollText size={16} /></button></p>
                 ) : (
                   <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;Come and read, reflect, and grow with us.&rdquo;</p>
                 )}

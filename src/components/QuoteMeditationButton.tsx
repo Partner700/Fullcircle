@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PenLine, X } from 'lucide-react';
+import { ScrollText, X } from 'lucide-react';
 import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
 import { fetchPublicMeditationView } from '../lib/queries';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
@@ -19,12 +19,17 @@ export function QuoteMeditationButton({ quote, image }: { quote: DailyQuoteFeedI
     return () => { cancelled = true; };
   }, [quote.record_date, quote.user_id]);
 
-  if (loading || !meditation) return null;
-
   return (
     <>
-      <button type="button" className="ml-1 inline-flex align-baseline text-peri transition-colors hover:text-brass" title="Read public meditation" aria-label={`Read ${quote.display_name}'s meditation`} onClick={() => setOpen(true)}>
-        <PenLine size={15} />
+      <button
+        type="button"
+        disabled={loading || !meditation}
+        className="ml-1 inline-flex align-baseline text-peri transition-colors hover:text-brass disabled:cursor-default disabled:text-stone-dim disabled:opacity-45"
+        title={loading ? 'Checking meditation visibility' : meditation ? 'Read public meditation' : 'This meditation is private'}
+        aria-label={meditation ? `Read ${quote.display_name}'s meditation` : `${quote.display_name}'s meditation is private`}
+        onClick={() => { if (meditation) setOpen(true); }}
+      >
+        <ScrollText size={15} />
       </button>
       {open && (
         <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/55 p-3 sm:p-5" role="dialog" aria-modal="true" aria-label={`${quote.display_name}'s meditation`} onMouseDown={() => setOpen(false)}>

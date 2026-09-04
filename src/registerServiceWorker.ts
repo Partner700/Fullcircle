@@ -24,7 +24,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js?v=101`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}sw.js?v=106`, { updateViaCache: 'none' })
       .then((registration) => {
         // Check for a new worker at launch. The worker itself activates safely;
         // this client never forces a mid-session reload.

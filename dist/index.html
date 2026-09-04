@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=101" />
+  <link rel="manifest" href="./manifest.webmanifest?v=106" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -139,24 +139,70 @@
   <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
   <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 
-  <!-- Fonts with display=swap for non-blocking text rendering -->
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" rel="stylesheet" />
+  <!-- Load branded fonts after first paint; system fonts keep slow phones usable. -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" rel="stylesheet" /></noscript>
 
   <!-- Full reload marker: clears retired Web Audio sessions after sound-system updates. -->
   <title>Full Circle</title>
   <script>
-    // Start repairing an older phone worker before the application bundle has
-    // finished downloading. The normal registration repeats this safely after
-    // React starts.
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('./sw.js?v=101', { updateViaCache: 'none' })
-        .then(function (registration) { return registration.update(); })
-        .catch(function () {});
-    }
+    // Repair a retired installed-app worker before it can keep serving stale
+    // HTML or JavaScript. The release marker prevents a repair loop on a slow
+    // connection, and the application registers the current worker after boot.
+    (function () {
+      var release = '106';
+      var marker = 'fc-repair';
+      var currentUrl = new URL(window.location.href);
+      var repairStarted = false;
+
+      window.__repairFullCircleBoot = async function (force) {
+        if (repairStarted) return;
+        if (!force && currentUrl.searchParams.get(marker) === release) return;
+        repairStarted = true;
+
+        try {
+          if ('caches' in window) {
+            var cacheNames = await window.caches.keys().catch(function () { return []; });
+            await Promise.all(cacheNames.filter(function (cacheName) {
+              return cacheName.indexOf('full-circle-') === 0;
+            }).map(function (cacheName) {
+              return window.caches.delete(cacheName);
+            }));
+          }
+          if ('serviceWorker' in navigator) {
+            var registrations = await navigator.serviceWorker.getRegistrations().catch(function () { return []; });
+            var appScope = new URL('./', document.baseURI).href;
+            await Promise.all(registrations.filter(function (registration) {
+              return registration.scope === appScope;
+            }).map(function (registration) {
+              return registration.unregister();
+            }));
+          }
+        } finally {
+          var freshUrl = new URL(window.location.href);
+          freshUrl.searchParams.set(marker, release);
+          freshUrl.searchParams.set('ts', String(Date.now()));
+          window.location.replace(freshUrl.toString());
+        }
+      };
+
+      if ('serviceWorker' in navigator) {
+        var controller = navigator.serviceWorker.controller;
+        var currentWorker = controller && new RegExp('[?&]v=' + release + '(?:&|$)').test(controller.scriptURL);
+        if (controller && !currentWorker && currentUrl.searchParams.get(marker) !== release) {
+          window.__repairFullCircleBoot(false);
+          return;
+        }
+
+        navigator.serviceWorker
+          .register('./sw.js?v=106', { updateViaCache: 'none' })
+          .then(function (registration) { return registration.update(); })
+          .catch(function () {});
+      }
+    })();
   </script>
-  <script type="module" crossorigin src="./assets/index-AvWqPpbf.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/style-DKQ8W8X9.css">
+  <script type="module" crossorigin src="./assets/index-B4I5F4k5.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/style-CadPaAm5.css">
 </head>
 <body>
   <main id="root"></main>
@@ -166,8 +212,13 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.hasChildNodes()) return;
-      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle needs a fresh start on this device.</p><button type="button" onclick="window.location.reload()" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Reload current app</button></div></div>';
-    }, 18000);
+      var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === '106';
+      if (!alreadyRepaired && typeof window.__repairFullCircleBoot === 'function') {
+        window.__repairFullCircleBoot(false);
+        return;
+      }
+      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle needs a fresh start on this device.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Repair and open app</button></div></div>';
+    }, 24000);
   </script>
 </body>
 </html>
