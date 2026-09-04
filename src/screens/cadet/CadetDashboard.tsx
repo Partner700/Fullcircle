@@ -5,6 +5,7 @@ import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbo
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
+import { QuoteMeditationButton } from '../../components/QuoteMeditationButton';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
@@ -105,7 +106,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchAnnouncements(),
         fetchActiveFcxExperience(),
         fetchPanelImageSettings([
-          'welcome', 'fcx', 'honors', 'verse', 'announcement', 'quote', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'welcome', 'fcx', 'honors', 'verse', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);
@@ -687,7 +688,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
                           )}
                         </div>
-                        <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">"{slide.quote.daily_quote}"</p>
+                        <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}

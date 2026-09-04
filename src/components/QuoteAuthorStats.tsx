@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Crown, Flame, Shield, ShieldCheck, UserRound, PenLine, X } from 'lucide-react';
+import { BadgeCheck, Crown, Flame, Shield, ShieldCheck, UserRound } from 'lucide-react';
 import type { DailyQuoteFeedItem } from '../lib/types';
-import { fetchPublicMeditation, fetchPublicQuoteStreak } from '../lib/queries';
+import { fetchPublicQuoteStreak } from '../lib/queries';
 import { MessageAvatar } from './TentMessenger';
 
 interface QuoteAuthorStatsProps {
@@ -22,8 +22,6 @@ const getRankSymbol = (role?: string | null) => {
 
 export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMessageOpenChange }: QuoteAuthorStatsProps) {
   const [resolvedStreak, setResolvedStreak] = useState(Number(quote.current_streak || 0));
-  const [meditation, setMeditation] = useState<string | null>(null);
-  const [showMeditation, setShowMeditation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,14 +35,6 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
     return () => { cancelled = true; };
   }, [quote.user_id, quote.current_streak]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchPublicMeditation(quote.user_id, quote.record_date).then((value) => {
-      if (!cancelled) setMeditation(value);
-    }).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [quote.user_id, quote.record_date]);
-
   const currentStreak = resolvedStreak;
   const totalFigs = Number(quote.total_figs || 0);
   const rhudes = Number(quote.rhudes || 0);
@@ -52,7 +42,6 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
   const RankIcon = rank.Icon;
 
   return (
-    <>
     <div className="mt-3 flex min-w-0 items-center gap-2.5 text-xs text-stone">
       <MessageAvatar
         profile={{
@@ -73,7 +62,6 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-ink">
           <span className="truncate">{quote.display_name}</span>
-          {meditation && <button type="button" className="text-peri" title="Read public meditation" aria-label="Read public meditation" onClick={() => setShowMeditation(true)}><PenLine size={13} /></button>}
           <span
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-bright bg-surface-2 shadow-sm ring-1 ring-black/10"
             title={rank.label}
@@ -95,14 +83,5 @@ export function QuoteAuthorStats({ quote, compact = false, currentUserId, onMess
         </div>
       </div>
     </div>
-    {showMeditation && meditation && (
-      <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Public meditation">
-        <div className="card max-w-lg p-5 shadow-2xl">
-          <div className="flex items-center justify-between gap-3"><p className="eyebrow text-brass">{quote.display_name}&apos;s meditation</p><button type="button" className="btn-icon" onClick={() => setShowMeditation(false)} aria-label="Close meditation"><X size={16} /></button></div>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">{meditation}</p>
-        </div>
-      </div>
-    )}
-  </>
   );
 }

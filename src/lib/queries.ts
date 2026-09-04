@@ -1990,6 +1990,18 @@ export async function fetchPublicMeditation(userId: string, recordDate: string) 
   return typeof data === 'string' ? data : null;
 }
 
+export async function fetchPublicMeditationView(userId: string, recordDate: string) {
+  const { data, error } = await supabase.rpc('get_public_meditation_view', { p_user_id: userId, p_record_date: recordDate });
+  if (error) throw error;
+  return data as null | { meditation_text: string; best_verse: string | null; daily_quote: string | null; record_date: string };
+}
+
+export async function fetchPublicDailyQuotes(recordDate: string, limit = 12) {
+  const { data, error } = await supabase.rpc('get_public_daily_quotes', { p_record_date: recordDate, p_limit: limit });
+  if (error) throw error;
+  return (data || []) as import('./types').DailyQuoteFeedItem[];
+}
+
 export async function fetchDailyQuoteReactions(quotes: { user_id: string; record_date: string }[], reactorId?: string) {
   if (quotes.length === 0) return {};
   const userIds = Array.from(new Set(quotes.map((q) => q.user_id)));

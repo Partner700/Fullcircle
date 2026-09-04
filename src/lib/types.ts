@@ -769,6 +769,7 @@ export interface DailyQuoteFeedItem {
   role?: string | null;
   tent_house_id?: string | null;
   tent_name?: string | null;
+  has_public_meditation?: boolean;
 }
 
 export interface DailyQuoteComment {

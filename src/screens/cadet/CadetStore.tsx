@@ -416,8 +416,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       )}
 
       {giftRecipients.length > 0 && (
-        <div className="card p-4">
-          <label className="text-xs text-stone block mb-1">Buy for</label>
+        <div className="card relative overflow-hidden p-4">
+          <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/80" />
+          <label className="relative z-10 text-xs text-stone block mb-1">Buy for</label>
+          <div className="relative z-10">
           <AppSelect
             value={giftRecipientId}
             onChange={setGiftRecipientId}
@@ -428,6 +430,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               You pay with your denarii; the item is added to this cadet's account.
             </p>
           )}
+          </div>
         </div>
       )}
 
@@ -460,18 +463,18 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         </div>
         <p className="relative z-10 text-xs text-stone mb-4">Protect your streak after a missed day. Without a freezer, one miss = full streak reset.</p>
         <div className="relative z-10 grid grid-cols-2 gap-2 mb-3">
-          <div className="rounded-lg border border-border bg-surface-2 p-3">
+          <div className="rounded-lg border border-border bg-surface/65 p-3 backdrop-blur-md">
             <p className="text-[10px] text-stone uppercase font-bold tracking-wide">Daily Ready</p>
             <p className="font-display text-xl text-ink font-bold">{readyDailyFreezers}</p>
           </div>
-          <div className="rounded-lg border border-border bg-surface-2 p-3">
+          <div className="rounded-lg border border-border bg-surface/65 p-3 backdrop-blur-md">
             <p className="text-[10px] text-stone uppercase font-bold tracking-wide">Weekly Ready</p>
             <p className="font-display text-xl text-ink font-bold">{readyWeeklyFreezers}</p>
           </div>
         </div>
 
         <div className="relative z-10 grid sm:grid-cols-2 gap-3">
-          <div className="p-4 rounded-lg border border-border bg-surface-2">
+          <div className="p-4 rounded-lg border border-border bg-surface/65 backdrop-blur-md">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-ink text-sm">Daily Freezer</span>
               <span className="font-display font-bold text-gold">{FREEZER_DAILY_COST} Ð</span>
@@ -483,7 +486,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             </button>
           </div>
 
-          <div className="p-4 rounded-lg border border-border bg-surface-2">
+          <div className="p-4 rounded-lg border border-border bg-surface/65 backdrop-blur-md">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-ink text-sm">Weekly Freezer</span>
               <span className="font-display font-bold text-gold">{formatDenarii(FREEZER_WEEKLY_COST)} Ð</span>
@@ -510,8 +513,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       </div>
 
       {/* Relics */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-3">
+      <div className="card relative overflow-hidden p-5">
+        <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
+        <div className="relative z-10 flex items-center gap-2 mb-3">
           <ShoppingBag size={20} className="text-royal" />
           <h4 className="font-display font-semibold text-ink">Biblical Relics</h4>
         </div>
@@ -532,7 +536,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             const gifting = giftRecipientId !== 'self';
 
             return (
-              <div key={relic.id} className="p-4 rounded-lg border border-border bg-surface-2">
+              <div key={relic.id} className="p-4 rounded-lg border border-border bg-surface/65 backdrop-blur-md">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{ background: `${color}20` }}>

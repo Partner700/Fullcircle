@@ -513,7 +513,7 @@ export function HiddenItemsMarket({
         {notice && <div role="alert" className="relative z-10 mt-3 rounded-md border border-coral/30 bg-coral/10 px-3 py-2 text-xs text-coral">{notice}</div>}
 
         <div className="relative z-10 mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-gold/30 bg-gold/5 p-4">
+          <div className="rounded-md border border-gold/30 bg-surface/65 p-4 backdrop-blur-md">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Gift size={18} className="text-gold" /><span className="text-sm font-bold text-ink">Treasure Box</span></div>
               <span className="text-lg font-black text-gold">{loading ? '...' : inventory.treasure_boxes}</span>
@@ -529,7 +529,7 @@ export function HiddenItemsMarket({
             </div>
           </div>
 
-          <div className="rounded-md border border-coral/30 bg-coral/5 p-4">
+          <div className="rounded-md border border-coral/30 bg-surface/65 p-4 backdrop-blur-md">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Bomb size={18} className="text-coral" /><span className="text-sm font-bold text-ink">Mine</span></div>
               <span className="text-lg font-black text-coral">{loading ? '...' : inventory.mines}</span>

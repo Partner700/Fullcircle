@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookMarked, CheckCircle2, Heart, Lightbulb, Loader2, Lock, MessageCircle, ScrollText, Send, Sun, UserPlus, Quote } from 'lucide-react';
+import { BookMarked, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, PenLine, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
@@ -8,6 +8,7 @@ import {
   fetchSharedQuiz,
   fetchSharedDailyGame,
   fetchSharedReading,
+  fetchPublicDailyQuotes,
   saveSharedQuizAnswer,
   toggleSharedInsightReaction,
   addSharedInsight,
@@ -16,6 +17,7 @@ import {
   type VerseInsightReactionType,
 } from '../lib/queries';
 import { cn } from '../lib/utils';
+import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
 
 type ShareKind = 'reading' | 'quiz' | 'game';
 
@@ -198,14 +200,64 @@ function InsightThread({
   );
 }
 
+function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuoteFeedItem[]; signupHref: string; image?: PanelImageSetting | null }) {
+  const slides = [...quotes.map((quote) => ({ kind: 'quote' as const, quote })), { kind: 'join' as const }];
+  const [index, setIndex] = useState(0);
+  const [joinOpen, setJoinOpen] = useState(false);
+
+  useEffect(() => {
+    if (slides.length < 2 || joinOpen) return;
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % slides.length), 6500);
+    return () => window.clearInterval(timer);
+  }, [joinOpen, slides.length]);
+
+  return (
+    <section className="space-y-2" aria-label="Quotes from Full Circle meditations">
+      <div className="quote-glass-panel relative min-h-[16rem] overflow-hidden rounded-2xl border border-border">
+        <PanelImageBackdrop image={image || null} opacityOverride={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
+        <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="relative z-10 flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${index * 100}%)` }}>
+          {slides.map((slide, slideIndex) => (
+            <article key={slide.kind === 'quote' ? `${slide.quote.user_id}:${slide.quote.record_date}` : 'join'} className="flex min-h-[16rem] min-w-full flex-col justify-between p-5">
+              <div>
+                <p className="eyebrow flex items-center gap-1.5 text-brass"><Quote size={14} /> Quotes From Daily Meditations</p>
+                {slide.kind === 'quote' ? (
+                  <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;{slide.quote.daily_quote}&rdquo;{slide.quote.has_public_meditation && <button type="button" className="ml-1 inline-flex align-baseline text-peri" aria-label="Join to read this meditation" title="Join to read this meditation" onClick={() => setJoinOpen(true)}><PenLine size={16} /></button>}</p>
+                ) : (
+                  <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;Come and read, reflect, and grow with us.&rdquo;</p>
+                )}
+              </div>
+              <div className="mt-6 flex items-center gap-3">
+                {slide.kind === 'quote' ? (
+                  <>
+                    <span className="h-11 w-11 overflow-hidden rounded-full border border-border-bright bg-surface-2">{slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full w-full items-center justify-center font-bold text-peri">{slide.quote.display_name.charAt(0)}</span>}</span>
+                    <div><p className="text-sm font-extrabold text-ink">{slide.quote.display_name}</p><p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-stone"><Flame size={12} className="text-gold" /> {slide.quote.current_streak || 0}</p></div>
+                  </>
+                ) : (
+                  <><span className="flex h-11 w-11 items-center justify-center rounded-full border border-border-bright bg-surface-2"><Dove size={36} /></span><div><p className="text-sm font-extrabold text-ink">Full Circle</p><a href={signupHref} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-peri"><UserPlus size={13} /> Join the app</a></div></>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+        {slides.length > 1 && <><button type="button" className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-border bg-surface/80 p-1.5 text-ink backdrop-blur" onClick={() => setIndex((current) => (current - 1 + slides.length) % slides.length)} aria-label="Previous quote"><ChevronLeft size={16} /></button><button type="button" className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-border bg-surface/80 p-1.5 text-ink backdrop-blur" onClick={() => setIndex((current) => (current + 1) % slides.length)} aria-label="Next quote"><ChevronRight size={16} /></button></>}
+      </div>
+      <div className="flex justify-center gap-1.5">{slides.map((_, dot) => <button key={dot} type="button" className={cn('h-1.5 rounded-full transition-all', dot === index ? 'w-5 bg-brass' : 'w-1.5 bg-border-bright')} onClick={() => setIndex(dot)} aria-label={`Open quote ${dot + 1}`} />)}</div>
+      {joinOpen && <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/55 p-4" onMouseDown={() => setJoinOpen(false)} role="dialog" aria-modal="true"><div className="card max-w-sm p-5 text-center shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><button type="button" className="btn-icon ml-auto" onClick={() => setJoinOpen(false)} aria-label="Close"><X size={16} /></button><Dove size={42} className="mx-auto" /><h2 className="mt-3 font-display text-xl font-semibold text-ink">Join Full Circle to read meditations</h2><p className="mt-2 text-sm text-stone">Join Full Circle to share an insight, comment, or reply. Full meditations are reserved for camp members.</p><a href={signupHref} className="btn-primary mt-4"><UserPlus size={15} /> Join Full Circle</a></div></div>}
+    </section>
+  );
+}
+
 function SharedReadingView({
   reading,
+  quotes,
   signupHref,
   pendingReaction,
   onReact,
   onAddInsight,
 }: {
   reading: SharedReading;
+  quotes: DailyQuoteFeedItem[];
   signupHref: string;
   pendingReaction: string | null;
   onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
@@ -332,19 +384,7 @@ function SharedReadingView({
         </section>
       )}
 
-      <section className="rounded-xl border border-brass/25 bg-brass-soft p-4">
-        <p className="font-display text-lg font-bold text-ink">Join the conversation.</p>
-        <p className="mt-1 text-sm text-stone">You can react here now. Join Full Circle to share an insight, comment, or reply.</p>
-        <a href={signupHref} className="btn-primary mt-3"><UserPlus size={16} /> Join Full Circle</a>
-      </section>
-      <section className="quote-glass-panel relative overflow-hidden rounded-2xl border border-border p-5 text-center">
-        <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute inset-0" aria-hidden="true" />
-        <div className="relative z-10">
-          <Quote size={22} className="mx-auto text-brass" />
-          <p className="mt-2 font-display text-xl font-semibold italic text-ink">&ldquo;Come and read, reflect, and grow with us.&rdquo;</p>
-          <a href={signupHref} className="btn-primary mt-4"><UserPlus size={15} /> Join Full Circle</a>
-        </div>
-      </section>
+      <PublicQuoteCarousel quotes={quotes} signupHref={signupHref} image={reading.panel_images?.reading} />
     </article>
   );
 }
@@ -369,6 +409,7 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState<SharedReading | null>(null);
+  const [publicQuotes, setPublicQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [quiz, setQuiz] = useState<any>(null);
   const [game, setGame] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -401,7 +442,10 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
       .then((data) => {
         if (cancelled) return;
         if (!data) throw new Error('This shared item is no longer available.');
-        if (kind === 'reading') setReading(data as SharedReading);
+        if (kind === 'reading') {
+          setReading(data as SharedReading);
+          void fetchPublicDailyQuotes(value).then(setPublicQuotes).catch(() => setPublicQuotes([]));
+        }
         else if (kind === 'quiz') setQuiz(data as NonNullable<Awaited<ReturnType<typeof fetchSharedQuiz>>>);
         else setGame(data);
       })
@@ -519,6 +563,7 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
         {!loading && !error && kind === 'reading' && reading && (
           <SharedReadingView
             reading={reading}
+            quotes={publicQuotes}
             signupHref={signupHref}
             pendingReaction={pendingReaction}
             onReact={(insightId, reactionType) => void reactToSharedInsight(insightId, reactionType)}

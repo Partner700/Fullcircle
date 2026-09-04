@@ -1,6 +1,6 @@
 {
   "index.html": {
-    "file": "assets/index-BboKp8FK.js",
+    "file": "assets/index-AvWqPpbf.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -9,7 +9,8 @@
       "assets/squares-symbol-BITDyhHS.svg",
       "assets/darics-symbol-DM9VbZ6x.svg",
       "assets/rudes-symbol-CgeqXOXU.svg",
-      "assets/laureats-symbol-D0OtGeTM.svg"
+      "assets/laureats-symbol-D0OtGeTM.svg",
+      "assets/laureats-CQlp2eDZ.png"
     ]
   },
   "src/assets/brand-real/darics-symbol.svg": {
@@ -24,6 +25,10 @@
     "file": "assets/laureats-symbol-D0OtGeTM.svg",
     "src": "src/assets/brand-real/laureats-symbol.svg"
   },
+  "src/assets/brand-real/laureats.png": {
+    "file": "assets/laureats-CQlp2eDZ.png",
+    "src": "src/assets/brand-real/laureats.png"
+  },
   "src/assets/brand-real/rudes-symbol.svg": {
     "file": "assets/rudes-symbol-CgeqXOXU.svg",
     "src": "src/assets/brand-real/rudes-symbol.svg"
@@ -33,7 +38,7 @@
     "src": "src/assets/brand-real/squares-symbol.svg"
   },
   "style.css": {
-    "file": "assets/style-BCWKlTFY.css",
+    "file": "assets/style-DKQ8W8X9.css",
     "src": "style.css"
   }
 }
