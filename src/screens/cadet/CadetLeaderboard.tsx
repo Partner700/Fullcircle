@@ -11,6 +11,7 @@ import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/u
 import { resolveBoardMovement } from '../../lib/boardMovement';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles, Info } from 'lucide-react';
+import { ChiRhoMark, GrandVallumMark } from '../../components/ChiRhoMark';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'instructor';
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
@@ -485,13 +486,13 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   }, [load, scheduleSilentRefresh]);
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
-    ? [{ key: 'instructor', label: 'Instructor Board', icon: <Cross size={16} /> }]
+    ? [{ key: 'instructor', label: 'Instructor Board', icon: <ChiRhoMark size={16} /> }]
     : [
       { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
       { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
       { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
       { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
-      ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <Cross size={16} /> }] : []),
+      ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <ChiRhoMark size={16} /> }] : []),
       { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
     ];
 
@@ -546,7 +547,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
-              <Cross size={20} className="text-royal" />
+              <ChiRhoMark size={22} className="text-royal" />
               <h3 className="font-display font-semibold text-ink">Instructor Challenge Board</h3>
               <span className="badge badge-brass text-[10px]">Camp-wide</span>
             </div>
@@ -574,7 +575,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                 ))}
               </BoardList>
             </BoardPanel>
-          ) : <EmptyState icon={(props) => <Cross {...props} />} title="No instructor data yet" message="Instructor activity will appear here once a narrative is published." />}
+          ) : <EmptyState icon={(props) => <ChiRhoMark size={props.size} className={props.className || ''} />} title="No instructor data yet" message="Instructor activity will appear here once a narrative is published." />}
         </div>
       )}
 
@@ -931,7 +932,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
-              <Cross size={20} className="text-brass" />
+              <GrandVallumMark size={23} className="text-brass" />
               <h3 className="font-display font-semibold text-ink">Leaderboard</h3>
               <span className="badge badge-brass text-[10px]">Grand Total</span>
               <button
@@ -981,7 +982,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
               </BoardList>
             </BoardPanel>
           ) : (
-            <EmptyState icon={(props) => <Cross {...props} />} title="No Marks yet" message="Marks appear once users begin earning qualifying Denarii, Figs, Streaks, or Rhudes." />
+            <EmptyState icon={(props) => <ChiRhoMark size={props.size} className={props.className || ''} />} title="No Marks yet" message="Marks appear once users begin earning qualifying Denarii, Figs, Streaks, or Rhudes." />
           )}
         </div>
       )}

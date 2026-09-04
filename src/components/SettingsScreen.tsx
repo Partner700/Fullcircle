@@ -18,6 +18,7 @@ import { AppSelect } from './AppSelect';
 import { DeleteAccountSection } from './DeleteAccountSection';
 import { ProfilePhotoEditor } from './ProfilePhotoEditor';
 import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
+import { ChiRhoMark } from './ChiRhoMark';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -273,7 +274,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         <StatCard icon={BadgeCheck} label="Figs" value={stats.figs} color="#7C8CFF" />
         <StatCard icon={Shield} label="Rhudes" value={stats.rhudes} color="#5BAD7F" />
         <StatCard
-          icon={Cross}
+          icon={ChiRhoMark}
           label="Marks"
           value={stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           color="#DDE3FF"

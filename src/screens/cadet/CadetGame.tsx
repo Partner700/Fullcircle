@@ -20,7 +20,7 @@ import type { DailyNarrative, GameAttempt, QuestionPayload, PanelImageSetting } 
 import {
   Gamepad2, Lock, CheckCircle2, XCircle, Trophy, Coins, RotateCcw,
   Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
-  SkipForward, BookOpen, Volume2, Wand2, ArrowLeft,
+  SkipForward, BookOpen, Volume2, Wand2, ArrowLeft, Share2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -142,6 +142,11 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const totalEarned = attempts.reduce((sum, a) => sum + a.reward, 0);
   const inPracticeMode = totalEarned >= DAILY_GAME_CAP;
   const passedCount = Array.from({ length: DAILY_GAME_LEVELS }, (_, i) => i + 1).filter(levelPassed).length;
+  const shareLevelOne = async () => {
+    const url = `${window.location.origin}${window.location.pathname}?share=game&date=${today}`;
+    if (navigator.share) await navigator.share({ title: 'Full Circle Daily Trivia · Level 1', url }).catch(() => undefined);
+    else await navigator.clipboard?.writeText(url);
+  };
 
   if (loading) return (
     <div className="space-y-4 animate-fade-in">
@@ -304,6 +309,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
               <div className="relative z-10 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-ink">Level {level}</span>
+                  {level === 1 && <button type="button" className="btn-icon ml-auto" title="Share Level 1" aria-label="Share Level 1" onClick={(event) => { event.stopPropagation(); void shareLevelOne(); }}><Share2 size={14} /></button>}
                   <span className="badge badge-neutral text-[10px]">{gameLabel}</span>
                   {passed && <span className="badge badge-gold"><Star size={10} /> Cleared</span>}
                   {earned && <span className="badge badge-sage text-[10px]">Earned</span>}

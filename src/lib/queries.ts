@@ -466,6 +466,23 @@ export async function toggleSharedInsightReaction(
   return data === true;
 }
 
+export async function addSharedInsight(narrativeId: string, verseReference: string, body: string, guestKey: string) {
+  const { data, error } = await supabase.rpc('add_public_scripture_insight', {
+    p_narrative_id: narrativeId,
+    p_verse_reference: verseReference,
+    p_body: body,
+    p_guest_key: guestKey,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function fetchSharedDailyGame(date: string) {
+  const { data, error } = await supabase.rpc('get_shared_daily_game', { p_narrative_date: date });
+  if (error) throw error;
+  return data as { date: string; level: number; title: string; questions: Array<{ id: string; question_text: string; options: string[] }> };
+}
+
 export async function fetchSharedQuiz(sessionId: string) {
   const { data, error } = await supabase.rpc('get_shared_quiz', { p_quiz_session_id: sessionId });
   if (error) throw error;
@@ -1965,6 +1982,12 @@ export async function fetchPublicQuoteStreak(userId: string) {
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   return { current_streak: Number(row?.current_streak) || 0 };
+}
+
+export async function fetchPublicMeditation(userId: string, recordDate: string) {
+  const { data, error } = await supabase.rpc('get_public_meditation', { p_user_id: userId, p_record_date: recordDate });
+  if (error) throw error;
+  return typeof data === 'string' ? data : null;
 }
 
 export async function fetchDailyQuoteReactions(quotes: { user_id: string; record_date: string }[], reactorId?: string) {

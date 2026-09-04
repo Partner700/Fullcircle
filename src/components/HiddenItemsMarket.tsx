@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
 import {
   createHiddenChallenge,
   fetchHiddenItemInventory,
@@ -33,6 +34,7 @@ import type {
   DailyNarrative,
   FreezerType,
   HiddenChallengeDifficulty,
+  PanelImageSetting,
   HiddenChallengePlacement,
   HiddenItemInventory,
   HiddenItemType,
@@ -448,12 +450,14 @@ export function HiddenItemsMarket({
   relicInventory,
   freezers,
   onChanged,
+  marketImage,
 }: {
   denarii: number;
   relics: RelicType[];
   relicInventory: Record<string, number>;
   freezers: StreakFreezer[];
   onChanged: () => Promise<void>;
+  marketImage?: PanelImageSetting | null;
 }) {
   const [inventory, setInventory] = useState<HiddenItemInventory>(EMPTY_INVENTORY);
   const [loading, setLoading] = useState(true);
@@ -494,7 +498,8 @@ export function HiddenItemsMarket({
   return (
     <>
       <section className="card relative overflow-hidden p-5">
-        <div className="flex items-start justify-between gap-3">
+        <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/80" />
+        <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-peri/25 bg-peri/10 text-peri"><Box size={21} /></span>
             <div>
@@ -505,9 +510,9 @@ export function HiddenItemsMarket({
           <span className="badge badge-neutral text-[9px]">50 Ð each</span>
         </div>
 
-        {notice && <div role="alert" className="mt-3 rounded-md border border-coral/30 bg-coral/10 px-3 py-2 text-xs text-coral">{notice}</div>}
+        {notice && <div role="alert" className="relative z-10 mt-3 rounded-md border border-coral/30 bg-coral/10 px-3 py-2 text-xs text-coral">{notice}</div>}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="relative z-10 mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-md border border-gold/30 bg-gold/5 p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Gift size={18} className="text-gold" /><span className="text-sm font-bold text-ink">Treasure Box</span></div>
@@ -541,7 +546,7 @@ export function HiddenItemsMarket({
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-stone">
+        <div className="relative z-10 mt-3 flex flex-wrap items-center gap-3 text-[10px] text-stone">
           <span className="inline-flex items-center gap-1"><Users size={12} /> 1 to 3 people</span>
           <span className="inline-flex items-center gap-1"><Snowflake size={12} /> Rewards are reserved first</span>
           <span className="inline-flex items-center gap-1"><Coins size={12} /> Balance: {formatDenarii(denarii)} Ð</span>

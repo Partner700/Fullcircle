@@ -1,21 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookMarked, CheckCircle2, Heart, Lightbulb, Loader2, Lock, MessageCircle, ScrollText, Send, Sun, UserPlus } from 'lucide-react';
+import { BookMarked, CheckCircle2, Heart, Lightbulb, Loader2, Lock, MessageCircle, ScrollText, Send, Sun, UserPlus, Quote } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
 import {
   completeSharedQuiz,
   fetchSharedQuiz,
+  fetchSharedDailyGame,
   fetchSharedReading,
   saveSharedQuizAnswer,
   toggleSharedInsightReaction,
+  addSharedInsight,
   type SharedReading,
   type SharedReadingInsight,
   type VerseInsightReactionType,
 } from '../lib/queries';
 import { cn } from '../lib/utils';
 
-type ShareKind = 'reading' | 'quiz';
+type ShareKind = 'reading' | 'quiz' | 'game';
 
 const memoryGuestKeys = new Map<string, string>();
 
@@ -201,13 +203,17 @@ function SharedReadingView({
   signupHref,
   pendingReaction,
   onReact,
+  onAddInsight,
 }: {
   reading: SharedReading;
   signupHref: string;
   pendingReaction: string | null;
   onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
+  onAddInsight: (narrativeId: string, verseReference: string, body: string) => Promise<void>;
 }) {
   const verses = readingVerses(reading);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [savingVerse, setSavingVerse] = useState<string | null>(null);
   const isSundayReading = new Date(`${reading.narrative_date}T12:00:00`).getDay() === 0;
   return (
     <article className="today-reading-screen space-y-5">
@@ -266,9 +272,32 @@ function SharedReadingView({
                   <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-[10px] font-bold uppercase text-stone">Reader insights</p>
-                      <a href={signupHref} className="inline-flex items-center gap-1 text-[10px] font-bold text-peri">
-                        <Lightbulb size={12} /> Add insight
-                      </a>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-stone"><Lightbulb size={12} /> Add insight</span>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <textarea
+                        value={drafts[verse.reference] || ''}
+                        onChange={(event) => setDrafts((current) => ({ ...current, [verse.reference]: event.target.value }))}
+                        className="input-field min-h-16 flex-1 resize-y text-xs"
+                        placeholder="Share what this verse gave you..."
+                        maxLength={3000}
+                      />
+                      <button
+                        type="button"
+                        className="btn-primary self-end px-3 text-xs"
+                        disabled={!drafts[verse.reference]?.trim() || savingVerse === verse.reference}
+                        onClick={() => {
+                          const body = drafts[verse.reference]?.trim();
+                          if (!body) return;
+                          setSavingVerse(verse.reference);
+                          void onAddInsight(verse.narrativeId, verse.reference, body)
+                            .then(() => setDrafts((current) => ({ ...current, [verse.reference]: '' })))
+                            .finally(() => setSavingVerse(null));
+                        }}
+                      >
+                        {savingVerse === verse.reference ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                        <span className="sr-only">Share insight</span>
+                      </button>
                     </div>
                     {insights.length ? (
                       <div className="mt-3 space-y-3">
@@ -308,6 +337,30 @@ function SharedReadingView({
         <p className="mt-1 text-sm text-stone">You can react here now. Join Full Circle to share an insight, comment, or reply.</p>
         <a href={signupHref} className="btn-primary mt-3"><UserPlus size={16} /> Join Full Circle</a>
       </section>
+      <section className="quote-glass-panel relative overflow-hidden rounded-2xl border border-border p-5 text-center">
+        <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="relative z-10">
+          <Quote size={22} className="mx-auto text-brass" />
+          <p className="mt-2 font-display text-xl font-semibold italic text-ink">&ldquo;Come and read, reflect, and grow with us.&rdquo;</p>
+          <a href={signupHref} className="btn-primary mt-4"><UserPlus size={15} /> Join Full Circle</a>
+        </div>
+      </section>
+    </article>
+  );
+}
+
+function SharedGameView({ game, signupHref }: { game: { title: string; questions: Array<{ id: string; question_text: string; options: string[] }> }; signupHref: string }) {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+  return (
+    <article className="space-y-4">
+      <section className="card p-5 sm:p-7"><p className="eyebrow text-gold">Level 1 · Daily Trivia</p><h1 className="mt-2 font-display text-3xl font-black text-ink">{game.title}</h1><p className="mt-2 text-sm text-stone">Play Level 1 here. Join Full Circle to unlock the remaining levels and keep your progress.</p></section>
+      {game.questions.length === 0 ? <section className="card p-6 text-center text-sm text-stone">Level 1 is not open yet.</section> : submitted ? (
+        <section className="card p-6 text-center"><CheckCircle2 size={32} className="mx-auto text-moss" /><h2 className="mt-3 font-display text-xl font-bold text-ink">Level 1 complete.</h2><p className="mt-2 text-sm text-stone">Join Full Circle to see your result and continue to the next level.</p><a href={signupHref} className="btn-primary mt-4">Join Full Circle</a></section>
+      ) : <>
+        {game.questions.map((question, index) => <section key={question.id} className="card p-5"><p className="text-xs font-bold text-gold">Question {index + 1}</p><p className="mt-2 text-base font-semibold leading-relaxed text-ink">{question.question_text}</p>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.map((option) => <label key={option} className={cn('flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm', answers[question.id] === option ? 'border-gold bg-gold-soft text-ink' : 'border-border bg-surface-2 text-stone')}><input type="radio" name={question.id} checked={answers[question.id] === option} onChange={() => setAnswers((current) => ({ ...current, [question.id]: option }))} /><span>{option}</span></label>)}</div> : <input className="input-field mt-4" value={answers[question.id] || ''} onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))} placeholder="Your answer" />}</section>)}
+        <button type="button" className="btn-primary w-full justify-center" disabled={game.questions.some((question) => !answers[question.id]?.trim())} onClick={() => setSubmitted(true)}><Send size={15} /> Submit Level 1 and join</button>
+      </>}
     </article>
   );
 }
@@ -317,11 +370,13 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState<SharedReading | null>(null);
   const [quiz, setQuiz] = useState<any>(null);
+  const [game, setGame] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [savingQuestion, setSavingQuestion] = useState<string | null>(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [pendingReaction, setPendingReaction] = useState<string | null>(null);
+  const [savingInsight, setSavingInsight] = useState(false);
 
   const signupHref = useMemo(() => {
     const search = new URLSearchParams({ signup: '1' });
@@ -341,13 +396,14 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const load = kind === 'reading' ? fetchSharedReading(value, readingGuestKey) : fetchSharedQuiz(value);
+    const load = kind === 'reading' ? fetchSharedReading(value, readingGuestKey) : kind === 'quiz' ? fetchSharedQuiz(value) : fetchSharedDailyGame(value);
     void load
       .then((data) => {
         if (cancelled) return;
         if (!data) throw new Error('This shared item is no longer available.');
         if (kind === 'reading') setReading(data as SharedReading);
-        else setQuiz(data as NonNullable<Awaited<ReturnType<typeof fetchSharedQuiz>>>);
+        else if (kind === 'quiz') setQuiz(data as NonNullable<Awaited<ReturnType<typeof fetchSharedQuiz>>>);
+        else setGame(data);
       })
       .catch((loadError: any) => { if (!cancelled) setError(loadError?.message || 'This shared item could not load.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -394,6 +450,20 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
       setError(reactionError?.message || 'Your reaction could not be saved.');
     } finally {
       setPendingReaction(null);
+    }
+  };
+
+  const addInsightToSharedReading = async (narrativeId: string, verseReference: string, body: string) => {
+    if (!reading || savingInsight) return;
+    setSavingInsight(true);
+    try {
+      await addSharedInsight(narrativeId, verseReference, body, readingGuestKey);
+      const refreshed = await fetchSharedReading(value, readingGuestKey);
+      if (refreshed) setReading(refreshed);
+    } catch (saveError: any) {
+      setError(saveError?.message || 'Your insight could not be shared.');
+    } finally {
+      setSavingInsight(false);
     }
   };
 
@@ -452,6 +522,7 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
             signupHref={signupHref}
             pendingReaction={pendingReaction}
             onReact={(insightId, reactionType) => void reactToSharedInsight(insightId, reactionType)}
+            onAddInsight={addInsightToSharedReading}
           />
         )}
 
@@ -478,6 +549,9 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
               </>
             )}
           </article>
+        )}
+        {!loading && !error && kind === 'game' && game && (
+          <SharedGameView game={game} signupHref={signupHref} />
         )}
       </div>
     </main>

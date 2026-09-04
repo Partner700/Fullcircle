@@ -299,6 +299,7 @@ export function CadetNarrative({
   const [bestVerse, setBestVerse] = useState('');
   const [dailyQuote, setDailyQuote] = useState('');
   const [savedMeditation, setSavedMeditation] = useState(false);
+  const [meditationPublic, setMeditationPublic] = useState(false);
   const [challenge, setChallenge] = useState<ChallengeSubmission | null>(null);
   const [challengeText, setChallengeText] = useState('');
   const [challengeLink, setChallengeLink] = useState('');
@@ -494,6 +495,7 @@ export function CadetNarrative({
       if (record?.meditation_text) setMeditation(record.meditation_text);
       if (record?.best_verse) setBestVerse(record.best_verse);
       if (record?.daily_quote) setDailyQuote(record.daily_quote);
+      setMeditationPublic(Boolean(record?.meditation_public));
       setSavedMeditation(Boolean(record?.meditation_submitted));
     } catch (e) { console.error('Narrative load error:', e); }
     draftHydratedKeyRef.current = expectedDraftKey;
@@ -752,6 +754,13 @@ export function CadetNarrative({
     setSavedMeditation(true);
     setSaving(false);
     await onMeditationSaved?.();
+  };
+
+  const changeMeditationVisibility = async (next: boolean) => {
+    if (!profile || !savedMeditation) return;
+    const { error } = await supabase.rpc('set_daily_meditation_public', { p_record_date: activeDate, p_public: next });
+    if (error) { alert(error.message || 'Meditation visibility could not be changed.'); return; }
+    setMeditationPublic(next);
   };
 
   const saveChallenge = async () => {
@@ -1390,6 +1399,12 @@ export function CadetNarrative({
             <Save size={16} strokeWidth={1.5} /> <span className="hidden sm:inline">{saving ? 'Saving…' : 'Submit Meditation'}</span>
           </button>
           </div>
+          {savedMeditation && (
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-stone">
+              <input type="checkbox" checked={meditationPublic} onChange={(event) => void changeMeditationVisibility(event.target.checked)} />
+              Make my meditation visible from my quote slide
+            </label>
+          )}
         </div>
       </div>}
 

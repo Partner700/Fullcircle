@@ -448,6 +448,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         relicInventory={inventory}
         freezers={freezers}
         onChanged={refreshPurchaseState}
+        marketImage={marketImage}
       />
 
       {/* Streak Freezers */}

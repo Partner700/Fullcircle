@@ -50,6 +50,7 @@ export default function App() {
     const kind = search.get('share');
     if (kind === 'reading' && search.get('date')) return { kind: 'reading' as const, value: search.get('date')! };
     if (kind === 'quiz' && search.get('id')) return { kind: 'quiz' as const, value: search.get('id')! };
+    if (kind === 'game' && search.get('date')) return { kind: 'game' as const, value: search.get('date')! };
     return null;
   }, []);
   const signupRequested = useMemo(() => new URLSearchParams(window.location.search).get('signup') === '1', []);
