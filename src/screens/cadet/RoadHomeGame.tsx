@@ -4,6 +4,7 @@ import {
   Flag, LockKeyhole, MessageCircle, RotateCw, Send, Shield, Sparkles, Trophy, Users, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
+import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { fetchArenaRoomMessages, fetchRoadHomeState, initializeRoadHome, sendArenaRoomMessage, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
@@ -515,7 +516,7 @@ function ArenaMatchChat({ roomId, userId }: { roomId: string; userId: string }) 
 }
 
 function PlayerAvatar({ player, size = 'sm' }: { player: RoadHomePlayer; size?: 'sm' | 'lg' }) {
-  return <div className={cn('relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 font-bold shadow-sm', size === 'lg' ? 'h-11 w-11' : 'h-8 w-8', COLOUR_CLASS[player.colour])}>{player.avatarUrl ? <img src={player.avatarUrl} alt={player.name} className="h-full w-full object-cover" /> : player.isBot ? <Dove size={size === 'lg' ? 38 : 28} /> : player.name.charAt(0).toUpperCase()}</div>;
+  return <span className={cn('relative flex flex-shrink-0 items-center justify-center font-bold', size === 'lg' ? 'h-11 w-11' : 'h-8 w-8')}><span className={cn('flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 shadow-sm', COLOUR_CLASS[player.colour])}>{player.avatarUrl ? <img src={player.avatarUrl} alt={player.name} className="h-full w-full object-cover" /> : player.isBot ? <Dove size={size === 'lg' ? 38 : 28} /> : player.name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={player.isBot ? null : player.id} size={size === 'lg' ? 'md' : 'sm'} /></span>;
 }
 
 function PlayerStrip({ state, userId }: { state: RoadHomeState; userId: string }) {

@@ -4,6 +4,7 @@ import { fetchLatestQuizSession, fetchQuizResponders } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { QuizResponder } from '../lib/types';
 import { cn } from '../lib/utils';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 
 export function QuizResponders({
   sessionId,
@@ -93,20 +94,23 @@ export function QuizResponders({
               title={`${responder.display_name} answered the quiz`}
               aria-label={responder.display_name}
               className={cn(
-                'flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-moss/55 bg-navy/80 font-bold text-gold shadow-sm',
+                'relative flex shrink-0 items-center justify-center rounded-full font-bold text-gold',
                 isSlide ? 'h-6 w-6 text-[8px]' : 'h-9 w-9 text-[10px]',
               )}
             >
-              {responder.avatar_url ? (
-                <img
-                  src={responder.avatar_url}
-                  alt={responder.display_name}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <span>{responder.display_name.charAt(0).toUpperCase()}</span>
-              )}
+              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-moss/55 bg-navy/80 shadow-sm">
+                {responder.avatar_url ? (
+                  <img
+                    src={responder.avatar_url}
+                    alt={responder.display_name}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span>{responder.display_name.charAt(0).toUpperCase()}</span>
+                )}
+              </span>
+              <VallumAvatarBadge userId={responder.user_id} size={isSlide ? 'xs' : 'sm'} />
             </div>
           ))}
         </div>

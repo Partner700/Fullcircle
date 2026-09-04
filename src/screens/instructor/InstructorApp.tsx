@@ -21,6 +21,7 @@ import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { VallumText } from '../../components/ChiRhoMark';
+import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { CadetStore } from '../cadet/CadetStore';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
@@ -1527,9 +1528,10 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
               <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface-2">
                 {markedMorningCall.map((item) => (
                   <div key={item.userId} className="flex items-center gap-3 px-3 py-2.5">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-peri-soft text-xs font-bold text-peri">
-                      {item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : item.name.charAt(0).toUpperCase()}
-                    </div>
+                    <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
+                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-peri-soft">{item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : item.name.charAt(0).toUpperCase()}</span>
+                      <VallumAvatarBadge userId={item.userId} size="sm" />
+                    </span>
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{item.name}</p><p className="truncate text-xs text-stone">{item.tentName}</p></div>
                     <span className={cn('badge text-[10px]', item.status === 'present' ? 'badge-moss' : 'badge-roman')}>
                       {item.status === 'present' ? `Present${item.late ? ' · late' : ''}` : 'Absent'}
@@ -1661,7 +1663,7 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
   return <section className="card mb-5 p-5">
     <SectionHeader title="Tent Join Requests" subtitle="Approve cadets until each tent reaches ten cadets plus its sentry." />
     <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
-      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-bold text-ink">{request.profiles?.avatar_url ? <img src={request.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : request.profiles?.display_name?.charAt(0)}</div>
+      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-peri-soft">{request.profiles?.avatar_url ? <img src={request.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : request.profiles?.display_name?.charAt(0)}</span><VallumAvatarBadge userId={request.user_id} size="sm" /></span>
       <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
       <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
       <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
@@ -1975,9 +1977,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
           return (
             <div key={r.user_id} className="card p-4 card-hover">
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="w-10 h-10 rounded-full bg-navy-3 overflow-hidden flex items-center justify-center font-display font-bold text-peri-dim flex-shrink-0">
-                  {p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}
-                </div>
+                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-peri-dim"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-navy-3">{p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="h-full w-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={p.id} size="sm" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
                   <p className="text-xs text-stone">
@@ -2180,9 +2180,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
           return (
             <div key={r.user_id} className="card p-4">
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="w-10 h-10 rounded-full bg-sage-soft overflow-hidden flex items-center justify-center font-display font-bold text-sage flex-shrink-0">
-                  {p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}
-                </div>
+                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-sage"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-sage-soft">{p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="h-full w-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={p.id} size="sm" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
                   <p className="text-xs text-stone">
@@ -5145,9 +5143,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
           {users.map((u) => (
             <div key={u.user_id} className="card p-4 bg-surface">
               <div className="flex items-start gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass flex-shrink-0">
-                  {u.avatar_url ? <img src={u.avatar_url} alt={u.display_name} className="w-full h-full object-cover" /> : u.display_name.charAt(0)}
-                </div>
+                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-brass"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface-2">{u.avatar_url ? <img src={u.avatar_url} alt={u.display_name} className="h-full w-full object-cover" /> : u.display_name.charAt(0)}</span><VallumAvatarBadge userId={u.user_id} size="sm" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink">{u.display_name}</p>
                   <p className="text-xs text-stone">{u.email}</p>

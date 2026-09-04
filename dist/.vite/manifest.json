@@ -1,16 +1,16 @@
 {
   "index.html": {
-    "file": "assets/index-DDGclnES.js",
+    "file": "assets/index-ldSzQi1u.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "assets": [
       "assets/dove-clean-BeQoHgAq.png",
+      "assets/laureats-CQlp2eDZ.png",
       "assets/squares-symbol-BITDyhHS.svg",
       "assets/darics-symbol-DM9VbZ6x.svg",
       "assets/rudes-symbol-CgeqXOXU.svg",
-      "assets/laureats-symbol-D0OtGeTM.svg",
-      "assets/laureats-CQlp2eDZ.png"
+      "assets/laureats-symbol-D0OtGeTM.svg"
     ]
   },
   "src/assets/brand-real/darics-symbol.svg": {
@@ -38,7 +38,7 @@
     "src": "src/assets/brand-real/squares-symbol.svg"
   },
   "style.css": {
-    "file": "assets/style-IyQBjCiz.css",
+    "file": "assets/style-DBrNh5Yb.css",
     "src": "style.css"
   }
 }

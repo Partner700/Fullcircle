@@ -23,6 +23,7 @@ import {
   publishDoveQuestion,
 } from '../lib/doveQuestions';
 import { supabase } from '../lib/supabase';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 import type {
   DoveQuestion,
   DoveQuestionDeliveryMode,
@@ -58,12 +59,15 @@ function ParticipantStack({ participants }: { participants: DoveQuestionParticip
         <span
           key={participant.user_id}
           title={participant.display_name}
-          className="relative flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-peri/45 bg-surface-2 text-[9px] font-bold text-peri shadow-sm"
+          className="relative flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-peri"
           style={{ marginLeft: index === 0 ? 0 : -6, zIndex: shown.length - index }}
         >
-          {participant.avatar_url ? (
-            <img src={participant.avatar_url} alt={participant.display_name} className="h-full w-full object-cover" />
-          ) : participant.display_name.trim().charAt(0).toUpperCase()}
+          <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-peri/45 bg-surface-2 shadow-sm">
+            {participant.avatar_url ? (
+              <img src={participant.avatar_url} alt={participant.display_name} className="h-full w-full object-cover" />
+            ) : participant.display_name.trim().charAt(0).toUpperCase()}
+          </span>
+          <VallumAvatarBadge userId={participant.user_id} size="xs" />
         </span>
       ))}
       {participants.length > shown.length && (

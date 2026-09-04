@@ -3,6 +3,7 @@ import { BookMarked, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Flame, H
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
+import { VallumAvatarBadge } from '../components/VallumAvatarBadge';
 import {
   completeSharedQuiz,
   fetchSharedQuiz,
@@ -106,11 +107,7 @@ function InsightThread({
   return (
     <div className="rounded-xl border border-border bg-surface-2 p-3">
       <div className="flex items-start gap-2.5">
-        <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-border bg-peri-soft text-center text-xs font-bold leading-8 text-peri">
-          {insight.profiles?.avatar_url
-            ? <img src={insight.profiles.avatar_url} alt={authorName} className="h-full w-full object-cover" loading="lazy" />
-            : authorName.charAt(0).toUpperCase()}
-        </div>
+        <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{insight.profiles?.avatar_url ? <img src={insight.profiles.avatar_url} alt={authorName} className="h-full w-full object-cover" loading="lazy" /> : authorName.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={insight.user_id} size="sm" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-ink">{authorName}</p>
           <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{insight.body}</p>
@@ -156,13 +153,7 @@ function InsightThread({
         return (
           <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp members reacted`}>
             {actors.map((actor) => (
-              <span key={actor.user_id} title={actor.display_name} className="inline-flex h-4 w-4 overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-center text-[7px] font-bold leading-4 text-peri shadow-sm">
-                {actor.is_guest
-                  ? <Dove size={14} />
-                  : actor.avatar_url
-                  ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" loading="lazy" />
-                  : actor.display_name.charAt(0).toUpperCase()}
-              </span>
+              <span key={actor.user_id} title={actor.display_name} className="relative inline-flex h-4 w-4 items-center justify-center text-[7px] font-bold text-peri"><span className="inline-flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft shadow-sm">{actor.is_guest ? <Dove size={14} /> : actor.avatar_url ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" loading="lazy" /> : actor.display_name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={actor.is_guest ? null : actor.user_id} size="xs" /></span>
             ))}
           </div>
         );
@@ -178,11 +169,7 @@ function InsightThread({
             return (
               <div key={comment.id} className={cn('rounded-lg bg-surface/75 p-2', comment.parent_comment_id && 'ml-3')}>
                 <div className="flex items-start gap-2">
-                  <span className="inline-flex h-8 w-8 shrink-0 overflow-hidden rounded-full border border-border bg-peri-soft text-center text-[10px] font-bold leading-8 text-peri">
-                    {comment.profile?.avatar_url
-                      ? <img src={comment.profile.avatar_url} alt={commenterName} className="h-full w-full object-cover" loading="lazy" />
-                      : commenterName.charAt(0).toUpperCase()}
-                  </span>
+                  <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center text-[10px] font-bold text-peri"><span className="inline-flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{comment.profile?.avatar_url ? <img src={comment.profile.avatar_url} alt={commenterName} className="h-full w-full object-cover" loading="lazy" /> : commenterName.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={comment.user_id} size="sm" /></span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold text-ink">{commenterName}</p>
                     <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>
@@ -230,7 +217,7 @@ function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuote
               <div className="mt-6 flex items-center gap-3">
                 {slide.kind === 'quote' ? (
                   <>
-                    <span className="h-11 w-11 overflow-hidden rounded-full border border-border-bright bg-surface-2">{slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full w-full items-center justify-center font-bold text-peri">{slide.quote.display_name.charAt(0)}</span>}</span>
+                    <span className="relative flex h-11 w-11 items-center justify-center"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border-bright bg-surface-2">{slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full w-full items-center justify-center font-bold text-peri">{slide.quote.display_name.charAt(0)}</span>}</span><VallumAvatarBadge userId={slide.quote.user_id} size="sm" /></span>
                     <div><p className="text-sm font-extrabold text-ink">{slide.quote.display_name}</p><p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-stone"><Flame size={12} className="text-gold" /> {slide.quote.current_streak || 0}</p></div>
                   </>
                 ) : (

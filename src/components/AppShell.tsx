@@ -1,6 +1,7 @@
 import { type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { DoveMark } from './Dove';
 import { LogOut, Sun, Moon, Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
@@ -280,9 +281,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
 
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
-            <div className="w-8 h-8 rounded-full bg-peri-soft overflow-hidden flex items-center justify-center text-peri font-display font-bold text-sm">
-              {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="w-full h-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
-            </div>
+            <span className="relative inline-flex shrink-0">
+              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-display text-sm font-bold text-peri">
+                {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="h-full w-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
+              </span>
+              <VallumAvatarBadge userId={profile?.id} size="sm" />
+            </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>
               <p className="text-xs text-peri-dim truncate">{profile?.email}</p>
@@ -410,9 +414,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
 
             <div className="border-t border-border p-3">
               <div className="flex items-center gap-2.5 rounded-xl bg-navy-3 px-3 py-2">
-                <div className="w-8 h-8 rounded-full bg-peri-soft overflow-hidden flex items-center justify-center text-peri font-display font-bold text-sm">
-                  {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="w-full h-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
-                </div>
+                <span className="relative inline-flex shrink-0">
+                  <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-display text-sm font-bold text-peri">
+                    {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="h-full w-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
+                  </span>
+                  <VallumAvatarBadge userId={profile?.id} size="sm" />
+                </span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>
                   <p className="text-xs text-peri-dim truncate">{profile?.email}</p>

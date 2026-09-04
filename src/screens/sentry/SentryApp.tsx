@@ -14,6 +14,7 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { AppSelect } from '../../components/AppSelect';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
+import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { SubscriptionGate, SubscriptionScreen, type SubscriptionStatusView } from '../../components/SubscriptionScreen';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
@@ -1178,9 +1179,10 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
         <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/50 px-4 animate-fade-in" onClick={() => !adding && setConfirmCadet(null)}>
           <div className="relative z-[2147483001] w-full max-w-sm rounded-2xl border border-border bg-bg p-5 shadow-2xl animate-scale-in" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/30 bg-brass-soft text-sm font-bold text-brass">
-                {confirmCadet.avatar_url ? <img src={confirmCadet.avatar_url} alt="" className="h-full w-full object-cover" /> : confirmCadet.display_name.charAt(0)}
-              </div>
+              <span className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center text-sm font-bold text-brass">
+                <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-brass/30 bg-brass-soft">{confirmCadet.avatar_url ? <img src={confirmCadet.avatar_url} alt="" className="h-full w-full object-cover" /> : confirmCadet.display_name.charAt(0)}</span>
+                <VallumAvatarBadge userId={confirmCadet.user_id} size="sm" />
+              </span>
               <div className="min-w-0">
                 <h3 className="font-display text-base font-semibold text-ink">Add {confirmCadet.display_name}?</h3>
                 <p className="mt-1 text-sm leading-relaxed text-stone">This will add the cadet to your tent. Only the instructor can undo this or move them later.</p>

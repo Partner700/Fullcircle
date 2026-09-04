@@ -16,6 +16,7 @@ import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
 import { publicAsset } from '../lib/publicAsset';
 import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 
 const FCX_START_HOUR = 12;
 
@@ -204,30 +205,36 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             key={registration?.id || `open-${index}`}
             title={registration ? `${registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
             className={cn(
-              'fcx-seat-line flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border shadow-sm',
+              'fcx-seat-line relative flex h-6 w-6 items-center justify-center rounded-full',
               registration
-                ? 'border-brass/55 bg-navy/78 text-[9px] font-bold text-gold'
-                : 'border-white/30 bg-surface/35',
+                ? 'text-[9px] font-bold text-gold'
+                : '',
             )}
           >
-            {registration?.avatar_url ? (
-              <img src={registration.avatar_url} alt={registration.display_name} className="h-full w-full object-cover" loading="lazy" />
-            ) : registration ? (
-              <span>{registration.display_name.charAt(0).toUpperCase()}</span>
-            ) : (
-              <img src={publicAsset('icons/fullcircle-dove-clean.png')} alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
-            )}
+            <span className={cn('flex h-full w-full items-center justify-center overflow-hidden rounded-full border shadow-sm', registration ? 'border-brass/55 bg-navy/78' : 'border-white/30 bg-surface/35')}>
+              {registration?.avatar_url ? (
+                <img src={registration.avatar_url} alt={registration.display_name} className="h-full w-full object-cover" loading="lazy" />
+              ) : registration ? (
+                <span>{registration.display_name.charAt(0).toUpperCase()}</span>
+              ) : (
+                <img src={publicAsset('icons/fullcircle-dove-clean.png')} alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
+              )}
+            </span>
+            <VallumAvatarBadge userId={registration?.user_id} size="xs" />
           </div>
         ))}
       </div>
 
       {previousWinner?.profiles && (
         <div className="fcx-line mt-3 flex items-center gap-2.5 rounded-lg border border-white/20 bg-surface/45 px-2.5 py-2 backdrop-blur-sm">
-          <img
-            src={previousWinner.profiles.avatar_url || publicAsset('icons/fullcircle-dove-clean.png')}
-            alt={previousWinner.profiles.display_name}
-            className="h-8 w-8 rounded-full border border-brass/55 object-cover"
-          />
+          <span className="relative inline-flex shrink-0">
+            <img
+              src={previousWinner.profiles.avatar_url || publicAsset('icons/fullcircle-dove-clean.png')}
+              alt={previousWinner.profiles.display_name}
+              className="h-8 w-8 rounded-full border border-brass/55 object-cover"
+            />
+            <VallumAvatarBadge userId={previousWinner.user_id} size="sm" />
+          </span>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase text-stone">Last month's experience</p>
             <p className="truncate text-xs font-black text-ink">Muralis · {previousWinner.profiles.display_name}</p>
@@ -514,11 +521,14 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
               {experience.registrations.map((registration) => (
                 <div key={registration.id} className="flex items-center gap-3 px-3 py-2.5">
                   {registration.is_app_member ? (
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold">
-                      {registration.avatar_url
-                        ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
-                        : registration.display_name.charAt(0).toUpperCase()}
-                    </div>
+                    <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-gold">
+                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy">
+                        {registration.avatar_url
+                          ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
+                          : registration.display_name.charAt(0).toUpperCase()}
+                      </span>
+                      <VallumAvatarBadge userId={registration.user_id} size="sm" />
+                    </span>
                   ) : (
                     <button
                       type="button"

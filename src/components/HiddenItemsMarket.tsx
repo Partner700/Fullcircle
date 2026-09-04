@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 import {
   createHiddenChallenge,
   fetchHiddenItemInventory,
@@ -293,8 +294,9 @@ function ItemComposer({
                     onClick={() => toggleTarget(candidate.user_id)}
                     className={cn('flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors disabled:opacity-40', selected ? 'border-peri/45 bg-peri/10' : 'border-transparent hover:bg-surface')}
                   >
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-xs font-bold text-peri">
-                      {candidate.avatar_url ? <img src={candidate.avatar_url} alt="" className="h-full w-full object-cover" /> : candidate.display_name.charAt(0)}
+                    <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
+                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface">{candidate.avatar_url ? <img src={candidate.avatar_url} alt="" className="h-full w-full object-cover" /> : candidate.display_name.charAt(0)}</span>
+                      <VallumAvatarBadge userId={candidate.user_id} size="sm" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-bold text-ink">{candidate.display_name}</span>

@@ -8,6 +8,7 @@ import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 import { revealHiddenChallenge } from '../lib/hiddenChallenges';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -124,13 +125,16 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-sm text-brass">
-              {recipient.avatar_url ? (
-                <img src={recipient.avatar_url} alt={recipient.display_name} className="w-full h-full object-cover" />
-              ) : (
-                recipient.display_name.charAt(0)
-              )}
-            </div>
+            <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display text-sm font-bold text-brass">
+              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface-2">
+                {recipient.avatar_url ? (
+                  <img src={recipient.avatar_url} alt={recipient.display_name} className="h-full w-full object-cover" />
+                ) : (
+                  recipient.display_name.charAt(0)
+                )}
+              </span>
+              <VallumAvatarBadge userId={recipient.id} size="sm" />
+            </span>
             <div>
               <p className="font-display font-semibold text-ink text-sm">{recipient.display_name}</p>
               <p className="text-xs text-stone">{tentId ? 'Tent member' : 'Direct message'}</p>
@@ -304,9 +308,12 @@ export function TentGroupMessenger({
             return (
               <div key={message.id} className={cn('flex items-end gap-2', isMe ? 'justify-end' : 'justify-start')}>
                 {!isMe && (
-                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-[10px] font-bold text-brass">
-                    {message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : (message.sender?.display_name || 'U').charAt(0)}
-                  </div>
+                  <span className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center text-[10px] font-bold text-brass">
+                    <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2">
+                      {message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : (message.sender?.display_name || 'U').charAt(0)}
+                    </span>
+                    <VallumAvatarBadge userId={message.sender_id} size="xs" />
+                  </span>
                 )}
                 <div className={cn(
                   'max-w-[78%] rounded-xl border px-3 py-2 text-sm',
@@ -413,6 +420,7 @@ export function TentAvatar({
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
+          <VallumAvatarBadge userId={userId} size={size === 'lg' ? 'md' : 'sm'} />
         </span>
         {showName && <span className="text-sm text-ink font-medium">{profile.display_name}</span>}
       </button>
@@ -485,6 +493,7 @@ export function MessageAvatar({
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
+          <VallumAvatarBadge userId={profile.id} size={size === 'xs' ? 'xs' : size === 'lg' ? 'md' : 'sm'} />
         </span>
         {showName && <span className="text-sm text-ink font-medium">{profile.display_name}</span>}
       </button>

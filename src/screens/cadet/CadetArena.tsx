@@ -31,6 +31,7 @@ import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
+import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
@@ -522,9 +523,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           <div className="space-y-2 mb-4">
             {participants.map((p: any) => (
               <div key={p.user_id} className="flex items-center gap-2 p-2 rounded-lg bg-surface-2">
-                <div className="w-8 h-8 rounded-full bg-gold-soft overflow-hidden flex items-center justify-center font-display font-bold text-sm text-gold">
-                  {p.profiles?.avatar_url ? <img src={p.profiles.avatar_url} alt={p.profiles?.display_name || ''} className="w-full h-full object-cover" /> : (p.profiles?.display_name?.charAt(0) || '?')}
-                </div>
+                <span className="relative flex h-8 w-8 items-center justify-center font-display text-sm font-bold text-gold">
+                  <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-gold-soft">
+                    {p.profiles?.avatar_url ? <img src={p.profiles.avatar_url} alt={p.profiles?.display_name || ''} className="h-full w-full object-cover" /> : (p.profiles?.display_name?.charAt(0) || '?')}
+                  </span>
+                  <VallumAvatarBadge userId={p.user_id} size="sm" />
+                </span>
                 <span className="text-sm text-ink">{p.profiles?.display_name || 'Unknown'}</span>
                 {p.user_id === room?.creator_id && <span className="badge badge-brass text-[9px]">Host</span>}
                 {p.stake_paid && <CheckCircle2 size={14} className="text-sage" />}
@@ -583,11 +587,14 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                         )}
                         aria-pressed={checked}
                       >
-                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-border bg-brass-soft flex items-center justify-center font-display font-bold text-brass">
-                          {player.profiles?.avatar_url ? (
-                            <img src={player.profiles.avatar_url} alt="" className="h-full w-full object-cover" />
-                          ) : initial}
-                        </div>
+                        <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-brass">
+                          <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-brass-soft">
+                            {player.profiles?.avatar_url ? (
+                              <img src={player.profiles.avatar_url} alt="" className="h-full w-full object-cover" />
+                            ) : initial}
+                          </span>
+                          <VallumAvatarBadge userId={player.user_id} size="sm" />
+                        </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-ink">{player.profiles?.display_name || 'Unknown'}</p>
                           <p className="text-[10px] uppercase tracking-[0.08em] text-stone">{player.role === 'sentry' ? 'Sentry' : 'Cadet'}</p>
@@ -745,9 +752,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                           return n;
                         });
                       }} className="accent-gold flex-shrink-0" />
-                      <div className="w-6 h-6 rounded-full bg-gold-soft overflow-hidden flex items-center justify-center font-display font-bold text-[10px] text-gold flex-shrink-0">
-                        {player.profiles?.avatar_url ? <img src={player.profiles.avatar_url} alt={player.profiles?.display_name || ''} className="w-full h-full object-cover" /> : (player.profiles?.display_name?.charAt(0) || '?')}
-                      </div>
+                      <span className="relative flex h-6 w-6 flex-shrink-0 items-center justify-center font-display text-[10px] font-bold text-gold">
+                        <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-gold-soft">
+                          {player.profiles?.avatar_url ? <img src={player.profiles.avatar_url} alt={player.profiles?.display_name || ''} className="h-full w-full object-cover" /> : (player.profiles?.display_name?.charAt(0) || '?')}
+                        </span>
+                        <VallumAvatarBadge userId={player.user_id} size="xs" />
+                      </span>
                       <span className="text-sm text-ink truncate flex-1">{player.profiles?.display_name || 'Unknown'}</span>
                       <span className="badge badge-brass text-[9px] capitalize">{player.role}</span>
                     </label>
@@ -877,7 +887,7 @@ function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }
         {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk while the room fills.</p> : messages.map((message) => {
           const mine = message.sender_id === userId;
           return <div key={message.id} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
-            {!mine && <div className="mt-0.5 h-6 w-6 overflow-hidden rounded-full bg-gold-soft text-center text-[10px] leading-6 text-gold">{message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : message.sender?.display_name?.charAt(0) || '?'}</div>}
+            {!mine && <span className="relative mt-0.5 flex h-6 w-6 items-center justify-center text-[10px] leading-6 text-gold"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-gold-soft">{message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : message.sender?.display_name?.charAt(0) || '?'}</span><VallumAvatarBadge userId={message.sender_id} size="xs" /></span>}
             <p className={cn('max-w-[80%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}><span className="mr-1 font-semibold">{mine ? 'You' : message.sender?.display_name || 'Cadet'}</span>{message.body}</p>
           </div>;
         })}</div>
@@ -1253,7 +1263,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
         <div className="flex gap-2 overflow-x-auto pb-1">
           {matchPlayers.map((player) => (
             <div key={player.user_id} className={cn('flex min-w-max items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-bold', player.user_id === activeRealPlayer?.user_id ? 'border-gold bg-gold-soft text-gold' : 'border-border bg-surface/90 text-stone')}>
-              <span className="h-5 w-5 overflow-hidden rounded-full bg-surface-2 text-center text-[9px] leading-5">{player.avatar_url ? <img src={player.avatar_url} alt="" className="h-full w-full object-cover" /> : player.display_name.charAt(0)}</span>
+              <span className="relative flex h-5 w-5 items-center justify-center text-[9px] leading-5"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface-2">{player.avatar_url ? <img src={player.avatar_url} alt="" className="h-full w-full object-cover" /> : player.display_name.charAt(0)}</span><VallumAvatarBadge userId={player.user_id} size="xs" /></span>
               {player.display_name}
               <span className="inline-flex items-center gap-0.5 rounded-full bg-surface px-1.5 py-0.5 text-[10px] text-sage"><Shield size={10} /> {player.rhudes}</span>
             </div>
@@ -1285,7 +1295,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       {!machineMatch && activeRealPlayer && !isMyTurn && (
         <div className="card border-2 border-royal/45 p-4 transition-all">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-royal-soft font-bold text-royal">{activeRealPlayer.avatar_url ? <img src={activeRealPlayer.avatar_url} alt="" className="h-full w-full object-cover" /> : activeRealPlayer.display_name.charAt(0)}</div>
+            <span className="relative flex h-10 w-10 items-center justify-center font-bold text-royal"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-royal-soft">{activeRealPlayer.avatar_url ? <img src={activeRealPlayer.avatar_url} alt="" className="h-full w-full object-cover" /> : activeRealPlayer.display_name.charAt(0)}</span><VallumAvatarBadge userId={activeRealPlayer.user_id} size="sm" /></span>
             <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{activeRealPlayer.display_name}’s turn</p><p className="text-xs text-stone">Their question, answer, and outcome are visible to everyone.</p></div>
             <Loader2 size={18} className="animate-spin text-royal" />
           </div>
@@ -1296,7 +1306,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       <div className="card p-5">
         {answerError && <div className="mb-4 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
         <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2 text-sm font-bold text-ink">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</div>
+          <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center text-sm font-bold text-ink"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</span><VallumAvatarBadge userId={profile?.id} size="sm" /></span>
           <div><p className="text-xs font-bold text-ink">{isMyTurn ? profile?.display_name || 'Your question' : activeRealPlayer?.display_name || 'Opponent question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? `Bonus · 2 figs · ${getArenaQuestionSeconds(q)} seconds` : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
         </div>
         <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
@@ -1371,7 +1381,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
         {visibleAnswerFeed.length === 0 ? <p className="text-xs text-stone">Answers will appear here as players submit them.</p> : <div className="max-h-72 space-y-2 overflow-y-auto">{visibleAnswerFeed.map((item) => {
           const feedQuestion = questions[item.question_index];
           return <div key={`${item.user_id}-${item.question_index}`} className={cn('rounded-lg border p-3 animate-fade-in', item.is_correct ? 'border-sage/35 bg-sage/10' : 'border-coral/30 bg-coral/8')}>
-            <div className="flex items-start gap-2.5"><div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface text-[10px] font-bold">{item.avatar_url ? <img src={item.avatar_url} alt={item.display_name} className="h-full w-full object-cover" /> : item.user_id === 'arena-machine' ? <Zap size={15} className="text-gold" /> : item.display_name.charAt(0)}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-ink">{item.display_name}</p><span className={cn('text-[10px] font-bold', item.is_correct ? 'text-sage' : 'text-coral')}>{item.is_correct ? 'Correct' : 'Incorrect'}</span></div><p className="mt-1 text-xs leading-relaxed text-stone">{feedQuestion?.question || `Question ${item.question_index + 1}`}</p><p className="mt-1 text-xs font-semibold text-ink">Selected: {item.submitted_answer || 'No answer'}</p></div></div>
+            <div className="flex items-start gap-2.5"><span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-[10px] font-bold"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface">{item.avatar_url ? <img src={item.avatar_url} alt={item.display_name} className="h-full w-full object-cover" /> : item.user_id === 'arena-machine' ? <Zap size={15} className="text-gold" /> : item.display_name.charAt(0)}</span><VallumAvatarBadge userId={item.user_id === 'arena-machine' ? null : item.user_id} size="sm" /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-ink">{item.display_name}</p><span className={cn('text-[10px] font-bold', item.is_correct ? 'text-sage' : 'text-coral')}>{item.is_correct ? 'Correct' : 'Incorrect'}</span></div><p className="mt-1 text-xs leading-relaxed text-stone">{feedQuestion?.question || `Question ${item.question_index + 1}`}</p><p className="mt-1 text-xs font-semibold text-ink">Selected: {item.submitted_answer || 'No answer'}</p></div></div>
           </div>;
         })}</div>}
       </div>

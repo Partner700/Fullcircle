@@ -7,6 +7,7 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { QuoteMeditationButton } from '../../components/QuoteMeditationButton';
 import { VallumText } from '../../components/ChiRhoMark';
+import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
@@ -593,11 +594,10 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           const name = recipient?.display_name || tent?.name || 'Camp honor';
                           return (
                             <div key={award.id} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-white/20 bg-surface/55 px-2.5 py-2 backdrop-blur-sm">
-                              <img
-                                src={recipient?.avatar_url || award.target_tent?.profile_image_url || STARTUP_WELCOME_ARTWORK.url}
-                                alt={name}
-                                className="h-8 w-8 shrink-0 rounded-full border border-brass/45 object-cover"
-                              />
+                              <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+                                <img src={recipient?.avatar_url || award.target_tent?.profile_image_url || STARTUP_WELCOME_ARTWORK.url} alt={name} className="h-full w-full rounded-full border border-brass/45 object-cover" />
+                                <VallumAvatarBadge userId={award.user_id} size="sm" />
+                              </span>
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-xs font-black text-ink">{name}</p>
                                 <p className="truncate text-[10px] font-semibold text-brass"><VallumText text={award.title} size={10} /></p>

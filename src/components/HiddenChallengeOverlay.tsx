@@ -45,6 +45,7 @@ import type {
 } from '../lib/types';
 import { cn, formatDenarii } from '../lib/utils';
 import { Dove } from './Dove';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 
 const HIDDEN_CHALLENGE_SECONDS = 40;
 
@@ -91,12 +92,15 @@ function ParticipantStack({ participants }: { participants: HiddenChallengeParti
           <span
             key={`${participant.user_id}-${participant.answered_at}`}
             title={`${participant.display_name} answered`}
-            className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-surface bg-surface-2 text-[9px] font-black text-peri shadow-sm"
+            className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-black text-peri"
             style={{ marginLeft: index === 0 ? 0 : -7, zIndex: shown.length - index }}
           >
-            {participant.avatar_url ? (
-              <img src={participant.avatar_url} alt={participant.display_name} className="h-full w-full object-cover" />
-            ) : participant.display_name.trim().charAt(0).toUpperCase()}
+            <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-surface bg-surface-2 shadow-sm">
+              {participant.avatar_url ? (
+                <img src={participant.avatar_url} alt={participant.display_name} className="h-full w-full object-cover" />
+              ) : participant.display_name.trim().charAt(0).toUpperCase()}
+            </span>
+            <VallumAvatarBadge userId={participant.user_id} size="xs" />
           </span>
         ))}
       </div>
@@ -524,8 +528,10 @@ export function HiddenChallengeOverlay() {
             </div>
           ) : challenge.sender_name ? (
             <div className="flex items-center gap-2 text-xs text-stone">
-              <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 font-bold text-peri">
-                {challenge.sender_avatar_url ? <img src={challenge.sender_avatar_url} alt="" className="h-full w-full object-cover" /> : challenge.sender_name.charAt(0)}
+              <span className="relative flex h-7 w-7 items-center justify-center font-bold text-peri">
+                <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2">
+                  {challenge.sender_avatar_url ? <img src={challenge.sender_avatar_url} alt="" className="h-full w-full object-cover" /> : challenge.sender_name.charAt(0)}
+                </span>
               </span>
               Hidden by <strong className="text-ink">{challenge.sender_name}</strong>
             </div>

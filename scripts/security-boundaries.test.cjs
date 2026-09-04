@@ -49,6 +49,7 @@ const directMessageNotifications = read('supabase/migrations/20260818123000_dire
 const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
 const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
 const appShell = read('src/components/AppShell.tsx');
+const vallumAvatarBadge = read('src/components/VallumAvatarBadge.tsx');
 const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecycle_and_rare_rewards.sql');
 const quoteReactions = read('src/components/QuoteReactions.tsx');
 const awardReactions = read('src/components/AwardReactions.tsx');
@@ -209,7 +210,7 @@ assert.match(cadetNarrative, /profile=\{messageProfile\(actor\.user_id/);
 assert.match(cadetNarrative, /const participants = insightParticipants\(userInsights\)/);
 assert.match(cadetNarrative, /!userExpanded && participants\.length > 0/);
 assert.match(cadetNarrative, /reader insight participant/);
-assert.match(publicShareScreen, /inline-flex h-4 w-4 overflow-hidden rounded-full/);
+assert.match(publicShareScreen, /relative inline-flex h-4 w-4[\s\S]*?overflow-hidden rounded-full/);
 assert.match(instructorApp, /panel_image_honors', label: 'Monthly Honors'/);
 assert.match(cadetDashboard, /'welcome', 'fcx', 'honors', 'verse'/);
 assert.match(sentryApp, /'welcome', 'fcx', 'honors', 'verse'/);
@@ -1228,6 +1229,18 @@ assert.match(appNavigation, /full-circle:navigate/);
 assert.match(cadetApp, /<DoveNotificationArrival/);
 assert.match(sentryApp, /<DoveNotificationArrival/);
 assert.match(instructorApp, /<DoveNotificationArrival/);
+
+for (const required of [
+  ".ilike('title', 'Vallum')",
+  "award.award_month === latestMonth",
+  "table: 'awards'",
+  '<ChiRhoMark',
+]) {
+  assert.ok(vallumAvatarBadge.includes(required), `Missing Vallum avatar badge behavior: ${required}`);
+}
+assert.match(tentMessenger, /<VallumAvatarBadge userId=\{profile\.id\}/);
+assert.match(boardRow, /<MessageAvatar/);
+assert.match(appShell, /<VallumAvatarBadge userId=\{profile\?\.id\}/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

@@ -4,6 +4,7 @@ import { Camera, Check, Crop, Loader2, RotateCcw, X, ZoomIn } from 'lucide-react
 import { uploadAvatar } from '../lib/queries';
 import { cn } from '../lib/utils';
 import type { Profile } from '../lib/types';
+import { VallumAvatarBadge } from './VallumAvatarBadge';
 
 type CropPoint = { x: number; y: number };
 
@@ -353,6 +354,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
             {loadingCurrent ? <Loader2 size={15} className="animate-spin" /> : <Crop size={15} />}
           </button>
         )}
+        <VallumAvatarBadge userId={profile?.id} size="md" />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
