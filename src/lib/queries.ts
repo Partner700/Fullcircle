@@ -2763,20 +2763,14 @@ export async function sendQuizWaitingMessage(sessionId: string, senderId: string
   if (error) throw error;
 }
 
-export async function generateArenaQuestionsWithAI(payload: {
+export async function prepareArenaQuestionDeck(payload: {
   roomId: string;
-  roomName: string;
-  topicType?: string | null;
-  topic?: string | null;
-  narrative?: DailyNarrative | null;
-  gameType?: 'standard' | 'ludo';
-  difficulty?: 'easy' | 'medium' | 'hard';
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('AI arena generation is not configured.');
+  if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before preparing the Arena.');
 
   const res = await fetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
     method: 'POST',
@@ -2785,11 +2779,14 @@ export async function generateArenaQuestionsWithAI(payload: {
       apikey: supabaseAnonKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ ...payload, persist: payload.gameType === 'ludo' }),
+    body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error || 'The Arena could not prepare its quiz archive questions.');
+  }
   const data = await res.json();
-  if (!Array.isArray(data.questions)) throw new Error('AI arena generation returned no questions.');
+  if (!Array.isArray(data.questions)) throw new Error('The Arena quiz archive returned no questions.');
   return data.questions as QuestionPayload[];
 }
 

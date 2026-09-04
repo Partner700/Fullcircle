@@ -23,16 +23,15 @@ import {
   fetchArenaRooms,
   fetchArenaRoom,
   fetchRhudeBoard,
-  fetchNarratives,
   fetchArenaInvitees,
-  generateArenaQuestionsWithAI,
+  prepareArenaQuestionDeck,
   fetchPanelImageSetting,
 } from '../../lib/queries';
 import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
-import type { DailyNarrative, QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
+import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
@@ -58,9 +57,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   const [roomName, setRoomName] = useState('Quick Match');
   const [stake, setStake] = useState(50);
   const [maxPlayers, setMaxPlayers] = useState(4);
-  const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
-  const [selectedNarrativeDate, setSelectedNarrativeDate] = useState<string>('');
-  const [arenaTopicType, setArenaTopicType] = useState<'narrative' | 'characters' | 'books' | 'themes'>('characters');
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
   const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo'>('standard');
   const [arenaDifficulty, setArenaDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
@@ -135,25 +131,22 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     if (!profile) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [roomsData, balance, narrs, invitees, panelImage] = await Promise.allSettled([
+      const [roomsData, balance, invitees, panelImage] = await Promise.allSettled([
         fetchArenaRooms(),
         fetchLedgerTotal(profile.id),
-        fetchNarratives(30),
         fetchArenaInvitees(),
         fetchPanelImageSetting('arena'),
       ]);
       setRooms(roomsData.status === 'fulfilled' ? roomsData.value : []);
       setDenarii(balance.status === 'fulfilled' ? balance.value : 0);
-      setNarratives(narrs.status === 'fulfilled' ? narrs.value : []);
       setAllInvitees((invitees.status === 'fulfilled' ? invitees.value : []).filter((c) => c.user_id !== profile.id));
       setArenaImage(panelImage.status === 'fulfilled' ? panelImage.value : null);
-      if (narrs.status === 'fulfilled' && narrs.value && narrs.value.length > 0 && !selectedNarrativeDate) setSelectedNarrativeDate(narrs.value[0].narrative_date);
     } catch (e) {
       console.error('Arena load error:', e);
     } finally {
       setLoading(false);
     }
-  }, [profile, selectedNarrativeDate]);
+  }, [profile]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -308,14 +301,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     setCreating(true);
     setError(null);
     try {
-      const topicSuffix = arenaTopicType === 'narrative'
-        ? ''
-        : ` [set:${arenaTopicType}]`;
       const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
-      const fullRoomName = `${roomName}${topicSuffix} [arena:${arenaGameType}]${difficultySuffix}`;
+      const fullRoomName = `${roomName} [arena:${arenaGameType}]${difficultySuffix}`;
       const roomId = arenaOpponent === 'machine'
-        ? await createMachineArenaRoom(profile.id, fullRoomName, selectedNarrativeDate || undefined)
-        : await createArenaRoom(profile.id, fullRoomName, stake, maxPlayers, selectedNarrativeDate || undefined, Array.from(taggedIds));
+        ? await createMachineArenaRoom(profile.id, fullRoomName)
+        : await createArenaRoom(profile.id, fullRoomName, stake, maxPlayers, undefined, Array.from(taggedIds));
       activateRoom(roomId, 'waiting');
       setShowCreate(false);
       setTaggedIds(new Set());
@@ -402,19 +392,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           roomName={activeRoomName}
           userId={profile!.id}
           prepareQuestions={async () => {
-            const topic = parseArenaTopic(activeRoomName);
-            const narrativeDate = activeRoom?.narrative_date || selectedNarrativeDate;
-            const narrative = narrativeDate
-              ? narratives.find((item) => item.narrative_date === narrativeDate)
-              : narratives[0];
-            const generated = await generateArenaQuestionsWithAI({
+            const generated = await prepareArenaQuestionDeck({
               roomId: activeRoomId,
-              roomName: activeRoomName,
-              gameType: 'ludo',
-              topicType: topic?.type || 'narrative',
-              topic: topic?.value || null,
-              narrative: narrative || null,
-              difficulty: parseArenaDifficulty(activeRoomName),
             });
             if (!generated.length) throw new Error('The Arena question deck is empty.');
           }}
@@ -428,9 +407,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     }
     return (
       <ArenaGamePlay
-        narrativeDate={activeRoom?.narrative_date || selectedNarrativeDate}
         roomName={activeRoom?.room_name || roomName}
-        narratives={narratives}
         roomId={activeRoomId}
         userId={profile!.id}
         roomQuestionSet={activeRoom?.question_set}
@@ -711,18 +688,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             ]} />
           </div>}
           <p className="rounded-lg border border-brass/25 bg-brass-soft p-3 text-xs text-stone">
-            {arenaGameType === 'standard' ? 'Standard Trivia: answer random Bible narrative questions; the highest figs win.' : 'Ludo Trivia: correct answers move tokens around the board, with surprise spaces and relic effects.'}
+            {arenaGameType === 'standard' ? 'Standard Trivia: answer questions from previous Weekly and Fortune quizzes; the highest figs win.' : 'Ludo Trivia: previous Weekly and Fortune quiz questions move tokens around the board, with surprise spaces and relic effects.'}
             {arenaOpponent === 'machine' && ' Machine matches cost a fixed 50 Ð.'}
           </p>
-          <div>
-            <label className="text-xs text-stone block mb-1">Arena Question Set</label>
-            <AppSelect value={arenaTopicType} onChange={(value) => setArenaTopicType(value as typeof arenaTopicType)} options={[
-              { value: 'characters', label: 'Bible Characters', description: 'One of ten character banks is selected for this match.' },
-              { value: 'books', label: 'Books of the Bible', description: 'One of ten book banks is selected for this match.' },
-              { value: 'themes', label: 'Themes of Scripture', description: 'One of ten biblical-theme banks is selected for this match.' },
-              { value: 'narrative', label: 'Weekly Narrative Packet', description: 'Questions use the current narrative and Scripture.' },
-            ]} />
-          </div>
           <div>
             <label className="text-xs text-stone block mb-1">Room Name</label>
             <input className="input-field" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
@@ -742,10 +710,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             </div>}
           </div>
           {arenaOpponent === 'players' && <>
-          <div>
-            <label className="text-xs text-stone block mb-1">Content Source (narrative date)</label>
-            <AppSelect value={selectedNarrativeDate} onChange={setSelectedNarrativeDate} options={[{ value: '', label: 'Any / Latest' }, ...narratives.map((n) => ({ value: n.narrative_date, label: n.narrative_date, description: n.title }))]} />
-          </div>
           <div>
             <label className="text-xs text-stone block mb-1.5">Tag Players <span className="text-stone/60">({taggedIds.size}/{maxPlayers - 1} spaces — they still choose whether to join)</span></label>
             <div className="relative mb-2">
@@ -874,11 +838,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   );
 }
 
-function parseArenaTopic(roomName: string) {
-  const match = roomName.match(/\[(book|character|set):\s*([^\]]+)\]/i);
-  return match ? { type: match[1].toLowerCase(), value: match[2].trim() } : null;
-}
-
 function parseArenaGameType(roomName: string) {
   return /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
@@ -955,10 +914,8 @@ function dedupeArenaQuestions(items: QuestionPayload[]) {
   });
 }
 
-function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit }: {
-  narrativeDate: string;
+function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit }: {
   roomName: string;
-  narratives: DailyNarrative[];
   roomId: string;
   userId: string;
   roomQuestionSet?: QuestionPayload[] | null;
@@ -1067,28 +1024,17 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
         setReady(true);
         return;
       }
-      const topic = parseArenaTopic(roomName);
-      const narrative = narrativeDate
-        ? narratives.find((n) => n.narrative_date === narrativeDate)
-        : narratives[0];
       try {
-        const difficulty = parseArenaDifficulty(roomName);
-        const aiQuestions = await generateArenaQuestionsWithAI({
+        const archiveQuestions = await prepareArenaQuestionDeck({
           roomId,
-          roomName,
-          gameType: parseArenaGameType(roomName),
-          topicType: topic?.type || 'narrative',
-          topic: topic?.value || null,
-          narrative: narrative || null,
-          difficulty,
         });
         if (!cancelled) {
-          setQuestions(dedupeArenaQuestions(aiQuestions));
+          setQuestions(dedupeArenaQuestions(archiveQuestions));
           setReady(true);
         }
         return;
       } catch (e) {
-        console.error('AI Arena generation failed.', e);
+        console.error('Arena quiz archive preparation failed.', e);
         if (!cancelled) {
           setAnswerError(e instanceof Error ? e.message : 'The Arena could not prepare its questions.');
           setReady(true);
@@ -1096,7 +1042,7 @@ function ArenaGamePlay({ narrativeDate, roomName, narratives, roomId, userId, ro
       }
     })();
     return () => { cancelled = true; };
-  }, [narrativeDate, narratives, roomId, roomName, roomQuestionSet, userId, questionRetry]);
+  }, [roomId, roomQuestionSet, questionRetry]);
 
   const handleAnswer = useCallback(async (answer: string | null) => {
     if (answeredIds.has(currentQ) || !questions[currentQ] || turnPhase !== 'user' || !isMyTurn) return;

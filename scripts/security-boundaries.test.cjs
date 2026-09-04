@@ -705,12 +705,14 @@ assert.match(toolbarStats, /public\.get_user_denarii_total\(caller\.user_id\)/);
 assert.match(toolbarStats, /public\.compute_strict_streak\(caller\.user_id\)/);
 assert.ok(!toolbarStats.includes('get_marks_board_live'), 'Toolbar counters must not depend on a board RPC.');
 
-for (const category of ['characters', 'books', 'themes']) {
-  const bank = arenaGenerator.match(new RegExp(`${category}: \\[([\\s\\S]*?)\\]`))?.[1] || '';
-  assert.equal((bank.match(/"[^"]+"/g) || []).length, 10, `${category} must expose ten Arena banks.`);
-}
-assert.match(arenaGenerator, /gameType === 'ludo' \? 120 : 19/);
-assert.match(arenaGenerator, /isNearDuplicate\(candidate\.question/);
+assert.match(arenaGenerator, /\? 120 : 19/);
+assert.match(arenaGenerator, /get_arena_quiz_question_pool/);
+assert.match(arenaGenerator, /previous Weekly or Fortune quizzes/);
+assert.doesNotMatch(arenaGenerator, /OPENAI_API_KEY|chat\/completions|FALLBACK_FACTS|ARENA_BANKS/);
+const arenaQuizArchive = read('supabase/migrations/20260904120000_arena_uses_prior_quiz_questions.sql');
+assert.match(arenaQuizArchive, /session\.quiz_type IN \('saturday', 'fortune'\)/);
+assert.match(arenaQuizArchive, /session\.live_closes_at < now\(\)/);
+assert.match(arenaQuizArchive, /REVOKE ALL ON FUNCTION public\.get_arena_quiz_question_pool\(integer\) FROM PUBLIC, anon, authenticated/);
 
 for (const required of [
   "v_user_id IS NULL OR v_user_id IS DISTINCT FROM p_user_id",
