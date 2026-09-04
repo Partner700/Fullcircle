@@ -18,7 +18,7 @@ import { AppSelect } from './AppSelect';
 import { DeleteAccountSection } from './DeleteAccountSection';
 import { ProfilePhotoEditor } from './ProfilePhotoEditor';
 import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
-import { ChiRhoMark } from './ChiRhoMark';
+import { ChiRhoMark, VallumText } from './ChiRhoMark';
 import type { Award } from '../lib/types';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
@@ -309,7 +309,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <div key={award.id} className="flex items-center gap-3 p-3 rounded-xl bg-navy-3">
                 <AwardIcon size={20} className="text-gold flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-peri truncate">{award.title}</p>
+                  <p className="text-sm font-bold text-peri truncate"><VallumText text={award.title} size={13} /></p>
                   <p className="text-xs text-peri-dim">{formatDate(award.award_month)}</p>
                 </div>
               </div>

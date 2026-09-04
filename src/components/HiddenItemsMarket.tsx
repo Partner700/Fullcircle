@@ -498,7 +498,7 @@ export function HiddenItemsMarket({
   return (
     <>
       <section className="card relative overflow-hidden p-5">
-        <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/80" />
+        <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/82" />
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-peri/25 bg-peri/10 text-peri"><Box size={21} /></span>
@@ -513,13 +513,14 @@ export function HiddenItemsMarket({
         {notice && <div role="alert" className="relative z-10 mt-3 rounded-md border border-coral/30 bg-coral/10 px-3 py-2 text-xs text-coral">{notice}</div>}
 
         <div className="relative z-10 mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-gold/30 bg-surface/65 p-4 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-3">
+          <div className="relative isolate overflow-hidden rounded-lg border border-border bg-transparent p-4">
+            <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/82" />
+            <div className="relative z-10 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Gift size={18} className="text-gold" /><span className="text-sm font-bold text-ink">Treasure Box</span></div>
               <span className="text-lg font-black text-gold">{loading ? '...' : inventory.treasure_boxes}</span>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-stone">Add Denarii, relics, freezers, any combination, or leave it empty.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <p className="relative z-10 mt-2 text-[11px] leading-relaxed text-stone">Add Denarii, relics, freezers, any combination, or leave it empty.</p>
+            <div className="relative z-10 mt-3 grid grid-cols-2 gap-2">
               <button type="button" className="btn-secondary justify-center text-xs" disabled={buying !== null || denarii < 50} onClick={() => void buy('treasure')}>
                 {buying === 'treasure' ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Buy
               </button>
@@ -529,13 +530,14 @@ export function HiddenItemsMarket({
             </div>
           </div>
 
-          <div className="rounded-md border border-coral/30 bg-surface/65 p-4 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-3">
+          <div className="relative isolate overflow-hidden rounded-lg border border-border bg-transparent p-4">
+            <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/82" />
+            <div className="relative z-10 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Bomb size={18} className="text-coral" /><span className="text-sm font-bold text-ink">Mine</span></div>
               <span className="text-lg font-black text-coral">{loading ? '...' : inventory.mines}</span>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-stone">Choose the difficulty, location, targets, and Denarii at risk.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <p className="relative z-10 mt-2 text-[11px] leading-relaxed text-stone">Choose the difficulty, location, targets, and Denarii at risk.</p>
+            <div className="relative z-10 mt-3 grid grid-cols-2 gap-2">
               <button type="button" className="btn-secondary justify-center text-xs" disabled={buying !== null || denarii < 50} onClick={() => void buy('mine')}>
                 {buying === 'mine' ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Buy
               </button>

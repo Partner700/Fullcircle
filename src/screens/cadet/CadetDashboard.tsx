@@ -6,6 +6,7 @@ import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { QuoteMeditationButton } from '../../components/QuoteMeditationButton';
+import { VallumText } from '../../components/ChiRhoMark';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
@@ -599,7 +600,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-xs font-black text-ink">{name}</p>
-                                <p className="truncate text-[10px] font-semibold text-brass">{award.title}</p>
+                                <p className="truncate text-[10px] font-semibold text-brass"><VallumText text={award.title} size={10} /></p>
                               </div>
                               {tent?.tent_house_id && <TentHouseSymbol houseId={tent.tent_house_id} size={20} />}
                             </div>

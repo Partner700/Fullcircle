@@ -20,6 +20,7 @@ import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
+import { VallumText } from '../../components/ChiRhoMark';
 import { CadetStore } from '../cadet/CadetStore';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
@@ -112,8 +113,8 @@ function AwardCheckboxList({ selected, onToggle, target = 'cadet' }: { selected:
                   <input type="checkbox" checked={checked} onChange={() => onToggle(award.title)}
                     className="mt-0.5 accent-peri flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-semibold text-ink leading-tight">{award.title}</p>
-                    <p className="text-[11px] text-stone mt-0.5">{award.description}</p>
+                    <p className="text-xs font-semibold text-ink leading-tight"><VallumText text={award.title} size={11} /></p>
+                    <p className="text-[11px] text-stone mt-0.5"><VallumText text={award.description} size={10} /></p>
                   </div>
                 </label>
               );
@@ -2475,7 +2476,7 @@ function MonthlyWatchCard({ title, subtitle, entries }: {
 }) {
   return (
     <section className="rounded-lg border border-border-bright bg-surface-2 p-3">
-      <p className="text-xs font-semibold uppercase text-brass">{title}</p>
+      <p className="text-xs font-semibold uppercase text-brass"><VallumText text={title} size={11} /></p>
       <p className="mt-0.5 text-[11px] text-stone">{subtitle}</p>
       <div className="mt-3 space-y-2">
         {entries.length === 0 ? (
@@ -2888,7 +2889,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           <div>
             <h4 className="font-display font-semibold text-ink">Monthly Award Watches</h4>
             <p className="mt-1 max-w-2xl text-xs text-stone">
-              Vallum watches Marks together with punctual attendance and meditation, scripture insights, comments, and reactions. Bethel Stone measures the same resident activity by tent.
+              <VallumText text="Vallum watches Marks together with punctual attendance and meditation, scripture insights, comments, and reactions. Bethel Stone measures the same resident activity by tent." size={11} />
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -2938,10 +2939,10 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           <div className="grid gap-3 md:grid-cols-2">
             {recommendations.map((item) => (
               <div key={`${item.title}:${item.candidate}`} className="rounded-lg border border-border-bright bg-surface-2 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brass">{item.title}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brass"><VallumText text={item.title} size={11} /></p>
                 <p className="mt-1 text-[10px] font-semibold uppercase text-gold">Recommended winner</p>
                 <p className="text-sm font-semibold text-ink">{item.candidate}</p>
-                <p className="mt-1 text-xs text-stone">{item.detail}</p>
+                <p className="mt-1 text-xs text-stone"><VallumText text={item.detail} size={11} /></p>
                 {item.candidateId && (
                   <button type="button" onClick={() => prepareRecommendedAward(item.title, item.candidateId!)} className="btn-secondary mt-2 text-xs">
                     Select winner
@@ -2953,7 +2954,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                   {item.runnersUp.length > 0 ? item.runnersUp.map((runner, index) => (
                     <div key={`${runner.candidate}:${index}`} className="mb-2 last:mb-0">
                       <p className="text-xs font-semibold text-ink">{index + 2}. {runner.candidate}</p>
-                      <p className="text-[11px] text-stone">{runner.detail}</p>
+                      <p className="text-[11px] text-stone"><VallumText text={runner.detail} size={10} /></p>
                       {runner.candidateId && (
                         <button type="button" onClick={() => prepareRecommendedAward(item.title, runner.candidateId!)} className="mt-1 text-[11px] font-semibold text-brass hover:text-gold">
                           Select this sentry
@@ -3034,8 +3035,8 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                         <input type="checkbox" checked={checked} onChange={() => toggleAward(award.title)}
                           className="mt-0.5 accent-peri flex-shrink-0" />
                         <div>
-                          <p className="text-sm font-semibold text-ink leading-tight">{award.title}</p>
-                          <p className="text-xs text-stone mt-0.5">{award.description}</p>
+                          <p className="text-sm font-semibold text-ink leading-tight"><VallumText text={award.title} size={13} /></p>
+                          <p className="text-xs text-stone mt-0.5"><VallumText text={award.description} size={11} /></p>
                         </div>
                       </label>
                     );

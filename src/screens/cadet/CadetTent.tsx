@@ -9,6 +9,7 @@ import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { VallumText } from '../../components/ChiRhoMark';
 import type { PanelImageSetting } from '../../lib/types';
 import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
 
@@ -277,14 +278,14 @@ export function CadetTent() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-ink">{award.title}</p>
+                    <p className="font-semibold text-ink"><VallumText text={award.title} size={14} /></p>
                     <p className="text-xs text-stone">
                       {isTentAward
                         ? `${tent.name}${sentry ? ` · Sentry: ${sentry.profiles.display_name}` : ''}`
                         : `${recipient?.profiles.display_name || award.profiles?.display_name || 'Tent member'} · ${recipient?.role || 'member'}`}
                     </p>
                     <p className="text-[10px] text-stone/80">{award.award_month}</p>
-                    {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{award.description}</p>}
+                    {award.description && <p className="mt-1 line-clamp-2 text-xs text-stone"><VallumText text={award.description} size={11} /></p>}
                   </div>
                   <Award size={17} className="flex-shrink-0 text-gold" />
                 </article>

@@ -488,7 +488,7 @@ export function CadetNarrative({
 
       const { data: record } = await supabase
         .from('daily_records')
-        .select('meditation_text, meditation_submitted, best_verse, daily_quote')
+        .select('meditation_text, meditation_submitted, meditation_public, best_verse, daily_quote')
         .eq('user_id', profile.id)
         .eq('record_date', activeDate)
         .maybeSingle();

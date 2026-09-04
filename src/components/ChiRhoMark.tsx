@@ -25,3 +25,14 @@ export function GrandVallumMark({ size = 24, className = '' }: { size?: number; 
     </span>
   );
 }
+
+export function VallumText({ text, size = 13 }: { text: string; size?: number }) {
+  return <>{text.split(/(Grand Vallum|Vallum)/gi).map((part, index) => (
+    /vallum/i.test(part) ? (
+      <span key={`${part}-${index}`} className="inline-flex items-center gap-1 whitespace-nowrap">
+        <ChiRhoMark size={size} className="text-current" />
+        <span>{part}</span>
+      </span>
+    ) : part
+  ))}</>;
+}

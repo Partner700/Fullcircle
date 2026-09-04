@@ -9,6 +9,7 @@ import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../l
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { useAutoAdvance } from '../hooks/useAutoAdvance';
 import { MessageAvatar } from './TentMessenger';
+import { VallumText } from './ChiRhoMark';
 
 type RecentAward = AwardWithRecipient;
 
@@ -128,13 +129,13 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-ink">{activeAward.title}</p>
+              <p className="text-base font-semibold text-ink"><VallumText text={activeAward.title} size={15} /></p>
               <p className="flex items-center gap-1.5 text-sm font-medium text-stone">
                 <span className="truncate">{activeAward.target_tent?.name || activeAward.profiles?.display_name || 'Full Circle member'}</span>
                 {activeHouseId && <TentHouseSymbol houseId={activeHouseId} size={20} />}
               </p>
               {activeAward.target_tent && <p className="text-xs text-stone">Family trophy · Sentry: {activeAward.target_tent.sentry?.display_name || 'Not assigned'}</p>}
-              {activeAward.description && <p className="mt-1 line-clamp-2 text-xs text-stone">{activeAward.description}</p>}
+              {activeAward.description && <p className="mt-1 line-clamp-2 text-xs text-stone"><VallumText text={activeAward.description} size={11} /></p>}
               <AwardReactions state={reactions[activeAward.id]} disabled={!!reacting?.startsWith(`${activeAward.id}:`)} currentUserId={profile?.id} onMessageOpenChange={setMessageOpen} onReact={(type) => void handleReaction(activeAward.id, type)} />
             </div>
             <AwardIcon size={22} className="flex-shrink-0 text-gold" aria-hidden="true" />

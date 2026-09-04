@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CheckCircle2,
-  Clock3,
   Coins,
   Eye,
   Gift,
@@ -48,6 +47,39 @@ import { cn, formatDenarii } from '../lib/utils';
 import { Dove } from './Dove';
 
 const HIDDEN_CHALLENGE_SECONDS = 40;
+
+function ChallengeCountdown({ seconds }: { seconds: number }) {
+  const ratio = Math.max(0, Math.min(1, seconds / HIDDEN_CHALLENGE_SECONDS));
+  const color = ratio > 0.5
+    ? 'text-sage'
+    : ratio > 0.25
+      ? 'text-gold'
+      : ratio > 0.1
+        ? 'text-orange-500'
+        : 'text-coral';
+
+  return (
+    <div className={cn('relative h-12 w-12 flex-shrink-0', color)} role="timer" aria-label={`${seconds} seconds remaining`}>
+      <svg viewBox="0 0 44 44" className="h-full w-full -rotate-90" aria-hidden="true">
+        <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeOpacity="0.16" strokeWidth="4" />
+        <circle
+          cx="22"
+          cy="22"
+          r="18"
+          fill="none"
+          pathLength="100"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray="100"
+          strokeDashoffset={100 - ratio * 100}
+          className="transition-[stroke-dashoffset,color] duration-200"
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-xs font-black tabular-nums text-ink">{seconds}</span>
+    </div>
+  );
+}
 
 function ParticipantStack({ participants }: { participants: HiddenChallengeParticipant[] }) {
   const shown = participants.slice(-10);
@@ -466,22 +498,22 @@ export function HiddenChallengeOverlay() {
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <span className="badge badge-neutral text-[9px] capitalize">{challenge.difficulty}</span>
                   <span className="badge badge-neutral text-[9px]"><LockKeyhole size={10} /> One attempt</span>
-                  {!result && <span className={cn('badge text-[9px]', secondsLeft <= 5 ? 'border-coral/40 bg-coral/15 text-coral' : 'badge-neutral')}><Clock3 size={10} /> {secondsLeft}s</span>}
                 </div>
               </div>
             </div>
-            {!result && (
+            {!result && <div className="flex flex-shrink-0 items-center gap-2">
+              <ChallengeCountdown seconds={secondsLeft} />
               <button
-                type="button"
-                className="icon-btn flex-shrink-0"
-                onClick={() => void settleForfeit(true)}
-                disabled={forfeiting || submitting}
-                aria-label="Forfeit and close"
-                title="Forfeit and close"
-              >
-                {forfeiting ? <Loader2 size={16} className="animate-spin" /> : <X size={17} />}
-              </button>
-            )}
+                  type="button"
+                  className="icon-btn flex-shrink-0"
+                  onClick={() => void settleForfeit(true)}
+                  disabled={forfeiting || submitting}
+                  aria-label="Forfeit and close"
+                  title="Forfeit and close"
+                >
+                  {forfeiting ? <Loader2 size={16} className="animate-spin" /> : <X size={17} />}
+                </button>
+              </div>}
           </div>
         </header>
 
@@ -506,7 +538,7 @@ export function HiddenChallengeOverlay() {
           {!treasure && (
             <div className="flex items-start gap-2 rounded-md border border-coral/35 bg-coral/10 px-3 py-2 text-xs leading-relaxed text-coral">
               <Coins size={15} className="mt-0.5 flex-shrink-0" />
-              A wrong answer, closing this panel, leaving the app, or switching away can transfer up to <strong>{formatDenarii(challenge.mine_penalty_denarii)} Denarii</strong> from your wallet.
+              <span><strong>Do not leave this page.</strong> {formatDenarii(challenge.mine_penalty_denarii)} Denarii at risk.</span>
             </div>
           )}
           {treasure && !result && (
@@ -514,12 +546,6 @@ export function HiddenChallengeOverlay() {
           )}
 
           <ParticipantStack participants={participants} />
-
-          {!result && (
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-label={`${secondsLeft} seconds remaining`}>
-              <div className={cn('h-full rounded-full transition-[width] duration-200', secondsLeft <= 5 ? 'bg-coral' : 'bg-peri')} style={{ width: `${Math.min(100, (secondsLeft / HIDDEN_CHALLENGE_SECONDS) * 100)}%` }} />
-            </div>
-          )}
 
           {result ? (
             <div className="space-y-4 text-center">

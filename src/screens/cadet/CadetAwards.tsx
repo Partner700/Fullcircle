@@ -5,11 +5,12 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { fetchAwardReactions, fetchAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
 import { formatShortDate, getTodayISODate, cn } from '../../lib/utils';
 import type { AwardWithRecipient } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, Cross, BadgeCheck } from 'lucide-react';
+import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, BadgeCheck } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
 import { AppSelect } from '../../components/AppSelect';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { MessageAvatar } from '../../components/TentMessenger';
+import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   rhetoric: MessageCircle,
@@ -21,7 +22,7 @@ const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   tutorix: BadgeCheck,
   valley_champion: Shield,
   lords_secret: Users,
-  vallum: Cross,
+  vallum: Trophy,
   monthly_scribe: PenTool,
   monthly_valley_champion: Shield,
   grand_vallum: Crown,
@@ -178,24 +179,28 @@ export function CadetAwards() {
                   <div className="flex items-center gap-3">
                     <div
                       className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${color}20` }}
+                      style={{ background: `${color}20`, color }}
                     >
-                      <Icon size={24} color={color} />
+                      {award.award_type === 'vallum'
+                        ? <ChiRhoMark size={24} className="text-current" />
+                        : award.award_type === 'grand_vallum'
+                          ? <GrandVallumMark size={25} className="text-current" />
+                          : <Icon size={24} color={color} />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <LaurelWreath size={14} className="flex-shrink-0" />
-                        <h4 className="font-display font-semibold text-ink truncate">{award.title}</h4>
+                        <h4 className="font-display font-semibold text-ink truncate"><VallumText text={award.title} size={14} /></h4>
                         {houseId && <TentHouseSymbol houseId={houseId} size={19} />}
                       </div>
                       <p className="text-xs text-stone mt-0.5">{formatShortDate(award.award_month)}</p>
                     </div>
                     <span className={cn(badgeClass, 'text-[10px] flex-shrink-0')}>
-                      {(AWARD_LABEL_MAP[award.award_type] || award.award_type).replace(/ of.*/, '')}
+                      <VallumText text={(AWARD_LABEL_MAP[award.award_type] || award.award_type).replace(/ of.*/, '')} size={10} />
                     </span>
                   </div>
                   {award.description && (
-                    <p className="text-xs text-stone mt-2 line-clamp-2">{award.description}</p>
+                    <p className="text-xs text-stone mt-2 line-clamp-2"><VallumText text={award.description} size={11} /></p>
                   )}
                 </div>
               );
@@ -230,9 +235,13 @@ export function CadetAwards() {
                 >
                   <div
                     className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${color}20` }}
+                    style={{ background: `${color}20`, color }}
                   >
-                    <Icon size={18} color={color} />
+                    {award.award_type === 'vallum'
+                      ? <ChiRhoMark size={18} className="text-current" />
+                      : award.award_type === 'grand_vallum'
+                        ? <GrandVallumMark size={19} className="text-current" />
+                        : <Icon size={18} color={color} />}
                   </div>
                   {award.profiles && award.award_target_type !== 'tent' && (
                     <MessageAvatar
@@ -255,7 +264,7 @@ export function CadetAwards() {
                       <span className="truncate">{award.target_tent?.name || award.profiles?.display_name || 'Full Circle member'}</span>
                       {houseId && <TentHouseSymbol houseId={houseId} size={19} />}
                     </span>
-                    <span className="text-stone text-sm"> · {award.title}</span>
+                    <span className="text-stone text-sm"> · <VallumText text={award.title} size={13} /></span>
                     {award.target_tent && (
                       <p className="text-xs text-stone">Sentry: {award.target_tent.sentry?.display_name || 'Not assigned'}</p>
                     )}
@@ -290,12 +299,16 @@ export function CadetAwards() {
               <div key={type} className="flex items-center gap-2.5 p-2 rounded-lg bg-surface-2 border border-border">
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${color}20` }}
+                  style={{ background: `${color}20`, color }}
                 >
-                  <Icon size={16} color={color} />
+                  {type === 'vallum'
+                    ? <ChiRhoMark size={16} className="text-current" />
+                    : type === 'grand_vallum'
+                      ? <GrandVallumMark size={17} className="text-current" />
+                      : <Icon size={16} color={color} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-ink font-medium">{AWARD_LABEL_MAP[type] || type.replace(/_/g, ' ')}</span>
+                  <span className="text-sm text-ink font-medium"><VallumText text={AWARD_LABEL_MAP[type] || type.replace(/_/g, ' ')} size={13} /></span>
                 </div>
                 <span className={cn(badgeClass, 'text-[10px] flex-shrink-0')}>{type.replace(/_/g, ' ')}</span>
               </div>
@@ -313,7 +326,7 @@ export function CadetAwards() {
           <ul className="space-y-1.5 text-xs text-stone">
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Marks</span> — the grand total used alongside monthly app activity when watching Vallum.</span>
+              <span><span className="text-ink font-medium">Marks</span> — the grand total used alongside monthly app activity when watching <VallumText text="Vallum" size={11} />.</span>
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />

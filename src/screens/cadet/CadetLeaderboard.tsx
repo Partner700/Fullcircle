@@ -11,7 +11,7 @@ import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/u
 import { resolveBoardMovement } from '../../lib/boardMovement';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles, Info } from 'lucide-react';
-import { ChiRhoMark, GrandVallumMark } from '../../components/ChiRhoMark';
+import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 
 type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'instructor';
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
@@ -947,7 +947,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
               </button>
             </div>
             <p className="text-xs text-stone">
-              Marks normalize earned achievements without consuming them. This powers Rumor, Vallum, and Grand Vallum tracking.
+              <VallumText text="Marks normalize earned achievements without consuming them. This powers Rumor, Vallum, and Grand Vallum tracking." size={11} />
             </p>
             {marksInfoOpen && economyRules && (
               <div className="mt-3 rounded-lg border border-border bg-surface/80 px-3 py-2 text-xs leading-relaxed text-stone">
