@@ -59,8 +59,8 @@ import {
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
-  fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, fetchDailyQuoteInteractionSummary, savePanelImageSetting, fetchPanelImageSetting,
-  fetchMarksBoard, fetchMonthlyVallumWatch,
+  fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, savePanelImageSetting, fetchPanelImageSetting,
+  fetchMarksBoard, fetchMonthlyVallumWatch, fetchWeeklyAwardMetrics,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'settings';
@@ -2395,10 +2395,11 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Weekly Individual',
     cadence: 'weekly',
     awards: [
-      { title: 'Rhetoric Award (Orator)', description: 'Best Quote of the Week' },
-      { title: 'Messenger Award (Nuncio)', description: 'Best Meditation of the Week' },
+      { title: 'Rhetoric Award (Orator)', description: 'Most reactions received across quotes during the week' },
+      { title: 'Messenger Award (Nuncio)', description: 'Leading insight likes, public meditations, and external shares' },
+      { title: 'Angel Award (Angelos)', description: 'Weekly leader in insight likes, public meditations, and external shares' },
       { title: 'Rumor Award', description: 'Weekly Vallum: the cadet leading the Marks table' },
-      { title: 'Scribe Award', description: 'Highest Quiz Score of the Week' },
+      { title: 'Scribe Award', description: 'Highest total figs earned during the week' },
       { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
       { title: 'Reputation Award', description: 'Best Sentry of the Week', forSentry: true },
       { title: 'Tutorix', description: 'Highest Sentry Quiz Score and Most Quiz Figs of the Week', forSentry: true },
@@ -2584,7 +2585,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, quoteSummaryResult, { data: arenaWins }, marksBoardResult] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, weeklyAwardMetricsResult, { data: arenaWins }, marksBoardResult] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
@@ -2595,7 +2596,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             .select('*')
             .in('user_id', trackedUserIds)
             .gte('submitted_at', `${AWARD_MEASUREMENT_START}T00:00:00`),
-          fetchDailyQuoteInteractionSummary(25).then((data) => ({ data })).catch(() => ({ data: [] })),
+          fetchWeeklyAwardMetrics().then((data) => ({ data })).catch(() => ({ data: [] })),
           trackedUserIds.length > 0
             ? supabase
               .from('arena_rooms')
@@ -2710,38 +2711,77 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           })),
         });
 
-        const scribeScores = new Map<string, number>();
-        (quizAttempts || []).filter((attempt: any) => (
-          cadetIds.includes(attempt.user_id)
-          && attempt.submitted_at?.slice(0, 10) >= weeklyStartIso
-        )).forEach((attempt: any) => {
-          const score = Number(attempt.figs_scored ?? attempt.talents_scored ?? attempt.score ?? 0);
-          scribeScores.set(attempt.user_id, Math.max(scribeScores.get(attempt.user_id) || 0, score));
-        });
-        const scribeRanking = [...scribeScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const cadetWeeklyMetrics = (weeklyAwardMetricsResult.data || [])
+          .filter((metric) => cadetIds.includes(metric.user_id));
+        const scribeRanking = [...cadetWeeklyMetrics]
+          .filter((metric) => Number(metric.total_figs) > 0)
+          .sort((left, right) => Number(right.total_figs) - Number(left.total_figs) || left.display_name.localeCompare(right.display_name))
+          .slice(0, 4);
         const topScribe = scribeRanking[0];
         if (topScribe) next.push({
           title: 'Scribe Award',
-          candidate: profileName(topScribe[0]),
-          detail: `${topScribe[1]} figs in their best quiz attempt this week.`,
-          runnersUp: scribeRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} figs in their best attempt.` })),
+          candidate: topScribe.display_name,
+          candidateId: topScribe.user_id,
+          detail: `${Number(topScribe.total_figs).toLocaleString()} figs earned across games, Arena, quizzes, and Story Mode this week.`,
+          runnersUp: scribeRanking.slice(1).map((metric) => ({
+            candidate: metric.display_name,
+            candidateId: metric.user_id,
+            detail: `${Number(metric.total_figs).toLocaleString()} figs earned this week.`,
+          })),
         });
 
-        const quoteRanking = (quoteSummaryResult.data || []).filter((item) => (
-          cadetIds.includes(item.quote_user_id) && item.quote_record_date >= weeklyStartIso
-        )).slice(0, 4);
+        const quoteRanking = [...cadetWeeklyMetrics]
+          .filter((metric) => Number(metric.quote_reactions) > 0)
+          .sort((left, right) => Number(right.quote_reactions) - Number(left.quote_reactions) || left.display_name.localeCompare(right.display_name))
+          .slice(0, 4);
         const quoteLeader = quoteRanking[0];
         if (quoteLeader) {
           next.push({
             title: 'Rhetoric Award (Orator)',
             candidate: quoteLeader.display_name,
-            detail: `${quoteLeader.interaction_count} quote interaction(s) from reactions and comments.`,
-            quote: quoteLeader.daily_quote,
+            candidateId: quoteLeader.user_id,
+            detail: `${Number(quoteLeader.quote_reactions).toLocaleString()} reactions received across their quotes this week.`,
             runnersUp: quoteRanking.slice(1).map((item) => ({
               candidate: item.display_name,
-              detail: `${item.interaction_count} interaction(s).`,
-              quote: item.daily_quote,
+              candidateId: item.user_id,
+              detail: `${Number(item.quote_reactions).toLocaleString()} quote reactions received.`,
             })),
+          });
+        }
+
+        const messengerRanking = [...cadetWeeklyMetrics]
+          .filter((metric) => Number(metric.messenger_score) > 0)
+          .sort((left, right) => (
+            Number(right.messenger_score) - Number(left.messenger_score)
+            || Number(right.insight_likes) - Number(left.insight_likes)
+            || Number(right.public_meditations) - Number(left.public_meditations)
+            || Number(right.external_shares) - Number(left.external_shares)
+            || left.display_name.localeCompare(right.display_name)
+          ))
+          .slice(0, 4);
+        const messengerDetail = (metric: typeof messengerRanking[number]) => (
+          `${Number(metric.insight_likes)} insight like(s) · ${Number(metric.public_meditations)} public meditation(s) · ${Number(metric.external_shares)} external share(s)`
+        );
+        const topMessenger = messengerRanking[0];
+        if (topMessenger) {
+          const runnersUp = messengerRanking.slice(1).map((metric) => ({
+            candidate: metric.display_name,
+            candidateId: metric.user_id,
+            detail: messengerDetail(metric),
+          }));
+          next.push({
+            title: 'Messenger Award (Nuncio)',
+            candidate: topMessenger.display_name,
+            candidateId: topMessenger.user_id,
+            detail: messengerDetail(topMessenger),
+            runnersUp,
+          });
+          next.push({
+            title: 'Angel Award (Angelos)',
+            candidate: topMessenger.display_name,
+            candidateId: topMessenger.user_id,
+            detail: `Weekly communication leader · ${messengerDetail(topMessenger)}`,
+            runnersUp,
           });
         }
 

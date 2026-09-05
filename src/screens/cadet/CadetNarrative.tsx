@@ -8,7 +8,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { MessageAvatar } from '../../components/TentMessenger';
 import { Dove } from '../../components/Dove';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
-import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordExternalShare, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -437,6 +437,7 @@ export function CadetNarrative({
         await navigator.clipboard.writeText(shareData.url);
         alert('Reading link copied.');
       }
+      await recordExternalShare('reading', activeDate).catch(() => undefined);
     } catch (error: any) {
       if (error?.name !== 'AbortError') alert('Could not share this reading.');
     }

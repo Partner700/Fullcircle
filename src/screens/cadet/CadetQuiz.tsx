@@ -11,7 +11,7 @@ import {
   fetchNarratives, fetchRelicInventory, resetQuizAttemptWithLazarus, startQuizAttempt,
   saveQuizResponse, consumeQuizQuestionRelic, completeQuizAttempt, fetchMyQuizRuntimeState,
   fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
-  fetchMyWeeklyQuizResult,
+  fetchMyWeeklyQuizResult, recordExternalShare,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
@@ -475,6 +475,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         await navigator.clipboard.writeText(shareData.url);
         alert('Quiz link copied.');
       }
+      await recordExternalShare('quiz', session.id).catch(() => undefined);
     } catch (error: any) {
       if (error?.name !== 'AbortError') alert('Could not share this quiz.');
     }

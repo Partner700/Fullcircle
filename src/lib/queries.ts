@@ -702,6 +702,26 @@ export async function fetchLatestWeeklyQuizRankings(sessionId?: string) {
   return (data || []) as WeeklyQuizRanking[];
 }
 
+export async function fetchWeeklyAwardMetrics(weekStart?: string) {
+  const { data, error } = await supabase.rpc('get_weekly_award_metrics', {
+    p_week_start: weekStart || null,
+  });
+  if (error) throw error;
+  return (data || []) as import('./types').WeeklyAwardMetric[];
+}
+
+export async function recordExternalShare(
+  shareKind: 'reading' | 'quiz' | 'game' | 'meditation',
+  referenceKey: string,
+) {
+  const { data, error } = await supabase.rpc('record_external_share', {
+    p_share_kind: shareKind,
+    p_reference_key: referenceKey,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
 export async function fetchMonthlyVallumWatch(month: string) {
   const { data, error } = await supabase.rpc('get_monthly_vallum_watch', {
     p_month: `${month}-01`,

@@ -5,7 +5,7 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { fetchAwardReactions, fetchAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
 import { formatShortDate, getTodayISODate, cn } from '../../lib/utils';
 import type { AwardWithRecipient } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, BadgeCheck } from 'lucide-react';
+import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, BadgeCheck, Send } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
 import { AppSelect } from '../../components/AppSelect';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -15,6 +15,7 @@ import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRho
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   rhetoric: MessageCircle,
   nuncio: BookOpen,
+  angel: Send,
   rumor: Crown,
   scribe: PenTool,
   sprout: Sprout,
@@ -37,6 +38,7 @@ const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
 const AWARD_COLOR_MAP: Record<string, string> = {
   rhetoric: '#C9A227',
   nuncio: '#6B8E5A',
+  angel: '#F4C84A',
   rumor: '#B8553E',
   scribe: '#7C8CFF',
   sprout: '#5BAD7F',
@@ -58,6 +60,7 @@ const AWARD_COLOR_MAP: Record<string, string> = {
 const AWARD_BADGE_MAP: Record<string, string> = {
   rhetoric: 'badge badge-brass',
   nuncio: 'badge badge-moss',
+  angel: 'badge badge-brass',
   rumor: 'badge badge-roman',
   scribe: 'badge badge-neutral',
   sprout: 'badge badge-moss',
@@ -79,6 +82,7 @@ const AWARD_BADGE_MAP: Record<string, string> = {
 const AWARD_LABEL_MAP: Record<string, string> = {
   rhetoric: 'Rhetoric Award (Orator)',
   nuncio: 'Messenger Award (Nuncio)',
+  angel: 'Angel Award (Angelos)',
   rumor: 'Rumor Award',
   scribe: 'Scribe Award',
   sprout: 'The Sprout',

@@ -28,7 +28,7 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
     <section className="card overflow-hidden p-4 sm:p-5" aria-live="polite">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="eyebrow text-gold">Released at 10:00 PM</p>
+          <p className="eyebrow text-gold">Released with quiz results</p>
           <h3 className="mt-1 font-display text-base font-semibold text-ink">Weekly Quiz Ranking</h3>
         </div>
         <Trophy size={21} className="text-gold" />

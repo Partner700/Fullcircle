@@ -119,7 +119,7 @@ const paymentAndPublicShareRecovery = read('supabase/migrations/20260903100000_p
 const hiddenChallengeHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
 const quizDoveArrivals = read('supabase/migrations/20260903120000_dove_message_and_quiz_arrivals.sql');
 const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mines_and_scripture_tags.sql');
-const quizDayAccessAndRankings = read('supabase/migrations/20260905100000_quiz_day_access_and_rankings.sql');
+const resultsReleaseRankingsAndWeeklyAwards = read('supabase/migrations/20260905110000_results_release_rankings_and_weekly_awards.sql');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
 const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
@@ -348,8 +348,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v107'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '107'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v108'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '108'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -363,7 +363,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-05-v107/);
+assert.match(releaseCache, /2026-09-05-v108/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1257,20 +1257,50 @@ assert.doesNotMatch(cadetArena, /Live Answers|Every player’s question, choice,
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.get_latest_weekly_quiz_rankings(',
-  "time '22:00'",
+  'pending.release_at <= statement_timestamp()',
+  'PERFORM public.release_due_weekly_quiz_results(NULL)',
   "interval '24 hours'",
   'release.released_at IS NOT NULL',
   "attempt.status IN ('submitted', 'timed_out')",
   'row_number() OVER',
   'REVOKE ALL ON FUNCTION public.get_latest_weekly_quiz_rankings(uuid) FROM PUBLIC, anon',
 ]) {
-  assert.ok(quizDayAccessAndRankings.includes(required), `Missing quiz-day ranking boundary: ${required}`);
+  assert.ok(resultsReleaseRankingsAndWeeklyAwards.includes(required), `Missing quiz-day ranking boundary: ${required}`);
 }
-assert.match(quizDayAccessAndRankings, /correct_count DESC[\s\S]*figs_earned DESC[\s\S]*answered_at ASC/);
+assert.match(resultsReleaseRankingsAndWeeklyAwards, /correct_count DESC[\s\S]*figs_earned DESC[\s\S]*answered_at ASC/);
 assert.match(weeklyQuizRankings, /Weekly Quiz Ranking/);
+assert.match(weeklyQuizRankings, /Released with quiz results/);
 assert.match(weeklyQuizRankings, /fetchLatestWeeklyQuizRankings/);
 assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
 assert.match(cadetDashboard, /kind: 'quiz_podium'/);
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.external_share_events',
+  'CREATE OR REPLACE FUNCTION public.record_external_share(',
+  'CREATE OR REPLACE FUNCTION public.get_weekly_award_metrics(',
+  'FROM public.game_attempts attempt',
+  'FROM public.arena_participants participant',
+  'FROM public.quiz_attempts attempt',
+  'FROM public.story_mode_fig_entries entry',
+  'FROM public.daily_quote_reactions reaction',
+  "reaction.reaction_type = 'heart'",
+  'record.meditation_public = true',
+  'FROM public.external_share_events share',
+  "'Angel Award (Angelos)'",
+]) {
+  assert.ok(resultsReleaseRankingsAndWeeklyAwards.includes(required), `Missing weekly award rule: ${required}`);
+}
+for (const required of [
+  'fetchWeeklyAwardMetrics()',
+  "title: 'Scribe Award'",
+  'metric.total_figs',
+  "title: 'Rhetoric Award (Orator)'",
+  'metric.quote_reactions',
+  "title: 'Messenger Award (Nuncio)'",
+  "title: 'Angel Award (Angelos)'",
+]) {
+  assert.ok(instructorApp.includes(required), `Missing instructor weekly award behavior: ${required}`);
+}
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

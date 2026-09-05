@@ -8,7 +8,7 @@ import { Dove } from '../../components/Dove';
 import {
   fetchNarrative, fetchNarratives, fetchGameAttempts, fetchLedgerTotal,
   fetchPanelImageSetting, startDailyGameLevel, submitDailyGameAnswer,
-  applyDailyGameQuestionAid, completeDailyGameRun, type DailyGameAnswerResult,
+  applyDailyGameQuestionAid, completeDailyGameRun, recordExternalShare, type DailyGameAnswerResult,
 } from '../../lib/queries';
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
 import { getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
@@ -149,8 +149,13 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const passedCount = Array.from({ length: DAILY_GAME_LEVELS }, (_, i) => i + 1).filter(levelPassed).length;
   const shareLevelOne = async () => {
     const url = `${window.location.origin}${window.location.pathname}?share=game&date=${today}`;
-    if (navigator.share) await navigator.share({ title: 'Full Circle Daily Trivia · Level 1', url }).catch(() => undefined);
-    else await navigator.clipboard?.writeText(url);
+    try {
+      if (navigator.share) await navigator.share({ title: 'Full Circle Daily Trivia · Level 1', url });
+      else await navigator.clipboard?.writeText(url);
+      await recordExternalShare('game', today).catch(() => undefined);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') alert('Could not share this game.');
+    }
   };
 
   if (loading) return (

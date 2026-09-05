@@ -613,6 +613,18 @@ export type AwardWithRecipient = Award & {
   } | null;
 };
 
+export interface WeeklyAwardMetric {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  total_figs: number;
+  quote_reactions: number;
+  insight_likes: number;
+  public_meditations: number;
+  external_shares: number;
+  messenger_score: number;
+}
+
 export interface ScheduledAnnouncement {
   id: string;
   announcement_type: string;
