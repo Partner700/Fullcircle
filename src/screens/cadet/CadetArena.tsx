@@ -36,7 +36,7 @@ import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
-  Shield, ArrowLeft,
+  Shield, ArrowLeft, Dices, ChevronDown,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -857,7 +857,7 @@ function parseArenaDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
   return (match?.[1]?.toLowerCase() as 'easy' | 'medium' | 'hard') || 'medium';
 }
 
-function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }) {
+function ArenaWaitingChat({ roomId, userId, compact = false }: { roomId: string; userId: string; compact?: boolean }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -881,8 +881,8 @@ function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }
   };
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-surface/80 p-3">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink"><MessageCircle size={14} className="text-brass" /> Room chat</div>
+    <div className={cn(compact ? 'p-3 pt-1' : 'mb-4 rounded-lg border border-border bg-surface/80 p-3')}>
+      {!compact && <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink"><MessageCircle size={14} className="text-brass" /> Room chat</div>}
       <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
         {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk while the room fills.</p> : messages.map((message) => {
           const mine = message.sender_id === userId;
@@ -897,6 +897,102 @@ function ArenaWaitingChat({ roomId, userId }: { roomId: string; userId: string }
 }
 
 const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
+
+type ArenaBoardPlayer = {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  score: number;
+  active: boolean;
+};
+
+const ARENA_BOARD_PATH = Array.from({ length: 20 }, (_, index) => {
+  if (index < 6) return { row: 1, column: index + 1 };
+  if (index < 11) return { row: index - 4, column: 6 };
+  if (index < 16) return { row: 6, column: 16 - index };
+  return { row: 21 - index, column: 1 };
+});
+
+function ArenaBattleBoard({
+  players,
+  currentQuestion,
+  isMyTurn,
+  rolling,
+  dieValue,
+  latestOutcome,
+  waitingName,
+  onRoll,
+}: {
+  players: ArenaBoardPlayer[];
+  currentQuestion: number;
+  isMyTurn: boolean;
+  rolling: boolean;
+  dieValue: number;
+  latestOutcome: { player: string; correct: boolean; answer: string } | null;
+  waitingName?: string | null;
+  onRoll: () => void;
+}) {
+  return (
+    <section className="relative mx-auto aspect-square w-full max-w-[42rem] overflow-hidden rounded-lg border-2 border-brass/45 bg-navy-2 p-2 shadow-xl sm:p-3" aria-label="Arena battle board">
+      <div className="absolute inset-0 opacity-35" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(232,185,88,0.18), transparent 52%), linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)', backgroundSize: 'auto, 24px 24px, 24px 24px' }} aria-hidden="true" />
+      <div className="relative grid h-full w-full grid-cols-6 grid-rows-6 gap-1 sm:gap-2">
+        {ARENA_BOARD_PATH.map((position, index) => {
+          const occupants = players.filter((player) => Math.min(19, Math.max(0, player.score)) === index);
+          const activeSpace = Math.min(19, currentQuestion) === index;
+          return (
+            <div
+              key={index}
+              className={cn(
+                'relative flex min-h-0 items-center justify-center rounded-md border text-[8px] font-black transition-all sm:text-[10px]',
+                index === 0 ? 'border-sage/70 bg-sage/25 text-sage' : index === 19 ? 'border-gold/80 bg-gold/25 text-gold' : 'border-white/15 bg-white/[0.07] text-white/45',
+                activeSpace && 'border-brass bg-brass/20 text-brass shadow-[0_0_16px_rgba(232,185,88,0.28)]',
+              )}
+              style={{ gridRow: position.row, gridColumn: position.column }}
+            >
+              <span className="absolute left-1 top-0.5 opacity-70">{index === 0 ? 'START' : index === 19 ? 'CROWN' : index}</span>
+              {occupants.length > 0 && (
+                <span className="flex -space-x-1.5">
+                  {occupants.slice(0, 4).map((player) => (
+                    <span key={player.userId} className={cn('relative inline-flex h-5 w-5 items-center justify-center rounded-full border-2 bg-surface text-[7px] font-bold text-ink shadow-md sm:h-7 sm:w-7 sm:text-[9px]', player.active ? 'border-gold' : 'border-white/70')} title={`${player.name}: ${player.score} figs`}>
+                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full">{player.avatarUrl ? <img src={player.avatarUrl} alt={player.name} className="h-full w-full object-cover" /> : player.name.charAt(0).toUpperCase()}</span>
+                      <VallumAvatarBadge userId={player.userId === 'arena-machine' ? null : player.userId} size="xs" />
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="col-start-2 col-end-6 row-start-2 row-end-6 flex min-h-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-navy/72 p-3 text-center shadow-inner backdrop-blur-sm">
+          {isMyTurn ? (
+            <button
+              type="button"
+              onClick={onRoll}
+              disabled={rolling}
+              className="group flex h-24 w-24 flex-col items-center justify-center rounded-2xl border-2 border-gold/70 bg-gold/10 text-gold shadow-[0_0_30px_rgba(232,185,88,0.18)] transition-transform hover:scale-105 disabled:cursor-wait sm:h-32 sm:w-32"
+              aria-label="Roll the Arena die"
+            >
+              <Dices size={rolling ? 38 : 46} className={cn(rolling && 'animate-spin')} />
+              <span className="mt-1 font-display text-2xl font-black">{dieValue}</span>
+              <span className="text-[9px] font-black uppercase text-white/70 sm:text-[10px]">{rolling ? 'Rolling' : 'Roll'}</span>
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-3 text-white/70">
+              <Loader2 size={30} className="animate-spin text-royal" />
+              <p className="text-sm font-bold">{waitingName ? `${waitingName}'s turn` : 'Waiting for the next turn'}</p>
+            </div>
+          )}
+          {latestOutcome && (
+            <div className={cn('mt-4 rounded-full border px-3 py-1 text-[10px] font-bold sm:text-xs', latestOutcome.correct ? 'border-sage/45 bg-sage/15 text-sage' : 'border-coral/45 bg-coral/15 text-coral')}>
+              {latestOutcome.player}: {latestOutcome.correct ? 'Right' : 'Wrong'}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
 function getArenaQuestionSeconds(question: QuestionPayload | undefined) {
   if (question?.round_timer_seconds) return question.round_timer_seconds;
   if (question?.game_round === 1 || question?.difficulty_tag === 'easy') return 17;
@@ -937,7 +1033,6 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const { profile } = useAuth();
   const [questions, setQuestions] = useState<QuestionPayload[]>([]);
   const [answerFeed, setAnswerFeed] = useState<ArenaTriviaFeedItem[]>([]);
-  const [machineAnswerFeed, setMachineAnswerFeed] = useState<ArenaTriviaFeedItem[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set());
@@ -952,12 +1047,14 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const [questionOpen, setQuestionOpen] = useState(false);
+  const [rolling, setRolling] = useState(false);
+  const [dieValue, setDieValue] = useState(1);
   const [questionRetry, setQuestionRetry] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
-  const activeRoundIndex = getArenaRoundForIndex(currentQ);
   const machineMatch = /\[difficulty:(easy|medium|hard)\]/i.test(roomName);
   const machineDifficulty = parseArenaDifficulty(roomName);
   const activeRealPlayer = !machineMatch && matchPlayers.length > 0 ? matchPlayers[currentQ % matchPlayers.length] : null;
@@ -998,10 +1095,6 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     return () => { cancelled = true; };
   }, [machineMatch, roomId]);
 
-  useEffect(() => {
-    if (ready && questions.length > 0) void playSoundEffect('sound_arena_round', 0.62);
-  }, [activeRoundIndex, questions.length, ready]);
-
   const completeGame = useCallback((finalScore = scoreRef.current, finalCorrectCount = correctCountRef.current) => {
     if (completedRef.current) return;
     completedRef.current = true;
@@ -1017,13 +1110,17 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       completeGame(scoreRef.current, correctCountRef.current);
       return;
     }
-    setCurrentQ(nextIndex);
-    setTypedAnswer('');
-    setAnswerFeedback(null);
+    if (nextIndex !== currentQ) {
+      setCurrentQ(nextIndex);
+      setTypedAnswer('');
+      setAnswerFeedback(null);
+      setQuestionOpen(false);
+      setRolling(false);
+    }
     const latest = answerFeed[answerFeed.length - 1];
     if (latest) setLatestOutcome({ player: latest.display_name, correct: latest.is_correct, answer: latest.submitted_answer || 'No answer' });
     setTurnPhase(matchPlayers[nextIndex % matchPlayers.length]?.user_id === userId ? 'user' : 'machine-thinking');
-  }, [answerFeed, answerFeed.length, machineMatch, matchPlayers, questions.length, ready, userId, completeGame]);
+  }, [answerFeed, answerFeed.length, currentQ, machineMatch, matchPlayers, questions.length, ready, userId, completeGame]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1102,10 +1199,12 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       setCurrentQ(nextIndex);
       setTypedAnswer('');
       setAnswerFeedback(null);
+      setQuestionOpen(false);
       setTurnPhase('user');
     };
 
     await new Promise<void>((resolve) => window.setTimeout(resolve, 900));
+    setQuestionOpen(false);
     if (!machineMatch) {
       setTurnPhase('machine-thinking');
       await refreshAnswerFeed();
@@ -1126,29 +1225,18 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
     const machineCorrect = Boolean(result.machineCorrect);
     const selected = result.machineAnswer || 'No answer';
-    const earned = result.machineFigs;
     const nextMachineScore = result.machineTotalFigs;
     setMachineScore(nextMachineScore);
     setLatestOutcome({ player: 'The Scribe', correct: machineCorrect, answer: selected });
-    setMachineAnswerFeed((current) => [...current, {
-      user_id: 'arena-machine',
-      display_name: `The Scribe · ${machineDifficulty.charAt(0).toUpperCase()}${machineDifficulty.slice(1)}`,
-      avatar_url: null,
-      question_index: machineQuestionIndex,
-      submitted_answer: selected,
-      is_correct: machineCorrect,
-      figs_earned: earned,
-      created_at: new Date().toISOString(),
-    }]);
     setTurnPhase('machine-feedback');
     await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
     advance(nextMachineScore, 2);
-  }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, completeGame]);
+  }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, completeGame, profile?.display_name]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     const activeQuestion = questions[currentQ];
-    if (!ready || !activeQuestion) return;
+    if (!ready || !activeQuestion || !questionOpen) return;
     if (answeredIds.has(currentQ) || turnPhase !== 'user' || !isMyTurn) return;
 
     const seconds = getArenaQuestionSeconds(activeQuestion);
@@ -1166,19 +1254,23 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       }
     }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase, isMyTurn]);
+  }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase, isMyTurn, questionOpen]);
 
-  const moveToNextRound = () => {
-    const nextRoundQuestionIndex = ARENA_ROUND_LENGTHS
-      .slice(0, activeRoundIndex + 1)
-      .reduce((sum, length) => sum + length, 0);
-    if (nextRoundQuestionIndex < questions.length) {
-      setCurrentQ(nextRoundQuestionIndex);
-      setTypedAnswer('');
-    } else {
-      completeGame();
-    }
-  };
+  const rollDie = useCallback(() => {
+    if (!isMyTurn || turnPhase !== 'user' || rolling || questionOpen || answeredIds.has(currentQ)) return;
+    setRolling(true);
+    setAnswerError(null);
+    let ticks = 0;
+    const animation = window.setInterval(() => {
+      setDieValue(Math.floor(Math.random() * 6) + 1);
+      ticks += 1;
+      if (ticks < 8) return;
+      window.clearInterval(animation);
+      setRolling(false);
+      setQuestionOpen(true);
+      void playSoundEffect('sound_arena_round', 0.62);
+    }, 70);
+  }, [answeredIds, currentQ, isMyTurn, questionOpen, rolling, turnPhase]);
 
   if (!ready) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
@@ -1219,34 +1311,35 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const roundQuestionStart = ARENA_ROUND_LENGTHS.slice(0, currentRound).reduce((sum, length) => sum + length, 0);
   const roundQuestionNumber = currentQ - roundQuestionStart + 1;
   const isCurrentAnswered = answeredIds.has(currentQ);
-  const nextQuestionWouldStartNewRound = getArenaRoundForIndex(currentQ + 1) !== currentRound;
-  const waitingForNextRound = isCurrentAnswered && nextQuestionWouldStartNewRound && currentQ + 1 < questions.length;
-  const visibleAnswerFeed = [...answerFeed, ...machineAnswerFeed].sort((left, right) => left.created_at.localeCompare(right.created_at));
-  const latestMachineAnswer = machineAnswerFeed[machineAnswerFeed.length - 1];
-  const opponentScores = Array.from(answerFeed.reduce((scores, item) => {
-    if (item.user_id === userId) return scores;
-    const current = scores.get(item.user_id) || { name: item.display_name, figs: 0 };
-    current.figs += item.figs_earned;
-    scores.set(item.user_id, current);
+  const feedScores = answerFeed.reduce((scores, item) => {
+    scores.set(item.user_id, (scores.get(item.user_id) || 0) + item.figs_earned);
     return scores;
-  }, new Map<string, { name: string; figs: number }>()).values());
+  }, new Map<string, number>());
+  const boardPlayers: ArenaBoardPlayer[] = machineMatch
+    ? [
+        { userId, name: profile?.display_name || 'You', avatarUrl: profile?.avatar_url || null, score, active: isMyTurn && turnPhase === 'user' },
+        { userId: 'arena-machine', name: 'The Scribe', avatarUrl: null, score: machineScore, active: turnPhase.startsWith('machine') },
+      ]
+    : matchPlayers.map((player) => ({
+        userId: player.user_id,
+        name: player.display_name,
+        avatarUrl: player.avatar_url,
+        score: player.user_id === userId ? score : feedScores.get(player.user_id) || 0,
+        active: player.user_id === activeRealPlayer?.user_id,
+      }));
+  const waitingName = machineMatch && turnPhase.startsWith('machine') ? 'The Scribe' : activeRealPlayer?.display_name;
 
   return (
-    <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
-      <div className="flex items-center justify-between gap-2">
+    <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
+      <div className="flex items-center justify-between gap-2 px-1">
         <button onClick={onForfeit} disabled={forfeiting} className="btn-ghost text-sm text-coral disabled:opacity-50">
           {forfeiting ? <Loader2 size={14} className="animate-spin" /> : <Flag size={14} />} Forfeit
         </button>
         <span className="badge badge-gold"><Zap size={12} /> Arena Battle</span>
-        <div className={cn(
-          'px-3 py-1.5 rounded-lg font-display font-semibold text-sm flex items-center gap-1.5',
-          timeLeft <= 10 ? 'bg-coral-soft text-coral' : 'bg-gold-soft text-gold',
-        )}>
-          <Clock size={14} /> {timeLeft}s
-        </div>
+        <span className="text-xs font-bold text-stone">Round {currentRound + 1}</span>
       </div>
 
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 px-1">
         {ARENA_ROUND_LENGTHS.map((_, i) => (
           <div key={i} className={cn(
             'h-1.5 flex-1 rounded-full transition-colors',
@@ -1255,136 +1348,51 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
         ))}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-stone">
-        <span>Live figs: <span className="text-ink font-semibold">You {score}</span>{machineMatch ? ` · The Scribe ${machineScore}` : opponentScores.map((opponent) => ` · ${opponent.name} ${opponent.figs}`).join('')}</span>
-        <span>Round {currentRound + 1}: <span className="text-ink font-semibold">{roundQuestionNumber}</span> / {ARENA_ROUND_LENGTHS[currentRound]} · {q.difficulty_tag === 'moderate' ? 'Medium' : q.difficulty_tag === 'hard' ? 'Hard' : 'Easy'}</span>
+      <div className="flex items-center justify-between gap-3 px-1 text-[11px] text-stone sm:text-xs">
+        <span>Question <strong className="text-ink">{currentQ + 1}</strong> / {questions.length}</span>
+        <span className="truncate">{boardPlayers.map((player) => `${player.name} ${player.score}`).join(' · ')}</span>
       </div>
-      {!machineMatch && matchPlayers.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {matchPlayers.map((player) => (
-            <div key={player.user_id} className={cn('flex min-w-max items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-bold', player.user_id === activeRealPlayer?.user_id ? 'border-gold bg-gold-soft text-gold' : 'border-border bg-surface/90 text-stone')}>
-              <span className="relative flex h-5 w-5 items-center justify-center text-[9px] leading-5"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface-2">{player.avatar_url ? <img src={player.avatar_url} alt="" className="h-full w-full object-cover" /> : player.display_name.charAt(0)}</span><VallumAvatarBadge userId={player.user_id} size="xs" /></span>
-              {player.display_name}
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-surface px-1.5 py-0.5 text-[10px] text-sage"><Shield size={10} /> {player.rhudes}</span>
+      <ArenaBattleBoard
+        players={boardPlayers}
+        currentQuestion={currentQ}
+        isMyTurn={isMyTurn && turnPhase === 'user' && !questionOpen && !isCurrentAnswered}
+        rolling={rolling}
+        dieValue={dieValue}
+        latestOutcome={latestOutcome}
+        waitingName={waitingName}
+        onRoll={rollDie}
+      />
+
+      {!machineMatch && (
+        <details className="group overflow-hidden rounded-lg border border-border bg-surface/80">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-ink">
+            <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Room chat</span>
+            <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
+          </summary>
+          <ArenaWaitingChat roomId={roomId} userId={userId} compact />
+        </details>
+      )}
+
+      {questionOpen && isMyTurn && (turnPhase === 'user' || turnPhase === 'user-feedback') && (
+        <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm">
+          <div className="relative z-[2147483001] max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-label="Arena question">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center text-sm font-bold text-ink"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</span><VallumAvatarBadge userId={profile?.id} size="sm" /></span>
+                <div className="min-w-0"><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs' : `Round ${currentRound + 1} · Question ${roundQuestionNumber}`}</p></div>
+              </div>
+              <div className={cn('flex h-11 min-w-11 items-center justify-center rounded-full border px-2 font-display text-sm font-black', timeLeft <= 5 ? 'border-coral bg-coral-soft text-coral' : timeLeft <= 10 ? 'border-gold bg-gold-soft text-gold' : 'border-sage bg-sage-soft text-sage')}><Clock size={13} className="mr-1" />{timeLeft}</div>
             </div>
-          ))}
+            {answerError && <div className="mb-4 rounded-md border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
+            <h3 className="mb-5 font-display text-lg font-semibold leading-snug text-ink sm:text-xl">{q.question}</h3>
+            {answerFeedback && <div className={cn('mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold', answerFeedback.correct ? 'border-sage/40 bg-sage-soft text-sage' : 'border-coral/40 bg-coral-soft text-coral')}>{answerFeedback.correct ? <CheckCircle2 size={18} /> : <XCircle size={18} />}{answerFeedback.correct ? 'Right answer' : 'Wrong answer'}</div>}
+            {q.type === 'true_false' && <div className="grid grid-cols-2 gap-3"><button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="rounded-lg border-2 border-sage py-4 font-display text-lg font-bold text-sage transition-colors hover:bg-sage-soft"><CheckCircle2 size={24} className="mx-auto mb-1" />True</button><button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="rounded-lg border-2 border-coral py-4 font-display text-lg font-bold text-coral transition-colors hover:bg-coral-soft"><XCircle size={24} className="mx-auto mb-1" />False</button></div>}
+            {(q.type === 'multiple_choice' || q.type === 'true_false') && q.options && q.type !== 'true_false' && <div className="space-y-2">{q.options.map((option, index) => <button key={index} onClick={() => void handleAnswer(option)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="w-full rounded-lg border border-border p-3.5 text-left text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold-soft">{option}</button>)}</div>}
+            {(q.type === 'cloze' || q.type === 'scriptorium' || q.type === 'order_sequence' || q.type === 'matching' || q.type === 'standard_text') && <div className="space-y-2"><input className="input-field" placeholder="Type your answer..." autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && typedAnswer.trim()) void handleAnswer(typedAnswer.trim()); }} /><button className="btn-primary w-full" onClick={() => { if (typedAnswer.trim()) void handleAnswer(typedAnswer.trim()); }} disabled={!typedAnswer.trim() || isCurrentAnswered || submittingAnswer}>Submit</button></div>}
+            {submittingAnswer && <div className="mt-3 flex items-center justify-center gap-2 text-xs font-bold text-stone"><Loader2 size={14} className="animate-spin" /> Checking answer</div>}
+          </div>
         </div>
       )}
-
-      {latestOutcome && (
-        <div className={cn('rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm',
-          latestOutcome.correct ? 'border-sage/35 bg-sage-soft text-sage' : 'border-coral/35 bg-coral-soft text-coral',
-        )}>
-          {latestOutcome.player}: {latestOutcome.correct ? 'Right answer' : 'Wrong answer'}
-          <span className="ml-1 font-medium opacity-80">({latestOutcome.answer})</span>
-        </div>
-      )}
-
-      {machineMatch && turnPhase.startsWith('machine') && (
-        <div className={cn('card border-2 p-4 transition-all', turnPhase === 'machine-thinking' ? 'border-gold/45' : latestMachineAnswer?.is_correct ? 'border-sage/45' : 'border-coral/45')}>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold-soft"><Zap size={20} className="text-gold" /></div>
-            <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">The Scribe’s turn</p><p className="text-xs text-stone">{turnPhase === 'machine-thinking' ? 'Reading the question and choosing…' : latestMachineAnswer?.is_correct ? 'Right answer' : 'Wrong answer'}</p></div>
-            {turnPhase === 'machine-thinking' && <Loader2 size={18} className="animate-spin text-gold" />}
-          </div>
-          <p className="mt-3 text-sm font-semibold text-ink">{questions[currentQ + 1]?.question}</p>
-          {turnPhase === 'machine-feedback' && <p className="mt-2 text-sm text-stone">Selected: <span className="font-bold text-ink">{latestMachineAnswer?.submitted_answer}</span></p>}
-        </div>
-      )}
-
-      {!machineMatch && activeRealPlayer && !isMyTurn && (
-        <div className="card border-2 border-royal/45 p-4 transition-all">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-10 w-10 items-center justify-center font-bold text-royal"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-royal-soft">{activeRealPlayer.avatar_url ? <img src={activeRealPlayer.avatar_url} alt="" className="h-full w-full object-cover" /> : activeRealPlayer.display_name.charAt(0)}</span><VallumAvatarBadge userId={activeRealPlayer.user_id} size="sm" /></span>
-            <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{activeRealPlayer.display_name}’s turn</p><p className="text-xs text-stone">Their question, answer, and outcome are visible to everyone.</p></div>
-            <Loader2 size={18} className="animate-spin text-royal" />
-          </div>
-          <p className="mt-3 text-sm font-semibold text-ink">{q.question}</p>
-        </div>
-      )}
-
-      <div className="card p-5">
-        {answerError && <div className="mb-4 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-sm text-coral" role="alert">{answerError}</div>}
-        <div className="mb-3 flex items-center gap-3">
-          <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center text-sm font-bold text-ink"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-gold bg-surface-2">{profile?.avatar_url ? <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" /> : profile?.display_name?.charAt(0) || 'Y'}</span><VallumAvatarBadge userId={profile?.id} size="sm" /></span>
-          <div><p className="text-xs font-bold text-ink">{isMyTurn ? profile?.display_name || 'Your question' : activeRealPlayer?.display_name || 'Opponent question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? `Bonus · 2 figs · ${getArenaQuestionSeconds(q)} seconds` : `Round ${currentRound + 1} · Question ${roundQuestionNumber} · ${getArenaQuestionSeconds(q)} seconds`}</p></div>
-        </div>
-        <h3 className="font-display font-medium text-ink text-lg mb-4">{q.question}</h3>
-        {answerFeedback && (
-          <div className={cn('mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold', answerFeedback.correct ? 'border-sage/40 bg-sage-soft text-sage' : 'border-coral/40 bg-coral-soft text-coral')}>
-            {answerFeedback.correct ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-            {answerFeedback.correct ? 'Right answer' : 'Wrong answer'}
-          </div>
-        )}
-
-        {/* True/False */}
-        {q.type === 'true_false' && (
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user' || !isMyTurn}
-              className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
-                'border-sage hover:bg-sage-soft text-sage')}>
-              <CheckCircle2 size={24} className="mx-auto mb-1" /> True
-            </button>
-            <button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user' || !isMyTurn}
-              className={cn('py-4 rounded-lg border-2 font-display font-bold text-lg transition-all',
-                'border-coral hover:bg-coral-soft text-coral')}>
-              <XCircle size={24} className="mx-auto mb-1" /> False
-            </button>
-          </div>
-        )}
-
-        {/* Multiple choice / comprehension */}
-        {(q.type === 'multiple_choice' || q.type === 'true_false') && q.options && q.type !== 'true_false' && (
-          <div className="space-y-2">
-            {q.options.map((opt, i) => {
-              return (
-                <button key={i} onClick={() => void handleAnswer(opt)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user' || !isMyTurn}
-                  className={cn('w-full text-left p-3.5 rounded-lg border transition-all text-sm font-medium',
-                    'border-border hover:border-gold text-ink')}>
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Other types — simplified for arena (just show as multiple choice) */}
-        {(q.type === 'cloze' || q.type === 'scriptorium' || q.type === 'order_sequence' || q.type === 'matching' || q.type === 'standard_text') && (
-          <div className="space-y-2">
-            <input className="input-field" placeholder="Type your answer..." autoFocus
-              value={typedAnswer}
-              onChange={(e) => setTypedAnswer(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const v = typedAnswer.trim();
-                  if (v) void handleAnswer(v);
-                }
-              }} />
-            <button className="btn-primary w-full" onClick={() => {
-              const v = typedAnswer.trim();
-              if (v) void handleAnswer(v);
-            }} disabled={!typedAnswer.trim() || isCurrentAnswered || submittingAnswer}>Submit</button>
-          </div>
-        )}
-        {waitingForNextRound && (
-          <div className="mt-4 rounded-lg border border-brass/30 bg-brass/10 p-3 text-sm text-stone">
-            <p className="mb-3">Round complete. You can move into the next round immediately.</p>
-            <button type="button" onClick={moveToNextRound} className="btn-primary text-xs">
-              Move to Next Round
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="card p-4">
-        <div className="mb-3 flex items-center justify-between gap-2"><div><p className="text-sm font-bold text-ink">Live Answers</p><p className="text-[11px] text-stone">Every player’s question, choice, and outcome</p></div><Users size={18} className="text-royal" /></div>
-        {visibleAnswerFeed.length === 0 ? <p className="text-xs text-stone">Answers will appear here as players submit them.</p> : <div className="max-h-72 space-y-2 overflow-y-auto">{visibleAnswerFeed.map((item) => {
-          const feedQuestion = questions[item.question_index];
-          return <div key={`${item.user_id}-${item.question_index}`} className={cn('rounded-lg border p-3 animate-fade-in', item.is_correct ? 'border-sage/35 bg-sage/10' : 'border-coral/30 bg-coral/8')}>
-            <div className="flex items-start gap-2.5"><span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-[10px] font-bold"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface">{item.avatar_url ? <img src={item.avatar_url} alt={item.display_name} className="h-full w-full object-cover" /> : item.user_id === 'arena-machine' ? <Zap size={15} className="text-gold" /> : item.display_name.charAt(0)}</span><VallumAvatarBadge userId={item.user_id === 'arena-machine' ? null : item.user_id} size="sm" /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-bold text-ink">{item.display_name}</p><span className={cn('text-[10px] font-bold', item.is_correct ? 'text-sage' : 'text-coral')}>{item.is_correct ? 'Correct' : 'Incorrect'}</span></div><p className="mt-1 text-xs leading-relaxed text-stone">{feedQuestion?.question || `Question ${item.question_index + 1}`}</p><p className="mt-1 text-xs font-semibold text-ink">Selected: {item.submitted_answer || 'No answer'}</p></div></div>
-          </div>;
-        })}</div>}
-      </div>
     </div>
   );
 }

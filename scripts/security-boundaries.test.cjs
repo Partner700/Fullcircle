@@ -37,6 +37,7 @@ const toolbarStats = read('supabase/migrations/20260814172000_authoritative_tool
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
 const sentryApp = read('src/screens/sentry/SentryApp.tsx');
 const arenaGenerator = read('supabase/functions/generate-arena-questions/index.ts');
+const cadetArena = read('src/screens/cadet/CadetArena.tsx');
 const frenchUi = read('src/lib/frenchUi.ts');
 const relicRecovery = read('supabase/migrations/20260817120000_relic_recovery_and_denarii_only.sql');
 const sentryStreakRecovery = read('supabase/migrations/20260817121000_preserve_sentry_duty_and_relic_recovery.sql');
@@ -1241,6 +1242,16 @@ for (const required of [
 assert.match(tentMessenger, /<VallumAvatarBadge userId=\{profile\.id\}/);
 assert.match(boardRow, /<MessageAvatar/);
 assert.match(appShell, /<VallumAvatarBadge userId=\{profile\?\.id\}/);
+for (const required of [
+  'function ArenaBattleBoard',
+  'const rollDie = useCallback',
+  '!activeQuestion || !questionOpen',
+  '<ArenaWaitingChat roomId={roomId} userId={userId} compact',
+  'aria-label="Arena question"',
+]) {
+  assert.ok(cadetArena.includes(required), `Missing board-first Arena behavior: ${required}`);
+}
+assert.doesNotMatch(cadetArena, /Live Answers|Every player’s question, choice, and outcome/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;
