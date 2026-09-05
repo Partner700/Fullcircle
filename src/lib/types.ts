@@ -444,6 +444,23 @@ export interface QuizResponder {
   answered_at: string;
 }
 
+export interface WeeklyQuizRanking {
+  quiz_session_id: string;
+  quiz_title: string;
+  session_date: string;
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  correct_count: number;
+  question_count: number;
+  figs_earned: number;
+  denarii_award: number;
+  answered_at: string;
+  placement: number;
+  ranking_released_at: string;
+  slide_expires_at: string;
+}
+
 export interface MonthlyVallumWatchRow {
   user_id: string;
   display_name: string;

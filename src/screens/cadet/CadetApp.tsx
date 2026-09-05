@@ -913,10 +913,6 @@ export function CadetApp() {
       setTab('subscribe');
       return;
     }
-    if (k === 'narrative' && getDayType(new Date()) === 'saturday') {
-      setTab('quiz');
-      return;
-    }
     const nextTab = requestedTab;
     const destinationIds = notifications
       .filter((notification) => !notification.read && notification.actionTab === nextTab)

@@ -89,6 +89,7 @@ const quizRespondersAndMonthlyWatch = read('supabase/migrations/20260829100000_q
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const quizResponders = read('src/components/QuizResponders.tsx');
+const weeklyQuizRankings = read('src/components/WeeklyQuizRankings.tsx');
 const authContext = read('src/context/AuthContext.tsx');
 const authScreen = read('src/screens/AuthScreen.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
@@ -118,6 +119,7 @@ const paymentAndPublicShareRecovery = read('supabase/migrations/20260903100000_p
 const hiddenChallengeHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
 const quizDoveArrivals = read('supabase/migrations/20260903120000_dove_message_and_quiz_arrivals.sql');
 const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mines_and_scripture_tags.sql');
+const quizDayAccessAndRankings = read('supabase/migrations/20260905100000_quiz_day_access_and_rankings.sql');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
 const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
@@ -346,8 +348,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v106'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '106'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v107'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '107'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -361,7 +363,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-04-v106/);
+assert.match(releaseCache, /2026-09-05-v107/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1252,6 +1254,23 @@ for (const required of [
   assert.ok(cadetArena.includes(required), `Missing board-first Arena behavior: ${required}`);
 }
 assert.doesNotMatch(cadetArena, /Live Answers|Every player’s question, choice, and outcome/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_latest_weekly_quiz_rankings(',
+  "time '22:00'",
+  "interval '24 hours'",
+  'release.released_at IS NOT NULL',
+  "attempt.status IN ('submitted', 'timed_out')",
+  'row_number() OVER',
+  'REVOKE ALL ON FUNCTION public.get_latest_weekly_quiz_rankings(uuid) FROM PUBLIC, anon',
+]) {
+  assert.ok(quizDayAccessAndRankings.includes(required), `Missing quiz-day ranking boundary: ${required}`);
+}
+assert.match(quizDayAccessAndRankings, /correct_count DESC[\s\S]*figs_earned DESC[\s\S]*answered_at ASC/);
+assert.match(weeklyQuizRankings, /Weekly Quiz Ranking/);
+assert.match(weeklyQuizRankings, /fetchLatestWeeklyQuizRankings/);
+assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
+assert.match(cadetDashboard, /kind: 'quiz_podium'/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

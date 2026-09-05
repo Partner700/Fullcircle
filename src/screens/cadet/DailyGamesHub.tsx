@@ -6,7 +6,7 @@ import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import { revealHiddenChallenge } from '../../lib/hiddenChallenges';
 import { fetchGameAttempts, fetchNarrative, fetchPanelImageSetting } from '../../lib/queries';
 import type { DailyNarrative, GameAttempt, PanelImageSetting } from '../../lib/types';
-import { cn, formatDenarii, getDayType, getTodayISODate, isGamePausedNow } from '../../lib/utils';
+import { cn, formatDenarii, getDayType, getTodayISODate } from '../../lib/utils';
 import {
   ArrowRight,
   BookOpenCheck,
@@ -45,8 +45,9 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
   const [state, setState] = useState<HubState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const today = getTodayISODate();
+  const saturday = getDayType(today) === 'saturday';
   const sunday = getDayType(today) === 'sunday';
-  const paused = isGamePausedNow();
+  const weeklyNarrativeDay = saturday || sunday;
 
   useEffect(() => {
     if (!profile) return;
@@ -93,13 +94,11 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
     ? window.localStorage.getItem(activeArenaRoomStorageKey(profile.id))
     : null;
 
-  const triviaAvailability = paused
-    ? 'Paused after the weekly quiz'
-    : sunday
-      ? 'Weekly archive open'
-      : state.narrative
-        ? 'Available today'
-        : 'Awaiting today\'s narrative';
+  const triviaAvailability = weeklyNarrativeDay
+    ? 'This week\'s narratives open'
+    : state.narrative
+      ? 'Available today'
+      : 'Awaiting today\'s narrative';
   const triviaAction = levelsCompleted > 0 && levelsCompleted < DAILY_GAME_LEVELS
     ? 'Continue Daily Trivia'
     : practice
@@ -129,8 +128,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
               <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold">
                 <BookOpenCheck size={22} />
               </span>
-              <span className={cn('badge text-[10px]', paused ? 'badge-neutral' : state.narrative || sunday ? 'badge-sage' : 'badge-brass')}>
-                {paused ? <Clock3 size={11} /> : <CheckCircle2 size={11} />} {triviaAvailability}
+              <span className={cn('badge text-[10px]', state.narrative || weeklyNarrativeDay ? 'badge-sage' : 'badge-brass')}>
+                <CheckCircle2 size={11} /> {triviaAvailability}
               </span>
             </div>
             <div className="mt-5">
@@ -140,7 +139,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
             </div>
             <div className="mt-5 min-h-[4.5rem]">
               <p className="line-clamp-2 text-sm font-semibold text-ink">
-                {sunday ? 'Choose a published narrative from this week.' : state.narrative?.title || 'Today\'s Daily Trivia will open after the narrative is published.'}
+                {weeklyNarrativeDay ? 'Choose any published narrative from this week.' : state.narrative?.title || 'Today\'s Daily Trivia will open after the narrative is published.'}
               </p>
               <p className="mt-1 text-xs text-stone">
                 {practice ? 'Practice mode' : `Level ${nextLevel}`} · {levelsCompleted} of {DAILY_GAME_LEVELS} cleared · {formatDenarii(totalEarned)} Ð

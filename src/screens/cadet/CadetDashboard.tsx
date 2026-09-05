@@ -13,12 +13,12 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
 import { QuizResponders } from '../../components/QuizResponders';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
-import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards } from '../../lib/queries';
+import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { supabase } from '../../lib/supabase';
 import { DAILY_GAME_LEVELS } from '../../lib/constants';
-import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience, AwardWithRecipient } from '../../lib/types';
+import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience, AwardWithRecipient, WeeklyQuizRanking } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
@@ -31,6 +31,7 @@ export type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
   | { id: string; kind: 'custom'; content: ReactNode; image?: PanelImageSetting | null; veilClassName?: string }
   | { id: string; kind: 'fcx'; experience: FcxExperience }
+  | { id: string; kind: 'quiz_podium'; rankings: WeeklyQuizRanking[] }
   | { id: string; kind: 'honors'; awards: AwardWithRecipient[] }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
@@ -72,6 +73,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [announcements, setAnnouncements] = useState<ScheduledAnnouncement[]>([]);
   const [fcxExperience, setFcxExperience] = useState<FcxExperience | null>(null);
   const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
+  const [quizPodium, setQuizPodium] = useState<WeeklyQuizRanking[]>([]);
   const [panelImages, setPanelImages] = useState<Record<string, PanelImageSetting>>({});
   const [quoteReactions, setQuoteReactions] = useState<Record<string, QuoteReactionState>>({});
   const [verseReactions, setVerseReactions] = useState<Record<string, QuoteReactionState>>({});
@@ -107,8 +109,9 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchDailyQuoteFeed(12),
         fetchAnnouncements(),
         fetchActiveFcxExperience(),
+        fetchLatestWeeklyQuizRankings(),
         fetchPanelImageSettings([
-          'welcome', 'fcx', 'honors', 'verse', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
         ]),
       ]);
@@ -123,12 +126,13 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       setLoading(false);
       hasLoadedRef.current = true;
 
-      const [strict, quoteFeed, activeAnnouncements, activeFcx, activePanelImages] = await secondaryRequest;
+      const [strict, quoteFeed, activeAnnouncements, activeFcx, activeQuizPodium, activePanelImages] = await secondaryRequest;
       if (strict.status === 'fulfilled') setStreakData(strict.value);
       const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
       if (quoteFeed.status === 'fulfilled') setQuotes(quoteItems);
       if (activeAnnouncements.status === 'fulfilled') setAnnouncements(activeAnnouncements.value);
       if (activeFcx.status === 'fulfilled') setFcxExperience(activeFcx.value);
+      if (activeQuizPodium.status === 'fulfilled') setQuizPodium(activeQuizPodium.value);
       if (activePanelImages.status === 'fulfilled') setPanelImages(activePanelImages.value);
       void fetchAwards()
         .then((awards) => {
@@ -221,6 +225,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
+    ...(quizPodium.length ? [{ id: `quiz-podium-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3) }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
@@ -543,6 +548,8 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
               ? slide.image
             : slide.kind === 'announcement'
               ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
+              : slide.kind === 'quiz_podium'
+                ? panelImages.quiz || panelImages.weekly_quiz_reminder
               : panelImages[slide.kind];
 
           return (
@@ -558,7 +565,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                 />
               )}
               <div className="relative flex items-start justify-between gap-3">
-                <div className={cn('min-w-0', (slide.kind === 'custom' || slide.kind === 'honors') && 'w-full')}>
+                <div className={cn('min-w-0', (slide.kind === 'custom' || slide.kind === 'honors' || slide.kind === 'quiz_podium') && 'w-full')}>
                   {slide.kind === 'custom' && slide.content}
 
                   {slide.kind === 'welcome' && (
@@ -576,6 +583,35 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       experience={slide.experience}
                       active={displayIndex === slideIndex}
                     />
+                  )}
+
+                  {slide.kind === 'quiz_podium' && (
+                    <div className="w-full max-w-2xl">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Trophy size={18} className="text-gold" />
+                        <div>
+                          <p className="eyebrow text-gold">Weekly Quiz</p>
+                          <h2 className="font-display text-xl font-black text-ink">This Week&apos;s Top Three</h2>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        {slide.rankings.map((ranking) => (
+                          <div key={ranking.user_id} className="flex min-w-0 flex-col items-center rounded-lg border border-white/25 bg-surface/65 px-2 py-2.5 text-center shadow-sm backdrop-blur-md">
+                            <span className="mb-1 text-[10px] font-black uppercase text-gold">No. {ranking.placement}</span>
+                            <span className="relative flex h-10 w-10 items-center justify-center overflow-visible rounded-full border-2 border-gold/60 bg-navy text-xs font-black text-gold sm:h-12 sm:w-12">
+                              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full">
+                                {ranking.avatar_url ? (
+                                  <img src={ranking.avatar_url} alt={ranking.display_name} className="h-full w-full object-cover" loading="lazy" />
+                                ) : ranking.display_name.charAt(0).toUpperCase()}
+                              </span>
+                              <VallumAvatarBadge userId={ranking.user_id} size="sm" />
+                            </span>
+                            <p className="mt-1.5 w-full truncate text-xs font-black text-ink">{ranking.display_name}</p>
+                            <p className="text-[10px] font-bold tabular-nums text-stone">{ranking.correct_count}/{ranking.question_count}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
                   {slide.kind === 'honors' && (

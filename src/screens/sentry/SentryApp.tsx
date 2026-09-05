@@ -25,11 +25,11 @@ import {
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
-  reactToDailyVerse, getSubscriptionStatus, fetchAwards,
+  reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
 import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
-import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience, AwardWithRecipient } from '../../lib/types';
+import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience, AwardWithRecipient, WeeklyQuizRanking } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
@@ -267,7 +267,7 @@ export function SentryApp() {
       getSubscriptionStatus(profile.id),
       fetchAnnouncements(['all', 'cadets', 'sentries']),
       fetchPanelImageSettings([
-        'welcome', 'fcx', 'honors', 'verse', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'welcome', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
         'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
       ], ['all', 'cadets', 'sentries']),
     ]);
@@ -707,6 +707,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
   const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
+  const [quizPodium, setQuizPodium] = useState<WeeklyQuizRanking[]>([]);
   const tentPhotoInputRef = useRef<HTMLInputElement>(null);
   const dayType = getDayType(new Date());
   const todayDate = new Date();
@@ -749,6 +750,21 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       .catch(() => { if (!cancelled) setMonthlyHonors([]); });
     return () => { cancelled = true; };
   }, [today]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPodium = () => {
+      void fetchLatestWeeklyQuizRankings()
+        .then((rankings) => { if (!cancelled) setQuizPodium(rankings); })
+        .catch(() => undefined);
+    };
+    loadPodium();
+    const interval = window.setInterval(loadPodium, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const chargeContent = (
     <div className="flex w-full items-start justify-between gap-4">
@@ -812,6 +828,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
+    ...(quizPodium.length ? [{ id: `quiz-podium-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3) }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
-  QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, QuestionResponse, WeeklyQuizReleasedResult,
+  QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, WeeklyQuizRanking, QuestionResponse, WeeklyQuizReleasedResult,
   DenariiLedgerEntry, GameAttempt, RelicType, RelicInventory,
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
@@ -692,6 +692,14 @@ export async function fetchQuizResponders(sessionId: string) {
   });
   if (error) throw error;
   return (data || []) as QuizResponder[];
+}
+
+export async function fetchLatestWeeklyQuizRankings(sessionId?: string) {
+  const { data, error } = await supabase.rpc('get_latest_weekly_quiz_rankings', {
+    p_quiz_session_id: sessionId || null,
+  });
+  if (error) throw error;
+  return (data || []) as WeeklyQuizRanking[];
 }
 
 export async function fetchMonthlyVallumWatch(month: string) {

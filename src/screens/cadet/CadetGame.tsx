@@ -12,14 +12,14 @@ import {
 } from '../../lib/queries';
 import { HINT_COST, ANSWER_REVEAL_COST, RELIC_SLUGS } from '../../lib/constants';
 import { getLevelTimer, getLevelGameType, GAME_TYPE_LABELS, resetUsedQuestions } from '../../lib/gameEngines';
-import { isGamePausedNow, getTodayISODate, getDayType, shiftISODate, cn, formatDenarii } from '../../lib/utils';
+import { getTodayISODate, getDayType, shiftISODate, cn, formatDenarii } from '../../lib/utils';
 import { playRoundWarningBeep, playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { revealHiddenChallenge } from '../../lib/hiddenChallenges';
 import { DAILY_GAME_LEVELS, DAILY_GAME_CAP, GAME_PASS_THRESHOLD, GAME_QUESTIONS_PER_ROUND } from '../../lib/constants';
 import type { DailyNarrative, GameAttempt, QuestionPayload, PanelImageSetting } from '../../lib/types';
 import {
   Gamepad2, Lock, CheckCircle2, XCircle, Trophy, Coins, RotateCcw,
-  Pause, Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
+  Loader2, Star, Clock, ChevronRight, Lightbulb, Eye, Sparkles, Swords, TimerOff,
   SkipForward, BookOpen, Volume2, Wand2, ArrowLeft, Share2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -85,10 +85,11 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const [gameImage, setGameImage] = useState<PanelImageSetting | null>(null);
 
   const today = getTodayISODate();
+  const isQuizDay = getDayType(today) === 'saturday';
   const isSunday = getDayType(today) === 'sunday';
+  const isWeeklyNarrativeDay = isQuizDay || isSunday;
   const [gameDate, setGameDate] = useState(today);
   const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
-  const paused = isGamePausedNow();
 
   useEffect(() => {
     if (!profile) return;
@@ -98,19 +99,23 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const load = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
-    const weekly = isSunday ? await fetchNarratives(8) : [];
-    const weekStartDate = shiftISODate(today, -6);
-    const playable = weekly.filter((item) => item.narrative_date >= weekStartDate && item.narrative_date < today);
-    const effectiveDate = isSunday && (!playable.some((item) => item.narrative_date === gameDate) || gameDate === today)
+    const weekly = isWeeklyNarrativeDay ? await fetchNarratives(8) : [];
+    const todayWeekday = new Date(`${today}T12:00:00.000Z`).getUTCDay();
+    const weekStartDate = shiftISODate(today, -((todayWeekday + 6) % 7));
+    const playable = weekly.filter((item) =>
+      item.narrative_date >= weekStartDate
+      && (isSunday ? item.narrative_date < today : item.narrative_date <= today),
+    );
+    const effectiveDate = isWeeklyNarrativeDay && !playable.some((item) => item.narrative_date === gameDate)
       ? playable[0]?.narrative_date || gameDate
       : gameDate;
     const [narr, atts, balance, image] = await Promise.all([
-      isSunday ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(today),
-      fetchGameAttempts(profile.id, isSunday ? effectiveDate : today),
+      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(today),
+      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : today),
       fetchLedgerTotal(profile.id),
       fetchPanelImageSetting('game').catch(() => null),
     ]);
-    if (isSunday) {
+    if (isWeeklyNarrativeDay) {
       setSundayGames(playable);
       if (effectiveDate !== gameDate) setGameDate(effectiveDate);
     }
@@ -119,7 +124,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     setDenariiBalance(balance);
     setGameImage(image);
     setLoading(false);
-  }, [gameDate, isSunday, profile, today]);
+  }, [gameDate, isSunday, isWeeklyNarrativeDay, profile, today]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -159,23 +164,6 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     </div>
   );
 
-  if (paused) {
-    return (
-      <div className="space-y-4 animate-fade-in">
-        {onBackToDailyGames && (
-          <button type="button" onClick={onBackToDailyGames} className="btn-ghost text-sm">
-            <ArrowLeft size={15} /> Back to Daily Games
-          </button>
-        )}
-        <EmptyState
-          icon={(props) => <Pause {...props} />}
-          title="Daily Trivia Paused"
-          message="Daily Trivia pauses after Saturday's quiz. The week's games reopen on Sunday."
-        />
-      </div>
-    );
-  }
-
   if (!narrative) {
     return (
       <div className="space-y-4 animate-fade-in">
@@ -189,11 +177,11 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     );
   }
 
-  const sundayGamePicker = isSunday && sundayGames.length > 0 ? (
+  const sundayGamePicker = isWeeklyNarrativeDay && sundayGames.length > 0 ? (
     <div className="card mb-4 p-4">
-      <label className="mb-1.5 block text-xs font-bold text-stone">Sunday Game Archive</label>
+      <label className="mb-1.5 block text-xs font-bold text-stone">{isQuizDay ? 'Quiz Day Narrative Trivia' : 'Sunday Game Archive'}</label>
       <AppSelect value={gameDate} onChange={(value) => { setActiveLevel(null); setGameOver(null); setGameDate(value); }} options={sundayGames.map((item) => ({ value: item.narrative_date, label: item.narrative_date, description: item.title }))} />
-      <p className="mt-2 text-xs text-stone">Replay any published game from this week. Sunday also grants everyone a fresh streak day automatically.</p>
+      <p className="mt-2 text-xs text-stone">{isQuizDay ? 'Play Daily Trivia from any narrative published this week.' : 'Replay any published game from this week. Sunday also grants everyone a fresh streak day automatically.'}</p>
     </div>
   ) : null;
 

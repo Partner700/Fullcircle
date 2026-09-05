@@ -63,6 +63,11 @@ for (const preservedTriviaBoundary of [
 }
 assert.match(dailyTrivia, /Array\.from\(\{ length: DAILY_GAME_LEVELS \}/);
 assert.match(dailyTrivia, /onBackToDailyGames &&[\s\S]*Back to Daily Games/);
+assert.match(dailyTrivia, /isQuizDay \|\| isSunday/);
+assert.match(dailyTrivia, /Quiz Day Narrative Trivia/);
+assert.match(dailyTrivia, /item\.narrative_date >= weekStartDate/);
+assert.doesNotMatch(dailyTrivia, /Daily Trivia Paused/);
+assert.doesNotMatch(cadetApp, /k === 'narrative'[\s\S]{0,120}setTab\('quiz'\)/);
 
 for (const preservedArenaBoundary of [
   'activeArenaRoomStorageKey',
