@@ -11,6 +11,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { MessageAvatar } from '../../components/TentMessenger';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
+import { updateReactionOptimistically } from '../../lib/reactionState';
 
 const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   rhetoric: MessageCircle,
@@ -120,10 +121,21 @@ export function CadetAwards() {
 
   const handleReaction = async (awardId: string, reactionType: string) => {
     if (!profile || reacting) return;
+    const previousReactions = reactions;
+    const nextReacted = !reactions[awardId]?.[reactionType]?.reacted;
     setReacting(`${awardId}:${reactionType}`);
+    setReactions((current) => updateReactionOptimistically(current, awardId, reactionType, nextReacted, {
+      user_id: profile.id,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url || null,
+    }));
     try {
       await reactToAward(awardId, profile.id, reactionType);
-      setReactions(await fetchAwardReactions(awards.map((award) => award.id), profile.id));
+      const refreshed = await fetchAwardReactions(awards.map((award) => award.id), profile.id).catch(() => null);
+      if (refreshed) setReactions(refreshed);
+    } catch (error: any) {
+      setReactions(previousReactions);
+      alert(error.message || 'Could not save your reaction.');
     } finally {
       setReacting(null);
     }

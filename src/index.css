@@ -636,6 +636,9 @@
   .welcome-slide-veil {
     background-color: rgba(7, 18, 38, 0.34);
   }
+  .quiz-podium-slide-veil {
+    background-color: rgba(7, 18, 38, 0.64);
+  }
   .welcome-first-slide-veil {
     background: radial-gradient(
       ellipse at center,
@@ -656,6 +659,9 @@
   }
   [data-theme="day"] .welcome-slide-veil {
     background-color: rgba(255, 255, 255, 0.36);
+  }
+  [data-theme="day"] .quiz-podium-slide-veil {
+    background-color: rgba(255, 255, 255, 0.66);
   }
   [data-theme="day"] .welcome-blessing-text {
     color: rgba(18, 30, 63, 0.56);

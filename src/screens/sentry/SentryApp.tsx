@@ -34,6 +34,7 @@ import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
 import { dailyGamesNavigationKey } from '../../lib/dailyGames';
+import { updateReactionOptimistically } from '../../lib/reactionState';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
@@ -555,22 +556,38 @@ export function SentryApp() {
           onReactQuote={async (quote, reactionType) => {
             if (!profile) return;
             const key = `${quote.user_id}:${quote.record_date}`;
+            const previousReactions = quoteReactions;
             setReactingQuote(`${key}:${reactionType}`);
+            setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, true, {
+              user_id: profile.id,
+              display_name: profile.display_name,
+              avatar_url: profile.avatar_url || null,
+            }));
             try {
               await reactToDailyQuote(quote.user_id, quote.record_date, profile.id, reactionType);
-              setQuoteReactions(await fetchDailyQuoteReactions(quotes, profile.id).catch(() => quoteReactions) as Record<string, QuoteReactionState>);
+              const reactions = await fetchDailyQuoteReactions(quotes, profile.id).catch(() => null);
+              if (reactions) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
             } catch (e: any) {
+              setQuoteReactions(previousReactions);
               alert(e.message || 'Could not react to quote.');
             }
             setReactingQuote(null);
           }}
           onReactVerse={async (narrativeDate, reactionType) => {
             if (!profile) return;
+            const previousReactions = verseReactions;
             setReactingVerse(`${narrativeDate}:${reactionType}`);
+            setVerseReactions((current) => updateReactionOptimistically(current, narrativeDate, reactionType, true, {
+              user_id: profile.id,
+              display_name: profile.display_name,
+              avatar_url: profile.avatar_url || null,
+            }));
             try {
               await reactToDailyVerse(narrativeDate, profile.id, reactionType);
-              setVerseReactions(await fetchDailyVerseReactions([narrativeDate], profile.id).catch(() => verseReactions) as Record<string, QuoteReactionState>);
+              const reactions = await fetchDailyVerseReactions([narrativeDate], profile.id).catch(() => null);
+              if (reactions) setVerseReactions(reactions as Record<string, QuoteReactionState>);
             } catch (e: any) {
+              setVerseReactions(previousReactions);
               alert(e.message || 'Could not react to verse.');
             }
             setReactingVerse(null);

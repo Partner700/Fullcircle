@@ -153,7 +153,7 @@ export function QuoteReactions({
               title={reaction.label}
               aria-label={`${reaction.label}: ${data.count} reactions`}
             >
-              <Icon size={12} />
+              <Icon size={12} fill={data.reacted ? 'currentColor' : 'none'} />
               <span className="text-[10px] opacity-85">{data.count}</span>
             </button>
           );

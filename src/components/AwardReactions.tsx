@@ -38,7 +38,7 @@ export function AwardReactions({ state = {}, disabled = false, currentUserId, on
               title={label}
               aria-pressed={reaction.reacted}
             >
-              <Icon size={12} />
+              <Icon size={12} fill={reaction.reacted ? 'currentColor' : 'none'} />
               <span>{reaction.count}</span>
             </button>
           );

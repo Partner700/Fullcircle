@@ -870,6 +870,12 @@ export function CadetNarrative({
         [reactionType]: {
           count: Math.max(0, Number(previous.count || 0) + (nextReacted ? 1 : -1)),
           reacted: nextReacted,
+          actors: nextReacted
+            ? [
+                { user_id: profile.id, display_name: profile.display_name, avatar_url: profile.avatar_url || null },
+                ...(previous.actors || []).filter((actor: any) => actor.user_id !== profile.id),
+              ]
+            : (previous.actors || []).filter((actor: any) => actor.user_id !== profile.id),
         },
       },
     } : item));
@@ -1162,7 +1168,7 @@ export function CadetNarrative({
                                     aria-pressed={reaction.reacted}
                                     aria-busy={pending}
                                   >
-                                    <ReactionIcon size={13} fill={type === 'heart' && reaction.reacted ? 'currentColor' : 'none'} />
+                                    <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
                                     <span>{reaction.count}</span>
                                   </button>
                                 );

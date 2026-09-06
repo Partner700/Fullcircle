@@ -54,6 +54,7 @@ const vallumAvatarBadge = read('src/components/VallumAvatarBadge.tsx');
 const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecycle_and_rare_rewards.sql');
 const quoteReactions = read('src/components/QuoteReactions.tsx');
 const awardReactions = read('src/components/AwardReactions.tsx');
+const reactionState = read('src/lib/reactionState.ts');
 const quoteQueries = read('src/lib/queries.ts');
 const tentGroupChat = read('supabase/migrations/20260819100000_tent_group_chat.sql');
 const quoteCommentReplies = read('supabase/migrations/20260819103000_quote_comment_replies.sql');
@@ -222,6 +223,16 @@ for (const required of [
 }
 assert.match(quoteReactions, /size="xs"/);
 assert.match(awardReactions, /size="xs"/);
+assert.match(quoteReactions, /fill=\{data\.reacted \? 'currentColor' : 'none'\}/);
+assert.match(awardReactions, /fill=\{reaction\.reacted \? 'currentColor' : 'none'\}/);
+assert.match(reactionState, /updateReactionOptimistically/);
+assert.match(reactionState, /count: Math\.max\(0, Number\(previous\.count \|\| 0\) \+ \(reacted \? 1 : -1\)\)/);
+assert.match(cadetDashboard, /setQuoteReactions\(\(current\) => updateReactionOptimistically/);
+assert.match(cadetDashboard, /slide\.kind === 'quiz_podium' \? 'quiz-podium-slide-veil'/);
+assert.match(read('src/index.css'), /\.quiz-podium-slide-veil[\s\S]*?rgba\(7, 18, 38, 0\.64\)/);
+assert.match(read('src/index.css'), /\[data-theme="day"\] \.quiz-podium-slide-veil[\s\S]*?rgba\(255, 255, 255, 0\.66\)/);
+assert.match(cadetNarrative, /fill=\{reaction\.reacted \? 'currentColor' : 'none'\}/);
+assert.match(publicShareScreen, /setPendingReaction\(key\);\s*applyReaction\(optimisticReacted\);\s*try \{\s*const reacted = await/);
 assert.match(tentMessenger, /size === 'xs' \? 'h-4 w-4 text-\[7px\]'/);
 assert.match(cadetNarrative, /<MessageAvatar[\s\S]*?profile=\{messageProfile\(item\.user_id/);
 assert.match(cadetNarrative, /profile=\{messageProfile\(comment\.user_id/);
@@ -364,7 +375,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v111'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v112'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -379,7 +390,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v111/);
+assert.match(releaseCache, /2026-09-06-v112/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);

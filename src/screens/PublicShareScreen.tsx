@@ -137,7 +137,7 @@ function InsightThread({
               aria-label={`${label}: ${reaction.count}`}
               aria-pressed={reaction.reacted}
             >
-              <ReactionIcon size={13} fill={type === 'heart' && reaction.reacted ? 'currentColor' : 'none'} />
+              <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
               <span>{reaction.count}</span>
             </button>
           );
@@ -444,21 +444,23 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
   const reactToSharedInsight = async (insightId: string, reactionType: VerseInsightReactionType) => {
     if (!reading || pendingReaction) return;
     const key = `${insightId}:${reactionType}`;
-    setPendingReaction(key);
-    try {
-      const reacted = await toggleSharedInsightReaction(insightId, readingGuestKey, reactionType);
+    const selectedInsight = reading.insights.find((insight) => insight.id === insightId);
+    const startingReaction = selectedInsight?.reactions?.[reactionType] || { count: 0, reacted: false, actors: [] };
+    const optimisticReacted = !startingReaction.reacted;
+    const guestActor = {
+      user_id: `guest:${readingGuestKey.slice(0, 16)}`,
+      display_name: 'Guest reader',
+      avatar_url: null,
+      is_guest: true,
+      is_current_guest: true,
+    };
+    const applyReaction = (reacted: boolean) => {
       setReading((current) => current ? {
         ...current,
         insights: current.insights.map((insight) => {
           if (insight.id !== insightId) return insight;
           const previous = insight.reactions?.[reactionType] || { count: 0, reacted: false, actors: [] };
-          const guestActor = {
-            user_id: `guest:${readingGuestKey.slice(0, 16)}`,
-            display_name: 'Guest reader',
-            avatar_url: null,
-            is_guest: true,
-            is_current_guest: true,
-          };
+          if (previous.reacted === reacted) return insight;
           return {
             ...insight,
             reactions: {
@@ -477,7 +479,15 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
           };
         }),
       } : current);
+    };
+
+    setPendingReaction(key);
+    applyReaction(optimisticReacted);
+    try {
+      const reacted = await toggleSharedInsightReaction(insightId, readingGuestKey, reactionType);
+      if (reacted !== optimisticReacted) applyReaction(reacted);
     } catch (reactionError: any) {
+      applyReaction(startingReaction.reacted);
       setError(reactionError?.message || 'Your reaction could not be saved.');
     } finally {
       setPendingReaction(null);

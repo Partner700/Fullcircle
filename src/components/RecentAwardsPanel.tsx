@@ -10,6 +10,7 @@ import { TentHouseSymbol } from './TentHouseSymbol';
 import { useAutoAdvance } from '../hooks/useAutoAdvance';
 import { MessageAvatar } from './TentMessenger';
 import { VallumText } from './ChiRhoMark';
+import { updateReactionOptimistically } from '../lib/reactionState';
 
 type RecentAward = AwardWithRecipient;
 
@@ -52,10 +53,21 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
 
   const handleReaction = async (awardId: string, reactionType: string) => {
     if (!profile || reacting) return;
+    const previousReactions = reactions;
+    const nextReacted = !reactions[awardId]?.[reactionType]?.reacted;
     setReacting(`${awardId}:${reactionType}`);
+    setReactions((current) => updateReactionOptimistically(current, awardId, reactionType, nextReacted, {
+      user_id: profile.id,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url || null,
+    }));
     try {
       await reactToAward(awardId, profile.id, reactionType);
-      setReactions(await fetchAwardReactions(awards.map((award) => award.id), profile.id));
+      const refreshed = await fetchAwardReactions(awards.map((award) => award.id), profile.id).catch(() => null);
+      if (refreshed) setReactions(refreshed);
+    } catch (error: any) {
+      setReactions(previousReactions);
+      alert(error.message || 'Could not save your reaction.');
     } finally {
       setReacting(null);
     }

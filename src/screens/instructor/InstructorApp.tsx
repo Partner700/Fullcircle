@@ -24,6 +24,7 @@ import { VallumText } from '../../components/ChiRhoMark';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { CadetStore } from '../cadet/CadetStore';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
+import { updateReactionOptimistically } from '../../lib/reactionState';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -1583,8 +1584,21 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                 disabled={!instructorId}
                 onReact={async (reactionType) => {
                   if (!instructorId) return;
-                  await reactToDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, reactionType);
-                  setQuoteReactions(await fetchDailyQuoteReactions(quotes, instructorId).catch(() => quoteReactions) as Record<string, QuoteReactionState>);
+                  const key = `${featuredQuote.user_id}:${featuredQuote.record_date}`;
+                  const previousReactions = quoteReactions;
+                  setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, true, {
+                    user_id: instructorId,
+                    display_name: 'Instructor',
+                    avatar_url: null,
+                  }));
+                  try {
+                    await reactToDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, reactionType);
+                    const reactions = await fetchDailyQuoteReactions(quotes, instructorId).catch(() => null);
+                    if (reactions) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
+                  } catch (error: any) {
+                    setQuoteReactions(previousReactions);
+                    alert(error.message || 'Could not react to quote.');
+                  }
                 }}
                 quoteUserId={featuredQuote.user_id}
                 quoteRecordDate={featuredQuote.record_date}

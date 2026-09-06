@@ -136,17 +136,34 @@ export function CadetTent() {
 
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
     if (!profile || !tent) return;
+    const optimisticId = `optimistic-${profile.id}-${targetUserId}-${reactionType}`;
     setReactingTo(targetUserId);
-    await supabase.from('tent_reactions').insert({
-      tent_id: tent.id,
+    setReactions((current) => [{
+      id: optimisticId,
       reactor_user_id: profile.id,
       target_user_id: targetUserId,
       reaction_type: reactionType,
       target_type: targetType,
       target_reference: ref || null,
-    });
-    await load();
-    setReactingTo(null);
+      created_at: new Date().toISOString(),
+    }, ...current]);
+    try {
+      const { error } = await supabase.from('tent_reactions').insert({
+        tent_id: tent.id,
+        reactor_user_id: profile.id,
+        target_user_id: targetUserId,
+        reaction_type: reactionType,
+        target_type: targetType,
+        target_reference: ref || null,
+      });
+      if (error) throw error;
+      await load();
+    } catch (error: any) {
+      setReactions((current) => current.filter((reaction) => reaction.id !== optimisticId));
+      alert(error.message || 'Could not save your reaction.');
+    } finally {
+      setReactingTo(null);
+    }
   };
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading your tent…</div>;
@@ -367,16 +384,20 @@ export function CadetTent() {
                   <span className="text-[10px] text-stone mr-1">React:</span>
                   {REACTIONS.map((r) => {
                     const Icon = r.icon;
+                    const reacted = myReactions.some((reaction) => (
+                      reaction.reactor_user_id === profile?.id && reaction.reaction_type === r.type
+                    ));
                     return (
                       <button
                         key={r.type}
                         onClick={() => sendReaction(m.user_id, r.type, 'high_score', String(den))}
-                        disabled={reactingTo === m.user_id}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-40"
-                        style={{ background: `${r.color}12` }}
+                        disabled={reactingTo === m.user_id || reacted}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-70"
+                        style={{ background: `${r.color}${reacted ? '2e' : '12'}` }}
                         title={r.label}
+                        aria-pressed={reacted}
                       >
-                        <Icon size={14} style={{ color: r.color }} />
+                        <Icon size={14} fill={reacted ? r.color : 'none'} style={{ color: r.color }} />
                       </button>
                     );
                   })}

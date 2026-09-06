@@ -16,6 +16,7 @@ import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
+import { updateReactionOptimistically } from '../../lib/reactionState';
 import { supabase } from '../../lib/supabase';
 import { DAILY_GAME_LEVELS } from '../../lib/constants';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience, AwardWithRecipient, WeeklyQuizRanking } from '../../lib/types';
@@ -298,24 +299,38 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         onReactQuote={async (quote, reactionType) => {
           if (!profile) return;
           const key = `${quote.user_id}:${quote.record_date}`;
+          const previousReactions = quoteReactions;
           setReactingQuote(`${key}:${reactionType}`);
+          setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, true, {
+            user_id: profile.id,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url || null,
+          }));
           try {
             await reactToDailyQuote(quote.user_id, quote.record_date, profile.id, reactionType);
-            const reactions = await fetchDailyQuoteReactions(quotes, profile.id).catch(() => quoteReactions);
-            setQuoteReactions(reactions as Record<string, QuoteReactionState>);
+            const reactions = await fetchDailyQuoteReactions(quotes, profile.id).catch(() => null);
+            if (reactions) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
           } catch (e: any) {
+            setQuoteReactions(previousReactions);
             alert(e.message || 'Could not react to quote.');
           }
           setReactingQuote(null);
         }}
         onReactVerse={async (narrativeDate, reactionType) => {
           if (!profile) return;
+          const previousReactions = verseReactions;
           setReactingVerse(`${narrativeDate}:${reactionType}`);
+          setVerseReactions((current) => updateReactionOptimistically(current, narrativeDate, reactionType, true, {
+            user_id: profile.id,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url || null,
+          }));
           try {
             await reactToDailyVerse(narrativeDate, profile.id, reactionType);
-            const reactions = await fetchDailyVerseReactions([narrativeDate], profile.id).catch(() => verseReactions);
-            setVerseReactions(reactions as Record<string, QuoteReactionState>);
+            const reactions = await fetchDailyVerseReactions([narrativeDate], profile.id).catch(() => null);
+            if (reactions) setVerseReactions(reactions as Record<string, QuoteReactionState>);
           } catch (e: any) {
+            setVerseReactions(previousReactions);
             alert(e.message || 'Could not react to verse.');
           }
           setReactingVerse(null);
@@ -558,7 +573,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                 <PanelImageBackdrop
                   image={slideImage}
                   opacityOverride={100}
-                  veilClassName={slide.kind === 'custom' ? slide.veilClassName || 'welcome-slide-veil' : slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'fcx' ? 'fcx-slide-veil' : isReminder ? 'reminder-picture-veil' : slide.kind === 'welcome' ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
+                  veilClassName={slide.kind === 'custom' ? slide.veilClassName || 'welcome-slide-veil' : slide.kind === 'quote' ? 'quote-picture-veil' : slide.kind === 'fcx' ? 'fcx-slide-veil' : slide.kind === 'quiz_podium' ? 'quiz-podium-slide-veil' : isReminder ? 'reminder-picture-veil' : slide.kind === 'welcome' ? 'welcome-first-slide-veil' : 'welcome-slide-veil'}
                   modeFilter={false}
                   textGradient={false}
                   simple={slide.kind === 'quote' || slide.kind === 'fcx' || isReminder}
