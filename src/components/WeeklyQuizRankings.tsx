@@ -29,12 +29,12 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow text-gold">Released with quiz results</p>
-          <h3 className="mt-1 font-display text-base font-semibold text-ink">Weekly Quiz Ranking</h3>
+          <h3 className="mt-1 font-display text-base font-semibold text-ink">Weekly Quiz Top Three</h3>
         </div>
         <Trophy size={21} className="text-gold" />
       </div>
       <div className="mt-4 divide-y divide-border/75">
-        {rankings.map((ranking) => (
+        {rankings.slice(0, 3).map((ranking) => (
           <div key={ranking.user_id} className="flex min-w-0 items-center gap-3 py-2.5 first:pt-0 last:pb-0">
             <span className="w-6 shrink-0 text-center text-xs font-black tabular-nums text-gold">{ranking.placement}</span>
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-navy text-[10px] font-black text-gold">

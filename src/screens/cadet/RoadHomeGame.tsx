@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CircleDollarSign, Clock, Crown, Dices, Gift, History, Loader2,
-  Flag, LockKeyhole, MessageCircle, RotateCw, Send, Shield, Sparkles, Trophy, Users, X,
+  CircleDollarSign, Clock, Crown, Dices, Gift, Loader2,
+  Flag, LockKeyhole, MessageCircle, RotateCw, Send, Shield, Sparkles, Trophy, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
@@ -23,15 +23,7 @@ type Props = {
 type Coordinate = readonly [number, number];
 type RoadHomeCommandError = Error & { state?: RoadHomeState | null };
 type RollOutcome = { value: number; message: string };
-type TurnActivity = RoadHomeState['eventLog'][number] & { diceValue?: number };
-
 const PAWN_STEP_MS = 260;
-
-function machineReplayDelay(roomName: string) {
-  if (/\[difficulty:hard\]/i.test(roomName)) return 850;
-  if (/\[difficulty:easy\]/i.test(roomName)) return 2100;
-  return 1450;
-}
 
 function roadHomeError(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -114,7 +106,6 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const [error, setError] = useState<string | null>(null);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [showLog, setShowLog] = useState(false);
   const [rollOutcome, setRollOutcome] = useState<RollOutcome | null>(null);
   const [visualPawnProgress, setVisualPawnProgress] = useState<Record<string, number>>({});
   const [movingPawnIds, setMovingPawnIds] = useState<Set<string>>(new Set());
@@ -123,9 +114,6 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const hasState = useRef(false);
   const visualPawnProgressRef = useRef<Record<string, number>>({});
   const pawnAnimationTimers = useRef<number[]>([]);
-  const knownEventIds = useRef<Set<string> | null>(null);
-  const activityTimers = useRef<number[]>([]);
-  const [liveActivity, setLiveActivity] = useState<TurnActivity | null>(null);
   const [homeCelebration, setHomeCelebration] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const previousHomeCountsRef = useRef<Record<string, number>>({});
@@ -230,41 +218,6 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const latestMoveEvent = useMemo(() => state ? [...state.eventLog].reverse().find((event) => [
     'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED', 'PAWN_RELEASED',
   ].includes(event.type)) || null : null, [state]);
-  const opponentPlay = useMemo(() => state ? state.eventLog.filter((event) => event.playerId && event.playerId !== userId && [
-    'TURN_STARTED', 'DICE_ROLLED', 'QUESTION_DRAWN', 'QUESTION_CORRECT', 'QUESTION_INCORRECT',
-    'NO_LEGAL_MOVE', 'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED',
-    'PAWN_RELEASED', 'SURPRISE_DRAWN',
-  ].includes(event.type)).slice(-8).reverse() : [], [state, userId]);
-
-  useEffect(() => {
-    if (!state) return;
-    const relevant = state.eventLog.filter((event) => [
-      'TURN_STARTED', 'DICE_ROLLED', 'QUESTION_DRAWN', 'QUESTION_CORRECT', 'QUESTION_INCORRECT',
-      'NO_LEGAL_MOVE', 'PAWN_DEPLOYED', 'PAWN_MOVED', 'PAWN_CAPTURED', 'PAWN_HOME', 'PAWN_IMPRISONED',
-      'PAWN_RELEASED', 'SURPRISE_DRAWN', 'GAME_ENDED',
-    ].includes(event.type));
-    if (!knownEventIds.current) {
-      knownEventIds.current = new Set(state.eventLog.map((event) => event.id));
-      setLiveActivity(relevant[relevant.length - 1] || null);
-      return;
-    }
-    const fresh = relevant.filter((event) => !knownEventIds.current!.has(event.id));
-    state.eventLog.forEach((event) => knownEventIds.current!.add(event.id));
-    if (!fresh.length) return;
-    activityTimers.current.forEach((timer) => window.clearTimeout(timer));
-    const replayDelay = machineReplayDelay(roomName);
-    activityTimers.current = fresh.map((event, index) => window.setTimeout(() => {
-      const diceValue = event.type === 'DICE_ROLLED'
-        ? Number(event.message.match(/rolled\s+(\d+)/i)?.[1] || 0)
-        : undefined;
-      setLiveActivity({ ...event, diceValue: diceValue || undefined });
-    }, index * replayDelay));
-    return () => {
-      activityTimers.current.forEach((timer) => window.clearTimeout(timer));
-      activityTimers.current = [];
-    };
-  }, [roomName, state]);
-
   useEffect(() => {
     if (!state) return;
     pawnAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
@@ -353,6 +306,12 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [secondsLeft, state?.phase]);
 
   useEffect(() => {
+    if (!rollOutcome) return;
+    const timer = window.setTimeout(() => setRollOutcome(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [rollOutcome]);
+
+  useEffect(() => {
     if (state?.phase === 'GAME_OVER' && !finishedNotified.current) {
       finishedNotified.current = true;
       void playSoundEffect('sound_arena_finish', 0.72);
@@ -382,7 +341,6 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><p className="eyebrow">Full Circle: The Road Home</p><h2 className="truncate font-display text-xl font-bold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2></div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowLog((value) => !value)} className="btn-secondary px-3 py-2 text-xs"><History size={14} /> Events</button>
           <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>
           <button onClick={onExit} className="btn-ghost h-9 w-9 p-0" title="Leave this view"><X size={17} /></button>
         </div>
@@ -390,42 +348,77 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
 
       {error && <div className="flex items-center justify-between gap-3 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-xs text-coral"><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button></div>}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="space-y-4">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <main className="space-y-3">
           <PlayerStrip state={state} userId={userId} />
-          <OpponentPlayFeed state={state} events={opponentPlay} />
-          {myTurn && liveActivity?.playerId && liveActivity.playerId !== userId && (
-            <OpponentTurnPanel state={state} activity={liveActivity} secondsLeft={secondsLeft} replay />
-          )}
-          {latestMoveEvent && (
-            <div key={latestMoveEvent.id} className="flex items-center gap-2 rounded-lg border border-gold/30 bg-surface/92 px-3 py-2 text-xs text-stone animate-fade-in" aria-live="polite">
-              <Sparkles size={14} className="flex-shrink-0 text-gold" />
-              <span><strong className="text-ink">Latest move:</strong> {latestMoveEvent.message}</span>
-            </div>
-          )}
-          <div className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
+          <div className="relative mx-auto w-full max-w-[52rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
             {homeCelebration && <RoadHomeConfetti />}
             <RoadHomeBoard state={state} userId={userId} sending={sending} visualPawnProgress={visualPawnProgress} movingPawnIds={movingPawnIds} onMove={(pawnId) => void send('MOVE', { pawnId })} />
+            {myTurn && state.phase === 'AWAITING_ROLL' && (
+              <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => void send('ROLL')}
+                  disabled={sending}
+                  className="pointer-events-auto flex min-h-24 min-w-24 flex-col items-center justify-center rounded-full border-2 border-gold/70 bg-navy/95 p-3 text-gold shadow-2xl backdrop-blur-md transition-transform hover:scale-105 disabled:opacity-60"
+                  aria-label="Roll the dice"
+                >
+                  {sending ? <Loader2 size={30} className="animate-spin" /> : <Dice value={state.diceValue || 1} size="lg" />}
+                  <span className="mt-1 text-[10px] font-black uppercase">Roll</span>
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+          {latestMoveEvent && (
+            <div key={latestMoveEvent.id} className="flex items-center justify-center gap-2 px-3 text-center text-[11px] text-stone animate-fade-in" aria-live="polite">
+              <Sparkles size={13} className="flex-shrink-0 text-gold" />
+              <span>{latestMoveEvent.message}</span>
+            </div>
+          )}
+          {rollOutcome && (
+            <div className="mx-auto flex max-w-xl items-center justify-center gap-2 rounded-lg border border-gold/30 bg-gold-soft px-3 py-2 text-center text-[11px] font-semibold text-ink animate-fade-in" aria-live="polite">
+              <Dice value={rollOutcome.value} />
+              <span>{rollOutcome.message}</span>
+            </div>
+          )}
+          {myTurn && !['AWAITING_ROLL', 'QUESTION'].includes(state.phase) && me && (
+            <div className="mx-auto max-w-xl">
+              <TurnControls
+                state={state}
+                me={me}
+                challenge={activeChallenge}
+                secondsLeft={secondsLeft}
+                typedAnswer={typedAnswer}
+                setTypedAnswer={setTypedAnswer}
+                sending={sending}
+                rollOutcome={rollOutcome}
+                send={send}
+              />
+            </div>
+          )}
+        </main>
 
         <aside className="space-y-3">
+          <div className={cn('rounded-lg border p-3', myTurn ? 'border-gold/50 bg-gold-soft' : 'border-border bg-surface/90')}>
+            <div className="flex items-center gap-3">
+              <PlayerAvatar player={activePlayer!} size="lg" />
+              <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-stone">Turn {state.turnNumber}</p><p className="truncate text-sm font-bold text-ink">{formatPhase(state, myTurn)}</p></div>
+            </div>
+          </div>
           <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
             <MessageCircle size={15} /> Match Chat
           </button>
           {chatOpen && <ArenaMatchChat roomId={roomId} userId={userId} />}
-          <div className={cn('rounded-lg border p-4', myTurn ? 'border-gold/50 bg-gold-soft' : 'border-border bg-surface/90')}>
-            <div className="flex items-center gap-3">
-              <PlayerAvatar player={activePlayer!} size="lg" />
-              <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-stone">Turn {state.turnNumber}</p><p className="truncate text-sm font-bold text-ink">{formatPhase(state, myTurn)}</p></div>
-              {(liveActivity?.diceValue || state.diceValue) && <Dice value={liveActivity?.diceValue || state.diceValue || 1} rolling={liveActivity?.type === 'DICE_ROLLED'} />}
-            </div>
-          </div>
+          {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
+        </aside>
+      </div>
 
-          {myTurn ? (
+      {myTurn && state.phase === 'QUESTION' && me && (
+        <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Ludo Trivia question">
+          <div className="w-full max-w-lg animate-scale-in">
             <TurnControls
               state={state}
-              me={me!}
+              me={me}
               challenge={activeChallenge}
               secondsLeft={secondsLeft}
               typedAnswer={typedAnswer}
@@ -434,34 +427,11 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
               rollOutcome={rollOutcome}
               send={send}
             />
-          ) : <OpponentTurnPanel state={state} activity={liveActivity} secondsLeft={secondsLeft} />}
-
-          {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
-
-          <div className="rounded-lg border border-border bg-surface/90 p-3">
-            <div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Challenge Queue</p><span className="badge badge-brass text-[9px]">{state.challengeQueue.filter((item) => item.status === 'OPEN').length} open</span></div>
-            {state.challengeQueue.filter((item) => item.status === 'OPEN').length ? state.challengeQueue.filter((item) => item.status === 'OPEN').slice(0, 3).map((challenge) => <div key={challenge.id} className="mb-1.5 rounded-md bg-surface-2 px-2.5 py-2 text-[11px] text-stone"><span className="font-bold text-ink">Inherited {challenge.rolledValue}</span> from {state.players.find((player) => player.id === challenge.originPlayerId)?.name || 'a player'}</div>) : <p className="text-[11px] text-stone">No inherited question is circulating.</p>}
           </div>
-        </aside>
-      </div>
-
-      {showLog && <EventLog state={state} onClose={() => setShowLog(false)} />}
+        </div>
+      )}
     </div>
   );
-}
-
-function OpponentPlayFeed({ state, events }: { state: RoadHomeState; events: RoadHomeState['eventLog'] }) {
-  const compactEvents = events.slice(0, 3);
-  return <div className="rounded-lg border border-royal/30 bg-surface/92 p-3" aria-live="polite">
-    <div className="mb-2 flex items-center justify-between gap-2"><div><p className="text-xs font-bold text-ink">Opponent Live Play</p><p className="text-[10px] text-stone">Rolls, questions, selected answers, results, and moves</p></div><Users size={17} className="text-royal" /></div>
-    {compactEvents.length === 0 ? <p className="text-xs text-stone">Your opponent's next action will appear here.</p> : <div className="space-y-2">{compactEvents.map((event) => {
-      const player = state.players.find((item) => item.id === event.playerId);
-      return <div key={event.id} className="flex items-start gap-2 rounded-md border border-border bg-surface-2/90 p-2 animate-fade-in">
-        {player && <PlayerAvatar player={player} />}
-        <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="truncate text-[11px] font-bold text-ink">{player?.name || 'Opponent'}</p><span className="text-[8px] font-bold uppercase text-royal">{event.type.replace(/_/g, ' ')}</span></div><p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-stone">{event.message}</p></div>
-      </div>;
-    })}</div>}
-  </div>;
 }
 
 function ArenaMatchChat({ roomId, userId }: { roomId: string; userId: string }) {
@@ -589,49 +559,13 @@ function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnI
   })}</div>;
 }
 
-function Dice({ value, rolling = false }: { value: number; rolling?: boolean }) {
+function Dice({ value, rolling = false, size = 'sm' }: { value: number; rolling?: boolean; size?: 'sm' | 'lg' }) {
   const dots: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-  return <div className={cn('grid h-10 w-10 flex-shrink-0 grid-cols-3 rounded-lg border border-gold/50 bg-surface p-1 shadow-inner animate-scale-in', rolling && 'animate-bounce')}>{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto h-1.5 w-1.5 rounded-full', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
-}
-
-function OpponentTurnPanel({ state, activity, secondsLeft, replay = false }: { state: RoadHomeState; activity: TurnActivity | null; secondsLeft: number; replay?: boolean }) {
-  const active = state.players[state.activePlayerIndex];
-  const actor = activity?.playerId ? state.players.find((player) => player.id === activity.playerId) || active : active;
-  const copy: Record<string, string> = {
-    TURN_STARTED: 'is up next.',
-    DICE_ROLLED: 'rolled the dice.',
-    QUESTION_DRAWN: 'is answering a Bible question.',
-    QUESTION_CORRECT: 'answered correctly and earned the move.',
-    QUESTION_INCORRECT: 'missed the question. The turn moves on.',
-    NO_LEGAL_MOVE: 'has no legal move for that roll.',
-    PAWN_DEPLOYED: 'brought a pawn onto the road.',
-    PAWN_MOVED: 'is moving a pawn forward.',
-    PAWN_CAPTURED: 'captured an opponent pawn.',
-    PAWN_HOME: 'brought a pawn Home.',
-    PAWN_IMPRISONED: 'landed in prison.',
-    PAWN_RELEASED: 'released a pawn from prison.',
-    SURPRISE_DRAWN: 'drew a Surprise Card.',
-  };
-  const message = activity
-    ? activity.type.startsWith('QUESTION_') ? activity.message : `${actor?.name || 'A player'} ${copy[activity.type] || activity.message}`
-    : `${active?.name || 'A player'} is taking a turn.`;
-  return <div className={cn('rounded-lg border border-royal/35 bg-surface/95 p-4', replay && 'animate-slide-up shadow-lg')} aria-live="polite">
-    <div className="flex items-center gap-3">
-      {actor && <PlayerAvatar player={actor} size="lg" />}
-      <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase text-royal">Live opponent turn</p><p className="mt-0.5 text-sm font-bold text-ink">{message}</p></div>
-      {activity?.diceValue ? <Dice value={activity.diceValue} rolling /> : <Users size={22} className="text-royal" />}
-    </div>
-    {state.phase === 'QUESTION' && state.currentQuestion ? (
-      <div className="mt-4 rounded-lg border border-border bg-surface-2 p-3 animate-fade-in">
-        <div className="flex items-center justify-between gap-2">
-          <span className="badge badge-brass text-[9px]">{state.currentQuestion.difficulty.replace('_', ' ')}</span>
-          <span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={12} /> {secondsLeft}s</span>
-        </div>
-        <p className="mt-2 text-sm font-bold leading-snug text-ink">{state.currentQuestion.prompt}</p>
-        {state.currentQuestion.options?.length ? <div className="mt-3 space-y-1.5">{state.currentQuestion.options.map((option) => <div key={option} className="rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-stone">{option}</div>)}</div> : <p className="mt-2 text-xs italic text-stone">A written answer is being entered.</p>}
-      </div>
-    ) : <p className="mt-3 text-xs leading-relaxed text-stone">Every roll, question, selected answer, and outcome is shown to all players.</p>}
-  </div>;
+  return <div className={cn(
+    'grid flex-shrink-0 grid-cols-3 border border-gold/50 bg-surface shadow-inner animate-scale-in',
+    size === 'lg' ? 'h-14 w-14 rounded-xl p-1.5' : 'h-10 w-10 rounded-lg p-1',
+    rolling && 'animate-bounce',
+  )}>{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto rounded-full', size === 'lg' ? 'h-2 w-2' : 'h-1.5 w-1.5', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
 }
 
 type SendCommand = (action: string, payload?: Record<string, unknown>) => Promise<boolean>;
@@ -673,10 +607,6 @@ function RelicTray({ player, state, sending, send }: { player: RoadHomePlayer; s
   if (!player.relics.length) return <div className="rounded-lg border border-border bg-surface/90 p-3"><p className="text-xs font-bold text-ink">Relics · 0/3</p><p className="mt-1 text-[11px] text-stone">Surprise spaces can reveal match relics.</p></div>;
   const usable = (relic: string) => relic === 'Manna Pouch' || (relic === 'Key of Deliverance' && state.phase === 'PRISON_MANAGEMENT') || (relic === 'Lamp of Guidance' && state.phase === 'QUESTION' && state.currentQuestion?.type === 'multiple_choice') || (relic === 'Scroll of Recall' && state.phase === 'QUESTION') || (relic === 'Golden Scroll' && state.phase === 'QUESTION' && state.questionPurpose === 'own') || (relic === "Shepherd's Staff" && state.phase === 'INHERITED_OFFER');
   return <div className="rounded-lg border border-border bg-surface/90 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Relics</p><span className="text-[10px] text-stone">{player.relics.length}/3</span></div><div className="space-y-1.5">{player.relics.map((relic, index) => <button key={`${relic}-${index}`} disabled={sending || !usable(relic)} onClick={() => void send('USE_RELIC', { relic })} className="flex w-full items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-2 text-left text-[11px] font-semibold text-ink disabled:opacity-55"><Sparkles size={13} className="text-gold" /><span className="min-w-0 flex-1 truncate">{relic}</span>{usable(relic) && <span className="text-[9px] text-sage">Use</span>}</button>)}</div></div>;
-}
-
-function EventLog({ state, onClose }: { state: RoadHomeState; onClose: () => void }) {
-  return <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-3 sm:items-center" onClick={onClose}><section className="card max-h-[80vh] w-full max-w-lg overflow-hidden p-0" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-border p-4"><div><p className="text-sm font-bold text-ink">Match Events</p><p className="text-[10px] text-stone">The authoritative history of this game</p></div><button onClick={onClose} className="btn-ghost h-8 w-8 p-0"><X size={16} /></button></div><div className="max-h-[65vh] space-y-2 overflow-y-auto p-4">{[...state.eventLog].reverse().map((event) => <div key={event.id} className="rounded-md border border-border bg-surface-2 p-2.5"><p className="text-[9px] font-bold uppercase text-brass">{event.type.replace(/_/g, ' ')}</p><p className="mt-0.5 text-xs leading-relaxed text-stone">{event.message}</p></div>)}</div></section></div>;
 }
 
 function RoadHomeResults({ state, userId, onExit }: { state: RoadHomeState; userId: string; onExit: () => void }) {

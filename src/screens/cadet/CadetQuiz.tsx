@@ -1284,7 +1284,7 @@ function SubmittedView({ releaseAt, image, canUseLazarus, lazarusCount, usingLaz
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink mb-2">Quiz Submitted</h2>
           <p className="text-sm text-stone">
-            Your answers are safely recorded. Your marked answer sheet, figs, denarii, and the updated Fig Board will be released together at 4:00 PM.
+            Your answers are safely recorded. Your marked answer sheet, denarii, and ranking will be released together at 4:00 PM.
           </p>
           <div className="mt-4 rounded-lg border border-border bg-surface-2 p-3">
             <p className="text-[10px] uppercase tracking-wider text-stone">Results release in</p>
@@ -1397,10 +1397,6 @@ function ResultsView({ attempt, result, weekly, image, questions, responses, can
   ));
   const answersReady = questions.length > 0
     && questions.every((question) => question.question_payload?.correct_answer !== undefined);
-  const maxFigs = questions.reduce((total, question) => total + (
-    question.difficulty_tag === 'hard' ? 5 : question.difficulty_tag === 'moderate' ? 3 : 1
-  ), 0);
-  const figs = Number(result?.figs_earned ?? attempt.talents_scored) || 0;
   const correctCount = Number(result?.correct_count ?? correctByQuestion.filter(Boolean).length) || 0;
   const questionCount = Number(result?.question_count ?? questions.length) || questions.length;
   const perfect = result?.perfect ?? (questionCount > 0 && correctCount === questionCount);
@@ -1433,15 +1429,9 @@ function ResultsView({ attempt, result, weekly, image, questions, responses, can
             {attempt.status === 'timed_out' ? 'Time expired' : 'Submitted'} · {correctCount}/{questionCount} correct
           </p>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="rounded-lg border border-border bg-surface-2 p-3">
-              <p className="text-xs text-stone uppercase tracking-wider">Figs</p>
-              <p className="font-display text-xl font-semibold text-brass">{figs}/{maxFigs}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-surface-2 p-3">
-              <p className="text-xs text-stone uppercase tracking-wider">Denarii</p>
-              <p className="font-display text-xl font-semibold text-brass">{formatDenarii(denarii)}</p>
-            </div>
+          <div className="mb-4 rounded-lg border border-border bg-surface-2 p-3">
+            <p className="text-xs text-stone uppercase tracking-wider">Denarii</p>
+            <p className="font-display text-xl font-semibold text-brass">{formatDenarii(denarii)}</p>
           </div>
 
           <p className="text-xs text-stone mb-3">

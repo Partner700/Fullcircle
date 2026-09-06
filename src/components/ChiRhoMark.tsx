@@ -18,10 +18,11 @@ export function ChiRhoMark({ size = 20, className = '' }: { size?: number; class
 }
 
 export function GrandVallumMark({ size = 24, className = '' }: { size?: number; className?: string }) {
+  const width = Math.round(size * 1.2);
   return (
-    <span className={`relative inline-flex shrink-0 items-center justify-center ${className}`} style={{ width: size, height: size }} aria-label="Grand Vallum" title="Grand Vallum">
+    <span className={`relative inline-flex shrink-0 items-center justify-center ${className}`} style={{ width, height: size }} aria-label="Grand Vallum" title="Grand Vallum">
       <img src={laurels} alt="" className="absolute inset-0 h-full w-full object-contain" aria-hidden="true" />
-      <ChiRhoMark size={Math.round(size * 0.48)} className="relative z-10" />
+      <ChiRhoMark size={Math.max(8, Math.round(size * 0.34))} className="relative z-10" />
     </span>
   );
 }

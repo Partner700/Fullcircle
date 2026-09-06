@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { fetchLatestQuizSession, fetchQuizResponders } from '../lib/queries';
+import { fetchLatestQuizSession, fetchLatestWeeklyQuizRankings, fetchQuizResponders } from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import type { QuizResponder } from '../lib/types';
+import type { QuizResponder, WeeklyQuizRanking } from '../lib/types';
 import { cn } from '../lib/utils';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 
@@ -19,6 +19,7 @@ export function QuizResponders({
 }) {
   const [resolvedSessionId, setResolvedSessionId] = useState(sessionId || null);
   const [responders, setResponders] = useState<QuizResponder[]>([]);
+  const [rankings, setRankings] = useState<WeeklyQuizRanking[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -33,9 +34,15 @@ export function QuizResponders({
       }
       if (!quizSessionId) {
         setResponders([]);
+        setRankings([]);
         return;
       }
-      setResponders(await fetchQuizResponders(quizSessionId));
+      const [nextResponders, nextRankings] = await Promise.all([
+        fetchQuizResponders(quizSessionId),
+        fetchLatestWeeklyQuizRankings(quizSessionId).catch(() => []),
+      ]);
+      setResponders(nextResponders);
+      setRankings(nextRankings);
     } catch (error) {
       console.warn('Quiz responder feed could not load:', error);
     } finally {
@@ -46,6 +53,7 @@ export function QuizResponders({
   useEffect(() => {
     setResolvedSessionId(sessionId || null);
     setResponders([]);
+    setRankings([]);
   }, [sessionId]);
 
   useEffect(() => {
@@ -71,6 +79,7 @@ export function QuizResponders({
   }, [active, load, resolvedSessionId, sessionId, variant]);
 
   const isSlide = variant === 'slide';
+  const placementByUserId = new Map(rankings.map((ranking) => [ranking.user_id, ranking.placement]));
   const content = (
     <>
       <div className="flex items-center justify-between gap-3">
@@ -111,6 +120,14 @@ export function QuizResponders({
                 )}
               </span>
               <VallumAvatarBadge userId={responder.user_id} size={isSlide ? 'xs' : 'sm'} />
+              {placementByUserId.get(responder.user_id) ? (
+                <span className={cn(
+                  'absolute right-0 top-0 z-20 flex -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border border-white/80 bg-navy font-black tabular-nums text-white shadow-sm',
+                  isSlide ? 'h-3 min-w-3 px-0.5 text-[6px]' : 'h-4 min-w-4 px-1 text-[8px]',
+                )} title={`Position ${placementByUserId.get(responder.user_id)}`}>
+                  {placementByUserId.get(responder.user_id)}
+                </span>
+              ) : null}
             </div>
           ))}
         </div>

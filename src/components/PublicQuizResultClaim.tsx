@@ -223,7 +223,7 @@ export function PublicQuizResultClaim() {
               <p className="eyebrow mt-3 text-brass">Shared quiz result</p>
               <h2 id="shared-quiz-result-title" className="mt-1 font-display text-2xl font-bold text-ink">{result.title}</h2>
               <p className="mt-2 text-sm text-stone">
-                {result.correct_count || 0}/{result.question_count || 0} correct · {result.figs || 0} figs
+                {result.correct_count || 0}/{result.question_count || 0} correct
               </p>
             </div>
             <div className="mt-5">

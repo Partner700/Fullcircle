@@ -90,6 +90,8 @@ const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
 const quizResponders = read('src/components/QuizResponders.tsx');
 const weeklyQuizRankings = read('src/components/WeeklyQuizRankings.tsx');
+const roadHomeGame = read('src/screens/cadet/RoadHomeGame.tsx');
+const chiRhoMark = read('src/components/ChiRhoMark.tsx');
 const authContext = read('src/context/AuthContext.tsx');
 const authScreen = read('src/screens/AuthScreen.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
@@ -348,8 +350,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v108'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '108'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v109'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '109'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -363,7 +365,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-05-v108/);
+assert.match(releaseCache, /2026-09-06-v109/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1268,11 +1270,21 @@ for (const required of [
   assert.ok(resultsReleaseRankingsAndWeeklyAwards.includes(required), `Missing quiz-day ranking boundary: ${required}`);
 }
 assert.match(resultsReleaseRankingsAndWeeklyAwards, /correct_count DESC[\s\S]*figs_earned DESC[\s\S]*answered_at ASC/);
-assert.match(weeklyQuizRankings, /Weekly Quiz Ranking/);
+assert.match(weeklyQuizRankings, /Weekly Quiz Top Three/);
 assert.match(weeklyQuizRankings, /Released with quiz results/);
 assert.match(weeklyQuizRankings, /fetchLatestWeeklyQuizRankings/);
+assert.match(weeklyQuizRankings, /rankings\.slice\(0, 3\)/);
+assert.match(quizResponders, /placementByUserId/);
+assert.match(quizResponders, /Position \$\{placementByUserId\.get\(responder\.user_id\)\}/);
+assert.doesNotMatch(cadetQuiz, /\{figs\}\/\{maxFigs\}/);
+assert.doesNotMatch(publicQuizResultClaim, /result\.figs/);
 assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
 assert.match(cadetDashboard, /kind: 'quiz_podium'/);
+assert.match(roadHomeGame, /aria-label="Roll the dice"/);
+assert.match(roadHomeGame, /aria-label="Ludo Trivia question"/);
+assert.match(roadHomeGame, /<ArenaMatchChat roomId=\{roomId\} userId=\{userId\} \/>/);
+assert.doesNotMatch(roadHomeGame, /OpponentPlayFeed|function EventLog/);
+assert.match(chiRhoMark, /size \* 0\.34/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.external_share_events',
