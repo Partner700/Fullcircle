@@ -124,6 +124,9 @@ const hiddenChallengeHardening = read('supabase/migrations/20260903101000_hidden
 const quizDoveArrivals = read('supabase/migrations/20260903120000_dove_message_and_quiz_arrivals.sql');
 const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mines_and_scripture_tags.sql');
 const resultsReleaseRankingsAndWeeklyAwards = read('supabase/migrations/20260905110000_results_release_rankings_and_weekly_awards.sql');
+const roleSeparatedQuizRankings = read('supabase/migrations/20260906150000_role_separated_weekly_quiz_rankings.sql');
+const avatarAwardsAndQuizExit = read('supabase/migrations/20260906153000_avatar_awards_public_rest_day_and_quiz_exit.sql');
+const relativeTime = read('src/components/RelativeTime.tsx');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
 const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
@@ -375,7 +378,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v112'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v113'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -390,7 +393,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v112/);
+assert.match(releaseCache, /2026-09-06-v113/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -465,7 +468,9 @@ for (const required of [
 ]) {
   assert.ok(cadetQuiz.includes(required), `Missing resilient quiz client behavior: ${required}`);
 }
-assert.doesNotMatch(cadetQuiz, /forfeitQuizAttempt|forfeitTimerRef|8_000|8-second background/);
+assert.match(cadetQuiz, /forfeitQuizAttemptOnExit/);
+assert.match(cadetQuiz, /window\.addEventListener\('pagehide', forfeitOnExit\)/);
+assert.match(cadetQuiz, /document\.addEventListener\('visibilitychange', forfeitWhenHidden\)/);
 assert.match(appErrorBoundary, /window\.addEventListener\('online', this\.retryAfterResume\)/);
 assert.match(appErrorBoundary, /document\.addEventListener\('visibilitychange', this\.retryAfterResume\)/);
 assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_restored/);
@@ -1261,12 +1266,12 @@ assert.match(sentryApp, /<DoveNotificationArrival/);
 assert.match(instructorApp, /<DoveNotificationArrival/);
 
 for (const required of [
-  ".ilike('title', 'Vallum')",
-  "award.award_month === latestMonth",
-  "table: 'awards'",
+  "supabase.rpc('get_current_avatar_awards')",
+  'award.cadence === \'monthly\'',
+  '<AwardBadgeGlyph',
   '<ChiRhoMark',
 ]) {
-  assert.ok(vallumAvatarBadge.includes(required), `Missing Vallum avatar badge behavior: ${required}`);
+  assert.ok(vallumAvatarBadge.includes(required), `Missing prioritized avatar award badge behavior: ${required}`);
 }
 assert.match(tentMessenger, /<VallumAvatarBadge userId=\{profile\.id\}/);
 assert.match(boardRow, /<MessageAvatar/);
@@ -1298,13 +1303,59 @@ assert.match(resultsReleaseRankingsAndWeeklyAwards, /correct_count DESC[\s\S]*fi
 assert.match(weeklyQuizRankings, /Weekly Quiz Top Three/);
 assert.match(weeklyQuizRankings, /Released with quiz results/);
 assert.match(weeklyQuizRankings, /fetchLatestWeeklyQuizRankings/);
-assert.match(weeklyQuizRankings, /rankings\.slice\(0, 3\)/);
+assert.match(weeklyQuizRankings, /rankings\[division\]\.slice\(0, 3\)/);
+assert.match(weeklyQuizRankings, /\['cadet', 'sentry'\]/);
+assert.match(weeklyQuizRankings, /role === 'sentry' \|\| role === 'instructor'/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_latest_weekly_quiz_rankings_by_role(',
+  "v_competitor_role NOT IN ('cadet', 'sentry')",
+  "v_viewer_role = 'cadet' AND v_competitor_role <> 'cadet'",
+  'Cadets can only view Cadet quiz rankings.',
+  'competitor.role = v_competitor_role',
+  'row_number() OVER',
+  'CREATE OR REPLACE FUNCTION public.get_latest_weekly_quiz_rankings(',
+  "v_viewer_role = 'sentry' THEN 'sentry' ELSE 'cadet'",
+  'REVOKE ALL ON FUNCTION public.get_latest_weekly_quiz_rankings_by_role(uuid, text) FROM PUBLIC, anon',
+]) {
+  assert.ok(roleSeparatedQuizRankings.includes(required), `Missing role-separated quiz ranking boundary: ${required}`);
+}
+assert.match(quoteQueries, /get_latest_weekly_quiz_rankings_by_role/);
+assert.match(cadetDashboard, /fetchLatestWeeklyQuizRankings\(undefined, 'cadet'\)/);
+assert.match(cadetDashboard, /division: 'Cadets'/);
+assert.match(sentryApp, /fetchLatestWeeklyQuizRankings\(undefined, 'cadet'\)/);
+assert.match(sentryApp, /fetchLatestWeeklyQuizRankings\(undefined, 'sentry'\)/);
+assert.match(sentryApp, /division: 'Sentries'/);
 assert.match(quizResponders, /placementByUserId/);
 assert.match(quizResponders, /Position \$\{placementByUserId\.get\(responder\.user_id\)\}/);
 assert.doesNotMatch(cadetQuiz, /\{figs\}\/\{maxFigs\}/);
 assert.doesNotMatch(publicQuizResultClaim, /result\.figs/);
 assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
 assert.match(cadetDashboard, /kind: 'quiz_podium'/);
+assert.match(quoteQueries, /marks: liveStats\?\.marks \?\? toolbar\?\.marks \?\? 0/);
+assert.match(cadetApp, /<ChiRhoMark size=\{14\}/);
+assert.match(cadetApp, /marksTotal\.toLocaleString/);
+assert.match(cadetSettings, /label: 'Marks'/);
+assert.match(cadetSettings, /liveStats\?\.marks/);
+assert.match(sentryApp, /sentryMarks\.toLocaleString/);
+assert.match(cadetDashboard, /max-h-\[66\.666svh\]/);
+assert.match(cadetDashboard, /previewLimit=\{1\}/);
+assert.match(quoteReactions, /line-clamp-1/);
+assert.match(relativeTime, /formatRelativeActivityTime/);
+assert.match(quoteReactions, /<RelativeTime value=\{comment\.created_at\}/);
+assert.match(cadetNarrative, /<RelativeTime value=\{comment\.created_at\}/);
+assert.match(publicShareScreen, /<RelativeTime value=\{comment\.created_at\}/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_current_avatar_awards()',
+  'PARTITION BY coalesce(award.user_id',
+  'CASE WHEN award.award_month = cycles.month_cycle THEN 2 ELSE 1 END DESC',
+  'CREATE OR REPLACE FUNCTION public.get_public_rest_day_awards',
+  'extract(isodow FROM p_reading_date)',
+  'CREATE OR REPLACE FUNCTION public.forfeit_quiz_attempt_on_exit',
+  "AND status = 'in_progress'",
+]) {
+  assert.ok(avatarAwardsAndQuizExit.includes(required), `Missing award or quiz-exit boundary: ${required}`);
+}
+assert.match(publicShareScreen, /isSundayReading && <PublicRestDayAwards/);
 assert.match(roadHomeGame, /aria-label="Roll the dice"/);
 assert.match(roadHomeGame, /Array\.from\(\{ length: 6 \}/);
 assert.match(roadHomeGame, /road-home-die-rolling/);

@@ -11,6 +11,7 @@ import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnP
 import { AppSelect } from '../../components/AppSelect';
 import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
+import { ChiRhoMark } from '../../components/ChiRhoMark';
 import {
   User, Phone, Loader2, Save, Flame, Coins, Award,
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
@@ -41,7 +42,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({
     denarii: 0, currentStreak: 0, longestStreak: 0, awardsCount: 0,
-    figs: 0, rhudes: 0, gamesPlayed: 0, quizzesTaken: 0, narrativesRead: 0, relicsOwned: 0,
+    figs: 0, rhudes: 0, marks: 0, gamesPlayed: 0, quizzesTaken: 0, narrativesRead: 0, relicsOwned: 0,
   });
   const [subStatus, setSubStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -108,6 +109,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
         awardsCount: awardsCount || 0,
         figs: Number(liveStats?.total_figs || 0),
         rhudes: Number(liveStats?.rhudes || 0),
+        marks: Number(liveStats?.marks || 0),
         gamesPlayed: gamesPlayed || 0,
         quizzesTaken: quizzesTaken || 0,
         narrativesRead: narrativesRead || 0,
@@ -118,6 +120,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
           userId: profile.id,
           denarii: balance,
           streak: streak.current_streak,
+          marks: Number(liveStats?.marks || 0),
         },
       }));
       setSubStatus(sub);
@@ -158,6 +161,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
     { label: 'Denarii', value: formatDenarii(stats.denarii), icon: Coins, color: 'text-gold' },
     { label: 'Figs', value: stats.figs.toLocaleString(), icon: BadgeCheck, color: 'text-sage' },
     { label: 'Rhudes', value: stats.rhudes.toLocaleString(), icon: Shield, color: 'text-royal' },
+    { label: 'Marks', value: stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 }), icon: ChiRhoMark, color: 'text-peri-2' },
     { label: 'Current Streak', value: `${stats.currentStreak} days`, icon: Flame, color: 'text-brass' },
     { label: 'Longest Streak', value: `${stats.longestStreak} days`, icon: TrendingUp, color: 'text-roman' },
     { label: 'Awards', value: stats.awardsCount, icon: Award, color: 'text-royal' },

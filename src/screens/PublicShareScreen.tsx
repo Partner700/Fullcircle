@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookMarked, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
+import { Award, BookMarked, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, Trophy, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
-import { VallumAvatarBadge } from '../components/VallumAvatarBadge';
+import { AwardBadgeGlyph, VallumAvatarBadge } from '../components/VallumAvatarBadge';
+import { RelativeTime } from '../components/RelativeTime';
+import { TentHouseSymbol } from '../components/TentHouseSymbol';
 import {
   completeSharedQuiz,
   fetchSharedQuiz,
@@ -13,6 +15,8 @@ import {
   saveSharedQuizAnswer,
   toggleSharedInsightReaction,
   addSharedInsight,
+  fetchPublicRestDayAwards,
+  type PublicRestDayAward,
   type SharedReading,
   type SharedReadingInsight,
   type VerseInsightReactionType,
@@ -21,6 +25,42 @@ import { cn } from '../lib/utils';
 import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
 
 type ShareKind = 'reading' | 'quiz' | 'game';
+
+function PublicRestDayAwards({ readingDate }: { readingDate: string }) {
+  const [awards, setAwards] = useState<PublicRestDayAward[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPublicRestDayAwards(readingDate)
+      .then((items) => { if (!cancelled) setAwards(items); })
+      .catch((error) => console.warn('Public rest-day awards could not load:', error));
+    return () => { cancelled = true; };
+  }, [readingDate]);
+
+  if (!awards.length) return null;
+  return (
+    <section className="card border-gold/30 bg-surface p-5 animate-slide-up" aria-label="Rest day honors">
+      <div className="mb-4 flex items-center gap-2">
+        <Award size={18} className="text-gold" />
+        <div><p className="eyebrow text-gold">Rest Day</p><h2 className="font-display text-lg font-bold text-ink">Full Circle Honors</h2></div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {awards.map((award) => (
+          <div key={award.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
+            <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-gold-soft text-gold">
+              {award.avatar_url ? <img src={award.avatar_url} alt={award.display_name} className="h-full w-full rounded-full object-cover" loading="lazy" /> : <Trophy size={18} />}
+              <span className="absolute -bottom-1 -right-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/80 bg-navy-2 text-gold">
+                <AwardBadgeGlyph awardType={award.award_type} title={award.title} size={9} />
+              </span>
+            </span>
+            <div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-ink">{award.display_name}</p><p className="truncate text-[11px] font-semibold text-brass">{award.title}</p></div>
+            {award.tent_house_id && <TentHouseSymbol houseId={award.tent_house_id} size={19} />}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 const memoryGuestKeys = new Map<string, string>();
 
@@ -171,7 +211,7 @@ function InsightThread({
                 <div className="flex items-start gap-2">
                   <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center text-[10px] font-bold text-peri"><span className="inline-flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{comment.profile?.avatar_url ? <img src={comment.profile.avatar_url} alt={commenterName} className="h-full w-full object-cover" loading="lazy" /> : commenterName.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={comment.user_id} size="sm" /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold text-ink">{commenterName}</p>
+                    <p className="text-[11px] font-bold text-ink">{commenterName} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
                     <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>
                   </div>
                 </div>
@@ -372,6 +412,7 @@ function SharedReadingView({
       )}
 
       <PublicQuoteCarousel quotes={quotes} signupHref={signupHref} image={reading.panel_images?.reading} />
+      {isSundayReading && <PublicRestDayAwards readingDate={reading.narrative_date} />}
     </article>
   );
 }

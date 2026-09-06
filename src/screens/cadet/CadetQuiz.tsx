@@ -11,7 +11,7 @@ import {
   fetchNarratives, fetchRelicInventory, resetQuizAttemptWithLazarus, startQuizAttempt,
   saveQuizResponse, consumeQuizQuestionRelic, completeQuizAttempt, fetchMyQuizRuntimeState,
   fetchPanelImageSetting, fetchQuizWaitingMessages, sendQuizWaitingMessage,
-  fetchMyWeeklyQuizResult, recordExternalShare,
+  fetchMyWeeklyQuizResult, forfeitQuizAttemptOnExit, recordExternalShare,
 } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
@@ -621,7 +621,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <RuleItem icon={Clock} text={`${QUIZ_LIVE_DURATION_MINUTES}-minute live window — no late submissions`} />
           <RuleItem icon={ChevronRight} text="Forward-gated: can't skip ahead without answering" />
           <RuleItem icon={ChevronLeft} text="Can navigate back to review/change earlier answers" />
-          <RuleItem icon={CheckCircle2} text="Phone sleep, app switching, and reconnecting do not forfeit an attempt" />
+          <RuleItem icon={Ban} text="Leaving an active quiz before submitting forfeits the attempt" />
           <RuleItem icon={RefreshCw} text="Lazarus Coin can reopen or retake the Saturday quiz before 2:45 PM" />
           <RuleItem
             icon={Trophy}
@@ -772,6 +772,32 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
   const submissionStartedRef = useRef(false);
   const deadlineCheckRef = useRef(false);
+  const exitForfeitArmedRef = useRef(false);
+  const exitForfeitSentRef = useRef(false);
+
+  useEffect(() => {
+    // React development mode probes effect cleanup immediately after mount.
+    // Arm after that probe so only a real departure forfeits the attempt.
+    const armTimer = window.setTimeout(() => { exitForfeitArmedRef.current = true; }, 1_000);
+    const forfeitOnExit = () => {
+      if (!exitForfeitArmedRef.current || exitForfeitSentRef.current || submissionStartedRef.current) return;
+      exitForfeitSentRef.current = true;
+      void forfeitQuizAttemptOnExit(attempt.id).catch((error) => {
+        console.warn('Quiz exit forfeiture could not be confirmed:', error);
+      });
+    };
+    const forfeitWhenHidden = () => { if (document.hidden) forfeitOnExit(); };
+    window.addEventListener('pagehide', forfeitOnExit);
+    window.addEventListener('beforeunload', forfeitOnExit);
+    document.addEventListener('visibilitychange', forfeitWhenHidden);
+    return () => {
+      window.clearTimeout(armTimer);
+      window.removeEventListener('pagehide', forfeitOnExit);
+      window.removeEventListener('beforeunload', forfeitOnExit);
+      document.removeEventListener('visibilitychange', forfeitWhenHidden);
+      forfeitOnExit();
+    };
+  }, [attempt.id]);
 
   const handleSubmit = useCallback(async (status: 'submitted' | 'timed_out' = 'submitted', forcePerfect = false) => {
     if (submissionStartedRef.current) return;
@@ -1324,7 +1350,7 @@ function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazar
           </div>
           <h2 className="font-display text-xl font-semibold text-roman mb-2">Quiz Interrupted</h2>
           <p className="text-sm text-stone mb-4">
-            This older attempt was marked as forfeited before interruption recovery was added. New attempts remain safe through phone sleep, app switching, and reconnecting.
+            You left this quiz before submitting it, so the attempt was forfeited.
           </p>
           <div className="bg-roman/5 rounded-lg p-3 text-sm text-left space-y-2 border border-roman/20">
             <p className="text-roman font-medium">Consequences:</p>

@@ -15,6 +15,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
+import { ChiRhoMark } from '../../components/ChiRhoMark';
 import { SubscriptionGate, SubscriptionScreen, type SubscriptionStatusView } from '../../components/SubscriptionScreen';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
@@ -128,6 +129,7 @@ export function SentryApp() {
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
   const [sentryDenarii, setSentryDenarii] = useState(0);
+  const [sentryMarks, setSentryMarks] = useState(0);
   const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [subStatus, setSubStatus] = useState<SubscriptionStatusView | null>(null);
   const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
@@ -165,6 +167,7 @@ export function SentryApp() {
           return resolvedStreak;
         });
         setSentryDenarii(Number(toolbarStats.value.total_denarii) || 0);
+        setSentryMarks(Number(toolbarStats.value.marks) || 0);
       }
       if (ownLedger.status === 'fulfilled') setSentryLedger(ownLedger.value);
     })();
@@ -521,6 +524,12 @@ export function SentryApp() {
             <StreakStatusIcon protection={streakProtection} />
             <span className="font-display font-bold text-coral text-[13px]">{sentryStreak}</span>
           </div>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-border-bright bg-surface-2" title={`${sentryMarks.toLocaleString(undefined, { maximumFractionDigits: 2 })} Marks`}>
+            <ChiRhoMark size={14} className="text-peri-2" />
+            <span className="font-display text-[13px] font-bold text-peri-2">
+              {sentryMarks.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          </div>
           <NotificationCenter onNavigate={navigateFromAction} />
           <div data-denarii-target className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
             <Coins size={16} className="text-gold" />
@@ -724,7 +733,8 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
   const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
-  const [quizPodium, setQuizPodium] = useState<WeeklyQuizRanking[]>([]);
+  const [cadetQuizPodium, setCadetQuizPodium] = useState<WeeklyQuizRanking[]>([]);
+  const [sentryQuizPodium, setSentryQuizPodium] = useState<WeeklyQuizRanking[]>([]);
   const tentPhotoInputRef = useRef<HTMLInputElement>(null);
   const dayType = getDayType(new Date());
   const todayDate = new Date();
@@ -771,8 +781,15 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   useEffect(() => {
     let cancelled = false;
     const loadPodium = () => {
-      void fetchLatestWeeklyQuizRankings()
-        .then((rankings) => { if (!cancelled) setQuizPodium(rankings); })
+      void Promise.all([
+        fetchLatestWeeklyQuizRankings(undefined, 'cadet'),
+        fetchLatestWeeklyQuizRankings(undefined, 'sentry'),
+      ])
+        .then(([cadetRankings, sentryRankings]) => {
+          if (cancelled) return;
+          setCadetQuizPodium(cadetRankings);
+          setSentryQuizPodium(sentryRankings);
+        })
         .catch(() => undefined);
     };
     loadPodium();
@@ -845,7 +862,8 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
-    ...(quizPodium.length ? [{ id: `quiz-podium-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3) }] : []),
+    ...(cadetQuizPodium.length ? [{ id: `quiz-podium-cadets-${cadetQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: cadetQuizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
+    ...(sentryQuizPodium.length ? [{ id: `quiz-podium-sentries-${sentryQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: sentryQuizPodium.slice(0, 3), division: 'Sentries' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),

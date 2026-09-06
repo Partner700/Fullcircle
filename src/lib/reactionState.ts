@@ -12,13 +12,13 @@ export type OptimisticReactionEntry = {
 
 export type OptimisticReactionCollection = Record<string, Record<string, OptimisticReactionEntry>>;
 
-export function updateReactionOptimistically(
-  current: OptimisticReactionCollection,
+export function updateReactionOptimistically<T extends OptimisticReactionCollection>(
+  current: T,
   targetKey: string,
   reactionType: string,
   reacted: boolean,
   actor?: OptimisticReactionActor | null,
-) {
+): T {
   const target = current[targetKey] || {};
   const previous = target[reactionType] || { count: 0, reacted: false, actors: [] };
   if (previous.reacted === reacted) return current;
@@ -43,5 +43,5 @@ export function updateReactionOptimistically(
         actors,
       },
     },
-  };
+  } as T;
 }

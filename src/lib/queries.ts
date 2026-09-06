@@ -694,10 +694,19 @@ export async function fetchQuizResponders(sessionId: string) {
   return (data || []) as QuizResponder[];
 }
 
-export async function fetchLatestWeeklyQuizRankings(sessionId?: string) {
-  const { data, error } = await supabase.rpc('get_latest_weekly_quiz_rankings', {
-    p_quiz_session_id: sessionId || null,
-  });
+export async function fetchLatestWeeklyQuizRankings(
+  sessionId?: string,
+  competitorRole?: 'cadet' | 'sentry',
+) {
+  const request = competitorRole
+    ? supabase.rpc('get_latest_weekly_quiz_rankings_by_role', {
+        p_quiz_session_id: sessionId || null,
+        p_competitor_role: competitorRole,
+      })
+    : supabase.rpc('get_latest_weekly_quiz_rankings', {
+        p_quiz_session_id: sessionId || null,
+      });
+  const { data, error } = await request;
   if (error) throw error;
   return (data || []) as WeeklyQuizRanking[];
 }
@@ -816,7 +825,7 @@ export type UserLiveStats = {
 
 export type ToolbarStats = Pick<
   UserLiveStats,
-  'user_id' | 'total_denarii' | 'current_streak' | 'longest_streak' | 'consecutive_inactive' | 'cumulative_inactive'
+  'user_id' | 'total_denarii' | 'current_streak' | 'longest_streak' | 'consecutive_inactive' | 'cumulative_inactive' | 'marks'
 >;
 
 export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
@@ -856,6 +865,7 @@ export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
     longest_streak: Number(row.longest_streak) || 0,
     consecutive_inactive: Number(row.consecutive_inactive) || 0,
     cumulative_inactive: Number(row.cumulative_inactive) || 0,
+    marks: Number(row.marks) || 0,
   };
 }
 
@@ -932,6 +942,7 @@ export async function fetchReliableToolbarStats(userId: string): Promise<Toolbar
     longest_streak: streak?.longest_streak ?? 0,
     consecutive_inactive: streak?.consecutive_inactive ?? toolbar?.consecutive_inactive ?? 0,
     cumulative_inactive: streak?.cumulative_inactive ?? toolbar?.cumulative_inactive ?? 0,
+    marks: liveStats?.marks ?? toolbar?.marks ?? 0,
   };
 }
 
@@ -1162,9 +1173,37 @@ export async function fetchAwards(): Promise<AwardWithRecipient[]> {
   })) as AwardWithRecipient[];
 }
 
+export type PublicRestDayAward = {
+  id: string;
+  award_type: string;
+  title: string;
+  description: string | null;
+  cadence: 'weekly' | 'monthly';
+  user_id: string | null;
+  display_name: string;
+  avatar_url: string | null;
+  tent_house_id: string | null;
+};
+
+export async function fetchPublicRestDayAwards(readingDate: string): Promise<PublicRestDayAward[]> {
+  const { data, error } = await supabase.rpc('get_public_rest_day_awards', {
+    p_reading_date: readingDate,
+  });
+  if (error) throw error;
+  return (data || []) as PublicRestDayAward[];
+}
+
 export async function insertAward(award: Partial<Award>) {
   const { error } = await supabase.from('awards').insert(award);
   if (error) throw error;
+}
+
+export async function forfeitQuizAttemptOnExit(attemptId: string) {
+  const { data, error } = await supabase.rpc('forfeit_quiz_attempt_on_exit', {
+    p_attempt_id: attemptId,
+  });
+  if (error) throw error;
+  return Boolean(data);
 }
 
 export type AwardReactionActor = {

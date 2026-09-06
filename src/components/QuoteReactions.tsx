@@ -3,6 +3,7 @@ import { Check, Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Pencil
 import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
 import { MessageAvatar } from './TentMessenger';
+import { RelativeTime } from './RelativeTime';
 
 export type ReactionActor = {
   user_id: string;
@@ -214,8 +215,8 @@ export function QuoteReactions({
                 onOpenChange={onMessageOpenChange || onCommentOpenChange}
               />
               <div className="min-w-0">
-                <p className="text-[11px] font-extrabold text-ink">{comment.display_name || 'User'}</p>
-                <p className="line-clamp-2 text-xs leading-snug text-stone">{comment.body}</p>
+                <p className="text-[11px] font-extrabold text-ink">{comment.display_name || 'User'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
+                <p className="line-clamp-1 text-xs leading-snug text-stone">{comment.body}</p>
               </div>
             </div>
           ))}
@@ -265,7 +266,7 @@ export function QuoteReactions({
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-ink">
-                      {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span>
+                      {comment.display_name} <span className="font-medium text-brass">({comment.rank_label})</span> <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" />
                     </p>
                     {editingCommentId === comment.id ? (
                       <div className="mt-1 flex items-end gap-2">
@@ -304,7 +305,7 @@ export function QuoteReactions({
                       onOpenChange={onMessageOpenChange || onCommentOpenChange}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-bold text-ink">{reply.display_name || 'User'}</p>
+                      <p className="text-[11px] font-bold text-ink">{reply.display_name || 'User'} <RelativeTime value={reply.created_at} className="font-medium text-stone-dim" /></p>
                       {editingCommentId === reply.id ? (
                         <div className="mt-1 flex items-end gap-2">
                           <textarea value={editingBody} onChange={(event) => setEditingBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell } from '../../components/AppShell';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
+import { ChiRhoMark } from '../../components/ChiRhoMark';
 import { StreakCelebration } from '../../components/StreakCelebration';
 import { SubscriptionGate, SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { DoveMark } from '../../components/Dove';
@@ -95,18 +96,20 @@ function readCachedTopbarStats(userId: string) {
     return {
       denarii: Number(parsed?.denarii) || 0,
       streak: Number(parsed?.streak) || 0,
+      marks: Number(parsed?.marks) || 0,
     };
   } catch {
     return null;
   }
 }
 
-function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number; streak: number }>) {
+function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number; streak: number; marks: number }>) {
   if (typeof window === 'undefined') return;
-  const current = readCachedTopbarStats(userId) || { denarii: 0, streak: 0 };
+  const current = readCachedTopbarStats(userId) || { denarii: 0, streak: 0, marks: 0 };
   const next = {
     denarii: Number(patch.denarii) > 0 ? Number(patch.denarii) : current.denarii,
     streak: Number(patch.streak) > 0 ? Number(patch.streak) : current.streak,
+    marks: Number(patch.marks) > 0 ? Number(patch.marks) : current.marks,
   };
   try {
     window.localStorage.setItem(topbarStatsCacheKey(userId), JSON.stringify(next));
@@ -241,6 +244,7 @@ export function CadetApp() {
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
+  const [marksTotal, setMarksTotal] = useState(0);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
   const [toolbarReady, setToolbarReady] = useState(false);
@@ -255,7 +259,7 @@ export function CadetApp() {
   const [subStatus, setSubStatus] = useState<{ status: string; trial_ends_at: string | null; current_period_end: string | null; is_paid: boolean } | null>(null);
   const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
   const streakLoadedRef = useRef(false);
-  const toolbarStatsRef = useRef({ userId: '', denarii: 0, streak: 0 });
+  const toolbarStatsRef = useRef({ userId: '', denarii: 0, streak: 0, marks: 0 });
   const toolbarRequestRef = useRef<Promise<void> | null>(null);
   const notificationRequestRef = useRef<Promise<void> | null>(null);
   const notificationRefreshQueuedRef = useRef(false);
@@ -280,10 +284,12 @@ export function CadetApp() {
       userId,
       denarii: cached?.denarii || 0,
       streak: cached?.streak || 0,
+      marks: cached?.marks || 0,
     };
     setStreakCount(cached?.streak || 0);
     setDenariiTotal(cached?.denarii || 0);
-    setToolbarReady(!!cached && (cached.streak > 0 || cached.denarii > 0));
+    setMarksTotal(cached?.marks || 0);
+    setToolbarReady(!!cached && (cached.streak > 0 || cached.denarii > 0 || cached.marks > 0));
     setTentInfo({ tent: null, members: [] });
   }, [toolbarUserId]);
 
@@ -345,14 +351,17 @@ export function CadetApp() {
       const reliable = reliableResult.value;
       const stableDenarii = Number(reliable.total_denarii) || 0;
       const stableStreak = Number(reliable.current_streak) || 0;
+      const stableMarks = Number(reliable.marks) || 0;
       toolbarStatsRef.current = {
         userId: toolbarUserId,
         denarii: stableDenarii,
         streak: stableStreak,
+        marks: stableMarks,
       };
 
       setToolbarReady(true);
       setDenariiTotal(stableDenarii);
+      setMarksTotal(stableMarks);
       setStreakCount((previous) => {
         if (streakLoadedRef.current && stableStreak > previous) {
           void playSoundEffect('sound_streak', 0.66);
@@ -361,7 +370,7 @@ export function CadetApp() {
         streakLoadedRef.current = true;
         return stableStreak;
       });
-      writeCachedTopbarStats(toolbarUserId, { denarii: stableDenarii, streak: stableStreak });
+      writeCachedTopbarStats(toolbarUserId, { denarii: stableDenarii, streak: stableStreak, marks: stableMarks });
     })();
 
     const shared = request.finally(() => {
@@ -375,20 +384,23 @@ export function CadetApp() {
     if (!toolbarUserId) return;
 
     const acceptConfirmedStats = (event: Event) => {
-      const detail = (event as CustomEvent<{ userId?: string; denarii?: number; streak?: number }>).detail;
+      const detail = (event as CustomEvent<{ userId?: string; denarii?: number; streak?: number; marks?: number }>).detail;
       if (!detail || detail.userId !== toolbarUserId) return;
       const confirmedDenarii = Number(detail.denarii) || 0;
       const confirmedStreak = Number(detail.streak) || 0;
+      const confirmedMarks = Number(detail.marks) || 0;
       const retained = toolbarStatsRef.current.userId === toolbarUserId
         ? toolbarStatsRef.current
-        : { userId: toolbarUserId, denarii: 0, streak: 0 };
+        : { userId: toolbarUserId, denarii: 0, streak: 0, marks: 0 };
       const next = {
         userId: toolbarUserId,
         denarii: detail.denarii === undefined ? retained.denarii : confirmedDenarii,
         streak: detail.streak === undefined ? retained.streak : confirmedStreak,
+        marks: detail.marks === undefined ? retained.marks : confirmedMarks,
       };
       toolbarStatsRef.current = next;
       setDenariiTotal(next.denarii);
+      setMarksTotal(next.marks);
       setStreakCount((previous) => {
         if (next.streak > previous) setStreakCelebration(next.streak);
         return next.streak;
@@ -1044,6 +1056,13 @@ export function CadetApp() {
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${streakCount} day streak`}>
             <StreakStatusIcon protection={streakProtection} />
             <span className="font-display font-bold text-coral text-[13px]">{toolbarReady ? streakCount : '…'}</span>
+          </div>
+          {/* Marks */}
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-border-bright bg-surface-2" title={`${marksTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} Marks`}>
+            <ChiRhoMark size={14} className="text-peri-2" />
+            <span className="font-display text-[13px] font-bold text-peri-2">
+              {toolbarReady ? marksTotal.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '…'}
+            </span>
           </div>
           {/* Notification bell */}
           <div className="relative z-[70]" ref={notificationsRef}>

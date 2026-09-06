@@ -170,6 +170,27 @@ export function formatTime(date: string | Date): string {
   });
 }
 
+export function formatRelativeActivityTime(value: string | Date, now = new Date()): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (!Number.isFinite(date.getTime())) return '';
+  const seconds = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+  if (seconds < 45) return 'Just now';
+  if (seconds < 90) return '1 minute ago';
+  if (seconds < 60 * 60) return `${Math.floor(seconds / 60)} minutes ago`;
+
+  const dateParts = appDateParts(date);
+  const nowParts = appDateParts(now);
+  const dateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+  const nowKey = `${nowParts.year}-${nowParts.month}-${nowParts.day}`;
+  if (dateKey === nowKey) {
+    const hours = Math.max(1, Math.floor(seconds / (60 * 60)));
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  if (dateKey === shiftISODate(nowKey, -1)) return 'Yesterday';
+  const month = new Intl.DateTimeFormat('en-US', { timeZone: APP_TIME_ZONE, month: 'short' }).format(date);
+  return `${dateParts.weekday} ${Number(dateParts.day)} ${month}`;
+}
+
 export function talentsToDenarii(talents: number): number {
   return Math.round(talents * 6000);
 }

@@ -8,6 +8,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { MessageAvatar } from '../../components/TentMessenger';
 import { Dove } from '../../components/Dove';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
+import { RelativeTime } from '../../components/RelativeTime';
 import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordExternalShare, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
@@ -1220,7 +1221,7 @@ export function CadetNarrative({
                                         size="sm"
                                       />
                                       <div className="min-w-0 flex-1">
-                                        <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'}</p>
+                                        <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
                                         {editingCommentId === comment.id ? (
                                           <div className="mt-1 flex items-end gap-2">
                                             <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />

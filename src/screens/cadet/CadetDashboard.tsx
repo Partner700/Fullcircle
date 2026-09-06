@@ -32,7 +32,7 @@ export type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
   | { id: string; kind: 'custom'; content: ReactNode; image?: PanelImageSetting | null; veilClassName?: string }
   | { id: string; kind: 'fcx'; experience: FcxExperience }
-  | { id: string; kind: 'quiz_podium'; rankings: WeeklyQuizRanking[] }
+  | { id: string; kind: 'quiz_podium'; rankings: WeeklyQuizRanking[]; division: 'Cadets' | 'Sentries' }
   | { id: string; kind: 'honors'; awards: AwardWithRecipient[] }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
@@ -110,7 +110,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchDailyQuoteFeed(12),
         fetchAnnouncements(),
         fetchActiveFcxExperience(),
-        fetchLatestWeeklyQuizRankings(),
+        fetchLatestWeeklyQuizRankings(undefined, 'cadet'),
         fetchPanelImageSettings([
           'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
@@ -226,7 +226,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
 
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
-    ...(quizPodium.length ? [{ id: `quiz-podium-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3) }] : []),
+    ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
     ...(narrative?.verse_of_day ? [{ id: `verse-${narrative.narrative_date}`, kind: 'verse' as const, narrative }] : []),
@@ -536,9 +536,9 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   }, [count, index]);
 
   return (
-    <div className="card relative overflow-hidden animate-slide-up">
+    <div className="card relative max-h-[66.666svh] overflow-hidden animate-slide-up">
       <div
-        className={cn('flex min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
+        className={cn('flex max-h-[66.666svh] min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={() => { touchStartRef.current = null; onHoldChange(false); }}
@@ -568,7 +568,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
               : panelImages[slide.kind];
 
           return (
-            <div key={`${slide.id}-${slideIndex}`} className="relative min-h-[220px] min-w-full overflow-hidden p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
+            <div key={`${slide.id}-${slideIndex}`} className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
               {slideImage && (
                 <PanelImageBackdrop
                   image={slideImage}
@@ -606,7 +606,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         <Trophy size={18} className="text-gold" />
                         <div>
                           <p className="eyebrow text-gold">Weekly Quiz</p>
-                          <h2 className="font-display text-xl font-black text-ink">This Week&apos;s Top Three</h2>
+                          <h2 className="font-display text-xl font-black text-ink">This Week&apos;s {slide.division} Top Three</h2>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -664,7 +664,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                   {slide.kind === 'verse' && (
                     <div className="max-w-2xl rounded-2xl border border-white/18 bg-surface/62 p-4 shadow-[0_18px_50px_rgba(7,24,43,0.16)] backdrop-blur-2xl ring-1 ring-black/5">
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><BookOpen size={14} /> Verse of the Day</p>
-                      <p className="font-display text-2xl text-ink leading-snug">"{slide.narrative.verse_of_day}"</p>
+                      <p className={cn('font-display text-ink leading-snug', (slide.narrative.verse_of_day || '').length > 220 ? 'text-base' : (slide.narrative.verse_of_day || '').length > 120 ? 'text-lg' : 'text-2xl')}>"{slide.narrative.verse_of_day}"</p>
                       <p className="text-sm text-stone mt-3">{slide.narrative.scripture_reference || slide.narrative.title}</p>
                       <QuoteReactions
                         state={verseReactions[slide.narrative.narrative_date]}
@@ -708,7 +708,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         </div>
                       )}
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Hey Everyone</h2>
-                      <p className="text-sm text-stone mt-2 leading-relaxed max-w-2xl whitespace-pre-wrap">{slide.announcement.content}</p>
+                      <p className={cn('mt-2 max-h-32 max-w-2xl overflow-y-auto whitespace-pre-wrap leading-relaxed text-stone', slide.announcement.content.length > 320 ? 'text-xs' : 'text-sm')}>{slide.announcement.content}</p>
                       {slide.announcement.announcement_type === 'weekly_quiz_reminder' && (
                         <QuizResponders
                           variant="slide"
@@ -740,7 +740,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
                           )}
                         </div>
-                        <p className="mt-3 font-display text-xl font-medium italic text-ink leading-snug">&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
+                        <p className={cn('mt-3 font-display font-medium italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-sm' : slide.quote.daily_quote.length > 120 ? 'text-base' : 'text-xl')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
@@ -759,6 +759,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           onEditComment={(commentId, body) => editDailyQuoteComment(commentId, body)}
                           onCommentOpenChange={onCommentOpenChange}
                           onMessageOpenChange={onCommentOpenChange}
+                          previewLimit={1}
                         />
                       </div>
                     </div>
