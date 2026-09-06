@@ -14,6 +14,8 @@ import type {
 
 export const HIDDEN_CHALLENGE_EVENT = 'full-circle:hidden-challenge';
 export const HIDDEN_CHALLENGE_STATUS_EVENT = 'full-circle:hidden-challenge-status';
+export const HIDDEN_CHALLENGE_COMPOSE_EVENT = 'full-circle:hidden-challenge-compose';
+const HIDDEN_CHALLENGE_COMPOSE_KEY = 'full-circle:hidden-challenge-compose-intent';
 
 export type HiddenChallengeEventDetail = {
   claimId?: string;
@@ -39,6 +41,29 @@ export function hiddenChallengeOpenNonce() {
 export function revealHiddenChallenge(detail: HiddenChallengeEventDetail) {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<HiddenChallengeEventDetail>(HIDDEN_CHALLENGE_EVENT, { detail }));
+}
+
+export function requestHiddenChallengeComposer(itemType: HiddenItemType) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(HIDDEN_CHALLENGE_COMPOSE_KEY, itemType);
+  } catch {
+    // The live event still opens the composer when private storage is blocked.
+  }
+  window.dispatchEvent(new CustomEvent<{ itemType: HiddenItemType }>(HIDDEN_CHALLENGE_COMPOSE_EVENT, {
+    detail: { itemType },
+  }));
+}
+
+export function consumeHiddenChallengeComposerIntent(): HiddenItemType | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const itemType = window.sessionStorage.getItem(HIDDEN_CHALLENGE_COMPOSE_KEY);
+    window.sessionStorage.removeItem(HIDDEN_CHALLENGE_COMPOSE_KEY);
+    return itemType === 'treasure' || itemType === 'mine' ? itemType : null;
+  } catch {
+    return null;
+  }
 }
 
 export function readingVerseChallengeKey(narrativeId: string, verseReference: string) {

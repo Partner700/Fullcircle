@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bomb, CheckCircle2, Gift, Loader2, MapPin, PackageSearch, TimerReset, X, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyHiddenChallengeStatus, HIDDEN_CHALLENGE_STATUS_EVENT } from '../lib/hiddenChallenges';
+import { requestHiddenChallengeComposer } from '../lib/hiddenChallenges';
+import { requestAppNavigation } from '../lib/appNavigation';
 import type { HiddenChallengeCreatorStatus } from '../lib/types';
 import { cn, formatDenarii } from '../lib/utils';
 
@@ -90,7 +92,13 @@ export function HiddenChallengeStatus() {
     .filter((item) => item.challenge_status === 'active' && ['pending', 'opened'].includes(item.claim_status))
     .map((item) => item.challenge_id)).size, [items]);
 
-  if (!profile?.id || items.length === 0) return null;
+  if (!profile?.id) return null;
+
+  const startHiding = (itemType: 'treasure' | 'mine') => {
+    setOpen(false);
+    requestHiddenChallengeComposer(itemType);
+    requestAppNavigation('store', { composeHiddenItem: itemType });
+  };
 
   return (
     <>
@@ -123,8 +131,20 @@ export function HiddenChallengeStatus() {
               <button type="button" className="icon-btn" onClick={() => setOpen(false)} aria-label="Close hidden item status"><X size={17} /></button>
             </header>
 
+            <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-2 px-3 py-3 sm:px-4">
+              <button type="button" className="btn-secondary justify-center text-xs" onClick={() => startHiding('treasure')}>
+                <Gift size={14} /> Hide Treasure
+              </button>
+              <button type="button" className="btn-secondary justify-center text-xs" onClick={() => startHiding('mine')}>
+                <Bomb size={14} /> Hide Mine
+              </button>
+            </div>
+
             <div className="space-y-2 overflow-y-auto p-3 sm:p-4">
               {loading && <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-peri" /></div>}
+              {!loading && items.length === 0 && (
+                <p className="py-5 text-center text-xs text-stone">Nothing hidden yet. Choose an item above to begin.</p>
+              )}
               {!loading && items.map((item) => {
                 const resolved = ['won', 'escaped', 'charged', 'closed'].includes(item.claim_status);
                 const reward = rewardLabel(item);

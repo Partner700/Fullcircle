@@ -4,11 +4,12 @@ import { fetchLatestWeeklyQuizRankings } from '../lib/queries';
 import type { WeeklyQuizRanking } from '../lib/types';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { useAuth } from '../context/AuthContext';
+import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 
 type QuizDivision = 'cadet' | 'sentry';
 
 export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const [rankings, setRankings] = useState<Record<QuizDivision, WeeklyQuizRanking[]>>({ cadet: [], sentry: [] });
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
                     ) : ranking.display_name.charAt(0).toUpperCase()}
                   </span>
                   <VallumAvatarBadge userId={ranking.user_id} size="xs" />
+                  <CurrentUserAvatarMarker isCurrentUser={ranking.user_id === profile?.id} compact />
                 </span>
                 <p className="min-w-0 flex-1 truncate text-sm font-bold text-ink">{ranking.display_name}</p>
                 <span className="shrink-0 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs font-black tabular-nums text-ink">

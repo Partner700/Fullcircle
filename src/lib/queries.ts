@@ -1923,6 +1923,12 @@ export async function useRelic(userId: string, slug: string) {
     ? await supabase.rpc('use_simons_coin', { p_user_id: userId })
     : await supabase.rpc('use_relic', { p_user_id: userId, p_relic_slug: slug });
   if (error) throw error;
+  if (slug === 'redemption-coin' && data && typeof data === 'object' && 'success' in data && data.success) {
+    return {
+      ...data,
+      message: 'Redemption Coin restored your streak to your full Full Circle account age.',
+    };
+  }
   return data;
 }
 

@@ -2,6 +2,7 @@ import { cn } from '../lib/utils';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 import { MessageAvatar } from './TentMessenger';
+import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 
 interface BoardRowProps {
   rank: number;
@@ -40,11 +41,14 @@ export function BoardRow({ rank, name, value, houseId, isCurrentUser, subtext, m
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           {userId && (
-            <MessageAvatar
-              profile={{ id: userId, display_name: name, email: null, avatar_url: avatarUrl || null, whatsapp_number: null, country_code: null, language_code: null, created_at: new Date().toISOString() }}
-              currentUserId={currentUserId}
-              size="sm"
-            />
+            <span className="relative shrink-0">
+              <MessageAvatar
+                profile={{ id: userId, display_name: name, email: null, avatar_url: avatarUrl || null, whatsapp_number: null, country_code: null, language_code: null, created_at: new Date().toISOString() }}
+                currentUserId={currentUserId}
+                size="sm"
+              />
+              <CurrentUserAvatarMarker isCurrentUser={Boolean(isCurrentUser || userId === currentUserId)} />
+            </span>
           )}
           {!userId && avatarUrl && (
             <span className="h-8 w-8 overflow-hidden rounded-full border border-white/35 bg-surface-2 shadow-sm">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  Award, BadgeCheck, BookOpen, Crown, MessageCircle, PenTool, Send,
-  Shield, Sprout, Trophy, Users,
+  Award, BadgeCheck, BookOpen, Crown, Gem, KeyRound, Landmark, Medal,
+  MessageCircle, PenTool, Send, Shield, Sprout, Star,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -24,19 +24,19 @@ const AWARD_ICONS = {
   rumor: Crown,
   scribe: PenTool,
   sprout: Sprout,
-  reputation: Shield,
+  reputation: Star,
   tutorix: BadgeCheck,
   valley_champion: Shield,
-  lords_secret: Users,
+  lords_secret: KeyRound,
   monthly_scribe: PenTool,
   monthly_valley_champion: Shield,
-  muralis: Award,
+  muralis: Medal,
   centurion: Shield,
   grand_scribe: PenTool,
   grand_valley_champion: Shield,
   grand_orator: MessageCircle,
-  bethel_stone: Trophy,
-  temple_mount: Trophy,
+  bethel_stone: Gem,
+  temple_mount: Landmark,
 } as const;
 
 function normalizedAwardType(awardType: string, title = '') {
@@ -98,7 +98,7 @@ function ensureRealtimeUpdates() {
 export function AwardBadgeGlyph({ awardType, title, size = 10 }: { awardType: string; title?: string; size?: number }) {
   const type = normalizedAwardType(awardType, title);
   if (type === 'vallum' || type === 'grand_vallum') return <ChiRhoMark size={size} className="text-current" />;
-  const Icon = AWARD_ICONS[type as keyof typeof AWARD_ICONS] || Trophy;
+  const Icon = AWARD_ICONS[type as keyof typeof AWARD_ICONS] || Award;
   return <Icon size={size} strokeWidth={2.3} />;
 }
 
@@ -119,6 +119,8 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
 
   const award = userId ? holderAwards.get(userId) : null;
   if (!award) return null;
+  const awardType = normalizedAwardType(award.award_type, award.title);
+  const isVallum = awardType === 'vallum';
 
   const shellClass = size === 'xs' ? 'h-3.5 w-3.5 border' : size === 'md' ? 'h-5 w-5 border-2' : 'h-4 w-4 border';
   const markSize = size === 'xs' ? 8 : size === 'md' ? 12 : 10;
@@ -127,14 +129,18 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
     <span
       className={cn(
         'pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
-        award.cadence === 'monthly' ? 'border-gold/90 bg-navy-2 text-gold' : 'border-peri/80 bg-navy-2 text-peri-bright',
+        isVallum
+          ? 'border-gold/90 bg-navy-2 text-gold'
+          : award.cadence === 'monthly'
+            ? 'border-moss/75 bg-navy-2 text-moss-bright'
+            : 'border-peri/80 bg-navy-2 text-peri-bright',
         shellClass,
         className,
       )}
       title={award.title}
       aria-label={award.title}
     >
-      <AwardBadgeGlyph awardType={award.award_type} title={award.title} size={markSize} />
+      <AwardBadgeGlyph awardType={awardType} title={award.title} size={markSize} />
     </span>
   );
 }

@@ -1135,7 +1135,10 @@ export function CadetNarrative({
                                 size="sm"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-ink">{authorName}{item.user_id === profile?.id ? ' · You' : ''}</p>
+                                <p className="text-xs font-bold text-ink">
+                                  {authorName}{item.user_id === profile?.id ? ' · You' : ''}{' '}
+                                  <RelativeTime value={item.created_at} className="font-medium text-stone-dim" />
+                                </p>
                                 {editingInsightId === item.id ? (
                                   <div className="mt-1 flex items-end gap-2">
                                     <textarea value={editingInsightBody} onChange={(event) => setEditingInsightBody(event.target.value)} className="input-field min-h-16 flex-1 text-xs" autoFocus />

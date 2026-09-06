@@ -12,6 +12,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
 import { QuizResponders } from '../../components/QuizResponders';
+import { CurrentUserAvatarMarker } from '../../components/CurrentUserAvatarMarker';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
@@ -620,6 +621,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                                 ) : ranking.display_name.charAt(0).toUpperCase()}
                               </span>
                               <VallumAvatarBadge userId={ranking.user_id} size="sm" />
+                              <CurrentUserAvatarMarker isCurrentUser={ranking.user_id === currentUserId} compact />
                             </span>
                             <p className="mt-1.5 w-full truncate text-xs font-black text-ink">{ranking.display_name}</p>
                             <p className="text-[10px] font-bold tabular-nums text-stone">{ranking.correct_count}/{ranking.question_count}</p>

@@ -127,6 +127,7 @@ const resultsReleaseRankingsAndWeeklyAwards = read('supabase/migrations/20260905
 const roleSeparatedQuizRankings = read('supabase/migrations/20260906150000_role_separated_weekly_quiz_rankings.sql');
 const avatarAwardsAndQuizExit = read('supabase/migrations/20260906153000_avatar_awards_public_rest_day_and_quiz_exit.sql');
 const sentryHonorsBenefitsAndHiddenStatus = read('supabase/migrations/20260906160000_sentry_honors_benefits_and_hidden_status.sql');
+const redemptionAccountAge = read('supabase/migrations/20260906170000_redemption_account_age_and_identity_ui.sql');
 const relativeTime = read('src/components/RelativeTime.tsx');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
@@ -380,7 +381,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v114'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v115'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -395,7 +396,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v114/);
+assert.match(releaseCache, /2026-09-06-v115/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1384,11 +1385,24 @@ for (const required of [
   assert.ok(sentryHonorsBenefitsAndHiddenStatus.includes(required), `Missing Sentry honor, benefit, or hidden-status boundary: ${required}`);
 }
 assert.match(sentryApp, /headerSubtitle=\{tent \? undefined : 'No tent assigned yet'\}/);
-assert.match(sentryApp, /3 Freezers weekly/);
-assert.match(sentryApp, /3 Master&apos;s Rewards/);
+assert.match(sentryApp, /Welcome Sentry/);
+assert.match(sentryApp, /SENTRY_LEADERSHIP_SCRIPTURES/);
+assert.doesNotMatch(sentryApp, /3 Freezers weekly/);
+assert.doesNotMatch(sentryApp, /3 Master&apos;s Rewards/);
 assert.match(hiddenChallengeStatus, /Your Hidden Items/);
 assert.match(hiddenChallengeStatus, /Waiting for \$\{item\.current_target_name\} to find it/);
+assert.match(hiddenChallengeStatus, /Hide Treasure/);
+assert.match(hiddenChallengeStatus, /Hide Mine/);
 assert.match(rootApp, /<HiddenChallengeStatus \/>/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.apply_redemption_coin_account_age()',
+  'v_account_days := greatest(1, v_use_date - v_join_date + 1)',
+  'apply_redemption_coin_account_age_after_use',
+  "= 'youngrabbi'",
+  'PERFORM public.refresh_user_streak_snapshot(v_user_id)',
+]) {
+  assert.ok(redemptionAccountAge.includes(required), `Missing Redemption Coin account-age repair: ${required}`);
+}
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.external_share_events',

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
-import { TentHouseBadge } from '../../components/TentHouseSymbol';
+import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { NotificationCenter } from '../../components/NotificationCenter';
 import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
@@ -52,8 +52,16 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ShoppingBag, FileQuestion, Award, Trophy,
-  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock, Snowflake,
+  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock,
 } from 'lucide-react';
+
+const SENTRY_LEADERSHIP_SCRIPTURES = [
+  { text: 'Be strong and courageous. Do not be afraid; do not be discouraged.', reference: 'Joshua 1:9' },
+  { text: 'Be on your guard; stand firm in the faith; be courageous; be strong.', reference: '1 Corinthians 16:13' },
+  { text: 'Be shepherds of God\'s flock that is under your care, watching over them.', reference: '1 Peter 5:2' },
+  { text: 'Where there is no guidance, a people falls, but in an abundance of counselors there is safety.', reference: 'Proverbs 11:14' },
+  { text: 'Do not fear, for I am with you; do not be dismayed, for I am your God.', reference: 'Isaiah 41:10' },
+];
 
 type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
@@ -537,7 +545,7 @@ export function SentryApp() {
               {sentryDenarii >= 1000 ? `${(sentryDenarii / 1000).toFixed(1)}K` : sentryDenarii}
             </span>
           </div>
-          {tent?.tent_house_id ? <TentHouseBadge houseId={tent.tent_house_id} size="sm" /> : null}
+          {tent?.tent_house_id ? <TentHouseSymbol houseId={tent.tent_house_id} size={28} /> : null}
         </div>
       }
     >
@@ -558,6 +566,7 @@ export function SentryApp() {
           reactingQuote={reactingQuote}
           reactingVerse={reactingVerse}
           currentUserId={profile?.id || null}
+          sentryName={profile?.display_name || 'Sentry'}
           panelImages={panelImages}
           announcements={announcements}
           ledger={sentryLedger}
@@ -702,7 +711,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
   );
 }
 
-function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quotes, narrative, fcxExperience, quoteReactions, verseReactions, reactingQuote, reactingVerse, currentUserId, panelImages, announcements, ledger, denariiTotal, onReactQuote, onReactVerse, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
+function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount, todayMarked, quotes, narrative, fcxExperience, quoteReactions, verseReactions, reactingQuote, reactingVerse, currentUserId, sentryName, panelImages, announcements, ledger, denariiTotal, onReactQuote, onReactVerse, onNavigate, onUploadTentPhoto, uploadingTentPhoto }: {
   tent: Tent & { tent_houses?: any };
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
@@ -717,6 +726,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   reactingQuote: string | null;
   reactingVerse: string | null;
   currentUserId: string | null;
+  sentryName: string;
   panelImages: Record<string, PanelImageSetting>;
   announcements: ScheduledAnnouncement[];
   ledger: DenariiLedgerEntry[];
@@ -735,6 +745,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
   const [cadetQuizPodium, setCadetQuizPodium] = useState<WeeklyQuizRanking[]>([]);
   const [sentryQuizPodium, setSentryQuizPodium] = useState<WeeklyQuizRanking[]>([]);
+  const [leadershipScriptureIndex, setLeadershipScriptureIndex] = useState(0);
   const tentPhotoInputRef = useRef<HTMLInputElement>(null);
   const dayType = getDayType(new Date());
   const todayDate = new Date();
@@ -743,6 +754,14 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
     .filter((entry) => entry.created_at.startsWith(today))
     .reduce((sum, entry) => sum + entry.amount, 0);
   const recentLedger = ledger.slice(0, 5);
+  const leadershipScripture = SENTRY_LEADERSHIP_SCRIPTURES[leadershipScriptureIndex % SENTRY_LEADERSHIP_SCRIPTURES.length];
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setLeadershipScriptureIndex((index) => (index + 1) % SENTRY_LEADERSHIP_SCRIPTURES.length);
+    }, 7000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!currentUserId || !tent.id) return;
@@ -801,61 +820,48 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   }, []);
 
   const chargeContent = (
-    <div className="flex min-h-[150px] w-full flex-col justify-between gap-5 sm:flex-row sm:items-center">
-      <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
-        <div className="relative shrink-0">
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-white/35 bg-navy-2/60 shadow-lg backdrop-blur-md sm:h-20 sm:w-20">
-            {tent.profile_image_url ? (
-              <img src={tent.profile_image_url} alt={`${tent.name} profile`} className="h-full w-full object-cover" />
-            ) : (
-              <Shield size={30} className="text-gold" />
-            )}
-          </div>
-          <button
-            onClick={() => tentPhotoInputRef.current?.click()}
-            disabled={uploadingTentPhoto}
-            className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border border-brass/30 bg-brass text-ink shadow-sm disabled:opacity-60"
-            title="Upload tent profile picture"
-          >
-            {uploadingTentPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-          </button>
-        </div>
-        <div className="min-w-0 text-shadow-sm">
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full border border-gold/35 bg-navy-2/55 px-2 py-1 text-[9px] font-black uppercase text-gold backdrop-blur-md">
-              <Shield size={11} /> Sentry
-            </span>
-            <span className="text-[10px] font-bold uppercase text-stone">Your Charge</span>
-          </div>
-          <h2 className="truncate font-display text-xl font-black text-ink sm:text-2xl">{tent.name}</h2>
-          <p className="mt-1 truncate text-xs font-semibold text-stone sm:text-sm">{tent.tent_houses?.name} · {members.length} cadets</p>
-          <p className="mt-2 text-xs font-medium text-ink/85">Lead with vigilance, truth, and care.</p>
-        </div>
+    <div className="relative flex min-h-[170px] w-full flex-col px-0.5 pb-11 pr-14 text-shadow-sm sm:min-h-[184px] sm:pr-20">
+      <div className="min-w-0">
+        <h2 className="font-display text-xl font-black leading-tight text-ink sm:text-2xl">
+          Welcome Sentry <span className="text-[#FFD84D]">{sentryName}</span>
+        </h2>
+        <p className="mt-2 text-[10px] font-black uppercase text-stone">Your Charge</p>
+        <p className="mt-1 text-xs font-semibold text-ink sm:text-sm">{members.length} cadets entrusted to your care</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 sm:max-w-[230px] sm:justify-end">
-        <span className="overview-glass-button pointer-events-none text-[10px] font-bold text-ink">
-          <Snowflake size={13} className="text-peri-2" /> 3 Freezers weekly
-        </span>
-        <span className="overview-glass-button pointer-events-none text-[10px] font-bold text-ink">
-          <Trophy size={13} className="text-gold" /> 3 Master&apos;s Rewards
-        </span>
-        {currentUserId && (
-          <button
-            type="button"
-            onClick={() => setShowTentChat(true)}
-            className="overview-glass-button btn-secondary relative text-xs"
-          >
-            <Users size={12} /> Tent Chat
-            {tentUnreadCount > 0 && (
-              <span className="notification-badge-ring absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                {tentUnreadCount > 9 ? '9+' : tentUnreadCount}
-              </span>
-            )}
-          </button>
-        )}
-        {tent.tent_house_id && <TentHouseBadge houseId={tent.tent_house_id} size="md" />}
+      {tent.tent_house_id && (
+        <TentHouseSymbol houseId={tent.tent_house_id} size={48} className="absolute right-0 top-0 bg-surface/55 backdrop-blur-md sm:h-14 sm:w-14" />
+      )}
+
+      <div key={leadershipScripture.reference} className="mt-auto max-w-xl animate-fade-in pt-4">
+        <p className="text-[11px] font-medium italic leading-relaxed text-ink/85 sm:text-xs">&ldquo;{leadershipScripture.text}&rdquo;</p>
+        <p className="mt-1 text-[9px] font-black uppercase text-stone">{leadershipScripture.reference}</p>
       </div>
+
+      {currentUserId && (
+        <button
+          type="button"
+          onClick={() => setShowTentChat(true)}
+          className="overview-glass-button btn-secondary absolute bottom-0 left-0 text-xs"
+        >
+          <Users size={12} /> Tent Chat
+          {tentUnreadCount > 0 && (
+            <span className="notification-badge-ring absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+              {tentUnreadCount > 9 ? '9+' : tentUnreadCount}
+            </span>
+          )}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => tentPhotoInputRef.current?.click()}
+        disabled={uploadingTentPhoto}
+        className="overview-glass-button absolute bottom-0 right-0 px-2.5 text-xs disabled:opacity-60"
+        title="Change cover picture"
+        aria-label="Change cover picture"
+      >
+        {uploadingTentPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+      </button>
     </div>
   );
 
@@ -896,7 +902,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
     <div className="space-y-5 animate-fade-in">
       <DashboardHeroSlideshow
         slides={heroSlides}
-        profileName="Sentry"
+        profileName={sentryName}
         dayType={dayType}
         todayDate={todayDate}
         tentHouseId={tent.tent_house_id || null}

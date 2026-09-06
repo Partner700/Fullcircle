@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import type { QuizResponder, WeeklyQuizRanking } from '../lib/types';
 import { cn } from '../lib/utils';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
+import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
+import { useAuth } from '../context/AuthContext';
 
 export function QuizResponders({
   sessionId,
@@ -17,6 +19,7 @@ export function QuizResponders({
   active?: boolean;
   className?: string;
 }) {
+  const { profile } = useAuth();
   const [resolvedSessionId, setResolvedSessionId] = useState(sessionId || null);
   const [responders, setResponders] = useState<QuizResponder[]>([]);
   const [rankings, setRankings] = useState<WeeklyQuizRanking[]>([]);
@@ -120,6 +123,7 @@ export function QuizResponders({
                 )}
               </span>
               <VallumAvatarBadge userId={responder.user_id} size={isSlide ? 'xs' : 'sm'} />
+              <CurrentUserAvatarMarker isCurrentUser={responder.user_id === profile?.id} compact={isSlide} />
               {placementByUserId.get(responder.user_id) ? (
                 <span className={cn(
                   'absolute right-0 top-0 z-20 flex -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border border-white/80 bg-navy font-black tabular-nums text-white shadow-sm',

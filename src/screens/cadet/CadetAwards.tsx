@@ -5,7 +5,7 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { fetchAwardReactions, fetchAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
 import { formatShortDate, getTodayISODate, cn } from '../../lib/utils';
 import type { AwardWithRecipient } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, Users, BadgeCheck, Send } from 'lucide-react';
+import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, BadgeCheck, Send, Gem, Landmark, Medal, KeyRound, Star } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
 import { AppSelect } from '../../components/AppSelect';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -13,17 +13,17 @@ import { MessageAvatar } from '../../components/TentMessenger';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 
-const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
+const AWARD_ICON_MAP: Record<string, typeof AwardIcon> = {
   rhetoric: MessageCircle,
   nuncio: BookOpen,
   angel: Send,
   rumor: Crown,
   scribe: PenTool,
   sprout: Sprout,
-  reputation: Shield,
+  reputation: Star,
   tutorix: BadgeCheck,
   valley_champion: Shield,
-  lords_secret: Users,
+  lords_secret: KeyRound,
   vallum: Trophy,
   monthly_scribe: PenTool,
   monthly_valley_champion: Shield,
@@ -31,8 +31,10 @@ const AWARD_ICON_MAP: Record<string, typeof Trophy> = {
   grand_scribe: PenTool,
   grand_valley_champion: Shield,
   grand_orator: MessageCircle,
-  bethel_stone: Trophy,
-  temple_mount: Trophy,
+  muralis: Medal,
+  centurion: Shield,
+  bethel_stone: Gem,
+  temple_mount: Landmark,
 };
 
 // Warm-palette award colors (brass / roman / moss / etc.)
@@ -183,7 +185,7 @@ export function CadetAwards() {
         {myAwards.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {myAwards.map((award) => {
-              const Icon = AWARD_ICON_MAP[award.award_type] || Trophy;
+              const Icon = AWARD_ICON_MAP[award.award_type] || AwardIcon;
               const color = AWARD_COLOR_MAP[award.award_type] || '#C9A227';
               const badgeClass = AWARD_BADGE_MAP[award.award_type] || 'badge badge-neutral';
               const houseId = award.target_tent?.tent_house_id || award.recipient_tent?.tent_house_id || null;
@@ -241,7 +243,7 @@ export function CadetAwards() {
         {visibleAwards.length > 0 ? (
           <div className="space-y-2">
             {visibleAwards.map((award) => {
-              const Icon = AWARD_ICON_MAP[award.award_type] || Trophy;
+              const Icon = AWARD_ICON_MAP[award.award_type] || AwardIcon;
               const color = AWARD_COLOR_MAP[award.award_type] || '#C9A227';
               const houseId = award.target_tent?.tent_house_id || award.recipient_tent?.tent_house_id || null;
               return (

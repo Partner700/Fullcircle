@@ -149,7 +149,9 @@ function InsightThread({
       <div className="flex items-start gap-2.5">
         <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{insight.profiles?.avatar_url ? <img src={insight.profiles.avatar_url} alt={authorName} className="h-full w-full object-cover" loading="lazy" /> : authorName.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={insight.user_id} size="sm" /></span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-ink">{authorName}</p>
+          <p className="text-xs font-bold text-ink">
+            {authorName}{' '}<RelativeTime value={insight.created_at} className="font-medium text-stone-dim" />
+          </p>
           <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{insight.body}</p>
         </div>
       </div>

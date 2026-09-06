@@ -27,7 +27,9 @@ import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import {
   createHiddenChallenge,
+  consumeHiddenChallengeComposerIntent,
   fetchHiddenItemInventory,
+  HIDDEN_CHALLENGE_COMPOSE_EVENT,
   purchaseHiddenItem,
   readingVerseChallengeKey,
 } from '../lib/hiddenChallenges';
@@ -466,6 +468,20 @@ export function HiddenItemsMarket({
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<HiddenItemType | null>(null);
   const [composing, setComposing] = useState<HiddenItemType | null>(null);
+
+  useEffect(() => {
+    const pending = consumeHiddenChallengeComposerIntent();
+    if (pending) setComposing(pending);
+    const openComposer = (event: Event) => {
+      const detail = (event as CustomEvent<{ itemType?: HiddenItemType }>).detail;
+      if (detail?.itemType === 'treasure' || detail?.itemType === 'mine') {
+        consumeHiddenChallengeComposerIntent();
+        setComposing(detail.itemType);
+      }
+    };
+    window.addEventListener(HIDDEN_CHALLENGE_COMPOSE_EVENT, openComposer);
+    return () => window.removeEventListener(HIDDEN_CHALLENGE_COMPOSE_EVENT, openComposer);
+  }, []);
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = async () => {
