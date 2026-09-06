@@ -974,22 +974,28 @@ export function CadetNarrative({
 
       {narrative.verse_of_day && (
         <div
-          className="card reading-glass-panel relative overflow-hidden p-5 animate-slide-up border-brass/30"
+          className={cn(
+            'card reading-glass-panel relative overflow-hidden animate-slide-up border-brass/30',
+            isSundayRest ? 'max-h-[60svh] p-4' : 'p-5',
+          )}
           style={{
             backdropFilter: 'blur(26px) saturate(1.22)',
           }}
         >
           <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
           <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-3">
+          <div className={cn('flex items-center gap-2', isSundayRest ? 'mb-2' : 'mb-3')}>
             <Sun size={18} className="text-brass" strokeWidth={1.5} />
             <span className="eyebrow text-stone">{isSundayRest ? 'Verse of the Week' : 'Verse of the Day'}</span>
           </div>
-          <ScrollEdge position="top" className="text-brass mb-3" />
-          <p className="font-display text-xl text-ink leading-snug">
+          <ScrollEdge position="top" className={cn('text-brass', isSundayRest ? 'mb-2' : 'mb-3')} />
+          <p className={cn(
+            'font-display text-ink',
+            isSundayRest ? 'max-h-[calc(60svh-7.5rem)] overflow-y-auto pr-1 text-base leading-relaxed sm:text-lg' : 'text-xl leading-snug',
+          )}>
             &ldquo;{narrative.verse_of_day}&rdquo;
           </p>
-          <ScrollEdge position="bottom" className="text-brass mt-3" />
+          <ScrollEdge position="bottom" className={cn('text-brass', isSundayRest ? 'mt-2' : 'mt-3')} />
           </div>
         </div>
       )}

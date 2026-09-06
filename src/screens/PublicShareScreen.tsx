@@ -274,13 +274,13 @@ function SharedReadingView({
       </section>
 
       {reading.verse_of_day && (
-        <section className="card reading-glass-panel relative overflow-hidden border-brass/30 p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
+        <section className={cn('card reading-glass-panel relative overflow-hidden border-brass/30 animate-slide-up', isSundayReading ? 'max-h-[60svh] p-4' : 'p-5')} style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
           <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
           <div className="relative z-10">
-            <div className="mb-3 flex items-center gap-2"><Sun size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">{isSundayReading ? 'Verse of the Week' : 'Verse of the Day'}</span></div>
-            <ScrollEdge position="top" className="mb-3 text-brass" />
-            <p className="font-display text-xl leading-snug text-ink">&ldquo;{reading.verse_of_day}&rdquo;</p>
-            <ScrollEdge position="bottom" className="mt-3 text-brass" />
+            <div className={cn('flex items-center gap-2', isSundayReading ? 'mb-2' : 'mb-3')}><Sun size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">{isSundayReading ? 'Verse of the Week' : 'Verse of the Day'}</span></div>
+            <ScrollEdge position="top" className={cn('text-brass', isSundayReading ? 'mb-2' : 'mb-3')} />
+            <p className={cn('font-display text-ink', isSundayReading ? 'max-h-[calc(60svh-7.5rem)] overflow-y-auto pr-1 text-base leading-relaxed sm:text-lg' : 'text-xl leading-snug')}>&ldquo;{reading.verse_of_day}&rdquo;</p>
+            <ScrollEdge position="bottom" className={cn('text-brass', isSundayReading ? 'mt-2' : 'mt-3')} />
           </div>
         </section>
       )}

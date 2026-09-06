@@ -199,6 +199,8 @@ for (const required of [
   assert.ok(sundayBiblicalOrder.includes(required), `Missing Sunday biblical-order boundary: ${required}`);
 }
 assert.match(cadetNarrative, /isSundayRest \? 'Verse of the Week' : 'Verse of the Day'/);
+assert.match(cadetNarrative, /isSundayRest \? 'max-h-\[60svh\] p-4'/);
+assert.match(cadetNarrative, /max-h-\[calc\(60svh-7\.5rem\)\] overflow-y-auto/);
 assert.match(cadetNarrative, /sourceNarrativeId: verse\.source_narrative_id \|\| passage\.source_narrative_id/);
 assert.match(cadetNarrative, /item\.narrative_id === sourceNarrativeId/);
 assert.match(cadetNarrative, /closedSundayInsights/);
@@ -206,6 +208,7 @@ assert.match(cadetNarrative, /setClosedSundayInsights\(\(current\) => current\.f
 assert.doesNotMatch(cadetNarrative, /const userExpanded = isSundayRest \|\|/);
 assert.doesNotMatch(cadetNarrative, /fetchWeeklyVerseHighlights|setArchiveDate\(highlight\.narrative_date/);
 assert.match(publicShareScreen, /isSundayReading \? 'Verse of the Week' : 'Verse of the Day'/);
+assert.match(publicShareScreen, /isSundayReading \? 'max-h-\[60svh\] p-4'/);
 assert.match(quoteReactions, /size="xs"/);
 assert.match(awardReactions, /size="xs"/);
 assert.match(tentMessenger, /size === 'xs' \? 'h-4 w-4 text-\[7px\]'/);
@@ -350,8 +353,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v109'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '109'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v110'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -365,7 +368,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v109/);
+assert.match(releaseCache, /2026-09-06-v110/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
