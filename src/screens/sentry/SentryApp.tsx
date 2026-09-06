@@ -51,8 +51,8 @@ import { DashboardHeroSlideshow, type DashboardHeroSlide } from '../cadet/CadetD
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
-  Camera, ImagePlus, ShoppingBag, FileQuestion, Award, Trophy,
-  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock,
+  Camera, ShoppingBag, FileQuestion, Award, Trophy,
+  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock, Snowflake,
 } from 'lucide-react';
 
 type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
@@ -512,7 +512,7 @@ export function SentryApp() {
       navActiveKey={dailyGamesNavigationKey(tab)}
       onNavigate={(k) => handleNavigate(k as Tab)}
       headerTitle={tabLabels[tab]}
-      headerSubtitle={tent ? `${tent.name} · ${tent.tent_houses?.name || ''}` : 'No tent assigned yet'}
+      headerSubtitle={tent ? undefined : 'No tent assigned yet'}
       rightHeader={
         <div className="flex items-center gap-1.5">
           {isExpired && (
@@ -801,14 +801,14 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   }, []);
 
   const chargeContent = (
-    <div className="flex w-full items-start justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-4">
+    <div className="flex min-h-[150px] w-full flex-col justify-between gap-5 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
         <div className="relative shrink-0">
-          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface/75 backdrop-blur-md">
+          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-white/35 bg-navy-2/60 shadow-lg backdrop-blur-md sm:h-20 sm:w-20">
             {tent.profile_image_url ? (
               <img src={tent.profile_image_url} alt={`${tent.name} profile`} className="h-full w-full object-cover" />
             ) : (
-              <TentIcon size={28} className="text-brass" />
+              <Shield size={30} className="text-gold" />
             )}
           </div>
           <button
@@ -820,37 +820,42 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
             {uploadingTentPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
           </button>
         </div>
-        <div className="min-w-0">
-          <p className="eyebrow text-stone">Your Charge</p>
-          <h2 className="mt-1 truncate font-display text-xl font-semibold text-ink">{tent.name}</h2>
-          <p className="mt-0.5 truncate text-sm text-stone">{tent.tent_houses?.name} · {tent.cycle_label} · {members.length} cadets</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => tentPhotoInputRef.current?.click()}
-              disabled={uploadingTentPhoto}
-              className="overview-glass-button btn-secondary text-xs"
-            >
-              {uploadingTentPhoto ? <Loader2 size={12} className="animate-spin" /> : <ImagePlus size={12} />}
-              {tent.profile_image_url ? 'Change Picture' : 'Add Picture'}
-            </button>
-            {currentUserId && (
-              <button
-                type="button"
-                onClick={() => setShowTentChat(true)}
-                className="overview-glass-button btn-secondary relative text-xs"
-              >
-                <Users size={12} /> Tent Chat
-                {tentUnreadCount > 0 && (
-                  <span className="notification-badge-ring absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                    {tentUnreadCount > 9 ? '9+' : tentUnreadCount}
-                  </span>
-                )}
-              </button>
-            )}
+        <div className="min-w-0 text-shadow-sm">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-gold/35 bg-navy-2/55 px-2 py-1 text-[9px] font-black uppercase text-gold backdrop-blur-md">
+              <Shield size={11} /> Sentry
+            </span>
+            <span className="text-[10px] font-bold uppercase text-stone">Your Charge</span>
           </div>
+          <h2 className="truncate font-display text-xl font-black text-ink sm:text-2xl">{tent.name}</h2>
+          <p className="mt-1 truncate text-xs font-semibold text-stone sm:text-sm">{tent.tent_houses?.name} · {members.length} cadets</p>
+          <p className="mt-2 text-xs font-medium text-ink/85">Lead with vigilance, truth, and care.</p>
         </div>
       </div>
-      {tent.tent_house_id && <TentHouseBadge houseId={tent.tent_house_id} size="md" />}
+
+      <div className="flex flex-wrap items-center gap-2 sm:max-w-[230px] sm:justify-end">
+        <span className="overview-glass-button pointer-events-none text-[10px] font-bold text-ink">
+          <Snowflake size={13} className="text-peri-2" /> 3 Freezers weekly
+        </span>
+        <span className="overview-glass-button pointer-events-none text-[10px] font-bold text-ink">
+          <Trophy size={13} className="text-gold" /> 3 Master&apos;s Rewards
+        </span>
+        {currentUserId && (
+          <button
+            type="button"
+            onClick={() => setShowTentChat(true)}
+            className="overview-glass-button btn-secondary relative text-xs"
+          >
+            <Users size={12} /> Tent Chat
+            {tentUnreadCount > 0 && (
+              <span className="notification-badge-ring absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                {tentUnreadCount > 9 ? '9+' : tentUnreadCount}
+              </span>
+            )}
+          </button>
+        )}
+        {tent.tent_house_id && <TentHouseBadge houseId={tent.tent_house_id} size="md" />}
+      </div>
     </div>
   );
 

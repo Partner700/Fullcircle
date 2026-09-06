@@ -13,6 +13,7 @@ import { DenariiGainAnimation } from './components/DenariiGainAnimation';
 import { FoundersGiftPopup } from './components/FoundersGiftPopup';
 import { DoveQuestionOverlay } from './components/DoveQuestionOverlay';
 import { HiddenChallengeOverlay } from './components/HiddenChallengeOverlay';
+import { HiddenChallengeStatus } from './components/HiddenChallengeStatus';
 import { PublicQuizResultClaim } from './components/PublicQuizResultClaim';
 import { PublicShareScreen } from './screens/PublicShareScreen';
 import { useFrenchUiTranslation } from './lib/frenchUi';
@@ -93,7 +94,7 @@ export default function App() {
 
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
-  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /><FoundersGiftPopup /><DoveQuestionOverlay /><HiddenChallengeOverlay /><PublicQuizResultClaim /></>;
+  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /><FoundersGiftPopup /><DoveQuestionOverlay /><HiddenChallengeOverlay /><HiddenChallengeStatus /><PublicQuizResultClaim /></>;
 
   if (publicShare && !configError) {
     return <>{overlays}<PublicShareScreen kind={publicShare.kind} value={publicShare.value} /></>;

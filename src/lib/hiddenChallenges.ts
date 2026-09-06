@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type {
   CreateHiddenChallengeInput,
   HiddenChallengeParticipant,
+  HiddenChallengeCreatorStatus,
   HiddenChallengePlacement,
   HiddenChallengeRelic,
   HiddenChallengeRelicResult,
@@ -12,6 +13,7 @@ import type {
 } from './types';
 
 export const HIDDEN_CHALLENGE_EVENT = 'full-circle:hidden-challenge';
+export const HIDDEN_CHALLENGE_STATUS_EVENT = 'full-circle:hidden-challenge-status';
 
 export type HiddenChallengeEventDetail = {
   claimId?: string;
@@ -73,7 +75,14 @@ export async function createHiddenChallenge(input: CreateHiddenChallengeInput) {
     p_mine_penalty_denarii: input.minePenaltyDenarii || 0,
   });
   if (error) throw error;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(HIDDEN_CHALLENGE_STATUS_EVENT));
   return data as { challenge_id: string; item_type: HiddenItemType; recipient_count: number; escrow_denarii: number };
+}
+
+export async function fetchMyHiddenChallengeStatus() {
+  const { data, error } = await supabase.rpc('get_my_hidden_challenge_status');
+  if (error) throw error;
+  return (data || []) as HiddenChallengeCreatorStatus[];
 }
 
 export async function findHiddenChallengeClaim(

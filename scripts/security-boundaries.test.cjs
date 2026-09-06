@@ -126,12 +126,14 @@ const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mine
 const resultsReleaseRankingsAndWeeklyAwards = read('supabase/migrations/20260905110000_results_release_rankings_and_weekly_awards.sql');
 const roleSeparatedQuizRankings = read('supabase/migrations/20260906150000_role_separated_weekly_quiz_rankings.sql');
 const avatarAwardsAndQuizExit = read('supabase/migrations/20260906153000_avatar_awards_public_rest_day_and_quiz_exit.sql');
+const sentryHonorsBenefitsAndHiddenStatus = read('supabase/migrations/20260906160000_sentry_honors_benefits_and_hidden_status.sql');
 const relativeTime = read('src/components/RelativeTime.tsx');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
 const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
 const notificationArrival = read('src/lib/notificationArrival.ts');
 const appNavigation = read('src/lib/appNavigation.ts');
+const hiddenChallengeStatus = read('src/components/HiddenChallengeStatus.tsx');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -378,7 +380,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v113'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v114'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -393,7 +395,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v113/);
+assert.match(releaseCache, /2026-09-06-v114/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1364,6 +1366,29 @@ assert.match(roadHomeGame, /aria-label="Ludo Trivia question"/);
 assert.match(roadHomeGame, /<ArenaMatchChat roomId=\{roomId\} userId=\{userId\} \/>/);
 assert.doesNotMatch(roadHomeGame, /OpponentPlayFeed|function EventLog/);
 assert.match(chiRhoMark, /size \* 0\.34/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_current_avatar_awards()',
+  "award.award_month ~ '^[0-9]{4}-[0-9]{2}$'",
+  'standing_vallum AS (',
+  "award.award_month = vallum.cycle",
+  "WHEN lower(btrim(award.title)) LIKE '%vallum%' THEN 100",
+  "assignment.role IN ('cadet', 'sentry')",
+  "'weekly-masters-reward-' || v_week_key",
+  "'weekly-daily-freezers-' || v_week_key",
+  "SELECT p_user_id, 'daily', 'relic'",
+  'CREATE OR REPLACE FUNCTION public.get_my_hidden_challenge_status()',
+  'WHERE challenge.creator_id = auth.uid()',
+  'CREATE TRIGGER hidden_challenge_attempt_creator_notice',
+]) {
+  assert.ok(sentryHonorsBenefitsAndHiddenStatus.includes(required), `Missing Sentry honor, benefit, or hidden-status boundary: ${required}`);
+}
+assert.match(sentryApp, /headerSubtitle=\{tent \? undefined : 'No tent assigned yet'\}/);
+assert.match(sentryApp, /3 Freezers weekly/);
+assert.match(sentryApp, /3 Master&apos;s Rewards/);
+assert.match(hiddenChallengeStatus, /Your Hidden Items/);
+assert.match(hiddenChallengeStatus, /Waiting for \$\{item\.current_target_name\} to find it/);
+assert.match(rootApp, /<HiddenChallengeStatus \/>/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.external_share_events',

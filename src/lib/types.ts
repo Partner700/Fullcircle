@@ -180,6 +180,35 @@ export interface HiddenChallengeParticipant {
   answered_at: string;
 }
 
+export interface HiddenChallengeCreatorStatus {
+  challenge_id: string;
+  claim_id: string;
+  item_type: HiddenItemType;
+  placement: HiddenChallengePlacement;
+  reference_key: string | null;
+  challenge_status: 'active' | 'closed';
+  claim_status: 'pending' | 'opened' | 'won' | 'escaped' | 'charged' | 'closed';
+  created_at: string;
+  expires_at: string;
+  original_target_id: string;
+  original_target_name: string;
+  original_target_avatar_url: string | null;
+  current_target_id: string;
+  current_target_name: string;
+  current_target_avatar_url: string | null;
+  transfer_count: number;
+  last_outcome: 'wrong' | 'forfeited' | null;
+  latest_outcome: 'correct' | 'wrong' | 'forfeited' | null;
+  latest_actor_name: string | null;
+  latest_answered_at: string | null;
+  denarii_paid: number;
+  reward_denarii: number;
+  reward_relic_name: string | null;
+  reward_relic_quantity: number;
+  reward_freezer_type: FreezerType | null;
+  reward_freezer_quantity: number;
+}
+
 export interface Profile {
   id: string;
   display_name: string;

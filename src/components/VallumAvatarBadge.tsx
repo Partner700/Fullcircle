@@ -44,7 +44,7 @@ function normalizedAwardType(awardType: string, title = '') {
   const normalizedTitle = title.trim().toLowerCase();
   if (type && type !== 'individual' && type !== 'cadet' && type !== 'sentry') return type;
   if (normalizedTitle.includes('grand vallum')) return 'grand_vallum';
-  if (normalizedTitle === 'vallum') return 'vallum';
+  if (normalizedTitle.includes('vallum')) return 'vallum';
   if (normalizedTitle.includes('muralis')) return 'muralis';
   if (normalizedTitle.includes('centurion')) return 'centurion';
   if (normalizedTitle.includes('angel')) return 'angel';
