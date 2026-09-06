@@ -9,6 +9,7 @@ const read = (relativePath: string) => fs.readFileSync(path.join(root, relativeP
 const migration = read('supabase/migrations/20260902130000_treasures_and_mines.sql');
 const mineHardening = read('supabase/migrations/20260903101000_hidden_challenge_timer_and_mine_relics.sql');
 const mineVerseTags = read('supabase/migrations/20260903143000_forty_second_mines_and_scripture_tags.sql');
+const expiry = read('supabase/migrations/20260906113000_hidden_challenge_expiry.sql');
 const api = read('src/lib/hiddenChallenges.ts');
 const market = read('src/components/HiddenItemsMarket.tsx');
 const overlay = read('src/components/HiddenChallengeOverlay.tsx');
@@ -93,6 +94,7 @@ assert.match(market, /50 Ð each/);
 assert.match(market, /targets\.length >= 3/);
 assert.match(market, /Empty boxes are allowed/);
 assert.match(market, /Question difficulty/);
+assert.match(market, /Unopened items return after 48 hours/);
 assert.match(market, /role="radiogroup" aria-label="Hiding place"/);
 assert.match(market, /setPlacement\(option\.value as HiddenChallengePlacement\)/);
 assert.match(overlay, /Leaving this panel forfeits your attempt/);
@@ -167,5 +169,25 @@ for (const boundary of [
 assert.match(mineVerseTags, /claim\.current_target_id = auth\.uid\(\)/);
 assert.match(mineVerseTags, /challenge\.item_type = 'mine'/);
 assert.match(mineVerseTags, /GRANT EXECUTE ON FUNCTION public\.get_my_pending_hidden_verse_markers\(uuid\[\]\)[\s\S]*TO authenticated, service_role/);
+
+for (const boundary of [
+  "created_at + interval '48 hours'",
+  'CREATE TABLE IF NOT EXISTS public.hidden_challenge_expirations',
+  'CREATE OR REPLACE FUNCTION public.expire_hidden_challenges',
+  "claim.status IN ('pending', 'opened')",
+  'v_challenge.reward_denarii::bigint * v_unresolved_count::bigint',
+  'v_challenge.reward_relic_quantity * v_unresolved_count',
+  'v_challenge.reward_freezer_quantity * v_unresolved_count',
+  "VALUES (v_challenge.creator_id, v_challenge.item_type, 'available'",
+  "v_challenge.id::text || ':expiry'",
+  "'full-circle-hidden-challenge-expiry'",
+  "'*/5 * * * *'",
+]) {
+  assert.ok(expiry.includes(boundary), `Missing 48-hour expiry boundary: ${boundary}`);
+}
+assert.match(expiry, /ON CONFLICT \(challenge_id\) DO NOTHING/);
+assert.match(expiry, /PERFORM public\.expire_hidden_challenges\(v_user_id\)/);
+assert.match(expiry, /ALTER FUNCTION public\.open_hidden_challenge\(uuid, uuid\)[\s\S]*RENAME TO open_hidden_challenge_before_expiry/);
+assert.match(expiry, /REVOKE ALL ON TABLE public\.hidden_challenge_expirations FROM PUBLIC, anon, authenticated/);
 
 console.log('Treasure and Mine authority checks passed.');

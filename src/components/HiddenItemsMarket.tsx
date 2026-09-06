@@ -18,6 +18,7 @@ import {
   Search,
   Snowflake,
   Sparkles,
+  TimerReset,
   Users,
   X,
 } from 'lucide-react';
@@ -553,6 +554,7 @@ export function HiddenItemsMarket({
         <div className="relative z-10 mt-3 flex flex-wrap items-center gap-3 text-[10px] text-stone">
           <span className="inline-flex items-center gap-1"><Users size={12} /> 1 to 3 people</span>
           <span className="inline-flex items-center gap-1"><Snowflake size={12} /> Rewards are reserved first</span>
+          <span className="inline-flex items-center gap-1"><TimerReset size={12} /> Unopened items return after 48 hours</span>
           <span className="inline-flex items-center gap-1"><Coins size={12} /> Balance: {formatDenarii(denarii)} Ð</span>
         </div>
       </section>

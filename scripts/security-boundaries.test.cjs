@@ -364,7 +364,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v110'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v111'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -379,7 +379,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v110/);
+assert.match(releaseCache, /2026-09-06-v111/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1295,6 +1295,9 @@ assert.doesNotMatch(publicQuizResultClaim, /result\.figs/);
 assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
 assert.match(cadetDashboard, /kind: 'quiz_podium'/);
 assert.match(roadHomeGame, /aria-label="Roll the dice"/);
+assert.match(roadHomeGame, /Array\.from\(\{ length: 6 \}/);
+assert.match(roadHomeGame, /road-home-die-rolling/);
+assert.match(roadHomeGame, /remainingSpin = Math\.max\(0, 900/);
 assert.match(roadHomeGame, /aria-label="Ludo Trivia question"/);
 assert.match(roadHomeGame, /<ArenaMatchChat roomId=\{roomId\} userId=\{userId\} \/>/);
 assert.doesNotMatch(roadHomeGame, /OpponentPlayFeed|function EventLog/);

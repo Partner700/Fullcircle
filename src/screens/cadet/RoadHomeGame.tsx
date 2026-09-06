@@ -107,6 +107,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const [typedAnswer, setTypedAnswer] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [rollOutcome, setRollOutcome] = useState<RollOutcome | null>(null);
+  const [diceRolling, setDiceRolling] = useState(false);
   const [visualPawnProgress, setVisualPawnProgress] = useState<Record<string, number>>({});
   const [movingPawnIds, setMovingPawnIds] = useState<Set<string>>(new Set());
   const timedOutVersion = useRef<number | null>(null);
@@ -162,11 +163,21 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
 
   const send = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!state || sending) return false;
+    const rollStartedAt = action === 'ROLL' ? performance.now() : 0;
     setSending(true);
     setError(null);
-    if (action === 'ROLL') setRollOutcome(null);
+    if (action === 'ROLL') {
+      setRollOutcome(null);
+      setDiceRolling(true);
+    }
     try {
       const response = await sendRoadHomeCommand(roomId, action, payload, state.version);
+      if (action === 'ROLL') {
+        const remainingSpin = Math.max(0, 900 - (performance.now() - rollStartedAt));
+        if (remainingSpin > 0) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, remainingSpin));
+        }
+      }
       if (response.state) {
         hasState.current = true;
         setState(response.state);
@@ -199,6 +210,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       if (/changed on another device|advanced/i.test(message)) window.setTimeout(() => void load(), 350);
       return false;
     } finally {
+      if (action === 'ROLL') setDiceRolling(false);
       setSending(false);
     }
   }, [load, roomId, sending, state, userId]);
@@ -354,17 +366,17 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
           <div className="relative mx-auto w-full max-w-[52rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
             {homeCelebration && <RoadHomeConfetti />}
             <RoadHomeBoard state={state} userId={userId} sending={sending} visualPawnProgress={visualPawnProgress} movingPawnIds={movingPawnIds} onMove={(pawnId) => void send('MOVE', { pawnId })} />
-            {myTurn && state.phase === 'AWAITING_ROLL' && (
+            {(diceRolling || (myTurn && state.phase === 'AWAITING_ROLL')) && (
               <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
                 <button
                   type="button"
                   onClick={() => void send('ROLL')}
                   disabled={sending}
-                  className="pointer-events-auto flex min-h-24 min-w-24 flex-col items-center justify-center rounded-full border-2 border-gold/70 bg-navy/95 p-3 text-gold shadow-2xl backdrop-blur-md transition-transform hover:scale-105 disabled:opacity-60"
+                  className="pointer-events-auto flex h-32 w-32 flex-col items-center justify-center rounded-full border border-white/20 bg-navy/80 p-3 text-gold shadow-2xl backdrop-blur-md transition-transform hover:scale-105 disabled:cursor-wait"
                   aria-label="Roll the dice"
                 >
-                  {sending ? <Loader2 size={30} className="animate-spin" /> : <Dice value={state.diceValue || 1} size="lg" />}
-                  <span className="mt-1 text-[10px] font-black uppercase">Roll</span>
+                  <Dice value={state.diceValue || 1} size="lg" rolling={diceRolling} />
+                  <span className="mt-2 text-[10px] font-black uppercase tracking-normal">{diceRolling ? 'Rolling' : 'Roll'}</span>
                 </button>
               </div>
             )}
@@ -413,7 +425,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
         </aside>
       </div>
 
-      {myTurn && state.phase === 'QUESTION' && me && (
+      {myTurn && state.phase === 'QUESTION' && me && !diceRolling && (
         <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Ludo Trivia question">
           <div className="w-full max-w-lg animate-scale-in">
             <TurnControls
@@ -561,11 +573,24 @@ function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnI
 
 function Dice({ value, rolling = false, size = 'sm' }: { value: number; rolling?: boolean; size?: 'sm' | 'lg' }) {
   const dots: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-  return <div className={cn(
-    'grid flex-shrink-0 grid-cols-3 border border-gold/50 bg-surface shadow-inner animate-scale-in',
-    size === 'lg' ? 'h-14 w-14 rounded-xl p-1.5' : 'h-10 w-10 rounded-lg p-1',
-    rolling && 'animate-bounce',
-  )}>{Array.from({ length: 9 }, (_, index) => <span key={index} className={cn('m-auto rounded-full', size === 'lg' ? 'h-2 w-2' : 'h-1.5 w-1.5', dots[value]?.includes(index) ? 'bg-gold' : 'bg-transparent')} />)}</div>;
+  const visibleValue = Math.min(6, Math.max(1, Math.round(value || 1)));
+  return (
+    <span className={cn('road-home-die-stage', size === 'lg' ? 'road-home-die-stage-lg' : 'road-home-die-stage-sm')} aria-hidden="true">
+      <span className={cn('road-home-die', `road-home-die-value-${visibleValue}`, rolling && 'road-home-die-rolling')}>
+        {Array.from({ length: 6 }, (_, faceIndex) => {
+          const face = faceIndex + 1;
+          return (
+            <span key={face} className={`road-home-die-face road-home-die-face-${face}`}>
+              {Array.from({ length: 9 }, (_, dotIndex) => (
+                <span key={dotIndex} className={cn('road-home-die-dot', dots[face].includes(dotIndex) && 'road-home-die-dot-visible')} />
+              ))}
+            </span>
+          );
+        })}
+      </span>
+      <span className="road-home-die-shadow" />
+    </span>
+  );
 }
 
 type SendCommand = (action: string, payload?: Record<string, unknown>) => Promise<boolean>;
