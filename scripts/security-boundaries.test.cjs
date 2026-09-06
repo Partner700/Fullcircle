@@ -98,6 +98,7 @@ const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
 const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
 const sundayPublicReading = read('supabase/migrations/20260830120000_sunday_readings_public_conversations.sql');
 const sundayBiblicalOrder = read('supabase/migrations/20260830123000_sunday_biblical_order_and_streak_ranking.sql');
+const sundayMostLikedVerse = read('supabase/migrations/20260906100000_sunday_most_liked_verse_of_week.sql');
 const publicShareScreen = read('src/screens/PublicShareScreen.tsx');
 const publicQuizResultClaim = read('src/components/PublicQuizResultClaim.tsx');
 const panelImageTypes = read('src/lib/types.ts');
@@ -209,6 +210,16 @@ assert.doesNotMatch(cadetNarrative, /const userExpanded = isSundayRest \|\|/);
 assert.doesNotMatch(cadetNarrative, /fetchWeeklyVerseHighlights|setArchiveDate\(highlight\.narrative_date/);
 assert.match(publicShareScreen, /isSundayReading \? 'Verse of the Week' : 'Verse of the Day'/);
 assert.match(publicShareScreen, /isSundayReading \? 'max-h-\[60svh\] p-4'/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.ensure_sunday_highlight_reading(',
+  "reaction.reaction_type = 'amen'",
+  'narrative.narrative_date BETWEEN p_reading_date - 6 AND p_reading_date - 1',
+  'coalesce(reactions.like_count, 0) DESC',
+  "'verse_of_week_rule', 'most_liked_verse_of_day'",
+  'SELECT public.ensure_sunday_highlight_reading',
+]) {
+  assert.ok(sundayMostLikedVerse.includes(required), `Missing most-liked Verse of the Week boundary: ${required}`);
+}
 assert.match(quoteReactions, /size="xs"/);
 assert.match(awardReactions, /size="xs"/);
 assert.match(tentMessenger, /size === 'xs' \? 'h-4 w-4 text-\[7px\]'/);
