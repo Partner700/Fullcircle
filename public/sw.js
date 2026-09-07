@@ -1,8 +1,8 @@
 // This worker is intentionally notification-only. Application requests must
 // always go to the network so an installed phone cannot be trapped on a stale
 // offline document or an obsolete JavaScript bundle.
-const CACHE_VERSION = 'full-circle-v117';
-const RECOVERY_MARKER = '110';
+const CACHE_VERSION = 'full-circle-v118';
+const RECOVERY_MARKER = '111';
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -23,6 +23,7 @@ const NOTIFICATION_SYMBOLS = {
   quiz: 'notification-symbols/challenge.svg',
   quiz_release: 'notification-symbols/challenge.svg',
   weekly_quiz_reminder: 'notification-symbols/challenge.svg',
+  scripture_alarm: 'notification-symbols/challenge.svg',
   scripture: 'notification-symbols/reading.svg',
   reading: 'notification-symbols/reading.svg',
 };
@@ -118,20 +119,22 @@ self.addEventListener('push', (event) => {
   try {
     const data = event.data.json();
     const title = data.title || 'Full Circle';
+    const isScriptureAlarm = String(data.type || data.notification_type || '').toLowerCase() === 'scripture_alarm';
     const options = {
       body: data.body || '',
       icon: scopedUrl('icons/icon-192.png'),
       badge: scopedUrl('icons/icon-96.png'),
       image: data.image || notificationSymbol(data.type || data.notification_type),
-      vibrate: [200, 100, 200],
+      vibrate: isScriptureAlarm ? [1000, 180, 1000, 180, 1400] : [200, 100, 200],
       data: {
         url: data.url ? scopedUrl(data.url) : self.registration.scope,
         dateOfArrival: Date.now(),
       },
       actions: data.actions || [],
       tag: data.tag || 'default',
-      renotify: data.renotify || false,
-      requireInteraction: data.requireInteraction || false,
+      renotify: isScriptureAlarm || data.renotify || false,
+      requireInteraction: isScriptureAlarm || data.requireInteraction || false,
+      silent: false,
     };
 
     event.waitUntil(self.registration.showNotification(title, options));

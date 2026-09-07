@@ -414,7 +414,7 @@ export function CadetTent() {
                       <button
                         key={r.type}
                         onClick={() => sendReaction(m.user_id, r.type, 'high_score', String(den))}
-                        disabled={reactingTo === m.user_id || reacted}
+                        disabled={reactingTo === m.user_id}
                         className="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-70"
                         style={{ background: `${r.color}${reacted ? '2e' : '12'}` }}
                         title={r.label}

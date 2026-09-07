@@ -40,7 +40,7 @@ function notificationSymbol(type: string) {
   if (key === "streak") return "/notification-symbols/streak.svg";
   if (["relic", "reward"].includes(key)) return "/notification-symbols/relic.svg";
   if (["payment", "purchase", "economy"].includes(key)) return "/notification-symbols/payment.svg";
-  if (["challenge", "dove_question", "mine", "quiz", "quiz_release", "weekly_quiz_reminder"].includes(key)) return "/notification-symbols/challenge.svg";
+  if (["challenge", "dove_question", "mine", "quiz", "quiz_release", "weekly_quiz_reminder", "scripture_alarm"].includes(key)) return "/notification-symbols/challenge.svg";
   return "/notification-symbols/reading.svg";
 }
 
@@ -89,6 +89,7 @@ Deno.serve(async (request) => {
     const destinationParams = new URLSearchParams();
     if (notification.action_key) destinationParams.set("fc-tab", notification.action_key);
     const metadata = notification.metadata || {};
+    const isScriptureAlarm = notification.notification_type === "scripture_alarm";
     if (typeof metadata.narrative_id === "string") destinationParams.set("fc-narrative", metadata.narrative_id);
     if (typeof metadata.verse_reference === "string") destinationParams.set("fc-verse", metadata.verse_reference);
     if (typeof metadata.insight_id === "string") destinationParams.set("fc-insight", metadata.insight_id);
@@ -101,6 +102,8 @@ Deno.serve(async (request) => {
       type: notification.notification_type,
       image: notificationSymbol(notification.notification_type),
       metadata: notification.metadata || {},
+      renotify: isScriptureAlarm,
+      requireInteraction: isScriptureAlarm,
     });
 
     let delivered = 0;
@@ -109,7 +112,10 @@ Deno.serve(async (request) => {
         await webpush.sendNotification({
           endpoint: subscription.endpoint,
           keys: { p256dh: subscription.p256dh, auth: subscription.auth },
-        }, payload, { TTL: 3600, urgency: "normal" });
+        }, payload, {
+          TTL: isScriptureAlarm ? 86_400 : 3_600,
+          urgency: isScriptureAlarm ? "high" : "normal",
+        });
         delivered += 1;
       } catch (error) {
         const statusCode = Number((error as { statusCode?: number }).statusCode || 0);

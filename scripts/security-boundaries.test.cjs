@@ -142,6 +142,10 @@ const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx
 const notificationArrival = read('src/lib/notificationArrival.ts');
 const appNavigation = read('src/lib/appNavigation.ts');
 const hiddenChallengeStatus = read('src/components/HiddenChallengeStatus.tsx');
+const scriptureAlarms = read('supabase/migrations/20260907150000_scripture_alarms_and_reversible_reactions.sql');
+const scriptureAlarmOverlay = read('src/components/ScriptureAlarmOverlay.tsx');
+const scriptureAlarmApi = read('src/lib/scriptureAlarms.ts');
+const cadetTent = read('src/screens/cadet/CadetTent.tsx');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -388,8 +392,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v117'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v118'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '111'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -403,7 +407,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-07-v117/);
+assert.match(releaseCache, /2026-09-07-v118/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1495,6 +1499,39 @@ for (const required of [
 ]) {
   assert.ok(instructorApp.includes(required), `Missing instructor weekly award behavior: ${required}`);
 }
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.scripture_alarm_occurrences',
+  'CREATE TABLE IF NOT EXISTS public.scripture_alarm_attempts',
+  'UNIQUE (user_id, alarm_date, alarm_slot)',
+  'CREATE OR REPLACE FUNCTION public.dispatch_scripture_alarm',
+  'CREATE OR REPLACE FUNCTION public.ensure_my_due_scripture_alarms',
+  'CREATE OR REPLACE FUNCTION public.get_pending_scripture_alarm',
+  'CREATE OR REPLACE FUNCTION public.submit_scripture_alarm_answer',
+  "record.meditation_submitted, false",
+  "'59 4 * * 1-5'",
+  "'0 11 * * 1-5'",
+  "'0 17 * * 1-5'",
+  "'30 19 * * 1-5'",
+  'GRANT EXECUTE ON FUNCTION public.dispatch_scripture_alarm(text) TO service_role',
+]) {
+  assert.ok(scriptureAlarms.includes(required), `Missing Scripture alarm boundary: ${required}`);
+}
+assert.match(scriptureAlarms, /IF v_is_correct THEN[\s\S]*?status = 'cleared'[\s\S]*?RETURN jsonb_build_object\('is_correct', true, 'cleared', true\)/);
+assert.match(scriptureAlarms, /PERFORM private\.assign_scripture_alarm_question\(v_alarm\.id\)[\s\S]*?'is_correct', false/);
+assert.match(rootApp, /<ScriptureAlarmOverlay \/>/);
+assert.match(scriptureAlarmApi, /get_pending_scripture_alarm/);
+assert.match(scriptureAlarmApi, /submit_scripture_alarm_answer/);
+assert.match(scriptureAlarmOverlay, /startAlarmEffects/);
+assert.match(scriptureAlarmOverlay, /navigator\.vibrate\(\[700, 180, 700, 180, 1_100\]\)/);
+assert.match(scriptureAlarmOverlay, /z-\[2147483647\]/);
+assert.match(scriptureAlarmOverlay, /Answer correctly to silence the alarm/);
+assert.doesNotMatch(scriptureAlarmOverlay, /dismissScriptureAlarm|onClick=\{dismiss/);
+assert.match(serviceWorker, /isScriptureAlarm \? \[1000, 180, 1000, 180, 1400\]/);
+assert.match(serviceWorker, /requireInteraction: isScriptureAlarm/);
+assert.match(pushDelivery, /urgency: isScriptureAlarm \? "high" : "normal"/);
+assert.doesNotMatch(cadetTent, /disabled=\{reactingTo === m\.user_id \|\| reacted\}/);
+assert.match(cadetTent, /disabled=\{reactingTo === m\.user_id\}/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

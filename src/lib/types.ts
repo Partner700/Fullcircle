@@ -18,6 +18,7 @@ export type FreezerType = 'daily' | 'weekly';
 export type DoveQuestionType = 'multiple_choice' | 'true_false' | 'fill_blank' | 'standard_text';
 export type DoveQuestionDeliveryMode = 'optional' | 'required';
 export type DoveQuestionStatus = 'active' | 'closed';
+export type ScriptureAlarmSlot = 'morning' | 'midday' | 'evening' | 'final';
 export type HiddenItemType = 'treasure' | 'mine';
 export type HiddenChallengeDifficulty = 'easy' | 'moderate' | 'hard';
 export type HiddenChallengePlacement = 'direct_message' | 'verse' | 'todays_reading' | 'app_open' | 'daily_trivia' | 'daily_games';
@@ -76,6 +77,24 @@ export interface DoveQuestionAnswerResult {
   reward_paid: number;
   wallet_denarii: number;
   already_answered: boolean;
+}
+
+export interface PendingScriptureAlarm {
+  id: string;
+  alarm_date: string;
+  alarm_slot: ScriptureAlarmSlot;
+  triggered_at: string;
+  question_text: string;
+  question_type: DoveQuestionType;
+  options: string[];
+  reference: string | null;
+  attempt_count: number;
+}
+
+export interface ScriptureAlarmAnswerResult {
+  is_correct: boolean;
+  cleared: boolean;
+  alarm?: PendingScriptureAlarm | null;
 }
 
 export interface PublishDoveQuestionInput {
