@@ -766,6 +766,21 @@
 ::-webkit-scrollbar-track { background: var(--color-navy); }
 ::-webkit-scrollbar-thumb { background: var(--color-navy-4); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-peri-dim); }
+
+/* Fade only the edge that still has hidden scroll content. The classes are
+   maintained centrally so every scrollable panel behaves consistently. */
+.scroll-boundary-fade.scroll-fade-bottom:not(.scroll-fade-top) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.35rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.35rem), transparent 100%);
+}
+.scroll-boundary-fade.scroll-fade-top:not(.scroll-fade-bottom) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 100%);
+}
+.scroll-boundary-fade.scroll-fade-top.scroll-fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 1.35rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 1.35rem), transparent 100%);
+}
 @keyframes sound-meter-pulse {
   0%, 100% { transform: scaleY(0.28); }
   45% { transform: scaleY(1); }

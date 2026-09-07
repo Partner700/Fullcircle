@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { RoadHomeGame } from './RoadHomeGame';
 import { supabase } from '../../lib/supabase';
 import {
@@ -36,7 +37,7 @@ import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
-  Shield, ArrowLeft, Dices, ChevronDown,
+  Shield, ArrowLeft, ChevronDown,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -918,6 +919,7 @@ function ArenaBattleBoard({
   currentQuestion,
   isMyTurn,
   rolling,
+  revealingRoll,
   dieValue,
   latestOutcome,
   waitingName,
@@ -927,6 +929,7 @@ function ArenaBattleBoard({
   currentQuestion: number;
   isMyTurn: boolean;
   rolling: boolean;
+  revealingRoll: boolean;
   dieValue: number;
   latestOutcome: { player: string; correct: boolean; answer: string } | null;
   waitingName?: string | null;
@@ -966,17 +969,7 @@ function ArenaBattleBoard({
 
         <div className="col-start-2 col-end-6 row-start-2 row-end-6 flex min-h-0 flex-col items-center justify-center rounded-lg border border-white/10 bg-navy/72 p-3 text-center shadow-inner backdrop-blur-sm">
           {isMyTurn ? (
-            <button
-              type="button"
-              onClick={onRoll}
-              disabled={rolling}
-              className="group flex h-24 w-24 flex-col items-center justify-center rounded-2xl border-2 border-gold/70 bg-gold/10 text-gold shadow-[0_0_30px_rgba(232,185,88,0.18)] transition-transform hover:scale-105 disabled:cursor-wait sm:h-32 sm:w-32"
-              aria-label="Roll the Arena die"
-            >
-              <Dices size={rolling ? 38 : 46} className={cn(rolling && 'animate-spin')} />
-              <span className="mt-1 font-display text-2xl font-black">{dieValue}</span>
-              <span className="text-[9px] font-black uppercase text-white/70 sm:text-[10px]">{rolling ? 'Rolling' : 'Roll'}</span>
-            </button>
+            <ArenaDieButton value={dieValue} rolling={rolling} revealing={revealingRoll} onRoll={onRoll} />
           ) : (
             <div className="flex flex-col items-center gap-3 text-white/70">
               <Loader2 size={30} className="animate-spin text-royal" />
@@ -1049,9 +1042,11 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const [answerError, setAnswerError] = useState<string | null>(null);
   const [questionOpen, setQuestionOpen] = useState(false);
   const [rolling, setRolling] = useState(false);
+  const [revealingRoll, setRevealingRoll] = useState(false);
   const [dieValue, setDieValue] = useState(1);
   const [questionRetry, setQuestionRetry] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rollRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
@@ -1116,6 +1111,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       setAnswerFeedback(null);
       setQuestionOpen(false);
       setRolling(false);
+      setRevealingRoll(false);
     }
     const latest = answerFeed[answerFeed.length - 1];
     if (latest) setLatestOutcome({ player: latest.display_name, correct: latest.is_correct, answer: latest.submitted_answer || 'No answer' });
@@ -1257,8 +1253,10 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase, isMyTurn, questionOpen]);
 
   const rollDie = useCallback(() => {
-    if (!isMyTurn || turnPhase !== 'user' || rolling || questionOpen || answeredIds.has(currentQ)) return;
+    if (!isMyTurn || turnPhase !== 'user' || rolling || revealingRoll || questionOpen || answeredIds.has(currentQ)) return;
+    if (rollRevealTimerRef.current) window.clearTimeout(rollRevealTimerRef.current);
     setRolling(true);
+    setRevealingRoll(false);
     setAnswerError(null);
     let ticks = 0;
     const animation = window.setInterval(() => {
@@ -1267,10 +1265,18 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       if (ticks < 8) return;
       window.clearInterval(animation);
       setRolling(false);
-      setQuestionOpen(true);
-      void playSoundEffect('sound_arena_round', 0.62);
+      setRevealingRoll(true);
+      rollRevealTimerRef.current = window.setTimeout(() => {
+        setRevealingRoll(false);
+        setQuestionOpen(true);
+        void playSoundEffect('sound_arena_round', 0.62);
+      }, 950);
     }, 70);
-  }, [answeredIds, currentQ, isMyTurn, questionOpen, rolling, turnPhase]);
+  }, [answeredIds, currentQ, isMyTurn, questionOpen, revealingRoll, rolling, turnPhase]);
+
+  useEffect(() => () => {
+    if (rollRevealTimerRef.current) window.clearTimeout(rollRevealTimerRef.current);
+  }, []);
 
   if (!ready) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
@@ -1357,6 +1363,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
         currentQuestion={currentQ}
         isMyTurn={isMyTurn && turnPhase === 'user' && !questionOpen && !isCurrentAnswered}
         rolling={rolling}
+        revealingRoll={revealingRoll}
         dieValue={dieValue}
         latestOutcome={latestOutcome}
         waitingName={waitingName}

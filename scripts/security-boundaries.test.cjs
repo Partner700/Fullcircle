@@ -113,6 +113,7 @@ const readingDrafts = read('src/lib/readingDrafts.ts');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
 const phStreakContinuity = read('supabase/migrations/20260902090000_preserve_ph_verified_streak_continuity.sql');
 const meganSpadesStreakAndExplicitReactions = read('supabase/migrations/20260907120000_megan_spades_streak_and_explicit_reactions.sql');
+const exactTentAssignmentAndVerifiedStreakRepair = read('supabase/migrations/20260907130000_exact_tent_assignment_and_verified_streak_repair.sql');
 const doveQuestions = read('supabase/migrations/20260902100000_dove_questions.sql');
 const resilientQuizAttempts = read('supabase/migrations/20260902110000_resilient_quiz_attempts.sql');
 const doveQuestionApi = read('src/lib/doveQuestions.ts');
@@ -133,6 +134,9 @@ const redemptionAccountAge = read('supabase/migrations/20260906170000_redemption
 const tentMembershipReactionsAndStreakAudit = read('supabase/migrations/20260907100000_tent_membership_reactions_and_streak_audit.sql');
 const relativeTime = read('src/components/RelativeTime.tsx');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
+const appSelect = read('src/components/AppSelect.tsx');
+const arenaDieButton = read('src/components/ArenaDieButton.tsx');
+const scrollBoundaryFades = read('src/lib/useScrollBoundaryFades.ts');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
 const doveNotificationArrival = read('src/components/DoveNotificationArrival.tsx');
 const notificationArrival = read('src/lib/notificationArrival.ts');
@@ -1242,11 +1246,12 @@ for (const required of [
 }
 assert.match(quizDoveArrivals, /AFTER UPDATE OF status ON public\.quiz_sessions/);
 assert.match(quizDoveArrivals, /REVOKE ALL ON FUNCTION public\.deliver_quiz_release_notifications\(uuid\) FROM PUBLIC, anon, authenticated/);
-assert.match(hiddenItemsMarket, /<select[\s\S]*No relic/);
-assert.match(hiddenItemsMarket, /<select[\s\S]*No freezer/);
+assert.match(hiddenItemsMarket, /<AppSelect[\s\S]*No relic/);
+assert.match(hiddenItemsMarket, /<AppSelect[\s\S]*No freezer/);
 assert.match(hiddenItemsMarket, /Choose the verse/);
 assert.match(hiddenItemsMarket, /matchAll/);
-assert.doesNotMatch(hiddenItemsMarket, /AppSelect/);
+assert.doesNotMatch(hiddenItemsMarket, /<select/);
+assert.match(appSelect, /z-\[2147483646\]/);
 assert.match(tentMessenger, /revealHiddenChallenge\(\{ claimIds: hiddenClaimIds \}\)/);
 assert.doesNotMatch(tentMessenger, /Open hidden question/);
 assert.match(hiddenChallengeOverlay, /for \(const claimId of detail\.claimIds\)/);
@@ -1362,11 +1367,19 @@ for (const required of [
   assert.ok(avatarAwardsAndQuizExit.includes(required), `Missing award or quiz-exit boundary: ${required}`);
 }
 assert.match(publicShareScreen, /isSundayReading && <PublicRestDayAwards/);
-assert.match(roadHomeGame, /aria-label="Roll the dice"/);
+assert.match(roadHomeGame, /<ArenaDieButton/);
+assert.match(roadHomeGame, /!rollReveal/);
 assert.match(roadHomeGame, /Array\.from\(\{ length: 6 \}/);
 assert.match(roadHomeGame, /road-home-die-rolling/);
 assert.match(roadHomeGame, /remainingSpin = Math\.max\(0, 900/);
 assert.match(roadHomeGame, /aria-label="Ludo Trivia question"/);
+assert.match(cadetArena, /revealingRoll/);
+assert.match(cadetArena, /setQuestionOpen\(true\)[\s\S]*950/);
+assert.match(arenaDieButton, /revealing \? 'You played' : 'Roll'/);
+assert.match(scrollBoundaryFades, /SCROLL_SELECTOR = '\.overflow-y-auto/);
+assert.match(scrollBoundaryFades, /scroll-fade-bottom/);
+assert.match(rootApp, /useScrollBoundaryFades\(\)/);
+assert.doesNotMatch(quoteReactions, /disabled=\{disabled \|\| data\.reacted\}/);
 assert.match(roadHomeGame, /<ArenaMatchChat roomId=\{roomId\} userId=\{userId\} \/>/);
 assert.doesNotMatch(roadHomeGame, /OpponentPlayFeed|function EventLog/);
 assert.match(chiRhoMark, /size \* 0\.34/);
@@ -1436,6 +1449,24 @@ for (const required of [
 assert.match(quoteQueries, /set_daily_quote_reaction/);
 assert.match(quoteQueries, /p_reacted: reacted/);
 assert.match(cadetNarrative, /onPointerDownCapture=\{recordSundayEngagement\}/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.sentry_assign_cadet_to_tent',
+  'p_tent_id uuid',
+  "'Tent assignment could not be verified.'",
+  'CREATE OR REPLACE FUNCTION public.get_my_tent_context()',
+  "LIKE 'megan%'",
+  "v_day_start + interval '11 hours 59 minutes'",
+  "v_day_start + interval '20 hours 59 minutes'",
+  'PERFORM public.refresh_user_streak_snapshot(v_user.id)',
+]) {
+  assert.ok(exactTentAssignmentAndVerifiedStreakRepair.includes(required), `Missing exact tent or verified streak repair: ${required}`);
+}
+assert.match(quoteQueries, /sentry_assign_cadet_to_tent/);
+assert.match(quoteQueries, /receipt\.tent_id !== tentId/);
+assert.match(quoteQueries, /get_my_tent_context/);
+assert.match(sentryApp, /sentryAddCadetToTent\(tentId, confirmCadet\.user_id\)/);
+assert.match(cadetApp, /fetchOwnTentContext\(\)/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.external_share_events',

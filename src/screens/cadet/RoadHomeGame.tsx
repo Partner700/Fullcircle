@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
+import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { fetchArenaRoomMessages, fetchRoadHomeState, initializeRoadHome, sendArenaRoomMessage, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
@@ -23,6 +24,7 @@ type Props = {
 type Coordinate = readonly [number, number];
 type RoadHomeCommandError = Error & { state?: RoadHomeState | null };
 type RollOutcome = { value: number; message: string };
+type RollReveal = { value: number; message: string };
 const PAWN_STEP_MS = 260;
 
 function roadHomeError(error: unknown, fallback: string) {
@@ -107,6 +109,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   const [typedAnswer, setTypedAnswer] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [rollOutcome, setRollOutcome] = useState<RollOutcome | null>(null);
+  const [rollReveal, setRollReveal] = useState<RollReveal | null>(null);
   const [diceRolling, setDiceRolling] = useState(false);
   const [visualPawnProgress, setVisualPawnProgress] = useState<Record<string, number>>({});
   const [movingPawnIds, setMovingPawnIds] = useState<Set<string>>(new Set());
@@ -168,6 +171,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     setError(null);
     if (action === 'ROLL') {
       setRollOutcome(null);
+      setRollReveal(null);
       setDiceRolling(true);
     }
     try {
@@ -194,6 +198,9 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
             const rollEvent = events[rollIndex];
             const value = Number(rollEvent.message.match(/rolled\s+(\d+)/i)?.[1] || 0);
             const noMove = events.slice(rollIndex + 1).find((event) => event.type === 'NO_LEGAL_MOVE' && event.playerId === userId);
+            if (value > 0) {
+              setRollReveal({ value, message: rollEvent.message });
+            }
             if (noMove) {
               setRollOutcome({ value, message: `${rollEvent.message} A 6 is needed to deploy a pawn from base.` });
             }
@@ -318,6 +325,12 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [secondsLeft, state?.phase]);
 
   useEffect(() => {
+    if (!rollReveal) return;
+    const timer = window.setTimeout(() => setRollReveal(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [rollReveal]);
+
+  useEffect(() => {
     if (!rollOutcome) return;
     const timer = window.setTimeout(() => setRollOutcome(null), 4500);
     return () => window.clearTimeout(timer);
@@ -366,18 +379,16 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
           <div className="relative mx-auto w-full max-w-[52rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
             {homeCelebration && <RoadHomeConfetti />}
             <RoadHomeBoard state={state} userId={userId} sending={sending} visualPawnProgress={visualPawnProgress} movingPawnIds={movingPawnIds} onMove={(pawnId) => void send('MOVE', { pawnId })} />
-            {(diceRolling || (myTurn && state.phase === 'AWAITING_ROLL')) && (
+            {(diceRolling || rollReveal || (myTurn && state.phase === 'AWAITING_ROLL')) && (
               <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
-                <button
-                  type="button"
-                  onClick={() => void send('ROLL')}
-                  disabled={sending}
-                  className="pointer-events-auto flex h-32 w-32 flex-col items-center justify-center rounded-full border border-white/20 bg-navy/80 p-3 text-gold shadow-2xl backdrop-blur-md transition-transform hover:scale-105 disabled:cursor-wait"
-                  aria-label="Roll the dice"
-                >
-                  <Dice value={state.diceValue || 1} size="lg" rolling={diceRolling} />
-                  <span className="mt-2 text-[10px] font-black uppercase tracking-normal">{diceRolling ? 'Rolling' : 'Roll'}</span>
-                </button>
+                <ArenaDieButton
+                  value={rollReveal?.value || state.diceValue || 1}
+                  rolling={diceRolling}
+                  revealing={Boolean(rollReveal)}
+                  onRoll={() => void send('ROLL')}
+                  disabled={sending || state.phase !== 'AWAITING_ROLL'}
+                  className="pointer-events-auto bg-navy/82 backdrop-blur-md"
+                />
               </div>
             )}
           </div>
@@ -425,7 +436,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
         </aside>
       </div>
 
-      {myTurn && state.phase === 'QUESTION' && me && !diceRolling && (
+      {myTurn && state.phase === 'QUESTION' && me && !diceRolling && !rollReveal && (
         <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Ludo Trivia question">
           <div className="w-full max-w-lg animate-scale-in">
             <TurnControls

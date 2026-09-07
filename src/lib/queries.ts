@@ -235,12 +235,65 @@ export async function assignCadetToTent(tentId: string, userId: string) {
   if (error) throw error;
 }
 
-export async function sentryAddCadetToTent(sentryId: string, cadetId: string) {
-  const { error } = await supabase.rpc('sentry_add_cadet_to_tent', {
-    p_sentry_id: sentryId,
+export type TentAssignmentReceipt = {
+  success: boolean;
+  user_id: string;
+  tent_id: string;
+  tent_name: string;
+  tent_house_id: string;
+  role: string;
+};
+
+export async function sentryAddCadetToTent(tentId: string, cadetId: string) {
+  const { data, error } = await supabase.rpc('sentry_assign_cadet_to_tent', {
+    p_tent_id: tentId,
     p_cadet_id: cadetId,
   });
   if (error) throw error;
+  const receipt = data as TentAssignmentReceipt | null;
+  if (!receipt?.success || receipt.user_id !== cadetId || receipt.tent_id !== tentId) {
+    throw new Error('The tent assignment could not be verified. Please try again.');
+  }
+  return receipt;
+}
+
+export type OwnTentContext = {
+  tent_id: string;
+  tent_name: string;
+  tent_house_id: string;
+  sentry_id: string | null;
+  max_cadets: number;
+  member_role: string;
+  joined_at: string;
+};
+
+export async function fetchOwnTentContext() {
+  const { data, error } = await supabase.rpc('get_my_tent_context');
+  if (!error) {
+    const row = Array.isArray(data) ? data[0] : data;
+    return (row || null) as OwnTentContext | null;
+  }
+
+  // Keep existing clients functional while the companion migration reaches
+  // every environment; this read is singular because membership is unique.
+  const fallback = await supabase
+    .from('tent_members')
+    .select('tent_id,role,joined_at,tents(name,tent_house_id,sentry_id,max_cadets)')
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+    .limit(1)
+    .maybeSingle();
+  if (fallback.error) throw error;
+  if (!fallback.data) return null;
+  const tent = Array.isArray(fallback.data.tents) ? fallback.data.tents[0] : fallback.data.tents;
+  return {
+    tent_id: fallback.data.tent_id,
+    tent_name: tent?.name || '',
+    tent_house_id: tent?.tent_house_id || '',
+    sentry_id: tent?.sentry_id || null,
+    max_cadets: Number(tent?.max_cadets) || 10,
+    member_role: fallback.data.role || 'cadet',
+    joined_at: fallback.data.joined_at || '',
+  };
 }
 
 export async function fetchSentryAddableCadets(sentryId: string) {

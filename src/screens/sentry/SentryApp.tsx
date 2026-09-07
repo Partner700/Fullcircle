@@ -1216,7 +1216,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
     if (!confirmCadet) return;
     setAdding(true);
     try {
-      await sentryAddCadetToTent(currentUserId, confirmCadet.user_id);
+      await sentryAddCadetToTent(tentId, confirmCadet.user_id);
       setShowAdd(false);
       setSelectedCadet('');
       setConfirmCadet(null);

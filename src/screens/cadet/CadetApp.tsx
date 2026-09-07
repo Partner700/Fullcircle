@@ -25,6 +25,7 @@ import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
   fetchReliableToolbarStats,
+  fetchOwnTentContext,
   fetchUserNotifications,
   markNotificationRead,
   markAllNotificationsRead,
@@ -308,14 +309,7 @@ export function CadetApp() {
       setTentInfo({ tent: null, members: [] });
       return;
     }
-    const { data: member, error: memberError } = await supabase
-      .from('tent_members')
-      .select('tent_id')
-      .eq('user_id', profile.id)
-      .order('joined_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (memberError) return;
+    const member = await fetchOwnTentContext().catch(() => null);
     if (member) {
       const [tentResult, membersResult] = await Promise.all([
         supabase

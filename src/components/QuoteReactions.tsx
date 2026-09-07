@@ -143,7 +143,7 @@ export function QuoteReactions({
             <button
               key={reaction.type}
               type="button"
-              disabled={disabled || data.reacted}
+              disabled={disabled}
               onClick={() => onReact(reaction.type)}
               className={cn(
                 reactionButtonClass,
@@ -152,6 +152,7 @@ export function QuoteReactions({
                   : 'border-border bg-surface-2 text-stone hover:border-brass/40 hover:text-brass',
               )}
               title={reaction.label}
+              aria-pressed={data.reacted}
               aria-label={`${reaction.label}: ${data.count} reactions`}
             >
               <Icon size={12} fill={data.reacted ? 'currentColor' : 'none'} />

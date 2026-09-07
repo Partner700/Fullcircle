@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { AppSelect } from './AppSelect';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import {
   createHiddenChallenge,
@@ -355,10 +356,13 @@ function ItemComposer({
             <div>
               <label className="mb-1 block text-xs font-bold text-ink">Verse in today&apos;s reading</label>
               {verseOptions.length ? (
-                <select value={verseKey} onChange={(event) => setVerseKey(event.target.value)} className="input-field w-full text-xs">
-                  <option value="">Choose a verse</option>
-                  {verseOptions.map((verse) => <option key={verse.key} value={verse.key}>{verse.label}</option>)}
-                </select>
+                <AppSelect
+                  value={verseKey}
+                  onChange={setVerseKey}
+                  placeholder="Choose a verse"
+                  buttonClassName="text-xs"
+                  options={verseOptions.map((verse) => ({ value: verse.key, label: verse.label }))}
+                />
               ) : <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-stone">Today&apos;s reading has no selectable verse yet.</p>}
             </div>
           )}
@@ -384,28 +388,39 @@ function ItemComposer({
                   <input type="number" min="0" step="1" value={rewardDenarii} onChange={(event) => setRewardDenarii(event.target.value)} className="input-field mt-1 w-full text-xs" />
                 </label>
                 <label className="text-[10px] font-bold text-stone">Relic
-                  <select value={relicTypeId} onChange={(event) => {
-                    const next = event.target.value;
-                    setRelicTypeId(next);
-                    setRelicQuantity((current) => next === 'none' ? '0' : Number(current) > 0 ? current : '1');
-                  }} className="input-field mt-1 w-full text-xs">
-                    <option value="none">No relic</option>
-                    {ownedRelics.map((relic) => <option key={relic.id} value={relic.id}>{relic.name} ({relicInventory[relic.id]})</option>)}
-                  </select>
+                  <AppSelect
+                    value={relicTypeId}
+                    onChange={(next) => {
+                      setRelicTypeId(next);
+                      setRelicQuantity((current) => next === 'none' ? '0' : Number(current) > 0 ? current : '1');
+                    }}
+                    className="mt-1"
+                    buttonClassName="text-xs"
+                    options={[
+                      { value: 'none', label: 'No relic' },
+                      ...ownedRelics.map((relic) => ({ value: relic.id, label: `${relic.name} (${relicInventory[relic.id]})` })),
+                    ]}
+                  />
                 </label>
                 <label className="text-[10px] font-bold text-stone">Relics per person
                   <input type="number" min="0" max="100" step="1" value={relicQuantity} onChange={(event) => setRelicQuantity(event.target.value)} disabled={relicTypeId === 'none'} className="input-field mt-1 w-full text-xs disabled:opacity-40" />
                 </label>
                 <label className="text-[10px] font-bold text-stone">Freezer
-                  <select value={freezerType} onChange={(event) => {
-                    const next = event.target.value as 'none' | FreezerType;
-                    setFreezerType(next);
-                    setFreezerQuantity((current) => next === 'none' ? '0' : Number(current) > 0 ? current : '1');
-                  }} className="input-field mt-1 w-full text-xs">
-                    <option value="none">No freezer</option>
-                    <option value="daily">Daily ({readyDaily})</option>
-                    <option value="weekly">Weekly ({readyWeekly})</option>
-                  </select>
+                  <AppSelect
+                    value={freezerType}
+                    onChange={(value) => {
+                      const next = value as 'none' | FreezerType;
+                      setFreezerType(next);
+                      setFreezerQuantity((current) => next === 'none' ? '0' : Number(current) > 0 ? current : '1');
+                    }}
+                    className="mt-1"
+                    buttonClassName="text-xs"
+                    options={[
+                      { value: 'none', label: 'No freezer' },
+                      { value: 'daily', label: `Daily (${readyDaily})` },
+                      { value: 'weekly', label: `Weekly (${readyWeekly})` },
+                    ]}
+                  />
                 </label>
                 <label className="text-[10px] font-bold text-stone">Freezers per person
                   <input type="number" min="0" max="100" step="1" value={freezerQuantity} onChange={(event) => setFreezerQuantity(event.target.value)} disabled={freezerType === 'none'} className="input-field mt-1 w-full text-xs disabled:opacity-40" />

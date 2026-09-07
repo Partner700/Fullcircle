@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
+import { useScrollBoundaryFades } from './lib/useScrollBoundaryFades';
 import { AuthScreen } from './screens/AuthScreen';
 import { CadetApp } from './screens/cadet/CadetApp';
 import { SentryApp } from './screens/sentry/SentryApp';
@@ -39,6 +40,7 @@ function isPasswordRecoveryUrl() {
 }
 
 export default function App() {
+  useScrollBoundaryFades();
   const { session, profile, role, configError, loading, refreshProfile, signOut } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
   const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);

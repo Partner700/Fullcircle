@@ -70,7 +70,7 @@ export function AppSelect({
       ref={menuRef}
       role="listbox"
       style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}
-      className="fixed z-[2147482500] max-h-72 overflow-y-auto rounded-2xl border border-border-bright bg-surface/95 p-1.5 shadow-2xl backdrop-blur-xl animate-scale-in"
+      className="fixed z-[2147483646] max-h-72 overflow-y-auto rounded-2xl border border-border-bright bg-surface/95 p-1.5 shadow-2xl backdrop-blur-xl animate-scale-in"
     >
       {options.map((option) => {
         const active = option.value === value;
