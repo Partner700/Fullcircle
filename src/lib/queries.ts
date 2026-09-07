@@ -251,6 +251,28 @@ export async function fetchSentryAddableCadets(sentryId: string) {
   return data as { user_id: string; display_name: string; avatar_url: string | null }[];
 }
 
+export type TentJoinRequestSummary = {
+  request_id: string;
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  created_at: string;
+};
+
+export async function fetchTentJoinRequests(tentId: string) {
+  const { data, error } = await supabase.rpc('get_my_tent_join_requests', { p_tent_id: tentId });
+  if (error) throw error;
+  return (data || []) as TentJoinRequestSummary[];
+}
+
+export async function reviewTentJoinRequest(requestId: string, approve: boolean) {
+  const { error } = await supabase.rpc('review_tent_join_request', {
+    p_request_id: requestId,
+    p_approve: approve,
+  });
+  if (error) throw error;
+}
+
 export async function fetchDailyRecords(userId: string, fromDate?: string) {
   let query = supabase
     .from('daily_records')
@@ -2198,12 +2220,11 @@ export async function fetchDailyVerseReactions(narrativeDates: string[], reactor
 }
 
 export async function reactToDailyVerse(narrativeDate: string, reactorUserId: string, reactionType: string) {
-  const { error } = await supabase
-    .from('daily_verse_reactions')
-    .upsert(
-      { narrative_date: narrativeDate, reactor_user_id: reactorUserId, reaction_type: reactionType },
-      { onConflict: 'narrative_date,reactor_user_id,reaction_type' },
-    );
+  const { error } = await supabase.rpc('react_to_daily_verse', {
+    p_narrative_date: narrativeDate,
+    p_reactor_user_id: reactorUserId,
+    p_reaction_type: reactionType,
+  });
   if (error) throw error;
 }
 

@@ -9,7 +9,7 @@ export function CurrentUserAvatarMarker({ isCurrentUser, compact = false, classN
   return (
     <span
       className={cn(
-        'pointer-events-none absolute -bottom-1 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/80 bg-peri px-1 font-black uppercase leading-none text-white shadow-sm',
+        'current-user-avatar-marker pointer-events-none absolute -bottom-1 left-1/2 z-[2] -translate-x-1/2 rounded-full border px-1 font-black uppercase leading-none shadow-sm',
         compact ? 'py-0.5 text-[5px]' : 'py-0.5 text-[7px]',
         className,
       )}

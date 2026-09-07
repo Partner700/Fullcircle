@@ -2248,3 +2248,14 @@
   .story-answer-option:focus-visible { transform: none; }
   .road-home-die-rolling { animation-duration: 1ms; animation-iteration-count: 1; }
 }
+  .current-user-avatar-marker {
+    border-color: rgba(7, 32, 58, 0.72);
+    background: #123d68;
+    color: #ffffff;
+  }
+
+  [data-theme="night"] .current-user-avatar-marker {
+    border-color: rgba(7, 32, 58, 0.9);
+    background: #ffd84d;
+    color: #071f38;
+  }

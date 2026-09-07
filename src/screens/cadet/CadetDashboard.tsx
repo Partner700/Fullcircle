@@ -301,8 +301,9 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           if (!profile) return;
           const key = `${quote.user_id}:${quote.record_date}`;
           const previousReactions = quoteReactions;
+          const nextReacted = !quoteReactions[key]?.[reactionType]?.reacted;
           setReactingQuote(`${key}:${reactionType}`);
-          setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, true, {
+          setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, nextReacted, {
             user_id: profile.id,
             display_name: profile.display_name,
             avatar_url: profile.avatar_url || null,
@@ -320,8 +321,9 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         onReactVerse={async (narrativeDate, reactionType) => {
           if (!profile) return;
           const previousReactions = verseReactions;
+          const nextReacted = !verseReactions[narrativeDate]?.[reactionType]?.reacted;
           setReactingVerse(`${narrativeDate}:${reactionType}`);
-          setVerseReactions((current) => updateReactionOptimistically(current, narrativeDate, reactionType, true, {
+          setVerseReactions((current) => updateReactionOptimistically(current, narrativeDate, reactionType, nextReacted, {
             user_id: profile.id,
             display_name: profile.display_name,
             avatar_url: profile.avatar_url || null,
@@ -497,6 +499,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   const [displayIndex, setDisplayIndex] = useState(index % Math.max(count, 1));
   const [withTransition, setWithTransition] = useState(true);
   const [scriptureIndex, setScriptureIndex] = useState(0);
+  const [conversationOpen, setConversationOpen] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
 
@@ -531,19 +534,21 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
 
   useEffect(() => {
     if (count <= 0) return;
+    setConversationOpen(false);
+    onCommentOpenChange(false);
     setWithTransition(true);
     const wrapped = ((index % count) + count) % count;
     setDisplayIndex(count > 1 && index > 0 && wrapped === 0 ? count : wrapped);
-  }, [count, index]);
+  }, [count, index, onCommentOpenChange]);
 
   return (
-    <div className="card relative max-h-[66.666svh] overflow-hidden animate-slide-up">
+    <div className="card relative max-h-[66.666svh] overflow-hidden animate-slide-up" style={{ maxHeight: conversationOpen ? '70svh' : '66.666svh' }}>
       <div
         className={cn('flex max-h-[66.666svh] min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={() => { touchStartRef.current = null; onHoldChange(false); }}
-        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y' }}
+        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y', maxHeight: conversationOpen ? '70svh' : '66.666svh' }}
         onTransitionEnd={() => {
           if (count > 1 && displayIndex === count) {
             setWithTransition(false);
@@ -569,7 +574,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
               : panelImages[slide.kind];
 
           return (
-            <div key={`${slide.id}-${slideIndex}`} className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16">
+            <div key={`${slide.id}-${slideIndex}`} className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16" style={{ maxHeight: conversationOpen ? '70svh' : '66.666svh' }}>
               {slideImage && (
                 <PanelImageBackdrop
                   image={slideImage}
@@ -681,7 +686,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
                         }}
                         onEditComment={(commentId, body) => editDailyVerseComment(commentId, body)}
-                        onCommentOpenChange={onCommentOpenChange}
+                        onCommentOpenChange={(open) => { setConversationOpen(open); onCommentOpenChange(open); }}
                         previewLimit={1}
                       />
                     </div>
@@ -759,7 +764,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body, parentCommentId, mentionedUserIds)
                             : Promise.reject(new Error('Sign in to reply.'))}
                           onEditComment={(commentId, body) => editDailyQuoteComment(commentId, body)}
-                          onCommentOpenChange={onCommentOpenChange}
+                          onCommentOpenChange={(open) => { setConversationOpen(open); onCommentOpenChange(open); }}
                           onMessageOpenChange={onCommentOpenChange}
                           previewLimit={1}
                         />

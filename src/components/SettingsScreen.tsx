@@ -48,7 +48,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       fetchStrictStreak(profile.id),
       fetchAwards(),
       fetchRelicInventory(profile.id),
-      supabase.from('tent_members').select('*, tents(*, tent_houses(*))').eq('user_id', profile.id).maybeSingle(),
+      supabase.from('tent_members').select('*, tents(*, tent_houses(*))').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
       fetchQuizScoreboard(),
       fetchRhudeBoard(),

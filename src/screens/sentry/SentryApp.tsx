@@ -25,6 +25,7 @@ import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchLedgerEntries, fetchReliableToolbarStats, fetchPublicStreakDetails, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
+  fetchTentJoinRequests, reviewTentJoinRequest, type TentJoinRequestSummary,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
@@ -269,7 +270,7 @@ export function SentryApp() {
   const loadOverview = useCallback(async () => {
     if (!profile) return;
     const coreRequest = Promise.allSettled([
-      supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).maybeSingle(),
+      supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
       fetchDailyQuoteFeed(12),
       fetchNarrative(today),
@@ -575,8 +576,9 @@ export function SentryApp() {
             if (!profile) return;
             const key = `${quote.user_id}:${quote.record_date}`;
             const previousReactions = quoteReactions;
+            const nextReacted = !quoteReactions[key]?.[reactionType]?.reacted;
             setReactingQuote(`${key}:${reactionType}`);
-            setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, true, {
+            setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, nextReacted, {
               user_id: profile.id,
               display_name: profile.display_name,
               avatar_url: profile.avatar_url || null,
@@ -594,8 +596,9 @@ export function SentryApp() {
           onReactVerse={async (narrativeDate, reactionType) => {
             if (!profile) return;
             const previousReactions = verseReactions;
+            const nextReacted = !verseReactions[narrativeDate]?.[reactionType]?.reacted;
             setReactingVerse(`${narrativeDate}:${reactionType}`);
-            setVerseReactions((current) => updateReactionOptimistically(current, narrativeDate, reactionType, true, {
+            setVerseReactions((current) => updateReactionOptimistically(current, narrativeDate, reactionType, nextReacted, {
               user_id: profile.id,
               display_name: profile.display_name,
               avatar_url: profile.avatar_url || null,
@@ -1173,6 +1176,8 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   const [selectedCadet, setSelectedCadet] = useState('');
   const [confirmCadet, setConfirmCadet] = useState<{ user_id: string; display_name: string; avatar_url: string | null } | null>(null);
   const [adding, setAdding] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<TentJoinRequestSummary[]>([]);
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
 
   const loadUnassigned = useCallback(async () => {
     const users = await fetchSentryAddableCadets(currentUserId).catch(() => []);
@@ -1184,6 +1189,28 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   useEffect(() => {
     if (showAdd) void loadUnassigned();
   }, [loadUnassigned, showAdd]);
+
+  const loadJoinRequests = useCallback(async () => {
+    setJoinRequests(await fetchTentJoinRequests(tentId).catch(() => []));
+  }, [tentId]);
+
+  useEffect(() => {
+    void loadJoinRequests();
+    const interval = window.setInterval(() => { void loadJoinRequests(); }, 20_000);
+    return () => window.clearInterval(interval);
+  }, [loadJoinRequests]);
+
+  const reviewRequest = async (requestId: string, approve: boolean) => {
+    setReviewingRequestId(requestId);
+    try {
+      await reviewTentJoinRequest(requestId, approve);
+      await Promise.all([loadJoinRequests(), onChanged()]);
+    } catch (error: any) {
+      alert(error.message || 'Could not review this tent application.');
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
 
   const addCadet = async () => {
     if (!confirmCadet) return;
@@ -1202,6 +1229,30 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
 
   return (
     <div className="space-y-3 animate-fade-in">
+      {joinRequests.length > 0 && (
+        <section className="card border-sage/35 bg-surface p-4">
+          <div className="mb-3">
+            <p className="font-display font-semibold text-ink">Tent Applications</p>
+            <p className="text-xs text-stone">Accept or decline cadets who asked to join your tent.</p>
+          </div>
+          <div className="space-y-2">
+            {joinRequests.map((request) => (
+              <div key={request.request_id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sage/35 bg-sage-soft text-xs font-bold text-sage">
+                  {request.avatar_url ? <img src={request.avatar_url} alt="" className="h-full w-full object-cover" /> : request.display_name.charAt(0).toUpperCase()}
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{request.display_name}</p>
+                <button type="button" className="btn-ghost px-2 py-1.5 text-xs text-coral" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, false)}>
+                  <X size={14} /> Deny
+                </button>
+                <button type="button" className="btn-primary px-2 py-1.5 text-xs" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, true)}>
+                  {reviewingRequestId === request.request_id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Accept
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="card p-4 bg-surface-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

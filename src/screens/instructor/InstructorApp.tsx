@@ -1586,7 +1586,8 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                   if (!instructorId) return;
                   const key = `${featuredQuote.user_id}:${featuredQuote.record_date}`;
                   const previousReactions = quoteReactions;
-                  setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, true, {
+                  const nextReacted = !quoteReactions[key]?.[reactionType]?.reacted;
+                  setQuoteReactions((current) => updateReactionOptimistically(current, key, reactionType, nextReacted, {
                     user_id: instructorId,
                     display_name: 'Instructor',
                     avatar_url: null,

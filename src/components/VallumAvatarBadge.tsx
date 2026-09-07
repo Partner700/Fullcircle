@@ -120,6 +120,7 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   const award = userId ? holderAwards.get(userId) : null;
   if (!award) return null;
   const awardType = normalizedAwardType(award.award_type, award.title);
+  if (awardType !== 'vallum' && awardType !== 'centurion') return null;
   const isVallum = awardType === 'vallum';
 
   const shellClass = size === 'xs' ? 'h-3.5 w-3.5 border' : size === 'md' ? 'h-5 w-5 border-2' : 'h-4 w-4 border';
@@ -131,9 +132,7 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
         'pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
         isVallum
           ? 'border-gold/90 bg-navy-2 text-gold'
-          : award.cadence === 'monthly'
-            ? 'border-moss/75 bg-navy-2 text-moss-bright'
-            : 'border-peri/80 bg-navy-2 text-peri-bright',
+          : 'border-sage/80 bg-navy-2 text-sage-bright',
         shellClass,
         className,
       )}

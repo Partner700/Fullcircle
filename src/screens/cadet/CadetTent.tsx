@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -61,12 +61,13 @@ export function CadetTent() {
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
   const [awardView, setAwardView] = useState('week');
   const [showTentChat, setShowTentChat] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     try {
-      const { data: member } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).maybeSingle();
+      const { data: member } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
       if (!member) {
         setTent(null);
         setMembers([]);
@@ -120,11 +121,26 @@ export function CadetTent() {
       console.error('Tent load error:', error);
       setTent(null);
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, [profile]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!profile) return;
+    const refresh = () => { void load(); };
+    const channel = supabase
+      .channel(`cadet-tent-membership-${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_members', filter: `user_id=eq.${profile.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_requests', filter: `user_id=eq.${profile.id}` }, refresh)
+      .subscribe();
+    const interval = window.setInterval(refresh, 20_000);
+    return () => {
+      window.clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [load, profile]);
 
   const requestTent = async (tentId: string) => {
     setRequestingTentId(tentId);
@@ -136,9 +152,14 @@ export function CadetTent() {
 
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
     if (!profile || !tent) return;
+    const existing = reactions.find((reaction) => reaction.reactor_user_id === profile.id
+      && reaction.target_user_id === targetUserId
+      && reaction.reaction_type === reactionType
+      && reaction.target_type === targetType
+      && (reaction.target_reference || null) === (ref || null));
     const optimisticId = `optimistic-${profile.id}-${targetUserId}-${reactionType}`;
     setReactingTo(targetUserId);
-    setReactions((current) => [{
+    setReactions((current) => existing ? current.filter((reaction) => reaction.id !== existing.id) : [{
       id: optimisticId,
       reactor_user_id: profile.id,
       target_user_id: targetUserId,
@@ -148,18 +169,20 @@ export function CadetTent() {
       created_at: new Date().toISOString(),
     }, ...current]);
     try {
-      const { error } = await supabase.from('tent_reactions').insert({
-        tent_id: tent.id,
-        reactor_user_id: profile.id,
-        target_user_id: targetUserId,
-        reaction_type: reactionType,
-        target_type: targetType,
-        target_reference: ref || null,
-      });
+      const { error } = existing
+        ? await supabase.from('tent_reactions').delete().eq('id', existing.id).eq('reactor_user_id', profile.id)
+        : await supabase.from('tent_reactions').insert({
+          tent_id: tent.id,
+          reactor_user_id: profile.id,
+          target_user_id: targetUserId,
+          reaction_type: reactionType,
+          target_type: targetType,
+          target_reference: ref || null,
+        });
       if (error) throw error;
       await load();
     } catch (error: any) {
-      setReactions((current) => current.filter((reaction) => reaction.id !== optimisticId));
+      await load();
       alert(error.message || 'Could not save your reaction.');
     } finally {
       setReactingTo(null);

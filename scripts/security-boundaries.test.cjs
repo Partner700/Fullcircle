@@ -51,6 +51,7 @@ const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
 const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
 const appShell = read('src/components/AppShell.tsx');
 const vallumAvatarBadge = read('src/components/VallumAvatarBadge.tsx');
+const currentUserAvatarMarker = read('src/components/CurrentUserAvatarMarker.tsx');
 const freezerLifecycle = read('supabase/migrations/20260818113000_freezer_lifecycle_and_rare_rewards.sql');
 const quoteReactions = read('src/components/QuoteReactions.tsx');
 const awardReactions = read('src/components/AwardReactions.tsx');
@@ -128,6 +129,7 @@ const roleSeparatedQuizRankings = read('supabase/migrations/20260906150000_role_
 const avatarAwardsAndQuizExit = read('supabase/migrations/20260906153000_avatar_awards_public_rest_day_and_quiz_exit.sql');
 const sentryHonorsBenefitsAndHiddenStatus = read('supabase/migrations/20260906160000_sentry_honors_benefits_and_hidden_status.sql');
 const redemptionAccountAge = read('supabase/migrations/20260906170000_redemption_account_age_and_identity_ui.sql');
+const tentMembershipReactionsAndStreakAudit = read('supabase/migrations/20260907100000_tent_membership_reactions_and_streak_audit.sql');
 const relativeTime = read('src/components/RelativeTime.tsx');
 const hiddenItemsMarket = read('src/components/HiddenItemsMarket.tsx');
 const hiddenChallengeOverlay = read('src/components/HiddenChallengeOverlay.tsx');
@@ -381,7 +383,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v115'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v116'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -396,7 +398,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-06-v115/);
+assert.match(releaseCache, /2026-09-07-v116/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1403,6 +1405,21 @@ for (const required of [
 ]) {
   assert.ok(redemptionAccountAge.includes(required), `Missing Redemption Coin account-age repair: ${required}`);
 }
+
+for (const required of [
+  'CREATE UNIQUE INDEX IF NOT EXISTS tent_members_one_tent_per_user',
+  'CREATE OR REPLACE FUNCTION public.review_tent_join_request',
+  "member.role = 'sentry'",
+  'CREATE OR REPLACE FUNCTION public.get_my_tent_join_requests',
+  'CREATE OR REPLACE FUNCTION public.notify_instructors_of_new_member',
+  'CREATE OR REPLACE FUNCTION public.react_to_daily_quote',
+  'CREATE OR REPLACE FUNCTION public.react_to_daily_verse',
+  'PERFORM public.synchronize_daily_record_streak_valid',
+]) {
+  assert.ok(tentMembershipReactionsAndStreakAudit.includes(required), `Missing tent, reaction, or streak boundary: ${required}`);
+}
+assert.match(vallumAvatarBadge, /awardType !== 'vallum' && awardType !== 'centurion'/);
+assert.match(currentUserAvatarMarker, /current-user-avatar-marker/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.external_share_events',

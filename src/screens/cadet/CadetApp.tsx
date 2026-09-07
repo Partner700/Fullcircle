@@ -312,6 +312,8 @@ export function CadetApp() {
       .from('tent_members')
       .select('tent_id')
       .eq('user_id', profile.id)
+      .order('joined_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (memberError) return;
     if (member) {
