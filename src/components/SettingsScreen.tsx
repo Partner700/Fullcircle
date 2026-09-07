@@ -6,7 +6,7 @@ import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
 import { BrowserNotificationSettings } from './BrowserNotificationSettings';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
+import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 import { StatCard, SectionHeader } from './AppShell';
 import {
@@ -17,6 +17,7 @@ import { TentHouseBadge } from './TentHouseSymbol';
 import { AppSelect } from './AppSelect';
 import { DeleteAccountSection } from './DeleteAccountSection';
 import { ProfilePhotoEditor } from './ProfilePhotoEditor';
+import { CountryPhoneInput } from './CountryPhoneInput';
 import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import { ChiRhoMark, VallumText } from './ChiRhoMark';
 import type { Award } from '../lib/types';
@@ -127,7 +128,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       const parsedBirthday = parseBirthdayInput(birthday);
       await saveOwnProfilePreferences({
         displayName,
-        whatsappNumber: whatsapp || null,
+        whatsappNumber: phoneNumberForCountry(whatsapp, country) || null,
         countryCode: country,
         languageCode: language,
         birthMonth: parsedBirthday.month,
@@ -202,16 +203,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
           <label className="block text-sm font-bold text-peri mb-1.5">WhatsApp Number</label>
           <p className="text-xs text-peri-dim mb-2">For your sentry/instructor to contact you, and (if you're a sentry) for cadets to reach you.</p>
           <div className="flex gap-2">
-            <div className="relative flex-1">
-              <MessageCircle size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-peri-dim" />
-              <input
-                type="tel"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                className="input-field pl-10"
-                placeholder="+1234567890"
-              />
-            </div>
+            <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} className="flex-1" />
             <button onClick={handleSave} disabled={saving} className="btn-primary">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Save

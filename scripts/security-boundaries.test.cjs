@@ -112,6 +112,7 @@ const messagingContext = read('src/context/MessagingContext.tsx');
 const readingDrafts = read('src/lib/readingDrafts.ts');
 const batchedStreakHydration = read('supabase/migrations/20260831100000_batched_streak_hydration.sql');
 const phStreakContinuity = read('supabase/migrations/20260902090000_preserve_ph_verified_streak_continuity.sql');
+const meganSpadesStreakAndExplicitReactions = read('supabase/migrations/20260907120000_megan_spades_streak_and_explicit_reactions.sql');
 const doveQuestions = read('supabase/migrations/20260902100000_dove_questions.sql');
 const resilientQuizAttempts = read('supabase/migrations/20260902110000_resilient_quiz_attempts.sql');
 const doveQuestionApi = read('src/lib/doveQuestions.ts');
@@ -383,7 +384,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v116'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v117'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '110'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -398,7 +399,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-07-v116/);
+assert.match(releaseCache, /2026-09-07-v117/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1420,6 +1421,21 @@ for (const required of [
 }
 assert.match(vallumAvatarBadge, /awardType !== 'vallum' && awardType !== 'centurion'/);
 assert.match(currentUserAvatarMarker, /current-user-avatar-marker/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.set_daily_quote_reaction',
+  'p_reacted boolean',
+  'CREATE OR REPLACE FUNCTION public.record_sunday_reading_engagement',
+  "p_engagement IS DISTINCT FROM 'reading_interaction'",
+  "tent.tent_house_id = 'spades'",
+  "IN ('megan', 'ph')",
+  "= 'youngrabbi'",
+]) {
+  assert.ok(meganSpadesStreakAndExplicitReactions.includes(required), `Missing explicit membership, reaction, or streak repair: ${required}`);
+}
+assert.match(quoteQueries, /set_daily_quote_reaction/);
+assert.match(quoteQueries, /p_reacted: reacted/);
+assert.match(cadetNarrative, /onPointerDownCapture=\{recordSundayEngagement\}/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.external_share_events',

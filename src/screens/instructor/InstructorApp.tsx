@@ -9,13 +9,14 @@ import { BrowserNotificationSettings } from '../../components/BrowserNotificatio
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
 import { invalidateSoundAsset } from '../../lib/soundscape';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
+import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
+import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
@@ -1593,7 +1594,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                     avatar_url: null,
                   }));
                   try {
-                    await reactToDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, reactionType);
+                    await reactToDailyQuote(featuredQuote.user_id, featuredQuote.record_date, instructorId, reactionType, nextReacted);
                     const reactions = await fetchDailyQuoteReactions(quotes, instructorId).catch(() => null);
                     if (reactions) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
                   } catch (error: any) {
@@ -3828,7 +3829,7 @@ function InstructorSettings({ profile, tents, members }: {
     try {
       const parsedBirthday = parseBirthdayInput(birthday);
       await saveOwnProfilePreferences({
-        whatsappNumber: whatsapp,
+        whatsappNumber: phoneNumberForCountry(whatsapp, country),
         countryCode: country,
         languageCode: language,
         birthMonth: parsedBirthday.month,
@@ -3845,7 +3846,11 @@ function InstructorSettings({ profile, tents, members }: {
   const saveMmSettings = async () => {
     setMmSaving(true);
     try {
-      await saveMobileMoneySettings(mmForm);
+      await saveMobileMoneySettings({
+        ...mmForm,
+        phone_number: phoneNumberForCountry(mmForm.phone_number || '', country),
+        payout_phone_number: phoneNumberForCountry(mmForm.payout_phone_number || '', country),
+      });
       const saved = await fetchMobileMoneySettings();
       if (saved) setMmSettings(saved);
       alert('Mobile Money settings saved.');
@@ -3871,7 +3876,7 @@ function InstructorSettings({ profile, tents, members }: {
         </div>
         <div>
           <label className="text-xs text-stone block mb-1">WhatsApp Number (for cadets/sentries to contact you)</label>
-          <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+          <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-xs text-stone">
@@ -3944,7 +3949,7 @@ function InstructorSettings({ profile, tents, members }: {
           </div>
           <div>
             <label className="text-xs text-stone block mb-1">Receiving Number</label>
-            <input className="input-field text-sm" placeholder="2376XXXXXXXX" value={mmForm.phone_number || ''} onChange={(e) => setMmForm({ ...mmForm, phone_number: e.target.value })} />
+            <CountryPhoneInput countryCode={country} value={mmForm.phone_number || ''} onChange={(value) => setMmForm({ ...mmForm, phone_number: value })} />
           </div>
         </div>
         <div>
@@ -3975,7 +3980,7 @@ function InstructorSettings({ profile, tents, members }: {
             </div>
             <div>
               <label className="text-xs text-stone block mb-1">Payout Number</label>
-              <input className="input-field text-sm" placeholder="2376XXXXXXXX" value={mmForm.payout_phone_number || ''} onChange={(e) => setMmForm({ ...mmForm, payout_phone_number: e.target.value })} />
+              <CountryPhoneInput countryCode={country} value={mmForm.payout_phone_number || ''} onChange={(value) => setMmForm({ ...mmForm, payout_phone_number: value })} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

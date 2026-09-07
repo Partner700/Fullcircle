@@ -309,7 +309,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
             avatar_url: profile.avatar_url || null,
           }));
           try {
-            await reactToDailyQuote(quote.user_id, quote.record_date, profile.id, reactionType);
+            await reactToDailyQuote(quote.user_id, quote.record_date, profile.id, reactionType, nextReacted);
             const reactions = await fetchDailyQuoteReactions(quotes, profile.id).catch(() => null);
             if (reactions) setQuoteReactions(reactions as Record<string, QuoteReactionState>);
           } catch (e: any) {

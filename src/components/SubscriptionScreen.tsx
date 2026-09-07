@@ -14,6 +14,8 @@ import {
 import type { PanelImageSetting } from '../lib/types';
 import { formatXaf } from '../lib/utils';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { CountryPhoneInput } from './CountryPhoneInput';
+import { phoneNumberForCountry } from '../lib/profileOptions';
 import {
   CheckCircle2,
   CreditCard,
@@ -237,7 +239,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
   const startCheckout = async () => {
     if (!profile || !plan) return;
-    const normalizedPhone = phone.replace(/[\s()-]/g, '');
+    const normalizedPhone = phoneNumberForCountry(phone, profile.country_code);
     if (normalizedPhone.replace(/\D/g, '').length < 9) {
       setError('Enter the mobile money phone number that will approve the payment.');
       return;
@@ -322,15 +324,12 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         </div>
 
         <label className="mt-4 block text-xs font-semibold text-stone" htmlFor="subscription-phone">Mobile money number</label>
-        <input
+        <CountryPhoneInput
           id="subscription-phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
+          countryCode={profile?.country_code}
           value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          placeholder="e.g. 237 6XX XXX XXX"
-          className="input-field mt-1.5 w-full"
+          onChange={setPhone}
+          className="mt-1.5 w-full"
         />
 
         {error && <div className="mt-4 rounded-lg border border-coral/30 bg-coral-soft px-3 py-2.5 text-sm text-coral">{error}</div>}

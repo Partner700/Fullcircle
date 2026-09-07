@@ -339,6 +339,7 @@ export function CadetNarrative({
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
   const draftHydratedKeyRef = useRef<string | null>(null);
   const draftSnapshotRef = useRef<ReadingDraft>(emptyReadingDraft());
+  const sundayEngagementRef = useRef<string | null>(null);
 
   const today = getTodayISODate();
   const activeDate = archiveDate || today;
@@ -545,19 +546,17 @@ export function CadetNarrative({
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
+  const recordSundayEngagement = useCallback(() => {
     if (!profile || !hasAccess || !isSundayRest || isHistoricalReading) return;
-    let cancelled = false;
-    const creditSundayReading = async () => {
-      try {
-        const credited = await recordSundayReadingOpen(profile.id, activeDate);
-        if (credited && !cancelled) await onMeditationSaved?.();
-      } catch (error) {
+    const engagementKey = `${profile.id}:${activeDate}`;
+    if (sundayEngagementRef.current === engagementKey) return;
+    sundayEngagementRef.current = engagementKey;
+    void recordSundayReadingOpen(profile.id, activeDate)
+      .then(async (credited) => { if (credited) await onMeditationSaved?.(); })
+      .catch((error) => {
+        sundayEngagementRef.current = null;
         console.error('Sunday reading streak credit failed:', error);
-      }
-    };
-    void creditSundayReading();
-    return () => { cancelled = true; };
+      });
   }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
 
   const loadHistory = async () => {
@@ -935,7 +934,12 @@ export function CadetNarrative({
   const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
 
   return (
-    <div className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto">
+    <div
+      className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto"
+      onPointerDownCapture={recordSundayEngagement}
+      onScrollCapture={recordSundayEngagement}
+      onKeyDownCapture={recordSundayEngagement}
+    >
       {isHistoricalReading && (
         <div className="card flex items-center justify-between gap-3 border-brass/30 bg-brass-soft px-4 py-3">
           <div className="min-w-0">

@@ -4,11 +4,13 @@ import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
+import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatXaf } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
+import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
 import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
@@ -214,7 +216,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         paymentMethod,
         profile.email || undefined,
         profile.display_name || undefined,
-        payPhone || undefined,
+        phoneNumberForCountry(payPhone, profile.country_code) || undefined,
         otherProvider || undefined,
         verificationNote || undefined,
         displayedAmountXaf,
@@ -770,11 +772,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                 ) : (
                   <div>
                     <label className="text-xs text-stone block mb-1">{selectedPaymentLabel} phone number</label>
-                    <input
-                      className="input-field text-sm"
-                      placeholder="2376XXXXXXXX"
+                    <CountryPhoneInput
+                      countryCode={profile?.country_code}
                       value={payPhone}
-                      onChange={(e) => setPayPhone(e.target.value)}
+                      onChange={setPayPhone}
                     />
                   </div>
                 )}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Award as AwardIcon, ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import { fetchAwards, fetchPanelImageSetting } from '../lib/queries';
 import type { AwardWithRecipient, PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
@@ -9,6 +9,7 @@ import { fetchAwardReactions, reactToAward, type AwardReactionState } from '../l
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { useAutoAdvance } from '../hooks/useAutoAdvance';
 import { MessageAvatar } from './TentMessenger';
+import { AwardBadgeGlyph } from './VallumAvatarBadge';
 import { VallumText } from './ChiRhoMark';
 import { updateReactionOptimistically } from '../lib/reactionState';
 
@@ -113,28 +114,41 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
         <div className="relative z-10 min-h-[148px] overflow-hidden" onTouchStart={() => setHeld(true)} onTouchEnd={() => setHeld(false)} onTouchCancel={() => setHeld(false)}>
           <div key={activeAward.id} className="recent-award-change flex min-h-[148px] items-center gap-4 px-5 pb-10 pt-5">
             {activeAward.target_tent ? (
-              <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
-                {activeAward.target_tent.profile_image_url
-                  ? <img src={activeAward.target_tent.profile_image_url} alt={activeAward.target_tent.name} className="h-full w-full object-cover" />
-                  : <Trophy size={24} className="mx-auto mt-3.5" />}
-              </div>
+              <span className="relative flex-shrink-0">
+                <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
+                  {activeAward.target_tent.profile_image_url
+                    ? <img src={activeAward.target_tent.profile_image_url} alt={activeAward.target_tent.name} className="h-full w-full object-cover" />
+                    : <Trophy size={24} />}
+                </span>
+                <span className="pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-gold/80 bg-navy-2 text-gold shadow-md">
+                  <AwardBadgeGlyph awardType={activeAward.award_type} title={activeAward.title} size={13} />
+                </span>
+              </span>
             ) : activeAward.profiles ? (
-              <MessageAvatar
-                profile={{
-                  id: activeAward.user_id,
-                  display_name: activeAward.profiles.display_name,
-                  email: null,
-                  avatar_url: activeAward.profiles.avatar_url,
-                  whatsapp_number: null,
-                  country_code: null,
-                  language_code: null,
-                  created_at: activeAward.created_at,
-                }}
-                currentUserId={profile?.id}
-                size="lg"
-                className="flex-shrink-0"
-                onOpenChange={setMessageOpen}
-              />
+              <span className="relative flex-shrink-0">
+                <MessageAvatar
+                  profile={{
+                    id: activeAward.user_id,
+                    display_name: activeAward.profiles.display_name,
+                    email: null,
+                    avatar_url: activeAward.profiles.avatar_url,
+                    whatsapp_number: null,
+                    country_code: null,
+                    language_code: null,
+                    created_at: activeAward.created_at,
+                  }}
+                  currentUserId={profile?.id}
+                  size="lg"
+                  showCurrentAward={false}
+                  onOpenChange={setMessageOpen}
+                />
+                <span
+                  className="pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-gold/80 bg-navy-2 text-gold shadow-md"
+                  title={activeAward.title}
+                >
+                  <AwardBadgeGlyph awardType={activeAward.award_type} title={activeAward.title} size={13} />
+                </span>
+              </span>
             ) : (
               <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border-2 border-gold/50 bg-gold-soft text-gold shadow-sm">
                 <Trophy size={24} className="mx-auto mt-3.5" />
@@ -150,7 +164,6 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
               {activeAward.description && <p className="mt-1 line-clamp-2 text-xs text-stone"><VallumText text={activeAward.description} size={11} /></p>}
               <AwardReactions state={reactions[activeAward.id]} disabled={!!reacting?.startsWith(`${activeAward.id}:`)} currentUserId={profile?.id} onMessageOpenChange={setMessageOpen} onReact={(type) => void handleReaction(activeAward.id, type)} />
             </div>
-            <AwardIcon size={22} className="flex-shrink-0 text-gold" aria-hidden="true" />
           </div>
           {awards.length > 1 && (
             <div className="absolute bottom-2 right-3 flex items-center gap-1">

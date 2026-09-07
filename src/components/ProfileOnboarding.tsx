@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Cake, Globe2, Languages, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
+import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 import { AppSelect } from './AppSelect';
+import { CountryPhoneInput } from './CountryPhoneInput';
 
 export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
@@ -17,9 +18,9 @@ export function ProfileOnboarding() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!profile || saving) return;
-    const phone = whatsapp.replace(/[^+\d]/g, '');
+    const phone = phoneNumberForCountry(whatsapp, country);
     if (phone.length < 8) {
-      setError('Enter a complete WhatsApp number, including the country code.');
+      setError('Enter a complete WhatsApp number.');
       return;
     }
     let parsedBirthday;
@@ -64,8 +65,8 @@ export function ProfileOnboarding() {
         </label>
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><MessageCircle size={16} /> WhatsApp number</span>
-          <input className="input-field" type="tel" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} placeholder="+237 6xx xxx xxx" required />
-          <span className="mt-1 block text-xs text-stone">Include your international country code.</span>
+          <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} required />
+          <span className="mt-1 block text-xs text-stone">The selected country code is added automatically.</span>
         </label>
         <label className="block">
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Languages size={16} /> Language</span>

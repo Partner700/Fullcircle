@@ -6,11 +6,12 @@ import { BrowserNotificationSettings } from '../../components/BrowserNotificatio
 import { supabase } from '../../lib/supabase';
 import { fetchStrictStreak, fetchLedgerTotal, fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
-import { PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
+import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
 import { AppSelect } from '../../components/AppSelect';
 import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
+import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { ChiRhoMark } from '../../components/ChiRhoMark';
 import {
   User, Phone, Loader2, Save, Flame, Coins, Award,
@@ -137,7 +138,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
       const parsedBirthday = parseBirthdayInput(birthday);
       await saveOwnProfilePreferences({
         displayName: displayName.trim() || profile.display_name,
-        whatsappNumber: whatsapp,
+        whatsappNumber: phoneNumberForCountry(whatsapp, country),
         countryCode: country,
         languageCode: language,
         birthMonth: parsedBirthday.month,
@@ -202,7 +203,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
             <Phone size={12} /> WhatsApp Number (so your sentry and instructor can contact you)
           </label>
           <div className="flex gap-2">
-            <input className="input-field" placeholder="+1234567890" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+            <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} className="flex-1" />
             <button onClick={saveProfile} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>

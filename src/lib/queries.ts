@@ -999,9 +999,10 @@ export async function fetchGameAttemptsForDate(userId: string, date: string) {
 }
 
 export async function recordSundayReadingOpen(userId: string, recordDate: string) {
-  const { data, error } = await supabase.rpc('record_sunday_reading_open', {
+  const { data, error } = await supabase.rpc('record_sunday_reading_engagement', {
     p_user_id: userId,
     p_record_date: recordDate,
+    p_engagement: 'reading_interaction',
   });
   if (error) throw error;
   return Boolean(data);
@@ -2146,12 +2147,13 @@ export async function fetchDailyQuoteReactions(quotes: { user_id: string; record
   return map;
 }
 
-export async function reactToDailyQuote(quoteUserId: string, quoteRecordDate: string, reactorUserId: string, reactionType: string) {
-  const { data, error } = await supabase.rpc('react_to_daily_quote', {
+export async function reactToDailyQuote(quoteUserId: string, quoteRecordDate: string, reactorUserId: string, reactionType: string, reacted: boolean) {
+  const { data, error } = await supabase.rpc('set_daily_quote_reaction', {
     p_quote_user_id: quoteUserId,
     p_quote_record_date: quoteRecordDate,
     p_reactor_user_id: reactorUserId,
     p_reaction_type: reactionType,
+    p_reacted: reacted,
   });
   if (error) throw error;
   return data;

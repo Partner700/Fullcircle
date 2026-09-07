@@ -448,6 +448,7 @@ export function MessageAvatar({
   showName = false,
   className,
   onOpenChange,
+  showCurrentAward = true,
 }: {
   profile: Profile;
   currentUserId?: string | null;
@@ -455,6 +456,7 @@ export function MessageAvatar({
   showName?: boolean;
   className?: string;
   onOpenChange?: (open: boolean) => void;
+  showCurrentAward?: boolean;
 }) {
   const [showMessenger, setShowMessenger] = useState(false);
   const { unreadBySender, refreshDirectUnread } = useMessaging();
@@ -493,7 +495,7 @@ export function MessageAvatar({
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
-          <VallumAvatarBadge userId={profile.id} size={size === 'xs' ? 'xs' : size === 'lg' ? 'md' : 'sm'} />
+          {showCurrentAward && <VallumAvatarBadge userId={profile.id} size={size === 'xs' ? 'xs' : size === 'lg' ? 'md' : 'sm'} />}
         </span>
         {showName && <span className="text-sm text-ink font-medium">{profile.display_name}</span>}
       </button>
