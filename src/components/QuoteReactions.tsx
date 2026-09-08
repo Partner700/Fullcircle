@@ -244,7 +244,10 @@ export function QuoteReactions({
               Hide
             </button>
           </div>
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          <div
+            className="quote-comments-boundary-fade max-h-72 space-y-2 overflow-y-auto overscroll-contain pb-10 pr-1"
+            data-no-scroll-fade
+          >
             {loadingComments && <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading comments...</p>}
             {!loadingComments && comments.length === 0 && <p className="text-xs text-stone">No comments yet.</p>}
             {topLevelComments.map((comment) => (

@@ -770,16 +770,23 @@
 /* Fade only the edge that still has hidden scroll content. The classes are
    maintained centrally so every scrollable panel behaves consistently. */
 .scroll-boundary-fade.scroll-fade-bottom:not(.scroll-fade-top) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.35rem), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.35rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
 }
 .scroll-boundary-fade.scroll-fade-top:not(.scroll-fade-bottom) {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 100%);
 }
 .scroll-boundary-fade.scroll-fade-top.scroll-fade-bottom {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 1.35rem), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 1.35rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
+}
+
+/* Quote comments always soften into the lower paper edge. Bottom padding lets
+   the final comment scroll fully above the mask instead of remaining hidden. */
+.quote-comments-boundary-fade {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 3rem), rgba(0, 0, 0, 0.76) calc(100% - 2rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 3rem), rgba(0, 0, 0, 0.76) calc(100% - 2rem), transparent 100%);
 }
 @keyframes sound-meter-pulse {
   0%, 100% { transform: scaleY(0.28); }

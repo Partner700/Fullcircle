@@ -19,6 +19,7 @@ const hostingerHeaders = read('public/.htaccess');
 const packageManifest = read('package.json');
 const viteConfig = read('vite.config.ts');
 const rootApp = read('src/App.tsx');
+const indexCss = read('src/index.css');
 const cadetApp = read('src/screens/cadet/CadetApp.tsx');
 const pagesWorkflow = read('.github/workflows/deploy-pages.yml');
 const supabaseConfig = read('supabase/config.toml');
@@ -143,6 +144,7 @@ const notificationArrival = read('src/lib/notificationArrival.ts');
 const appNavigation = read('src/lib/appNavigation.ts');
 const hiddenChallengeStatus = read('src/components/HiddenChallengeStatus.tsx');
 const scriptureAlarms = read('supabase/migrations/20260907150000_scripture_alarms_and_reversible_reactions.sql');
+const accurateAlarmsAndStreakReconciliation = read('supabase/migrations/20260907160000_accurate_loud_alarms_and_streak_reconciliation.sql');
 const scriptureAlarmOverlay = read('src/components/ScriptureAlarmOverlay.tsx');
 const scriptureAlarmApi = read('src/lib/scriptureAlarms.ts');
 const cadetTent = read('src/screens/cadet/CadetTent.tsx');
@@ -392,8 +394,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v118'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '111'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v119'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '112'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -407,7 +409,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-07-v118/);
+assert.match(releaseCache, /2026-09-07-v119/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1523,13 +1525,29 @@ assert.match(rootApp, /<ScriptureAlarmOverlay \/>/);
 assert.match(scriptureAlarmApi, /get_pending_scripture_alarm/);
 assert.match(scriptureAlarmApi, /submit_scripture_alarm_answer/);
 assert.match(scriptureAlarmOverlay, /startAlarmEffects/);
-assert.match(scriptureAlarmOverlay, /navigator\.vibrate\(\[700, 180, 700, 180, 1_100\]\)/);
+assert.match(scriptureAlarmOverlay, /createDynamicsCompressor/);
+assert.match(scriptureAlarmOverlay, /navigator\.vibrate\(\[1_200, 120, 1_200, 120, 1_600\]\)/);
 assert.match(scriptureAlarmOverlay, /z-\[2147483647\]/);
-assert.match(scriptureAlarmOverlay, /Answer correctly to silence the alarm/);
+assert.match(scriptureAlarmOverlay, /Finish and send your daily meditation/);
 assert.doesNotMatch(scriptureAlarmOverlay, /dismissScriptureAlarm|onClick=\{dismiss/);
-assert.match(serviceWorker, /isScriptureAlarm \? \[1000, 180, 1000, 180, 1400\]/);
+assert.match(serviceWorker, /isScriptureAlarm \? \[1200, 120, 1200, 120, 1600\]/);
 assert.match(serviceWorker, /requireInteraction: isScriptureAlarm/);
 assert.match(pushDelivery, /urgency: isScriptureAlarm \? "high" : "normal"/);
+for (const required of [
+  'private.daily_meditation_is_submitted',
+  'private.clear_completed_meditation_alarms',
+  'clear_completed_scripture_alarms',
+  "p_alarm_slot = 'morning'",
+  'OR record.meditation_submitted_at IS NOT NULL',
+  'Finish and send your daily meditation',
+  "'*/15 * * * *'",
+  'SELECT public.refresh_all_streak_snapshots()',
+]) {
+  assert.ok(accurateAlarmsAndStreakReconciliation.includes(required), `Missing reliable alarm/streak safeguard: ${required}`);
+}
+assert.doesNotMatch(accurateAlarmsAndStreakReconciliation, /UPDATE public\.daily_records/);
+assert.match(quoteReactions, /quote-comments-boundary-fade[\s\S]*?data-no-scroll-fade/);
+assert.match(indexCss, /\.quote-comments-boundary-fade[\s\S]*?mask-image/);
 assert.doesNotMatch(cadetTent, /disabled=\{reactingTo === m\.user_id \|\| reacted\}/);
 assert.match(cadetTent, /disabled=\{reactingTo === m\.user_id\}/);
 

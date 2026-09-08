@@ -29,11 +29,36 @@ type WebkitAudioWindow = Window & typeof globalThis & {
 
 function startAlarmEffects() {
   let audioContext: AudioContext | null = null;
-  let oscillator: OscillatorNode | null = null;
-  let gain: GainNode | null = null;
-  let toneTimer: number | null = null;
+  let sirenOscillator: OscillatorNode | null = null;
+  let warningOscillator: OscillatorNode | null = null;
+  let sirenGain: GainNode | null = null;
+  let warningGain: GainNode | null = null;
+  let masterGain: GainNode | null = null;
+  let compressor: DynamicsCompressorNode | null = null;
+  let sirenTimer: number | null = null;
   let vibrationTimer: number | null = null;
-  let highTone = false;
+  let rising = true;
+
+  const scheduleSirenSweep = () => {
+    if (!audioContext || !sirenOscillator || !warningOscillator || !masterGain) return;
+    const now = audioContext.currentTime;
+    const sweepEnd = now + 0.68;
+    const lowFrequency = rising ? 620 : 1_280;
+    const highFrequency = rising ? 1_280 : 620;
+
+    sirenOscillator.frequency.cancelScheduledValues(now);
+    sirenOscillator.frequency.setValueAtTime(lowFrequency, now);
+    sirenOscillator.frequency.exponentialRampToValueAtTime(highFrequency, sweepEnd);
+    warningOscillator.frequency.cancelScheduledValues(now);
+    warningOscillator.frequency.setValueAtTime(lowFrequency / 2, now);
+    warningOscillator.frequency.exponentialRampToValueAtTime(highFrequency / 2, sweepEnd);
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(0.42, now);
+    masterGain.gain.linearRampToValueAtTime(0.62, now + 0.12);
+    masterGain.gain.setValueAtTime(0.62, now + 0.48);
+    masterGain.gain.linearRampToValueAtTime(0.44, sweepEnd);
+    rising = !rising;
+  };
 
   const sound = async () => {
     const AudioContextConstructor = window.AudioContext
@@ -42,44 +67,63 @@ function startAlarmEffects() {
 
     if (!audioContext) {
       audioContext = new AudioContextConstructor();
-      oscillator = audioContext.createOscillator();
-      gain = audioContext.createGain();
-      oscillator.type = 'sawtooth';
-      oscillator.frequency.value = 760;
-      gain.gain.value = 0.16;
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-      oscillator.start();
-      toneTimer = window.setInterval(() => {
-        if (!audioContext || !oscillator || !gain) return;
-        highTone = !highTone;
-        oscillator.frequency.setValueAtTime(highTone ? 1_020 : 760, audioContext.currentTime);
-        gain.gain.setValueAtTime(highTone ? 0.2 : 0.14, audioContext.currentTime);
-      }, 420);
+      sirenOscillator = audioContext.createOscillator();
+      warningOscillator = audioContext.createOscillator();
+      sirenGain = audioContext.createGain();
+      warningGain = audioContext.createGain();
+      masterGain = audioContext.createGain();
+      compressor = audioContext.createDynamicsCompressor();
+
+      sirenOscillator.type = 'sawtooth';
+      warningOscillator.type = 'square';
+      sirenGain.gain.value = 0.62;
+      warningGain.gain.value = 0.24;
+      masterGain.gain.value = 0.5;
+      compressor.threshold.value = -18;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 8;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.18;
+
+      sirenOscillator.connect(sirenGain);
+      warningOscillator.connect(warningGain);
+      sirenGain.connect(masterGain);
+      warningGain.connect(masterGain);
+      masterGain.connect(compressor);
+      compressor.connect(audioContext.destination);
+      sirenOscillator.start();
+      warningOscillator.start();
+      scheduleSirenSweep();
+      sirenTimer = window.setInterval(scheduleSirenSweep, 680);
     }
     if (audioContext.state === 'suspended') await audioContext.resume();
   };
 
   const vibrate = () => {
-    if ('vibrate' in navigator) navigator.vibrate([700, 180, 700, 180, 1_100]);
+    if ('vibrate' in navigator) navigator.vibrate([1_200, 120, 1_200, 120, 1_600]);
   };
 
   const unlock = () => { void sound().catch(() => undefined); };
   void sound().catch(() => undefined);
   vibrate();
-  vibrationTimer = window.setInterval(vibrate, 3_200);
+  vibrationTimer = window.setInterval(vibrate, 4_360);
   window.addEventListener('pointerdown', unlock, { passive: true });
   window.addEventListener('keydown', unlock);
 
   return () => {
     window.removeEventListener('pointerdown', unlock);
     window.removeEventListener('keydown', unlock);
-    if (toneTimer !== null) window.clearInterval(toneTimer);
+    if (sirenTimer !== null) window.clearInterval(sirenTimer);
     if (vibrationTimer !== null) window.clearInterval(vibrationTimer);
     if ('vibrate' in navigator) navigator.vibrate(0);
-    try { oscillator?.stop(); } catch { /* The oscillator may already be stopped. */ }
-    oscillator?.disconnect();
-    gain?.disconnect();
+    try { sirenOscillator?.stop(); } catch { /* The oscillator may already be stopped. */ }
+    try { warningOscillator?.stop(); } catch { /* The oscillator may already be stopped. */ }
+    sirenOscillator?.disconnect();
+    warningOscillator?.disconnect();
+    sirenGain?.disconnect();
+    warningGain?.disconnect();
+    masterGain?.disconnect();
+    compressor?.disconnect();
     if (audioContext) void audioContext.close().catch(() => undefined);
   };
 }
@@ -223,6 +267,9 @@ export function ScriptureAlarmOverlay() {
 
   const hasOptions = (alarm.question_type === 'multiple_choice' || alarm.question_type === 'true_false')
     && alarm.options.length > 1;
+  const alarmInstruction = alarm.alarm_slot === 'morning'
+    ? 'Answer correctly to silence the morning alarm.'
+    : 'Finish and send your daily meditation. Answer correctly to silence this alarm.';
   const modal = (
     <div
       className="fixed inset-0 z-[2147483647] flex items-center justify-center overflow-y-auto bg-navy/90 px-3 py-4 backdrop-blur-md animate-fade-in"
@@ -255,7 +302,7 @@ export function ScriptureAlarmOverlay() {
         </div>
 
         <div className="p-5">
-          <p className="text-center text-xs font-bold uppercase text-coral">Answer correctly to silence the alarm</p>
+          <p className="text-center text-xs font-bold uppercase leading-relaxed text-coral">{alarmInstruction}</p>
           {alarm.reference && <p className="mt-3 text-[10px] font-bold uppercase text-peri">{alarm.reference}</p>}
           <p className="mt-2 whitespace-pre-wrap text-base font-semibold leading-relaxed text-ink">{alarm.question_text}</p>
 

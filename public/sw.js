@@ -1,8 +1,8 @@
 // This worker is intentionally notification-only. Application requests must
 // always go to the network so an installed phone cannot be trapped on a stale
 // offline document or an obsolete JavaScript bundle.
-const CACHE_VERSION = 'full-circle-v118';
-const RECOVERY_MARKER = '111';
+const CACHE_VERSION = 'full-circle-v119';
+const RECOVERY_MARKER = '112';
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -125,7 +125,7 @@ self.addEventListener('push', (event) => {
       icon: scopedUrl('icons/icon-192.png'),
       badge: scopedUrl('icons/icon-96.png'),
       image: data.image || notificationSymbol(data.type || data.notification_type),
-      vibrate: isScriptureAlarm ? [1000, 180, 1000, 180, 1400] : [200, 100, 200],
+      vibrate: isScriptureAlarm ? [1200, 120, 1200, 120, 1600] : [200, 100, 200],
       data: {
         url: data.url ? scopedUrl(data.url) : self.registration.scope,
         dateOfArrival: Date.now(),
