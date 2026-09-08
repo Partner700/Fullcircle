@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Pencil, Reply, Send } from 'lucide-react';
+import { AtSign, Check, Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Pencil, Reply, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
 import { MessageAvatar } from './TentMessenger';
@@ -331,14 +331,24 @@ export function QuoteReactions({
               </button>
             </div>
           )}
-          <div className="mt-4 flex gap-2">
-            <input
-              className="input-field text-sm"
+          <div className="mt-4 flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setBody((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
+              className="icon-btn mb-1 flex-shrink-0"
+              aria-label="Mention everyone in Full Circle"
+              title="Mention everyone in Full Circle"
+            >
+              <AtSign size={15} />
+            </button>
+            <textarea
+              rows={2}
+              className="input-field max-h-28 min-h-16 flex-1 resize-none overflow-y-auto py-2 text-sm"
               maxLength={500}
               placeholder={replyTarget ? `Reply to ${replyTarget.display_name || 'this comment'}...` : 'Comment on this quote...'}
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void submitComment(); }}
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitComment(); } }}
             />
             <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary px-3">
               {commenting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

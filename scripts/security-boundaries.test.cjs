@@ -149,6 +149,8 @@ const scriptureAlarmOverlay = read('src/components/ScriptureAlarmOverlay.tsx');
 const scriptureAlarmApi = read('src/lib/scriptureAlarms.ts');
 const cadetTent = read('src/screens/cadet/CadetTent.tsx');
 const punctualAlarmsAndGuidance = read('supabase/migrations/20260908100000_ten_minute_alarms_and_newcomer_guidance.sql');
+const tentlessCadetGuidance = read('supabase/migrations/20260908110000_guide_existing_tentless_cadets.sql');
+const contextualAllMentions = read('supabase/migrations/20260908120000_contextual_all_mentions.sql');
 const newcomerGuide = read('src/components/NewcomerGuide.tsx');
 const alarmPreferences = read('src/lib/alarmPreferences.ts');
 const browserNotificationSettings = read('src/components/BrowserNotificationSettings.tsx');
@@ -399,8 +401,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v120'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '113'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v121'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '114'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -414,7 +416,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-08-v120/);
+assert.match(releaseCache, /2026-09-08-v121/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1579,6 +1581,33 @@ assert.match(scriptureAlarmOverlay, /startAlarmEffects\(alarmVolume\)/);
 assert.match(scriptureAlarmOverlay, /getNotifications\(\{ tag: 'full-circle-scripture-alarm' \}\)/);
 assert.match(newcomerGuide, /data-guide-nav/);
 assert.match(newcomerGuide, /scroll_reading/);
+assert.match(newcomerGuide, /Full Circle Guide/);
+for (const required of [
+  'WITH tentless_cadets AS',
+  "assignment.role = 'cadet'",
+  'NOT EXISTS (',
+  'FROM public.tent_members member',
+  "WHEN cadet.has_pending_request THEN 'dashboard_after_tent'",
+  'guidance.completed_at = guidance.started_at',
+  'CREATE OR REPLACE FUNCTION public.get_my_newcomer_guidance',
+]) {
+  assert.ok(tentlessCadetGuidance.includes(required), `Missing existing tentless-cadet guidance safeguard: ${required}`);
+}
+for (const required of [
+  "@all([^[:alnum:]_]|$)",
+  "TG_TABLE_NAME IN ('daily_quote_comments', 'daily_verse_comments', 'quiz_waiting_messages')",
+  "TG_TABLE_NAME = 'arena_room_messages'",
+  'FROM public.arena_participants participant',
+  "CASE WHEN mentions_all THEN '@all in '",
+  "'mention_all', mentions_all",
+]) {
+  assert.ok(contextualAllMentions.includes(required), `Missing contextual @all safeguard: ${required}`);
+}
+assert.doesNotMatch(contextualAllMentions, /TG_TABLE_NAME IN \('direct_messages', 'tent_messages'\)/);
+assert.match(tentMessenger, /<RelativeTime value=\{m\.created_at\}/);
+assert.match(tentMessenger, /<RelativeTime value=\{message\.created_at\}/);
+assert.match(quoteReactions, /Mention everyone in Full Circle/);
+assert.match(cadetDashboard, /min\(82svh, calc\(100dvh - 7rem\)\)/);
 assert.match(cadetTent, /data-guide-tent-choice/);
 assert.match(cadetNarrative, /data-guide="best-verse"/);
 assert.match(cadetNarrative, /data-guide="daily-meditation"/);

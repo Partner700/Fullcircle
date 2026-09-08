@@ -502,6 +502,9 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   const [conversationOpen, setConversationOpen] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
+  const panelMaxHeight = conversationOpen
+    ? 'min(82svh, calc(100dvh - 7rem))'
+    : '66.666svh';
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.changedTouches[0];
@@ -542,13 +545,13 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   }, [count, index, onCommentOpenChange]);
 
   return (
-    <div className="card relative max-h-[66.666svh] overflow-hidden animate-slide-up" style={{ maxHeight: conversationOpen ? '70svh' : '66.666svh' }}>
+    <div className="card relative max-h-[66.666svh] overflow-hidden transition-[max-height] duration-300 animate-slide-up" style={{ maxHeight: panelMaxHeight }}>
       <div
         className={cn('flex max-h-[66.666svh] min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={() => { touchStartRef.current = null; onHoldChange(false); }}
-        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y', maxHeight: conversationOpen ? '70svh' : '66.666svh' }}
+        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y', maxHeight: panelMaxHeight }}
         onTransitionEnd={() => {
           if (count > 1 && displayIndex === count) {
             setWithTransition(false);
@@ -574,7 +577,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
               : panelImages[slide.kind];
 
           return (
-            <div key={`${slide.id}-${slideIndex}`} className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16" style={{ maxHeight: conversationOpen ? '70svh' : '66.666svh' }}>
+            <div key={`${slide.id}-${slideIndex}`} className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16" style={{ maxHeight: panelMaxHeight }}>
               {slideImage && (
                 <PanelImageBackdrop
                   image={slideImage}

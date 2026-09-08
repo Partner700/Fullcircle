@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage } from '../lib/queries';
 import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../lib/types';
-import { X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
+import { AtSign, X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 import { revealHiddenChallenge } from '../lib/hiddenChallenges';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
+import { RelativeTime } from './RelativeTime';
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -167,9 +168,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
                       </div>
                     ) : <p className="whitespace-pre-wrap break-words">{m.body}</p>}
                     {isMe && editingId !== m.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingId(m.id); setEditingBody(m.body); }}><Pencil size={10} /> Edit</button>}
-                    <p className="text-[10px] text-stone mt-1">
-                      {new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                    </p>
+                    <p className="mt-1 text-[10px] text-stone"><RelativeTime value={m.created_at} /></p>
                   </div>
                 </div>
               );
@@ -327,9 +326,7 @@ export function TentGroupMessenger({
                     </div>
                   ) : <p className="whitespace-pre-wrap break-words">{message.body}</p>}
                   {isMe && editingId !== message.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { setEditingId(message.id); setEditingBody(message.body); }}><Pencil size={10} /> Edit</button>}
-                  <p className="mt-1 text-[10px] text-stone">
-                    {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                  </p>
+                  <p className="mt-1 text-[10px] text-stone"><RelativeTime value={message.created_at} /></p>
                 </div>
               </div>
             );
@@ -337,6 +334,15 @@ export function TentGroupMessenger({
         </div>
 
         <div className="flex items-center gap-2 border-t border-border p-3">
+          <button
+            type="button"
+            onClick={() => setInput((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
+            className="icon-btn flex-shrink-0"
+            aria-label="Mention everyone in this tent"
+            title="Mention everyone in this tent"
+          >
+            <AtSign size={16} />
+          </button>
           <input
             type="text"
             value={input}

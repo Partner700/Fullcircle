@@ -208,7 +208,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
   const tour = (
     <div className="pointer-events-none fixed inset-0 z-[2147482000]" aria-live="polite">
       <aside className={`newcomer-guide-message fixed left-1/2 top-[max(5.5rem,env(safe-area-inset-top))] w-[min(92vw,27rem)] -translate-x-1/2 rounded-lg border border-gold/55 bg-navy-2/96 px-4 py-3 text-center shadow-2xl backdrop-blur-xl ${step === 'choose_tent' ? 'pointer-events-auto' : 'pointer-events-none'}`}>
-        <p className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> New Cadet Guide</p>
+        <p className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> Full Circle Guide</p>
         <h2 className="mt-1 font-display text-base font-bold text-peri">{copy?.title}</h2>
         <p className="mt-0.5 text-xs leading-relaxed text-peri-dim">{copy?.text}</p>
         {step === 'choose_tent' && supportsWebPush() && !pushReady && (
