@@ -84,6 +84,7 @@ export interface PendingScriptureAlarm {
   alarm_date: string;
   alarm_slot: ScriptureAlarmSlot;
   triggered_at: string;
+  expires_at: string;
   question_text: string;
   question_type: DoveQuestionType;
   options: string[];
@@ -94,6 +95,7 @@ export interface PendingScriptureAlarm {
 export interface ScriptureAlarmAnswerResult {
   is_correct: boolean;
   cleared: boolean;
+  missed?: boolean;
   alarm?: PendingScriptureAlarm | null;
 }
 

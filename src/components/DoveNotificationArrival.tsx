@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileQuestion, Loader2, Mail, X } from 'lucide-react';
+import { Check, FileQuestion, Loader2, Mail, ShieldQuestion, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchCampMentionCandidates, fetchUserNotifications, markNotificationRead } from '../lib/queries';
+import { fetchCampMentionCandidates, fetchUserNotifications, markNotificationRead, reviewTentJoinRequest } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserNotification } from '../lib/types';
-import { isDoveArrival, isMessageArrival, isQuizArrival } from '../lib/notificationArrival';
+import { isDoveArrival, isMessageArrival, isQuizArrival, isTentJoinRequestArrival } from '../lib/notificationArrival';
 import { Dove } from './Dove';
 import { TentGroupMessenger, TentMessenger } from './TentMessenger';
 
@@ -28,6 +28,7 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
   const { profile } = useAuth();
   const [arrival, setArrival] = useState<UserNotification | null>(null);
   const [opening, setOpening] = useState(false);
+  const [reviewing, setReviewing] = useState<'accept' | 'reject' | null>(null);
   const [conversation, setConversation] = useState<{ recipient: Profile; tentId?: string } | null>(null);
   const [groupChat, setGroupChat] = useState<{ tentId: string; tentName: string } | null>(null);
   const surfacedRef = useRef(new Set<string>());
@@ -75,6 +76,29 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
       void supabase.removeChannel(channel);
     };
   }, [profile?.id, surface]);
+
+  useEffect(() => {
+    if (!arrival || !isTentJoinRequestArrival(arrival) || !('vibrate' in navigator)) return;
+    navigator.vibrate([700, 120, 700, 120, 900]);
+    return () => { navigator.vibrate(0); };
+  }, [arrival]);
+
+  const reviewTentApplication = async (approve: boolean) => {
+    if (!arrival || reviewing) return;
+    const requestId = String(arrival.metadata?.request_id || '');
+    if (!requestId) return;
+    setReviewing(approve ? 'accept' : 'reject');
+    try {
+      await reviewTentJoinRequest(requestId, approve);
+      await markNotificationRead(arrival.id).catch(() => undefined);
+      advanceArrival();
+      onNavigate('cadets', arrival.metadata);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'This tent application could not be reviewed.');
+    } finally {
+      setReviewing(null);
+    }
+  };
 
   const openArrival = async () => {
     if (!arrival || !profile || opening) return;
@@ -125,25 +149,38 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
     }
   };
 
+  const tentApplication = arrival ? isTentJoinRequestArrival(arrival) : false;
   const prompt = arrival && typeof document !== 'undefined' ? createPortal(
     <aside className="fixed bottom-5 left-1/2 z-[2147483200] w-[min(92vw,26rem)] -translate-x-1/2 overflow-hidden rounded-lg border border-peri/45 bg-surface/96 shadow-2xl backdrop-blur-xl animate-slide-up" role="status" aria-live="polite">
-      <button type="button" onClick={() => void openArrival()} disabled={opening} className="flex w-full items-center gap-3 px-4 py-3 pr-12 text-left disabled:opacity-70">
+      <div className="flex w-full items-center gap-3 px-4 py-3 pr-12 text-left">
         <span className="relative flex h-16 w-16 shrink-0 items-center justify-center">
           <Dove size={62} className="animate-float" />
           <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface bg-peri text-white shadow-md">
-            {isQuizArrival(arrival) ? <FileQuestion size={15} /> : <Mail size={15} />}
+            {tentApplication ? <UserPlus size={15} /> : isQuizArrival(arrival) ? <FileQuestion size={15} /> : <Mail size={15} />}
           </span>
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[10px] font-black uppercase text-peri">Delivered by the Dove</span>
           <strong className="mt-0.5 block text-sm font-bold text-ink">{arrival.title}</strong>
           <span className="mt-0.5 block line-clamp-2 text-xs leading-relaxed text-stone">{arrival.body}</span>
-          <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-peri">
-            {opening ? <Loader2 size={11} className="animate-spin" /> : isQuizArrival(arrival) ? <FileQuestion size={11} /> : <Mail size={11} />}
-            {opening ? 'Opening...' : isQuizArrival(arrival) ? 'Open Weekly Quiz' : 'Open message'}
-          </span>
+          {tentApplication ? (
+            <span className="mt-2 flex flex-wrap gap-2">
+              <button type="button" disabled={!!reviewing} onClick={() => void reviewTentApplication(true)} className="btn-primary px-3 py-1.5 text-[11px]">
+                {reviewing === 'accept' ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Accept
+              </button>
+              <button type="button" disabled={!!reviewing} onClick={() => void reviewTentApplication(false)} className="btn-secondary px-3 py-1.5 text-[11px] text-coral">
+                {reviewing === 'reject' ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />} Reject
+              </button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => void openArrival()} disabled={opening} className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-peri">
+              {opening ? <Loader2 size={11} className="animate-spin" /> : isQuizArrival(arrival) ? <FileQuestion size={11} /> : <Mail size={11} />}
+              {opening ? 'Opening...' : isQuizArrival(arrival) ? 'Open Weekly Quiz' : 'Open message'}
+            </button>
+          )}
         </span>
-      </button>
+        {tentApplication && <ShieldQuestion size={18} className="shrink-0 text-gold" />}
+      </div>
       <button type="button" onClick={advanceArrival} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-stone hover:bg-surface-2 hover:text-ink" aria-label="Dismiss notification"><X size={16} /></button>
     </aside>,
     document.body,

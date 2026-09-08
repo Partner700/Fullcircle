@@ -770,24 +770,46 @@
 /* Fade only the edge that still has hidden scroll content. The classes are
    maintained centrally so every scrollable panel behaves consistently. */
 .scroll-boundary-fade.scroll-fade-bottom:not(.scroll-fade-top) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 5rem), rgba(0, 0, 0, 0.72) calc(100% - 3.25rem), rgba(0, 0, 0, 0.22) calc(100% - 1.25rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 5rem), rgba(0, 0, 0, 0.72) calc(100% - 3.25rem), rgba(0, 0, 0, 0.22) calc(100% - 1.25rem), transparent 100%);
 }
 .scroll-boundary-fade.scroll-fade-top:not(.scroll-fade-bottom) {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 100%);
 }
 .scroll-boundary-fade.scroll-fade-top.scroll-fade-bottom {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 2.75rem), rgba(0, 0, 0, 0.82) calc(100% - 2rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 5rem), rgba(0, 0, 0, 0.72) calc(100% - 3.25rem), rgba(0, 0, 0, 0.22) calc(100% - 1.25rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 5rem), rgba(0, 0, 0, 0.72) calc(100% - 3.25rem), rgba(0, 0, 0, 0.22) calc(100% - 1.25rem), transparent 100%);
 }
 
 /* Quote comments always soften into the lower paper edge. Bottom padding lets
    the final comment scroll fully above the mask instead of remaining hidden. */
 .quote-comments-boundary-fade {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 3rem), rgba(0, 0, 0, 0.76) calc(100% - 2rem), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 3rem), rgba(0, 0, 0, 0.76) calc(100% - 2rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 6rem), rgba(0, 0, 0, 0.7) calc(100% - 4rem), rgba(0, 0, 0, 0.18) calc(100% - 1.5rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 6rem), rgba(0, 0, 0, 0.7) calc(100% - 4rem), rgba(0, 0, 0, 0.18) calc(100% - 1.5rem), transparent 100%);
 }
+
+.newcomer-guide-target {
+  position: relative;
+  z-index: 2147481999 !important;
+  outline: 3px solid rgba(248, 207, 62, 0.96) !important;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 8px rgba(248, 207, 62, 0.16), 0 0 30px rgba(248, 207, 62, 0.42) !important;
+}
+
+@keyframes newcomer-pointer {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-12deg); }
+  50% { transform: translate3d(-5px, -9px, 0) rotate(-12deg); }
+}
+
+@keyframes newcomer-swipe {
+  0% { transform: translate3d(0, 16px, 0); opacity: 0.25; }
+  45% { opacity: 1; }
+  100% { transform: translate3d(0, -28px, 0); opacity: 0.15; }
+}
+
+.animate-newcomer-pointer { animation: newcomer-pointer 1.05s ease-in-out infinite; }
+.animate-newcomer-swipe { animation: newcomer-swipe 1.2s ease-out infinite; }
 @keyframes sound-meter-pulse {
   0%, 100% { transform: scaleY(0.28); }
   45% { transform: scaleY(1); }

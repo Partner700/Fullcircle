@@ -8,6 +8,7 @@ import { StreakCelebration } from '../../components/StreakCelebration';
 import { SubscriptionGate, SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { DoveMark } from '../../components/Dove';
 import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
+import { NewcomerGuide } from '../../components/NewcomerGuide';
 import { CadetDashboard } from './CadetDashboard';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
@@ -76,7 +77,7 @@ const TOPBAR_STATS_CACHE_PREFIX = 'full-circle-topbar-stats';
 
 function notificationSymbolForType(type: string) {
   const key = String(type || '').toLowerCase();
-  if (['message', 'direct_message', 'message_mention'].includes(key)) return publicAsset('notification-symbols/message.svg');
+  if (['message', 'direct_message', 'message_mention', 'tent_join_request'].includes(key)) return publicAsset('notification-symbols/message.svg');
   if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
   if (key === 'award') return publicAsset('notification-symbols/award.svg');
   if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
@@ -126,12 +127,13 @@ async function showDeviceNotification(notification: UserNotification) {
   }
   try {
     const registration = await navigator.serviceWorker?.ready;
+    const isScriptureAlarm = String(notification.notification_type || '').toLowerCase() === 'scripture_alarm';
     const options = {
       body: notification.body || 'You have a new update.',
       icon: publicAsset('icons/icon-192.png'),
       badge: publicAsset('icons/icon-96.png'),
       image: notificationSymbolForType(notification.notification_type),
-      tag: `full-circle-${notification.id}`,
+      tag: isScriptureAlarm ? 'full-circle-scripture-alarm' : `full-circle-${notification.id}`,
       data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },
     };
     if (registration) {
@@ -1177,6 +1179,7 @@ export function CadetApp() {
         )}
     </AppShell>
     <DoveNotificationArrival onNavigate={handleNavigate} />
+    <NewcomerGuide activeTab={tab} onNavigate={handleNavigate} />
     {toastNotification && (
       <button type="button" onClick={() => { const linked = notifications.find((item) => item.persistedId === toastNotification.id); if (linked) void handleNotificationOpen(linked); else setShowNotifications(true); setToastNotification(null); }} className="fixed bottom-5 left-1/2 z-[160] flex w-[min(92vw,25rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border-bright bg-surface/95 px-3.5 py-3 text-left shadow-2xl backdrop-blur-md animate-slide-up">
         <DoveMark size={28} className="shrink-0" />

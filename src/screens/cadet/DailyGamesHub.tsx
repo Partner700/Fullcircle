@@ -154,7 +154,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
                 <div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${completion}%` }} />
               </div>
             </div>
-            <button type="button" onClick={onOpenTrivia} className="btn-primary mt-auto w-full justify-between">
+            <button type="button" data-guide="daily-trivia" onClick={onOpenTrivia} className="btn-primary mt-auto w-full justify-between">
               <span className="inline-flex items-center gap-2"><Play size={15} /> {triviaAction}</span>
               <ArrowRight size={15} />
             </button>

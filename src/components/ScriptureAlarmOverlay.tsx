@@ -15,6 +15,8 @@ import { supabase } from '../lib/supabase';
 import type { PendingScriptureAlarm } from '../lib/types';
 import { cn } from '../lib/utils';
 import { Dove } from './Dove';
+import { AlarmVolumeControl } from './AlarmVolumeControl';
+import { getAlarmVolume } from '../lib/alarmPreferences';
 
 const SLOT_LABELS: Record<PendingScriptureAlarm['alarm_slot'], string> = {
   morning: '5:59 AM Scripture alarm',
@@ -27,7 +29,17 @@ type WebkitAudioWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
 };
 
-function startAlarmEffects() {
+async function clearDeliveredAlarmNotification() {
+  try {
+    const registration = await navigator.serviceWorker?.ready;
+    const notifications = await registration?.getNotifications({ tag: 'full-circle-scripture-alarm' });
+    notifications?.forEach((notification) => notification.close());
+  } catch {
+    // Some embedded browsers expose push without notification enumeration.
+  }
+}
+
+function startAlarmEffects(volume: number) {
   let audioContext: AudioContext | null = null;
   let sirenOscillator: OscillatorNode | null = null;
   let warningOscillator: OscillatorNode | null = null;
@@ -38,6 +50,7 @@ function startAlarmEffects() {
   let sirenTimer: number | null = null;
   let vibrationTimer: number | null = null;
   let rising = true;
+  const volumeRatio = Math.min(1, Math.max(0, volume / 200));
 
   const scheduleSirenSweep = () => {
     if (!audioContext || !sirenOscillator || !warningOscillator || !masterGain) return;
@@ -53,17 +66,17 @@ function startAlarmEffects() {
     warningOscillator.frequency.setValueAtTime(lowFrequency / 2, now);
     warningOscillator.frequency.exponentialRampToValueAtTime(highFrequency / 2, sweepEnd);
     masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setValueAtTime(0.42, now);
-    masterGain.gain.linearRampToValueAtTime(0.62, now + 0.12);
-    masterGain.gain.setValueAtTime(0.62, now + 0.48);
-    masterGain.gain.linearRampToValueAtTime(0.44, sweepEnd);
+    masterGain.gain.setValueAtTime(0.58 * volumeRatio, now);
+    masterGain.gain.linearRampToValueAtTime(0.92 * volumeRatio, now + 0.12);
+    masterGain.gain.setValueAtTime(0.92 * volumeRatio, now + 0.48);
+    masterGain.gain.linearRampToValueAtTime(0.62 * volumeRatio, sweepEnd);
     rising = !rising;
   };
 
   const sound = async () => {
     const AudioContextConstructor = window.AudioContext
       || (window as WebkitAudioWindow).webkitAudioContext;
-    if (!AudioContextConstructor) return;
+    if (!AudioContextConstructor || volumeRatio <= 0) return;
 
     if (!audioContext) {
       audioContext = new AudioContextConstructor();
@@ -76,9 +89,9 @@ function startAlarmEffects() {
 
       sirenOscillator.type = 'sawtooth';
       warningOscillator.type = 'square';
-      sirenGain.gain.value = 0.62;
-      warningGain.gain.value = 0.24;
-      masterGain.gain.value = 0.5;
+      sirenGain.gain.value = 0.78;
+      warningGain.gain.value = 0.34;
+      masterGain.gain.value = 0.72 * volumeRatio;
       compressor.threshold.value = -18;
       compressor.knee.value = 12;
       compressor.ratio.value = 8;
@@ -135,6 +148,7 @@ export function ScriptureAlarmOverlay() {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<'wrong' | 'correct' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [alarmVolume, setAlarmVolume] = useState(getAlarmVolume);
   const loadRef = useRef<Promise<void> | null>(null);
   const submittingRef = useRef(false);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -146,6 +160,7 @@ export function ScriptureAlarmOverlay() {
     const request = (async () => {
       try {
         const pending = await fetchPendingScriptureAlarm();
+        if (!pending) void clearDeliveredAlarmNotification();
         setError(null);
         setAlarm((current) => {
           if (current?.id !== pending?.id) {
@@ -227,8 +242,19 @@ export function ScriptureAlarmOverlay() {
 
   useEffect(() => {
     if (!alarmId || feedback === 'correct') return;
-    return startAlarmEffects();
-  }, [alarmId, feedback]);
+    return startAlarmEffects(alarmVolume);
+  }, [alarmId, alarmVolume, feedback]);
+
+  useEffect(() => {
+    if (!alarm?.expires_at) return;
+    const remaining = new Date(alarm.expires_at).getTime() - Date.now();
+    if (remaining <= 0) {
+      void loadPending();
+      return;
+    }
+    const timer = window.setTimeout(() => void loadPending(), remaining + 50);
+    return () => window.clearTimeout(timer);
+  }, [alarm?.expires_at, loadPending]);
 
   const submit = async () => {
     if (!alarm || !answer.trim() || submittingRef.current) return;
@@ -237,7 +263,15 @@ export function ScriptureAlarmOverlay() {
     setError(null);
     try {
       const result = await submitScriptureAlarmAnswer(alarm.id, answer.trim());
+      if (result.missed) {
+        void clearDeliveredAlarmNotification();
+        setAlarm(null);
+        setAnswer('');
+        setFeedback(null);
+        return;
+      }
       if (result.is_correct && result.cleared) {
+        void clearDeliveredAlarmNotification();
         setFeedback('correct');
         setAnswer('');
         await new Promise((resolve) => window.setTimeout(resolve, 700));
@@ -363,6 +397,8 @@ export function ScriptureAlarmOverlay() {
             </div>
           )}
           {error && <div role="alert" className="mt-3 rounded-md border border-coral/35 bg-coral/10 px-3 py-2 text-xs text-coral">{error}</div>}
+
+          <AlarmVolumeControl compact onVolumeChange={setAlarmVolume} />
 
           <button
             type="button"

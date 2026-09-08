@@ -8,6 +8,7 @@ import { fetchPanelImageSetting } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { isSoundscapeEnabled, isSoundscapePlaying, playInterfaceTone, setSoundscapeAudience, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, subscribeToSoundscape, type SoundMood } from '../lib/soundscape';
+import { OPEN_APP_NAVIGATION_EVENT } from '../lib/newcomerGuidance';
 
 type Theme = 'night' | 'day';
 
@@ -178,6 +179,14 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, [mobileNavOpen]);
 
   useEffect(() => {
+    const openForGuide = () => {
+      if (window.matchMedia('(max-width: 767px)').matches) setMobileNavOpen(true);
+    };
+    window.addEventListener(OPEN_APP_NAVIGATION_EVENT, openForGuide);
+    return () => window.removeEventListener(OPEN_APP_NAVIGATION_EVENT, openForGuide);
+  }, []);
+
+  useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMobileNavOpen(false);
     };
@@ -259,6 +268,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
           {navItems.map((item) => (
             <button
               key={item.key}
+              data-guide-nav={item.key}
               onClick={() => navigate(item.key)}
               aria-current={navActiveKey === item.key ? 'page' : undefined}
               className={cn(
@@ -392,6 +402,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               {navItems.map((item) => (
                 <button
                   key={item.key}
+                  data-guide-nav={item.key}
                   onClick={() => navigate(item.key)}
                   aria-current={navActiveKey === item.key ? 'page' : undefined}
                   className={cn(

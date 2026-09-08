@@ -34,7 +34,7 @@ function serviceHeaders(serviceKey: string) {
 
 function notificationSymbol(type: string) {
   const key = String(type || "").toLowerCase();
-  if (["message", "direct_message", "message_mention"].includes(key)) return "/notification-symbols/message.svg";
+  if (["message", "direct_message", "message_mention", "tent_join_request"].includes(key)) return "/notification-symbols/message.svg";
   if (key === "award") return "/notification-symbols/award.svg";
   if (key === "arena") return "/notification-symbols/arena.svg";
   if (key === "streak") return "/notification-symbols/streak.svg";
@@ -90,6 +90,9 @@ Deno.serve(async (request) => {
     if (notification.action_key) destinationParams.set("fc-tab", notification.action_key);
     const metadata = notification.metadata || {};
     const isScriptureAlarm = notification.notification_type === "scripture_alarm";
+    const notificationTag = isScriptureAlarm
+      ? "full-circle-scripture-alarm"
+      : `full-circle-${notification.id}`;
     if (typeof metadata.narrative_id === "string") destinationParams.set("fc-narrative", metadata.narrative_id);
     if (typeof metadata.verse_reference === "string") destinationParams.set("fc-verse", metadata.verse_reference);
     if (typeof metadata.insight_id === "string") destinationParams.set("fc-insight", metadata.insight_id);
@@ -98,7 +101,7 @@ Deno.serve(async (request) => {
       title: notification.title || "Full Circle",
       body: notification.body || "You have a new update.",
       url: destination,
-      tag: `full-circle-${notification.id}`,
+      tag: notificationTag,
       type: notification.notification_type,
       image: notificationSymbol(notification.notification_type),
       metadata: notification.metadata || {},
@@ -113,7 +116,7 @@ Deno.serve(async (request) => {
           endpoint: subscription.endpoint,
           keys: { p256dh: subscription.p256dh, auth: subscription.auth },
         }, payload, {
-          TTL: isScriptureAlarm ? 86_400 : 3_600,
+          TTL: isScriptureAlarm ? 600 : 3_600,
           urgency: isScriptureAlarm ? "high" : "normal",
         });
         delivered += 1;

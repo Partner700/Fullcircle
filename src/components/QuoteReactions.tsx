@@ -245,7 +245,7 @@ export function QuoteReactions({
             </button>
           </div>
           <div
-            className="quote-comments-boundary-fade max-h-72 space-y-2 overflow-y-auto overscroll-contain pb-10 pr-1"
+            className="quote-comments-boundary-fade max-h-72 space-y-2 overflow-y-auto overscroll-contain pb-24 pr-1"
             data-no-scroll-fade
           >
             {loadingComments && <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading comments...</p>}

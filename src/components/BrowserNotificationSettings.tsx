@@ -3,6 +3,7 @@ import { Bell, BellRing, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { enableWebPush, getCurrentPushSubscription, isInstalledApp, isIOSDevice, supportsWebPush } from '../lib/pushNotifications';
 import { publicAsset } from '../lib/publicAsset';
+import { AlarmVolumeControl } from './AlarmVolumeControl';
 
 const ENABLED_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -91,6 +92,7 @@ export function BrowserNotificationSettings() {
           {message && <p className="mt-2 text-xs text-peri-dim">{message}</p>}
         </div>
       </div>
+      <AlarmVolumeControl />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { VallumText } from '../../components/ChiRhoMark';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import type { PanelImageSetting } from '../../lib/types';
 import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
+import { completeNewcomerGuidanceStep } from '../../lib/newcomerGuidance';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -148,6 +149,7 @@ export function CadetTent() {
     setRequestingTentId(null);
     if (error) return alert(error.message);
     setPendingTentId(tentId);
+    await completeNewcomerGuidanceStep('choose_tent').catch(() => undefined);
   };
 
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
@@ -199,7 +201,7 @@ export function CadetTent() {
           {availableTents.map((item) => {
             const full = item.cadet_count >= (item.max_cadets || 10);
             const pending = pendingTentId === item.id;
-            return <article key={item.id} className="card flex items-center gap-3 p-4">
+            return <article key={item.id} data-guide-tent-choice className="card flex items-center gap-3 p-4">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
                 {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
               </div>

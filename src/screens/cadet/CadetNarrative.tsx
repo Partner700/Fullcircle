@@ -1358,7 +1358,7 @@ export function CadetNarrative({
           </div>
 
           {/* Best Verse */}
-          <div className="mb-4">
+          <div className="mb-4" data-guide="best-verse">
           <label className="text-sm font-medium text-ink mb-1.5 block">Best Verse</label>
           <p className="text-xs text-stone mb-2">Your best verse of the day</p>
           <AppSelect
@@ -1373,7 +1373,7 @@ export function CadetNarrative({
           </div>
 
           {/* Daily Meditation (50-100 words) */}
-          <div className="mb-4">
+          <div className="mb-4" data-guide="daily-meditation">
           <label className="text-sm font-medium text-ink mb-1.5 block">Daily Meditation</label>
           <p className="text-xs text-stone mb-2">At least 50 words</p>
           <textarea
@@ -1388,7 +1388,7 @@ export function CadetNarrative({
           </div>
 
           {/* Daily Quote (max 10 words) */}
-          <div className="mb-4">
+          <div className="mb-4" data-guide="daily-quote">
           <label className="text-sm font-medium text-ink mb-1.5 block">Daily Quote</label>
           <p className="text-xs text-stone mb-2">No more than 10 words</p>
           <input

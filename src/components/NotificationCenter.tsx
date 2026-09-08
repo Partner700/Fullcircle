@@ -24,7 +24,7 @@ function notificationTone(notification: UserNotification) {
 
 function notificationSymbol(type: string) {
   const key = String(type || '').toLowerCase();
-  if (['message', 'direct_message', 'message_mention'].includes(key)) return publicAsset('notification-symbols/message.svg');
+  if (['message', 'direct_message', 'message_mention', 'tent_join_request'].includes(key)) return publicAsset('notification-symbols/message.svg');
   if (key === 'award') return publicAsset('notification-symbols/award.svg');
   if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
   if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
@@ -47,12 +47,13 @@ async function showDeviceNotification(notification: UserNotification) {
   } catch {
     return;
   }
+  const isScriptureAlarm = String(notification.notification_type || '').toLowerCase() === 'scripture_alarm';
   const options = {
     body: notification.body || 'You have a new update.',
     icon: publicAsset('icons/icon-192.png'),
     badge: publicAsset('icons/icon-96.png'),
     image: notificationSymbol(notification.notification_type),
-    tag: `full-circle-${notification.id}`,
+    tag: isScriptureAlarm ? 'full-circle-scripture-alarm' : `full-circle-${notification.id}`,
     data: { url: scriptureTargetUrl(notification.action_key, notification.metadata) },
   };
   try {

@@ -148,6 +148,11 @@ const accurateAlarmsAndStreakReconciliation = read('supabase/migrations/20260907
 const scriptureAlarmOverlay = read('src/components/ScriptureAlarmOverlay.tsx');
 const scriptureAlarmApi = read('src/lib/scriptureAlarms.ts');
 const cadetTent = read('src/screens/cadet/CadetTent.tsx');
+const punctualAlarmsAndGuidance = read('supabase/migrations/20260908100000_ten_minute_alarms_and_newcomer_guidance.sql');
+const newcomerGuide = read('src/components/NewcomerGuide.tsx');
+const alarmPreferences = read('src/lib/alarmPreferences.ts');
+const browserNotificationSettings = read('src/components/BrowserNotificationSettings.tsx');
+const doveNotificationArrivalComponent = read('src/components/DoveNotificationArrival.tsx');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -394,8 +399,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v119'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '112'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v120'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '113'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -409,7 +414,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-07-v119/);
+assert.match(releaseCache, /2026-09-08-v120/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1550,6 +1555,38 @@ assert.match(quoteReactions, /quote-comments-boundary-fade[\s\S]*?data-no-scroll
 assert.match(indexCss, /\.quote-comments-boundary-fade[\s\S]*?mask-image/);
 assert.doesNotMatch(cadetTent, /disabled=\{reactingTo === m\.user_id \|\| reacted\}/);
 assert.match(cadetTent, /disabled=\{reactingTo === m\.user_id\}/);
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.newcomer_guidance',
+  'CREATE OR REPLACE FUNCTION public.get_my_newcomer_guidance',
+  'CREATE OR REPLACE FUNCTION public.advance_my_newcomer_guidance',
+  'private.user_is_scripture_alarm_eligible',
+  "status IN ('pending', 'cleared', 'missed')",
+  "triggered_at + interval '10 minutes'",
+  'private.expire_stale_scripture_alarms',
+  "now() < v_triggered_at + interval '10 minutes'",
+  "'full-circle-scripture-alarm-expiry'",
+]) {
+  assert.ok(punctualAlarmsAndGuidance.includes(required), `Missing punctual alarm/newcomer safeguard: ${required}`);
+}
+assert.doesNotMatch(punctualAlarmsAndGuidance, /(?:UPDATE|INSERT INTO) public\.daily_records/);
+assert.match(pushDelivery, /TTL: isScriptureAlarm \? 600 : 3_600/);
+assert.match(pushDelivery, /"full-circle-scripture-alarm"/);
+assert.match(alarmPreferences, /MAX_ALARM_VOLUME = 200/);
+assert.match(alarmPreferences, /DEFAULT_ALARM_VOLUME = 200/);
+assert.match(browserNotificationSettings, /<AlarmVolumeControl/);
+assert.match(scriptureAlarmOverlay, /startAlarmEffects\(alarmVolume\)/);
+assert.match(scriptureAlarmOverlay, /getNotifications\(\{ tag: 'full-circle-scripture-alarm' \}\)/);
+assert.match(newcomerGuide, /data-guide-nav/);
+assert.match(newcomerGuide, /scroll_reading/);
+assert.match(cadetTent, /data-guide-tent-choice/);
+assert.match(cadetNarrative, /data-guide="best-verse"/);
+assert.match(cadetNarrative, /data-guide="daily-meditation"/);
+assert.match(cadetNarrative, /data-guide="daily-quote"/);
+assert.match(notificationArrival, /isTentJoinRequestArrival/);
+assert.match(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
+assert.match(doveNotificationArrivalComponent, /\} Accept/);
+assert.match(indexCss, /quote-comments-boundary-fade[\s\S]*?100% - 6rem/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

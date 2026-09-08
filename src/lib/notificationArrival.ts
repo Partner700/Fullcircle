@@ -13,6 +13,13 @@ export function isQuizArrival(notification: UserNotification) {
   return type === 'quiz_release' || type === 'weekly_quiz_reminder';
 }
 
+export function isTentJoinRequestArrival(notification: UserNotification) {
+  const type = String(notification.notification_type || '').toLowerCase();
+  return type === 'tent_join_request'
+    && typeof notification.metadata?.request_id === 'string'
+    && notification.metadata?.approved === undefined;
+}
+
 export function isDoveArrival(notification: UserNotification) {
-  return isMessageArrival(notification) || isQuizArrival(notification);
+  return isMessageArrival(notification) || isQuizArrival(notification) || isTentJoinRequestArrival(notification);
 }
