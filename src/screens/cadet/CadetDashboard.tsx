@@ -545,13 +545,16 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   }, [count, index, onCommentOpenChange]);
 
   return (
-    <div className="card relative max-h-[66.666svh] overflow-hidden transition-[max-height] duration-300 animate-slide-up" style={{ maxHeight: panelMaxHeight }}>
+    <div
+      className="card relative max-h-[66.666svh] overflow-hidden transition-[height,max-height] duration-300 animate-slide-up"
+      style={{ maxHeight: panelMaxHeight, height: conversationOpen ? panelMaxHeight : undefined }}
+    >
       <div
         className={cn('flex max-h-[66.666svh] min-h-[220px] sm:min-h-[190px]', withTransition && 'transition-transform duration-700 ease-out')}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={() => { touchStartRef.current = null; onHoldChange(false); }}
-        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y', maxHeight: panelMaxHeight }}
+        style={{ transform: `translateX(-${displayIndex * 100}%)`, touchAction: 'pan-y', maxHeight: panelMaxHeight, height: conversationOpen ? panelMaxHeight : undefined }}
         onTransitionEnd={() => {
           if (count > 1 && displayIndex === count) {
             setWithTransition(false);
@@ -577,7 +580,11 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
               : panelImages[slide.kind];
 
           return (
-            <div key={`${slide.id}-${slideIndex}`} className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16" style={{ maxHeight: panelMaxHeight }}>
+            <div
+              key={`${slide.id}-${slideIndex}`}
+              className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16"
+              style={{ maxHeight: panelMaxHeight, height: conversationOpen ? panelMaxHeight : undefined }}
+            >
               {slideImage && (
                 <PanelImageBackdrop
                   image={slideImage}
@@ -588,8 +595,8 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                   simple={slide.kind === 'quote' || slide.kind === 'fcx' || isReminder}
                 />
               )}
-              <div className="relative flex items-start justify-between gap-3">
-                <div className={cn('min-w-0', (slide.kind === 'custom' || slide.kind === 'honors' || slide.kind === 'quiz_podium') && 'w-full')}>
+              <div className={cn('relative flex items-start justify-between gap-3', conversationOpen && 'h-full')}>
+                <div className={cn('min-w-0', conversationOpen && 'h-full', (slide.kind === 'custom' || slide.kind === 'honors' || slide.kind === 'quiz_podium' || slide.kind === 'quote') && 'w-full')}>
                   {slide.kind === 'custom' && slide.content}
 
                   {slide.kind === 'welcome' && (
@@ -732,7 +739,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                   )}
 
                   {slide.kind === 'quote' && (
-                    <div className="quote-glass-panel relative max-w-2xl rounded-2xl p-4 ring-1 ring-black/5">
+                    <div className={cn('quote-glass-panel relative w-full max-w-2xl rounded-2xl p-4 ring-1 ring-black/5', conversationOpen && 'min-h-full')}>
                       <PanelImageBackdrop
                         image={slideImage}
                         opacityOverride={100}

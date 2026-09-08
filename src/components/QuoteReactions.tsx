@@ -245,7 +245,10 @@ export function QuoteReactions({
             </button>
           </div>
           <div
-            className="quote-comments-boundary-fade max-h-72 space-y-2 overflow-y-auto overscroll-contain pb-24 pr-1"
+            className={cn(
+              'space-y-2 overflow-y-auto overscroll-contain pr-1',
+              comments.length > 0 && 'quote-comments-boundary-fade max-h-72 pb-24',
+            )}
             data-no-scroll-fade
           >
             {loadingComments && <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading comments...</p>}
@@ -331,7 +334,7 @@ export function QuoteReactions({
               </button>
             </div>
           )}
-          <div className="mt-4 flex items-end gap-2">
+          <div className={cn('flex items-end gap-2', comments.length > 0 ? 'mt-4' : 'mt-1')}>
             <button
               type="button"
               onClick={() => setBody((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
