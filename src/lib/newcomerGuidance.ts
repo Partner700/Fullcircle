@@ -2,6 +2,8 @@ import { supabase } from './supabase';
 
 export const NEWCOMER_GUIDANCE_REFRESH_EVENT = 'full-circle-newcomer-guidance-refresh';
 export const OPEN_APP_NAVIGATION_EVENT = 'full-circle-open-app-navigation';
+export const NEWCOMER_GUIDANCE_ACTION_EVENT = 'full-circle-newcomer-guidance-action';
+export const NEWCOMER_GUIDANCE_HERO_EVENT = 'full-circle-newcomer-guidance-hero';
 
 export type NewcomerGuidanceStep =
   | 'choose_tent'
@@ -12,6 +14,12 @@ export type NewcomerGuidanceStep =
   | 'meditation'
   | 'daily_quote'
   | 'dashboard_games'
+  | 'welcome_swipe_to_verse'
+  | 'welcome_like_verse'
+  | 'welcome_comment_verse'
+  | 'welcome_swipe_to_quote'
+  | 'welcome_like_quote'
+  | 'welcome_comment_quote'
   | 'daily_games'
   | 'daily_trivia'
   | 'complete';
@@ -22,6 +30,25 @@ export type NewcomerGuidanceState = {
   completed_at: string | null;
   guide_version?: number;
 };
+
+export type NewcomerGuidanceAction =
+  | 'welcome_swiped'
+  | 'welcome_verse_reacted'
+  | 'welcome_verse_commented'
+  | 'welcome_quote_reacted'
+  | 'welcome_quote_commented';
+
+export type NewcomerGuidanceHeroTarget = 'welcome' | 'verse' | 'other_quote' | null;
+
+export function announceNewcomerGuidanceAction(action: NewcomerGuidanceAction) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(NEWCOMER_GUIDANCE_ACTION_EVENT, { detail: { action } }));
+}
+
+export function directNewcomerGuidanceHero(target: NewcomerGuidanceHeroTarget, paused: boolean) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(NEWCOMER_GUIDANCE_HERO_EVENT, { detail: { target, paused } }));
+}
 
 function isGuidanceState(value: unknown): value is NewcomerGuidanceState {
   if (!value || typeof value !== 'object') return false;
@@ -52,17 +79,16 @@ async function fetchTentlessGuidanceFallback(userId: string): Promise<NewcomerGu
     current_step: pendingRequest ? 'dashboard_after_tent' : 'choose_tent',
     completed: false,
     completed_at: null,
-    guide_version: 2,
+    guide_version: 3,
   };
 }
 
 export async function fetchMyNewcomerGuidance(userId?: string) {
   const { data, error } = await supabase.rpc('get_my_newcomer_guidance');
   if (!error && isGuidanceState(data)) {
-    // Releases before guide v2 marked established accounts complete without
-    // ever showing the tour. Do not let that stale response hide it from a
-    // person who still has no tent while the database rollout catches up.
-    if (userId && data.completed && Number(data.guide_version || 0) < 2) {
+    // Releases before guide v3 can return a stale completed state while the
+    // expanded tour is rolling out. Keep the tent choice visible meanwhile.
+    if (userId && data.completed && Number(data.guide_version || 0) < 3) {
       try {
         return (await fetchTentlessGuidanceFallback(userId)) || data;
       } catch {

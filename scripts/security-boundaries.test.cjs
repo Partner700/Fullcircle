@@ -155,6 +155,7 @@ const confirmedPresenceStreak = read('supabase/migrations/20260908130000_confirm
 const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_streak_engine.sql');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
+const welcomeSocialNewcomerTour = read('supabase/migrations/20260909113000_welcome_social_newcomer_tour.sql');
 const deleteAccountSection = read('src/components/DeleteAccountSection.tsx');
 const deleteAccountFunction = read('supabase/functions/delete-account/index.ts');
 const newcomerGuide = read('src/components/NewcomerGuide.tsx');
@@ -408,8 +409,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v124'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '117'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v125'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '118'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -423,7 +424,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-09-v124/);
+assert.match(releaseCache, /2026-09-09-v125/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1596,7 +1597,7 @@ assert.ok(!newcomerGuide.includes('attempts >= 5'), 'The newcomer tour must keep
 assert.match(newcomerGuidanceApi, /fetchTentlessGuidanceFallback/);
 assert.match(newcomerGuidanceApi, /\.from\('tent_members'\)/);
 assert.match(newcomerGuidanceApi, /\.from\('tent_join_requests'\)/);
-assert.match(newcomerGuidanceApi, /Number\(data\.guide_version \|\| 0\) < 2/);
+assert.match(newcomerGuidanceApi, /Number\(data\.guide_version \|\| 0\) < 3/);
 for (const required of [
   'WITH tentless_cadets AS',
   "assignment.role = 'cadet'",
@@ -1621,6 +1622,44 @@ for (const required of [
 ]) {
   assert.ok(guaranteedTentlessTour.includes(required), `Missing guaranteed tentless-tour safeguard: ${required}`);
 }
+for (const step of [
+  'welcome_swipe_to_verse',
+  'welcome_like_verse',
+  'welcome_comment_verse',
+  'welcome_swipe_to_quote',
+  'welcome_like_quote',
+  'welcome_comment_quote',
+]) {
+  assert.ok(newcomerGuidanceApi.includes(step), 'Missing Welcome Panel guide API step: ' + step);
+  assert.ok(newcomerGuide.includes(step), 'Missing Welcome Panel guide UI step: ' + step);
+  assert.ok(welcomeSocialNewcomerTour.includes(step), 'Missing Welcome Panel guide database step: ' + step);
+}
+for (const required of [
+  'ALTER COLUMN guide_version SET DEFAULT 3',
+  "WHEN 'dashboard_games' THEN 'welcome_swipe_to_verse'",
+  "WHEN 'welcome_comment_quote' THEN 'daily_games'",
+  'FROM public.daily_verse_reactions reaction',
+  'FROM public.daily_verse_comments verse_comment',
+  'FROM public.daily_quote_reactions reaction',
+  'FROM public.daily_quote_comments quote_comment',
+  'FROM public.daily_records daily_record',
+  'daily_record.user_id <> v_user_id',
+  'reaction.created_at >= v_guidance.updated_at',
+  'verse_comment.created_at >= v_guidance.updated_at',
+  'quote_comment.created_at >= v_guidance.updated_at',
+  "'guide_version', v_guidance.guide_version",
+]) {
+  assert.ok(welcomeSocialNewcomerTour.includes(required), 'Missing verified Welcome Panel tour safeguard: ' + required);
+}
+assert.match(newcomerGuide, /NEWCOMER_GUIDANCE_ACTION_EVENT/);
+assert.match(newcomerGuide, /directNewcomerGuidanceHero/);
+assert.match(newcomerGuide, /animate-newcomer-horizontal-swipe/);
+assert.match(cadetDashboard, /data-guide="welcome-carousel"/);
+assert.match(cadetDashboard, /data-guide-slide-active/);
+assert.match(cadetDashboard, /guideScope="welcome-daily-verse"/);
+assert.match(cadetDashboard, /'welcome-other-quote'/);
+assert.match(quoteReactions, /announceNewcomerGuidanceAction/);
+assert.match(quoteReactions, /comment-submit/);
 for (const required of [
   "@all([^[:alnum:]_]|$)",
   "TG_TABLE_NAME IN ('daily_quote_comments', 'daily_verse_comments', 'quiz_waiting_messages')",

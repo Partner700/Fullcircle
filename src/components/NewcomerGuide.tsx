@@ -4,9 +4,12 @@ import { BellRing, BookOpen, Gamepad2, Loader2, MoveUp, Pointer, Sparkles } from
 import { useAuth } from '../context/AuthContext';
 import {
   completeNewcomerGuidanceStep,
+  directNewcomerGuidanceHero,
   fetchMyNewcomerGuidance,
+  NEWCOMER_GUIDANCE_ACTION_EVENT,
   NEWCOMER_GUIDANCE_REFRESH_EVENT,
   OPEN_APP_NAVIGATION_EVENT,
+  type NewcomerGuidanceAction,
   type NewcomerGuidanceState,
   type NewcomerGuidanceStep,
 } from '../lib/newcomerGuidance';
@@ -34,9 +37,38 @@ const STEP_COPY: Partial<Record<NewcomerGuidanceStep, { title: string; text: str
   best_verse: { title: 'Choose your Best Verse', text: 'Select the verse that spoke to you most.' },
   meditation: { title: 'Write your meditation', text: 'This is where you reflect on the reading.' },
   daily_quote: { title: 'Finish with a Daily Quote', text: 'Capture your meditation in one short line.' },
-  dashboard_games: { title: 'Back to Dashboard', text: 'Now let us find the daily games.' },
+  dashboard_games: { title: 'Back to Dashboard', text: 'There are a few community actions to learn before the daily games.' },
+  welcome_swipe_to_verse: { title: 'Swipe the Welcome Panel', text: 'Swipe left to find the Daily Verse.' },
+  welcome_like_verse: { title: 'React to the Daily Verse', text: 'Choose a reaction that reflects what the verse means to you.' },
+  welcome_comment_verse: { title: 'Comment on the Daily Verse', text: 'Open the comments, write your thought, and send it.' },
+  welcome_swipe_to_quote: { title: 'Swipe Again', text: 'Swipe left to continue into the community quote feed.' },
+  welcome_like_quote: { title: "React to Someone's Quote", text: 'Choose a reaction for another person’s meditation quote.' },
+  welcome_comment_quote: { title: "Comment on Someone's Quote", text: 'Open the comments and encourage the person with a short message.' },
   daily_games: { title: 'Open Daily Games', text: 'Your Scripture games live here.' },
   daily_trivia: { title: 'Open Daily Trivia', text: 'Start with Daily Trivia. Your guided tour ends here.' },
+};
+
+const WELCOME_SOCIAL_STEPS = new Set<NewcomerGuidanceStep>([
+  'welcome_swipe_to_verse',
+  'welcome_like_verse',
+  'welcome_comment_verse',
+  'welcome_swipe_to_quote',
+  'welcome_like_quote',
+  'welcome_comment_quote',
+]);
+
+const WELCOME_SWIPE_STEPS = new Set<NewcomerGuidanceStep>([
+  'welcome_swipe_to_verse',
+  'welcome_swipe_to_quote',
+]);
+
+const ACTION_FOR_STEP: Partial<Record<NewcomerGuidanceStep, NewcomerGuidanceAction>> = {
+  welcome_swipe_to_verse: 'welcome_swiped',
+  welcome_like_verse: 'welcome_verse_reacted',
+  welcome_comment_verse: 'welcome_verse_commented',
+  welcome_swipe_to_quote: 'welcome_swiped',
+  welcome_like_quote: 'welcome_quote_reacted',
+  welcome_comment_quote: 'welcome_quote_commented',
 };
 
 function isVisible(element: HTMLElement) {
@@ -54,7 +86,36 @@ function selectorForStep(step: NewcomerGuidanceStep) {
   if (step === 'daily_games') return '[data-guide-nav="games"]';
   if (step === 'daily_trivia') return '[data-guide="daily-trivia"]';
   if (step === 'choose_tent') return '[data-guide-tent-choice]';
+  if (WELCOME_SWIPE_STEPS.has(step)) return '[data-guide="welcome-carousel"]';
+  if (step === 'welcome_like_verse') return '[data-guide-slide-active="true"] [data-guide="welcome-daily-verse-reaction"]';
+  if (step === 'welcome_like_quote') return '[data-guide-slide-active="true"] [data-guide="welcome-other-quote-reaction"]';
   return '';
+}
+
+function commentTargets(scope: 'welcome-daily-verse' | 'welcome-other-quote') {
+  const activeSlide = '[data-guide-slide-active="true"]';
+  const selectors = [
+    `${activeSlide} [data-guide="${scope}-comment-submit"]:not(:disabled)`,
+    `${activeSlide} [data-guide="${scope}-comment-input"]`,
+    `${activeSlide} [data-guide="${scope}-comment-open"]`,
+  ];
+  for (const selector of selectors) {
+    const target = Array.from(document.querySelectorAll<HTMLElement>(selector)).find(isVisible);
+    if (target) return [target];
+  }
+  return [];
+}
+
+function targetElementsForStep(step: NewcomerGuidanceStep) {
+  if (step === 'welcome_comment_verse') return commentTargets('welcome-daily-verse');
+  if (step === 'welcome_comment_quote') return commentTargets('welcome-other-quote');
+  const selector = selectorForStep(step);
+  if (!selector) return [];
+  const elements = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(isVisible);
+  if (step === 'welcome_like_verse' || step === 'welcome_like_quote') {
+    return [elements.find((element) => element.getAttribute('aria-pressed') !== 'true') || elements[0]].filter(Boolean) as HTMLElement[];
+  }
+  return elements;
 }
 
 export function NewcomerGuide({ activeTab, onNavigate }: Props) {
@@ -117,6 +178,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       document.removeEventListener('visibilitychange', retryWhenVisible);
     };
   }, [load]);
+
   useEffect(() => {
     if (!supportsWebPush()) return;
     void getCurrentPushSubscription().then((subscription) => setPushReady(Boolean(subscription))).catch(() => undefined);
@@ -143,6 +205,18 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     }
   }, [load]);
 
+  useEffect(() => {
+    if (!step) return;
+    const expectedAction = ACTION_FOR_STEP[step];
+    if (!expectedAction) return;
+    const receiveAction = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: NewcomerGuidanceAction }>).detail?.action;
+      if (action === expectedAction) void completeStep(step);
+    };
+    window.addEventListener(NEWCOMER_GUIDANCE_ACTION_EVENT, receiveAction);
+    return () => window.removeEventListener(NEWCOMER_GUIDANCE_ACTION_EVENT, receiveAction);
+  }, [completeStep, step]);
+
   const enableAlarmDelivery = async () => {
     setPushBusy(true);
     setPushMessage('');
@@ -164,12 +238,35 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       onNavigate('tent');
       return;
     }
+    if (WELCOME_SOCIAL_STEPS.has(step) && activeTab !== 'dashboard') {
+      onNavigate('dashboard');
+      return;
+    }
     if (step === 'dashboard_after_tent' && activeTab === 'dashboard') void completeStep(step);
     if (step === 'daily_scriptures' && activeTab === 'narrative') void completeStep(step);
     if (step === 'dashboard_games' && activeTab === 'dashboard') void completeStep(step);
     if (step === 'daily_games' && activeTab === 'games') void completeStep(step);
     if (step === 'daily_trivia' && activeTab === 'game') void completeStep(step);
   }, [activeTab, completeStep, onNavigate, step]);
+
+  useEffect(() => {
+    if (!step || !WELCOME_SOCIAL_STEPS.has(step) || activeTab !== 'dashboard') {
+      directNewcomerGuidanceHero(null, false);
+      return;
+    }
+    const target = step === 'welcome_swipe_to_verse'
+      ? 'welcome'
+      : step === 'welcome_like_verse' || step === 'welcome_comment_verse' || step === 'welcome_swipe_to_quote'
+        ? 'verse'
+        : 'other_quote';
+    const direct = () => directNewcomerGuidanceHero(target, true);
+    direct();
+    const timer = window.setInterval(direct, 750);
+    return () => {
+      window.clearInterval(timer);
+      directNewcomerGuidanceHero(null, false);
+    };
+  }, [activeTab, step]);
 
   useEffect(() => {
     if (step !== 'scroll_reading') return;
@@ -187,13 +284,26 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       setTargets([]);
       return;
     }
-    const selector = selectorForStep(step);
-    if (!selector) return;
+    const hasTargetStrategy = Boolean(selectorForStep(step))
+      || step === 'welcome_comment_verse'
+      || step === 'welcome_comment_quote';
+    if (!hasTargetStrategy) return;
     let frame = 0;
     let openedNavigation = false;
+    let emptyCommunityQuoteChecks = 0;
     const tracked = new Set<HTMLElement>();
     const update = () => {
-      const elements = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(isVisible);
+      const elements = targetElementsForStep(step);
+      if (elements.length > 0) {
+        emptyCommunityQuoteChecks = 0;
+      } else if (
+        (step === 'welcome_like_quote' || step === 'welcome_comment_quote')
+        && document.querySelector('[data-guide="welcome-carousel"]')
+        && !document.querySelector('[data-guide-slide-kind="other_quote"]')
+      ) {
+        emptyCommunityQuoteChecks += 1;
+        if (emptyCommunityQuoteChecks >= 12) void completeStep(step);
+      }
       tracked.forEach((element) => {
         if (!elements.includes(element)) element.classList.remove('newcomer-guide-target');
       });
@@ -225,7 +335,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       window.removeEventListener('scroll', refresh, true);
       tracked.forEach((element) => element.classList.remove('newcomer-guide-target'));
     };
-  }, [step]);
+  }, [completeStep, step]);
 
   useEffect(() => {
     if (!step || !['best_verse', 'meditation', 'daily_quote'].includes(step)) return;
@@ -264,7 +374,15 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
           <MoveUp size={42} className="animate-newcomer-swipe" />
           <BookOpen size={24} className="mt-1" />
         </div>
-      ) : targets.map((target) => (
+      ) : WELCOME_SWIPE_STEPS.has(step) ? targets.map((target) => (
+        <Pointer
+          key={target.key}
+          size={44}
+          strokeWidth={2.4}
+          className="fixed animate-newcomer-horizontal-swipe text-gold drop-shadow-lg"
+          style={{ left: Math.max(12, target.left + target.width / 2 - 22), top: Math.max(112, target.top + target.height / 2 - 12) }}
+        />
+      )) : targets.map((target) => (
         <Pointer
           key={target.key}
           size={38}

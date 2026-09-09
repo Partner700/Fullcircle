@@ -810,6 +810,12 @@
 
 .animate-newcomer-pointer { animation: newcomer-pointer 1.05s ease-in-out infinite; }
 .animate-newcomer-swipe { animation: newcomer-swipe 1.2s ease-out infinite; }
+@keyframes newcomer-horizontal-swipe {
+  0% { transform: translate3d(34px, 4px, 0) rotate(-12deg); opacity: 0.25; }
+  38% { opacity: 1; }
+  100% { transform: translate3d(-36px, 4px, 0) rotate(-12deg); opacity: 0.2; }
+}
+.animate-newcomer-horizontal-swipe { animation: newcomer-horizontal-swipe 1.35s ease-in-out infinite; }
 @keyframes sound-meter-pulse {
   0%, 100% { transform: scaleY(0.28); }
   45% { transform: scaleY(1); }

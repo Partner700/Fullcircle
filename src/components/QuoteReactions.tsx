@@ -4,6 +4,7 @@ import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
 import { MessageAvatar } from './TentMessenger';
 import { RelativeTime } from './RelativeTime';
+import { announceNewcomerGuidanceAction } from '../lib/newcomerGuidance';
 
 export type ReactionActor = {
   user_id: string;
@@ -12,6 +13,7 @@ export type ReactionActor = {
 };
 
 export type QuoteReactionState = Record<string, { count: number; reacted: boolean; actors?: ReactionActor[] }>;
+export type QuoteReactionGuideScope = 'welcome-daily-verse' | 'welcome-other-quote';
 
 const REACTIONS = [
   { type: 'amen', label: 'Amen', icon: HeartHandshake },
@@ -34,11 +36,12 @@ export function QuoteReactions({
   onEditComment,
   onCommentOpenChange,
   onMessageOpenChange,
+  guideScope,
   previewLimit = 2,
 }: {
   state?: QuoteReactionState;
   disabled?: boolean;
-  onReact: (reactionType: string) => void;
+  onReact: (reactionType: string) => void | Promise<void>;
   quoteUserId?: string;
   quoteRecordDate?: string;
   currentUserId?: string;
@@ -48,6 +51,7 @@ export function QuoteReactions({
   onEditComment?: (commentId: string, body: string) => Promise<void>;
   onCommentOpenChange?: (open: boolean) => void;
   onMessageOpenChange?: (open: boolean) => void;
+  guideScope?: QuoteReactionGuideScope;
   previewLimit?: number;
 }) {
   const [comments, setComments] = useState<DailyQuoteComment[]>([]);
@@ -61,6 +65,8 @@ export function QuoteReactions({
   const [editingBody, setEditingBody] = useState('');
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
   const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
+  const guideReactionAction = guideScope === 'welcome-daily-verse' ? 'welcome_verse_reacted' : 'welcome_quote_reacted';
+  const guideCommentAction = guideScope === 'welcome-daily-verse' ? 'welcome_verse_commented' : 'welcome_quote_commented';
 
   useEffect(() => {
     /* Do not emit a false value on mount or unmount. The same pause callback
@@ -92,6 +98,7 @@ export function QuoteReactions({
         await onReply(body.trim(), replyTarget.id, [replyTarget.commenter_user_id]);
       } else {
         await onComment(body.trim());
+        if (guideScope) announceNewcomerGuidanceAction(guideCommentAction);
       }
       setBody('');
       setReplyTarget(null);
@@ -133,6 +140,15 @@ export function QuoteReactions({
       .map((actor) => [actor.user_id, actor]),
   ).values()).slice(0, 5);
 
+  const submitReaction = async (reactionType: string, alreadyReacted: boolean) => {
+    try {
+      await onReact(reactionType);
+      if (guideScope && !alreadyReacted) announceNewcomerGuidanceAction(guideReactionAction);
+    } catch {
+      // The owning screen restores its optimistic state and reports the error.
+    }
+  };
+
   return (
     <div className="mt-6 space-y-3 pt-2">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -144,7 +160,9 @@ export function QuoteReactions({
               key={reaction.type}
               type="button"
               disabled={disabled}
-              onClick={() => onReact(reaction.type)}
+              onClick={() => void submitReaction(reaction.type, data.reacted)}
+              data-guide={guideScope ? `${guideScope}-reaction` : undefined}
+              data-reaction-type={reaction.type}
               className={cn(
                 reactionButtonClass,
                 data.reacted
@@ -164,6 +182,7 @@ export function QuoteReactions({
           <button
             type="button"
             onClick={() => setShowComments(true)}
+            data-guide={guideScope ? `${guideScope}-comment-open` : undefined}
             className={cn(reactionButtonClass, 'border-border bg-surface-2 text-stone hover:border-royal/40 hover:text-royal')}
             title="Comments"
             aria-label={`${commentTotal} comments`}
@@ -352,8 +371,9 @@ export function QuoteReactions({
               value={body}
               onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitComment(); } }}
+              data-guide={guideScope ? `${guideScope}-comment-input` : undefined}
             />
-            <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary px-3">
+            <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary px-3" data-guide={guideScope ? `${guideScope}-comment-submit` : undefined}>
               {commenting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             </button>
           </div>

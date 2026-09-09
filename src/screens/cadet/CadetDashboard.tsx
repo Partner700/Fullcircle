@@ -20,6 +20,11 @@ import { publicAsset } from '../../lib/publicAsset';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { supabase } from '../../lib/supabase';
 import { DAILY_GAME_LEVELS } from '../../lib/constants';
+import {
+  announceNewcomerGuidanceAction,
+  NEWCOMER_GUIDANCE_HERO_EVENT,
+  type NewcomerGuidanceHeroTarget,
+} from '../../lib/newcomerGuidance';
 import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, ChallengeSubmission, Tent, TentMember, Profile, StreakInfo, DailyQuoteFeedItem, ScheduledAnnouncement, PanelImageSetting, FcxExperience, AwardWithRecipient, WeeklyQuizRanking } from '../../lib/types';
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
@@ -84,6 +89,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
+  const [heroGuidePaused, setHeroGuidePaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
   const loadRequestRef = useRef<Promise<void> | null>(null);
@@ -247,7 +253,26 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     })),
   ];
   const heroSlideCount = heroSlides.length;
-  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld, () => {
+  const guideVerseSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'verse');
+  const guideQuoteSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'quote' && slide.quote.user_id !== profile?.id);
+
+  useEffect(() => {
+    const followGuide = (event: Event) => {
+      const detail = (event as CustomEvent<{ target: NewcomerGuidanceHeroTarget; paused: boolean }>).detail;
+      setHeroGuidePaused(Boolean(detail?.paused));
+      if (!detail?.target) return;
+      const targetIndex = detail.target === 'welcome'
+        ? 0
+        : detail.target === 'verse'
+          ? guideVerseSlideIndex
+          : guideQuoteSlideIndex;
+      if (targetIndex >= 0) setHeroIndex(targetIndex);
+    };
+    window.addEventListener(NEWCOMER_GUIDANCE_HERO_EVENT, followGuide);
+    return () => window.removeEventListener(NEWCOMER_GUIDANCE_HERO_EVENT, followGuide);
+  }, [guideQuoteSlideIndex, guideVerseSlideIndex]);
+
+  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld && !heroGuidePaused, () => {
     setHeroIndex((index) => index + 1);
   });
 
@@ -315,8 +340,10 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           } catch (e: any) {
             setQuoteReactions(previousReactions);
             alert(e.message || 'Could not react to quote.');
+            throw e;
+          } finally {
+            setReactingQuote(null);
           }
-          setReactingQuote(null);
         }}
         onReactVerse={async (narrativeDate, reactionType) => {
           if (!profile) return;
@@ -335,8 +362,10 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           } catch (e: any) {
             setVerseReactions(previousReactions);
             alert(e.message || 'Could not react to verse.');
+            throw e;
+          } finally {
+            setReactingVerse(null);
           }
-          setReactingVerse(null);
         }}
         onPrev={() => setHeroIndex((idx) => idx - 1)}
         onNext={() => setHeroIndex((idx) => idx + 1)}
@@ -526,6 +555,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
     if (Math.abs(deltaX) < 44 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) return;
     if (deltaX < 0) onNext();
     else onPrev();
+    announceNewcomerGuidanceAction('welcome_swiped');
   };
 
   useEffect(() => {
@@ -546,6 +576,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
 
   return (
     <div
+      data-guide="welcome-carousel"
       className="card relative max-h-[66.666svh] overflow-hidden transition-[height,max-height] duration-300 animate-slide-up"
       style={{ maxHeight: panelMaxHeight, height: conversationOpen ? panelMaxHeight : undefined }}
     >
@@ -582,6 +613,8 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
           return (
             <div
               key={`${slide.id}-${slideIndex}`}
+              data-guide-slide-active={displayIndex === slideIndex ? 'true' : 'false'}
+              data-guide-slide-kind={slide.kind === 'quote' && slide.quote.user_id !== currentUserId ? 'other_quote' : slide.kind}
               className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16"
               style={{ maxHeight: panelMaxHeight, height: conversationOpen ? panelMaxHeight : undefined }}
             >
@@ -687,6 +720,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         state={verseReactions[slide.narrative.narrative_date]}
                         disabled={!!reactingVerse?.startsWith(`${slide.narrative.narrative_date}:`)}
                         onReact={(reactionType) => onReactVerse(slide.narrative.narrative_date, reactionType)}
+                        guideScope="welcome-daily-verse"
                         quoteUserId={currentUserId || undefined}
                         quoteRecordDate={slide.narrative.narrative_date}
                         currentUserId={currentUserId || undefined}
@@ -763,6 +797,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
                           disabled={!!reactingQuote?.startsWith(`${slide.quote.user_id}:${slide.quote.record_date}:`)}
                           onReact={(reactionType) => onReactQuote(slide.quote, reactionType)}
+                          guideScope={slide.quote.user_id !== currentUserId ? 'welcome-other-quote' : undefined}
                           quoteUserId={slide.quote.user_id}
                           quoteRecordDate={slide.quote.record_date}
                           currentUserId={currentUserId || undefined}
@@ -803,9 +838,9 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
         <ScrollEdge position="bottom" className="text-brass flex-1" />
         {count > 1 && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button onClick={onPrev} className="btn-ghost text-xs px-2 py-1">Prev</button>
+            <button onClick={() => { onPrev(); announceNewcomerGuidanceAction('welcome_swiped'); }} className="btn-ghost text-xs px-2 py-1">Prev</button>
             <span className="text-[10px] text-stone">{counterIndex + 1}/{count}</span>
-            <button onClick={onNext} className="btn-ghost text-xs px-2 py-1">Next</button>
+            <button onClick={() => { onNext(); announceNewcomerGuidanceAction('welcome_swiped'); }} className="btn-ghost text-xs px-2 py-1">Next</button>
           </div>
         )}
       </div>
