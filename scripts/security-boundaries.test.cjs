@@ -152,6 +152,10 @@ const punctualAlarmsAndGuidance = read('supabase/migrations/20260908100000_ten_m
 const tentlessCadetGuidance = read('supabase/migrations/20260908110000_guide_existing_tentless_cadets.sql');
 const contextualAllMentions = read('supabase/migrations/20260908120000_contextual_all_mentions.sql');
 const confirmedPresenceStreak = read('supabase/migrations/20260908130000_confirmed_presence_streak_continuity.sql');
+const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_streak_engine.sql');
+const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
+const deleteAccountSection = read('src/components/DeleteAccountSection.tsx');
+const deleteAccountFunction = read('supabase/functions/delete-account/index.ts');
 const newcomerGuide = read('src/components/NewcomerGuide.tsx');
 const alarmPreferences = read('src/lib/alarmPreferences.ts');
 const browserNotificationSettings = read('src/components/BrowserNotificationSettings.tsx');
@@ -402,8 +406,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v122'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '115'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v123'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '116'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -417,7 +421,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-08-v122/);
+assert.match(releaseCache, /2026-09-09-v123/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1624,6 +1628,60 @@ assert.match(notificationArrival, /isTentJoinRequestArrival/);
 assert.match(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
 assert.match(doveNotificationArrivalComponent, /\} Accept/);
 assert.match(indexCss, /quote-comments-boundary-fade[\s\S]*?100% - 6rem/);
+
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.streak_forward_baselines',
+  'CREATE TABLE IF NOT EXISTS public.streak_forward_daily_states',
+  'snapshot.snapshot_date < clock.today',
+  'state.record_date < v_today',
+  'AND state.settled',
+  "v_outcome := 'earned'",
+  'v_current := v_opening + 1',
+  "v_outcome := 'frozen'",
+  'v_current := v_opening',
+  "v_outcome := 'missed'",
+  'v_current := 0',
+  "v_outcome := 'neutral'",
+  'CREATE OR REPLACE FUNCTION public.reconcile_forward_streak_from_date',
+  'reconcile_forward_streak_after_daily_correction',
+  'reconcile_forward_streak_after_daily_insert',
+  'OLD.attendance_marked_by IS DISTINCT FROM NEW.attendance_marked_by',
+  'OLD.sunday_reading_opened_at IS DISTINCT FROM NEW.sunday_reading_opened_at',
+  'reconcile_forward_streak_after_quiz_correction',
+  'reconcile_forward_streak_after_quiz_insert',
+  'CREATE OR REPLACE FUNCTION public.complete_thiefs_request_after_use',
+  'SELECT public.refresh_all_streak_snapshots()',
+  "'full-circle-streak-day-close'",
+]) {
+  assert.ok(forwardOnlyStreak.includes(required), `Missing forward-only streak safeguard: ${required}`);
+}
+assert.doesNotMatch(forwardOnlyStreak, /v_current\s*:=\s*(?:greatest\([^;]*?)?v_current\s*-\s*1/);
+assert.doesNotMatch(forwardOnlyStreak, /SELECT\s+least\([\s\S]{0,500}?profile\.created_at/);
+assert.match(forwardOnlyStreak, /Serialize an explicit correction with ordinary streak reads/);
+assert.match(forwardOnlyStreak, /v_later\.outcome IN \('earned', 'purchased', 'restored'\)/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.release_account_deletion_references',
+  "auth.role() IS DISTINCT FROM 'service_role'",
+  'CREATE OR REPLACE FUNCTION public.prepare_account_inheritance',
+  'FOR v_award IN',
+  "coalesce(existing.award_target_type, 'cadet')",
+  'coalesce(existing.award_target_id, existing.user_id)',
+  'DELETE FROM public.streakboard_snapshots source_snapshot',
+  "source.source = 'founders_gift'",
+  'UPDATE public.tent_members member',
+  'Preserved the stronger streak while deleting duplicate account',
+  'PERFORM public.release_account_deletion_references(p_account_id)',
+]) {
+  assert.ok(resilientAccountInheritance.includes(required), `Missing resilient account-inheritance safeguard: ${required}`);
+}
+assert.doesNotMatch(resilientAccountInheritance, /ON CONFLICT \(award_month, user_id, award_type\)/);
+assert.match(deleteAccountSection, /select\('id, display_name, avatar_url, created_at'\)/);
+assert.match(deleteAccountSection, /function heirAccountLabel/);
+assert.match(deleteAccountSection, /account \$\{candidate\.id\.slice\(-4\)\.toUpperCase\(\)\}/);
+assert.match(deleteAccountSection, /try \{[\s\S]*?supabase\.functions\.invoke\('delete-account'/);
+assert.match(deleteAccountFunction, /prepare_account_inheritance/);
+assert.match(deleteAccountFunction, /auth\/v1\/admin\/users\/\$\{userId\}/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

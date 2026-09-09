@@ -7,9 +7,17 @@ import type { Role } from '../lib/types';
 type HeirCandidate = {
   id: string;
   displayName: string;
+  createdAt: string | null;
   avatarUrl: string | null;
   role: Role;
 };
+
+function heirAccountLabel(candidate: HeirCandidate) {
+  const joined = candidate.createdAt
+    ? new Date(candidate.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'date unknown';
+  return `${candidate.role} · joined ${joined} · account ${candidate.id.slice(-4).toUpperCase()}`;
+}
 
 export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
   const { profile, role } = useAuth();
@@ -28,7 +36,7 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
 
     (async () => {
       const [{ data: profiles, error: profilesError }, { data: assignments, error: rolesError }] = await Promise.all([
-        supabase.from('profiles').select('id, display_name, avatar_url').neq('id', profile.id),
+        supabase.from('profiles').select('id, display_name, avatar_url, created_at').neq('id', profile.id),
         supabase
           .from('role_assignments')
           .select('user_id, role, status, created_at')
@@ -54,6 +62,7 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
         .map((candidate: any) => ({
           id: candidate.id,
           displayName: candidate.display_name,
+          createdAt: candidate.created_at,
           avatarUrl: candidate.avatar_url,
           role: activeRoleByUser.get(candidate.id),
         }))
@@ -96,18 +105,23 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
     setDeleting(true);
     setError('');
 
-    const { data, error: invokeError } = await supabase.functions.invoke('delete-account', {
-      body: { heirId },
-    });
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('delete-account', {
+        body: { heirId },
+      });
 
-    if (invokeError || data?.error) {
-      setError(data?.error || invokeError?.message || 'Account deletion failed.');
+      if (invokeError || data?.error) {
+        setError(data?.error || invokeError?.message || 'Account deletion failed.');
+        setDeleting(false);
+        return;
+      }
+
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      window.location.assign('/');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Account deletion failed.');
       setDeleting(false);
-      return;
     }
-
-    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-    window.location.assign('/');
   };
 
   const titleClass = dark ? 'text-peri' : 'text-ink';
@@ -193,7 +207,7 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
                   <option value="">Choose a person…</option>
                   {candidates.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>
-                      {candidate.displayName} · {candidate.role}
+                      {candidate.displayName} · {heirAccountLabel(candidate)}
                     </option>
                   ))}
                 </select>
@@ -212,7 +226,7 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
                 <div className="min-w-0">
                   <p className={`text-sm font-semibold truncate ${titleClass}`}>{selectedHeir.displayName}</p>
                   <p className={`text-xs capitalize ${mutedClass}`}>
-                    {selectedHeir.role} · nominated heir
+                    {heirAccountLabel(selectedHeir)}
                   </p>
                 </div>
               </div>
@@ -257,5 +271,3 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
     </>
   );
 }
-
-
