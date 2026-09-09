@@ -154,9 +154,11 @@ const contextualAllMentions = read('supabase/migrations/20260908120000_contextua
 const confirmedPresenceStreak = read('supabase/migrations/20260908130000_confirmed_presence_streak_continuity.sql');
 const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_streak_engine.sql');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
+const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
 const deleteAccountSection = read('src/components/DeleteAccountSection.tsx');
 const deleteAccountFunction = read('supabase/functions/delete-account/index.ts');
 const newcomerGuide = read('src/components/NewcomerGuide.tsx');
+const newcomerGuidanceApi = read('src/lib/newcomerGuidance.ts');
 const alarmPreferences = read('src/lib/alarmPreferences.ts');
 const browserNotificationSettings = read('src/components/BrowserNotificationSettings.tsx');
 const doveNotificationArrivalComponent = read('src/components/DoveNotificationArrival.tsx');
@@ -406,8 +408,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v123'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '116'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v124'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '117'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -421,7 +423,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-09-v123/);
+assert.match(releaseCache, /2026-09-09-v124/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1587,6 +1589,14 @@ assert.match(scriptureAlarmOverlay, /getNotifications\(\{ tag: 'full-circle-scri
 assert.match(newcomerGuide, /data-guide-nav/);
 assert.match(newcomerGuide, /scroll_reading/);
 assert.match(newcomerGuide, /Full Circle Guide/);
+assert.match(newcomerGuide, /fetchMyNewcomerGuidance\(profile\.id\)/);
+assert.match(newcomerGuide, /window\.addEventListener\('online', retryNow\)/);
+assert.match(newcomerGuide, /document\.addEventListener\('visibilitychange', retryWhenVisible\)/);
+assert.ok(!newcomerGuide.includes('attempts >= 5'), 'The newcomer tour must keep retrying after a slow mobile connection.');
+assert.match(newcomerGuidanceApi, /fetchTentlessGuidanceFallback/);
+assert.match(newcomerGuidanceApi, /\.from\('tent_members'\)/);
+assert.match(newcomerGuidanceApi, /\.from\('tent_join_requests'\)/);
+assert.match(newcomerGuidanceApi, /Number\(data\.guide_version \|\| 0\) < 2/);
 for (const required of [
   'WITH tentless_cadets AS',
   "assignment.role = 'cadet'",
@@ -1597,6 +1607,19 @@ for (const required of [
   'CREATE OR REPLACE FUNCTION public.get_my_newcomer_guidance',
 ]) {
   assert.ok(tentlessCadetGuidance.includes(required), `Missing existing tentless-cadet guidance safeguard: ${required}`);
+}
+for (const required of [
+  'ADD COLUMN IF NOT EXISTS guide_version integer',
+  'ALTER COLUMN guide_version SET DEFAULT 2',
+  'WITH tentless_users AS',
+  'AND guidance.guide_version < 2',
+  'AND NOT v_has_pending_request',
+  "'guide_version', v_guidance.guide_version",
+  'CREATE OR REPLACE FUNCTION private.initialize_newcomer_guidance',
+  'guide_version = 2',
+  'CREATE OR REPLACE FUNCTION public.get_my_newcomer_guidance',
+]) {
+  assert.ok(guaranteedTentlessTour.includes(required), `Missing guaranteed tentless-tour safeguard: ${required}`);
 }
 for (const required of [
   "@all([^[:alnum:]_]|$)",

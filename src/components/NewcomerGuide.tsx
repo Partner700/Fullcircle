@@ -69,15 +69,54 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
   const step = guidance?.current_step;
 
   const load = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      setGuidance(null);
+      return true;
+    }
     try {
-      setGuidance(await fetchMyNewcomerGuidance());
+      setGuidance(await fetchMyNewcomerGuidance(profile.id));
+      return true;
     } catch {
-      // The tour stays out of the way until its database migration is available.
+      return false;
     }
   }, [profile?.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimer = 0;
+    let attempts = 0;
+    let inFlight = false;
+
+    const run = async (resetAttempts = false) => {
+      if (inFlight || cancelled) return;
+      if (resetAttempts) attempts = 0;
+      inFlight = true;
+      const loaded = await load();
+      inFlight = false;
+      if (loaded || cancelled) return;
+      const delay = Math.min(8_000, 750 * (2 ** attempts));
+      attempts = Math.min(attempts + 1, 5);
+      retryTimer = window.setTimeout(() => { void run(); }, delay);
+    };
+
+    const retryNow = () => {
+      window.clearTimeout(retryTimer);
+      void run(true);
+    };
+    const retryWhenVisible = () => {
+      if (document.visibilityState === 'visible') retryNow();
+    };
+
+    void run();
+    window.addEventListener('online', retryNow);
+    document.addEventListener('visibilitychange', retryWhenVisible);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener('online', retryNow);
+      document.removeEventListener('visibilitychange', retryWhenVisible);
+    };
+  }, [load]);
   useEffect(() => {
     if (!supportsWebPush()) return;
     void getCurrentPushSubscription().then((subscription) => setPushReady(Boolean(subscription))).catch(() => undefined);
