@@ -156,6 +156,7 @@ const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
 const welcomeSocialNewcomerTour = read('supabase/migrations/20260909113000_welcome_social_newcomer_tour.sql');
+const reliableScriptureAlarms = read('supabase/migrations/20260909202000_restore_reliable_scripture_alarms.sql');
 const deleteAccountSection = read('src/components/DeleteAccountSection.tsx');
 const deleteAccountFunction = read('supabase/functions/delete-account/index.ts');
 const newcomerGuide = read('src/components/NewcomerGuide.tsx');
@@ -1582,6 +1583,26 @@ for (const required of [
 assert.doesNotMatch(punctualAlarmsAndGuidance, /(?:UPDATE|INSERT INTO) public\.daily_records/);
 assert.match(pushDelivery, /TTL: isScriptureAlarm \? 600 : 3_600/);
 assert.match(pushDelivery, /"full-circle-scripture-alarm"/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION private.user_is_scripture_alarm_eligible',
+  'FROM public.profiles profile',
+  "coalesce(profile.created_at, '-infinity'::timestamptz)",
+  "assignment.status IN ('active', 'approved', 'promoted')",
+  'CREATE OR REPLACE FUNCTION private.dispatch_due_scripture_alarms',
+  "ARRAY['morning', 'midday', 'evening', 'final']::text[]",
+  "'59 4 * * 1-5'",
+  "'0 11 * * 1-5'",
+  "'0 17 * * 1-5'",
+  "'30 19 * * 1-5'",
+  "'full-circle-scripture-alarm-watchdog'",
+  "'full-circle-scripture-alarm-expiry'",
+  "'* * * * *'",
+  'SELECT private.dispatch_due_scripture_alarms()',
+]) {
+  assert.ok(reliableScriptureAlarms.includes(required), `Missing restored alarm safeguard: ${required}`);
+}
+assert.doesNotMatch(reliableScriptureAlarms, /FROM public\.newcomer_guidance/);
+assert.doesNotMatch(reliableScriptureAlarms, /(?:UPDATE|INSERT INTO) public\.daily_records/);
 assert.match(alarmPreferences, /MAX_ALARM_VOLUME = 200/);
 assert.match(alarmPreferences, /DEFAULT_ALARM_VOLUME = 200/);
 assert.match(browserNotificationSettings, /<AlarmVolumeControl/);
