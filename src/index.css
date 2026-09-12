@@ -2376,27 +2376,102 @@
 }
 
 .profile-cv-panel {
-  min-height: min(34rem, 88dvh);
+  max-width: 27rem;
+  max-height: calc(100dvh - 1.5rem);
+  overscroll-behavior: contain;
+}
+
+.profile-cv-header {
+  padding: 0.25rem 0.75rem;
+}
+
+.profile-cv-body {
+  padding: 0.85rem;
+}
+
+.profile-cv-identity {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 4.5rem;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.profile-cv-avatar {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.profile-cv-name {
+  font-size: 1.05rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.profile-cv-marks {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.profile-cv-measures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.85rem;
 }
 
 .profile-cv-measure {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
   min-width: 0;
-  align-items: flex-start;
-  gap: 0.7rem;
+  align-content: start;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   background: color-mix(in srgb, var(--color-surface) 78%, transparent);
-  padding: 0.8rem;
+  padding: 0.6rem;
   backdrop-filter: blur(10px);
 }
 
 .profile-cv-measure-icon {
   display: inline-flex;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 1.6rem;
+  height: 1.6rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   border-radius: 0.45rem;
+}
+
+.profile-cv-value {
+  max-width: 100%;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.profile-cv-explanation {
+  grid-column: 1 / -1;
+  font-size: 0.625rem;
+  line-height: 1.35;
+}
+
+.profile-cv-footer {
+  margin-top: 0.65rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-height: 540px) {
+  .profile-cv-body { padding: 0.6rem; }
+  .profile-cv-measures { margin-top: 0.6rem; gap: 0.35rem; }
+  .profile-cv-measure { padding: 0.45rem; }
+  .profile-cv-footer { margin-top: 0.4rem; padding-top: 0.35rem; }
 }

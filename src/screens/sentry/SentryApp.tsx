@@ -27,7 +27,7 @@ import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchLedgerEntries, fetchReliableToolbarStats, fetchPublicStreakDetails, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
-  fetchTentJoinRequests, reviewTentJoinRequest, type TentJoinRequestSummary,
+  fetchTentJoinRequests, reviewTentJoinRequest, fetchSentryCadetContacts, type TentJoinRequestSummary,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
@@ -194,14 +194,25 @@ export function SentryApp() {
     if (!targetTent) return Promise.resolve();
     if (memberRequestRef.current) return memberRequestRef.current;
     const request = (async () => {
-      const memberResponse = await supabase
+      const [memberResponse, contacts] = await Promise.all([
+        supabase
         .from('tent_members')
         .select('*, profiles(id,display_name,avatar_url,created_at)')
         .eq('tent_id', targetTent.id)
         .eq('role', 'cadet')
-        .order('joined_at');
+        .order('joined_at'),
+        fetchSentryCadetContacts(targetTent.id).catch((error) => {
+          console.warn('Sentry cadet contacts could not load:', error);
+          return [];
+        }),
+      ]);
       if (memberResponse.error) throw memberResponse.error;
-      const nextMembers = (memberResponse.data || []) as (TentMember & { profiles: Profile })[];
+      const contactsByUser = new Map(contacts.map((contact) => [contact.user_id, contact.whatsapp_number]));
+      const nextMembers = ((memberResponse.data || []) as (TentMember & { profiles: Profile })[])
+        .map((member) => ({
+          ...member,
+          profiles: { ...member.profiles, whatsapp_number: contactsByUser.get(member.user_id) || null },
+        }));
       setMembers(nextMembers);
 
       const memberIds = nextMembers.map((member) => member.user_id);
@@ -1012,6 +1023,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
                         className="inline-flex items-center justify-center w-7 h-7 rounded-lg transition-colors"
                         style={{ background: 'rgba(37, 211, 102, 0.12)', color: '#25D366' }}
                         title={`WhatsApp ${m.profiles.display_name}`}
+                        aria-label={`Contact ${m.profiles.display_name} on WhatsApp`}
                       >
                         <MessageCircle size={14} />
                       </a>

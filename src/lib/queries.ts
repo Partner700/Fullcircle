@@ -227,6 +227,12 @@ export async function fetchTentMembersForTent(tentId: string) {
   return data as (TentMember & { profiles: Profile })[];
 }
 
+export async function fetchSentryCadetContacts(tentId: string) {
+  const { data, error } = await supabase.rpc('get_sentry_cadet_contacts', { p_tent_id: tentId });
+  if (error) throw error;
+  return (data || []) as { user_id: string; whatsapp_number: string | null }[];
+}
+
 export async function assignCadetToTent(tentId: string, userId: string) {
   const { error } = await supabase.rpc('assign_cadet_to_tent', {
     p_tent_id: tentId,

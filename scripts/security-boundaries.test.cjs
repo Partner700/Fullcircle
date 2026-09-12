@@ -1793,6 +1793,19 @@ for (const required of [
   assert.ok(profileCvModal.includes(required), `Missing Profile CV behavior: ${required}`);
 }
 assert.match(rootApp, /<ProfileCvHost\s*\/?>/);
+assert.match(profileCvModal, /profile-cv-overlay[^\n]*items-center justify-center/);
+assert.doesNotMatch(profileCvModal, /items-end|rounded-t-/);
+assert.match(cadetApp, /key: 'profile', label: 'My Profile'/);
+assert.match(cadetApp, /if \(k === 'profile'\) \{\s*openProfileCv\(profile\?\.id\);\s*return;/);
+
+const sentryCadetContacts = fs.readFileSync(path.join(root, 'supabase/migrations/20260912140000_sentry_cadet_contacts.sql'), 'utf8');
+assert.match(sentryCadetContacts, /RETURNS TABLE\(user_id uuid, whatsapp_number text\)/);
+assert.match(sentryCadetContacts, /v_caller IS NULL/);
+assert.match(sentryCadetContacts, /NOT public\.is_instructor\(v_caller\)[\s\S]*NOT public\.is_sentry_of_tent\(v_caller, p_tent_id\)/);
+assert.match(sentryCadetContacts, /member\.tent_id = p_tent_id[\s\S]*member\.role = 'cadet'/);
+assert.match(sentryCadetContacts, /REVOKE ALL ON FUNCTION public\.get_sentry_cadet_contacts\(uuid\) FROM PUBLIC, anon/);
+assert.match(sentryApp, /fetchSentryCadetContacts\(targetTent\.id\)/);
+assert.match(sentryApp, /whatsapp_number: contactsByUser\.get\(member\.user_id\)/);
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.get_profile_cv',

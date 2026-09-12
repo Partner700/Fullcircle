@@ -43,12 +43,13 @@ import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget }
 import { publicAsset } from '../../lib/publicAsset';
 import { announceDenariiGain } from '../../lib/denariiAnimation';
 import { dailyGamesNavigationKey } from '../../lib/dailyGames';
+import { openProfileCv } from '../../lib/profileCv';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { isDoveArrival } from '../../lib/notificationArrival';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag,
-  Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck,
+  Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck, Contact,
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
@@ -150,6 +151,7 @@ async function showDeviceNotification(notification: UserNotification) {
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
+  { key: 'profile', label: 'My Profile', icon: Contact },
   { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
   { key: 'streak', label: 'My Streak', icon: Flame },
   { key: 'games', label: 'Daily Games', icon: Gamepad2 },
@@ -918,6 +920,10 @@ export function CadetApp() {
   };
 
   const handleNavigate = useCallback((k: string) => {
+    if (k === 'profile') {
+      openProfileCv(profile?.id);
+      return;
+    }
     const requestedTab = k as Tab;
     if (isExpired && PREMIUM_TABS.has(requestedTab)) {
       setTab('subscribe');
@@ -935,7 +941,7 @@ export function CadetApp() {
       });
     }
     setTab(nextTab);
-  }, [isExpired, notifications]);
+  }, [isExpired, notifications, profile?.id]);
 
   useEffect(() => {
     const navigate = (event: Event) => {
