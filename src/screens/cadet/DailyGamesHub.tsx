@@ -31,6 +31,7 @@ type HubState = {
   attempts: GameAttempt[];
   gameImage: PanelImageSetting | null;
   arenaImage: PanelImageSetting | null;
+  storyImage: PanelImageSetting | null;
 };
 
 const EMPTY_STATE: HubState = {
@@ -38,6 +39,7 @@ const EMPTY_STATE: HubState = {
   attempts: [],
   gameImage: null,
   arenaImage: null,
+  storyImage: null,
 };
 
 export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyGamesHubProps) {
@@ -63,11 +65,12 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const [narrativeResult, attemptsResult, gameImageResult, arenaImageResult] = await Promise.allSettled([
+      const [narrativeResult, attemptsResult, gameImageResult, arenaImageResult, storyImageResult] = await Promise.allSettled([
         fetchNarrative(today),
         fetchGameAttempts(profile.id, today),
         fetchPanelImageSetting('game'),
         fetchPanelImageSetting('arena'),
+        fetchPanelImageSetting('story_mode'),
       ]);
       if (cancelled) return;
       setState({
@@ -75,6 +78,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
         attempts: attemptsResult.status === 'fulfilled' ? attemptsResult.value : [],
         gameImage: gameImageResult.status === 'fulfilled' ? gameImageResult.value : null,
         arenaImage: arenaImageResult.status === 'fulfilled' ? arenaImageResult.value : null,
+        storyImage: storyImageResult.status === 'fulfilled' ? storyImageResult.value : null,
       });
       setLoading(false);
     };
@@ -122,7 +126,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <article className="card relative flex min-h-[23rem] flex-col overflow-hidden p-5">
-          <PanelImageBackdrop image={state.gameImage} opacityFallback={26} veilClassName="bg-navy-2/78" />
+          <PanelImageBackdrop image={state.gameImage} opacityFallback={26} veilClassName="daily-trivia-panel-veil" />
           <div className="relative z-10 flex h-full flex-1 flex-col">
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold">
@@ -162,7 +166,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
         </article>
 
         <article className="card relative flex min-h-[23rem] flex-col overflow-hidden p-5">
-          <PanelImageBackdrop image={state.arenaImage} opacityFallback={28} veilClassName="bg-navy-2/80" />
+          <PanelImageBackdrop image={state.arenaImage} opacityFallback={28} veilClassName="arena-panel-veil" />
           <div className="relative z-10 flex h-full flex-1 flex-col">
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-coral/35 bg-coral-soft text-coral">
@@ -198,6 +202,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
         </article>
 
         <article className="card relative flex min-h-[23rem] flex-col overflow-hidden border-royal/30 bg-navy-2 p-5 text-white">
+          <PanelImageBackdrop image={state.storyImage} opacityFallback={26} veilClassName="story-mode-panel-veil" />
+          {!state.storyImage && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(112,129,211,0.2),rgba(6,15,35,0.92))]" />
             <div className="absolute -bottom-20 -left-16 h-48 w-[75%] rotate-[8deg] rounded-[50%] bg-navy-3" />
@@ -205,6 +211,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
             <div className="absolute bottom-16 left-[46%] h-20 w-1 bg-gold/60" />
             <div className="absolute bottom-[8.25rem] left-[46%] h-5 w-5 rotate-45 border-l-2 border-t-2 border-gold/70" />
           </div>
+          )}
           <div className="relative z-10 flex h-full flex-1 flex-col">
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-peri/35 bg-white/10 text-peri backdrop-blur-sm">

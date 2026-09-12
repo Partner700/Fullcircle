@@ -1,9 +1,12 @@
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Flag, Lock, Map as MapIcon, Play, RotateCcw, Sparkles } from 'lucide-react';
 import { findStoryLocation, STORY_BOOKS } from './content';
 import type { StoryProgress } from './types';
+import type { PanelImageSetting } from '../../../lib/types';
+import { PanelImageBackdrop } from '../../../components/PanelImageBackdrop';
 
 interface StoryModeHomeProps {
   progress: StoryProgress;
+  artwork: PanelImageSetting | null;
   browsing: boolean;
   starting: boolean;
   error: string | null;
@@ -15,6 +18,7 @@ interface StoryModeHomeProps {
 
 export function StoryModeHome({
   progress,
+  artwork,
   browsing,
   starting,
   error,
@@ -48,7 +52,8 @@ export function StoryModeHome({
       </button>
 
       <section className="story-home-banner">
-        <div className="story-home-scenery" aria-hidden="true"><span /><span /><span /></div>
+        <PanelImageBackdrop image={artwork} opacityFallback={26} veilClassName="story-mode-panel-veil" />
+        {!artwork && <div className="story-home-scenery" aria-hidden="true"><span /><span /><span /></div>}
         <div className="relative z-10 flex min-h-[20rem] flex-col justify-between p-5 sm:p-8">
           <div className="flex items-start justify-between gap-4">
             <div>

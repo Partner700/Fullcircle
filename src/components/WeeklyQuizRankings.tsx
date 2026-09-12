@@ -5,6 +5,7 @@ import type { WeeklyQuizRanking } from '../lib/types';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { useAuth } from '../context/AuthContext';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
+import { UserAvatar } from './UserAvatar';
 
 type QuizDivision = 'cadet' | 'sentry';
 
@@ -61,11 +62,7 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
               <div key={ranking.user_id} className="flex min-w-0 items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                 <span className="w-6 shrink-0 text-center text-xs font-black tabular-nums text-gold">{ranking.placement}</span>
                 <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-navy text-[10px] font-black text-gold">
-                  <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full">
-                    {ranking.avatar_url ? (
-                      <img src={ranking.avatar_url} alt={ranking.display_name} className="h-full w-full object-cover" loading="lazy" />
-                    ) : ranking.display_name.charAt(0).toUpperCase()}
-                  </span>
+                  <UserAvatar userId={ranking.user_id} name={ranking.display_name} avatarUrl={ranking.avatar_url} className="h-full w-full" />
                   <VallumAvatarBadge userId={ranking.user_id} size="xs" />
                   <CurrentUserAvatarMarker isCurrentUser={ranking.user_id === profile?.id} compact />
                 </span>

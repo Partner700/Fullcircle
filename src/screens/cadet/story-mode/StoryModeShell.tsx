@@ -5,6 +5,8 @@ import { findStoryLevel } from './content';
 import { INITIAL_STORY_MACHINE, transitionStoryState } from './engine';
 import { StoryLevelPlayer } from './StoryLevelPlayer';
 import { StoryModeHome } from './StoryModeHome';
+import { fetchPanelImageSetting } from '../../../lib/queries';
+import type { PanelImageSetting } from '../../../lib/types';
 import type { StoryAttempt, StoryProgress } from './types';
 
 interface StoryModeShellProps {
@@ -17,6 +19,7 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
   const [attempt, setAttempt] = useState<StoryAttempt | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [artwork, setArtwork] = useState<PanelImageSetting | null>(null);
 
   const loadProgress = useCallback(async (showHome = false) => {
     const nextProgress = await fetchStoryModeProgress();
@@ -38,6 +41,14 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
         setError(reason instanceof Error ? reason.message : 'Story Mode could not load.');
       });
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void fetchPanelImageSetting('story_mode')
+      .then((image) => { if (active) setArtwork(image); })
+      .catch(() => { if (active) setArtwork(null); });
+    return () => { active = false; };
   }, []);
 
   const startLevel = useCallback(async (levelSlug: string) => {
@@ -117,6 +128,7 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
   return (
     <StoryModeHome
       progress={progress}
+      artwork={artwork}
       browsing={machine.phase === 'browser'}
       starting={starting}
       error={error}

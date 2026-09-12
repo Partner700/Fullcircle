@@ -1039,6 +1039,29 @@ export async function fetchUserLiveStats(userId: string): Promise<UserLiveStats>
   };
 }
 
+export async function fetchProfileCv(userId: string) {
+  const { data, error } = await supabase.rpc('get_profile_cv', { p_user_id: userId });
+  if (error) throw error;
+  if (!data || typeof data !== 'object') throw new Error('This Full Circle profile is unavailable.');
+  const row = data as any;
+  return {
+    user_id: String(row.user_id || userId),
+    display_name: String(row.display_name || 'Full Circle member'),
+    avatar_url: row.avatar_url ? String(row.avatar_url) : null,
+    role: String(row.role || 'cadet') as import('./types').Role,
+    tent_id: row.tent_id ? String(row.tent_id) : null,
+    tent_name: row.tent_name ? String(row.tent_name) : null,
+    tent_house_id: row.tent_house_id ? String(row.tent_house_id) : null,
+    member_since: String(row.member_since || new Date().toISOString()),
+    total_denarii: Number(row.total_denarii) || 0,
+    current_streak: Number(row.current_streak) || 0,
+    longest_streak: Number(row.longest_streak) || 0,
+    total_figs: Number(row.total_figs) || 0,
+    rhudes: Number(row.rhudes) || 0,
+    marks: Number(row.marks) || 0,
+  } as import('./types').ProfileCvData;
+}
+
 export async function fetchGameAttempts(userId: string, narrativeDate?: string) {
   let query = supabase.from('game_attempts').select('*').eq('user_id', userId);
   if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
@@ -1555,6 +1578,23 @@ export async function markNotificationRead(notificationId: string) {
     .from('user_notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('id', notificationId);
+  if (error) throw error;
+}
+
+export async function markOpenMessageNotificationsRead({
+  sourceTable,
+  senderId,
+  tentId,
+}: {
+  sourceTable: 'direct_messages' | 'tent_messages' | 'tent_group_messages';
+  senderId?: string | null;
+  tentId?: string | null;
+}) {
+  const { error } = await supabase.rpc('mark_open_message_notifications_read', {
+    p_source_table: sourceTable,
+    p_sender_id: senderId || null,
+    p_tent_id: tentId || null,
+  });
   if (error) throw error;
 }
 

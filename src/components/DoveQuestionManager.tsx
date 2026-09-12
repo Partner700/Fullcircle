@@ -33,6 +33,7 @@ import type {
 import { cn } from '../lib/utils';
 import { AppSelect } from './AppSelect';
 import { Dove } from './Dove';
+import { UserAvatar } from './UserAvatar';
 
 const QUESTION_TYPES = [
   { value: 'multiple_choice', label: 'Multiple choice' },
@@ -62,11 +63,7 @@ function ParticipantStack({ participants }: { participants: DoveQuestionParticip
           className="relative flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-peri"
           style={{ marginLeft: index === 0 ? 0 : -6, zIndex: shown.length - index }}
         >
-          <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-peri/45 bg-surface-2 shadow-sm">
-            {participant.avatar_url ? (
-              <img src={participant.avatar_url} alt={participant.display_name} className="h-full w-full object-cover" />
-            ) : participant.display_name.trim().charAt(0).toUpperCase()}
-          </span>
+          <UserAvatar userId={participant.user_id} name={participant.display_name} avatarUrl={participant.avatar_url} className="h-full w-full border border-peri/45 shadow-sm" />
           <VallumAvatarBadge userId={participant.user_id} size="xs" />
         </span>
       ))}

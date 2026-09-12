@@ -9,18 +9,16 @@ import { BrowserNotificationSettings } from './BrowserNotificationSettings';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../lib/profilePreferences';
 import { StatCard, SectionHeader } from './AppShell';
-import {
-  CadetIcon, SentryIcon, InstructorIcon,
-  TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon,
-} from './BrandIcons';
+import { TrophyIcon, FlameIcon, CoinIcon, TentIcon, AwardIcon } from './BrandIcons';
 import { TentHouseBadge } from './TentHouseSymbol';
 import { AppSelect } from './AppSelect';
 import { DeleteAccountSection } from './DeleteAccountSection';
 import { ProfilePhotoEditor } from './ProfilePhotoEditor';
 import { CountryPhoneInput } from './CountryPhoneInput';
-import { BadgeCheck, Cross, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
+import { BadgeCheck, Loader2, Save, LogOut, Mail, Calendar, Shield, ChevronRight, MessageCircle, Send, X, Globe2, KeyRound, Languages, Cake } from 'lucide-react';
 import { ChiRhoMark, VallumText } from './ChiRhoMark';
 import type { Award } from '../lib/types';
+import { announceNewcomerGuidanceAction } from '../lib/newcomerGuidance';
 
 export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const { profile, role, refreshProfile } = useAuth();
@@ -136,6 +134,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       });
       document.documentElement.lang = language;
       await refreshProfile();
+      announceNewcomerGuidanceAction('profile_details_saved');
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     } catch (error: any) {
@@ -143,9 +142,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
     }
     setSaving(false);
   };
-
-  const roleIcon = role === 'cadet' ? CadetIcon : role === 'sentry' ? SentryIcon : InstructorIcon;
-  const RoleIcon = roleIcon;
 
   if (loading) {
     return (
@@ -159,12 +155,11 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       {/* Profile header card */}
-      <div className="card p-6 animate-slide-up">
+      <div className="card p-6 animate-slide-up" data-guide="profile-details">
         <div className="flex items-center gap-4 mb-5">
           <ProfilePhotoEditor
             profile={profile}
             size="md"
-            fallback={<RoleIcon size={32} className="text-peri" />}
             onUploaded={async () => { await refreshProfile(); await load(); }}
           />
           <div className="flex-1 min-w-0">
@@ -182,33 +177,20 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         {/* Edit display name */}
         <div className="border-t border-border pt-4">
           <label className="block text-sm font-bold text-peri mb-1.5">Display Name</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="input-field flex-1"
-              placeholder="Your name"
-            />
-            <button onClick={handleSave} disabled={saving || displayName === profile?.display_name} className="btn-primary">
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Save
-            </button>
-          </div>
-          {savedMsg && <p className="text-sage text-xs mt-2 font-medium">Saved successfully</p>}
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className="input-field w-full"
+            placeholder="Your name"
+          />
         </div>
 
         {/* WhatsApp number */}
         <div className="border-t border-border pt-4 mt-4">
           <label className="block text-sm font-bold text-peri mb-1.5">WhatsApp Number</label>
           <p className="text-xs text-peri-dim mb-2">For your sentry/instructor to contact you, and (if you're a sentry) for cadets to reach you.</p>
-          <div className="flex gap-2">
-            <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} className="flex-1" />
-            <button onClick={handleSave} disabled={saving} className="btn-primary">
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Save
-            </button>
-          </div>
+          <div className="max-w-md"><CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} /></div>
           {whatsapp && (
             <button onClick={() => setShowWaMsg(true)} className="text-xs text-sage hover:text-sage-dark flex items-center gap-1 mt-2">
               <MessageCircle size={12} /> Send WhatsApp message
@@ -228,6 +210,11 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
             </label>
           </div>
+          <button type="button" data-guide="save-profile" onClick={handleSave} disabled={saving || !displayName.trim()} className="btn-primary mt-4 w-full justify-center sm:w-auto">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Save profile information
+          </button>
+          {savedMsg && <p className="mt-2 text-xs font-medium text-sage">Saved successfully</p>}
         </div>
       </div>
 

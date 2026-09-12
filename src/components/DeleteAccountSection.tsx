@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Loader2, Trash2, UserRoundCheck, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Role } from '../lib/types';
+import { UserAvatar } from './UserAvatar';
 
 type HeirCandidate = {
   id: string;
@@ -216,13 +217,7 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
 
             {selectedHeir && (
               <div className={`mt-3 rounded-lg border p-3 flex items-center gap-3 ${surfaceClass}`}>
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-peri-soft flex items-center justify-center flex-shrink-0">
-                  {selectedHeir.avatarUrl ? (
-                    <img src={selectedHeir.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <UserRoundCheck size={19} className="text-peri" />
-                  )}
-                </div>
+                <UserAvatar userId={selectedHeir.id} name={selectedHeir.displayName} avatarUrl={selectedHeir.avatarUrl} className="h-10 w-10 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className={`text-sm font-semibold truncate ${titleClass}`}>{selectedHeir.displayName}</p>
                   <p className={`text-xs capitalize ${mutedClass}`}>

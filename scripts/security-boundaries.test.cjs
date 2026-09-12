@@ -164,6 +164,11 @@ const newcomerGuidanceApi = read('src/lib/newcomerGuidance.ts');
 const alarmPreferences = read('src/lib/alarmPreferences.ts');
 const browserNotificationSettings = read('src/components/BrowserNotificationSettings.tsx');
 const doveNotificationArrivalComponent = read('src/components/DoveNotificationArrival.tsx');
+const userAvatar = read('src/components/UserAvatar.tsx');
+const profileCvModal = read('src/components/ProfileCvModal.tsx');
+const messageOpenState = read('src/lib/messageOpenState.ts');
+const profilesAndOpenedMessageDelivery = read('supabase/migrations/20260910100000_profiles_and_opened_message_delivery.sql');
+const profileCompletionGuidance = read('supabase/migrations/20260910103000_profile_completion_guidance.sql');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -275,7 +280,7 @@ assert.match(cadetNarrative, /profile=\{messageProfile\(actor\.user_id/);
 assert.match(cadetNarrative, /const participants = insightParticipants\(userInsights\)/);
 assert.match(cadetNarrative, /!userExpanded && participants\.length > 0/);
 assert.match(cadetNarrative, /reader insight participant/);
-assert.match(publicShareScreen, /relative inline-flex h-4 w-4[\s\S]*?overflow-hidden rounded-full/);
+assert.match(publicShareScreen, /relative inline-flex h-4 w-4[\s\S]*?<UserAvatar/);
 assert.match(instructorApp, /panel_image_honors', label: 'Monthly Honors'/);
 assert.match(cadetDashboard, /'welcome', 'fcx', 'honors', 'verse'/);
 assert.match(sentryApp, /'welcome', 'fcx', 'honors', 'verse'/);
@@ -410,8 +415,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v125'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '118'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v126'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '119'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -425,7 +430,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-09-v125/);
+assert.match(releaseCache, /2026-09-10-v126/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1212,7 +1217,7 @@ assert.match(campayWebhook, /objectValue\(verifyData\.data\)/);
 assert.match(campayWebhook, /authenticatedUserId/);
 assert.match(campayCheckout, /payment_id: paymentId/);
 assert.match(publicShareScreen, /payload\.question \|\| payload\.question_text/);
-assert.match(publicShareScreen, /<Dove size=\{14\} \/>/);
+assert.match(publicShareScreen, /avatarUrl=\{actor\.is_guest \? null : actor\.avatar_url\}/);
 assert.match(publicShareScreen, /\/>\s*Reply/);
 assert.match(publicShareScreen, /\/>\s*Add insight/);
 assert.match(publicShareScreen, /claim-quiz/);
@@ -1611,14 +1616,15 @@ assert.match(scriptureAlarmOverlay, /getNotifications\(\{ tag: 'full-circle-scri
 assert.match(newcomerGuide, /data-guide-nav/);
 assert.match(newcomerGuide, /scroll_reading/);
 assert.match(newcomerGuide, /Full Circle Guide/);
-assert.match(newcomerGuide, /fetchMyNewcomerGuidance\(profile\.id\)/);
+assert.match(newcomerGuide, /fetchMyNewcomerGuidance\(profile\.id, role\)/);
 assert.match(newcomerGuide, /window\.addEventListener\('online', retryNow\)/);
 assert.match(newcomerGuide, /document\.addEventListener\('visibilitychange', retryWhenVisible\)/);
 assert.ok(!newcomerGuide.includes('attempts >= 5'), 'The newcomer tour must keep retrying after a slow mobile connection.');
 assert.match(newcomerGuidanceApi, /fetchTentlessGuidanceFallback/);
+assert.match(newcomerGuidanceApi, /role === 'sentry' \|\| role === 'instructor'/);
 assert.match(newcomerGuidanceApi, /\.from\('tent_members'\)/);
 assert.match(newcomerGuidanceApi, /\.from\('tent_join_requests'\)/);
-assert.match(newcomerGuidanceApi, /Number\(data\.guide_version \|\| 0\) < 3/);
+assert.match(newcomerGuidanceApi, /Number\(data\.guide_version \|\| 0\) < 4/);
 for (const required of [
   'WITH tentless_cadets AS',
   "assignment.role = 'cadet'",
@@ -1765,6 +1771,59 @@ assert.match(deleteAccountSection, /account \$\{candidate\.id\.slice\(-4\)\.toUp
 assert.match(deleteAccountSection, /try \{[\s\S]*?supabase\.functions\.invoke\('delete-account'/);
 assert.match(deleteAccountFunction, /prepare_account_inheritance/);
 assert.match(deleteAccountFunction, /auth\/v1\/admin\/users\/\$\{userId\}/);
+
+for (const required of [
+  'AVATAR_BACKGROUNDS',
+  'backgroundColor',
+  '<Dove size={96}',
+  'onError={() => setFailed(true)}',
+]) {
+  assert.ok(userAvatar.includes(required), `Missing universal Dove avatar fallback: ${required}`);
+}
+for (const required of [
+  'fetchProfileCv(targetId)',
+  'Full Circle Profile',
+  'Valediction marks',
+  'Days the Bible has been read consistently',
+  'Bible questions answered correctly',
+  'Bible duels won',
+  'Coins earned from daily Bible interactions',
+  'onClick={close}',
+]) {
+  assert.ok(profileCvModal.includes(required), `Missing Profile CV behavior: ${required}`);
+}
+assert.match(rootApp, /<ProfileCvHost\s*\/?>/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_profile_cv',
+  'AND NOT public.is_instructor(v_caller)',
+  'WHERE tent.sentry_id = v_caller',
+  'CREATE OR REPLACE FUNCTION private.retire_opened_direct_message_notification',
+  'CREATE OR REPLACE FUNCTION private.retire_opened_tent_message_notification',
+  'CREATE OR REPLACE FUNCTION public.mark_open_message_notifications_read',
+  "p_source_table NOT IN ('direct_messages', 'tent_messages', 'tent_group_messages')",
+]) {
+  assert.ok(profilesAndOpenedMessageDelivery.includes(required), `Missing profile/message boundary: ${required}`);
+}
+assert.match(messageOpenState, /messageNotificationMatchesContext/);
+assert.match(doveNotificationArrivalComponent, /messageNotificationMatchesContext\(notification, getOpenMessageContext\(\)\)/);
+assert.match(tentMessenger, /markOpenMessageNotificationsRead/);
+
+for (const required of [
+  "'await_first_streak'",
+  "'profile_settings'",
+  "'profile_photo'",
+  "'profile_details'",
+  'guide_version = 4',
+  'nullif(btrim(coalesce(profile.avatar_url',
+  'FROM public.compute_strict_streak',
+]) {
+  assert.ok(profileCompletionGuidance.includes(required), `Missing profile-completion guide safeguard: ${required}`);
+}
+assert.match(instructorApp, /panel_image_messages', label: 'Messages'/);
+assert.match(instructorApp, /panel_image_story_mode', label: 'Story Mode'/);
+assert.match(indexCss, /\[data-theme="day"\] \.arena-panel-veil[\s\S]*?rgba\(255, 255, 255/);
+assert.match(indexCss, /\.weekly-quiz-window-artwork \.card::before/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

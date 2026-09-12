@@ -5,6 +5,8 @@ import { uploadAvatar } from '../lib/queries';
 import { cn } from '../lib/utils';
 import type { Profile } from '../lib/types';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
+import { announceNewcomerGuidanceAction } from '../lib/newcomerGuidance';
+import { UserAvatar } from './UserAvatar';
 
 type CropPoint = { x: number; y: number };
 
@@ -286,6 +288,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
     try {
       await uploadAvatar(profile.id, file);
       await onUploaded();
+      announceNewcomerGuidanceAction('profile_photo_saved');
       closeCropper();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'The profile photo could not be uploaded.');
@@ -322,7 +325,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
       <div className={cn(
         'relative shrink-0 overflow-visible rounded-full',
         size === 'md' ? 'h-16 w-16' : 'h-20 w-20',
-      )}>
+      )} data-guide="profile-photo">
         <button
           type="button"
           onClick={editCurrentPhoto}
@@ -331,11 +334,9 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
           title={profile?.avatar_url ? 'Adjust current profile photo' : 'Choose profile photo'}
           aria-label={profile?.avatar_url ? 'Adjust current profile photo' : 'Choose profile photo'}
         >
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.display_name} className="h-full w-full object-cover" />
-          ) : (
-            fallback || <span className="font-display text-2xl font-bold text-peri">{profile?.display_name?.charAt(0).toUpperCase() || '?'}</span>
-          )}
+          {profile?.avatar_url || !fallback ? (
+            <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-full w-full" loading="eager" />
+          ) : fallback}
           {loadingCurrent && (
             <span className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/45 text-white">
               <Loader2 size={18} className="animate-spin" />

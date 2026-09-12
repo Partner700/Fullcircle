@@ -45,7 +45,11 @@ const STEP_COPY: Partial<Record<NewcomerGuidanceStep, { title: string; text: str
   welcome_like_quote: { title: "React to Someone's Quote", text: 'Choose a reaction for another person’s meditation quote.' },
   welcome_comment_quote: { title: "Comment on Someone's Quote", text: 'Open the comments and encourage the person with a short message.' },
   daily_games: { title: 'Open Daily Games', text: 'Your Scripture games live here.' },
-  daily_trivia: { title: 'Open Daily Trivia', text: 'Start with Daily Trivia. Your guided tour ends here.' },
+  daily_trivia: { title: 'Open Daily Trivia', text: 'Start with Daily Trivia and answer from this week\'s reading.' },
+  await_first_streak: { title: 'Earn your first streak', text: 'Complete today’s Scripture requirements. Your profile guide will continue when your first streak is earned.' },
+  profile_settings: { title: 'Complete your profile', text: 'Open Settings to add your picture and complete your Full Circle details.' },
+  profile_photo: { title: 'Add your profile picture', text: 'Choose a picture, crop it, and save the view you want everyone to see.' },
+  profile_details: { title: 'Save your details', text: 'Review the remaining profile information and save it together.' },
 };
 
 const WELCOME_SOCIAL_STEPS = new Set<NewcomerGuidanceStep>([
@@ -69,6 +73,8 @@ const ACTION_FOR_STEP: Partial<Record<NewcomerGuidanceStep, NewcomerGuidanceActi
   welcome_swipe_to_quote: 'welcome_swiped',
   welcome_like_quote: 'welcome_quote_reacted',
   welcome_comment_quote: 'welcome_quote_commented',
+  profile_photo: 'profile_photo_saved',
+  profile_details: 'profile_details_saved',
 };
 
 function isVisible(element: HTMLElement) {
@@ -85,6 +91,9 @@ function selectorForStep(step: NewcomerGuidanceStep) {
   if (step === 'daily_quote') return '[data-guide="daily-quote"]';
   if (step === 'daily_games') return '[data-guide-nav="games"]';
   if (step === 'daily_trivia') return '[data-guide="daily-trivia"]';
+  if (step === 'profile_settings') return '[data-guide-nav="settings"]';
+  if (step === 'profile_photo') return '[data-guide="profile-photo"]';
+  if (step === 'profile_details') return '[data-guide="save-profile"]';
   if (step === 'choose_tent') return '[data-guide-tent-choice]';
   if (WELCOME_SWIPE_STEPS.has(step)) return '[data-guide="welcome-carousel"]';
   if (step === 'welcome_like_verse') return '[data-guide-slide-active="true"] [data-guide="welcome-daily-verse-reaction"]';
@@ -119,7 +128,7 @@ function targetElementsForStep(step: NewcomerGuidanceStep) {
 }
 
 export function NewcomerGuide({ activeTab, onNavigate }: Props) {
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const [guidance, setGuidance] = useState<NewcomerGuidanceState | null>(null);
   const [targets, setTargets] = useState<TargetBox[]>([]);
   const [pushReady, setPushReady] = useState(false);
@@ -135,12 +144,12 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       return true;
     }
     try {
-      setGuidance(await fetchMyNewcomerGuidance(profile.id));
+      setGuidance(await fetchMyNewcomerGuidance(profile.id, role));
       return true;
     } catch {
       return false;
     }
-  }, [profile?.id]);
+  }, [profile?.id, role]);
 
   useEffect(() => {
     let cancelled = false;
@@ -217,6 +226,19 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     return () => window.removeEventListener(NEWCOMER_GUIDANCE_ACTION_EVENT, receiveAction);
   }, [completeStep, step]);
 
+  useEffect(() => {
+    if (step !== 'await_first_streak') return;
+    const refresh = () => { void load(); };
+    const interval = window.setInterval(refresh, 20_000);
+    window.addEventListener('full-circle-toolbar-stats', refresh);
+    window.addEventListener('full-circle-wallet-refresh', refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('full-circle-toolbar-stats', refresh);
+      window.removeEventListener('full-circle-wallet-refresh', refresh);
+    };
+  }, [load, step]);
+
   const enableAlarmDelivery = async () => {
     setPushBusy(true);
     setPushMessage('');
@@ -247,6 +269,8 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     if (step === 'dashboard_games' && activeTab === 'dashboard') void completeStep(step);
     if (step === 'daily_games' && activeTab === 'games') void completeStep(step);
     if (step === 'daily_trivia' && activeTab === 'game') void completeStep(step);
+    if (step === 'profile_settings' && activeTab === 'settings') void completeStep(step);
+    if ((step === 'profile_photo' || step === 'profile_details') && activeTab !== 'settings') onNavigate('settings');
   }, [activeTab, completeStep, onNavigate, step]);
 
   useEffect(() => {
@@ -280,7 +304,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
   }, [completeStep, step]);
 
   useEffect(() => {
-    if (!step || step === 'complete' || step === 'scroll_reading') {
+    if (!step || step === 'complete' || step === 'scroll_reading' || step === 'await_first_streak') {
       setTargets([]);
       return;
     }
@@ -352,7 +376,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     };
   }, [completeStep, step]);
 
-  if (!guidance || guidance.completed || step === 'complete' || !step || typeof document === 'undefined') return null;
+  if (!guidance || guidance.completed || step === 'complete' || step === 'await_first_streak' || !step || typeof document === 'undefined') return null;
   const copy = STEP_COPY[step];
   const tour = (
     <div className="pointer-events-none fixed inset-0 z-[2147482000]" aria-live="polite">

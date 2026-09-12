@@ -8,6 +8,7 @@ import type { Profile, UserNotification } from '../lib/types';
 import { isDoveArrival, isMessageArrival, isQuizArrival, isTentJoinRequestArrival } from '../lib/notificationArrival';
 import { Dove } from './Dove';
 import { TentGroupMessenger, TentMessenger } from './TentMessenger';
+import { getOpenMessageContext, messageNotificationMatchesContext, OPEN_MESSAGE_CONTEXT_EVENT } from '../lib/messageOpenState';
 
 type Props = {
   onNavigate: (actionKey: string, metadata?: Record<string, unknown>) => void;
@@ -21,7 +22,9 @@ function directMessageArrival(notification: UserNotification) {
   const sourceTable = String(notification.metadata?.source_table || '').toLowerCase();
   return String(notification.notification_type).toLowerCase() === 'direct_message'
     || sourceTable === 'direct_messages'
-    || sourceTable === 'tent_messages';
+    || sourceTable === 'tent_messages'
+    || Boolean(notification.metadata?.direct_message_id)
+    || (Boolean(notification.metadata?.message_id) && !notification.metadata?.group_message_id && Boolean(notification.metadata?.tent_id));
 }
 
 export function DoveNotificationArrival({ onNavigate }: Props) {
@@ -37,11 +40,33 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
   const surface = useCallback((notification: UserNotification) => {
     if (!isDoveArrival(notification) || surfacedRef.current.has(notification.id)) return;
     surfacedRef.current.add(notification.id);
+    if (isMessageArrival(notification) && messageNotificationMatchesContext(notification, getOpenMessageContext())) {
+      void markNotificationRead(notification.id).catch(() => undefined);
+      return;
+    }
     setArrival((current) => {
       if (!current) return notification;
       queuedRef.current.push(notification);
       return current;
     });
+  }, []);
+
+  useEffect(() => {
+    const retireOpenConversation = () => {
+      const context = getOpenMessageContext();
+      queuedRef.current = queuedRef.current.filter((notification) => {
+        if (!isMessageArrival(notification) || !messageNotificationMatchesContext(notification, context)) return true;
+        void markNotificationRead(notification.id).catch(() => undefined);
+        return false;
+      });
+      setArrival((current) => {
+        if (!current || !isMessageArrival(current) || !messageNotificationMatchesContext(current, context)) return current;
+        void markNotificationRead(current.id).catch(() => undefined);
+        return queuedRef.current.shift() || null;
+      });
+    };
+    window.addEventListener(OPEN_MESSAGE_CONTEXT_EVENT, retireOpenConversation);
+    return () => window.removeEventListener(OPEN_MESSAGE_CONTEXT_EVENT, retireOpenConversation);
   }, []);
 
   const advanceArrival = useCallback(() => {
@@ -68,6 +93,15 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
       (payload) => surface(payload.new as UserNotification),
+    ).on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
+      (payload) => {
+        const updated = payload.new as UserNotification;
+        if (!updated.read_at) return;
+        queuedRef.current = queuedRef.current.filter((notification) => notification.id !== updated.id);
+        setArrival((current) => current?.id === updated.id ? (queuedRef.current.shift() || null) : current);
+      },
     ).subscribe();
 
     return () => {
@@ -126,9 +160,10 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
               whatsapp_number: null,
               created_at: arrival.created_at,
             },
-            tentId: String(arrival.metadata?.source_table || '').toLowerCase() === 'tent_messages'
-              ? String(arrival.metadata?.tent_id || '') || undefined
-              : undefined,
+            tentId: (
+              String(arrival.metadata?.source_table || '').toLowerCase() === 'tent_messages'
+              || (Boolean(arrival.metadata?.message_id) && Boolean(arrival.metadata?.tent_id))
+            ) ? String(arrival.metadata?.tent_id || '') || undefined : undefined,
           });
           advanceArrival();
           return;

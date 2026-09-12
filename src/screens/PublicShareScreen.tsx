@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, BookMarked, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, Trophy, UserPlus, X } from 'lucide-react';
+import { Award, BookMarked, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
 import { AwardBadgeGlyph, VallumAvatarBadge } from '../components/VallumAvatarBadge';
 import { RelativeTime } from '../components/RelativeTime';
 import { TentHouseSymbol } from '../components/TentHouseSymbol';
+import { UserAvatar } from '../components/UserAvatar';
 import {
   completeSharedQuiz,
   fetchSharedQuiz,
@@ -48,7 +49,7 @@ function PublicRestDayAwards({ readingDate }: { readingDate: string }) {
         {awards.map((award) => (
           <div key={award.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
             <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-gold-soft text-gold">
-              {award.avatar_url ? <img src={award.avatar_url} alt={award.display_name} className="h-full w-full rounded-full object-cover" loading="lazy" /> : <Trophy size={18} />}
+              <UserAvatar userId={award.user_id} name={award.display_name} avatarUrl={award.avatar_url} className="h-full w-full" />
               <span className="absolute -bottom-1 -right-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/80 bg-navy-2 text-gold">
                 <AwardBadgeGlyph awardType={award.award_type} title={award.title} size={9} />
               </span>
@@ -147,7 +148,7 @@ function InsightThread({
   return (
     <div className="rounded-xl border border-border bg-surface-2 p-3">
       <div className="flex items-start gap-2.5">
-        <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{insight.profiles?.avatar_url ? <img src={insight.profiles.avatar_url} alt={authorName} className="h-full w-full object-cover" loading="lazy" /> : authorName.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={insight.user_id} size="sm" /></span>
+        <span className="relative flex h-8 w-8 flex-shrink-0"><UserAvatar userId={insight.user_id} name={authorName} avatarUrl={insight.profiles?.avatar_url} className="h-full w-full border border-border" /><VallumAvatarBadge userId={insight.user_id} size="sm" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-ink">
             {authorName}{' '}<RelativeTime value={insight.created_at} className="font-medium text-stone-dim" />
@@ -195,7 +196,7 @@ function InsightThread({
         return (
           <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp members reacted`}>
             {actors.map((actor) => (
-              <span key={actor.user_id} title={actor.display_name} className="relative inline-flex h-4 w-4 items-center justify-center text-[7px] font-bold text-peri"><span className="inline-flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft shadow-sm">{actor.is_guest ? <Dove size={14} /> : actor.avatar_url ? <img src={actor.avatar_url} alt={actor.display_name} className="h-full w-full object-cover" loading="lazy" /> : actor.display_name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={actor.is_guest ? null : actor.user_id} size="xs" /></span>
+              <span key={actor.user_id} title={actor.display_name} className="relative inline-flex h-4 w-4"><UserAvatar userId={actor.user_id} name={actor.display_name} avatarUrl={actor.is_guest ? null : actor.avatar_url} className="h-full w-full border border-surface-2 shadow-sm" /><VallumAvatarBadge userId={actor.is_guest ? null : actor.user_id} size="xs" /></span>
             ))}
           </div>
         );
@@ -211,7 +212,7 @@ function InsightThread({
             return (
               <div key={comment.id} className={cn('rounded-lg bg-surface/75 p-2', comment.parent_comment_id && 'ml-3')}>
                 <div className="flex items-start gap-2">
-                  <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center text-[10px] font-bold text-peri"><span className="inline-flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{comment.profile?.avatar_url ? <img src={comment.profile.avatar_url} alt={commenterName} className="h-full w-full object-cover" loading="lazy" /> : commenterName.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={comment.user_id} size="sm" /></span>
+                  <span className="relative inline-flex h-8 w-8 shrink-0"><UserAvatar userId={comment.user_id} name={commenterName} avatarUrl={comment.profile?.avatar_url} className="h-full w-full border border-border" /><VallumAvatarBadge userId={comment.user_id} size="sm" /></span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold text-ink">{commenterName} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
                     <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>
@@ -259,7 +260,7 @@ function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuote
               <div className="mt-6 flex items-center gap-3">
                 {slide.kind === 'quote' ? (
                   <>
-                    <span className="relative flex h-11 w-11 items-center justify-center"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border-bright bg-surface-2">{slide.quote.avatar_url ? <img src={slide.quote.avatar_url} alt={slide.quote.display_name} className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full w-full items-center justify-center font-bold text-peri">{slide.quote.display_name.charAt(0)}</span>}</span><VallumAvatarBadge userId={slide.quote.user_id} size="sm" /></span>
+                    <span className="relative flex h-11 w-11"><UserAvatar userId={slide.quote.user_id} name={slide.quote.display_name} avatarUrl={slide.quote.avatar_url} className="h-full w-full border border-border-bright" /><VallumAvatarBadge userId={slide.quote.user_id} size="sm" /></span>
                     <div><p className="text-sm font-extrabold text-ink">{slide.quote.display_name}</p><p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-stone"><Flame size={12} className="text-gold" /> {slide.quote.current_streak || 0}</p></div>
                   </>
                 ) : (

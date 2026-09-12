@@ -2309,3 +2309,94 @@
     background: #ffd84d;
     color: #071f38;
   }
+
+/* Theme-aware artwork veils. These classes keep copy legible without forcing
+   night colors into day mode. */
+.daily-trivia-panel-veil,
+.story-mode-panel-veil,
+.hidden-composer-panel-veil,
+.message-space-veil,
+.profile-cv-veil {
+  background: rgba(7, 20, 43, 0.8);
+}
+
+.arena-panel-veil {
+  background: rgba(7, 20, 43, 0.78);
+}
+
+[data-theme="day"] .daily-trivia-panel-veil {
+  background: rgba(255, 255, 255, 0.79);
+}
+
+[data-theme="day"] .arena-panel-veil {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+[data-theme="day"] .story-mode-panel-veil {
+  background: rgba(7, 20, 43, 0.64);
+}
+
+[data-theme="day"] .hidden-composer-panel-veil,
+[data-theme="day"] .message-space-veil,
+[data-theme="day"] .profile-cv-veil {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.weekly-quiz-window-artwork .card {
+  position: relative;
+  isolation: isolate;
+  background-color: transparent;
+}
+
+.weekly-quiz-window-artwork .card::before,
+.weekly-quiz-window-artwork .card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.weekly-quiz-window-artwork .card::before {
+  z-index: -2;
+  inset: calc(var(--weekly-quiz-blur, 0px) * -1);
+  background-image: var(--weekly-quiz-image);
+  background-position: var(--weekly-quiz-position, 50% 50%);
+  background-size: cover;
+  filter: blur(var(--weekly-quiz-blur, 0px));
+}
+
+.weekly-quiz-window-artwork .card::after {
+  z-index: -1;
+  background: rgba(7, 20, 43, 0.82);
+}
+
+[data-theme="day"] .weekly-quiz-window-artwork .card::after {
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.profile-cv-panel {
+  min-height: min(34rem, 88dvh);
+}
+
+.profile-cv-measure {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  padding: 0.8rem;
+  backdrop-filter: blur(10px);
+}
+
+.profile-cv-measure-icon {
+  display: inline-flex;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+}

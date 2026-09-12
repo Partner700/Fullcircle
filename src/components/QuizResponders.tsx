@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 import { useAuth } from '../context/AuthContext';
+import { UserAvatar } from './UserAvatar';
 
 export function QuizResponders({
   sessionId,
@@ -110,18 +111,7 @@ export function QuizResponders({
                 isSlide ? 'h-6 w-6 text-[8px]' : 'h-9 w-9 text-[10px]',
               )}
             >
-              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-moss/55 bg-navy/80 shadow-sm">
-                {responder.avatar_url ? (
-                  <img
-                    src={responder.avatar_url}
-                    alt={responder.display_name}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <span>{responder.display_name.charAt(0).toUpperCase()}</span>
-                )}
-              </span>
+              <UserAvatar userId={responder.user_id} name={responder.display_name} avatarUrl={responder.avatar_url} className="h-full w-full border border-moss/55 shadow-sm" />
               <VallumAvatarBadge userId={responder.user_id} size={isSlide ? 'xs' : 'sm'} />
               <CurrentUserAvatarMarker isCurrentUser={responder.user_id === profile?.id} compact={isSlide} />
               {placementByUserId.get(responder.user_id) ? (

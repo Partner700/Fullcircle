@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { AppSelect } from './AppSelect';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
+import { UserAvatar } from './UserAvatar';
 import {
   createHiddenChallenge,
   consumeHiddenChallengeComposerIntent,
@@ -34,7 +35,7 @@ import {
   purchaseHiddenItem,
   readingVerseChallengeKey,
 } from '../lib/hiddenChallenges';
-import { fetchCampMentionCandidates, fetchNarrative, type CampMentionCandidate } from '../lib/queries';
+import { fetchCampMentionCandidates, fetchNarrative, fetchPanelImageSetting, type CampMentionCandidate } from '../lib/queries';
 import type {
   DailyNarrative,
   FreezerType,
@@ -165,16 +166,19 @@ function ItemComposer({
   const [freezerType, setFreezerType] = useState<'none' | FreezerType>('none');
   const [freezerQuantity, setFreezerQuantity] = useState('0');
   const [minePenalty, setMinePenalty] = useState('100');
+  const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
 
   useEffect(() => {
     let active = true;
     Promise.all([
       fetchCampMentionCandidates(),
       fetchNarrative(getTodayISODate()).catch(() => null),
-    ]).then(([people, todayNarrative]) => {
+      fetchPanelImageSetting('arena').catch(() => null),
+    ]).then(([people, todayNarrative, image]) => {
       if (!active) return;
       setCandidates(people.filter((person) => person.user_id !== profile?.id));
       setNarrative(todayNarrative);
+      setArenaImage(image);
     }).catch((error) => {
       if (active) setNotice(error instanceof Error ? error.message : 'Camp members could not be loaded.');
     }).finally(() => { if (active) setLoading(false); });
@@ -261,7 +265,8 @@ function ItemComposer({
   const modal = (
     <div className="fixed inset-0 z-[2147483400] flex items-end justify-center overflow-y-auto bg-navy/75 p-0 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4" onClick={onClose}>
       <section className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-lg border border-border bg-bg shadow-2xl sm:rounded-lg" onClick={(event) => event.stopPropagation()}>
-        <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
+        <PanelImageBackdrop image={arenaImage} opacityFallback={26} veilClassName="hidden-composer-panel-veil" />
+        <header className="relative z-10 flex items-center justify-between border-b border-border bg-surface/75 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <span className={cn('flex h-10 w-10 items-center justify-center rounded-md', itemType === 'treasure' ? 'bg-gold/15 text-gold' : 'bg-coral/15 text-coral')}>
               {itemType === 'treasure' ? <Gift size={21} /> : <Bomb size={21} />}
@@ -274,7 +279,7 @@ function ItemComposer({
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><X size={17} /></button>
         </header>
 
-        <div className="space-y-5 overflow-y-auto p-4 sm:p-5">
+        <div className="relative z-10 space-y-5 overflow-y-auto p-4 sm:p-5">
           {notice && <div role="alert" className="rounded-md border border-coral/35 bg-coral/10 px-3 py-2 text-xs text-coral">{notice}</div>}
 
           <section>
@@ -299,7 +304,7 @@ function ItemComposer({
                     className={cn('flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors disabled:opacity-40', selected ? 'border-peri/45 bg-peri/10' : 'border-transparent hover:bg-surface')}
                   >
                     <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
-                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface">{candidate.avatar_url ? <img src={candidate.avatar_url} alt="" className="h-full w-full object-cover" /> : candidate.display_name.charAt(0)}</span>
+                      <UserAvatar userId={candidate.user_id} name={candidate.display_name} avatarUrl={candidate.avatar_url} className="h-full w-full border border-border" />
                       <VallumAvatarBadge userId={candidate.user_id} size="sm" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -450,7 +455,7 @@ function ItemComposer({
           </div>
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3">
+        <footer className="relative z-10 flex items-center justify-between gap-3 border-t border-border bg-surface/75 px-4 py-3 backdrop-blur-md">
           <span className="text-[10px] font-bold text-stone">{targets.length ? `${targets.length} tagged` : 'Tag someone first'}</span>
           <button type="button" className="btn-primary" disabled={saving || loading || targets.length === 0 || (placement === 'verse' && !verseKey)} onClick={() => void submit()}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <MapPin size={15} />}

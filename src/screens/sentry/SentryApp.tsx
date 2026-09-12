@@ -6,6 +6,7 @@ import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { NotificationCenter } from '../../components/NotificationCenter';
 import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
+import { NewcomerGuide } from '../../components/NewcomerGuide';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { SealBullet } from '../../components/AncientMotifs';
 import type { QuoteReactionState } from '../../components/QuoteReactions';
@@ -16,6 +17,7 @@ import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { ChiRhoMark } from '../../components/ChiRhoMark';
+import { UserAvatar } from '../../components/UserAvatar';
 import { SubscriptionGate, SubscriptionScreen, type SubscriptionStatusView } from '../../components/SubscriptionScreen';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
@@ -38,6 +40,7 @@ import { announceDenariiGain } from '../../lib/denariiAnimation';
 import { dailyGamesNavigationKey } from '../../lib/dailyGames';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
+import { openProfileCv } from '../../lib/profileCv';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeShell } from '../cadet/story-mode/StoryModeShell';
@@ -53,7 +56,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ShoppingBag, FileQuestion, Award, Trophy,
-  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock,
+  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock, Contact,
 } from 'lucide-react';
 
 const SENTRY_LEADERSHIP_SCRIPTURES = [
@@ -672,6 +675,7 @@ export function SentryApp() {
       {tab === 'settings' && <SettingsScreen onSignOut={signOut} />}
     </AppShell>
     <DoveNotificationArrival onNavigate={navigateFromAction} />
+    <NewcomerGuide activeTab={tab} onNavigate={(key) => handleNavigate(key as Tab)} />
     <StreakCelebration streak={streakCelebration} onDone={() => setStreakCelebration(null)} />
     </>
     </SubscriptionAccessProvider>
@@ -1020,7 +1024,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </div>
       )}
 
-      <div className="sentry-overview-actions grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="sentry-overview-actions grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <button onClick={() => onNavigate('attendance')} className="btn-primary">
           <ClipboardCheck size={18} /> Mark Attendance
         </button>
@@ -1032,6 +1036,9 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         </button>
         <button onClick={() => onNavigate('awards')} className="btn-secondary">
           <Award size={18} /> Awards Hub
+        </button>
+        <button onClick={() => openProfileCv(currentUserId)} className="btn-secondary">
+          <Contact size={18} /> My Profile
         </button>
       </div>
     </div>
@@ -1238,9 +1245,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
           <div className="space-y-2">
             {joinRequests.map((request) => (
               <div key={request.request_id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sage/35 bg-sage-soft text-xs font-bold text-sage">
-                  {request.avatar_url ? <img src={request.avatar_url} alt="" className="h-full w-full object-cover" /> : request.display_name.charAt(0).toUpperCase()}
-                </span>
+                <UserAvatar userId={request.user_id} name={request.display_name} avatarUrl={request.avatar_url} className="h-9 w-9 shrink-0 border border-sage/35" />
                 <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{request.display_name}</p>
                 <button type="button" className="btn-ghost px-2 py-1.5 text-xs text-coral" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, false)}>
                   <X size={14} /> Deny
@@ -1294,7 +1299,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
           <div className="relative z-[2147483001] w-full max-w-sm rounded-2xl border border-border bg-bg p-5 shadow-2xl animate-scale-in" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-start gap-3">
               <span className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center text-sm font-bold text-brass">
-                <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-brass/30 bg-brass-soft">{confirmCadet.avatar_url ? <img src={confirmCadet.avatar_url} alt="" className="h-full w-full object-cover" /> : confirmCadet.display_name.charAt(0)}</span>
+                <UserAvatar userId={confirmCadet.user_id} name={confirmCadet.display_name} avatarUrl={confirmCadet.avatar_url} className="h-full w-full border border-brass/30" />
                 <VallumAvatarBadge userId={confirmCadet.user_id} size="sm" />
               </span>
               <div className="min-w-0">
@@ -1343,6 +1348,9 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
                 <MessageCircle size={14} /> WhatsApp {m.profiles.display_name.split(' ')[0]}
               </a>
             )}
+            <button type="button" onClick={() => openProfileCv(m.user_id)} className="btn-secondary mb-3 w-full justify-center text-sm">
+              <Contact size={14} /> View Profile
+            </button>
             <div className="grid grid-cols-4 gap-2 text-center">
               <div>
                 <p className="font-display text-lg font-semibold text-ink">{streak.current_streak}</p>

@@ -18,6 +18,7 @@ import {
   Calendar, TrendingUp, BookOpen, Target, Zap, Clock, CreditCard, Star,
   BadgeCheck, Cake, Globe2, KeyRound, Languages, Shield,
 } from 'lucide-react';
+import { announceNewcomerGuidanceAction } from '../../lib/newcomerGuidance';
 
 interface CadetSettingsProps {
   refreshKey?: number;
@@ -146,6 +147,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
       });
       document.documentElement.lang = language;
       await refreshProfile();
+      announceNewcomerGuidanceAction('profile_details_saved');
     } catch (error: any) {
       alert(error.message || 'Could not save profile settings.');
     }
@@ -178,7 +180,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
       <SectionHeader title="Settings" subtitle="Your profile, stats, and preferences" />
 
       {/* Profile card with avatar */}
-      <div className="card p-5">
+      <div className="card p-5" data-guide="profile-details">
         <h4 className="font-display font-semibold text-ink mb-4">Profile</h4>
         <div className="flex items-center gap-4 mb-4">
           <ProfilePhotoEditor profile={profile} onUploaded={refreshProfile} />
@@ -193,21 +195,11 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
           <label className="text-xs text-stone block mb-1 flex items-center gap-1">
             <User size={12} /> User Name
           </label>
-          <div className="flex gap-2 mb-3">
-            <input className="input-field" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            <button onClick={saveProfile} disabled={saving || !displayName.trim()} className="btn-secondary text-sm whitespace-nowrap">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
-            </button>
-          </div>
+          <input className="input-field mb-3 w-full" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
           <label className="text-xs text-stone block mb-1 flex items-center gap-1">
             <Phone size={12} /> WhatsApp Number (so your sentry and instructor can contact you)
           </label>
-          <div className="flex gap-2">
-            <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} className="flex-1" />
-            <button onClick={saveProfile} disabled={saving} className="btn-primary text-sm whitespace-nowrap">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
-            </button>
-          </div>
+          <div className="max-w-md"><CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} /></div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-xs text-stone">
               <span className="mb-1 flex items-center gap-1"><Globe2 size={12} /> Country</span>
@@ -222,6 +214,9 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
               <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
             </label>
           </div>
+          <button type="button" data-guide="save-profile" onClick={saveProfile} disabled={saving || !displayName.trim()} className="btn-primary mt-4 w-full justify-center sm:w-auto">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save profile information
+          </button>
         </div>
       </div>
 

@@ -22,6 +22,10 @@ export type NewcomerGuidanceStep =
   | 'welcome_comment_quote'
   | 'daily_games'
   | 'daily_trivia'
+  | 'await_first_streak'
+  | 'profile_settings'
+  | 'profile_photo'
+  | 'profile_details'
   | 'complete';
 
 export type NewcomerGuidanceState = {
@@ -36,7 +40,9 @@ export type NewcomerGuidanceAction =
   | 'welcome_verse_reacted'
   | 'welcome_verse_commented'
   | 'welcome_quote_reacted'
-  | 'welcome_quote_commented';
+  | 'welcome_quote_commented'
+  | 'profile_photo_saved'
+  | 'profile_details_saved';
 
 export type NewcomerGuidanceHeroTarget = 'welcome' | 'verse' | 'other_quote' | null;
 
@@ -56,7 +62,22 @@ function isGuidanceState(value: unknown): value is NewcomerGuidanceState {
   return typeof candidate.current_step === 'string' && typeof candidate.completed === 'boolean';
 }
 
-async function fetchTentlessGuidanceFallback(userId: string): Promise<NewcomerGuidanceState | null> {
+async function fetchTentlessGuidanceFallback(userId: string, role?: string | null): Promise<NewcomerGuidanceState | null> {
+  if (role === 'sentry' || role === 'instructor') {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    return !profile?.avatar_url ? {
+      current_step: 'profile_settings',
+      completed: false,
+      completed_at: null,
+      guide_version: 4,
+    } : null;
+  }
+
   const { data: membership, error: membershipError } = await supabase
     .from('tent_members')
     .select('tent_id')
@@ -75,22 +96,41 @@ async function fetchTentlessGuidanceFallback(userId: string): Promise<NewcomerGu
     .maybeSingle();
   if (pendingError) throw pendingError;
 
-  return {
-    current_step: pendingRequest ? 'dashboard_after_tent' : 'choose_tent',
-    completed: false,
-    completed_at: null,
-    guide_version: 3,
-  };
+  if (!membership) {
+    return {
+      current_step: pendingRequest ? 'dashboard_after_tent' : 'choose_tent',
+      completed: false,
+      completed_at: null,
+      guide_version: 4,
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('avatar_url')
+    .eq('id', userId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile?.avatar_url) {
+    return {
+      current_step: 'profile_settings',
+      completed: false,
+      completed_at: null,
+      guide_version: 4,
+    };
+  }
+
+  return null;
 }
 
-export async function fetchMyNewcomerGuidance(userId?: string) {
+export async function fetchMyNewcomerGuidance(userId?: string, role?: string | null) {
   const { data, error } = await supabase.rpc('get_my_newcomer_guidance');
   if (!error && isGuidanceState(data)) {
     // Releases before guide v3 can return a stale completed state while the
     // expanded tour is rolling out. Keep the tent choice visible meanwhile.
-    if (userId && data.completed && Number(data.guide_version || 0) < 3) {
+    if (userId && (data.completed || Number(data.guide_version || 0) < 4)) {
       try {
-        return (await fetchTentlessGuidanceFallback(userId)) || data;
+        return (await fetchTentlessGuidanceFallback(userId, role)) || data;
       } catch {
         return data;
       }
@@ -101,7 +141,7 @@ export async function fetchMyNewcomerGuidance(userId?: string) {
   // CadetApp is also the safe fallback route when a new account's role row is
   // still settling. Membership is enough to keep the tent-choice tour visible
   // while an RPC rollout or a brief mobile connection recovers.
-  if (userId) return fetchTentlessGuidanceFallback(userId);
+  if (userId) return fetchTentlessGuidanceFallback(userId, role);
   if (error) throw error;
   throw new Error('Newcomer guidance returned an invalid response.');
 }

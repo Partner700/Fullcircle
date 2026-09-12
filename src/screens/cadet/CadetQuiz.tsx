@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { Dove } from '../../components/Dove';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
-import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { QuizResponders } from '../../components/QuizResponders';
 import { WeeklyQuizRankings } from '../../components/WeeklyQuizRankings';
 import {
@@ -31,6 +30,19 @@ import type { LucideIcon } from 'lucide-react';
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
 
 const QUIZ_RETRY_DELAYS_MS = [0, 350, 900];
+
+function QuizArtworkFrame({ image, className, children }: {
+  image: PanelImageSetting | null;
+  className?: string;
+  children: ReactNode;
+}) {
+  const style = image ? ({
+    '--weekly-quiz-image': `url("${image.url.replace(/"/g, '\\"')}")`,
+    '--weekly-quiz-position': `${image.positionX ?? 50}% ${image.positionY ?? 50}%`,
+    '--weekly-quiz-blur': `${Math.max(0, Number(image.adjustments?.blur || 0) / 8)}px`,
+  } as CSSProperties) : undefined;
+  return <div className={cn('weekly-quiz-window', image && 'weekly-quiz-window-artwork', className)} style={style}>{children}</div>;
+}
 
 function quizErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -483,13 +495,13 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
 
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ForfeitedView attempt={attempt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<SubmittedView releaseAt={resultsReleaseAt} image={quizImage} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
     }
-    return <div className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} image={quizImage} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></div>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
 
   // In quiz
@@ -502,6 +514,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         userId={profile!.id}
         liveCloses={effectiveClosesAt ?? (phase === 'live' && !lazarusMode ? liveCloses : lazarusDeadline)}
         serverClockOffsetMs={serverClockOffsetMs}
+        image={quizImage}
         verifyDeadline={verifyQuizDeadline}
         onSubmit={() => { setInQuiz(false); load(); onQuizSubmitted(); }}
       />
@@ -513,10 +526,9 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const timeToClose = liveCloses - now;
 
   return (
-    <div className="space-y-5 animate-fade-in max-w-2xl mx-auto">
+    <QuizArtworkFrame image={quizImage} className="space-y-5 animate-fade-in max-w-2xl mx-auto">
       {/* Quiz card — session header */}
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
-        <PanelImageBackdrop image={quizImage} opacityFallback={22} veilClassName="bg-navy-2/76" />
         <div className="relative text-center">
           <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
@@ -632,7 +644,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
         </div>
       </div>
 
-    </div>
+    </QuizArtworkFrame>
   );
 }
 
@@ -728,13 +740,14 @@ function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
   );
 }
 
-function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, verifyDeadline, onSubmit }: {
+function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, image, verifyDeadline, onSubmit }: {
   questions: GeneratedQuestion[];
   initialResponses: QuestionResponse[];
   attempt: QuizAttempt;
   userId: string;
   liveCloses: number;
   serverClockOffsetMs: number;
+  image: PanelImageSetting | null;
   verifyDeadline: () => Promise<boolean>;
   onSubmit: () => void;
 }) {
@@ -986,7 +999,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
   const goliathCount = relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0;
 
   return (
-    <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
+    <QuizArtworkFrame image={image} className="space-y-4 animate-fade-in max-w-2xl mx-auto">
       {/* Header with timer */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -1269,7 +1282,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
       <div className="text-center text-xs text-moss flex items-center justify-center gap-1">
         <CheckCircle2 size={12} /> Every saved answer remains attached to this attempt across reconnects
       </div>
-    </div>
+    </QuizArtworkFrame>
   );
 }
 
@@ -1291,9 +1304,8 @@ function LazarusQuizButton({
   );
 }
 
-function SubmittedView({ releaseAt, image, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+function SubmittedView({ releaseAt, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
   releaseAt: number;
-  image: PanelImageSetting | null;
   canUseLazarus: boolean;
   lazarusCount: number;
   usingLazarus: boolean;
@@ -1302,7 +1314,6 @@ function SubmittedView({ releaseAt, image, canUseLazarus, lazarusCount, usingLaz
   return (
     <div className="max-w-md mx-auto animate-scale-in">
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center border-moss/30">
-        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
           <div className="eyebrow text-moss mb-3">Submitted</div>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-moss/10 border border-moss/30">
@@ -1331,9 +1342,8 @@ function SubmittedView({ releaseAt, image, canUseLazarus, lazarusCount, usingLaz
   );
 }
 
-function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+function ForfeitedView({ attempt, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
   attempt: QuizAttempt;
-  image: PanelImageSetting | null;
   canUseLazarus: boolean;
   lazarusCount: number;
   usingLazarus: boolean;
@@ -1342,7 +1352,6 @@ function ForfeitedView({ attempt, image, canUseLazarus, lazarusCount, usingLazar
   return (
     <div className="max-w-md mx-auto animate-scale-in">
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center border-roman/30">
-        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
           <div className="eyebrow text-roman mb-3">Forfeited</div>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-roman/10 border border-roman/30">
@@ -1405,11 +1414,10 @@ function quizResponseIsCorrect(question: GeneratedQuestion, answer: unknown) {
   return accepted.some((candidate) => comparableQuizAnswer(candidate).toLowerCase() === given.toLowerCase());
 }
 
-function ResultsView({ attempt, result, weekly, image, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
+function ResultsView({ attempt, result, weekly, questions, responses, canUseLazarus, lazarusCount, usingLazarus, onUseLazarus }: {
   attempt: QuizAttempt;
   result: WeeklyQuizReleasedResult | null;
   weekly: boolean;
-  image: PanelImageSetting | null;
   questions: GeneratedQuestion[];
   responses: QuestionResponse[];
   canUseLazarus: boolean;
@@ -1431,7 +1439,6 @@ function ResultsView({ attempt, result, weekly, image, questions, responses, can
   if (weekly && !result?.released) {
     return (
       <div className="card relative mx-auto max-w-2xl overflow-hidden p-6 text-center animate-fade-in">
-        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative flex flex-col items-center">
           <Loader2 size={26} className="animate-spin text-brass" />
           <h2 className="mt-3 font-display text-xl font-semibold text-ink">Releasing your quiz result</h2>
@@ -1444,7 +1451,6 @@ function ResultsView({ attempt, result, weekly, image, questions, responses, can
   return (
     <div className="max-w-2xl mx-auto animate-fade-in space-y-4">
       <div className="card relative overflow-hidden p-5 sm:p-8 text-center animate-scale-in">
-        <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
         <div className="relative">
           <div className="eyebrow text-brass mb-3">Complete</div>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-brass/10 border border-brass/30">
@@ -1485,7 +1491,6 @@ function ResultsView({ attempt, result, weekly, image, questions, responses, can
 
       {!answersReady ? (
         <div className="card relative overflow-hidden p-6 text-center">
-          <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
           <div className="relative flex flex-col items-center">
             <Loader2 size={24} className="animate-spin text-brass" />
             <h3 className="mt-3 font-display text-lg font-semibold text-ink">Opening your answer sheet</h3>
@@ -1494,7 +1499,6 @@ function ResultsView({ attempt, result, weekly, image, questions, responses, can
         </div>
       ) : (
         <section className="card relative overflow-hidden p-5 sm:p-6">
-          <PanelImageBackdrop image={image} veilClassName="bg-surface/80" />
           <div className="relative">
             <div className="flex items-start justify-between gap-3 pb-4">
               <div>

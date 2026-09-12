@@ -9,6 +9,8 @@ import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { isSoundscapeEnabled, isSoundscapePlaying, playInterfaceTone, setSoundscapeAudience, setSoundscapeEnabled, setSoundscapeMood, stopSoundscape, subscribeToSoundscape, type SoundMood } from '../lib/soundscape';
 import { OPEN_APP_NAVIGATION_EVENT } from '../lib/newcomerGuidance';
+import { openProfileCv } from '../lib/profileCv';
+import { UserAvatar } from './UserAvatar';
 
 type Theme = 'night' | 'day';
 
@@ -290,18 +292,16 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
         </nav>
 
         <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
+          <button type="button" onClick={() => openProfileCv(profile?.id)} className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-navy-3" aria-label="Open my Full Circle profile">
             <span className="relative inline-flex shrink-0">
-              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-display text-sm font-bold text-peri">
-                {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="h-full w-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
-              </span>
+              <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-8 w-8" />
               <VallumAvatarBadge userId={profile?.id} size="sm" />
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>
               <p className="text-xs text-peri-dim truncate">{profile?.email}</p>
             </div>
-          </div>
+          </button>
           <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-peri-dim hover:bg-navy-3 hover:text-peri transition-colors font-bold">
             <LogOut size={16} /> Sign Out
           </button>
@@ -424,18 +424,16 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
             </nav>
 
             <div className="border-t border-border p-3">
-              <div className="flex items-center gap-2.5 rounded-xl bg-navy-3 px-3 py-2">
+              <button type="button" onClick={() => { openProfileCv(profile?.id); setMobileNavOpen(false); }} className="flex w-full items-center gap-2.5 rounded-lg bg-navy-3 px-3 py-2 text-left transition-colors hover:bg-navy-4" aria-label="Open my Full Circle profile">
                 <span className="relative inline-flex shrink-0">
-                  <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-peri-soft font-display text-sm font-bold text-peri">
-                    {profile?.avatar_url ? <img src={profile.avatar_url} alt={profile?.display_name} className="h-full w-full object-cover" /> : (profile?.display_name?.charAt(0).toUpperCase() || '?')}
-                  </span>
+                  <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-8 w-8" />
                   <VallumAvatarBadge userId={profile?.id} size="sm" />
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>
                   <p className="text-xs text-peri-dim truncate">{profile?.email}</p>
                 </div>
-              </div>
+              </button>
             </div>
           </aside>
         </div>

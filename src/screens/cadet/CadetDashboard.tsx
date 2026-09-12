@@ -13,11 +13,13 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
 import { QuizResponders } from '../../components/QuizResponders';
 import { CurrentUserAvatarMarker } from '../../components/CurrentUserAvatarMarker';
+import { UserAvatar } from '../../components/UserAvatar';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
 import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { updateReactionOptimistically } from '../../lib/reactionState';
+import { openProfileCv } from '../../lib/profileCv';
 import { supabase } from '../../lib/supabase';
 import { DAILY_GAME_LEVELS } from '../../lib/constants';
 import {
@@ -29,7 +31,7 @@ import type { DailyNarrative, DailyRecord, DenariiLedgerEntry, GameAttempt, Chal
 import {
   Flame, Coins, BookOpen, Gamepad2, CheckCircle2, Circle, Calendar,
   TrendingUp, FileQuestion, Target, Sunrise, Moon, Trophy,
-  Quote, Megaphone, Tent as TentIcon, ShoppingBag, Award,
+  Quote, Megaphone, Tent as TentIcon, ShoppingBag, Award, Contact,
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
@@ -488,6 +490,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           <QuickLink icon={ShoppingBag} label="Market" badge={notificationBadges.store || 0} onClick={() => onNavigate('store')} />
           <QuickLink icon={FileQuestion} label="Quiz" badge={notificationBadges.quiz || 0} onClick={() => onNavigate('quiz')} />
           <QuickLink icon={Trophy} label="Leaderboard" badge={notificationBadges.leaderboard || 0} onClick={() => onNavigate('leaderboard')} />
+          <QuickLink icon={Contact} label="My Profile" onClick={() => openProfileCv(profile?.id)} />
         </div>
       </div>
     </div>
@@ -663,11 +666,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           <div key={ranking.user_id} className="flex min-w-0 flex-col items-center rounded-lg border border-white/25 bg-surface/65 px-2 py-2.5 text-center shadow-sm backdrop-blur-md">
                             <span className="mb-1 text-[10px] font-black uppercase text-gold">No. {ranking.placement}</span>
                             <span className="relative flex h-10 w-10 items-center justify-center overflow-visible rounded-full border-2 border-gold/60 bg-navy text-xs font-black text-gold sm:h-12 sm:w-12">
-                              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full">
-                                {ranking.avatar_url ? (
-                                  <img src={ranking.avatar_url} alt={ranking.display_name} className="h-full w-full object-cover" loading="lazy" />
-                                ) : ranking.display_name.charAt(0).toUpperCase()}
-                              </span>
+                              <UserAvatar userId={ranking.user_id} name={ranking.display_name} avatarUrl={ranking.avatar_url} className="h-full w-full" />
                               <VallumAvatarBadge userId={ranking.user_id} size="sm" />
                               <CurrentUserAvatarMarker isCurrentUser={ranking.user_id === currentUserId} compact />
                             </span>
@@ -696,7 +695,13 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           return (
                             <div key={award.id} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-white/20 bg-surface/55 px-2.5 py-2 backdrop-blur-sm">
                               <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-                                <img src={recipient?.avatar_url || award.target_tent?.profile_image_url || STARTUP_WELCOME_ARTWORK.url} alt={name} className="h-full w-full rounded-full border border-brass/45 object-cover" />
+                                {recipient ? (
+                                  <UserAvatar userId={award.user_id} name={recipient.display_name} avatarUrl={recipient.avatar_url} className="h-full w-full border border-brass/45" />
+                                ) : award.target_tent?.profile_image_url ? (
+                                  <img src={award.target_tent.profile_image_url} alt={name} className="h-full w-full rounded-full border border-brass/45 object-cover" />
+                                ) : (
+                                  <span className="flex h-full w-full items-center justify-center rounded-full border border-brass/45 bg-brass-soft"><Trophy size={15} className="text-brass" /></span>
+                                )}
                                 <VallumAvatarBadge userId={award.user_id} size="sm" />
                               </span>
                               <div className="min-w-0 flex-1">
@@ -741,17 +746,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Megaphone size={14} /> {announcementTitle}</p>
                       {slide.announcement.announcement_type === 'birthday' && (
                         <div className="mb-3 flex items-center gap-3">
-                          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-brass/45 bg-brass/15 text-lg font-bold text-brass shadow-sm">
-                            {slide.announcement.metadata?.avatar_url ? (
-                              <img
-                                src={slide.announcement.metadata.avatar_url}
-                                alt={slide.announcement.metadata.display_name || 'Birthday celebrant'}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              String(slide.announcement.metadata?.display_name || 'B').charAt(0)
-                            )}
-                          </div>
+                          <UserAvatar name={slide.announcement.metadata?.display_name || 'Birthday celebrant'} avatarUrl={slide.announcement.metadata?.avatar_url} className="h-14 w-14 rounded-2xl border border-brass/45 shadow-sm" />
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-ink">{slide.announcement.metadata?.display_name || 'Birthday celebrant'}</p>
                             <p className="text-xs text-stone">Birthday celebration</p>

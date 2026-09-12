@@ -245,6 +245,23 @@ export interface Profile {
   created_at: string;
 }
 
+export interface ProfileCvData {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  role: Role;
+  tent_id: string | null;
+  tent_name: string | null;
+  tent_house_id: string | null;
+  member_since: string;
+  total_denarii: number;
+  current_streak: number;
+  longest_streak: number;
+  total_figs: number;
+  rhudes: number;
+  marks: number;
+}
+
 export interface RoleAssignment {
   id: string;
   user_id: string;

@@ -8,6 +8,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { MessageAvatar } from '../../components/TentMessenger';
 import { Dove } from '../../components/Dove';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
+import { UserAvatar } from '../../components/UserAvatar';
 import { RelativeTime } from '../../components/RelativeTime';
 import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordExternalShare, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
@@ -161,7 +162,7 @@ function MentionTextarea({
               onClick={() => insertMention(candidate)}
             >
               <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
-                <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft">{candidate.avatar_url ? <img src={candidate.avatar_url} alt="" className="h-full w-full object-cover" /> : candidate.display_name.charAt(0)}</span>
+                <UserAvatar userId={candidate.user_id} name={candidate.display_name} avatarUrl={candidate.avatar_url} className="h-full w-full border border-border" />
                 <VallumAvatarBadge userId={candidate.user_id} size="sm" />
               </span>
               <span className="min-w-0">

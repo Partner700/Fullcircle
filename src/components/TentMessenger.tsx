@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage } from '../lib/queries';
-import type { DirectMessage, Profile, TentGroupMessage, TentMessage } from '../lib/types';
+import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage, fetchPanelImageSetting, markOpenMessageNotificationsRead } from '../lib/queries';
+import type { DirectMessage, PanelImageSetting, Profile, TentGroupMessage, TentMessage } from '../lib/types';
 import { AtSign, X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
@@ -10,6 +10,9 @@ import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 import { revealHiddenChallenge } from '../lib/hiddenChallenges';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { RelativeTime } from './RelativeTime';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { UserAvatar } from './UserAvatar';
+import { setOpenMessageContext } from '../lib/messageOpenState';
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -27,6 +30,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
+  const [messageArtwork, setMessageArtwork] = useState<PanelImageSetting | null>(null);
   const revealedClaimSetRef = useRef('');
 
   const load = useCallback(async () => {
@@ -77,6 +81,27 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
+    let active = true;
+    void fetchPanelImageSetting('messages').then((image) => {
+      if (active) setMessageArtwork(image);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const context = tentId
+      ? { kind: 'tent_direct' as const, senderId: recipient.id, tentId }
+      : { kind: 'direct' as const, senderId: recipient.id };
+    setOpenMessageContext(context);
+    void markOpenMessageNotificationsRead({
+      sourceTable: tentId ? 'tent_messages' : 'direct_messages',
+      senderId: recipient.id,
+      tentId,
+    }).catch(() => undefined);
+    return () => setOpenMessageContext(null);
+  }, [recipient.id, tentId]);
+
+  useEffect(() => {
     if (!hasAccess) return;
     const table = tentId ? 'tent_messages' : 'direct_messages';
     const channelName = tentId ? `tent_messages_${tentId}` : `direct_messages_${senderId}_${recipient.id}`;
@@ -120,20 +145,15 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
       <div
-        className="relative z-[2147483001] w-full sm:max-w-md bg-bg rounded-t-2xl sm:rounded-2xl border border-border shadow-xl animate-slide-up flex flex-col max-h-[80vh]"
+        className="relative isolate z-[2147483001] flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/94 shadow-xl animate-slide-up sm:max-w-md sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        <PanelImageBackdrop image={messageArtwork} opacityFallback={24} veilClassName="message-space-veil" />
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="relative z-10 flex items-center justify-between border-b border-border bg-surface/72 p-4 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display text-sm font-bold text-brass">
-              <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface-2">
-                {recipient.avatar_url ? (
-                  <img src={recipient.avatar_url} alt={recipient.display_name} className="h-full w-full object-cover" />
-                ) : (
-                  recipient.display_name.charAt(0)
-                )}
-              </span>
+              <UserAvatar userId={recipient.id} name={recipient.display_name} avatarUrl={recipient.avatar_url} className="h-full w-full border border-border" />
               <VallumAvatarBadge userId={recipient.id} size="sm" />
             </span>
             <div>
@@ -147,7 +167,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-[200px]">
+        <div className="relative z-10 min-h-[200px] flex-1 space-y-2 overflow-y-auto p-4">
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
           ) : messages.length === 0 ? (
@@ -177,7 +197,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         </div>
 
         {/* Input */}
-        <div className="p-3 border-t border-border flex items-center gap-2">
+        <div className="relative z-10 flex items-center gap-2 border-t border-border bg-surface/72 p-3 backdrop-blur-md">
           <input
             type="text"
             value={input}
@@ -215,6 +235,7 @@ export function TentGroupMessenger({
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
+  const [messageArtwork, setMessageArtwork] = useState<PanelImageSetting | null>(null);
 
   const load = useCallback(async () => {
     if (!hasAccess) {
@@ -237,6 +258,23 @@ export function TentGroupMessenger({
   }, [hasAccess, onClose, requireSubscription]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    void fetchPanelImageSetting('messages').then((image) => {
+      if (active) setMessageArtwork(image);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    setOpenMessageContext({ kind: 'tent_group', tentId });
+    void markOpenMessageNotificationsRead({
+      sourceTable: 'tent_group_messages',
+      tentId,
+    }).catch(() => undefined);
+    return () => setOpenMessageContext(null);
+  }, [tentId]);
 
   useEffect(() => {
     if (!hasAccess) return;
@@ -279,10 +317,11 @@ export function TentGroupMessenger({
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/50 animate-fade-in sm:items-center" onClick={onClose}>
       <div
-        className="relative z-[2147483001] flex max-h-[82vh] w-full flex-col rounded-t-2xl border border-border bg-bg shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
+        className="relative isolate z-[2147483001] flex max-h-[82vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/94 shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border p-4">
+        <PanelImageBackdrop image={messageArtwork} opacityFallback={24} veilClassName="message-space-veil" />
+        <div className="relative z-10 flex items-center justify-between border-b border-border bg-surface/72 p-4 backdrop-blur-md">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-brass/25 bg-brass-soft text-brass">
               <Users size={18} />
@@ -297,7 +336,7 @@ export function TentGroupMessenger({
           </button>
         </div>
 
-        <div className="min-h-[240px] flex-1 space-y-2 overflow-y-auto p-4">
+        <div className="relative z-10 min-h-[240px] flex-1 space-y-2 overflow-y-auto p-4">
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
           ) : messages.length === 0 ? (
@@ -308,9 +347,7 @@ export function TentGroupMessenger({
               <div key={message.id} className={cn('flex items-end gap-2', isMe ? 'justify-end' : 'justify-start')}>
                 {!isMe && (
                   <span className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center text-[10px] font-bold text-brass">
-                    <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2">
-                      {message.sender?.avatar_url ? <img src={message.sender.avatar_url} alt="" className="h-full w-full object-cover" /> : (message.sender?.display_name || 'U').charAt(0)}
-                    </span>
+                    <UserAvatar userId={message.sender_id} name={message.sender?.display_name || 'Tent member'} avatarUrl={message.sender?.avatar_url} className="h-full w-full border border-border" />
                     <VallumAvatarBadge userId={message.sender_id} size="xs" />
                   </span>
                 )}
@@ -333,7 +370,7 @@ export function TentGroupMessenger({
           })}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-border p-3">
+        <div className="relative z-10 flex items-center gap-2 border-t border-border bg-surface/72 p-3 backdrop-blur-md">
           <button
             type="button"
             onClick={() => setInput((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
@@ -410,17 +447,16 @@ export function TentAvatar({
         title={isMe ? profile.display_name : `Message ${profile.display_name}`}
       >
         <span className="relative inline-flex shrink-0">
-          <span className={cn(
-            'rounded-full border-2 border-border bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass shadow-sm transition-all',
+          <UserAvatar
+            userId={userId}
+            name={profile.display_name}
+            avatarUrl={profile.avatar_url}
+            className={cn(
+            'rounded-full border-2 border-border shadow-sm transition-all',
             sizeClass,
             !isMe && 'group-hover:ring-2 group-hover:ring-brass/50',
-          )}>
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-            ) : (
-              profile.display_name.charAt(0)
-            )}
-          </span>
+          )}
+          />
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 z-10 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-bg bg-coral px-1 text-[9px] font-black leading-none text-white shadow-md">
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -486,13 +522,7 @@ export function MessageAvatar({
         title={isMe ? profile.display_name : `Message ${profile.display_name}`}
       >
         <span className="relative inline-flex shrink-0">
-          <span className={cn('rounded-full border-2 border-border bg-surface-2 overflow-hidden flex items-center justify-center font-display font-bold text-brass shadow-sm transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')}>
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-            ) : (
-              profile.display_name.charAt(0)
-            )}
-          </span>
+          <UserAvatar userId={profile.id} name={profile.display_name} avatarUrl={profile.avatar_url} className={cn('rounded-full border-2 border-border shadow-sm transition-all', sizeClass, !isMe && currentUserId && 'group-hover:ring-2 group-hover:ring-brass/50')} />
           {unreadCount > 0 && (
             <span className={cn(
               'absolute z-10 inline-flex items-center justify-center rounded-full border border-bg bg-coral font-black leading-none text-white shadow-md',

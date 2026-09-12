@@ -17,6 +17,7 @@ import { publicAsset } from '../lib/publicAsset';
 import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
+import { UserAvatar } from './UserAvatar';
 
 const FCX_START_HOUR = 12;
 
@@ -212,10 +213,8 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             )}
           >
             <span className={cn('flex h-full w-full items-center justify-center overflow-hidden rounded-full border shadow-sm', registration ? 'border-brass/55 bg-navy/78' : 'border-white/30 bg-surface/35')}>
-              {registration?.avatar_url ? (
-                <img src={registration.avatar_url} alt={registration.display_name} className="h-full w-full object-cover" loading="lazy" />
-              ) : registration ? (
-                <span>{registration.display_name.charAt(0).toUpperCase()}</span>
+              {registration ? (
+                <UserAvatar userId={registration.user_id || registration.id} name={registration.display_name} avatarUrl={registration.avatar_url} className="h-full w-full" />
               ) : (
                 <img src={publicAsset('icons/fullcircle-dove-clean.png')} alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
               )}
@@ -228,11 +227,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       {previousWinner?.profiles && (
         <div className="fcx-line mt-3 flex items-center gap-2.5 rounded-lg border border-white/20 bg-surface/45 px-2.5 py-2 backdrop-blur-sm">
           <span className="relative inline-flex shrink-0">
-            <img
-              src={previousWinner.profiles.avatar_url || publicAsset('icons/fullcircle-dove-clean.png')}
-              alt={previousWinner.profiles.display_name}
-              className="h-8 w-8 rounded-full border border-brass/55 object-cover"
-            />
+            <UserAvatar userId={previousWinner.user_id} name={previousWinner.profiles.display_name} avatarUrl={previousWinner.profiles.avatar_url} className="h-8 w-8 border border-brass/55" />
             <VallumAvatarBadge userId={previousWinner.user_id} size="sm" />
           </span>
           <div className="min-w-0 flex-1">
@@ -522,11 +517,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
                 <div key={registration.id} className="flex items-center gap-3 px-3 py-2.5">
                   {registration.is_app_member ? (
                     <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-gold">
-                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy">
-                        {registration.avatar_url
-                          ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
-                          : registration.display_name.charAt(0).toUpperCase()}
-                      </span>
+                      <UserAvatar userId={registration.user_id} name={registration.display_name} avatarUrl={registration.avatar_url} className="h-full w-full border border-brass/35" />
                       <VallumAvatarBadge userId={registration.user_id} size="sm" />
                     </span>
                   ) : (
@@ -538,9 +529,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
                       title="Add or adjust participant photo"
                       aria-label={`Add or adjust ${registration.display_name}'s photo`}
                     >
-                      {registration.avatar_url
-                        ? <img src={registration.avatar_url} alt="" className="h-full w-full object-cover" />
-                        : registration.display_name.charAt(0).toUpperCase()}
+                      <UserAvatar userId={registration.id} name={registration.display_name} avatarUrl={registration.avatar_url} className="h-full w-full" />
                       <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-peri text-white shadow-sm">
                         <Camera size={9} />
                       </span>

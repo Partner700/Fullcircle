@@ -4,6 +4,7 @@ import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { NotificationCenter } from '../../components/NotificationCenter';
 import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
+import { NewcomerGuide } from '../../components/NewcomerGuide';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
@@ -23,9 +24,12 @@ import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { VallumText } from '../../components/ChiRhoMark';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
+import { UserAvatar } from '../../components/UserAvatar';
 import { CadetStore } from '../cadet/CadetStore';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { updateReactionOptimistically } from '../../lib/reactionState';
+import { announceNewcomerGuidanceAction } from '../../lib/newcomerGuidance';
+import { openProfileCv } from '../../lib/profileCv';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase } from '../../lib/supabase';
 import {
@@ -47,7 +51,7 @@ import {
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
   Cake, Aperture, Blend, CircleDot, Contrast, Droplets, EyeOff, Focus, Gauge,
-  MoveHorizontal, MoveVertical, Palette, ScanLine, ShoppingBag, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves,
+  MoveHorizontal, MoveVertical, Palette, ScanLine, ShoppingBag, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves, Contact,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
@@ -340,6 +344,7 @@ export function InstructorApp() {
       {tab === 'settings' && <InstructorSettings profile={profile} tents={tents} members={members} />}
     </AppShell>
     <DoveNotificationArrival onNavigate={navigateFromAction} />
+    <NewcomerGuide activeTab={tab} onNavigate={(key) => setTab(key as Tab)} />
     </>
   );
 }
@@ -403,6 +408,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_streakboard_release', label: 'Streakboard Release', audience: 'all' },
   { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
   { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
+  { type: 'panel_image_messages', label: 'Messages', audience: 'all' },
   { type: 'panel_image_reading', label: "Today's Reading", audience: 'all' },
   { type: 'panel_image_verse_day_tr', label: 'Verse of the Day TR', audience: 'all' },
   { type: 'panel_image_meditation', label: 'Daily Meditation', audience: 'all' },
@@ -415,6 +421,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_daily_game_reminder', label: 'Daily Trivia Reminder', audience: 'all' },
   { type: 'panel_image_weekly_quiz_reminder', label: 'Weekly Quiz Reminder', audience: 'all' },
   { type: 'panel_image_arena', label: 'Arena', audience: 'all' },
+  { type: 'panel_image_story_mode', label: 'Story Mode', audience: 'all' },
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
   { type: 'panel_image_awards', label: 'Awards Hub', audience: 'all' },
@@ -1531,7 +1538,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                 {markedMorningCall.map((item) => (
                   <div key={item.userId} className="flex items-center gap-3 px-3 py-2.5">
                     <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
-                      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-peri-soft">{item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : item.name.charAt(0).toUpperCase()}</span>
+                      <UserAvatar userId={item.userId} name={item.name} avatarUrl={item.avatarUrl} className="h-full w-full" />
                       <VallumAvatarBadge userId={item.userId} size="sm" />
                     </span>
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{item.name}</p><p className="truncate text-xs text-stone">{item.tentName}</p></div>
@@ -1679,7 +1686,7 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
   return <section className="card mb-5 p-5">
     <SectionHeader title="Tent Join Requests" subtitle="Approve cadets until each tent reaches ten cadets plus its sentry." />
     <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
-      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-peri-soft">{request.profiles?.avatar_url ? <img src={request.profiles.avatar_url} alt="" className="h-full w-full object-cover" /> : request.profiles?.display_name?.charAt(0)}</span><VallumAvatarBadge userId={request.user_id} size="sm" /></span>
+      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={request.user_id} size="sm" /></span>
       <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
       <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
       <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
@@ -1993,7 +2000,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
           return (
             <div key={r.user_id} className="card p-4 card-hover">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-peri-dim"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-navy-3">{p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="h-full w-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={p.id} size="sm" /></span>
+                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={p.id} name={p.display_name} avatarUrl={p.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={p.id} size="sm" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
                   <p className="text-xs text-stone">
@@ -2018,6 +2025,9 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
 
               {/* Action buttons */}
               <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                <button type="button" onClick={() => openProfileCv(r.user_id)} className="btn-secondary text-xs" title="View profile">
+                  <Contact size={12} /> Profile
+                </button>
                 {whatsappUrl(p.whatsapp_number) && (
                   <a href={whatsappUrl(p.whatsapp_number)!} target="_blank" rel="noopener noreferrer"
                      className="btn-secondary text-xs" style={{ background: 'rgba(37, 211, 102, 0.10)', borderColor: 'rgba(37, 211, 102, 0.3)', color: '#25D366' }}>
@@ -2196,7 +2206,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
           return (
             <div key={r.user_id} className="card p-4">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-sage"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-sage-soft">{p.avatar_url ? <img src={p.avatar_url} alt={p.display_name} className="h-full w-full object-cover" /> : p.display_name.charAt(0).toUpperCase()}</span><VallumAvatarBadge userId={p.id} size="sm" /></span>
+                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={p.id} name={p.display_name} avatarUrl={p.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={p.id} size="sm" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
                   <p className="text-xs text-stone">
@@ -2220,6 +2230,9 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
               </div>
 
               <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                <button type="button" onClick={() => openProfileCv(r.user_id)} className="btn-secondary text-xs" title="View profile">
+                  <Contact size={12} /> Profile
+                </button>
                 {whatsappUrl(p.whatsapp_number) && (
                   <a href={whatsappUrl(p.whatsapp_number)!} target="_blank" rel="noopener noreferrer"
                      className="btn-secondary text-xs" style={{ background: 'rgba(37, 211, 102, 0.10)', borderColor: 'rgba(37, 211, 102, 0.3)', color: '#25D366' }}>
@@ -2499,13 +2512,7 @@ function MonthlyWatchCard({ title, subtitle, entries }: {
         ) : entries.map((entry, index) => (
           <div key={entry.id} className="flex items-center gap-2.5 rounded-md border border-border bg-surface/55 p-2">
             <span className="w-4 shrink-0 text-center text-[10px] font-bold text-brass">{index + 1}</span>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy/80 text-[10px] font-bold text-gold">
-              {entry.avatarUrl ? (
-                <img src={entry.avatarUrl} alt={entry.name} className="h-full w-full object-cover" loading="lazy" />
-              ) : (
-                <span>{entry.name.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
+            <UserAvatar userId={entry.id} name={entry.name} avatarUrl={entry.avatarUrl} className="h-8 w-8 shrink-0 border border-brass/35" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-ink">{entry.name}</p>
               <p className="mt-0.5 text-[10px] leading-snug text-stone">{entry.detail}</p>
@@ -3837,6 +3844,7 @@ function InstructorSettings({ profile, tents, members }: {
       });
       document.documentElement.lang = language;
       await refreshProfile();
+      announceNewcomerGuidanceAction('profile_details_saved');
     } catch (error: any) {
       alert(error.message || 'Could not save profile settings.');
     }
@@ -3865,7 +3873,7 @@ function InstructorSettings({ profile, tents, members }: {
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences" />
 
-      <div className="card p-4 space-y-3">
+      <div className="card p-4 space-y-3" data-guide="profile-details">
         <h4 className="font-display font-semibold text-ink">Your Profile</h4>
         <div className="flex items-center gap-4">
           <ProfilePhotoEditor profile={profile} onUploaded={refreshProfile} />
@@ -3876,7 +3884,9 @@ function InstructorSettings({ profile, tents, members }: {
         </div>
         <div>
           <label className="text-xs text-stone block mb-1">WhatsApp Number (for cadets/sentries to contact you)</label>
-          <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} />
+          <div className="max-w-md">
+            <CountryPhoneInput countryCode={country} value={whatsapp} onChange={setWhatsapp} />
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-xs text-stone">
@@ -3892,8 +3902,8 @@ function InstructorSettings({ profile, tents, members }: {
             <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
           </label>
         </div>
-        <button onClick={save} disabled={saving} className="btn-primary text-sm">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+        <button data-guide="save-profile" onClick={save} disabled={saving} className="btn-primary text-sm">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save profile information
         </button>
       </div>
 
@@ -5203,12 +5213,13 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
           {users.map((u) => (
             <div key={u.user_id} className="card p-4 bg-surface">
               <div className="flex items-start gap-3 mb-3">
-                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display font-bold text-brass"><span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-surface-2">{u.avatar_url ? <img src={u.avatar_url} alt={u.display_name} className="h-full w-full object-cover" /> : u.display_name.charAt(0)}</span><VallumAvatarBadge userId={u.user_id} size="sm" /></span>
+                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={u.user_id} name={u.display_name} avatarUrl={u.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={u.user_id} size="sm" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink">{u.display_name}</p>
                   <p className="text-xs text-stone">{u.email}</p>
                   <p className="text-xs text-stone/60">Joined {new Date(u.created_at).toLocaleDateString()}</p>
                 </div>
+                <button type="button" onClick={() => openProfileCv(u.user_id)} className="icon-btn" title="View profile" aria-label={`View ${u.display_name}'s profile`}><Contact size={15} /></button>
               </div>
               <div className="grid grid-cols-3 gap-2 items-end">
                 <div>
