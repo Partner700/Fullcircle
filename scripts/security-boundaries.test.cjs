@@ -169,6 +169,8 @@ const profileCvModal = read('src/components/ProfileCvModal.tsx');
 const messageOpenState = read('src/lib/messageOpenState.ts');
 const profilesAndOpenedMessageDelivery = read('supabase/migrations/20260910100000_profiles_and_opened_message_delivery.sql');
 const profileCompletionGuidance = read('supabase/migrations/20260910103000_profile_completion_guidance.sql');
+const personalScriptureAlarms = read('supabase/migrations/20260913103000_personal_scripture_alarms.sql');
+const alarmPushRetries = read('supabase/migrations/20260913110000_alarm_push_retries.sql');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -1589,6 +1591,8 @@ assert.doesNotMatch(punctualAlarmsAndGuidance, /(?:UPDATE|INSERT INTO) public\.d
 assert.match(pushDelivery, /TTL: remainingSeconds/);
 assert.match(pushDelivery, /Math\.min\(600,[\s\S]*metadata\.expires_at/);
 assert.match(pushDelivery, /alarm_push_is_current/);
+assert.match(personalScriptureAlarms, /CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog/);
+assert.match(alarmPushRetries, /CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog/);
 assert.match(pushDelivery, /"full-circle-scripture-alarm"/);
 for (const required of [
   'CREATE OR REPLACE FUNCTION private.user_is_scripture_alarm_eligible',

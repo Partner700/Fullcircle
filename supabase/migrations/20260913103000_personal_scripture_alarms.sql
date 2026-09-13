@@ -227,11 +227,16 @@ BEGIN
 END;
 $$;
 
+-- Enable Supabase Cron through SQL so a project without the dashboard toggle
+-- does not silently install alarms that can never run.
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN
-    RAISE EXCEPTION 'Enable Supabase Cron (pg_cron) before installing scheduled alarms.';
+    RAISE EXCEPTION 'Supabase Cron (pg_cron) could not be enabled for scheduled alarms.';
   END IF;
   PERFORM cron.schedule('full-circle-personal-alarms','* * * * *','SELECT private.dispatch_personal_alarms();');
 END;

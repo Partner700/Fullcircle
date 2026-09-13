@@ -21,9 +21,9 @@ const id = n => '00000000-0000-0000-0000-'+String(n).padStart(12,'0');
  await db.exec(fn(eligible,'private.user_is_scripture_alarm_eligible'));
  await db.exec(fn(accurate,'private.clear_completed_meditation_alarms'));
  for (const name of ['private.expire_stale_scripture_alarms','private.create_scripture_alarm_for_user','public.dispatch_scripture_alarm','public.ensure_my_due_scripture_alarms','public.submit_scripture_alarm_answer']) await db.exec(fn(tenMinute,name));
- await db.exec(read('20260913103000_personal_scripture_alarms.sql').split('DO $$\nBEGIN')[0]);
+ await db.exec(read('20260913103000_personal_scripture_alarms.sql').split('-- Enable Supabase Cron')[0]);
  await db.exec('CREATE TABLE public.push_subscriptions(id uuid PRIMARY KEY);');
- await db.exec(read('20260913110000_alarm_push_retries.sql').split('DO $$\nBEGIN')[0]);
+ await db.exec(read('20260913110000_alarm_push_retries.sql').split('-- Keep this migration independently')[0]);
  await db.exec('CREATE TRIGGER deliver_user_notification_push AFTER INSERT ON user_notifications FOR EACH ROW EXECUTE FUNCTION private.deliver_user_notification_push();');
  const as=async(user,role='authenticated')=>{await db.exec('RESET ROLE');await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[user?id(user):'']);await db.exec('SET ROLE '+role);};
  const save=async(overrides={})=>{

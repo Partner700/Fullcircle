@@ -31,7 +31,7 @@ Required migrations:
 - 20260913110000_alarm_push_retries.sql
 - 20260913113000_birthday_wishes_and_reactions.sql
 
-Supabase Cron must already be enabled. The migrations fail explicitly if it is missing. Do not rotate VAPID keys just to redeploy: installed devices are subscribed with the existing public key.
+The migrations enable Supabase Cron through the official SQL installation and then verify it before scheduling jobs. Do not rotate VAPID keys just to redeploy: installed devices are subscribed with the existing public key.
 
 ## Verification
 - TypeScript, full existing test suite, upload/push tests, production build.
@@ -44,4 +44,3 @@ Supabase Cron must already be enabled. The migrations fail explicitly if it is m
 - No production migration, live upload, or closed-phone delivery was verified in this implementation session.
 
 After deployment, verify a profile in both themes, upload a challenge photo and Member Profile artwork, react/unreact and exchange birthday wishes across accounts, and set a personal alarm a few minutes ahead with the app closed. This last test is necessary on actual Android and iPhone devices.
-

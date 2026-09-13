@@ -117,10 +117,16 @@ END;
 $$;
 REVOKE ALL ON FUNCTION private.deliver_user_notification_push() FROM PUBLIC, anon, authenticated;
 
+-- Keep this migration independently deployable if Cron was disabled between
+-- migrations. Existing jobs are retained and named schedules are updated.
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN
-    RAISE EXCEPTION 'Enable Supabase Cron (pg_cron) before installing alarm push delivery.';
+    RAISE EXCEPTION 'Supabase Cron (pg_cron) could not be enabled for alarm push delivery.';
   END IF;
   PERFORM cron.schedule('full-circle-alarm-push-retry','* * * * *','SELECT private.dispatch_alarm_push_queue();');
   PERFORM cron.schedule('full-circle-scripture-alarm-watchdog','* * * * *','SELECT private.dispatch_due_scripture_alarms();');
