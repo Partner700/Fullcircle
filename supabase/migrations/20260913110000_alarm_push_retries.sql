@@ -117,12 +117,8 @@ END;
 $$;
 REVOKE ALL ON FUNCTION private.deliver_user_notification_push() FROM PUBLIC, anon, authenticated;
 
--- Keep this migration independently deployable if Cron was disabled between
--- migrations. Existing jobs are retained and named schedules are updated.
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
-GRANT USAGE ON SCHEMA cron TO postgres;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
-
+-- The preceding personal-alarm migration installs Cron. Verify it here without
+-- attempting a second extension installation in a separate transaction.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN

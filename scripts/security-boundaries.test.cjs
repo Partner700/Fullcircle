@@ -1592,7 +1592,8 @@ assert.match(pushDelivery, /TTL: remainingSeconds/);
 assert.match(pushDelivery, /Math\.min\(600,[\s\S]*metadata\.expires_at/);
 assert.match(pushDelivery, /alarm_push_is_current/);
 assert.match(personalScriptureAlarms, /CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog/);
-assert.match(alarmPushRetries, /CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog/);
+assert.doesNotMatch(alarmPushRetries, /CREATE EXTENSION IF NOT EXISTS pg_cron/);
+assert.match(alarmPushRetries, /IF NOT EXISTS \(SELECT 1 FROM pg_extension WHERE extname='pg_cron'\)/);
 assert.match(pushDelivery, /"full-circle-scripture-alarm"/);
 for (const required of [
   'CREATE OR REPLACE FUNCTION private.user_is_scripture_alarm_eligible',
