@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, CheckCheck, CheckCircle2, Loader2, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCheck, CheckCircle2, Loader2, MessageCircle, PhoneCall } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchUserNotifications, markAllNotificationsRead, markNotificationRead } from '../lib/queries';
 import { supabase } from '../lib/supabase';
@@ -10,6 +10,7 @@ import { scriptureTargetFromMetadata, scriptureTargetUrl, storeScriptureTarget }
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 import { publicAsset } from '../lib/publicAsset';
 import { isDoveArrival } from '../lib/notificationArrival';
+import { openAudioCall } from '../lib/audioCalls';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -24,6 +25,7 @@ function notificationTone(notification: UserNotification) {
 
 function notificationSymbol(type: string) {
   const key = String(type || '').toLowerCase();
+  if (key === 'audio_call') return publicAsset('notification-symbols/call.svg');
   if (['message', 'direct_message', 'message_mention', 'tent_join_request'].includes(key)) return publicAsset('notification-symbols/message.svg');
   if (key === 'award') return publicAsset('notification-symbols/award.svg');
   if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
@@ -40,7 +42,13 @@ function isProtectedMessageNotification(notification: UserNotification) {
   );
 }
 
+function audioCallId(notification: UserNotification) {
+  if (String(notification.notification_type || '').toLowerCase() !== 'audio_call') return null;
+  return typeof notification.metadata?.call_id === 'string' ? notification.metadata.call_id : null;
+}
+
 async function showDeviceNotification(notification: UserNotification) {
+  if (audioCallId(notification)) return;
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
   try {
     if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
@@ -105,9 +113,11 @@ export function NotificationCenter({ onNavigate }: Props) {
       (payload) => {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
-          if (!isDoveArrival(notification)) setToast(notification);
-          void showDeviceNotification(notification);
-          void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
+          if (!audioCallId(notification)) {
+            if (!isDoveArrival(notification)) setToast(notification);
+            void showDeviceNotification(notification);
+            void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
+          }
         }
         void load();
       },
@@ -133,6 +143,13 @@ export function NotificationCenter({ onNavigate }: Props) {
     if (!notification.read_at) {
       setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
       await markNotificationRead(notification.id).catch(() => void load());
+    }
+    const callId = audioCallId(notification);
+    if (navigate && callId) {
+      openAudioCall(callId);
+      setOpen(false);
+      setToast(null);
+      return;
     }
     if (navigate && notification.action_key && onNavigate) {
       storeScriptureTarget(scriptureTargetFromMetadata(notification.metadata));
@@ -166,9 +183,11 @@ export function NotificationCenter({ onNavigate }: Props) {
         <div className="max-h-96 overflow-y-auto">
           {loading ? <div className="flex justify-center px-4 py-6"><Loader2 size={18} className="animate-spin text-peri" /></div> : notifications.length === 0 ? <div className="px-4 py-6 text-center text-xs text-stone">You're all caught up</div> : notifications.map((notification) => {
             const tone = notificationTone(notification);
+            const callId = audioCallId(notification);
+            const canOpen = Boolean(callId || (notification.action_key && onNavigate));
             return <div key={notification.id} className={`flex gap-2.5 border-b border-border px-4 py-3 last:border-0 ${notification.read_at ? 'opacity-70' : ''}`}>
-              {tone === 'success' ? <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-sage" /> : tone === 'warning' ? <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-coral" /> : notification.notification_type === 'message' ? <MessageCircle size={16} className="mt-0.5 flex-shrink-0 text-royal" /> : <Bell size={16} className="mt-0.5 flex-shrink-0 text-royal" />}
-              <div className="min-w-0 flex-1"><div className="flex items-start gap-2"><p className="text-xs font-semibold leading-snug text-ink">{notification.title}</p>{!notification.read_at && <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-coral" />}</div><p className="mt-0.5 text-xs leading-relaxed text-stone">{notification.body}</p>{(notification.action_key && onNavigate) ? <button type="button" onClick={() => void markRead(notification, true)} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage"><CheckCheck size={11} /> {notification.read_at ? 'Open' : 'Open and mark read'}</button> : !notification.read_at && <button type="button" onClick={() => void markRead(notification)} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage"><CheckCheck size={11} /> Mark as read</button>}</div>
+              {callId ? <PhoneCall size={16} className="mt-0.5 flex-shrink-0 text-sage" /> : tone === 'success' ? <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-sage" /> : tone === 'warning' ? <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-coral" /> : notification.notification_type === 'message' ? <MessageCircle size={16} className="mt-0.5 flex-shrink-0 text-royal" /> : <Bell size={16} className="mt-0.5 flex-shrink-0 text-royal" />}
+              <div className="min-w-0 flex-1"><div className="flex items-start gap-2"><p className="text-xs font-semibold leading-snug text-ink">{notification.title}</p>{!notification.read_at && <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-coral" />}</div><p className="mt-0.5 text-xs leading-relaxed text-stone">{notification.body}</p>{canOpen ? <button type="button" onClick={() => void markRead(notification, true)} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage">{callId ? <PhoneCall size={11} /> : <CheckCheck size={11} />} {callId ? 'Open call' : notification.read_at ? 'Open' : 'Open and mark read'}</button> : !notification.read_at && <button type="button" onClick={() => void markRead(notification)} className="mt-2 inline-flex items-center gap-1 rounded-full border border-border-bright bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-ink transition-colors hover:border-sage/40 hover:text-sage"><CheckCheck size={11} /> Mark as read</button>}</div>
             </div>;
           })}
         </div>

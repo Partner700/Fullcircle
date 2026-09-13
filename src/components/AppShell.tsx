@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { DoveMark } from './Dove';
-import { LogOut, Sun, Moon, Menu, X, Volume2, VolumeX } from 'lucide-react';
+import { LogOut, Sun, Moon, Menu, PhoneCall, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
@@ -11,6 +11,7 @@ import { isSoundscapeEnabled, isSoundscapePlaying, playInterfaceTone, setSoundsc
 import { OPEN_APP_NAVIGATION_EVENT } from '../lib/newcomerGuidance';
 import { openProfileCv } from '../lib/profileCv';
 import { UserAvatar } from './UserAvatar';
+import { requestAudioCall } from '../lib/audioCalls';
 
 type Theme = 'night' | 'day';
 
@@ -77,6 +78,24 @@ function SoundToggle() {
           <span /><span /><span /><span />
         </span>
       )}
+    </button>
+  );
+}
+
+function CallButton() {
+  const { role } = useAuth();
+  if (!role) return null;
+  const everyone = role === 'instructor';
+  const label = everyone ? 'Ring everyone' : 'Ring my tent';
+  return (
+    <button
+      type="button"
+      onClick={() => requestAudioCall(everyone ? 'all' : 'tent')}
+      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-sage/35 bg-sage/10 text-sage transition-all hover:border-sage/60 hover:bg-sage/20"
+      title={label}
+      aria-label={label}
+    >
+      <PhoneCall size={16} />
     </button>
   );
 }
@@ -327,6 +346,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 </div>
               </div>
               <div className="flex flex-shrink-0 items-center gap-2 md:hidden">
+                <CallButton />
                 <SoundToggle />
                 <ThemeToggle />
                 {showTopSignOut && (
@@ -341,6 +361,9 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               </div>
             </div>
             <div className="flex max-w-full items-center gap-2 overflow-x-auto overscroll-x-contain pb-1 pt-2 md:flex-shrink-0 md:justify-end md:overflow-visible md:py-0">
+              <div className="hidden md:block">
+                <CallButton />
+              </div>
               <div className="hidden md:block">
                 <ThemeToggle />
               </div>

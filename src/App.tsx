@@ -18,6 +18,8 @@ import { HiddenChallengeOverlay } from './components/HiddenChallengeOverlay';
 import { HiddenChallengeStatus } from './components/HiddenChallengeStatus';
 import { PublicQuizResultClaim } from './components/PublicQuizResultClaim';
 import { ProfileCvHost } from './components/ProfileCvModal';
+import { AudioCallManager } from './components/AudioCallManager';
+import { BackgroundAlertPrompt } from './components/BackgroundAlertPrompt';
 import { PublicShareScreen } from './screens/PublicShareScreen';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { LogOut, RefreshCw } from 'lucide-react';
@@ -98,7 +100,7 @@ export default function App() {
 
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
-  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /><FoundersGiftPopup /><ScriptureAlarmOverlay /><DoveQuestionOverlay /><HiddenChallengeOverlay /><HiddenChallengeStatus /><PublicQuizResultClaim /><ProfileCvHost /></>;
+  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /><FoundersGiftPopup /><BackgroundAlertPrompt /><AudioCallManager /><ScriptureAlarmOverlay /><DoveQuestionOverlay /><HiddenChallengeOverlay /><HiddenChallengeStatus /><PublicQuizResultClaim /><ProfileCvHost /></>;
 
   if (publicShare && !configError) {
     return <>{overlays}<PublicShareScreen kind={publicShare.kind} value={publicShare.value} /></>;

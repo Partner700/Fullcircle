@@ -71,19 +71,24 @@ async function testUploads() {
 async function testPush() {
   let handler;
   let active = true;
+  let callCurrent = true;
   let authorized = true;
   let subscriptionFailure = true;
+  let notificationType = 'scripture_alarm';
   const receipts = new Set();
   const sent = [];
   let expiresAt = new Date(Date.now() + 90000).toISOString();
+  const callId = '00000000-0000-0000-0000-000000000099';
   const response = data => Response.json(data);
   load('supabase/functions/send-push-notification/index.ts', {
     Deno: { env: { get: () => 'test-only-key' }, serve: fn => { handler = fn; } },
     fetch: async (url, options = {}) => {
       if (url.includes('verify_push_webhook_secret')) return response(authorized);
       if (url.includes('alarm_push_is_current')) return response(active);
+      if (url.includes('audio_call_push_is_current')) return response(callCurrent);
       if (url.includes('user_notifications?')) return response([{ id: 'notification', recipient_id: 'user', title: 'Prayer',
-        notification_type: 'scripture_alarm', action_key: 'narrative', metadata: { expires_at: expiresAt, alarm_id: 'alarm' } }]);
+        notification_type: notificationType, action_key: notificationType === 'audio_call' ? 'call' : 'narrative',
+        metadata: notificationType === 'audio_call' ? { expires_at: expiresAt, call_id: callId } : { expires_at: expiresAt, alarm_id: 'alarm' } }]);
       if (url.includes('alarm_push_receipts?')) return response([...receipts].map(subscription_id => ({ subscription_id })));
       if (url.endsWith('alarm_push_receipts')) { receipts.add(JSON.parse(options.body).subscription_id); return response({}); }
       if (url.includes('push_subscriptions?')) return response([
@@ -110,9 +115,25 @@ async function testPush() {
   assert.equal((await handler(request())).status, 200); assert.equal(sent.length, 3, 'Do not send cleared/completed alarms');
   active = true; receipts.clear(); expiresAt = new Date(Date.now() - 1000).toISOString();
   await handler(request()); assert.equal(sent.length, 3, 'Do not send expired alarms');
+  notificationType = 'audio_call';
+  expiresAt = new Date(Date.now() + 120000).toISOString();
+  assert.equal((await handler(request())).status, 200);
+  assert.equal(sent.length, 5);
+  const callPush = sent[3];
+  assert.equal(callPush.payload.tag, `full-circle-audio-call-${callId}`);
+  assert.equal(callPush.payload.image, '/notification-symbols/call.svg');
+  assert.equal(callPush.payload.requireInteraction, true);
+  assert.equal(callPush.payload.renotify, true);
+  assert.equal(callPush.payload.actions[0].action, 'join');
+  assert.match(callPush.payload.url, /fc-call=00000000-0000-0000-0000-000000000099/);
+  assert.equal(callPush.options.urgency, 'high');
+  await handler(request());
+  assert.equal(sent.length, 7, 'A repeated call push replaces and re-rings the same notification tag');
+  callCurrent = false;
+  await handler(request());
+  assert.equal(sent.length, 7, 'Do not ring after a call was answered or ended');
   authorized = false; assert.equal((await handler(request())).status, 401);
 }
 
-(async () => { await testUploads(); await testPush(); console.log('Photo preparation, upload recovery, and alarm push delivery tests passed.'); })()
+(async () => { await testUploads(); await testPush(); console.log('Photo preparation, upload recovery, alarm push, and call push tests passed.'); })()
   .catch(error => { console.error(error); process.exitCode = 1; });
-

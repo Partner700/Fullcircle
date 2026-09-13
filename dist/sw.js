@@ -1,14 +1,15 @@
 // This worker is intentionally notification-only. Application requests must
 // always go to the network so an installed phone cannot be trapped on a stale
 // offline document or an obsolete JavaScript bundle.
-const CACHE_VERSION = 'full-circle-v127';
-const RECOVERY_MARKER = '120';
+const CACHE_VERSION = 'full-circle-v128';
+const RECOVERY_MARKER = '121';
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
   direct_message: 'notification-symbols/message.svg',
   message_mention: 'notification-symbols/message.svg',
   tent_join_request: 'notification-symbols/message.svg',
+  audio_call: 'notification-symbols/call.svg',
   award: 'notification-symbols/award.svg',
   arena: 'notification-symbols/arena.svg',
   streak: 'notification-symbols/streak.svg',
@@ -120,23 +121,28 @@ self.addEventListener('push', (event) => {
   try {
     const data = event.data.json();
     const title = data.title || 'Full Circle';
-    const isScriptureAlarm = String(data.type || data.notification_type || '').toLowerCase() === 'scripture_alarm';
-    if (isScriptureAlarm && data.metadata?.expires_at
+    const notificationType = String(data.type || data.notification_type || '').toLowerCase();
+    const isScriptureAlarm = notificationType === 'scripture_alarm';
+    const isAudioCall = notificationType === 'audio_call';
+    const isUrgent = isScriptureAlarm || isAudioCall;
+    if (isUrgent && data.metadata?.expires_at
       && Date.parse(data.metadata.expires_at) <= Date.now()) return;
     const options = {
       body: data.body || '',
       icon: scopedUrl('icons/icon-192.png'),
       badge: scopedUrl('icons/icon-96.png'),
       image: data.image || notificationSymbol(data.type || data.notification_type),
-      vibrate: isScriptureAlarm ? [1200, 120, 1200, 120, 1600] : [200, 100, 200],
+      vibrate: isAudioCall
+        ? [900, 150, 900, 150, 1200]
+        : isScriptureAlarm ? [1200, 120, 1200, 120, 1600] : [200, 100, 200],
       data: {
         url: data.url ? scopedUrl(data.url) : self.registration.scope,
         dateOfArrival: Date.now(),
       },
       actions: data.actions || [],
       tag: data.tag || 'default',
-      renotify: isScriptureAlarm || data.renotify || false,
-      requireInteraction: isScriptureAlarm || data.requireInteraction || false,
+      renotify: isUrgent || data.renotify || false,
+      requireInteraction: isUrgent || data.requireInteraction || false,
       silent: false,
     };
 

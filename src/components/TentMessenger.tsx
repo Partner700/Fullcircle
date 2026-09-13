@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage, fetchPanelImageSetting, markOpenMessageNotificationsRead } from '../lib/queries';
 import type { DirectMessage, PanelImageSetting, Profile, TentGroupMessage, TentMessage } from '../lib/types';
-import { AtSign, X, Send, Loader2, Users, Pencil, Check } from 'lucide-react';
+import { AtSign, X, Send, Loader2, PhoneCall, Users, Pencil, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
@@ -13,6 +13,7 @@ import { RelativeTime } from './RelativeTime';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { UserAvatar } from './UserAvatar';
 import { setOpenMessageContext } from '../lib/messageOpenState';
+import { requestAudioCall } from '../lib/audioCalls';
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -331,9 +332,14 @@ export function TentGroupMessenger({
               <p className="text-xs text-stone">Tent group chat</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-surface-2" aria-label="Close tent chat">
-            <X size={18} className="text-stone" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => requestAudioCall('tent', tentId)} className="icon-btn text-sage" aria-label="Ring this tent" title="Ring this tent">
+              <PhoneCall size={17} />
+            </button>
+            <button onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-surface-2" aria-label="Close tent chat">
+              <X size={18} className="text-stone" />
+            </button>
+          </div>
         </div>
 
         <div className="relative z-10 min-h-[240px] flex-1 space-y-2 overflow-y-auto p-4">

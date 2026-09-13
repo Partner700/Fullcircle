@@ -34,6 +34,7 @@ function serviceHeaders(serviceKey: string) {
 
 function notificationSymbol(type: string) {
   const key = String(type || "").toLowerCase();
+  if (key === "audio_call") return "/notification-symbols/call.svg";
   if (["message", "direct_message", "message_mention", "tent_join_request"].includes(key)) return "/notification-symbols/message.svg";
   if (key === "award") return "/notification-symbols/award.svg";
   if (key === "arena") return "/notification-symbols/arena.svg";
@@ -73,11 +74,13 @@ Deno.serve(async (request) => {
     if (!notification) return new Response("Notification not found", { status: 404 });
 
     const isScriptureAlarm = notification.notification_type === "scripture_alarm";
-    if (isScriptureAlarm) {
-      const current = await fetch(`${supabaseUrl}/rest/v1/rpc/alarm_push_is_current`, {
+    const isAudioCall = notification.notification_type === "audio_call";
+    if (isScriptureAlarm || isAudioCall) {
+      const eligibilityRpc = isScriptureAlarm ? "alarm_push_is_current" : "audio_call_push_is_current";
+      const current = await fetch(`${supabaseUrl}/rest/v1/rpc/${eligibilityRpc}`, {
         method: "POST", headers: serviceHeaders(serviceKey), body: JSON.stringify({ p_notification_id: notification.id }),
       });
-      if (!current.ok) throw new Error("Unable to verify alarm eligibility");
+      if (!current.ok) throw new Error(`Unable to verify ${isScriptureAlarm ? "alarm" : "call"} eligibility`);
       if (await current.json() !== true) return Response.json({ delivered: 0, skipped: true });
     }
 
@@ -103,11 +106,14 @@ Deno.serve(async (request) => {
     );
 
     const destinationParams = new URLSearchParams();
-    if (notification.action_key) destinationParams.set("fc-tab", notification.action_key);
+    if (notification.action_key && !isAudioCall) destinationParams.set("fc-tab", notification.action_key);
     const metadata = notification.metadata || {};
+    if (isAudioCall && typeof metadata.call_id === "string") destinationParams.set("fc-call", metadata.call_id);
     const notificationTag = isScriptureAlarm
       ? "full-circle-scripture-alarm"
-      : `full-circle-${notification.id}`;
+      : isAudioCall && typeof metadata.call_id === "string"
+        ? `full-circle-audio-call-${metadata.call_id}`
+        : `full-circle-${notification.id}`;
     if (typeof metadata.narrative_id === "string") destinationParams.set("fc-narrative", metadata.narrative_id);
     if (typeof metadata.verse_reference === "string") destinationParams.set("fc-verse", metadata.verse_reference);
     if (typeof metadata.insight_id === "string") destinationParams.set("fc-insight", metadata.insight_id);
@@ -120,14 +126,15 @@ Deno.serve(async (request) => {
       type: notification.notification_type,
       image: notificationSymbol(notification.notification_type),
       metadata: notification.metadata || {},
-      renotify: isScriptureAlarm,
-      requireInteraction: isScriptureAlarm,
+      actions: isAudioCall ? [{ action: "join", title: "Join call" }] : [],
+      renotify: isScriptureAlarm || isAudioCall,
+      requireInteraction: isScriptureAlarm || isAudioCall,
     });
 
     let delivered = 0;
     let failed = 0;
-    const remainingSeconds = isScriptureAlarm
-      ? Math.min(600, Math.max(0, Math.floor((Date.parse(String(metadata.expires_at)) - Date.now()) / 1000)))
+    const remainingSeconds = isScriptureAlarm || isAudioCall
+      ? Math.min(isScriptureAlarm ? 600 : 2700, Math.max(0, Math.floor((Date.parse(String(metadata.expires_at)) - Date.now()) / 1000)))
       : 3600;
     if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) return Response.json({ delivered: 0, skipped: true });
     await Promise.all(subscriptions.map(async (subscription) => {
@@ -138,7 +145,7 @@ Deno.serve(async (request) => {
           keys: { p256dh: subscription.p256dh, auth: subscription.auth },
         }, payload, {
           TTL: remainingSeconds,
-          urgency: isScriptureAlarm ? "high" : "normal",
+          urgency: isScriptureAlarm || isAudioCall ? "high" : "normal",
         });
         delivered += 1;
         if (isScriptureAlarm) {

@@ -100,6 +100,29 @@ export interface ScriptureAlarmAnswerResult {
   alarm?: PendingScriptureAlarm | null;
 }
 
+export type AudioCallScope = 'all' | 'tent';
+export type AudioCallStatus = 'ringing' | 'active' | 'ended' | 'expired';
+export type AudioCallRecipientStatus = 'ringing' | 'joined' | 'declined' | 'left' | 'missed';
+
+export interface AudioCall {
+  id: string;
+  scope: AudioCallScope;
+  tent_id: string | null;
+  title: string;
+  provider: 'jitsi';
+  provider_room_name: string;
+  automatic: boolean;
+  status: AudioCallStatus;
+  starts_at: string;
+  expires_at: string;
+  host_id: string;
+  host_name: string;
+  host_avatar_url: string | null;
+  recipient_status: AudioCallRecipientStatus;
+  participant_count: number;
+  can_end: boolean;
+}
+
 export interface PublishDoveQuestionInput {
   questionText: string;
   questionType: DoveQuestionType;

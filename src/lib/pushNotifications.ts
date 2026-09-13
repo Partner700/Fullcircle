@@ -32,6 +32,13 @@ export async function getCurrentPushSubscription() {
   return registration.pushManager.getSubscription();
 }
 
+async function readyRegistration() {
+  return new Promise<ServiceWorkerRegistration>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('Background alerts are still starting. Reopen Full Circle and try again.')), 15000);
+    void navigator.serviceWorker.ready.then(resolve, reject).finally(() => window.clearTimeout(timer));
+  });
+}
+
 async function registerSubscription(subscription: PushSubscription) {
   const json = subscription.toJSON();
   const endpoint = json.endpoint || subscription.endpoint;
@@ -55,8 +62,18 @@ function usesCurrentPushKey(subscription: PushSubscription) {
 
 export async function syncExistingWebPush() {
   if (!supportsWebPush() || Notification.permission !== 'granted') return null;
-  const subscription = await getCurrentPushSubscription();
-  if (!subscription || !usesCurrentPushKey(subscription)) return null;
+  if (isIOSDevice() && !isInstalledApp()) return null;
+  const registration = await readyRegistration();
+  let subscription = await registration.pushManager.getSubscription();
+  if (subscription && !usesCurrentPushKey(subscription)) {
+    await subscription.unsubscribe();
+    subscription = null;
+  }
+  subscription = subscription || await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: base64UrlToUint8Array(VAPID_PUBLIC_KEY),
+  });
+  try { window.localStorage.setItem('full-circle-browser-notifications-enabled', 'true'); } catch { /* Permission remains authoritative. */ }
   return registerSubscription(subscription);
 }
 
@@ -73,10 +90,7 @@ export async function enableWebPush() {
       : 'Notification permission was not granted.');
   }
 
-  const registration = await new Promise<ServiceWorkerRegistration>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error('Notifications are still starting. Reopen the app and try again.')), 15000);
-    void navigator.serviceWorker.ready.then(resolve, reject).finally(() => window.clearTimeout(timer));
-  });
+  const registration = await readyRegistration();
   let existing = await registration.pushManager.getSubscription();
   if (existing && !usesCurrentPushKey(existing)) {
     await existing.unsubscribe();

@@ -46,10 +46,11 @@ import { dailyGamesNavigationKey } from '../../lib/dailyGames';
 import { openProfileCv } from '../../lib/profileCv';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { isDoveArrival } from '../../lib/notificationArrival';
+import { openAudioCall } from '../../lib/audioCalls';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag,
-  Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck, Contact,
+  Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck, Contact, PhoneCall,
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
@@ -78,6 +79,7 @@ const TOPBAR_STATS_CACHE_PREFIX = 'full-circle-topbar-stats';
 
 function notificationSymbolForType(type: string) {
   const key = String(type || '').toLowerCase();
+  if (key === 'audio_call') return publicAsset('notification-symbols/call.svg');
   if (['message', 'direct_message', 'message_mention', 'tent_join_request'].includes(key)) return publicAsset('notification-symbols/message.svg');
   if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
   if (key === 'award') return publicAsset('notification-symbols/award.svg');
@@ -120,6 +122,7 @@ function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number
 }
 
 async function showDeviceNotification(notification: UserNotification) {
+  if (String(notification.notification_type || '').toLowerCase() === 'audio_call') return;
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
   try {
     if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
@@ -846,9 +849,11 @@ export function CadetApp() {
         (payload) => {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
-          if (!isDoveArrival(notification)) setToastNotification(notification);
-          void showDeviceNotification(notification);
+          if (notification.notification_type !== 'audio_call') {
+            if (!isDoveArrival(notification)) setToastNotification(notification);
+            void showDeviceNotification(notification);
             void playNotificationSound(notification.notification_type, String(notification.metadata?.status || ''));
+          }
           }
           void loadNotifications();
         },
@@ -990,6 +995,14 @@ export function CadetApp() {
       await markLinkedNotificationRead(notification);
       markLocalNotificationsRead([notification.id]);
     }
+    const callId = notification.sourceType === 'audio_call' && typeof notification.metadata?.call_id === 'string'
+      ? notification.metadata.call_id
+      : null;
+    if (callId) {
+      openAudioCall(callId);
+      setShowNotifications(false);
+      return;
+    }
     if (notification.actionTab) {
       storeScriptureTarget(scriptureTargetFromMetadata(notification.metadata));
       handleNavigate(notification.actionTab);
@@ -1102,23 +1115,24 @@ export function CadetApp() {
                     <div className="px-4 py-6 text-center text-xs text-stone">You're all caught up</div>
                   ) : notifications.map(n => (
                     <div key={n.id} className={`flex gap-2.5 px-4 py-3 border-b border-border last:border-0 ${n.read ? 'opacity-70' : ''}`}>
-                      {n.type === 'success' && <CheckCircle2 size={16} className="text-sage flex-shrink-0 mt-0.5" />}
+                      {n.sourceType === 'audio_call' && <PhoneCall size={16} className="text-sage flex-shrink-0 mt-0.5" />}
+                      {n.sourceType !== 'audio_call' && n.type === 'success' && <CheckCircle2 size={16} className="text-sage flex-shrink-0 mt-0.5" />}
                       {n.type === 'warning' && <AlertTriangle size={16} className="text-coral flex-shrink-0 mt-0.5" />}
-                      {n.type === 'info' && (n.title.toLowerCase().includes('message') ? <MessageCircle size={16} className="text-royal flex-shrink-0 mt-0.5" /> : <Bell size={16} className="text-royal flex-shrink-0 mt-0.5" />)}
+                      {n.sourceType !== 'audio_call' && n.type === 'info' && (n.title.toLowerCase().includes('message') ? <MessageCircle size={16} className="text-royal flex-shrink-0 mt-0.5" /> : <Bell size={16} className="text-royal flex-shrink-0 mt-0.5" />)}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-2">
                           {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-coral flex-shrink-0 mt-1.5" />}
                           <p className="text-xs font-semibold text-ink leading-snug">{n.title}</p>
                         </div>
                         <p className="text-xs text-stone leading-relaxed mt-0.5">{n.text}</p>
-                        {(n.actionTab || !n.read) && (
+                        {(n.actionTab || n.sourceType === 'audio_call' || !n.read) && (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {n.actionTab && (
+                            {(n.actionTab || n.sourceType === 'audio_call') && (
                               <button
                                 onClick={() => handleNotificationOpen(n)}
                                 className="inline-flex items-center rounded-full border border-royal/25 bg-royal-soft px-2.5 py-1 text-[10px] font-bold text-royal hover:border-royal/40 transition-colors"
                               >
-                                {n.actionLabel || 'Open'}
+                                {n.sourceType === 'audio_call' ? 'Open call' : n.actionLabel || 'Open'}
                               </button>
                             )}
                             {!n.read && (

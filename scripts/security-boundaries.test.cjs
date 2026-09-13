@@ -171,6 +171,12 @@ const profilesAndOpenedMessageDelivery = read('supabase/migrations/2026091010000
 const profileCompletionGuidance = read('supabase/migrations/20260910103000_profile_completion_guidance.sql');
 const personalScriptureAlarms = read('supabase/migrations/20260913103000_personal_scripture_alarms.sql');
 const alarmPushRetries = read('supabase/migrations/20260913110000_alarm_push_retries.sql');
+const closedAppAlertsAndAudioCalls = read('supabase/migrations/20260913120000_closed_app_alerts_and_audio_calls.sql');
+const audioCallManager = read('src/components/AudioCallManager.tsx');
+const audioCallApi = read('src/lib/audioCalls.ts');
+const backgroundAlertPrompt = read('src/components/BackgroundAlertPrompt.tsx');
+const notificationCenter = read('src/components/NotificationCenter.tsx');
+const pushNotifications = read('src/lib/pushNotifications.ts');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -417,31 +423,31 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v127'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '120'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v128'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '121'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '106'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '107'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=107`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '107'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-13-v127/);
+assert.match(releaseCache, /2026-09-13-v128/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=107/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=107'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.match(appIndex, /navigator\.serviceWorker\.getRegistrations/);
 assert.match(appIndex, /registration\.unregister\(\)/);
 assert.match(appIndex, /searchParams\.set\(marker, release\)/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=106"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=107"/);
 assert.match(viteConfig, /target: 'es2017'/);
 assert.match(appIndex, /Array\.prototype\.flatMap/);
 assert.match(appIndex, /Object\.fromEntries/);
@@ -1554,8 +1560,8 @@ assert.match(scriptureAlarmOverlay, /z-\[2147483647\]/);
 assert.match(scriptureAlarmOverlay, /Finish and send your daily meditation/);
 assert.doesNotMatch(scriptureAlarmOverlay, /dismissScriptureAlarm|onClick=\{dismiss/);
 assert.match(serviceWorker, /isScriptureAlarm \? \[1200, 120, 1200, 120, 1600\]/);
-assert.match(serviceWorker, /requireInteraction: isScriptureAlarm/);
-assert.match(pushDelivery, /urgency: isScriptureAlarm \? "high" : "normal"/);
+assert.match(serviceWorker, /requireInteraction: isUrgent/);
+assert.match(pushDelivery, /urgency: isScriptureAlarm \|\| isAudioCall \? "high" : "normal"/);
 for (const required of [
   'private.daily_meditation_is_submitted',
   'private.clear_completed_meditation_alarms',
@@ -1589,7 +1595,7 @@ for (const required of [
 }
 assert.doesNotMatch(punctualAlarmsAndGuidance, /(?:UPDATE|INSERT INTO) public\.daily_records/);
 assert.match(pushDelivery, /TTL: remainingSeconds/);
-assert.match(pushDelivery, /Math\.min\(600,[\s\S]*metadata\.expires_at/);
+assert.match(pushDelivery, /Math\.min\(isScriptureAlarm \? 600 : 2700,[\s\S]*metadata\.expires_at/);
 assert.match(pushDelivery, /alarm_push_is_current/);
 assert.match(personalScriptureAlarms, /CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog/);
 assert.doesNotMatch(alarmPushRetries, /CREATE EXTENSION IF NOT EXISTS pg_cron/);
@@ -1850,6 +1856,56 @@ assert.match(instructorApp, /panel_image_messages', label: 'Messages'/);
 assert.match(instructorApp, /panel_image_story_mode', label: 'Story Mode'/);
 assert.match(indexCss, /\[data-theme="day"\] \.arena-panel-veil[\s\S]*?rgba\(255, 255, 255/);
 assert.match(indexCss, /\.weekly-quiz-window-artwork \.card::before/);
+
+for (const required of [
+  'CREATE TABLE public.audio_call_rooms',
+  'CREATE TABLE public.audio_call_recipients',
+  'CREATE OR REPLACE FUNCTION public.start_audio_call',
+  'CREATE OR REPLACE FUNCTION public.get_my_active_audio_calls',
+  'CREATE OR REPLACE FUNCTION public.answer_audio_call',
+  'CREATE OR REPLACE FUNCTION public.end_audio_call',
+  "Only the instructor can ring everyone.",
+  "You can only ring your own tent.",
+  'CREATE OR REPLACE FUNCTION public.audio_call_push_is_current',
+  'CREATE OR REPLACE FUNCTION private.ensure_morning_audio_call',
+  "extract(isodow FROM v_date)::integer NOT BETWEEN 1 AND 5",
+  "'Morning Call'",
+  'CREATE OR REPLACE FUNCTION private.dispatch_audio_call_rings',
+  'CREATE OR REPLACE FUNCTION private.run_background_alert_watchdog',
+  'PERFORM private.dispatch_due_scripture_alarms()',
+  'PERFORM private.dispatch_personal_alarms()',
+  'PERFORM private.dispatch_alarm_push_queue()',
+  'PERFORM private.ensure_morning_audio_call()',
+  'PERFORM private.dispatch_audio_call_rings()',
+  "'full-circle-background-alert-watchdog'",
+  "'* * * * *'",
+]) {
+  assert.ok(closedAppAlertsAndAudioCalls.includes(required), `Missing closed-app alert or audio-call safeguard: ${required}`);
+}
+assert.doesNotMatch(closedAppAlertsAndAudioCalls, /CREATE EXTENSION/);
+assert.match(closedAppAlertsAndAudioCalls, /CASE WHEN profile\.id = p_host_id AND NOT p_automatic THEN 'joined' ELSE 'ringing' END/);
+assert.match(closedAppAlertsAndAudioCalls, /recipient\.push_attempts < 4[\s\S]*room\.starts_at <= now\(\)/);
+assert.match(closedAppAlertsAndAudioCalls, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.audio_call_rooms/);
+assert.match(rootApp, /<BackgroundAlertPrompt\s*\/>/);
+assert.match(rootApp, /<AudioCallManager\s*\/>/);
+assert.match(appShell, /requestAudioCall\(everyone \? 'all' : 'tent'\)/);
+assert.match(tentMessenger, /requestAudioCall\('tent', tentId\)/);
+assert.match(audioCallApi, /get_my_active_audio_calls/);
+assert.match(audioCallApi, /fc-call/);
+assert.match(audioCallManager, /meet\.jit\.si/);
+assert.match(audioCallManager, /startAudioOnly: true/);
+assert.match(audioCallManager, /startWithVideoMuted: true/);
+assert.match(audioCallManager, /startRingingEffects/);
+assert.match(audioCallManager, /z-\[2147483500\]/);
+assert.match(backgroundAlertPrompt, /Allow Full Circle to reach this phone while the app is closed/);
+assert.match(pushNotifications, /subscription = subscription \|\| await registration\.pushManager\.subscribe/);
+assert.match(pushDelivery, /audio_call_push_is_current/);
+assert.match(pushDelivery, /full-circle-audio-call-/);
+assert.match(pushDelivery, /notification-symbols\/call\.svg/);
+assert.match(serviceWorker, /audio_call: 'notification-symbols\/call\.svg'/);
+assert.match(serviceWorker, /isAudioCall/);
+assert.match(notificationCenter, /openAudioCall\(callId\)/);
+assert.match(cadetApp, /openAudioCall\(callId\)/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;
