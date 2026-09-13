@@ -4,6 +4,7 @@ import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseBadge, TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { SealBullet, ScrollEdge } from '../../components/AncientMotifs';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
+import { BirthdayReactions } from '../../components/BirthdayReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { QuoteMeditationButton } from '../../components/QuoteMeditationButton';
 import { VallumText } from '../../components/ChiRhoMark';
@@ -632,7 +633,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                 />
               )}
               <div className={cn('relative flex items-start justify-between gap-3', conversationOpen && 'h-full')}>
-                <div className={cn('min-w-0', conversationOpen && 'h-full', (slide.kind === 'custom' || slide.kind === 'honors' || slide.kind === 'quiz_podium' || slide.kind === 'quote') && 'w-full')}>
+                <div className={cn('min-w-0', conversationOpen && 'h-full', (slide.kind === 'custom' || slide.kind === 'honors' || slide.kind === 'quiz_podium' || slide.kind === 'quote' || slide.kind === 'announcement') && 'w-full')}>
                   {slide.kind === 'custom' && slide.content}
 
                   {slide.kind === 'welcome' && (
@@ -746,7 +747,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       <p className="eyebrow mb-1 flex items-center gap-1.5"><Megaphone size={14} /> {announcementTitle}</p>
                       {slide.announcement.announcement_type === 'birthday' && (
                         <div className="mb-3 flex items-center gap-3">
-                          <UserAvatar name={slide.announcement.metadata?.display_name || 'Birthday celebrant'} avatarUrl={slide.announcement.metadata?.avatar_url} className="h-14 w-14 rounded-2xl border border-brass/45 shadow-sm" />
+                          <UserAvatar userId={slide.announcement.metadata?.user_id} name={slide.announcement.metadata?.display_name || 'Birthday celebrant'} avatarUrl={slide.announcement.metadata?.avatar_url} className="h-14 w-14 rounded-2xl border border-brass/45 shadow-sm" />
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-ink">{slide.announcement.metadata?.display_name || 'Birthday celebrant'}</p>
                             <p className="text-xs text-stone">Birthday celebration</p>
@@ -764,6 +765,14 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       <p className="text-[10px] text-stone-dim mt-2">
                         Posted {new Date(slide.announcement.publish_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
+                      {slide.announcement.announcement_type === 'birthday' && (
+                        <BirthdayReactions
+                          announcement={slide.announcement}
+                          active={displayIndex === slideIndex}
+                          onOpenChange={(open) => { setConversationOpen(open); onCommentOpenChange(open); }}
+                          onMessageOpenChange={onCommentOpenChange}
+                        />
+                      )}
                     </>
                   )}
 

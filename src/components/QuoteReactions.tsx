@@ -38,6 +38,10 @@ export function QuoteReactions({
   onMessageOpenChange,
   guideScope,
   previewLimit = 2,
+  commentsTitle = 'Quote Comments',
+  commentPlaceholder = 'Comment on this quote...',
+  commentButtonLabel = 'Comments',
+  emptyCommentsText = 'No comments yet.',
 }: {
   state?: QuoteReactionState;
   disabled?: boolean;
@@ -53,6 +57,10 @@ export function QuoteReactions({
   onMessageOpenChange?: (open: boolean) => void;
   guideScope?: QuoteReactionGuideScope;
   previewLimit?: number;
+  commentsTitle?: string;
+  commentPlaceholder?: string;
+  commentButtonLabel?: string;
+  emptyCommentsText?: string;
 }) {
   const [comments, setComments] = useState<DailyQuoteComment[]>([]);
   const [body, setBody] = useState('');
@@ -184,8 +192,8 @@ export function QuoteReactions({
             onClick={() => setShowComments(true)}
             data-guide={guideScope ? `${guideScope}-comment-open` : undefined}
             className={cn(reactionButtonClass, 'border-border bg-surface-2 text-stone hover:border-royal/40 hover:text-royal')}
-            title="Comments"
-            aria-label={`${commentTotal} comments`}
+            title={commentButtonLabel}
+            aria-label={`${commentTotal} ${commentButtonLabel.toLowerCase()}`}
           >
             <MessageCircle size={12} /> <span className="text-[10px] opacity-85">{commentTotal}</span>
           </button>
@@ -247,7 +255,7 @@ export function QuoteReactions({
         <div className="mt-3 rounded-2xl border border-royal/25 bg-surface/95 p-4 shadow-sm animate-slide-up">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-display text-base font-semibold text-ink">Quote Comments</h3>
+              <h3 className="font-display text-base font-semibold text-ink">{commentsTitle}</h3>
               <p className="text-xs text-stone">Visible to cadets, sentries, and instructors.</p>
             </div>
             <button
@@ -271,7 +279,7 @@ export function QuoteReactions({
             data-no-scroll-fade
           >
             {loadingComments && <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading comments...</p>}
-            {!loadingComments && comments.length === 0 && <p className="text-xs text-stone">No comments yet.</p>}
+            {!loadingComments && comments.length === 0 && <p className="text-xs text-stone">{emptyCommentsText}</p>}
             {topLevelComments.map((comment) => (
               <div key={comment.id} className="space-y-2">
                 <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-2">
@@ -367,7 +375,7 @@ export function QuoteReactions({
               rows={2}
               className="input-field max-h-28 min-h-16 flex-1 resize-none overflow-y-auto py-2 text-sm"
               maxLength={500}
-              placeholder={replyTarget ? `Reply to ${replyTarget.display_name || 'this comment'}...` : 'Comment on this quote...'}
+              placeholder={replyTarget ? `Reply to ${replyTarget.display_name || 'this comment'}...` : commentPlaceholder}
               value={body}
               onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitComment(); } }}

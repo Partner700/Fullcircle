@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellRing, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { enableWebPush, getCurrentPushSubscription, isInstalledApp, isIOSDevice, supportsWebPush } from '../lib/pushNotifications';
+import { enableWebPush, syncExistingWebPush, isInstalledApp, isIOSDevice, supportsWebPush } from '../lib/pushNotifications';
 import { publicAsset } from '../lib/publicAsset';
 import { AlarmVolumeControl } from './AlarmVolumeControl';
+import { PersonalAlarmSettings } from './PersonalAlarmSettings';
 
 const ENABLED_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -20,7 +21,7 @@ export function BrowserNotificationSettings() {
       return;
     }
     setPermission(Notification.permission);
-    void getCurrentPushSubscription().then((subscription) => setSubscribed(Boolean(subscription))).catch(() => setSubscribed(false));
+    void syncExistingWebPush().then((subscription) => setSubscribed(Boolean(subscription))).catch(() => setSubscribed(false));
   }, []);
 
   const enable = async () => {
@@ -43,7 +44,7 @@ export function BrowserNotificationSettings() {
       return;
     }
 
-    localStorage.setItem(ENABLED_KEY, 'true');
+    try { localStorage.setItem(ENABLED_KEY, 'true'); } catch { /* Device permission also works when local storage is unavailable. */ }
     try {
       const { data, error } = await supabase.rpc('enable_browser_notifications');
       if (error) throw error;
@@ -93,6 +94,7 @@ export function BrowserNotificationSettings() {
         </div>
       </div>
       <AlarmVolumeControl />
+      <PersonalAlarmSettings />
     </div>
   );
 }

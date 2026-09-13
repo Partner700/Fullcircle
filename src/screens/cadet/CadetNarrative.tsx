@@ -1548,10 +1548,12 @@ export function CadetNarrative({
                     <span className="text-sm text-stone">Upload your {proofFormat.toUpperCase()} file</span>
                     <input
                       type="file"
-                      accept={proofFormat === 'png' ? 'image/png' : proofFormat === 'pdf' ? 'application/pdf' : 'image/*'}
+                      accept={proofFormat === 'pdf' ? 'application/pdf' : 'image/*,.heic,.heif'}
+                      disabled={uploadingEvidence}
                       className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
+                        e.target.value = '';
                         if (file && profile) {
                           setUploadingEvidence(true);
                           try {
@@ -1590,7 +1592,7 @@ export function CadetNarrative({
                 )}
                 <button
                   onClick={saveChallenge}
-                  disabled={(proofFormat === 'link' ? !challengeLink.trim() : !challengeText.trim()) || saving}
+                  disabled={(proofFormat === 'link' ? !challengeLink.trim() : !challengeText.trim()) || saving || uploadingEvidence}
                   className="btn-secondary px-3 text-xs disabled:opacity-50 sm:px-5 sm:text-sm"
                   title={challengeRejected ? 'Resubmit challenge' : 'Submit challenge'}
                 >

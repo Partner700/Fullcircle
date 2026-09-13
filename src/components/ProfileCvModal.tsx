@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpenCheck, Coins, Loader2, Shield, Swords, X } from 'lucide-react';
+import { BadgeCheck, Coins, Flame, Loader2, Swords, Target, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchPanelImageSetting, fetchProfileCv } from '../lib/queries';
 import { OPEN_PROFILE_CV_EVENT } from '../lib/profileCv';
@@ -18,7 +18,7 @@ function ProfileMeasure({
   explanation,
   accent,
 }: {
-  icon: typeof Coins;
+  icon: typeof Coins | typeof ChiRhoMark;
   value: string;
   label: string;
   explanation: string;
@@ -73,7 +73,7 @@ export function ProfileCvHost() {
       .then((result) => { if (active) setData(result); })
       .catch(() => { if (active) setError('This profile could not be opened. Please try again.'); })
       .finally(() => { if (active) setLoading(false); });
-    void fetchPanelImageSetting('meditation')
+    void fetchPanelImageSetting('profile')
       .then((result) => { if (active) setArtwork(result); })
       .catch(() => undefined);
     return () => { active = false; };
@@ -137,18 +137,15 @@ export function ProfileCvHost() {
                     {data.tent_name && <span className="min-w-0 break-words text-[10px] font-semibold text-stone">{data.tent_name}</span>}
                   </div>
                 </div>
-                <div className="profile-cv-marks">
-                  <ChiRhoMark size={19} className="text-peri" />
-                  <strong className="profile-cv-value font-display font-bold text-ink">{data.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
-                  <span className="text-[9px] leading-tight text-stone">Valediction marks</span>
-                </div>
               </div>
 
               <div className="profile-cv-measures">
-                <ProfileMeasure icon={BookOpenCheck} label="Streak" value={`${data.current_streak} days`} explanation="Days the Bible has been read consistently" accent="#ef6a4d" />
-                <ProfileMeasure icon={Shield} label="Figs" value={data.total_figs.toLocaleString()} explanation="Bible questions answered correctly" accent="#7c8cff" />
+                <ProfileMeasure icon={Flame} label="Streak" value={`${data.current_streak} days`} explanation="Days the Bible has been read consistently" accent="#ef6a4d" />
+                <ProfileMeasure icon={BadgeCheck} label="Figs" value={data.total_figs.toLocaleString()} explanation="Bible questions answered correctly" accent="#7c8cff" />
                 <ProfileMeasure icon={Swords} label="Rhudes" value={data.rhudes.toLocaleString()} explanation="Bible duels won" accent="#5bad7f" />
                 <ProfileMeasure icon={Coins} label="Denarii" value={formatDenarii(data.total_denarii)} explanation="Coins earned from daily Bible interactions" accent="#f5b731" />
+                <ProfileMeasure icon={Target} label="Challenges" value={data.completed_challenges.toLocaleString()} explanation="Approved real-life challenges putting God's Word into practice" accent="#5bad7f" />
+                <ProfileMeasure icon={ChiRhoMark} label="Marks" value={data.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })} explanation="Valediction marks" accent="#7c8cff" />
               </div>
 
               <p className="profile-cv-footer text-[10px] text-stone">

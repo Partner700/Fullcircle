@@ -415,8 +415,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v126'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '119'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v127'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '120'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
@@ -430,7 +430,7 @@ assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-
 assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=106`/);
 assert.match(staleBundleRecovery, /set\('fc-release', '106'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-10-v126/);
+assert.match(releaseCache, /2026-09-13-v127/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=106/);
 assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=106'/);
@@ -1586,7 +1586,9 @@ for (const required of [
   assert.ok(punctualAlarmsAndGuidance.includes(required), `Missing punctual alarm/newcomer safeguard: ${required}`);
 }
 assert.doesNotMatch(punctualAlarmsAndGuidance, /(?:UPDATE|INSERT INTO) public\.daily_records/);
-assert.match(pushDelivery, /TTL: isScriptureAlarm \? 600 : 3_600/);
+assert.match(pushDelivery, /TTL: remainingSeconds/);
+assert.match(pushDelivery, /Math\.min\(600,[\s\S]*metadata\.expires_at/);
+assert.match(pushDelivery, /alarm_push_is_current/);
 assert.match(pushDelivery, /"full-circle-scripture-alarm"/);
 for (const required of [
   'CREATE OR REPLACE FUNCTION private.user_is_scripture_alarm_eligible',
@@ -1794,6 +1796,12 @@ for (const required of [
 }
 assert.match(rootApp, /<ProfileCvHost\s*\/?>/);
 assert.match(profileCvModal, /profile-cv-overlay[^\n]*items-center justify-center/);
+assert.match(profileCvModal, /icon=\{Flame\} label="Streak"/);
+assert.match(profileCvModal, /icon=\{BadgeCheck\} label="Figs"/);
+assert.match(profileCvModal, /icon=\{ChiRhoMark\} label="Marks"/);
+assert.match(profileCvModal, /data\.completed_challenges/);
+assert.match(profileCvModal, /fetchPanelImageSetting\('profile'\)/);
+assert.match(instructorApp, /panel_image_profile', label: 'Member Profile'/);
 assert.doesNotMatch(profileCvModal, /items-end|rounded-t-/);
 assert.match(cadetApp, /key: 'profile', label: 'My Profile'/);
 assert.match(cadetApp, /if \(k === 'profile'\) \{\s*openProfileCv\(profile\?\.id\);\s*return;/);

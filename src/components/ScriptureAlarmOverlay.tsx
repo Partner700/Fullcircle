@@ -17,12 +17,14 @@ import { cn } from '../lib/utils';
 import { Dove } from './Dove';
 import { AlarmVolumeControl } from './AlarmVolumeControl';
 import { getAlarmVolume } from '../lib/alarmPreferences';
+import { syncExistingWebPush } from '../lib/pushNotifications';
 
 const SLOT_LABELS: Record<PendingScriptureAlarm['alarm_slot'], string> = {
   morning: '5:59 AM Scripture alarm',
   midday: 'Midday meditation alarm',
   evening: '6:00 PM meditation alarm',
   final: '8:30 PM meditation alarm',
+  personal: 'Personal Scripture alarm',
 };
 
 type WebkitAudioWindow = Window & typeof globalThis & {
@@ -154,12 +156,30 @@ export function ScriptureAlarmOverlay() {
   const dialogRef = useRef<HTMLElement | null>(null);
   const alarmId = alarm?.id || null;
 
+  useEffect(() => {
+    if (!profile?.id) return;
+    let lastSync = 0;
+    const sync = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastSync < 300000) return;
+      lastSync = Date.now();
+      void syncExistingWebPush().catch(() => { lastSync = 0; });
+    };
+    sync();
+    window.addEventListener('online', sync);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, [profile?.id]);
+
   const loadPending = useCallback(() => {
     if (!profile || submittingRef.current) return Promise.resolve();
     if (loadRef.current) return loadRef.current;
     const request = (async () => {
       try {
-        const pending = await fetchPendingScriptureAlarm();
+        const result = await fetchPendingScriptureAlarm();
+        const pending = result && Date.parse(result.expires_at) > Date.now() ? result : null;
         if (!pending) void clearDeliveredAlarmNotification();
         setError(null);
         setAlarm((current) => {
@@ -249,10 +269,11 @@ export function ScriptureAlarmOverlay() {
     if (!alarm?.expires_at) return;
     const remaining = new Date(alarm.expires_at).getTime() - Date.now();
     if (remaining <= 0) {
+      setAlarm(null);
       void loadPending();
       return;
     }
-    const timer = window.setTimeout(() => void loadPending(), remaining + 50);
+    const timer = window.setTimeout(() => { setAlarm(null); void clearDeliveredAlarmNotification(); void loadPending(); }, remaining + 50);
     return () => window.clearTimeout(timer);
   }, [alarm?.expires_at, loadPending]);
 
@@ -303,6 +324,7 @@ export function ScriptureAlarmOverlay() {
     && alarm.options.length > 1;
   const alarmInstruction = alarm.alarm_slot === 'morning'
     ? 'Answer correctly to silence the morning alarm.'
+    : alarm.alarm_slot === 'personal' ? 'Answer correctly to silence your alarm.'
     : 'Finish and send your daily meditation. Answer correctly to silence this alarm.';
   const modal = (
     <div
@@ -326,7 +348,7 @@ export function ScriptureAlarmOverlay() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase text-coral">{SLOT_LABELS[alarm.alarm_slot]}</p>
-              <h2 id="scripture-alarm-heading" className="font-display text-xl font-bold text-ink">Scripture alarm</h2>
+              <h2 id="scripture-alarm-heading" className="break-words font-display text-xl font-bold text-ink">{alarm.title || 'Scripture alarm'}</h2>
               <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-bold text-stone">
                 <span className="inline-flex items-center gap-1"><Volume2 size={12} /> Sounding</span>
                 <span className="inline-flex items-center gap-1"><Vibrate size={12} /> Vibrating</span>

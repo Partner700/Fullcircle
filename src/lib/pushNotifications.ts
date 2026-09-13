@@ -27,8 +27,37 @@ export function supportsWebPush() {
 
 export async function getCurrentPushSubscription() {
   if (!supportsWebPush()) return null;
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) return null;
   return registration.pushManager.getSubscription();
+}
+
+async function registerSubscription(subscription: PushSubscription) {
+  const json = subscription.toJSON();
+  const endpoint = json.endpoint || subscription.endpoint;
+  const p256dh = json.keys?.p256dh;
+  const auth = json.keys?.auth;
+  if (!endpoint || !p256dh || !auth) throw new Error('The phone returned an incomplete notification subscription.');
+  const { error } = await supabase.rpc('register_push_subscription', {
+    p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth, p_user_agent: navigator.userAgent,
+  });
+  if (error) throw error;
+  return subscription;
+}
+
+function usesCurrentPushKey(subscription: PushSubscription) {
+  const key = subscription.options.applicationServerKey;
+  if (!key) return true;
+  const expected = base64UrlToUint8Array(VAPID_PUBLIC_KEY);
+  const actual = new Uint8Array(key);
+  return actual.length === expected.length && actual.every((value,index) => value === expected[index]);
+}
+
+export async function syncExistingWebPush() {
+  if (!supportsWebPush() || Notification.permission !== 'granted') return null;
+  const subscription = await getCurrentPushSubscription();
+  if (!subscription || !usesCurrentPushKey(subscription)) return null;
+  return registerSubscription(subscription);
 }
 
 export async function enableWebPush() {
@@ -44,25 +73,18 @@ export async function enableWebPush() {
       : 'Notification permission was not granted.');
   }
 
-  const registration = await navigator.serviceWorker.ready;
-  const existing = await registration.pushManager.getSubscription();
+  const registration = await new Promise<ServiceWorkerRegistration>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('Notifications are still starting. Reopen the app and try again.')), 15000);
+    void navigator.serviceWorker.ready.then(resolve, reject).finally(() => window.clearTimeout(timer));
+  });
+  let existing = await registration.pushManager.getSubscription();
+  if (existing && !usesCurrentPushKey(existing)) {
+    await existing.unsubscribe();
+    existing = null;
+  }
   const subscription = existing || await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: base64UrlToUint8Array(VAPID_PUBLIC_KEY),
   });
-  const json = subscription.toJSON();
-  const endpoint = json.endpoint || subscription.endpoint;
-  const p256dh = json.keys?.p256dh;
-  const auth = json.keys?.auth;
-  if (!endpoint || !p256dh || !auth) throw new Error('The phone returned an incomplete notification subscription.');
-
-  const { error } = await supabase.rpc('register_push_subscription', {
-    p_endpoint: endpoint,
-    p_p256dh: p256dh,
-    p_auth: auth,
-    p_user_agent: navigator.userAgent,
-  });
-  if (error) throw error;
-  return subscription;
+  return registerSubscription(subscription);
 }
-

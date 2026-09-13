@@ -41,6 +41,7 @@ import {
 import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
+import { uploadAppFile } from '../../lib/storageUploads';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments, MonthlyVallumWatchRow } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { DeleteAccountSection } from '../../components/DeleteAccountSection';
@@ -409,6 +410,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_quote', label: 'Quote Panel', audience: 'all' },
   { type: 'panel_image_market', label: 'Market Panel', audience: 'all' },
   { type: 'panel_image_messages', label: 'Messages', audience: 'all' },
+  { type: 'panel_image_profile', label: 'Member Profile', audience: 'all' },
   { type: 'panel_image_reading', label: "Today's Reading", audience: 'all' },
   { type: 'panel_image_verse_day_tr', label: 'Verse of the Day TR', audience: 'all' },
   { type: 'panel_image_meditation', label: 'Daily Meditation', audience: 'all' },
@@ -702,7 +704,7 @@ function AnnouncementManager() {
   const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
     setUploadingImageType(type);
     try {
-      const prepared = await prepareImageUpload(file, { maxDimension: 2400, maxBytes: 12 * 1024 * 1024 });
+      const prepared = await prepareImageUpload(file, { maxDimension: 2400 });
       const version = Date.now();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
       const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -712,10 +714,8 @@ function AnnouncementManager() {
       // deliberately distinguishes these instructor-managed files from the
       // user's personal avatar folder.
       const path = `${folder}/${authData.user.id}/${safeType}-${version}.${prepared.extension}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, { upsert: true, contentType: prepared.file.type });
-      if (error) throw error;
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      await publishImageSetting(type, `${data.publicUrl}?v=${version}`, targetAudience, imagePositionX, imagePositionY, imageAdjustments);
+      const url = await uploadAppFile(path, prepared.file);
+      await publishImageSetting(type, `${url}?v=${version}`, targetAudience, imagePositionX, imagePositionY, imageAdjustments);
     } catch (e: any) {
       alert(e.message || 'Failed to upload panel image');
     }
@@ -913,6 +913,7 @@ function AnnouncementManager() {
               { value: 'panel_image_reading', label: "Panel Image: Today's Reading" },
               { value: 'panel_image_verse_day_tr', label: 'Panel Image: Verse of the Day TR' },
               { value: 'panel_image_meditation', label: 'Panel Image: Daily Meditation' },
+              { value: 'panel_image_profile', label: 'Panel Image: Member Profile' },
               { value: 'panel_image_challenge', label: 'Panel Image: Daily Challenge' },
               { value: 'panel_image_daily_game_reminder', label: 'Panel Image: Daily Trivia Reminder' },
             ]} />

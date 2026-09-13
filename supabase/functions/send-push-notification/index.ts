@@ -72,6 +72,15 @@ Deno.serve(async (request) => {
     const notification = (await notificationResponse.json())?.[0] as NotificationRow | undefined;
     if (!notification) return new Response("Notification not found", { status: 404 });
 
+    const isScriptureAlarm = notification.notification_type === "scripture_alarm";
+    if (isScriptureAlarm) {
+      const current = await fetch(`${supabaseUrl}/rest/v1/rpc/alarm_push_is_current`, {
+        method: "POST", headers: serviceHeaders(serviceKey), body: JSON.stringify({ p_notification_id: notification.id }),
+      });
+      if (!current.ok) throw new Error("Unable to verify alarm eligibility");
+      if (await current.json() !== true) return Response.json({ delivered: 0, skipped: true });
+    }
+
     const subscriptionsResponse = await fetch(
       `${supabaseUrl}/rest/v1/push_subscriptions?user_id=eq.${notification.recipient_id}&select=id,endpoint,p256dh,auth`,
       { headers: serviceHeaders(serviceKey) },
@@ -79,6 +88,13 @@ Deno.serve(async (request) => {
     if (!subscriptionsResponse.ok) throw new Error("Unable to load subscriptions");
     const subscriptions = await subscriptionsResponse.json() as SubscriptionRow[];
     if (subscriptions.length === 0) return Response.json({ delivered: 0 });
+
+    const completed = new Set<string>();
+    if (isScriptureAlarm) {
+      const receipts = await fetch(`${supabaseUrl}/rest/v1/alarm_push_receipts?notification_id=eq.${encodeURIComponent(notificationId)}&select=subscription_id`, { headers: serviceHeaders(serviceKey) });
+      if (!receipts.ok) throw new Error("Unable to load alarm delivery receipts");
+      for (const receipt of await receipts.json()) completed.add(receipt.subscription_id);
+    }
 
     webpush.setVapidDetails(
       "mailto:notifications@fullcircle.partnertai.com",
@@ -89,7 +105,6 @@ Deno.serve(async (request) => {
     const destinationParams = new URLSearchParams();
     if (notification.action_key) destinationParams.set("fc-tab", notification.action_key);
     const metadata = notification.metadata || {};
-    const isScriptureAlarm = notification.notification_type === "scripture_alarm";
     const notificationTag = isScriptureAlarm
       ? "full-circle-scripture-alarm"
       : `full-circle-${notification.id}`;
@@ -110,16 +125,29 @@ Deno.serve(async (request) => {
     });
 
     let delivered = 0;
+    let failed = 0;
+    const remainingSeconds = isScriptureAlarm
+      ? Math.min(600, Math.max(0, Math.floor((Date.parse(String(metadata.expires_at)) - Date.now()) / 1000)))
+      : 3600;
+    if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) return Response.json({ delivered: 0, skipped: true });
     await Promise.all(subscriptions.map(async (subscription) => {
+      if (completed.has(subscription.id)) return;
       try {
         await webpush.sendNotification({
           endpoint: subscription.endpoint,
           keys: { p256dh: subscription.p256dh, auth: subscription.auth },
         }, payload, {
-          TTL: isScriptureAlarm ? 600 : 3_600,
+          TTL: remainingSeconds,
           urgency: isScriptureAlarm ? "high" : "normal",
         });
         delivered += 1;
+        if (isScriptureAlarm) {
+          const receipt = await fetch(`${supabaseUrl}/rest/v1/alarm_push_receipts`, {
+            method: "POST", headers: { ...serviceHeaders(serviceKey), Prefer: "resolution=ignore-duplicates" },
+            body: JSON.stringify({ notification_id: notificationId, subscription_id: subscription.id }),
+          });
+          if (!receipt.ok) throw new Error("Unable to record alarm delivery");
+        }
       } catch (error) {
         const statusCode = Number((error as { statusCode?: number }).statusCode || 0);
         if (statusCode === 404 || statusCode === 410) {
@@ -129,11 +157,12 @@ Deno.serve(async (request) => {
           });
           return;
         }
-        console.error("Push send failed", statusCode, error);
+        failed += 1;
+        console.error("Push send failed", statusCode);
       }
     }));
 
-    return Response.json({ delivered });
+    return Response.json({ delivered, failed }, { status: failed > 0 ? 503 : 200 });
   } catch (error) {
     console.error(error);
     return Response.json({ error: error instanceof Error ? error.message : "Push delivery failed" }, { status: 500 });

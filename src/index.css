@@ -2391,7 +2391,7 @@
 
 .profile-cv-identity {
   display: grid;
-  grid-template-columns: 3.25rem minmax(0, 1fr) 4.5rem;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
   align-items: center;
   gap: 0.65rem;
 }
@@ -2405,17 +2405,6 @@
   font-size: 1.05rem;
   line-height: 1.2;
   overflow-wrap: anywhere;
-}
-
-.profile-cv-marks {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding-left: 0.5rem;
-  border-left: 1px solid var(--color-border);
-  text-align: center;
 }
 
 .profile-cv-measures {
@@ -2470,6 +2459,8 @@
 }
 
 @media (max-height: 540px) {
+  .profile-cv-panel { max-width: 38rem; }
+  .profile-cv-measures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .profile-cv-body { padding: 0.6rem; }
   .profile-cv-measures { margin-top: 0.6rem; gap: 0.35rem; }
   .profile-cv-measure { padding: 0.45rem; }

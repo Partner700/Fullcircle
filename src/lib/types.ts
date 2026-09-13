@@ -18,7 +18,7 @@ export type FreezerType = 'daily' | 'weekly';
 export type DoveQuestionType = 'multiple_choice' | 'true_false' | 'fill_blank' | 'standard_text';
 export type DoveQuestionDeliveryMode = 'optional' | 'required';
 export type DoveQuestionStatus = 'active' | 'closed';
-export type ScriptureAlarmSlot = 'morning' | 'midday' | 'evening' | 'final';
+export type ScriptureAlarmSlot = 'morning' | 'midday' | 'evening' | 'final' | 'personal';
 export type HiddenItemType = 'treasure' | 'mine';
 export type HiddenChallengeDifficulty = 'easy' | 'moderate' | 'hard';
 export type HiddenChallengePlacement = 'direct_message' | 'verse' | 'todays_reading' | 'app_open' | 'daily_trivia' | 'daily_games';
@@ -80,6 +80,7 @@ export interface DoveQuestionAnswerResult {
 }
 
 export interface PendingScriptureAlarm {
+  title?: string | null;
   id: string;
   alarm_date: string;
   alarm_slot: ScriptureAlarmSlot;
@@ -246,6 +247,7 @@ export interface Profile {
 }
 
 export interface ProfileCvData {
+  completed_challenges: number;
   user_id: string;
   display_name: string;
   avatar_url: string | null;

@@ -11,7 +11,8 @@ import type {
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
-import { prepareImageUpload } from './uploads';
+import { imageFileType, prepareImageUpload } from './uploads';
+import { uploadAppFile } from './storageUploads';
 import { getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
@@ -1059,6 +1060,7 @@ export async function fetchProfileCv(userId: string) {
     tent_name: row.tent_name ? String(row.tent_name) : null,
     tent_house_id: row.tent_house_id ? String(row.tent_house_id) : null,
     member_since: String(row.member_since || new Date().toISOString()),
+    completed_challenges: Number(row.completed_challenges) || 0,
     total_denarii: Number(row.total_denarii) || 0,
     current_streak: Number(row.current_streak) || 0,
     longest_streak: Number(row.longest_streak) || 0,
@@ -1638,19 +1640,20 @@ export async function upsertChallengeSubmission(sub: Partial<ChallengeSubmission
 }
 
 export async function uploadChallengeEvidence(userId: string, file: File) {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-90);
-  const path = `challenge-evidence/${userId}/${Date.now()}-${safeName}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, file, {
-    upsert: true,
-    contentType: file.type || 'application/octet-stream',
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  const type = imageFileType(file);
+  const isPdf = file.type === 'application/pdf' || ((!file.type || file.type === 'application/octet-stream') && /\.pdf$/i.test(file.name));
+  if (!isPdf && !type.startsWith('image/')) throw new Error('Choose a photo or PDF for your challenge evidence.');
+  if (isPdf && (file.size <= 0 || file.size > 12 * 1024 * 1024)) throw new Error('Choose a PDF smaller than 12 MB.');
+  const prepared = isPdf
+    ? { file: new File([file], file.name, { type: 'application/pdf' }), extension: 'pdf' }
+    : await prepareImageUpload(file);
+  const path = `${userId}/challenge-evidence/${crypto.randomUUID()}.${prepared.extension}`;
+  const url = await uploadAppFile(path, prepared.file);
   return {
     name: file.name,
-    type: file.type || 'file',
-    size: file.size,
-    url: data.publicUrl,
+    type: prepared.file.type,
+    size: prepared.file.size,
+    url,
   };
 }
 
@@ -2761,13 +2764,11 @@ export async function fetchFortuneQuizSession() {
 // ── Avatar upload ──
 
 export async function uploadAvatar(userId: string, file: File) {
-  const prepared = await prepareImageUpload(file, { maxDimension: 1024, maxBytes: 8 * 1024 * 1024 });
+  const prepared = await prepareImageUpload(file, { maxDimension: 1024 });
   const version = Date.now();
   const path = `${userId}/avatar-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, { upsert: true, contentType: prepared.file.type });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  const publicUrl = `${data.publicUrl}?v=${version}`;
+  const uploadedUrl = await uploadAppFile(path, prepared.file);
+  const publicUrl = `${uploadedUrl}?v=${version}`;
   const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
   if (profileError) throw profileError;
   return publicUrl;

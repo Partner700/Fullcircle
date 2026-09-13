@@ -1,8 +1,8 @@
 // This worker is intentionally notification-only. Application requests must
 // always go to the network so an installed phone cannot be trapped on a stale
 // offline document or an obsolete JavaScript bundle.
-const CACHE_VERSION = 'full-circle-v126';
-const RECOVERY_MARKER = '119';
+const CACHE_VERSION = 'full-circle-v127';
+const RECOVERY_MARKER = '120';
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -121,6 +121,8 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     const title = data.title || 'Full Circle';
     const isScriptureAlarm = String(data.type || data.notification_type || '').toLowerCase() === 'scripture_alarm';
+    if (isScriptureAlarm && data.metadata?.expires_at
+      && Date.parse(data.metadata.expires_at) <= Date.now()) return;
     const options = {
       body: data.body || '',
       icon: scopedUrl('icons/icon-192.png'),
