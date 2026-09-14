@@ -511,6 +511,70 @@ $$;
 REVOKE ALL ON FUNCTION public.get_fcx_ticket_contact() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_fcx_ticket_contact() TO authenticated, service_role;
 
+/* Birthday metadata is produced by get_today_birthday_announcements(); it is
+   not stored on scheduled_announcements. Keep manual birthday posts valid
+   without referring to a column that does not exist on that table. */
+CREATE OR REPLACE FUNCTION private.require_visible_birthday(p_id uuid, p_date date)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, private
+AS $$
+DECLARE
+  v_metadata jsonb;
+  v_recipient uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Sign in to join birthday celebrations.';
+  END IF;
+
+  SELECT birthday.metadata
+  INTO v_metadata
+  FROM public.get_today_birthday_announcements() birthday
+  WHERE birthday.id = p_id
+    AND timezone('Africa/Douala', birthday.publish_at)::date = p_date
+  LIMIT 1;
+
+  IF FOUND THEN
+    SELECT profile.id
+    INTO v_recipient
+    FROM public.profiles profile
+    WHERE profile.id::text = v_metadata->>'user_id';
+    RETURN v_recipient;
+  END IF;
+
+  PERFORM 1
+  FROM public.scheduled_announcements announcement
+  WHERE announcement.id = p_id
+    AND announcement.announcement_type = 'birthday'
+    AND announcement.is_active = true
+    AND announcement.publish_at <= now()
+    AND (announcement.expires_at IS NULL OR announcement.expires_at > now())
+    AND timezone('Africa/Douala', announcement.publish_at)::date = p_date
+    AND (
+      announcement.audience = 'all'
+      OR EXISTS (
+        SELECT 1
+        FROM public.role_assignments role
+        WHERE role.user_id = auth.uid()
+          AND role.status IN ('active', 'approved', 'promoted')
+          AND (role.end_date IS NULL OR role.end_date >= current_date)
+          AND announcement.audience = CASE role.role::text
+            WHEN 'sentry' THEN 'sentries'
+            ELSE role.role::text || 's'
+          END
+      )
+    );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This birthday celebration is not available.';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION private.require_visible_birthday(uuid, date) FROM PUBLIC, anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.get_public_birthday_announcement(
   p_celebration_id uuid,
   p_date date
@@ -525,7 +589,7 @@ AS $$
     SELECT announcement.id,
            announcement.content,
            announcement.publish_at,
-           coalesce(announcement.metadata, '{}'::jsonb) AS metadata,
+           '{}'::jsonb AS metadata,
            0 AS priority
     FROM public.scheduled_announcements announcement
     WHERE announcement.id = p_celebration_id

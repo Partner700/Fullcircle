@@ -1935,6 +1935,7 @@ for (const required of [
   'Only the instructor can assign player numbers.',
   'CREATE OR REPLACE FUNCTION public.get_fcx_ticket_contact()',
   "LIKE '%vedette%'",
+  'CREATE OR REPLACE FUNCTION private.require_visible_birthday',
   'CREATE OR REPLACE FUNCTION public.get_public_birthday_announcement',
   'TO anon, authenticated, service_role',
   "'player_number', profile.player_number",
@@ -1945,6 +1946,7 @@ assert.match(playerNumbers, /WHERE profile\.player_number IS NOT NULL[\s\S]*prof
 assert.match(playerNumbers, /profile\.player_number_grace_until <= now\(\)[\s\S]*NOT public\.has_current_subscription_access\(profile\.id\)/);
 assert.match(playerNumbers, /IF v_profile\.player_number IS NOT NULL THEN[\s\S]*already own player number/);
 assert.match(playerNumbers, /REVOKE ALL ON FUNCTION public\.claim_player_number\(integer\) FROM PUBLIC, anon/);
+assert.doesNotMatch(playerNumbers, /announcement\.metadata/);
 assert.match(playerNumberPicker, /fetchPlayerNumberOptions/);
 assert.match(playerNumberPicker, /claimPlayerNumber\(selectedOption\.player_number\)/);
 assert.match(playerNumberPicker, /selectedOption\.denarii_price > walletDenarii/);
