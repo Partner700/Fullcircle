@@ -266,6 +266,10 @@ export interface Profile {
   birth_month?: number | null;
   birth_day?: number | null;
   onboarding_completed?: boolean;
+  player_number?: number | null;
+  player_number_assigned_at?: string | null;
+  player_number_source?: 'fcx_registration' | 'self_claim' | 'instructor' | null;
+  player_number_grace_until?: string | null;
   created_at: string;
 }
 
@@ -279,12 +283,57 @@ export interface ProfileCvData {
   tent_name: string | null;
   tent_house_id: string | null;
   member_since: string;
+  player_number: number | null;
+  player_number_grace_until: string | null;
   total_denarii: number;
   current_streak: number;
   longest_streak: number;
   total_figs: number;
   rhudes: number;
   marks: number;
+}
+
+export interface PlayerNumberOption {
+  player_number: number;
+  denarii_price: number;
+}
+
+export interface PlayerNumberState {
+  current_number: number | null;
+  assigned_at: string | null;
+  grace_until: string | null;
+  wallet_denarii: number;
+  options: PlayerNumberOption[];
+}
+
+export interface PlayerNumberAssignmentResult {
+  player_number: number;
+  denarii_charged?: number;
+  grace_until: string | null;
+}
+
+export interface FcxTicketContact {
+  user_id: string;
+  display_name: string;
+  whatsapp_number: string;
+}
+
+export interface PublicBirthdayAnnouncement {
+  id: string;
+  date: string;
+  content: string;
+  publish_at: string;
+  metadata: {
+    user_id?: string;
+    display_name?: string;
+    avatar_url?: string | null;
+    kind?: string;
+  };
+  artwork: {
+    content: string;
+    image_position_x?: number | null;
+    image_position_y?: number | null;
+  } | null;
 }
 
 export interface RoleAssignment {

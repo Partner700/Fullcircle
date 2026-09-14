@@ -17,12 +17,14 @@ export default defineConfig({
     target: 'es2017',
     // Enable source maps for production debugging (not inlined to avoid large bundles)
     sourcemap: false,
-    // Shared hosting can publish index.html before every split chunk arrives.
-    // Keep the executable application together so a loaded dashboard always
-    // has every workspace required by that release.
+    // Load only the active role workspace. GitHub Pages publishes each branch
+    // snapshot atomically, and stale chunk recovery refreshes older clients.
     rollupOptions: {
       output: {
-        inlineDynamicImports: true,
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/@supabase')) return 'app-runtime';
+          return undefined;
+        },
       },
     },
     // Minify with esbuild (faster than terser)

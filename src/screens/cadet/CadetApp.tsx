@@ -49,7 +49,7 @@ import { isDoveArrival } from '../../lib/notificationArrival';
 import { openAudioCall } from '../../lib/audioCalls';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
-  Lock, Settings as SettingsIcon, ShoppingBag,
+  Lock, Settings as SettingsIcon, ShoppingBag, CreditCard,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck, Contact, PhoneCall,
 } from 'lucide-react';
 
@@ -163,6 +163,7 @@ const NAV_ITEMS = [
   { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
   { key: 'awards', label: 'Awards Hub', icon: Award },
   { key: 'store', label: 'The Market', icon: ShoppingBag },
+  { key: 'subscribe', label: 'Subscription', icon: CreditCard },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 

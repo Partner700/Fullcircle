@@ -13,7 +13,7 @@ const expiry = read('supabase/migrations/20260906113000_hidden_challenge_expiry.
 const api = read('src/lib/hiddenChallenges.ts');
 const market = read('src/components/HiddenItemsMarket.tsx');
 const overlay = read('src/components/HiddenChallengeOverlay.tsx');
-const app = read('src/App.tsx');
+const authenticatedOverlays = read('src/components/AuthenticatedOverlays.tsx');
 const messenger = read('src/components/TentMessenger.tsx');
 const reading = read('src/screens/cadet/CadetNarrative.tsx');
 const gamesHub = read('src/screens/cadet/DailyGamesHub.tsx');
@@ -113,7 +113,7 @@ assert.match(overlay, /HIDDEN_CHALLENGE_SECONDS = 40/);
 assert.match(overlay, /You stepped on a Mine/);
 assert.doesNotMatch(overlay, /You found a Mine/);
 assert.match(overlay, /deployHiddenChallengeRelic/);
-assert.match(app, /<HiddenChallengeOverlay \/>/);
+assert.match(authenticatedOverlays, /<HiddenChallengeOverlay \/>/);
 assert.match(messenger, /revealHiddenChallenge\(\{ claimIds: hiddenClaimIds \}\)/);
 assert.match(overlay, /for \(const claimId of detail\.claimIds\)/);
 assert.doesNotMatch(messenger, /Open hidden question/);

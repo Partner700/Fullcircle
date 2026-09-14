@@ -1,6 +1,6 @@
 import { type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { cn } from '../lib/utils';
+import { cn, formatPlayerNumber } from '../lib/utils';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { DoveMark } from './Dove';
 import { LogOut, Sun, Moon, Menu, PhoneCall, X, Volume2, VolumeX } from 'lucide-react';
@@ -335,8 +335,10 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               <div className="flex min-w-0 items-start gap-2">
                 <button
                   onClick={() => setMobileNavOpen((open) => !open)}
+                  data-guide="app-navigation-toggle"
                   className="md:hidden inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-navy-3 text-peri-dim shadow-sm hover:text-peri"
                   aria-label={mobileNavOpen ? 'Close dashboard menu' : 'Open dashboard menu'}
+                  aria-expanded={mobileNavOpen}
                 >
                   {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
                 </button>
@@ -378,6 +380,15 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 >
                   <LogOut size={16} />
                 </button>
+              )}
+              {profile?.player_number && (
+                <span
+                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-peri/35 bg-peri-soft px-2.5 font-display text-xs font-black tabular-nums text-peri"
+                  title="Resident / Player Number"
+                  aria-label={`Resident / Player Number ${formatPlayerNumber(profile.player_number)}`}
+                >
+                  {formatPlayerNumber(profile.player_number)}
+                </span>
               )}
               {rightHeader}
             </div>

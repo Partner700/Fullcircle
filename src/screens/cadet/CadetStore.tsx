@@ -6,16 +6,16 @@ import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchFcxTicketContact } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
-import { cn, formatDenarii, formatXaf } from '../../lib/utils';
+import { cn, formatDenarii, formatXaf, whatsappUrl } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
-import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
+import type { FcxTicketContact, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
   ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
-  Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield,
+  Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield, Ticket,
 } from 'lucide-react';
 
 const RELIC_ICONS: Record<string, any> = {
@@ -102,6 +102,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
+  const [fcxTicketContact, setFcxTicketContact] = useState<FcxTicketContact | null>(null);
 
   const paymentConfirmed = paymentResult
     ? ['confirmed', 'successful', 'success', 'completed'].includes(String(paymentResult.status).toLowerCase())
@@ -122,12 +123,13 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setLoading(true);
     setLoadError(null);
     try {
-      const [relicData, invData, balance, frz, marketPanelImage] = await Promise.all([
+      const [relicData, invData, balance, frz, marketPanelImage, ticketContact] = await Promise.all([
         supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
         fetchLedgerTotal(profile.id),
         fetchStreakFreezers(profile.id),
         fetchPanelImageSetting('market').catch(() => null),
+        fetchFcxTicketContact().catch(() => null),
       ]);
       setRelics(relicData.data as RelicType[] || []);
       const invMap: Record<string, number> = {};
@@ -136,6 +138,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       setDenarii(balance);
       setFreezers(frz);
       setMarketImage(marketPanelImage);
+      setFcxTicketContact(ticketContact);
     } catch (err: any) {
       setLoadError(err?.message || 'The Market could not load. Please try again.');
     }
@@ -406,6 +409,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const lazarusMarketDescription = 'Take or retake the Saturday quiz late and submit before 2:45 PM. Denarii only.';
   const readyDailyFreezers = freezers.filter((f) => f.freezer_type === 'daily' && !f.used_at && !f.applied_to_date).length;
   const readyWeeklyFreezers = freezers.filter((f) => f.freezer_type === 'weekly' && !f.used_at && !f.applied_to_date).length;
+  const fcxWhatsappBase = whatsappUrl(fcxTicketContact?.whatsapp_number || null);
+  const fcxWhatsappLink = fcxWhatsappBase
+    ? `${fcxWhatsappBase}?text=${encodeURIComponent('Hello Vedette, I want to pay for the Full Circle Experience (FCX).')}`
+    : null;
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
@@ -445,6 +452,24 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           <span className="text-xs text-stone">denarii balance</span>
         </div>
         <span className="relative z-10 text-xs text-stone">Cash prices in FCFA</span>
+      </div>
+
+      <div className="card relative overflow-hidden p-5">
+        <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
+        <div className="relative z-10 flex items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold"><Ticket size={21} /></span>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-sm font-bold text-ink">Full Circle Experience Ticket</h3>
+            <p className="mt-1 text-xs leading-relaxed text-stone">Message Sentry Vedette to arrange payment and reserve your FCX place.</p>
+          </div>
+          {fcxWhatsappLink ? (
+            <a href={fcxWhatsappLink} target="_blank" rel="noopener noreferrer" className="btn-primary shrink-0 text-xs">
+              <MessageSquare size={14} /> Pay
+            </a>
+          ) : (
+            <span className="text-[10px] font-semibold text-stone">Contact unavailable</span>
+          )}
+        </div>
       </div>
 
       <HiddenItemsMarket

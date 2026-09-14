@@ -25,6 +25,7 @@ import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { VallumText } from '../../components/ChiRhoMark';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
+import { SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { CadetStore } from '../cadet/CadetStore';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { updateReactionOptimistically } from '../../lib/reactionState';
@@ -70,7 +71,7 @@ import {
   fetchMarksBoard, fetchMonthlyVallumWatch, fetchWeeklyAwardMetrics,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -196,6 +197,7 @@ const NAV_ITEMS = [
   { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'mobile_money', label: 'Mobile Money', icon: Smartphone },
   { key: 'store', label: 'Market', icon: ShoppingBag },
+  { key: 'subscribe', label: 'Subscription', icon: CreditCard },
   { key: 'leaderboard', label: 'Challenge Boards', icon: Trophy },
   { key: 'awards', label: 'Awards', icon: AwardIcon },
   { key: 'settings', label: 'Settings', icon: Shield },
@@ -288,7 +290,7 @@ export function InstructorApp() {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
     game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
-    challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', settings: 'Settings',
+    challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', subscribe: 'Subscription', settings: 'Settings',
     unassigned: 'Unassigned Users',
   };
 
@@ -342,6 +344,7 @@ export function InstructorApp() {
       {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
       {tab === 'mobile_money' && <MobileMoneyManager />}
       {tab === 'store' && <CadetStore />}
+      {tab === 'subscribe' && <SubscriptionScreen />}
       {tab === 'settings' && <InstructorSettings profile={profile} tents={tents} members={members} />}
     </AppShell>
     <DoveNotificationArrival onNavigate={navigateFromAction} />

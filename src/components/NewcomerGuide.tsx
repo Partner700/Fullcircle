@@ -8,7 +8,6 @@ import {
   fetchMyNewcomerGuidance,
   NEWCOMER_GUIDANCE_ACTION_EVENT,
   NEWCOMER_GUIDANCE_REFRESH_EVENT,
-  OPEN_APP_NAVIGATION_EVENT,
   type NewcomerGuidanceAction,
   type NewcomerGuidanceState,
   type NewcomerGuidanceStep,
@@ -83,9 +82,9 @@ function isVisible(element: HTMLElement) {
   return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
 }
 
-function selectorForStep(step: NewcomerGuidanceStep) {
-  if (step === 'dashboard_after_tent' || step === 'dashboard_games') return '[data-guide-nav="dashboard"]';
-  if (step === 'daily_scriptures') return '[data-guide-nav="narrative"]';
+function selectorForStep(step: NewcomerGuidanceStep, role?: string | null) {
+  if (step === 'dashboard_after_tent' || step === 'dashboard_games') return `[data-guide-nav="${role === 'sentry' ? 'overview' : 'dashboard'}"]`;
+  if (step === 'daily_scriptures') return `[data-guide-nav="${role === 'sentry' ? 'reading' : 'narrative'}"]`;
   if (step === 'best_verse') return '[data-guide="best-verse"]';
   if (step === 'meditation') return '[data-guide="daily-meditation"]';
   if (step === 'daily_quote') return '[data-guide="daily-quote"]';
@@ -115,12 +114,24 @@ function commentTargets(scope: 'welcome-daily-verse' | 'welcome-other-quote') {
   return [];
 }
 
-function targetElementsForStep(step: NewcomerGuidanceStep) {
+const NAVIGATION_STEPS = new Set<NewcomerGuidanceStep>([
+  'dashboard_after_tent',
+  'daily_scriptures',
+  'dashboard_games',
+  'daily_games',
+  'profile_settings',
+]);
+
+function targetElementsForStep(step: NewcomerGuidanceStep, role?: string | null) {
   if (step === 'welcome_comment_verse') return commentTargets('welcome-daily-verse');
   if (step === 'welcome_comment_quote') return commentTargets('welcome-other-quote');
-  const selector = selectorForStep(step);
+  const selector = selectorForStep(step, role);
   if (!selector) return [];
   const elements = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(isVisible);
+  if (NAVIGATION_STEPS.has(step) && elements.length === 0 && window.matchMedia('(max-width: 767px)').matches) {
+    const menuButton = document.querySelector<HTMLElement>('[data-guide="app-navigation-toggle"]');
+    if (menuButton && isVisible(menuButton)) return [menuButton];
+  }
   if (step === 'welcome_like_verse' || step === 'welcome_like_quote') {
     return [elements.find((element) => element.getAttribute('aria-pressed') !== 'true') || elements[0]].filter(Boolean) as HTMLElement[];
   }
@@ -308,16 +319,15 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       setTargets([]);
       return;
     }
-    const hasTargetStrategy = Boolean(selectorForStep(step))
+    const hasTargetStrategy = Boolean(selectorForStep(step, role))
       || step === 'welcome_comment_verse'
       || step === 'welcome_comment_quote';
     if (!hasTargetStrategy) return;
     let frame = 0;
-    let openedNavigation = false;
     let emptyCommunityQuoteChecks = 0;
     const tracked = new Set<HTMLElement>();
     const update = () => {
-      const elements = targetElementsForStep(step);
+      const elements = targetElementsForStep(step, role);
       if (elements.length > 0) {
         emptyCommunityQuoteChecks = 0;
       } else if (
@@ -339,10 +349,6 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
         const rect = element.getBoundingClientRect();
         return { key: `${step}-${index}`, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
       }));
-      if (elements.length === 0 && ['dashboard_after_tent', 'daily_scriptures', 'dashboard_games', 'daily_games'].includes(step) && !openedNavigation) {
-        openedNavigation = true;
-        window.dispatchEvent(new Event(OPEN_APP_NAVIGATION_EVENT));
-      }
     };
     const refresh = () => {
       window.cancelAnimationFrame(frame);
@@ -359,11 +365,11 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
       window.removeEventListener('scroll', refresh, true);
       tracked.forEach((element) => element.classList.remove('newcomer-guide-target'));
     };
-  }, [completeStep, step]);
+  }, [completeStep, role, step]);
 
   useEffect(() => {
     if (!step || !['best_verse', 'meditation', 'daily_quote'].includes(step)) return;
-    const selector = selectorForStep(step);
+    const selector = selectorForStep(step, role);
     const target = document.querySelector<HTMLElement>(selector);
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const completeOnUse = (event: Event) => {
@@ -374,7 +380,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     return () => {
       document.removeEventListener(eventName, completeOnUse, true);
     };
-  }, [completeStep, step]);
+  }, [completeStep, role, step]);
 
   if (!guidance || guidance.completed || step === 'complete' || step === 'await_first_streak' || !step || typeof document === 'undefined') return null;
   const copy = STEP_COPY[step];

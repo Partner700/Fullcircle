@@ -289,3 +289,10 @@ export function whatsappUrl(number: string | null): string | null {
   if (!digits) return null;
   return `https://wa.me/${digits}`;
 }
+
+export function formatPlayerNumber(value: number | null | undefined): string {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0
+    ? `#${String(number).padStart(3, '0')}`
+    : '#---';
+}

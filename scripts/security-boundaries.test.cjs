@@ -19,6 +19,7 @@ const hostingerHeaders = read('public/.htaccess');
 const packageManifest = read('package.json');
 const viteConfig = read('vite.config.ts');
 const rootApp = read('src/App.tsx');
+const authenticatedOverlays = read('src/components/AuthenticatedOverlays.tsx');
 const indexCss = read('src/index.css');
 const cadetApp = read('src/screens/cadet/CadetApp.tsx');
 const pagesWorkflow = read('.github/workflows/deploy-pages.yml');
@@ -177,6 +178,12 @@ const audioCallApi = read('src/lib/audioCalls.ts');
 const backgroundAlertPrompt = read('src/components/BackgroundAlertPrompt.tsx');
 const notificationCenter = read('src/components/NotificationCenter.tsx');
 const pushNotifications = read('src/lib/pushNotifications.ts');
+const playerNumbers = read('supabase/migrations/20260914100000_player_numbers_birthday_sharing_fcx_ticket.sql');
+const playerNumberPicker = read('src/components/PlayerNumberPicker.tsx');
+const birthdayReactions = read('src/components/BirthdayReactions.tsx');
+const birthdayApi = read('src/lib/birthdays.ts');
+const cadetStore = read('src/screens/cadet/CadetStore.tsx');
+const retainPreviousPagesAssets = read('scripts/retain-previous-pages-assets.cjs');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -423,25 +430,25 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v128'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '121'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v129'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '122'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '107'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '108'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=107`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '107'\)/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=108`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '108'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-13-v128/);
+assert.match(releaseCache, /2026-09-14-v129/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=107/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=107'/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=108/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=108'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.match(appIndex, /navigator\.serviceWorker\.getRegistrations/);
@@ -608,7 +615,7 @@ for (const required of [
   assert.ok(doveQuestionOverlay.includes(required), `Missing global Dove Question behavior: ${required}`);
 }
 assert.match(pushDelivery, /"challenge", "dove_question", "mine", "quiz", "quiz_release", "weekly_quiz_reminder"/);
-assert.match(rootApp, /DoveQuestionOverlay/);
+assert.match(authenticatedOverlays, /DoveQuestionOverlay/);
 assert.match(instructorApp, /DoveQuestionManager/);
 for (const required of [
   'streakboard_one_user_per_day_idx',
@@ -663,8 +670,12 @@ assert.match(instructorApp, /deleteQuizSession/);
 assert.match(instructorApp, /destination="quiz"/);
 assert.match(instructorApp, /destination="game"/);
 assert.ok(!packageManifest.includes('preserve-release-assets'), 'Builds must not accumulate obsolete release chunks.');
-assert.match(viteConfig, /inlineDynamicImports:\s*true/);
-assert.ok(!rootApp.includes('lazy('), 'Role applications must ship in the executable release.');
+assert.doesNotMatch(viteConfig, /inlineDynamicImports:\s*true/);
+assert.match(viteConfig, /manualChunks/);
+assert.match(rootApp, /const CadetApp = lazy/);
+assert.match(rootApp, /const SentryApp = lazy/);
+assert.match(rootApp, /const InstructorApp = lazy/);
+assert.match(rootApp, /const AuthenticatedOverlays = lazy/);
 assert.ok(!cadetApp.includes('lazy('), 'Cadet workspaces must not depend on later Hostinger chunk uploads.');
 assert.match(pagesWorkflow, /cp dist\/index\.html dist\/404\.html/);
 assert.ok(!pagesWorkflow.includes('npm ci'), 'The emergency mirror must publish the verified build without rebuilding it.');
@@ -933,7 +944,7 @@ for (const required of [
 }
 
 assert.match(rootApp, /Restoring your account/);
-assert.match(rootApp, /DenariiGainAnimation/);
+assert.match(authenticatedOverlays, /DenariiGainAnimation/);
 assert.match(authContext, /setSession\(recoveredSession\)/);
 for (const required of [
   'ON CONFLICT (id) DO UPDATE',
@@ -1152,7 +1163,7 @@ for (const required of [
 ]) {
   assert.ok(foundersGiftPopup.includes(required), `Missing Founder gift popup behavior: ${required}`);
 }
-assert.match(rootApp, /FoundersGiftPopup/);
+assert.match(authenticatedOverlays, /FoundersGiftPopup/);
 
 for (const required of [
   "v_cost integer := 6000",
@@ -1234,7 +1245,7 @@ assert.match(publicShareScreen, /window\.location\.assign\(signupHref\)/);
 assert.match(publicQuizResultClaim, /claimSharedQuizResult/);
 assert.match(publicQuizResultClaim, /requestAppNavigation\('quiz'/);
 assert.match(publicQuizResultClaim, /Your marked answer sheet stays sealed/);
-assert.match(rootApp, /<PublicQuizResultClaim \/>/);
+assert.match(authenticatedOverlays, /<PublicQuizResultClaim \/>/);
 assert.match(quoteQueries, /supabase\.rpc\('claim_shared_quiz_result'/);
 assert.match(paymentAndPublicShareRecovery, /REVOKE ALL ON FUNCTION public\.claim_shared_quiz_result\(uuid, text\)[\s\S]*FROM PUBLIC, anon/);
 
@@ -1444,7 +1455,7 @@ assert.match(hiddenChallengeStatus, /Your Hidden Items/);
 assert.match(hiddenChallengeStatus, /Waiting for \$\{item\.current_target_name\} to find it/);
 assert.match(hiddenChallengeStatus, /Hide Treasure/);
 assert.match(hiddenChallengeStatus, /Hide Mine/);
-assert.match(rootApp, /<HiddenChallengeStatus \/>/);
+assert.match(authenticatedOverlays, /<HiddenChallengeStatus \/>/);
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.apply_redemption_coin_account_age()',
   'v_account_days := greatest(1, v_use_date - v_join_date + 1)',
@@ -1550,7 +1561,7 @@ for (const required of [
 }
 assert.match(scriptureAlarms, /IF v_is_correct THEN[\s\S]*?status = 'cleared'[\s\S]*?RETURN jsonb_build_object\('is_correct', true, 'cleared', true\)/);
 assert.match(scriptureAlarms, /PERFORM private\.assign_scripture_alarm_question\(v_alarm\.id\)[\s\S]*?'is_correct', false/);
-assert.match(rootApp, /<ScriptureAlarmOverlay \/>/);
+assert.match(authenticatedOverlays, /<ScriptureAlarmOverlay \/>/);
 assert.match(scriptureAlarmApi, /get_pending_scripture_alarm/);
 assert.match(scriptureAlarmApi, /submit_scripture_alarm_answer/);
 assert.match(scriptureAlarmOverlay, /startAlarmEffects/);
@@ -1805,7 +1816,7 @@ for (const required of [
 ]) {
   assert.ok(profileCvModal.includes(required), `Missing Profile CV behavior: ${required}`);
 }
-assert.match(rootApp, /<ProfileCvHost\s*\/?>/);
+assert.match(authenticatedOverlays, /<ProfileCvHost\s*\/?>/);
 assert.match(profileCvModal, /profile-cv-overlay[^\n]*items-center justify-center/);
 assert.match(profileCvModal, /icon=\{Flame\} label="Streak"/);
 assert.match(profileCvModal, /icon=\{BadgeCheck\} label="Figs"/);
@@ -1886,8 +1897,8 @@ assert.doesNotMatch(closedAppAlertsAndAudioCalls, /CREATE EXTENSION/);
 assert.match(closedAppAlertsAndAudioCalls, /CASE WHEN profile\.id = p_host_id AND NOT p_automatic THEN 'joined' ELSE 'ringing' END/);
 assert.match(closedAppAlertsAndAudioCalls, /recipient\.push_attempts < 4[\s\S]*room\.starts_at <= now\(\)/);
 assert.match(closedAppAlertsAndAudioCalls, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.audio_call_rooms/);
-assert.match(rootApp, /<BackgroundAlertPrompt\s*\/>/);
-assert.match(rootApp, /<AudioCallManager\s*\/>/);
+assert.match(authenticatedOverlays, /<BackgroundAlertPrompt\s*\/>/);
+assert.match(authenticatedOverlays, /<AudioCallManager\s*\/>/);
 assert.match(appShell, /requestAudioCall\(everyone \? 'all' : 'tent'\)/);
 assert.match(tentMessenger, /requestAudioCall\('tent', tentId\)/);
 assert.match(audioCallApi, /get_my_active_audio_calls/);
@@ -1906,6 +1917,59 @@ assert.match(serviceWorker, /audio_call: 'notification-symbols\/call\.svg'/);
 assert.match(serviceWorker, /isAudioCall/);
 assert.match(notificationCenter, /openAudioCall\(callId\)/);
 assert.match(cadetApp, /openAudioCall\(callId\)/);
+
+for (const required of [
+  'ADD COLUMN IF NOT EXISTS player_number integer',
+  'profiles_player_number_unique_idx',
+  'CREATE TABLE IF NOT EXISTS public.player_number_catalog',
+  'WHEN number <= 99 THEN 0',
+  'WHEN number <= 199 THEN 250',
+  "= 'lindakaren' THEN 0",
+  "'fcx_registration'",
+  "interval '1 month'",
+  'refresh_player_number_grace_after_subscription',
+  'private.release_expired_player_numbers',
+  "pg_advisory_xact_lock(hashtextextended('full-circle-player-number:'",
+  'public.has_current_subscription_access(v_user_id)',
+  "'player_number_purchase'",
+  'Only the instructor can assign player numbers.',
+  'CREATE OR REPLACE FUNCTION public.get_fcx_ticket_contact()',
+  "LIKE '%vedette%'",
+  'CREATE OR REPLACE FUNCTION public.get_public_birthday_announcement',
+  'TO anon, authenticated, service_role',
+  "'player_number', profile.player_number",
+]) {
+  assert.ok(playerNumbers.includes(required), `Missing player-number, FCX, or birthday safeguard: ${required}`);
+}
+assert.match(playerNumbers, /WHERE profile\.player_number IS NOT NULL[\s\S]*profile\.player_number_grace_until <= now\(\)/);
+assert.match(playerNumbers, /profile\.player_number_grace_until <= now\(\)[\s\S]*NOT public\.has_current_subscription_access\(profile\.id\)/);
+assert.match(playerNumbers, /IF v_profile\.player_number IS NOT NULL THEN[\s\S]*already own player number/);
+assert.match(playerNumbers, /REVOKE ALL ON FUNCTION public\.claim_player_number\(integer\) FROM PUBLIC, anon/);
+assert.match(playerNumberPicker, /fetchPlayerNumberOptions/);
+assert.match(playerNumberPicker, /claimPlayerNumber\(selectedOption\.player_number\)/);
+assert.match(playerNumberPicker, /selectedOption\.denarii_price > walletDenarii/);
+assert.match(subscriptionScreen, /<PlayerNumberPicker accessActive=\{Boolean\(accessActive\)\} \/>/);
+assert.match(cadetApp, /key: 'subscribe', label: 'Subscription'/);
+assert.match(sentryApp, /key: 'subscribe', label: 'Subscription'/);
+assert.match(instructorApp, /key: 'subscribe', label: 'Subscription'/);
+assert.match(instructorApp, /<SubscriptionScreen \/>/);
+assert.match(appShell, /formatPlayerNumber\(profile\.player_number\)/);
+assert.match(appShell, /data-guide="app-navigation-toggle"/);
+assert.match(profileCvModal, /Resident \/ Player Number/);
+assert.match(profileCvModal, /assignPlayerNumber\(targetId, number\)/);
+assert.match(newcomerGuide, /NAVIGATION_STEPS/);
+assert.match(newcomerGuide, /\[data-guide="app-navigation-toggle"\]/);
+assert.doesNotMatch(newcomerGuide, /dispatchEvent\(new CustomEvent\(OPEN_APP_NAVIGATION_EVENT/);
+assert.match(birthdayReactions, /navigator\.share\(shareData\)/);
+assert.match(birthdayReactions, /searchParams\.set\('share', 'birthday'\)/);
+assert.match(birthdayApi, /get_public_birthday_announcement/);
+assert.match(publicShareScreen, /kind === 'birthday'/);
+assert.match(cadetStore, /Full Circle Experience Ticket/);
+assert.match(cadetStore, /I want to pay for the Full Circle Experience \(FCX\)/);
+assert.match(rootApp, /const AuthenticatedOverlays = lazy/);
+assert.match(rootApp, /session && profile && <Suspense fallback=\{null\}><AuthenticatedOverlays \/><\/Suspense>/);
+assert.match(retainPreviousPagesAssets, /manifest\.json/);
+assert.match(retainPreviousPagesAssets, /fs\.copyFileSync/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

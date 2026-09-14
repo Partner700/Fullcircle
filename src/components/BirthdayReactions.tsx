@@ -4,6 +4,7 @@ import { fetchBirthdayConversation, saveBirthdayWish, setBirthdayReaction, type 
 import { updateReactionOptimistically } from '../lib/reactionState';
 import type { DailyQuoteComment, ScheduledAnnouncement } from '../lib/types';
 import { QuoteReactions } from './QuoteReactions';
+import { Share2 } from 'lucide-react';
 
 const EMPTY_COMMENTS: DailyQuoteComment[] = [];
 
@@ -19,6 +20,7 @@ export function BirthdayReactions({ announcement, active, onOpenChange, onMessag
   const [conversation, setConversation] = useState<BirthdayConversation | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [shareNotice, setShareNotice] = useState('');
   const busyRef = useRef(false);
   const version = useRef(0);
   const refresh = useCallback(async () => {
@@ -74,6 +76,34 @@ export function BirthdayReactions({ announcement, active, onOpenChange, onMessag
     } finally { busyRef.current = false; setBusy(false); }
   };
 
+  const shareBirthday = async () => {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('share', 'birthday');
+    url.searchParams.set('id', announcement.id);
+    url.searchParams.set('date', date);
+    const displayName = announcement.metadata?.display_name || 'a Full Circle resident';
+    const shareData = {
+      title: `Celebrate ${displayName} with Full Circle`,
+      text: announcement.content,
+      url: url.toString(),
+    };
+    setShareNotice('');
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareData.url);
+        setShareNotice('Birthday link copied.');
+      } else {
+        window.prompt('Copy this birthday link:', shareData.url);
+      }
+    } catch (reason) {
+      if (!(reason instanceof DOMException && reason.name === 'AbortError')) setShareNotice('The birthday link could not be shared.');
+    }
+  };
+
   return <div className="w-full">
     <QuoteReactions
       state={conversation?.reactions}
@@ -94,6 +124,12 @@ export function BirthdayReactions({ announcement, active, onOpenChange, onMessag
       emptyCommentsText="No birthday wishes yet."
       previewLimit={1}
     />
+    <div className="mt-2 flex items-center justify-end gap-2">
+      {shareNotice && <span className="text-[10px] font-semibold text-stone">{shareNotice}</span>}
+      <button type="button" onClick={() => void shareBirthday()} className="btn-secondary px-2.5 py-1.5 text-[10px]" aria-label="Share birthday announcement">
+        <Share2 size={13} /> Share birthday
+      </button>
+    </div>
     {error && <p role="alert" className="mt-2 text-xs text-coral">{error}</p>}
   </div>;
 }

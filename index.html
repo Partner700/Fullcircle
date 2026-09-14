@@ -20,7 +20,7 @@
 
   <script>
     // The app is also opened inside older Android and social-app WebViews.
-    // Supply the small ES2019/2020 helpers used by the single release bundle.
+    // Supply the small ES2019/2020 helpers used by the release bundles.
     if (!Array.prototype.flatMap) {
       Object.defineProperty(Array.prototype, 'flatMap', {
         configurable: true,
@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=107" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=108" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -150,7 +150,7 @@
     // HTML or JavaScript. The release marker prevents a repair loop on a slow
     // connection, and the application registers the current worker after boot.
     (function () {
-      var release = '107';
+      var release = '108';
       var marker = 'fc-repair';
       var currentUrl = new URL(window.location.href);
       var repairStarted = false;
@@ -195,7 +195,7 @@
         }
 
         navigator.serviceWorker
-          .register('%BASE_URL%sw.js?v=107', { updateViaCache: 'none' })
+          .register('%BASE_URL%sw.js?v=108', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -210,7 +210,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.hasChildNodes()) return;
-      var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === '107';
+      var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === '108';
       if (!alreadyRepaired && typeof window.__repairFullCircleBoot === 'function') {
         window.__repairFullCircleBoot(false);
         return;

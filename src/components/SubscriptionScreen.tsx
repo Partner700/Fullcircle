@@ -15,6 +15,7 @@ import type { PanelImageSetting } from '../lib/types';
 import { formatXaf } from '../lib/utils';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { CountryPhoneInput } from './CountryPhoneInput';
+import { PlayerNumberPicker } from './PlayerNumberPicker';
 import { phoneNumberForCountry } from '../lib/profileOptions';
 import {
   CheckCircle2,
@@ -36,7 +37,7 @@ export type SubscriptionStatusView = {
 type PaymentMethod = 'mtn_momo' | 'orange_money';
 
 interface SubscriptionScreenProps {
-  subStatus: SubscriptionStatusView | null;
+  subStatus?: SubscriptionStatusView | null;
   onActivated?: (status: SubscriptionStatusView) => Promise<void> | void;
 }
 
@@ -65,7 +66,8 @@ export function SubscriptionGate({ onSubscribe }: { onSubscribe: () => void }) {
 }
 
 export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScreenProps) {
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
+  const [fetchedStatus, setFetchedStatus] = useState<SubscriptionStatusView | null>(null);
   const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
   const [panelImage, setPanelImage] = useState<PanelImageSetting | null>(null);
   const [method, setMethod] = useState<PaymentMethod>('mtn_momo');
@@ -88,7 +90,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     setLoadingPlan(true);
     Promise.all([
       fetchActiveSubscriptionPlan(),
-      fetchPanelImageSetting('subscription', ['all', 'cadets', 'sentries']).catch(() => null),
+      fetchPanelImageSetting('subscription', ['all', 'cadets', 'sentries', 'instructors']).catch(() => null),
     ]).then(([activePlan, image]) => {
       if (cancelled) return;
       setPlan(activePlan);
@@ -101,9 +103,19 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!profile || subStatus !== undefined) return;
+    let cancelled = false;
+    void getSubscriptionStatus(profile.id)
+      .then((status) => { if (!cancelled) setFetchedStatus(status); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [profile, subStatus]);
+
   const finishActivation = useCallback(async () => {
     if (!profile) return;
     const status = await getSubscriptionStatus(profile.id);
+    setFetchedStatus(status);
     if (status.status === 'active') {
       setPayment((current) => current ? {
         ...current,
@@ -273,10 +285,15 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     }
   };
 
-  const isActive = subStatus?.status === 'active';
+  const effectiveStatus = subStatus ?? fetchedStatus;
+  const isActive = effectiveStatus?.status === 'active';
+  const accessActive = role === 'instructor'
+    || effectiveStatus?.status === 'grace'
+    || (effectiveStatus?.status === 'trial' && (!effectiveStatus.trial_ends_at || new Date(effectiveStatus.trial_ends_at).getTime() > Date.now()))
+    || (effectiveStatus?.status === 'active' && (!effectiveStatus.current_period_end || new Date(effectiveStatus.current_period_end).getTime() > Date.now()));
   const confirmed = payment && CONFIRMED_STATUSES.has(String(payment.status).toLowerCase());
-  const trialEnd = subStatus?.trial_ends_at ? new Date(subStatus.trial_ends_at) : null;
-  const periodEnd = subStatus?.current_period_end ? new Date(subStatus.current_period_end) : null;
+  const trialEnd = effectiveStatus?.trial_ends_at ? new Date(effectiveStatus.trial_ends_at) : null;
+  const periodEnd = effectiveStatus?.current_period_end ? new Date(effectiveStatus.current_period_end) : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 animate-fade-in">
@@ -289,9 +306,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           <h2 className="font-display text-2xl font-semibold text-ink">Full Circle Subscription</h2>
           <p className="mt-2 text-sm text-stone">
             {isActive && periodEnd && `Active through ${periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`}
-            {subStatus?.status === 'trial' && trialEnd && `Free trial through ${trialEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`}
-            {subStatus?.status === 'expired' && 'Choose your mobile money network to restore full access.'}
-            {!subStatus && 'Choose your mobile money network to continue.'}
+            {effectiveStatus?.status === 'trial' && trialEnd && `Free trial through ${trialEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`}
+            {effectiveStatus?.status === 'expired' && 'Choose your mobile money network to restore full access.'}
+            {!effectiveStatus && 'Choose your mobile money network to continue.'}
           </p>
           {plan && (
             <div className="mt-4 inline-flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 rounded-full border border-border-bright bg-surface/80 px-4 py-2 backdrop-blur-md">
@@ -367,6 +384,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           </button>
         )}
       </section>
+
+      <PlayerNumberPicker accessActive={Boolean(accessActive)} />
     </div>
   );
 }

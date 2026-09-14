@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
-import type { DailyQuoteComment } from './types';
+import type { DailyQuoteComment, PanelImageSetting, PublicBirthdayAnnouncement } from './types';
 import type { QuoteReactionState } from '../components/QuoteReactions';
+import { panelImageFromAnnouncement } from './panelImages';
 
 export type BirthdayConversation = { reactions: QuoteReactionState; comments: DailyQuoteComment[] };
 
@@ -18,3 +19,22 @@ export async function saveBirthdayWish(id: string, date: string, body: string, w
   if (error) throw error;
 }
 
+export type PublicBirthdayView = PublicBirthdayAnnouncement & { panel_image: PanelImageSetting | null };
+
+export async function fetchPublicBirthdayAnnouncement(id: string, date: string): Promise<PublicBirthdayView | null> {
+  const { data, error } = await supabase.rpc('get_public_birthday_announcement', {
+    p_celebration_id: id,
+    p_date: date,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object') return null;
+  const row = data as PublicBirthdayAnnouncement;
+  const artwork = row.artwork?.content
+    ? panelImageFromAnnouncement({
+      content: row.artwork.content,
+      image_position_x: row.artwork.image_position_x ?? undefined,
+      image_position_y: row.artwork.image_position_y ?? undefined,
+    })
+    : null;
+  return { ...row, panel_image: artwork };
+}

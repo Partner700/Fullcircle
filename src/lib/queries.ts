@@ -7,7 +7,8 @@ import type {
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
   QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
-  FcxExperience, MonthlyVallumWatchRow,
+  FcxExperience, MonthlyVallumWatchRow, PlayerNumberAssignmentResult,
+  PlayerNumberState, FcxTicketContact,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
@@ -1060,6 +1061,8 @@ export async function fetchProfileCv(userId: string) {
     tent_name: row.tent_name ? String(row.tent_name) : null,
     tent_house_id: row.tent_house_id ? String(row.tent_house_id) : null,
     member_since: String(row.member_since || new Date().toISOString()),
+    player_number: Number(row.player_number) || null,
+    player_number_grace_until: row.player_number_grace_until ? String(row.player_number_grace_until) : null,
     completed_challenges: Number(row.completed_challenges) || 0,
     total_denarii: Number(row.total_denarii) || 0,
     current_streak: Number(row.current_streak) || 0,
@@ -1068,6 +1071,45 @@ export async function fetchProfileCv(userId: string) {
     rhudes: Number(row.rhudes) || 0,
     marks: Number(row.marks) || 0,
   } as import('./types').ProfileCvData;
+}
+
+export async function fetchPlayerNumberOptions(): Promise<PlayerNumberState> {
+  const { data, error } = await supabase.rpc('get_player_number_options');
+  if (error) throw error;
+  const row = (data || {}) as any;
+  return {
+    current_number: Number(row.current_number) || null,
+    assigned_at: row.assigned_at ? String(row.assigned_at) : null,
+    grace_until: row.grace_until ? String(row.grace_until) : null,
+    wallet_denarii: Number(row.wallet_denarii) || 0,
+    options: Array.isArray(row.options)
+      ? row.options.map((option: any) => ({
+        player_number: Number(option.player_number),
+        denarii_price: Number(option.denarii_price) || 0,
+      })).filter((option: { player_number: number }) => Number.isInteger(option.player_number))
+      : [],
+  };
+}
+
+export async function claimPlayerNumber(playerNumber: number): Promise<PlayerNumberAssignmentResult> {
+  const { data, error } = await supabase.rpc('claim_player_number', { p_player_number: playerNumber });
+  if (error) throw error;
+  return data as PlayerNumberAssignmentResult;
+}
+
+export async function assignPlayerNumber(userId: string, playerNumber: number): Promise<PlayerNumberAssignmentResult> {
+  const { data, error } = await supabase.rpc('assign_player_number', {
+    p_user_id: userId,
+    p_player_number: playerNumber,
+  });
+  if (error) throw error;
+  return data as PlayerNumberAssignmentResult;
+}
+
+export async function fetchFcxTicketContact(): Promise<FcxTicketContact | null> {
+  const { data, error } = await supabase.rpc('get_fcx_ticket_contact');
+  if (error) throw error;
+  return data ? data as FcxTicketContact : null;
 }
 
 export async function fetchGameAttempts(userId: string, narrativeDate?: string) {

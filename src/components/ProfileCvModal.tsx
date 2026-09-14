@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BadgeCheck, Coins, Flame, Loader2, Swords, Target, X } from 'lucide-react';
+import { BadgeCheck, Coins, Flame, Hash, Loader2, Save, Swords, Target, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchPanelImageSetting, fetchProfileCv } from '../lib/queries';
+import { assignPlayerNumber, fetchPanelImageSetting, fetchProfileCv } from '../lib/queries';
 import { OPEN_PROFILE_CV_EVENT } from '../lib/profileCv';
 import type { PanelImageSetting, ProfileCvData } from '../lib/types';
-import { formatDenarii } from '../lib/utils';
+import { formatDenarii, formatPlayerNumber } from '../lib/utils';
 import { ChiRhoMark } from './ChiRhoMark';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { TentHouseSymbol } from './TentHouseSymbol';
@@ -39,18 +39,22 @@ function ProfileMeasure({
 }
 
 export function ProfileCvHost() {
-  const { profile } = useAuth();
+  const { profile, role, refreshProfile } = useAuth();
   const [targetId, setTargetId] = useState<string | null>(null);
   const [data, setData] = useState<ProfileCvData | null>(null);
   const [artwork, setArtwork] = useState<PanelImageSetting | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [numberInput, setNumberInput] = useState('');
+  const [numberError, setNumberError] = useState('');
+  const [assigningNumber, setAssigningNumber] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const close = useCallback(() => {
     setTargetId(null);
     setData(null);
     setError('');
+    setNumberError('');
   }, []);
 
   useEffect(() => {
@@ -68,9 +72,15 @@ export function ProfileCvHost() {
     let active = true;
     setLoading(true);
     setError('');
+    setNumberError('');
+    setNumberInput('');
     setData(null);
     void fetchProfileCv(targetId)
-      .then((result) => { if (active) setData(result); })
+      .then((result) => {
+        if (!active) return;
+        setData(result);
+        setNumberInput(result.player_number ? String(result.player_number) : '');
+      })
       .catch(() => { if (active) setError('This profile could not be opened. Please try again.'); })
       .finally(() => { if (active) setLoading(false); });
     void fetchPanelImageSetting('profile')
@@ -78,6 +88,28 @@ export function ProfileCvHost() {
       .catch(() => undefined);
     return () => { active = false; };
   }, [targetId]);
+
+  const savePlayerNumber = async () => {
+    if (!targetId || role !== 'instructor' || assigningNumber) return;
+    const number = Number(numberInput);
+    if (!Number.isInteger(number) || number < 1 || number > 999) {
+      setNumberError('Enter a number from 001 to 999.');
+      return;
+    }
+    setAssigningNumber(true);
+    setNumberError('');
+    try {
+      await assignPlayerNumber(targetId, number);
+      const refreshed = await fetchProfileCv(targetId);
+      setData(refreshed);
+      setNumberInput(String(refreshed.player_number || number));
+      if (targetId === profile?.id) await refreshProfile();
+    } catch (reason) {
+      setNumberError(reason instanceof Error ? reason.message : 'That number could not be assigned.');
+    } finally {
+      setAssigningNumber(false);
+    }
+  };
 
   useEffect(() => {
     if (!targetId) return;
@@ -138,6 +170,30 @@ export function ProfileCvHost() {
                   </div>
                 </div>
               </div>
+
+              <div className="profile-cv-player-number">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-peri-soft text-peri"><Hash size={15} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[9px] font-black uppercase text-stone">Resident / Player Number</span>
+                  <strong className="block font-display text-sm font-black tabular-nums text-ink">{formatPlayerNumber(data.player_number)}</strong>
+                </span>
+                {role === 'instructor' && !data.player_number && (
+                  <span className="flex items-center gap-1.5">
+                    <input
+                      value={numberInput}
+                      onChange={(event) => setNumberInput(event.target.value.replace(/\D/g, '').slice(0, 3))}
+                      inputMode="numeric"
+                      className="input-field h-8 w-16 px-2 py-1 text-center text-xs tabular-nums"
+                      placeholder="001"
+                      aria-label="Assign player number"
+                    />
+                    <button type="button" onClick={() => void savePlayerNumber()} disabled={assigningNumber} className="icon-btn h-8 w-8" title="Assign player number" aria-label="Assign player number">
+                      {assigningNumber ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    </button>
+                  </span>
+                )}
+              </div>
+              {numberError && <p role="alert" className="mt-1 text-[10px] text-coral">{numberError}</p>}
 
               <div className="profile-cv-measures">
                 <ProfileMeasure icon={Flame} label="Streak" value={`${data.current_streak} days`} explanation="Days the Bible has been read consistently" accent="#ef6a4d" />

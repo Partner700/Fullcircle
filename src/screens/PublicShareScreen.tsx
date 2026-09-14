@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, BookMarked, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
+import { Award, BookMarked, Bookmark, Cake, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
@@ -24,8 +24,9 @@ import {
 } from '../lib/queries';
 import { cn } from '../lib/utils';
 import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
+import { fetchPublicBirthdayAnnouncement, type PublicBirthdayView } from '../lib/birthdays';
 
-type ShareKind = 'reading' | 'quiz' | 'game';
+type ShareKind = 'reading' | 'quiz' | 'game' | 'birthday';
 
 function PublicRestDayAwards({ readingDate }: { readingDate: string }) {
   const [awards, setAwards] = useState<PublicRestDayAward[]>([]);
@@ -436,13 +437,14 @@ function SharedGameView({ game, signupHref }: { game: { title: string; questions
   );
 }
 
-export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: string }) {
+export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; value: string; date?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState<SharedReading | null>(null);
   const [publicQuotes, setPublicQuotes] = useState<DailyQuoteFeedItem[]>([]);
   const [quiz, setQuiz] = useState<any>(null);
   const [game, setGame] = useState<any>(null);
+  const [birthday, setBirthday] = useState<PublicBirthdayView | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [savingQuestion, setSavingQuestion] = useState<string | null>(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
@@ -468,7 +470,15 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const load = kind === 'reading' ? fetchSharedReading(value, readingGuestKey) : kind === 'quiz' ? fetchSharedQuiz(value) : fetchSharedDailyGame(value);
+    const load = kind === 'reading'
+      ? fetchSharedReading(value, readingGuestKey)
+      : kind === 'quiz'
+        ? fetchSharedQuiz(value)
+        : kind === 'game'
+          ? fetchSharedDailyGame(value)
+          : date
+            ? fetchPublicBirthdayAnnouncement(value, date)
+            : Promise.resolve(null);
     void load
       .then((data) => {
         if (cancelled) return;
@@ -478,12 +488,13 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
           void fetchPublicDailyQuotes(value).then(setPublicQuotes).catch(() => setPublicQuotes([]));
         }
         else if (kind === 'quiz') setQuiz(data as NonNullable<Awaited<ReturnType<typeof fetchSharedQuiz>>>);
-        else setGame(data);
+        else if (kind === 'game') setGame(data);
+        else setBirthday(data as PublicBirthdayView);
       })
       .catch((loadError: any) => { if (!cancelled) setError(loadError?.message || 'This shared item could not load.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [kind, readingGuestKey, value]);
+  }, [date, kind, readingGuestKey, value]);
 
   const reactToSharedInsight = async (insightId: string, reactionType: VerseInsightReactionType) => {
     if (!reading || pendingReaction) return;
@@ -638,6 +649,35 @@ export function PublicShareScreen({ kind, value }: { kind: ShareKind; value: str
         )}
         {!loading && !error && kind === 'game' && game && (
           <SharedGameView game={game} signupHref={signupHref} />
+        )}
+        {!loading && !error && kind === 'birthday' && birthday && (
+          <article className="card relative isolate min-h-[25rem] overflow-hidden p-6 sm:p-8">
+            <PanelImageBackdrop image={birthday.panel_image} opacityFallback={42} veilClassName="welcome-slide-veil" modeFilter={false} />
+            <div className="relative z-10 flex min-h-[21rem] flex-col justify-between">
+              <div>
+                <p className="eyebrow flex items-center gap-1.5 text-brass"><Cake size={15} /> Birthday Celebration</p>
+                <div className="mt-5 flex items-center gap-3">
+                  <UserAvatar
+                    userId={birthday.metadata?.user_id}
+                    name={birthday.metadata?.display_name || 'Birthday celebrant'}
+                    avatarUrl={birthday.metadata?.avatar_url}
+                    className="h-16 w-16 rounded-2xl border border-brass/50 shadow-lg"
+                    loading="eager"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase text-stone">Celebrate with us</p>
+                    <h1 className="font-display text-2xl font-black text-ink">{birthday.metadata?.display_name || 'A Full Circle resident'}</h1>
+                  </div>
+                </div>
+                <h2 className="mt-7 font-display text-3xl font-semibold text-ink">Hey Everyone</h2>
+                <p className="mt-3 max-w-xl whitespace-pre-wrap text-sm leading-relaxed text-stone">{birthday.content}</p>
+              </div>
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                <p className="text-xs text-stone">Join Full Circle to react and send a birthday wish.</p>
+                <a href={signupHref} className="btn-primary"><UserPlus size={15} /> Join the celebration</a>
+              </div>
+            </div>
+          </article>
         )}
       </div>
     </main>

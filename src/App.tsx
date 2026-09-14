@@ -1,28 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useScrollBoundaryFades } from './lib/useScrollBoundaryFades';
 import { AuthScreen } from './screens/AuthScreen';
-import { CadetApp } from './screens/cadet/CadetApp';
-import { SentryApp } from './screens/sentry/SentryApp';
-import { InstructorApp } from './screens/instructor/InstructorApp';
 import { Dove } from './components/Dove';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
-import { DenariiGainAnimation } from './components/DenariiGainAnimation';
-import { FoundersGiftPopup } from './components/FoundersGiftPopup';
-import { DoveQuestionOverlay } from './components/DoveQuestionOverlay';
-import { ScriptureAlarmOverlay } from './components/ScriptureAlarmOverlay';
-import { HiddenChallengeOverlay } from './components/HiddenChallengeOverlay';
-import { HiddenChallengeStatus } from './components/HiddenChallengeStatus';
-import { PublicQuizResultClaim } from './components/PublicQuizResultClaim';
-import { ProfileCvHost } from './components/ProfileCvModal';
-import { AudioCallManager } from './components/AudioCallManager';
-import { BackgroundAlertPrompt } from './components/BackgroundAlertPrompt';
-import { PublicShareScreen } from './screens/PublicShareScreen';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { LogOut, RefreshCw } from 'lucide-react';
+
+const CadetApp = lazy(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp })));
+const SentryApp = lazy(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp })));
+const InstructorApp = lazy(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp })));
+const PublicShareScreen = lazy(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen })));
+const AuthenticatedOverlays = lazy(() => import('./components/AuthenticatedOverlays').then((module) => ({ default: module.AuthenticatedOverlays })));
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -33,6 +25,16 @@ const SCRIPTURE_FACTS = [
   'The laurel wreath crowned victors in the ancient Greek and Roman world.',
   'The book of Isaiah spans over 700 years of prophetic tradition.',
 ];
+
+function ScreenLoader({ label = 'Opening Full Circle' }: { label?: string }) {
+  return (
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 overflow-hidden bg-navy px-4">
+      <Dove size={88} className="animate-float" />
+      <p className="text-sm font-semibold text-peri-dim">{label}</p>
+      <div className="h-1 w-40 overflow-hidden rounded-full bg-navy-3"><div className="h-full w-2/5 animate-pulse rounded-full bg-peri" /></div>
+    </div>
+  );
+}
 
 function isPasswordRecoveryUrl() {
   if (typeof window === 'undefined') return false;
@@ -58,6 +60,7 @@ export default function App() {
     if (kind === 'reading' && search.get('date')) return { kind: 'reading' as const, value: search.get('date')! };
     if (kind === 'quiz' && search.get('id')) return { kind: 'quiz' as const, value: search.get('id')! };
     if (kind === 'game' && search.get('date')) return { kind: 'game' as const, value: search.get('date')! };
+    if (kind === 'birthday' && search.get('id') && search.get('date')) return { kind: 'birthday' as const, value: search.get('id')!, date: search.get('date')! };
     return null;
   }, []);
   const signupRequested = useMemo(() => new URLSearchParams(window.location.search).get('signup') === '1', []);
@@ -100,10 +103,10 @@ export default function App() {
 
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
-  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification /><DenariiGainAnimation /><FoundersGiftPopup /><BackgroundAlertPrompt /><AudioCallManager /><ScriptureAlarmOverlay /><DoveQuestionOverlay /><HiddenChallengeOverlay /><HiddenChallengeStatus /><PublicQuizResultClaim /><ProfileCvHost /></>;
+  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification />{session && profile && <Suspense fallback={null}><AuthenticatedOverlays /></Suspense>}</>;
 
   if (publicShare && !configError) {
-    return <>{overlays}<PublicShareScreen kind={publicShare.kind} value={publicShare.value} /></>;
+    return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;
   }
 
   if (loading) {
@@ -225,5 +228,5 @@ export default function App() {
       ? <SentryApp />
       : <CadetApp />;
 
-  return <>{overlays}{app}</>;
+  return <>{overlays}<Suspense fallback={<ScreenLoader />}>{app}</Suspense></>;
 }
