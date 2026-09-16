@@ -41,7 +41,7 @@ import {
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
-import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, isPanelImageContent, normaliseAdjustments, panelImageFromAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
+import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
 import { uploadAppFile } from '../../lib/storageUploads';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments, MonthlyVallumWatchRow } from '../../lib/types';
@@ -570,7 +570,7 @@ function AnnouncementManager() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setAnnouncements(await fetchAllAnnouncements());
+      setAnnouncements(await fetchAllAnnouncements(PANEL_IMAGE_SLOTS.map((slot) => slot.type)));
     } catch (e) {
       console.error('Announcement load error:', e);
     }
@@ -668,12 +668,7 @@ function AnnouncementManager() {
 
   const activeImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
     ...slot,
-    item: announcements.find((announcement) =>
-      announcement.announcement_type === slot.type
-      && announcement.audience === slot.audience
-      && announcement.is_active !== false
-      && isPanelImageContent(announcement.content)
-    ),
+    item: selectPanelImageAnnouncement(announcements, slot.type, slot.audience),
   })).map((setting) => ({
     ...setting,
     image: setting.item ? panelImageFromAnnouncement(setting.item) : null,
@@ -843,8 +838,10 @@ function AnnouncementManager() {
               {profileArtworkSetting?.image ? (
                 <PanelImageBackdrop
                   image={profileArtworkSetting.image}
-                  opacityFallback={100}
+                  opacityOverride={100}
                   veilClassName=""
+                  modeFilter={false}
+                  textGradient={false}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-stone">
@@ -1003,8 +1000,10 @@ function AnnouncementManager() {
                       <PanelImageBackdrop
                         image={setting.image}
                         className="transition-transform duration-200 group-hover:scale-[1.02]"
-                        opacityFallback={100}
+                        opacityOverride={100}
                         veilClassName=""
+                        modeFilter={false}
+                        textGradient={false}
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center border-b border-dashed border-border text-stone">
@@ -1023,7 +1022,7 @@ function AnnouncementManager() {
                 {setting.item && (
                   <button
                     type="button"
-                    onClick={() => deleteImageSetting(setting.type, setting.audience)}
+                    onClick={() => deleteImageSetting(setting.type, setting.item?.audience || setting.audience)}
                     className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border border-white/30 bg-black/55 text-white transition-colors hover:bg-coral"
                     title={`Delete ${setting.label}`}
                   >
@@ -1099,20 +1098,25 @@ function AnnouncementManager() {
           <div className="space-y-2">
             {standardAnnouncements.map((announcement) => {
               const published = new Date(announcement.publish_at).getTime() <= Date.now();
-              const associatedImage = activeImageSettings.find((setting) =>
-                setting.type === `panel_image_${announcement.announcement_type}` && setting.audience === announcement.audience
-              )?.image || activeImageSettings.find((setting) =>
-                setting.type === `panel_image_${announcement.announcement_type}` && setting.audience === 'all'
-              )?.image || activeImageSettings.find((setting) =>
-                setting.type === 'panel_image_announcement' && setting.audience === 'all'
-              )?.image || null;
+              const associatedImageRow = selectPanelImageAnnouncement(
+                announcements,
+                `panel_image_${announcement.announcement_type}`,
+                announcement.audience,
+              ) || selectPanelImageAnnouncement(announcements, 'panel_image_announcement', announcement.audience);
+              const associatedImage = associatedImageRow ? panelImageFromAnnouncement(associatedImageRow) : null;
               return (
                 <div key={announcement.id} className="rounded-lg border border-border-bright bg-surface-2 p-3 flex flex-col sm:flex-row sm:items-start gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <Megaphone size={18} className={cn('mt-0.5 flex-shrink-0', announcement.is_active ? 'text-brass' : 'text-stone')} />
                     {associatedImage && (
                       <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-md border border-border bg-surface">
-                        <PanelImageBackdrop image={associatedImage} opacityFallback={100} veilClassName="" />
+                        <PanelImageBackdrop
+                          image={associatedImage}
+                          opacityOverride={100}
+                          veilClassName=""
+                          modeFilter={false}
+                          textGradient={false}
+                        />
                       </div>
                     )}
                   <div className="flex-1 min-w-0">
@@ -1307,7 +1311,7 @@ function AnnouncementManager() {
                   {editingImageSetting.item && (
                     <button
                       type="button"
-                      onClick={() => deleteImageSetting(editingImageSetting.type, editingImageSetting.audience)}
+                      onClick={() => deleteImageSetting(editingImageSetting.type, editingImageSetting.item?.audience || editingImageSetting.audience)}
                       className="btn-secondary text-sm text-coral"
                     >
                       <Trash2 size={15} /> Delete

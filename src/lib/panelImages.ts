@@ -73,6 +73,30 @@ export function isPanelImageContent(content: string | null | undefined) {
   return /^https?:\/\//i.test(parsePanelImageContent(content).url);
 }
 
+export function selectPanelImageAnnouncement(
+  announcements: ScheduledAnnouncement[],
+  announcementType: string,
+  preferredAudience = 'all',
+) {
+  const audiencePriority = (audience: string) => {
+    if (audience === preferredAudience) return 0;
+    if (audience === 'all') return 1;
+    return 2;
+  };
+
+  return announcements
+    .filter((announcement) => (
+      announcement.announcement_type === announcementType
+      && announcement.is_active !== false
+      && isPanelImageContent(announcement.content)
+    ))
+    .sort((left, right) => {
+      const audienceDifference = audiencePriority(left.audience) - audiencePriority(right.audience);
+      if (audienceDifference !== 0) return audienceDifference;
+      return new Date(right.publish_at).getTime() - new Date(left.publish_at).getTime();
+    })[0] || null;
+}
+
 export function normaliseAdjustments(input?: Partial<PanelImageAdjustments> | null): PanelImageAdjustments {
   const clamp = (value: unknown, min: number, max: number, fallback: number) => {
     const numeric = Number(value);

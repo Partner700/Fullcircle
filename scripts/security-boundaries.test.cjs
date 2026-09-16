@@ -2046,6 +2046,14 @@ assert.doesNotMatch(playerNumberMarket, /DROP CONSTRAINT IF EXISTS denarii_ledge
 assert.doesNotMatch(playerNumberMarket, /DROP CONSTRAINT IF EXISTS profiles_player_number_source_check/);
 assert.match(quoteQueries, /rpc\('save_own_avatar'/);
 assert.match(quoteQueries, /like\('announcement_type', 'panel_image_%'\)\.limit\(500\)/);
+assert.match(quoteQueries, /fetchAllAnnouncements\(panelImageTypes: string\[\] = \[\]\)/);
+assert.match(quoteQueries, /\.in\('announcement_type', normalizedPanelTypes\)/);
+assert.match(quoteQueries, /Promise\.allSettled\(requests\)/);
+assert.match(panelImages, /export function selectPanelImageAnnouncement/);
+assert.match(panelImages, /audience === preferredAudience/);
+assert.match(instructorApp, /selectPanelImageAnnouncement\(announcements, slot\.type, slot\.audience\)/);
+assert.match(instructorApp, /fetchAllAnnouncements\(PANEL_IMAGE_SLOTS\.map/);
+assert.match(instructorApp, /opacityOverride=\{100\}/);
 assert.match(playerNumberPicker, /fetchPlayerNumberMarketplace/);
 assert.match(playerNumberPicker, /listPlayerNumber\(amount\)/);
 assert.match(playerNumberPicker, /placePlayerNumberBid\(listing\.id, amount\)/);

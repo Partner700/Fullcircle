@@ -11,7 +11,7 @@ import type {
   PlayerNumberState, PlayerNumberMarketplaceState, FcxTicketContact,
   InstructorResourceGrantResult,
 } from '../lib/types';
-import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
+import { isPanelImageContent, panelImageFromAnnouncement, selectPanelImageAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
 import { imageFileType, prepareImageUpload } from './uploads';
 import { uploadAppFile } from './storageUploads';
@@ -1551,8 +1551,8 @@ export async function fetchPanelImageSettings(
     const images: Record<string, PanelImageSetting> = {};
 
     normalizedTypes.forEach((type) => {
-      const candidates = rows.filter((row) => row.announcement_type === type);
-      const preferred = candidates.find((row) => row.audience !== 'all') || candidates[0];
+      const requestedAudience = normalizedAudiences.find((audience) => audience !== 'all') || 'all';
+      const preferred = selectPanelImageAnnouncement(rows, type, requestedAudience);
       if (preferred) images[type.replace('panel_image_', '')] = panelImageFromAnnouncement(preferred);
     });
 
@@ -1560,23 +1560,40 @@ export async function fetchPanelImageSettings(
   });
 }
 
-export async function fetchAllAnnouncements() {
+export async function fetchAllAnnouncements(panelImageTypes: string[] = []) {
   const baseQuery = () => supabase
     .from('scheduled_announcements')
     .select('*')
     .order('publish_at', { ascending: false });
-  const [recent, panelImages, sounds, weeklyBackground] = await Promise.all([
+  const normalizedPanelTypes = Array.from(new Set(panelImageTypes.filter(Boolean)));
+  const requests = [
     baseQuery().limit(150),
     baseQuery().like('announcement_type', 'panel_image_%').limit(500),
     baseQuery().like('announcement_type', 'sound_%').limit(500),
     baseQuery().eq('announcement_type', 'weekly_background').limit(20),
-  ]);
-  const failed = [recent, panelImages, sounds, weeklyBackground].find((result) => result.error);
-  if (failed?.error) throw failed.error;
+  ];
+  if (normalizedPanelTypes.length > 0) {
+    requests.push(
+      baseQuery()
+        .in('announcement_type', normalizedPanelTypes)
+        .limit(Math.max(100, normalizedPanelTypes.length * 6)),
+    );
+  }
+
+  const settled = await Promise.allSettled(requests);
+  const successful = settled.flatMap((result) => (
+    result.status === 'fulfilled' && !result.value.error ? [result.value] : []
+  ));
+  if (successful.length === 0) {
+    const rejected = settled.find((result) => result.status === 'rejected');
+    if (rejected?.status === 'rejected') throw rejected.reason;
+    const failed = settled.find((result) => result.status === 'fulfilled' && result.value.error);
+    throw failed?.status === 'fulfilled' ? failed.value.error : new Error('Announcements could not be loaded.');
+  }
 
   const byId = new Map<string, ScheduledAnnouncement>();
-  [recent.data, panelImages.data, sounds.data, weeklyBackground.data].forEach((rows) => {
-    ((rows || []) as ScheduledAnnouncement[]).forEach((row) => byId.set(row.id, row));
+  successful.forEach((result) => {
+    ((result.data || []) as ScheduledAnnouncement[]).forEach((row) => byId.set(row.id, row));
   });
   return Array.from(byId.values()).sort((left, right) => (
     new Date(right.publish_at).getTime() - new Date(left.publish_at).getTime()
