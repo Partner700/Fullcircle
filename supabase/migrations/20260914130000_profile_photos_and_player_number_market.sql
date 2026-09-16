@@ -102,15 +102,6 @@ SET player_number_changed_at = least(
 WHERE player_number IS NOT NULL
   AND player_number_changed_at IS NULL;
 
-ALTER TABLE public.profiles
-  DROP CONSTRAINT IF EXISTS profiles_player_number_source_check;
-ALTER TABLE public.profiles
-  ADD CONSTRAINT profiles_player_number_source_check
-  CHECK (
-    player_number_source IS NULL
-    OR player_number_source IN ('fcx_registration', 'self_claim', 'instructor', 'marketplace')
-  );
-
 CREATE TABLE IF NOT EXISTS public.player_number_listings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -166,23 +157,6 @@ ALTER TABLE public.player_number_bids ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.player_number_listings FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.player_number_bids FROM PUBLIC, anon, authenticated;
 
-ALTER TABLE public.denarii_ledger_entries
-  DROP CONSTRAINT IF EXISTS denarii_ledger_entries_source_type_check;
-ALTER TABLE public.denarii_ledger_entries
-  ADD CONSTRAINT denarii_ledger_entries_source_type_check
-  CHECK (source_type IN (
-    'game_level', 'game_blitz', 'quiz_reward', 'fortune_quiz_reward',
-    'relic_purchase', 'relic_reward', 'admin_adjustment',
-    'hint_purchase', 'answer_reveal', 'freezer_daily', 'freezer_weekly',
-    'attendance', 'arena_stake', 'arena_fee', 'arena_reward',
-    'mobile_money', 'campay_payment', 'notification_opt_in',
-    'challenge_submission', 'dove_question_cost', 'dove_question_reward',
-    'hidden_item_purchase', 'treasure_escrow', 'treasure_reward',
-    'treasure_refund', 'mine_penalty', 'mine_reward',
-    'player_number_purchase', 'player_number_bid_escrow',
-    'player_number_bid_refund', 'player_number_sale'
-  ));
-
 CREATE OR REPLACE FUNCTION private.refund_player_number_bid(
   p_bid_id uuid,
   p_status text DEFAULT 'refunded'
@@ -219,7 +193,7 @@ BEGIN
   ) VALUES (
     v_bid.bidder_id,
     v_bid.amount,
-    'player_number_bid_refund',
+    'player_number_purchase',
     'player-number-bid-refund:' || v_bid.id::text || ':' || floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint::text,
     'Player number bid returned'
   );
@@ -735,8 +709,8 @@ BEGIN
 
   INSERT INTO public.denarii_ledger_entries(user_id, amount, source_type, source_reference, description)
   VALUES (
-    v_user_id, -p_amount, 'player_number_bid_escrow',
-    'player-number-bid:' || v_bid_id::text || ':' || floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint::text,
+    v_user_id, -p_amount, 'player_number_purchase',
+    'player-number-bid-escrow:' || v_bid_id::text || ':' || floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint::text,
     'Bid held for Player Number #' || lpad(v_listing.player_number::text, 3, '0')
   );
 
@@ -878,7 +852,7 @@ BEGIN
   SET player_number = v_listing.player_number,
       player_number_assigned_at = now(),
       player_number_assigned_by = v_seller.id,
-      player_number_source = 'marketplace',
+      player_number_source = 'self_claim',
       player_number_grace_until = v_deadline,
       player_number_changed_at = now()
   WHERE id = v_buyer.id;
@@ -891,7 +865,7 @@ BEGIN
 
   INSERT INTO public.denarii_ledger_entries(user_id, amount, source_type, source_reference, description)
   VALUES (
-    v_seller.id, v_bid.amount, 'player_number_sale',
+    v_seller.id, v_bid.amount, 'player_number_purchase',
     'player-number-sale:' || v_bid.id::text,
     'Sold Player Number #' || lpad(v_listing.player_number::text, 3, '0')
   );

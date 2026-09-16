@@ -1960,9 +1960,9 @@ for (const required of [
   'CREATE TABLE IF NOT EXISTS public.player_number_listings',
   'CREATE TABLE IF NOT EXISTS public.player_number_bids',
   'player_number_listings_active_number_uidx',
-  'player_number_bid_escrow',
-  'player_number_bid_refund',
-  'player_number_sale',
+  'player-number-bid-escrow:',
+  'player-number-bid-refund:',
+  'player-number-sale:',
   "interval '48 hours'",
   'CREATE OR REPLACE FUNCTION public.get_player_number_marketplace',
   'CREATE OR REPLACE FUNCTION public.list_player_number',
@@ -1972,7 +1972,7 @@ for (const required of [
   'CREATE OR REPLACE FUNCTION public.accept_player_number_bid',
   'PERFORM private.refund_player_number_bid',
   "SET player_number = NULL",
-  "player_number_source = 'marketplace'",
+  "player_number_source = 'self_claim'",
   'REVOKE ALL ON TABLE public.player_number_listings FROM PUBLIC, anon, authenticated',
   'REVOKE ALL ON TABLE public.player_number_bids FROM PUBLIC, anon, authenticated',
 ]) {
@@ -1982,6 +1982,8 @@ assert.match(playerNumberMarket, /IF v_seller\.player_number_changed_at IS NOT N
 assert.match(playerNumberMarket, /IF v_buyer\.player_number_changed_at IS NOT NULL[\s\S]*interval '48 hours'/);
 assert.match(playerNumberMarket, /UPDATE public\.player_number_bids[\s\S]*status = 'accepted'/);
 assert.match(playerNumberMarket, /UPDATE public\.player_number_listings[\s\S]*status = 'sold'/);
+assert.doesNotMatch(playerNumberMarket, /DROP CONSTRAINT IF EXISTS denarii_ledger_entries_source_type_check/);
+assert.doesNotMatch(playerNumberMarket, /DROP CONSTRAINT IF EXISTS profiles_player_number_source_check/);
 assert.match(quoteQueries, /rpc\('save_own_avatar'/);
 assert.match(quoteQueries, /like\('announcement_type', 'panel_image_%'\)\.limit\(500\)/);
 assert.match(playerNumberPicker, /fetchPlayerNumberMarketplace/);
