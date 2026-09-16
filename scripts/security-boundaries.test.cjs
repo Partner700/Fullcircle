@@ -26,6 +26,7 @@ const pagesWorkflow = read('.github/workflows/deploy-pages.yml');
 const supabaseConfig = read('supabase/config.toml');
 const campayWebhook = read('supabase/functions/campay-webhook/index.ts');
 const campayCheckout = read('supabase/functions/create-checkout-session/index.ts');
+const campayShared = read('supabase/functions/_shared/campay.ts');
 const campaySubscriptions = read('supabase/migrations/20260824110000_campay_subscriptions.sql');
 const campayDemoSubscription = read('supabase/migrations/20260824113000_campay_demo_subscription_price.sql');
 const subscriptionAccess = read('supabase/migrations/20260824120000_enforce_subscription_feature_access.sql');
@@ -154,6 +155,7 @@ const tentlessCadetGuidance = read('supabase/migrations/20260908110000_guide_exi
 const contextualAllMentions = read('supabase/migrations/20260908120000_contextual_all_mentions.sql');
 const confirmedPresenceStreak = read('supabase/migrations/20260908130000_confirmed_presence_streak_continuity.sql');
 const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_streak_engine.sql');
+const persistentRevivalRelicStreaks = read('supabase/migrations/20260916100000_persistent_revival_relic_streaks.sql');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
 const welcomeSocialNewcomerTour = read('supabase/migrations/20260909113000_welcome_social_newcomer_tour.sql');
@@ -831,6 +833,16 @@ assert.match(campayCheckout, /fetchSubscriptionProduct/);
 assert.match(campayCheckout, /campayEnvironment === "DEV" \? "demo" : "live"/);
 assert.match(campayCheckout, /quote_only === true/);
 assert.match(campayCheckout, /displayedAmountXaf[\s\S]*?!== amountXaf/);
+assert.match(campayCheckout, /normalizeCampayPhone/);
+assert.match(campayCheckout, /from: campayPhone/);
+assert.match(campayCheckout, /sender_phone: campayPhone/);
+assert.doesNotMatch(campayCheckout, /from: customer_phone/);
+assert.match(campayWebhook, /verifyCampayCallbackSignature/);
+assert.match(campayShared, /header\.alg !== "HS256"/);
+assert.match(campayShared, /return \/\^2376\\d\{8\}\$\//);
+assert.match(campayWebhook, /payloadDetails\.signature/);
+assert.match(campayWebhook, /query\.get\("signature"\)/);
+assert.match(campayWebhook, /to: payoutPhone/);
 assert.match(campayDemoSubscription, /demo_amount_xaf integer NOT NULL DEFAULT 25/);
 for (const required of [
   'subscription_payment_deliveries',
@@ -1775,6 +1787,22 @@ assert.doesNotMatch(forwardOnlyStreak, /v_current\s*:=\s*(?:greatest\([^;]*?)?v_
 assert.doesNotMatch(forwardOnlyStreak, /SELECT\s+least\([\s\S]{0,500}?profile\.created_at/);
 assert.match(forwardOnlyStreak, /Serialize an explicit correction with ordinary streak reads/);
 assert.match(forwardOnlyStreak, /v_later\.outcome IN \('earned', 'purchased', 'restored'\)/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.materialize_revival_relic_streak',
+  'Zero is an idempotent success',
+  'INSERT INTO public.streak_manual_adjustments',
+  'PERFORM public.refresh_user_streak_snapshot(p_user_id)',
+  'PERFORM public.materialize_revival_relic_streak(NEW.user_id, NEW.created_at)',
+  "log.created_at >= timestamptz '2026-09-08 00:00:00+01'",
+  "state.outcome = 'missed'",
+]) {
+  assert.ok(
+    persistentRevivalRelicStreaks.includes(required),
+    `Missing persistent revival-relic safeguard: ${required}`,
+  );
+}
+assert.doesNotMatch(persistentRevivalRelicStreaks, /IF v_restored <= 0 THEN/);
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.release_account_deletion_references',

@@ -1,9 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  normalizeCampayPhone,
+  verifyCampayCallbackSignature,
+} from "../_shared/campay.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, X-Campay-Webhook-Key, X-Webhook-Key, Webhook-Key",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, X-Campay-Signature, X-Campay-Webhook-Key, X-Webhook-Key, Webhook-Key",
 };
 
 type CampayWebhookPayload = {
@@ -13,6 +17,7 @@ type CampayWebhookPayload = {
   tx_ref?: string;
   status?: string;
   state?: string;
+  signature?: string;
   webhook_key?: string;
   amount?: string | number;
   currency?: string;
@@ -74,11 +79,13 @@ async function getCampayToken(): Promise<string> {
 }
 
 function getIncomingWebhookKey(req: Request, payload: CampayWebhookPayload): string | null {
+  const query = new URL(req.url).searchParams;
   return (
     req.headers.get("x-campay-webhook-key") ||
     req.headers.get("x-webhook-key") ||
     req.headers.get("webhook-key") ||
     payload.webhook_key ||
+    query.get("webhook_key") ||
     null
   );
 }
@@ -236,6 +243,15 @@ async function attemptCampayPayout(paymentId: string, amountXaf: number, referen
   const settings = await fetchMobileMoneySettings();
   if (!settings?.payout_enabled || !settings.payout_phone_number) return;
 
+  const payoutPhone = normalizeCampayPhone(settings.payout_phone_number);
+  if (!payoutPhone) {
+    await updatePaymentPayout(paymentId, {
+      payout_status: "failed",
+      payout_error: "The configured payout phone number is not a valid Cameroon mobile money number.",
+    });
+    return;
+  }
+
   const configuredMax = Number(settings.payout_max_amount_xaf);
   const payoutAmount = Number.isFinite(configuredMax) && configuredMax > 0
     ? Math.min(Math.round(amountXaf), Math.round(configuredMax))
@@ -257,7 +273,7 @@ async function attemptCampayPayout(paymentId: string, amountXaf: number, referen
     body: JSON.stringify({
       amount: payoutAmount.toString(),
       currency: "XAF",
-      to: settings.payout_phone_number,
+      to: payoutPhone,
       description: `Full Circle payout for payment ${reference}`,
       external_reference: `${reference}_payout`,
     }),
@@ -296,10 +312,27 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.text();
     const payload: CampayWebhookPayload = body ? JSON.parse(body) : {};
+    const query = new URL(req.url).searchParams;
 
     const payloadDetails = objectValue(payload.data);
     const incomingWebhookKey = getIncomingWebhookKey(req, payload);
-    const isTrustedWebhook = Boolean(campayWebhookKey && incomingWebhookKey === campayWebhookKey);
+    const incomingSignature = String(
+      req.headers.get("x-campay-signature")
+        || payloadDetails.signature
+        || payload.signature
+        || query.get("signature")
+        || "",
+    ) || null;
+    const hasValidSignature = await verifyCampayCallbackSignature(
+      incomingSignature,
+      campayWebhookKey,
+    );
+    // Retain the former explicit-key callback path for configured legacy
+    // callbacks while accepting CamPay's documented signed callback payload.
+    const hasMatchingLegacyKey = Boolean(
+      campayWebhookKey && incomingWebhookKey === campayWebhookKey,
+    );
+    const isTrustedWebhook = hasValidSignature || hasMatchingLegacyKey;
     const authenticatedUserId = isTrustedWebhook ? null : await getAuthenticatedUserId(req);
     if (!isTrustedWebhook && !authenticatedUserId) {
       return new Response(JSON.stringify({ error: "A valid webhook key or signed-in user is required." }), {
@@ -312,9 +345,14 @@ Deno.serve(async (req: Request) => {
       payloadDetails.reference || payloadDetails.transaction_reference
         || payloadDetails.external_reference || payloadDetails.tx_ref
         || payload.reference || payload.transaction_reference
-        || payload.tx_ref || payload.external_reference || "",
+        || payload.tx_ref || payload.external_reference
+        || query.get("reference") || query.get("transaction_reference")
+        || query.get("external_reference") || query.get("tx_ref") || "",
     );
-    const status = String(payloadDetails.status || payloadDetails.state || payload.status || payload.state || "");
+    const status = String(
+      payloadDetails.status || payloadDetails.state || payload.status || payload.state
+        || query.get("status") || query.get("state") || "",
+    );
 
     if (!reference) {
       return new Response(JSON.stringify({ error: "No reference provided" }), {

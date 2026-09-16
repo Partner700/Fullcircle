@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { normalizeCampayPhone } from "../_shared/campay.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -307,6 +308,15 @@ async function attemptCampayPayout(
   const settings = await fetchMobileMoneySettings();
   if (!settings?.payout_enabled || !settings.payout_phone_number) return;
 
+  const payoutPhone = normalizeCampayPhone(settings.payout_phone_number);
+  if (!payoutPhone) {
+    await updatePaymentPayout(paymentId, {
+      payout_status: "failed",
+      payout_error: "The configured payout phone number is not a valid Cameroon mobile money number.",
+    });
+    return;
+  }
+
   const configuredMax = Number(settings.payout_max_amount_xaf);
   const payoutAmount = Number.isFinite(configuredMax) && configuredMax > 0
     ? Math.min(amountXaf, Math.round(configuredMax))
@@ -328,7 +338,7 @@ async function attemptCampayPayout(
     body: JSON.stringify({
       amount: payoutAmount.toString(),
       currency: checkoutCurrency,
-      to: settings.payout_phone_number,
+      to: payoutPhone,
       description: `Full Circle payout for payment ${externalReference}`,
       external_reference: `${externalReference}_payout`,
     }),
@@ -536,8 +546,11 @@ Deno.serve(async (req: Request) => {
     const token = await getCampayToken();
 
     if (isMobileMoneyCollect(payment_method)) {
-      if (!customer_phone?.trim()) {
-        return new Response(JSON.stringify({ error: "Phone number is required for mobile money." }), {
+      const campayPhone = normalizeCampayPhone(customer_phone);
+      if (!campayPhone) {
+        return new Response(JSON.stringify({
+          error: "Enter a valid Cameroon mobile money number, for example 6XX XXX XXX.",
+        }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -546,7 +559,7 @@ Deno.serve(async (req: Request) => {
       const collectData: Record<string, unknown> = {
         amount: localAmount,
         currency: checkoutCurrency,
-        from: customer_phone,
+        from: campayPhone,
         description: product.description,
         external_reference: externalReference,
       };
@@ -564,7 +577,7 @@ Deno.serve(async (req: Request) => {
         amount_local: amountXaf,
         currency_code: checkoutCurrency,
         provider,
-        sender_phone: customer_phone,
+        sender_phone: campayPhone,
         status: "pending",
         reference: externalReference,
         external_reference: externalReference,
