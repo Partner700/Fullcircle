@@ -739,6 +739,18 @@ export interface RelicInventory {
   relic_types?: RelicType;
 }
 
+export interface InstructorResourceGrantResult {
+  success: boolean;
+  grant_id: string;
+  recipient_id: string;
+  recipient_name: string;
+  denarii_granted: number;
+  wallet_denarii: number;
+  relic_type_id: string | null;
+  relic_name: string | null;
+  relic_quantity_granted: number;
+}
+
 export interface StreakboardSnapshot {
   id: string;
   snapshot_date: string;

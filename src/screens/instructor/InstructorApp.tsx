@@ -22,6 +22,7 @@ import { QuestionImportPanel } from '../../components/QuestionImportPanel';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
+import { CampTreasury } from '../../components/InstructorTreasury';
 import { VallumText } from '../../components/ChiRhoMark';
 import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
@@ -53,7 +54,7 @@ import {
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
   Cake, Aperture, Blend, CircleDot, Contrast, Droplets, EyeOff, Focus, Gauge,
-  MoveHorizontal, MoveVertical, Palette, ScanLine, ShoppingBag, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves, Contact,
+  MoveHorizontal, MoveVertical, Palette, ScanLine, ShoppingBag, SlidersHorizontal, Sparkles, Sun, Thermometer, Waves, Contact, Gift,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { APP_TIME_ZONE, DAILY_GAME_LEVELS, LEVEL_GAME_TYPES, GAME_QUESTIONS_PER_ROUND, GAME_ROUNDS_PER_LEVEL, LEVEL_TIMERS } from '../../lib/constants';
@@ -71,7 +72,7 @@ import {
   fetchMarksBoard, fetchMonthlyVallumWatch, fetchWeeklyAwardMetrics,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -194,6 +195,7 @@ const NAV_ITEMS = [
   { key: 'cadets', label: 'Cadets', icon: Users },
   { key: 'sentries', label: 'Sentries', icon: Shield },
   { key: 'unassigned', label: 'Unassigned', icon: UserPlus },
+  { key: 'treasury', label: 'Camp Treasury', icon: Gift },
   { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'mobile_money', label: 'Mobile Money', icon: Smartphone },
   { key: 'store', label: 'Market', icon: ShoppingBag },
@@ -288,7 +290,7 @@ export function InstructorApp() {
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
-    game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management',
+    game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
     challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', subscribe: 'Subscription', settings: 'Settings',
     unassigned: 'Unassigned Users',
@@ -299,7 +301,7 @@ export function InstructorApp() {
     if (!NAV_ITEMS.some((item) => item.key === key)) return;
     setTab(key as Tab);
     if (key === 'narratives') setEditingNarrative('new');
-    if (['tents', 'cadets', 'sentries', 'awards'].includes(key) && profiles.length === 0) void loadAll();
+    if (['tents', 'cadets', 'sentries', 'awards', 'treasury'].includes(key) && profiles.length === 0) void loadAll();
   }, [loadAll, profiles.length]);
 
   useEffect(() => {
@@ -336,6 +338,7 @@ export function InstructorApp() {
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
+      {tab === 'treasury' && <CampTreasury profiles={profiles} roles={roles} loading={loading} />}
       {tab === 'leaderboard' && <CadetLeaderboard instructorMode />}
       {tab === 'matricules' && <MatriculesManagement />}
       {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}

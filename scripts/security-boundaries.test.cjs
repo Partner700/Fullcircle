@@ -156,6 +156,8 @@ const contextualAllMentions = read('supabase/migrations/20260908120000_contextua
 const confirmedPresenceStreak = read('supabase/migrations/20260908130000_confirmed_presence_streak_continuity.sql');
 const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_streak_engine.sql');
 const persistentRevivalRelicStreaks = read('supabase/migrations/20260916100000_persistent_revival_relic_streaks.sql');
+const instructorTreasuryAndRecoveryAnchors = read('supabase/migrations/20260916113000_instructor_treasury_and_recovery_anchors.sql');
+const instructorTreasury = read('src/components/InstructorTreasury.tsx');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
 const welcomeSocialNewcomerTour = read('supabase/migrations/20260909113000_welcome_social_newcomer_tour.sql');
@@ -1808,6 +1810,31 @@ for (const required of [
 assert.doesNotMatch(persistentRevivalRelicStreaks, /IF v_restored <= 0 THEN/);
 
 for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.instructor_resource_grants',
+  'CREATE OR REPLACE FUNCTION public.grant_instructor_resources',
+  'Only the instructor can grant camp resources.',
+  "'admin_adjustment'",
+  'ON CONFLICT (user_id, relic_type_id) DO UPDATE',
+  'CREATE OR REPLACE FUNCTION public.rebase_forward_streak_from_manual_anchor',
+  "outcome = 'restored'",
+  "v_later.outcome IN ('earned', 'purchased', 'restored')",
+  'sync_recovery_manual_adjustment_to_forward_states',
+  "ILIKE '%Redemption Coin%'",
+  "includes Courage's September 14 Redemption Coin",
+]) {
+  assert.ok(
+    instructorTreasuryAndRecoveryAnchors.includes(required),
+    `Missing instructor treasury or recovery-anchor safeguard: ${required}`,
+  );
+}
+assert.match(instructorTreasuryAndRecoveryAnchors, /REVOKE ALL ON TABLE public\.instructor_resource_grants FROM PUBLIC, anon, authenticated/);
+assert.match(instructorTreasuryAndRecoveryAnchors, /REVOKE ALL ON FUNCTION public\.grant_instructor_resources/);
+assert.match(instructorTreasury, /grantInstructorResources/);
+assert.match(instructorTreasury, /Every grant is recorded in the camp ledger/);
+assert.match(instructorApp, /key: 'treasury', label: 'Camp Treasury'/);
+assert.match(instructorApp, /<CampTreasury profiles=\{profiles\} roles=\{roles\} loading=\{loading\} \/>/);
+
+for (const required of [
   'CREATE OR REPLACE FUNCTION public.release_account_deletion_references',
   "auth.role() IS DISTINCT FROM 'service_role'",
   'CREATE OR REPLACE FUNCTION public.prepare_account_inheritance',
@@ -1933,7 +1960,9 @@ assert.match(closedAppAlertsAndAudioCalls, /recipient\.push_attempts < 4[\s\S]*r
 assert.match(closedAppAlertsAndAudioCalls, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.audio_call_rooms/);
 assert.match(authenticatedOverlays, /<BackgroundAlertPrompt\s*\/>/);
 assert.match(authenticatedOverlays, /<AudioCallManager\s*\/>/);
-assert.match(appShell, /requestAudioCall\(everyone \? 'all' : 'tent'\)/);
+assert.match(appShell, /if \(role !== 'instructor'\) return null/);
+assert.match(appShell, /requestAudioCall\('all'\)/);
+assert.doesNotMatch(appShell, /requestAudioCall\([^)]*'tent'/);
 assert.match(tentMessenger, /requestAudioCall\('tent', tentId\)/);
 assert.match(audioCallApi, /get_my_active_audio_calls/);
 assert.match(audioCallApi, /fc-call/);

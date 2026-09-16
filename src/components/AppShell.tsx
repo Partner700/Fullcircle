@@ -84,13 +84,12 @@ function SoundToggle() {
 
 function CallButton() {
   const { role } = useAuth();
-  if (!role) return null;
-  const everyone = role === 'instructor';
-  const label = everyone ? 'Ring everyone' : 'Ring my tent';
+  if (role !== 'instructor') return null;
+  const label = 'Ring everyone';
   return (
     <button
       type="button"
-      onClick={() => requestAudioCall(everyone ? 'all' : 'tent')}
+      onClick={() => requestAudioCall('all')}
       className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-sage/35 bg-sage/10 text-sage transition-all hover:border-sage/60 hover:bg-sage/20"
       title={label}
       aria-label={label}
