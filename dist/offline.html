@@ -117,7 +117,7 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '109';
+    var RECOVERY_VERSION = '110';
     var recoveryInProgress = false;
 
     async function clearRetiredAppCaches() {
@@ -138,6 +138,8 @@
       if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     }
 
+    var failedRecoveryAttempts = 0;
+
     async function recoverFullCircle() {
       if (recoveryInProgress) return;
       recoveryInProgress = true;
@@ -153,10 +155,19 @@
         if (!response.ok) throw new Error('Full Circle is not reachable yet.');
         var html = await response.text();
         if (html.indexOf('id="root"') === -1) throw new Error('The application shell is not ready yet.');
+        failedRecoveryAttempts = 0;
         window.location.replace(new URL('index.html?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
       } catch (error) {
+        failedRecoveryAttempts += 1;
         recoveryInProgress = false;
-        button.innerHTML = '<span class="status-dot"></span> Retry Connection';
+        if (failedRecoveryAttempts >= 2 && window.location.hostname !== 'tnsorganization.github.io') {
+          button.innerHTML = '<span class="status-dot"></span> Open Reliable App';
+          button.onclick = function() {
+            window.location.href = 'https://tnsorganization.github.io/Full-Circle/?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
+          };
+        } else {
+          button.innerHTML = '<span class="status-dot"></span> Retry Connection';
+        }
       }
     }
 

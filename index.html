@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=108" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=109" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -150,10 +150,11 @@
     // HTML or JavaScript. The release marker prevents a repair loop on a slow
     // connection, and the application registers the current worker after boot.
     (function () {
-      var release = '109';
+      var release = '110';
       var marker = 'fc-repair';
       var currentUrl = new URL(window.location.href);
       var repairStarted = false;
+      window.__fullCircleBootRelease = release;
 
       window.__repairFullCircleBoot = async function (force) {
         if (repairStarted) return;
@@ -195,7 +196,7 @@
         }
 
         navigator.serviceWorker
-          .register('%BASE_URL%sw.js?v=109', { updateViaCache: 'none' })
+          .register('%BASE_URL%sw.js?v=110', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -210,12 +211,14 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.hasChildNodes()) return;
-      var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === '108';
+      var bootRelease = window.__fullCircleBootRelease || '110';
+      var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === bootRelease;
       if (!alreadyRepaired && typeof window.__repairFullCircleBoot === 'function') {
         window.__repairFullCircleBoot(false);
         return;
       }
-      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle needs a fresh start on this device.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Repair and open app</button></div></div>';
+      var reliableUrl = 'https://tnsorganization.github.io/Full-Circle/?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
+      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle needs a fresh start on this device.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Repair and open app</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Still waiting?</p><a href="' + reliableUrl + '" style="display:inline-block;margin-top:8px;color:#ffd83d;font:800 14px system-ui">Open the reliable app</a></div></div>';
     }, 24000);
   </script>
   <script type="module" src="/src/main.tsx"></script>
