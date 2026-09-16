@@ -460,7 +460,7 @@ assert.match(appIndex, /navigator\.serviceWorker\.getRegistrations/);
 assert.match(appIndex, /registration\.unregister\(\)/);
 assert.match(appIndex, /searchParams\.set\(marker, release\)/);
 assert.match(appIndex, /__fullCircleBootRelease/);
-assert.match(appIndex, /tnsorganization\.github\.io\/Full-Circle/);
+assert.match(appIndex, /partner700\.github\.io\/Fullcircle/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=108"/);
 assert.match(viteConfig, /target: 'es2017'/);
