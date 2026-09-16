@@ -150,7 +150,7 @@
     // HTML or JavaScript. The release marker prevents a repair loop on a slow
     // connection, and the application registers the current worker after boot.
     (function () {
-      var release = '108';
+      var release = '109';
       var marker = 'fc-repair';
       var currentUrl = new URL(window.location.href);
       var repairStarted = false;
@@ -195,15 +195,15 @@
         }
 
         navigator.serviceWorker
-          .register('./sw.js?v=108', { updateViaCache: 'none' })
+          .register('./sw.js?v=109', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-_XiCmvtq.js"></script>
+  <script type="module" crossorigin src="./assets/index-DgxNQCcq.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
-  <link rel="stylesheet" crossorigin href="./assets/style-BUMjg5xK.css">
+  <link rel="stylesheet" crossorigin href="./assets/style-Cla0FCjq.css">
 </head>
 <body>
   <main id="root"></main>

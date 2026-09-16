@@ -677,6 +677,7 @@ function AnnouncementManager() {
   }));
 
   const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
+  const profileArtworkSetting = activeImageSettings.find((setting) => setting.type === 'panel_image_profile') || null;
   const activeImageAdjustmentControl = IMAGE_ADJUSTMENT_CONTROLS.find((control) => control.key === activeImageAdjustment)
     || IMAGE_ADJUSTMENT_CONTROLS[0];
   const standardAnnouncements = announcements.filter((announcement) =>
@@ -831,6 +832,37 @@ function AnnouncementManager() {
       <SectionHeader title="Announcements" subtitle="Schedule dashboard slideshow notices for cadets, sentries, or everyone." />
 
       <FcxExperienceManager onEditArtwork={() => openImageEditor('panel_image_fcx')} />
+
+      <div className="card overflow-hidden p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-2">
+              {profileArtworkSetting?.image ? (
+                <PanelImageBackdrop
+                  image={profileArtworkSetting.image}
+                  opacityFallback={100}
+                  veilClassName=""
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-stone">
+                  <ImageIcon size={24} strokeWidth={1.5} />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-display text-lg font-semibold text-ink">Member Profile Artwork</h3>
+              <p className="mt-1 text-sm text-stone">The shared artwork behind every Full Circle profile.</p>
+              <p className={cn('mt-1 text-[10px] font-bold uppercase', profileArtworkSetting?.item ? 'text-moss' : 'text-stone')}>
+                {profileArtworkSetting?.item ? 'Image saved and active' : 'No image saved'}
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={() => openImageEditor('panel_image_profile')} className="btn-primary shrink-0 text-xs">
+            <ImageIcon size={14} />
+            {profileArtworkSetting?.item ? 'Edit Profile Artwork' : 'Add Profile Artwork'}
+          </button>
+        </div>
+      </div>
 
       <div className="card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

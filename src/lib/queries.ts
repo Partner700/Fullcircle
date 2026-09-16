@@ -8,7 +8,7 @@ import type {
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
   QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
   FcxExperience, MonthlyVallumWatchRow, PlayerNumberAssignmentResult,
-  PlayerNumberState, FcxTicketContact,
+  PlayerNumberState, PlayerNumberMarketplaceState, FcxTicketContact,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
@@ -1080,6 +1080,9 @@ export async function fetchPlayerNumberOptions(): Promise<PlayerNumberState> {
   return {
     current_number: Number(row.current_number) || null,
     assigned_at: row.assigned_at ? String(row.assigned_at) : null,
+    changed_at: row.changed_at ? String(row.changed_at) : null,
+    next_change_at: row.next_change_at ? String(row.next_change_at) : null,
+    can_change: row.can_change === undefined ? true : Boolean(row.can_change),
     grace_until: row.grace_until ? String(row.grace_until) : null,
     wallet_denarii: Number(row.wallet_denarii) || 0,
     options: Array.isArray(row.options)
@@ -1088,6 +1091,16 @@ export async function fetchPlayerNumberOptions(): Promise<PlayerNumberState> {
         denarii_price: Number(option.denarii_price) || 0,
       })).filter((option: { player_number: number }) => Number.isInteger(option.player_number))
       : [],
+  };
+}
+
+export async function fetchPlayerNumberMarketplace(): Promise<PlayerNumberMarketplaceState> {
+  const { data, error } = await supabase.rpc('get_player_number_marketplace');
+  if (error) throw error;
+  const row = (data || {}) as PlayerNumberMarketplaceState;
+  return {
+    listings: Array.isArray(row.listings) ? row.listings : [],
+    own_bids: Array.isArray(row.own_bids) ? row.own_bids : [],
   };
 }
 
@@ -1104,6 +1117,37 @@ export async function assignPlayerNumber(userId: string, playerNumber: number): 
   });
   if (error) throw error;
   return data as PlayerNumberAssignmentResult;
+}
+
+export async function listPlayerNumber(askingPrice: number) {
+  const { data, error } = await supabase.rpc('list_player_number', { p_asking_price: askingPrice });
+  if (error) throw error;
+  return data;
+}
+
+export async function placePlayerNumberBid(listingId: string, amount: number) {
+  const { data, error } = await supabase.rpc('place_player_number_bid', {
+    p_listing_id: listingId,
+    p_amount: amount,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function cancelPlayerNumberBid(bidId: string) {
+  const { error } = await supabase.rpc('cancel_player_number_bid', { p_bid_id: bidId });
+  if (error) throw error;
+}
+
+export async function cancelPlayerNumberListing(listingId: string) {
+  const { error } = await supabase.rpc('cancel_player_number_listing', { p_listing_id: listingId });
+  if (error) throw error;
+}
+
+export async function acceptPlayerNumberBid(bidId: string) {
+  const { data, error } = await supabase.rpc('accept_player_number_bid', { p_bid_id: bidId });
+  if (error) throw error;
+  return data;
 }
 
 export async function fetchFcxTicketContact(): Promise<FcxTicketContact | null> {
@@ -1498,13 +1542,26 @@ export async function fetchPanelImageSettings(
 }
 
 export async function fetchAllAnnouncements() {
-  const { data, error } = await supabase
+  const baseQuery = () => supabase
     .from('scheduled_announcements')
     .select('*')
-    .order('publish_at', { ascending: false })
-    .limit(100);
-  if (error) throw error;
-  return data as ScheduledAnnouncement[];
+    .order('publish_at', { ascending: false });
+  const [recent, panelImages, sounds, weeklyBackground] = await Promise.all([
+    baseQuery().limit(150),
+    baseQuery().like('announcement_type', 'panel_image_%').limit(500),
+    baseQuery().like('announcement_type', 'sound_%').limit(500),
+    baseQuery().eq('announcement_type', 'weekly_background').limit(20),
+  ]);
+  const failed = [recent, panelImages, sounds, weeklyBackground].find((result) => result.error);
+  if (failed?.error) throw failed.error;
+
+  const byId = new Map<string, ScheduledAnnouncement>();
+  [recent.data, panelImages.data, sounds.data, weeklyBackground.data].forEach((rows) => {
+    ((rows || []) as ScheduledAnnouncement[]).forEach((row) => byId.set(row.id, row));
+  });
+  return Array.from(byId.values()).sort((left, right) => (
+    new Date(right.publish_at).getTime() - new Date(left.publish_at).getTime()
+  ));
 }
 
 export async function fetchActiveFcxExperience() {
@@ -2811,8 +2868,19 @@ export async function uploadAvatar(userId: string, file: File) {
   const path = `${userId}/avatar-${version}.${prepared.extension}`;
   const uploadedUrl = await uploadAppFile(path, prepared.file);
   const publicUrl = `${uploadedUrl}?v=${version}`;
-  const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
-  if (profileError) throw profileError;
+  let saved = await supabase.rpc('save_own_avatar', { p_avatar_url: publicUrl });
+  if (saved.error && /jwt|token.*expired|invalid.*token/i.test(saved.error.message || '')) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) throw refreshed.error;
+    saved = await supabase.rpc('save_own_avatar', { p_avatar_url: publicUrl });
+  }
+  if (saved.error && /could not find the function|schema cache|save_own_avatar/i.test(saved.error.message || '')) {
+    const fallback = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId).select('id').maybeSingle();
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) throw new Error('The photo uploaded, but the profile could not be updated. Please sign in again and retry.');
+  } else if (saved.error) {
+    throw saved.error;
+  }
   return publicUrl;
 }
 

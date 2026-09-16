@@ -276,6 +276,12 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loadingCurrent, setLoadingCurrent] = useState(false);
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
+  const avatarUrl = savedAvatarUrl || profile?.avatar_url || null;
+
+  useEffect(() => {
+    setSavedAvatarUrl(profile?.avatar_url || null);
+  }, [profile?.id, profile?.avatar_url]);
 
   const closeCropper = () => {
     setCropFile(null);
@@ -286,10 +292,15 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
     if (!profile) return;
     setUploading(true);
     try {
-      await uploadAvatar(profile.id, file);
-      await onUploaded();
+      const uploadedUrl = await uploadAvatar(profile.id, file);
+      setSavedAvatarUrl(uploadedUrl);
       announceNewcomerGuidanceAction('profile_photo_saved');
       closeCropper();
+      try {
+        await onUploaded();
+      } catch (refreshError) {
+        console.warn('The new profile photo was saved; profile refresh will retry later.', refreshError);
+      }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'The profile photo could not be uploaded.');
     } finally {
@@ -299,14 +310,14 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
 
   const editCurrentPhoto = async () => {
     if (!profile) return;
-    if (!profile.avatar_url) {
+    if (!avatarUrl) {
       inputRef.current?.click();
       return;
     }
 
     setLoadingCurrent(true);
     try {
-      const response = await fetch(profile.avatar_url, { cache: 'no-store' });
+      const response = await fetch(avatarUrl, { cache: 'no-store' });
       if (!response.ok) throw new Error('The current profile photo could not be opened.');
       const blob = await response.blob();
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
@@ -331,11 +342,11 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
           onClick={editCurrentPhoto}
           disabled={!profile || uploading || loadingCurrent}
           className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-border-bright bg-peri-soft shadow-sm transition-transform hover:scale-[1.02] disabled:opacity-70"
-          title={profile?.avatar_url ? 'Adjust current profile photo' : 'Choose profile photo'}
-          aria-label={profile?.avatar_url ? 'Adjust current profile photo' : 'Choose profile photo'}
+          title={avatarUrl ? 'Adjust current profile photo' : 'Choose profile photo'}
+          aria-label={avatarUrl ? 'Adjust current profile photo' : 'Choose profile photo'}
         >
-          {profile?.avatar_url || !fallback ? (
-            <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-full w-full" loading="eager" />
+          {avatarUrl || !fallback ? (
+            <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={avatarUrl} className="h-full w-full" loading="eager" />
           ) : fallback}
           {loadingCurrent && (
             <span className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/45 text-white">
@@ -343,7 +354,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
             </span>
           )}
         </button>
-        {profile?.avatar_url && (
+        {avatarUrl && (
           <button
             type="button"
             onClick={editCurrentPhoto}
@@ -369,7 +380,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
+          accept="image/*,.heic,.heif"
           className="hidden"
           onChange={(event) => {
             const selected = event.target.files?.[0];

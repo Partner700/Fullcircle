@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
@@ -15,7 +15,6 @@ import type { PanelImageSetting } from '../lib/types';
 import { formatXaf } from '../lib/utils';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { CountryPhoneInput } from './CountryPhoneInput';
-import { PlayerNumberPicker } from './PlayerNumberPicker';
 import { phoneNumberForCountry } from '../lib/profileOptions';
 import {
   CheckCircle2,
@@ -26,6 +25,10 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
+
+const PlayerNumberPicker = lazy(() => import('./PlayerNumberPicker').then((module) => ({
+  default: module.PlayerNumberPicker,
+})));
 
 export type SubscriptionStatusView = {
   status: string;
@@ -385,7 +388,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         )}
       </section>
 
-      <PlayerNumberPicker accessActive={Boolean(accessActive)} />
+      <Suspense fallback={<div className="card flex items-center justify-center gap-2 p-6 text-xs text-stone"><Loader2 size={16} className="animate-spin" /> Loading player numbers...</div>}>
+        <PlayerNumberPicker accessActive={Boolean(accessActive)} />
+      </Suspense>
     </div>
   );
 }

@@ -179,6 +179,7 @@ const backgroundAlertPrompt = read('src/components/BackgroundAlertPrompt.tsx');
 const notificationCenter = read('src/components/NotificationCenter.tsx');
 const pushNotifications = read('src/lib/pushNotifications.ts');
 const playerNumbers = read('supabase/migrations/20260914100000_player_numbers_birthday_sharing_fcx_ticket.sql');
+const playerNumberMarket = read('supabase/migrations/20260914130000_profile_photos_and_player_number_market.sql');
 const playerNumberPicker = read('src/components/PlayerNumberPicker.tsx');
 const birthdayReactions = read('src/components/BirthdayReactions.tsx');
 const birthdayApi = read('src/lib/birthdays.ts');
@@ -351,7 +352,9 @@ assert.match(profilePhotoEditor, /createPortal\(dialog, document\.body\)/);
 assert.match(profilePhotoEditor, /type="range"[\s\S]*aria-label="Profile photo zoom"/);
 assert.match(profilePhotoEditor, /context\.drawImage\(/);
 assert.match(profilePhotoEditor, /await uploadAvatar\(profile\.id, file\)/);
-assert.match(profilePhotoEditor, /fetch\(profile\.avatar_url, \{ cache: 'no-store' \}\)/);
+assert.match(profilePhotoEditor, /fetch\(avatarUrl, \{ cache: 'no-store' \}\)/);
+assert.match(profilePhotoEditor, /accept="image\/\*,\.heic,\.heif"/);
+assert.match(profilePhotoEditor, /setSavedAvatarUrl\(uploadedUrl\)/);
 assert.match(profilePhotoEditor, /Crop and adjust current profile photo/);
 assert.match(fcxExperience, /uploadFcxGuestAvatar/);
 assert.match(fcxExperience, /Crop participant photo/);
@@ -430,25 +433,25 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v129'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '122'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v130'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '123'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.ok(!serviceWorker.includes('networkFirstNavigation'), 'Online page navigation must not be replaced by an offline timeout.');
 assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not abort a slow phone navigation.');
 assert.ok(!serviceWorker.includes("addEventListener('fetch'"), 'The notification worker must never intercept phone application requests.');
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '108'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '109'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('index\.html\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=108`/);
-assert.match(staleBundleRecovery, /set\('fc-release', '108'\)/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=109`/);
+assert.match(staleBundleRecovery, /set\('fc-release', '109'\)/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-14-v129/);
+assert.match(releaseCache, /2026-09-14-v130/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=108/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=108'/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=109'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.match(appIndex, /navigator\.serviceWorker\.getRegistrations/);
@@ -1950,6 +1953,45 @@ assert.doesNotMatch(playerNumbers, /announcement\.metadata/);
 assert.match(playerNumberPicker, /fetchPlayerNumberOptions/);
 assert.match(playerNumberPicker, /claimPlayerNumber\(selectedOption\.player_number\)/);
 assert.match(playerNumberPicker, /selectedOption\.denarii_price > walletDenarii/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.save_own_avatar',
+  "split_part(v_url, '/storage/v1/object/public/avatars/', 2)",
+  'ADD COLUMN IF NOT EXISTS player_number_changed_at',
+  'CREATE TABLE IF NOT EXISTS public.player_number_listings',
+  'CREATE TABLE IF NOT EXISTS public.player_number_bids',
+  'player_number_listings_active_number_uidx',
+  'player_number_bid_escrow',
+  'player_number_bid_refund',
+  'player_number_sale',
+  "interval '48 hours'",
+  'CREATE OR REPLACE FUNCTION public.get_player_number_marketplace',
+  'CREATE OR REPLACE FUNCTION public.list_player_number',
+  'CREATE OR REPLACE FUNCTION public.place_player_number_bid',
+  'CREATE OR REPLACE FUNCTION public.cancel_player_number_bid',
+  'CREATE OR REPLACE FUNCTION public.cancel_player_number_listing',
+  'CREATE OR REPLACE FUNCTION public.accept_player_number_bid',
+  'PERFORM private.refund_player_number_bid',
+  "SET player_number = NULL",
+  "player_number_source = 'marketplace'",
+  'REVOKE ALL ON TABLE public.player_number_listings FROM PUBLIC, anon, authenticated',
+  'REVOKE ALL ON TABLE public.player_number_bids FROM PUBLIC, anon, authenticated',
+]) {
+  assert.ok(playerNumberMarket.includes(required), `Missing profile-photo or number-market safeguard: ${required}`);
+}
+assert.match(playerNumberMarket, /IF v_seller\.player_number_changed_at IS NOT NULL[\s\S]*interval '48 hours'/);
+assert.match(playerNumberMarket, /IF v_buyer\.player_number_changed_at IS NOT NULL[\s\S]*interval '48 hours'/);
+assert.match(playerNumberMarket, /UPDATE public\.player_number_bids[\s\S]*status = 'accepted'/);
+assert.match(playerNumberMarket, /UPDATE public\.player_number_listings[\s\S]*status = 'sold'/);
+assert.match(quoteQueries, /rpc\('save_own_avatar'/);
+assert.match(quoteQueries, /like\('announcement_type', 'panel_image_%'\)\.limit\(500\)/);
+assert.match(playerNumberPicker, /fetchPlayerNumberMarketplace/);
+assert.match(playerNumberPicker, /listPlayerNumber\(amount\)/);
+assert.match(playerNumberPicker, /placePlayerNumberBid\(listing\.id, amount\)/);
+assert.match(playerNumberPicker, /acceptPlayerNumberBid\(bid\.id\)/);
+assert.match(playerNumberPicker, /cancelPlayerNumberListing\(ownListing\.id\)/);
+assert.match(playerNumberPicker, /cancelPlayerNumberBid\(bid\.id\)/);
+assert.match(instructorApp, /Member Profile Artwork/);
+assert.match(instructorApp, /openImageEditor\('panel_image_profile'\)/);
 assert.match(subscriptionScreen, /<PlayerNumberPicker accessActive=\{Boolean\(accessActive\)\} \/>/);
 assert.match(cadetApp, /key: 'subscribe', label: 'Subscription'/);
 assert.match(sentryApp, /key: 'subscribe', label: 'Subscription'/);

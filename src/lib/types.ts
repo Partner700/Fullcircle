@@ -268,8 +268,9 @@ export interface Profile {
   onboarding_completed?: boolean;
   player_number?: number | null;
   player_number_assigned_at?: string | null;
-  player_number_source?: 'fcx_registration' | 'self_claim' | 'instructor' | null;
+  player_number_source?: 'fcx_registration' | 'self_claim' | 'instructor' | 'marketplace' | null;
   player_number_grace_until?: string | null;
+  player_number_changed_at?: string | null;
   created_at: string;
 }
 
@@ -301,6 +302,9 @@ export interface PlayerNumberOption {
 export interface PlayerNumberState {
   current_number: number | null;
   assigned_at: string | null;
+  changed_at: string | null;
+  next_change_at: string | null;
+  can_change: boolean;
   grace_until: string | null;
   wallet_denarii: number;
   options: PlayerNumberOption[];
@@ -308,8 +312,46 @@ export interface PlayerNumberState {
 
 export interface PlayerNumberAssignmentResult {
   player_number: number;
+  previous_number?: number | null;
   denarii_charged?: number;
   grace_until: string | null;
+  next_change_at?: string | null;
+}
+
+export interface PlayerNumberBid {
+  id: string;
+  listing_id?: string;
+  bidder_id?: string;
+  bidder_name?: string;
+  bidder_avatar_url?: string | null;
+  seller_id?: string;
+  seller_name?: string;
+  player_number?: number;
+  asking_price?: number;
+  amount: number;
+  can_change?: boolean;
+  next_change_at?: string | null;
+  status?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlayerNumberListing {
+  id: string;
+  seller_id: string;
+  seller_name: string;
+  seller_avatar_url: string | null;
+  player_number: number;
+  asking_price: number;
+  highest_bid: number;
+  created_at: string;
+  my_bid: PlayerNumberBid | null;
+  bids: PlayerNumberBid[];
+}
+
+export interface PlayerNumberMarketplaceState {
+  listings: PlayerNumberListing[];
+  own_bids: PlayerNumberBid[];
 }
 
 export interface FcxTicketContact {
