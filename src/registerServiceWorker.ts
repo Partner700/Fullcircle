@@ -24,7 +24,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js?v=111`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}sw.js?v=112`, { updateViaCache: 'none' })
       .then((registration) => {
         // Check for a new worker at launch. The worker itself activates safely;
         // this client never forces a mid-session reload.
@@ -34,6 +34,15 @@ export function registerServiceWorker() {
         setInterval(() => {
           void registration.update().catch(() => undefined);
         }, 60 * 60 * 1000);
+
+        const warmRelease = () => {
+          window.setTimeout(() => {
+            const worker = registration.active || registration.waiting || registration.installing;
+            worker?.postMessage({ type: 'WARM_APP_SHELL' });
+          }, 1_500);
+        };
+        if (document.readyState === 'complete') warmRelease();
+        else window.addEventListener('load', warmRelease, { once: true });
 
         // Listen for messages from the service worker
         navigator.serviceWorker.addEventListener('message', (event) => {

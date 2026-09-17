@@ -1751,6 +1751,8 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const [newSentry, setNewSentry] = useState('');
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [tentActionMessage, setTentActionMessage] = useState<string | null>(null);
+  const [tentActionError, setTentActionError] = useState<string | null>(null);
 
   const availableSentries = roles
     .filter((r) => r.role === 'sentry' && r.status === 'active')
@@ -1773,10 +1775,19 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const deleteTent = async (tentId: string, tentName: string) => {
     if (!confirm(`Delete "${tentName}"? This will remove all cadet/sentry assignments. This cannot be undone.`)) return;
     setDeletingId(tentId);
-    const { error } = await supabase.rpc('delete_tent', { p_tent_id: tentId });
-    if (error) { alert(error.message); setDeletingId(null); return; }
-    setDeletingId(null);
-    onRefresh();
+    setTentActionMessage(null);
+    setTentActionError(null);
+    try {
+      const { data, error } = await supabase.rpc('delete_tent', { p_tent_id: tentId });
+      if (error) throw error;
+      if (data !== true) throw new Error('That tent no longer exists. Refresh the tent list and try again.');
+      setTentActionMessage(`${tentName} was deleted. Its members are now available for reassignment.`);
+      onRefresh();
+    } catch (error) {
+      setTentActionError(error instanceof Error ? error.message : 'The tent could not be deleted. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading tents…</div>;
@@ -1789,6 +1800,16 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
           <Plus size={16} /> New Tent
         </button>
       </div>
+
+      {(tentActionMessage || tentActionError) && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`rounded-lg border px-3 py-2 text-sm ${tentActionError ? 'border-coral/35 bg-coral/10 text-coral' : 'border-sage/35 bg-sage/10 text-ink'}`}
+        >
+          {tentActionError || tentActionMessage}
+        </div>
+      )}
 
       {showCreate && (
         <div className="card p-4 space-y-3 animate-scale-in">

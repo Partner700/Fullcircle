@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import type { PostgrestSingleResponse, Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigError } from '../lib/supabase';
 import { fetchOwnProfile } from '../lib/profileAccess';
 import type { Profile, Role, RoleAssignment } from '../lib/types';
@@ -18,6 +18,42 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const IDENTITY_CACHE_PREFIX = 'full-circle-identity:';
+const IDENTITY_CACHE_MAX_AGE_MS = 31 * 24 * 60 * 60 * 1000;
+
+interface CachedIdentity {
+  profile: Profile;
+  roleAssignment: RoleAssignment;
+  cachedAt: number;
+}
+
+function readCachedIdentity(userId: string): CachedIdentity | null {
+  try {
+    const raw = window.localStorage.getItem(`${IDENTITY_CACHE_PREFIX}${userId}`);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as CachedIdentity;
+    if (cached.profile?.id !== userId || cached.roleAssignment?.user_id !== userId) return null;
+    if (!Number.isFinite(cached.cachedAt) || Date.now() - cached.cachedAt > IDENTITY_CACHE_MAX_AGE_MS) {
+      window.localStorage.removeItem(`${IDENTITY_CACHE_PREFIX}${userId}`);
+      return null;
+    }
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedIdentity(profile: Profile, roleAssignment: RoleAssignment) {
+  try {
+    window.localStorage.setItem(`${IDENTITY_CACHE_PREFIX}${profile.id}`, JSON.stringify({
+      profile,
+      roleAssignment,
+      cachedAt: Date.now(),
+    } satisfies CachedIdentity));
+  } catch {
+    // Private browsing and full device storage must not block sign-in.
+  }
+}
 
 function clearLocalAuthStorage() {
   if (typeof window === 'undefined') return;
@@ -36,7 +72,7 @@ function clearLocalAuthStorage() {
       if (expectedKey) storage.removeItem(expectedKey);
       for (let i = storage.length - 1; i >= 0; i -= 1) {
         const key = storage.key(i);
-        if (key && /^sb-.+-auth-token$/.test(key)) storage.removeItem(key);
+        if (key && (/^sb-.+-auth-token$/.test(key) || key.startsWith(IDENTITY_CACHE_PREFIX))) storage.removeItem(key);
       }
     } catch {
       // Strict mobile privacy modes can expose storage while blocking access.
@@ -53,10 +89,32 @@ function storeRoleHint(role: Role) {
 }
 
 function waitFor<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds)),
-  ]);
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function waitForAbortable<T>(
+  operation: (signal: AbortSignal) => PromiseLike<T>,
+  milliseconds: number,
+  label: string,
+): Promise<T> {
+  const controller = new AbortController();
+  try {
+    return await waitFor(Promise.resolve(operation(controller.signal)), milliseconds, label);
+  } finally {
+    controller.abort();
+  }
 }
 
 function pause(milliseconds: number) {
@@ -76,6 +134,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileRef.current = profile;
   }, [profile]);
 
+  const applyIdentity = useCallback((prof: Profile, assignment: RoleAssignment, persist = true) => {
+    profileRef.current = prof;
+    setProfile(prof);
+    setRoleAssignment(assignment);
+    storeRoleHint(assignment.role);
+    if (persist) writeCachedIdentity(prof, assignment);
+  }, []);
+
   const loadProfile = useCallback((userId: string) => {
     if (supabaseConfigError) return Promise.resolve();
     if (profileLoadRef.current?.userId === userId) return profileLoadRef.current.promise;
@@ -84,8 +150,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // The bootstrap RPC returns the signed-in person's private profile and
       // active role in one round trip. Retry briefly while a restored mobile
       // token settles, then retain the older two-query path as rollout safety.
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const bootstrap = await supabase.rpc('get_my_app_bootstrap');
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const bootstrap = await waitForAbortable(
+          (signal) => supabase.rpc('get_my_app_bootstrap').abortSignal(signal),
+          6_000,
+          'Account bootstrap',
+        );
         const payload = bootstrap.data as { profile?: Profile | null; role_assignment?: RoleAssignment | null } | null;
         if (!bootstrap.error && payload?.profile) {
           const prof = payload.profile;
@@ -98,49 +168,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             approver_id: null,
             created_at: prof.created_at || new Date().toISOString(),
           };
-          profileRef.current = prof;
-          setProfile(prof);
-          setRoleAssignment(assignment);
-          storeRoleHint(assignment.role);
+          applyIdentity(prof, assignment);
           return;
         }
-        if (attempt < 2 && !/could not find the function|get_my_app_bootstrap|schema cache/i.test(bootstrap.error?.message || '')) {
+        if (attempt < 1 && !/could not find the function|get_my_app_bootstrap|schema cache/i.test(bootstrap.error?.message || '')) {
           await pause(350 * (attempt + 1));
           continue;
         }
         break;
       }
 
-      const rolePromise = supabase
-        .from('role_assignments')
-        .select('*')
-        .eq('user_id', userId)
-        .in('status', ['active', 'approved'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
       let prof: Profile | null = null;
       let profileError: Error | null = null;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          prof = await fetchOwnProfile(userId);
+          prof = await waitForAbortable(
+            (signal) => fetchOwnProfile(userId, signal),
+            6_000,
+            'Profile request',
+          );
           if (prof) break;
         } catch (error) {
           profileError = error instanceof Error ? error : new Error('Profile loading failed.');
         }
-        if (attempt < 2) await pause(500 * (attempt + 1));
+        if (attempt < 1) await pause(500);
       }
       if (!prof && profileError) throw profileError;
 
-      profileRef.current = prof;
-      setProfile(prof);
       if (!prof) {
+        profileRef.current = null;
+        setProfile(null);
         setRoleAssignment(null);
         return;
       }
 
-      const { data: roleData, error: roleError } = await rolePromise;
+      const { data: roleData, error: roleError } = await waitForAbortable<PostgrestSingleResponse<RoleAssignment | null>>(
+        (signal) => supabase
+          .from('role_assignments')
+          .select('*')
+          .eq('user_id', userId)
+          .in('status', ['active', 'approved'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .abortSignal(signal)
+          .maybeSingle(),
+        6_000,
+        'Role request',
+      );
       if (roleError) console.warn('Role assignment could not load; opening with cadet defaults:', roleError);
       const assignment = (roleData as RoleAssignment | null) || {
         id: `fallback-${userId}`,
@@ -151,8 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approver_id: null,
         created_at: prof.created_at || new Date().toISOString(),
       };
-      setRoleAssignment(assignment);
-      storeRoleHint(assignment.role);
+      applyIdentity(prof, assignment);
     })();
 
     const shared = request.finally(() => {
@@ -160,7 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     profileLoadRef.current = { userId, promise: shared };
     return shared;
-  }, []);
+  }, [applyIdentity]);
 
   useEffect(() => {
     if (supabaseConfigError) {
@@ -178,7 +251,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         recoveredSession = data.session;
         setSession(data.session);
         if (data.session) {
-          await waitFor(loadProfile(data.session.user.id), 8_000, 'Profile loading');
+          const cached = readCachedIdentity(data.session.user.id);
+          if (cached) {
+            applyIdentity(cached.profile, cached.roleAssignment, false);
+            setLoading(false);
+            void waitFor(loadProfile(data.session.user.id), 14_000, 'Profile refresh')
+              .catch((error) => console.warn('Cached account opened while live profile refresh waits:', error));
+            return;
+          }
+          await waitFor(loadProfile(data.session.user.id), 14_000, 'Profile loading');
         }
       } catch (error) {
         // A slow/offline Supabase request must not strand the app on its loading screen.
@@ -212,11 +293,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         setSession(sess);
+        const cached = readCachedIdentity(sess.user.id);
+        if (cached) {
+          applyIdentity(cached.profile, cached.roleAssignment, false);
+          setLoading(false);
+        }
         // Supabase warns against starting another Supabase request inside an
         // auth callback. Deferring avoids a mobile session-restoration deadlock.
         window.setTimeout(() => {
           if (!active) return;
-          void waitFor(loadProfile(sess.user.id), 8_000, 'Profile loading')
+          void waitFor(loadProfile(sess.user.id), 14_000, 'Profile loading')
             .catch((error) => console.warn('Initial mobile session profile could not load:', error))
             .finally(() => { if (active) setLoading(false); });
         }, 0);
@@ -239,7 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!active) return;
           if (needsBlockingLoad) setLoading(true);
           try {
-            await waitFor(loadProfile(sess.user.id), 8_000, 'Profile loading');
+            await waitFor(loadProfile(sess.user.id), 14_000, 'Profile loading');
           } catch (error) {
             console.warn('Profile refresh could not complete:', error);
           } finally {
@@ -257,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       authListener.subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [applyIdentity, loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     if (supabaseConfigError) return { error: supabaseConfigError };

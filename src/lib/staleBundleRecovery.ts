@@ -9,25 +9,12 @@ export async function reloadFreshApp(): Promise<void> {
 
   if ('serviceWorker' in navigator) {
     const registration = await navigator.serviceWorker.getRegistration().catch(() => undefined);
-    registration?.active?.postMessage({ type: 'CLEAR_CACHES' });
+    registration?.active?.postMessage({ type: 'WARM_APP_SHELL' });
     void registration?.update().catch(() => undefined);
   }
 
-  if ('caches' in window) {
-    try {
-      const cacheNames = await window.caches.keys();
-      await Promise.all(
-        cacheNames
-          .filter((cacheName) => cacheName.startsWith('full-circle-'))
-          .map((cacheName) => window.caches.delete(cacheName)),
-      );
-    } catch {
-      // A blocked Cache API must not prevent a clean network reload.
-    }
-  }
-
   const freshUrl = new URL(window.location.href);
-  freshUrl.searchParams.set('fc-release', '111');
+  freshUrl.searchParams.set('fc-release', '112');
   window.location.replace(freshUrl.toString());
 }
 

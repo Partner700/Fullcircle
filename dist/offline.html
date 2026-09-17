@@ -117,25 +117,17 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '111';
+    var RECOVERY_VERSION = '112';
     var recoveryInProgress = false;
 
-    async function clearRetiredAppCaches() {
-      if ('caches' in window) {
-        var cacheNames = await window.caches.keys().catch(function() { return []; });
-        await Promise.all(cacheNames.filter(function(cacheName) {
-          return cacheName.indexOf('full-circle-') === 0;
-        }).map(function(cacheName) {
-          return window.caches.delete(cacheName);
-        }));
-      }
-    }
-
     async function installRecoveryWorker() {
-      if (!('serviceWorker' in navigator)) return;
+      if (!('serviceWorker' in navigator)) return null;
       var registration = await navigator.serviceWorker.register(new URL('sw.js?v=' + RECOVERY_VERSION, window.location.href), { updateViaCache: 'none' });
       await registration.update().catch(function() {});
       if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      var worker = registration.active || registration.waiting || registration.installing;
+      if (worker) worker.postMessage({ type: 'WARM_APP_SHELL' });
+      return registration;
     }
 
     var failedRecoveryAttempts = 0;
@@ -146,17 +138,13 @@
       var button = document.querySelector('.retry-btn');
       button.innerHTML = '<span class="status-dot online"></span> Reconnecting...';
       try {
-        await clearRetiredAppCaches();
-        // Repair notifications in the background, but never make a healthy
-        // network wait for a service-worker controller handoff. Some mobile
-        // browsers delay that handoff even while the site is fully reachable.
-        installRecoveryWorker().catch(function() {});
-        var response = await fetch(new URL('index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href), { cache: 'no-store' });
-        if (!response.ok) throw new Error('Full Circle is not reachable yet.');
-        var html = await response.text();
-        if (html.indexOf('id="root"') === -1) throw new Error('The application shell is not ready yet.');
+        await installRecoveryWorker().catch(function() {});
+        var indexUrl = new URL('index.html', window.location.href);
+        var response = await fetch(new URL('index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href), { cache: 'no-store' }).catch(function() { return null; });
+        var cachedShell = (!response || !response.ok) && 'caches' in window ? await window.caches.match(indexUrl) : null;
+        if ((!response || !response.ok) && !cachedShell) throw new Error('Full Circle is not reachable yet.');
         failedRecoveryAttempts = 0;
-        window.location.replace(new URL('index.html?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
+        window.location.replace(new URL('./?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
       } catch (error) {
         failedRecoveryAttempts += 1;
         recoveryInProgress = false;
@@ -171,8 +159,8 @@
       }
     }
 
-    // A current notification-only worker replaces any retired worker that
-    // served this fallback. It is never unregistered during recovery.
+    // A current app-shell worker replaces any retired worker that served this
+    // fallback. It is never unregistered during recovery.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'FULL_CIRCLE_RECOVERY_READY') recoverFullCircle();
@@ -182,7 +170,7 @@
     // navigator.onLine is unreliable on installed mobile apps. Probe the
     // actual site and keep only one recovery attempt in flight.
     recoverFullCircle();
-    setInterval(recoverFullCircle, 10000);
+    setInterval(recoverFullCircle, 15000);
 
     // Update status dot when online
     window.addEventListener('online', function() {

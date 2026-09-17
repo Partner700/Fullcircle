@@ -143,86 +143,68 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
   <noscript><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" rel="stylesheet" /></noscript>
 
-  <!-- Full reload marker: clears retired Web Audio sessions after sound-system updates. -->
+  <!-- Release-aware recovery for installed and in-browser copies. -->
   <title>Full Circle</title>
   <script>
-    // Repair a retired installed-app worker before it can keep serving stale
-    // HTML or JavaScript. The release marker prevents a repair loop on a slow
-    // connection, and the application registers the current worker after boot.
+    // Keep recovery explicit. Automatic cache deletion and reloads made weak
+    // mobile connections restart just as the application was about to open.
     (function () {
-      var release = '111';
+      var release = '112';
       var marker = 'fc-repair';
-      var currentUrl = new URL(window.location.href);
       var repairStarted = false;
       window.__fullCircleBootRelease = release;
 
       window.__repairFullCircleBoot = async function (force) {
         if (repairStarted) return;
-        if (!force && currentUrl.searchParams.get(marker) === release) return;
         repairStarted = true;
 
         try {
-          if ('caches' in window) {
-            var cacheNames = await window.caches.keys().catch(function () { return []; });
-            await Promise.all(cacheNames.filter(function (cacheName) {
-              return cacheName.indexOf('full-circle-') === 0;
-            }).map(function (cacheName) {
-              return window.caches.delete(cacheName);
-            }));
-          }
           if ('serviceWorker' in navigator) {
-            var registrations = await navigator.serviceWorker.getRegistrations().catch(function () { return []; });
-            var appScope = new URL('./', document.baseURI).href;
-            await Promise.all(registrations.filter(function (registration) {
-              return registration.scope === appScope;
-            }).map(function (registration) {
-              return registration.unregister();
-            }));
+            var registration = await navigator.serviceWorker.getRegistration().catch(function () { return null; });
+            if (registration && registration.active) registration.active.postMessage({ type: 'WARM_APP_SHELL' });
+            if (registration) await registration.update().catch(function () {});
           }
         } finally {
           var freshUrl = new URL(window.location.href);
           freshUrl.searchParams.set(marker, release);
           freshUrl.searchParams.set('ts', String(Date.now()));
-          window.location.replace(freshUrl.toString());
+          if (force) window.location.replace(freshUrl.toString());
+          else repairStarted = false;
         }
       };
 
       if ('serviceWorker' in navigator) {
-        var controller = navigator.serviceWorker.controller;
-        var currentWorker = controller && new RegExp('[?&]v=' + release + '(?:&|$)').test(controller.scriptURL);
-        if (controller && !currentWorker && currentUrl.searchParams.get(marker) !== release) {
-          window.__repairFullCircleBoot(false);
-          return;
-        }
-
         navigator.serviceWorker
-          .register('./sw.js?v=111', { updateViaCache: 'none' })
+          .register('./sw.js?v=112', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-CB6PyWOi.js"></script>
+  <script type="module" crossorigin src="./assets/index-CewvA4gt.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
   <link rel="stylesheet" crossorigin href="./assets/style-CWhz6fD8.css">
 </head>
 <body>
-  <main id="root"></main>
+  <main id="root">
+    <div data-fc-boot-shell style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font-family:system-ui;text-align:center">
+      <div>
+        <img src="./icons/icon-192.png?v=7" width="82" height="82" alt="" style="display:block;margin:0 auto 16px" />
+        <p style="margin:0;font-size:15px;font-weight:700;color:#dde3ff">Opening Full Circle</p>
+        <p style="margin:8px 0 0;font-size:12px;color:#aebbe5">Restoring your saved app while the connection settles.</p>
+      </div>
+    </div>
+  </main>
   <script>
     // If an older phone cannot execute the application bundle, leave it a
     // usable recovery action instead of a permanent blank screen.
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
-      if (!root || root.hasChildNodes()) return;
-      var bootRelease = window.__fullCircleBootRelease || '111';
-      var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === bootRelease;
-      if (!alreadyRepaired && typeof window.__repairFullCircleBoot === 'function') {
-        window.__repairFullCircleBoot(false);
-        return;
-      }
-      var reliableUrl = 'https://tnsorganization.github.io/Full-Circle/?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
-      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle needs a fresh start on this device.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Repair and open app</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Still waiting?</p><a href="' + reliableUrl + '" style="display:inline-block;margin-top:8px;color:#ffd83d;font:800 14px system-ui">Open the reliable app</a></div></div>';
-    }, 24000);
+      if (!root || root.dataset.fcAppMounted === 'true') return;
+      var bootRelease = window.__fullCircleBootRelease || '112';
+      var emergencyUrl = 'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
+      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>The connection is taking longer than usual.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Retry Full Circle</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Release ' + bootRelease + '</p><a href="' + emergencyUrl + '" style="display:inline-block;margin-top:8px;color:#ffd83d;font:800 14px system-ui">Open emergency copy</a></div></div>';
+    }, 20000);
   </script>
 </body>
 </html>

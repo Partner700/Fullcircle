@@ -13,6 +13,8 @@ const bootWindow = window as Window & { __fullCircleBootWatchdog?: number };
 if (bootWindow.__fullCircleBootWatchdog !== undefined) {
   window.clearTimeout(bootWindow.__fullCircleBootWatchdog);
 }
+const appRoot = document.getElementById('root')!;
+appRoot.dataset.fcAppMounted = 'true';
 
 prepareFreshReleaseCache();
 
@@ -31,7 +33,7 @@ window.addEventListener('unhandledrejection', (event) => {
   if (recoverFromStaleBundle(event.reason)) event.preventDefault();
 });
 
-createRoot(document.getElementById('root')!).render(
+createRoot(appRoot).render(
   <StrictMode>
     <AppErrorBoundary>
       <AuthProvider>
