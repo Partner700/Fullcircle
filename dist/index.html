@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=109" />
+  <link rel="manifest" href="./manifest.webmanifest?v=110" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -150,7 +150,7 @@
     // HTML or JavaScript. The release marker prevents a repair loop on a slow
     // connection, and the application registers the current worker after boot.
     (function () {
-      var release = '110';
+      var release = '111';
       var marker = 'fc-repair';
       var currentUrl = new URL(window.location.href);
       var repairStarted = false;
@@ -196,15 +196,15 @@
         }
 
         navigator.serviceWorker
-          .register('./sw.js?v=110', { updateViaCache: 'none' })
+          .register('./sw.js?v=111', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-DT3ZdBus.js"></script>
+  <script type="module" crossorigin src="./assets/index-CB6PyWOi.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
-  <link rel="stylesheet" crossorigin href="./assets/style-hZwxWsao.css">
+  <link rel="stylesheet" crossorigin href="./assets/style-CWhz6fD8.css">
 </head>
 <body>
   <main id="root"></main>
@@ -214,7 +214,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.hasChildNodes()) return;
-      var bootRelease = window.__fullCircleBootRelease || '110';
+      var bootRelease = window.__fullCircleBootRelease || '111';
       var alreadyRepaired = new URL(window.location.href).searchParams.get('fc-repair') === bootRelease;
       if (!alreadyRepaired && typeof window.__repairFullCircleBoot === 'function') {
         window.__repairFullCircleBoot(false);

@@ -2320,7 +2320,7 @@
 
 .message-space-veil,
 .profile-cv-veil {
-  background: rgba(7, 20, 43, 0.46);
+  background: rgba(7, 20, 43, 0.34);
 }
 
 .arena-panel-veil {
@@ -2345,7 +2345,7 @@
 
 [data-theme="day"] .message-space-veil,
 [data-theme="day"] .profile-cv-veil {
-  background: rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .weekly-quiz-window-artwork .card {

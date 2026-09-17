@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -61,6 +61,18 @@ const PAYMENT_METHODS: { id: StorePaymentMethod; label: string; icon: typeof Sma
 ];
 
 const FALLBACK_XAF_PER_USD = 575;
+const PAYMENT_SUCCESS_STATUSES = new Set(['confirmed', 'successful', 'success', 'completed']);
+
+function isPaymentSuccessful(status: unknown) {
+  return PAYMENT_SUCCESS_STATUSES.has(String(status || '').toLowerCase());
+}
+
+function isRealPaymentRejection(status: unknown, reason?: string | null) {
+  const normalized = String(status || '').toLowerCase();
+  if (!['rejected', 'failed', 'cancelled', 'expired'].includes(normalized)) return false;
+  return !/not confirmed within 35 seconds/i.test(reason || '');
+}
+
 function relicMoneyPriceXaf(relic: RelicType): number {
   const explicitXaf = Number(relic.money_price_xaf);
   if (Number.isFinite(explicitXaf) && explicitXaf > 0) return Math.round(explicitXaf);
@@ -97,26 +109,30 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [otherTransactionReference, setOtherTransactionReference] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentResult, setPaymentResult] = useState<CampayPaymentResult | null>(null);
+  const [paymentStartingQuantity, setPaymentStartingQuantity] = useState(0);
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
   const [fcxTicketContact, setFcxTicketContact] = useState<FcxTicketContact | null>(null);
+  const latestInventoryRef = useRef<Record<string, number>>({});
 
-  const paymentConfirmed = paymentResult
-    ? ['confirmed', 'successful', 'success', 'completed'].includes(String(paymentResult.status).toLowerCase())
-    : false;
+  const paymentConfirmed = isPaymentSuccessful(paymentResult?.status);
+  const paymentRejected = isRealPaymentRejection(paymentResult?.status, paymentResult?.message);
+  const paymentReference = paymentResult?.reference || '';
+  const paymentProviderReference = paymentResult?.provider_reference || '';
+  const activePaymentMethod = paymentResult?.payment_method || '';
 
   useEffect(() => {
     if (!paymentResult?.status) return;
     const status = String(paymentResult.status).toLowerCase();
-    if (['confirmed', 'successful', 'success', 'completed'].includes(status)) {
+    if (PAYMENT_SUCCESS_STATUSES.has(status)) {
       void playSoundEffect('sound_purchase_success', 0.68);
-    } else if (['rejected', 'failed', 'cancelled', 'expired'].includes(status)) {
+    } else if (isRealPaymentRejection(status, paymentResult.message)) {
       void playSoundEffect('sound_purchase_failed', 0.68);
     }
-  }, [paymentResult?.reference, paymentResult?.status]);
+  }, [paymentResult?.message, paymentResult?.reference, paymentResult?.status]);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -134,6 +150,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       setRelics(relicData.data as RelicType[] || []);
       const invMap: Record<string, number> = {};
       (invData.data || []).forEach((r: any) => { invMap[r.relic_type_id] = r.quantity; });
+      latestInventoryRef.current = invMap;
       setInventory(invMap);
       setDenarii(balance);
       setFreezers(frz);
@@ -145,12 +162,35 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setLoading(false);
   }, [profile]);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  const refreshMutableStoreState = useCallback(async () => {
+    if (!profile) return null;
+    const [invData, balance, frz] = await Promise.all([
+      supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
+      fetchLedgerTotal(profile.id),
+      fetchStreakFreezers(profile.id),
+    ]);
+    if (invData.error) throw invData.error;
+    const invMap: Record<string, number> = {};
+    (invData.data || []).forEach((row: any) => { invMap[row.relic_type_id] = Number(row.quantity || 0); });
+    latestInventoryRef.current = invMap;
+    setInventory(invMap);
+    setDenarii(balance);
+    setFreezers(frz);
+    return invMap;
+  }, [profile]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!profile || refreshKey <= 0) return;
+    void refreshMutableStoreState().catch(() => undefined);
+  }, [profile, refreshKey, refreshMutableStoreState]);
 
   const refreshPurchaseState = useCallback(async () => {
-    await load();
+    const nextInventory = await refreshMutableStoreState();
     await onBalanceChanged?.();
-  }, [load, onBalanceChanged]);
+    return nextInventory;
+  }, [onBalanceChanged, refreshMutableStoreState]);
 
   const buyWithDenarii = async (slug: string) => {
     if (!profile) return;
@@ -182,6 +222,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
   const openPaymentModal = (relic: RelicType) => {
     setPaymentModalRelic(relic);
+    setPaymentStartingQuantity(latestInventoryRef.current[relic.id] || 0);
     setPaymentMethod('mtn_momo');
     setPayPhone('');
     setOtherProvider('');
@@ -225,7 +266,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         displayedAmountXaf,
       );
       setPaymentResult(result);
-      if (['confirmed', 'successful', 'success', 'completed'].includes(String(result.status).toLowerCase())) {
+      if (isPaymentSuccessful(result.status)) {
         await refreshPurchaseState();
       }
     } catch (e: any) { alert(e.message || 'Failed to start payment.'); }
@@ -243,30 +284,54 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       for (const ref of refs) {
         await verifyCampayPayment(ref).catch(() => null);
       }
-      const payments = await fetchUserMobileMoneyPayments(profile.id);
+      const [payments, nextInventory] = await Promise.all([
+        fetchUserMobileMoneyPayments(profile.id),
+        refreshMutableStoreState(),
+      ]);
+      const delivered = Boolean(
+        paymentModalRelic &&
+        nextInventory &&
+        (nextInventory[paymentModalRelic.id] || 0) > paymentStartingQuantity
+      );
       const payment = payments.find((item) =>
         item.reference === paymentResult.reference ||
         item.external_reference === paymentResult.reference ||
         item.provider_reference === paymentResult.provider_reference,
       );
-      if (!payment) {
-        alert('Payment request not found yet. Try again shortly.');
+      if (delivered) {
+        setPaymentResult((prev) => prev ? {
+          ...prev,
+          status: 'confirmed',
+          message: 'Purchase complete. Your relic has been added to your inventory.',
+        } : prev);
+        await onBalanceChanged?.();
         setCheckingPayment(false);
         return;
       }
+      if (!payment) {
+        setPaymentResult((prev) => prev ? {
+          ...prev,
+          status: 'pending',
+          message: 'Confirmation is still on its way. This panel will update as soon as your relic arrives.',
+        } : prev);
+        setCheckingPayment(false);
+        return;
+      }
+      const confirmed = isPaymentSuccessful(payment.status);
+      const rejected = isRealPaymentRejection(payment.status, payment.rejection_reason);
       setPaymentResult((prev) => prev ? {
         ...prev,
-        status: payment.status,
+        status: confirmed ? 'confirmed' : rejected ? 'rejected' : 'pending',
         amount_local: payment.amount_local,
         currency_code: payment.currency_code,
         provider: payment.provider,
-        message: payment.status === 'confirmed'
+        message: confirmed
           ? 'Payment confirmed. Your relic has been added to your inventory.'
-          : payment.status === 'rejected'
+          : rejected
             ? payment.rejection_reason || 'Payment was not confirmed.'
-            : 'Payment is still pending. The relic will appear only after confirmation.',
+            : 'Payment is still being confirmed. Your relic will appear here automatically.',
       } : prev);
-      if (payment.status === 'confirmed') await refreshPurchaseState();
+      if (confirmed) await refreshPurchaseState();
     } catch (e: any) {
       alert(e.message || 'Could not check payment status.');
     }
@@ -274,45 +339,54 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   };
 
   useEffect(() => {
-    if (!profile || !paymentResult || paymentConfirmed || paymentResult.status === 'rejected') return;
-    if (paymentResult.payment_method === 'other') return;
+    if (!profile || !paymentReference || paymentConfirmed || paymentRejected) return;
+    if (activePaymentMethod === 'other') return;
 
     let cancelled = false;
     const startedAt = Date.now();
+    let slowNoticeShown = false;
     const poll = async () => {
       if (cancelled) return false;
       try {
         const refs = Array.from(new Set([
-          paymentResult.provider_reference,
-          paymentResult.reference,
+          paymentProviderReference,
+          paymentReference,
         ].filter(Boolean))) as string[];
         for (const ref of refs) {
           await verifyCampayPayment(ref).catch(() => null);
         }
-        const payments = await fetchUserMobileMoneyPayments(profile.id);
-        const payment = payments.find((item) =>
-          item.reference === paymentResult.reference ||
-          item.external_reference === paymentResult.reference ||
-          item.provider_reference === paymentResult.provider_reference,
+        const [payments, nextInventory] = await Promise.all([
+          fetchUserMobileMoneyPayments(profile.id),
+          refreshMutableStoreState(),
+        ]);
+        const delivered = Boolean(
+          paymentModalRelic &&
+          nextInventory &&
+          (nextInventory[paymentModalRelic.id] || 0) > paymentStartingQuantity
         );
-        if (payment?.status === 'confirmed') {
-          setPaymentResult({
-            ...paymentResult,
+        const payment = payments.find((item) =>
+          item.reference === paymentReference ||
+          item.external_reference === paymentReference ||
+          item.provider_reference === paymentProviderReference,
+        );
+        if (delivered || isPaymentSuccessful(payment?.status)) {
+          setPaymentResult((current) => current ? {
+            ...current,
             status: 'confirmed',
-            amount_local: payment.amount_local,
-            currency_code: payment.currency_code,
-            provider: payment.provider,
-            message: 'Payment confirmed automatically. Your relic has been added.',
-          });
-          await refreshPurchaseState();
+            amount_local: payment?.amount_local ?? current.amount_local,
+            currency_code: payment?.currency_code ?? current.currency_code,
+            provider: payment?.provider ?? current.provider,
+            message: 'Purchase complete. Your relic has been added to your inventory.',
+          } : current);
+          await onBalanceChanged?.();
           return true;
         }
-        if (payment?.status === 'rejected') {
-          setPaymentResult({
-            ...paymentResult,
+        if (payment && isRealPaymentRejection(payment.status, payment.rejection_reason)) {
+          setPaymentResult((current) => current ? {
+            ...current,
             status: 'rejected',
             message: payment.rejection_reason || 'Payment was not confirmed. You can try again.',
-          });
+          } : current);
           return true;
         }
       } catch {}
@@ -322,12 +396,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     const interval = window.setInterval(async () => {
       if (await poll()) window.clearInterval(interval);
 
-      if (Date.now() - startedAt >= 35_000) {
-        setPaymentResult({
-          ...paymentResult,
-          status: 'rejected',
-          message: 'Payment was not confirmed within 35 seconds. No relic was added. You can try again.',
-        });
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= 35_000 && !slowNoticeShown) {
+        slowNoticeShown = true;
+        setPaymentResult((current) => current ? {
+          ...current,
+          status: 'pending',
+          message: 'Confirmation is taking a little longer. Keep this panel open; your relic will appear automatically when it arrives.',
+        } : current);
+      }
+      if (elapsed >= 300_000) {
         window.clearInterval(interval);
       }
     }, 1500);
@@ -336,12 +414,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [paymentResult, paymentConfirmed, profile, refreshPurchaseState]);
+  }, [activePaymentMethod, onBalanceChanged, paymentConfirmed, paymentModalRelic, paymentProviderReference, paymentReference, paymentRejected, paymentStartingQuantity, profile, refreshMutableStoreState]);
 
   useEffect(() => {
-    if (!profile || !paymentResult || paymentConfirmed) return;
+    if (!profile || !paymentReference || paymentConfirmed || paymentRejected) return;
     const channel = supabase
-      .channel(`market_payment_${profile.id}_${paymentResult.reference}`)
+      .channel(`market_payment_${profile.id}_${paymentReference}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${profile.id}` },
@@ -349,32 +427,32 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           const payment: any = payload.new;
           if (!payment) return;
           const matches =
-            payment.reference === paymentResult.reference ||
-            payment.external_reference === paymentResult.reference ||
-            payment.provider_reference === paymentResult.provider_reference;
+            payment.reference === paymentReference ||
+            payment.external_reference === paymentReference ||
+            payment.provider_reference === paymentProviderReference;
           if (!matches) return;
-          if (payment.status === 'confirmed') {
-            setPaymentResult({
-              ...paymentResult,
+          if (isPaymentSuccessful(payment.status)) {
+            setPaymentResult((current) => current ? {
+              ...current,
               status: 'confirmed',
               amount_local: payment.amount_local,
               currency_code: payment.currency_code,
               provider: payment.provider,
               message: 'Payment confirmed automatically. Your relic has been added.',
-            });
+            } : current);
             await refreshPurchaseState();
-          } else if (payment.status === 'rejected') {
-            setPaymentResult({
-              ...paymentResult,
+          } else if (isRealPaymentRejection(payment.status, payment.rejection_reason)) {
+            setPaymentResult((current) => current ? {
+              ...current,
               status: 'rejected',
               message: payment.rejection_reason || 'Payment was not confirmed. You can try again.',
-            });
+            } : current);
           }
         },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile, paymentResult, paymentConfirmed, refreshPurchaseState]);
+  }, [profile, paymentConfirmed, paymentProviderReference, paymentReference, paymentRejected, refreshPurchaseState]);
 
   const buyFreezer = async () => {
     if (!profile) return;
@@ -477,7 +555,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         relics={relics}
         relicInventory={inventory}
         freezers={freezers}
-        onChanged={refreshPurchaseState}
+        onChanged={async () => { await refreshPurchaseState(); }}
         marketImage={marketImage}
       />
 
@@ -667,27 +745,27 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   'status-surface p-4 rounded-lg border animate-soft-reveal',
                   paymentConfirmed
                     ? 'bg-sage-soft border-sage/30'
-                    : paymentResult.status === 'rejected'
+                    : paymentRejected
                       ? 'bg-roman/10 border-roman/30'
                       : 'bg-brass/10 border-brass/30',
                 )}>
                   <div className="flex items-start gap-3">
                     {paymentConfirmed ? (
                       <CheckCircle2 size={20} className="text-moss flex-shrink-0 mt-0.5" />
-                    ) : paymentResult.status === 'rejected' ? (
+                    ) : paymentRejected ? (
                       <X size={20} className="text-roman flex-shrink-0 mt-0.5" />
                     ) : (
                       <Loader2 size={20} className="text-brass flex-shrink-0 mt-0.5 animate-spin" />
                     )}
                     <div className="space-y-1">
                       <p className="font-display font-semibold text-ink">
-                        {paymentConfirmed ? 'Purchase Complete' : paymentResult.status === 'rejected' ? 'Payment Not Confirmed' : 'Awaiting Payment Confirmation'}
+                        {paymentConfirmed ? 'Purchase Complete' : paymentRejected ? 'Payment Not Confirmed' : 'Awaiting Payment Confirmation'}
                       </p>
                       <p className="text-sm text-stone">
                         {paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
                       </p>
-                      {!paymentConfirmed && paymentResult.status !== 'rejected' && (
-                        <p className="text-xs text-stone">No relic has been added yet.</p>
+                      {!paymentConfirmed && !paymentRejected && (
+                        <p className="text-xs text-stone">Your inventory is checked automatically while confirmation is pending.</p>
                       )}
                       {(paymentResult.amount_display || paymentResult.amount_local) && (
                         <p className="text-xs text-stone">
@@ -702,7 +780,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {paymentResult.status === 'rejected' ? (
+                  {paymentRejected ? (
                     <button onClick={retryPayment} className="btn-secondary text-sm">
                       <Smartphone size={14} /> Try Again
                     </button>

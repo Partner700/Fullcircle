@@ -360,15 +360,26 @@ export function normalizeQuestions(source: unknown[]): RoadHomeQuestion[] {
     if (!prompt || !correctAnswer || seen.has(key)) return;
     seen.add(key);
     const options = Array.isArray(raw?.options) ? Array.from(new Set(raw.options.map((item: unknown) => String(item).trim()).filter(Boolean))) as string[] : undefined;
+    const type: RoadHomeQuestion['type'] = raw?.type === 'true_false'
+      ? 'true_false'
+      : options && options.length >= 2
+        ? 'multiple_choice'
+        : 'standard_text';
+    if (type === 'standard_text' && correctAnswer.split(/\s+/).filter(Boolean).length !== 1) return;
     const rawDifficulty = String(raw?.difficulty_tag || raw?.difficulty || '').toLowerCase();
     const difficulty: RoadHomeDifficulty = rawDifficulty.includes('very') ? 'very_hard' : rawDifficulty.includes('expert') ? 'expert' : rawDifficulty.includes('hard') ? 'hard' : rawDifficulty.includes('moderate') || rawDifficulty.includes('medium') ? 'medium' : index % 4 === 3 ? 'expert' : index % 4 === 2 ? 'hard' : index % 4 === 1 ? 'medium' : 'easy';
+    const acceptedAnswers = Array.isArray(raw?.accepted_answers)
+      ? raw.accepted_answers.map(String).map((answer: string) => answer.trim()).filter(Boolean)
+      : [correctAnswer];
     normalized.push({
       id: String(raw?.id || `room-question-${index}-${key.slice(0, 20)}`),
       prompt,
-      type: raw?.type === 'true_false' ? 'true_false' : raw?.type === 'standard_text' ? 'standard_text' : 'multiple_choice',
+      type,
       options,
       correctAnswer,
-      acceptedAnswers: Array.isArray(raw?.accepted_answers) ? raw.accepted_answers.map(String) : [correctAnswer],
+      acceptedAnswers: type === 'standard_text'
+        ? acceptedAnswers.filter((answer: string) => answer.split(/\s+/).filter(Boolean).length === 1)
+        : acceptedAnswers,
       reference: String(raw?.reference || ''),
       explanation: String(raw?.explanation || ''),
       difficulty,

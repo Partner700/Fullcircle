@@ -4,6 +4,7 @@ import {
   createRoadHomeGame,
   legalPawnIds,
   normalizeRoadHomeEconomyState,
+  normalizeQuestions,
   publicRoadHomeState,
   ROAD_HOME_CONFIG,
   type RoadHomeState,
@@ -35,6 +36,19 @@ assert.deepEqual(ROAD_HOME_CONFIG.rewards, {
   pawnHome: 40,
   firstPlace: 100,
 });
+
+// Arena text entry is deliberately limited to one-word answers. Questions
+// needing a phrase remain playable only when they provide answer options.
+{
+  const normalized = normalizeQuestions([
+    { id: 'one-word', type: 'standard_text', question: 'Who built the ark?', correct_answer: 'Noah' },
+    { id: 'phrase', type: 'standard_text', question: 'What floated?', correct_answer: 'The ark' },
+    { id: 'option-phrase', type: 'multiple_choice', question: 'What floated safely?', options: ['The ark', 'The altar'], correct_answer: 'The ark' },
+  ]);
+  assert.ok(normalized.some((question) => question.id === 'one-word'));
+  assert.ok(!normalized.some((question) => question.id === 'phrase'));
+  assert.ok(normalized.some((question) => question.id === 'option-phrase'));
+}
 
 // Correct normal question: roll 4, earn 10 Match Denarii, then move four.
 {

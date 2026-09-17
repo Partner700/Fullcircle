@@ -134,6 +134,10 @@ function distinctStrings(value: unknown) {
   });
 }
 
+function isSingleWordAnswer(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length === 1;
+}
+
 function resolveOptionAnswer(options: string[], answer: unknown) {
   if (typeof answer === "number" && Number.isInteger(answer)) {
     return options[answer] || options[answer - 1] || "";
@@ -165,7 +169,12 @@ function normalizeQuizQuestion(raw: unknown): ArenaQuestion | null {
   }
   if (!correctAnswer) return null;
 
-  const acceptedAnswers = distinctStrings(source.accepted_answers);
+  // Arena typing should test recall, not mobile typing speed. Any answer that
+  // needs more than one word must be served as an option-based question.
+  if (type === "standard_text" && !isSingleWordAnswer(correctAnswer)) return null;
+
+  const acceptedAnswers = distinctStrings(source.accepted_answers)
+    .filter((answer) => type !== "standard_text" || isSingleWordAnswer(answer));
   const difficulty = normalizedText(source.difficulty_tag);
   return {
     type,
