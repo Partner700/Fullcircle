@@ -2314,10 +2314,13 @@
    night colors into day mode. */
 .daily-trivia-panel-veil,
 .story-mode-panel-veil,
-.hidden-composer-panel-veil,
+.hidden-composer-panel-veil {
+  background: rgba(7, 20, 43, 0.8);
+}
+
 .message-space-veil,
 .profile-cv-veil {
-  background: rgba(7, 20, 43, 0.8);
+  background: rgba(7, 20, 43, 0.46);
 }
 
 .arena-panel-veil {
@@ -2336,10 +2339,13 @@
   background: rgba(7, 20, 43, 0.64);
 }
 
-[data-theme="day"] .hidden-composer-panel-veil,
+[data-theme="day"] .hidden-composer-panel-veil {
+  background: rgba(255, 255, 255, 0.82);
+}
+
 [data-theme="day"] .message-space-veil,
 [data-theme="day"] .profile-cv-veil {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.52);
 }
 
 .weekly-quiz-window-artwork .card {
@@ -2415,9 +2421,10 @@
   margin-top: 0.55rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 66%, transparent);
   padding: 0.35rem 0.5rem;
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 
 .profile-cv-measures {
@@ -2436,9 +2443,10 @@
   gap: 0.35rem 0.45rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 64%, transparent);
   padding: 0.6rem;
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 
 .profile-cv-measure-icon {

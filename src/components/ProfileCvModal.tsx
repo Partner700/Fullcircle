@@ -137,13 +137,19 @@ export function ProfileCvHost() {
   return createPortal(
     <div className="profile-cv-overlay fixed inset-0 z-[2147483500] flex items-center justify-center bg-navy/72 p-3 backdrop-blur-sm animate-fade-in" onClick={close}>
       <section
-        className="profile-cv-panel relative isolate w-full overflow-auto rounded-lg border border-border-bright bg-bg shadow-2xl animate-fade-in"
+        className="profile-cv-panel relative isolate w-full overflow-auto rounded-lg border border-border-bright bg-bg/60 shadow-2xl animate-fade-in"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={data ? `${data.display_name}'s profile` : 'Full Circle profile'}
       >
-        <PanelImageBackdrop image={artwork} opacityFallback={24} veilClassName="profile-cv-veil" />
+        <PanelImageBackdrop
+          image={artwork}
+          opacityFallback={58}
+          opacityOverride={Math.max(58, artwork?.adjustments?.opacity ?? 0)}
+          veilClassName="profile-cv-veil"
+          textGradient={false}
+        />
         <header className="profile-cv-header relative z-10 flex items-center justify-between border-b border-border">
           <p className="text-[10px] font-bold uppercase text-stone">Full Circle Profile</p>
           <button ref={closeButtonRef} type="button" onClick={close} className="icon-btn" aria-label="Close profile"><X size={17} /></button>

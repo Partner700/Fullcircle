@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { createPortal } from 'react-dom';
 import { Camera, Check, Crop, Loader2, RotateCcw, X, ZoomIn } from 'lucide-react';
 import { uploadAvatar } from '../lib/queries';
+import { prepareImageUpload } from '../lib/uploads';
 import { cn } from '../lib/utils';
 import type { Profile } from '../lib/types';
 import { VallumAvatarBadge } from './VallumAvatarBadge';
@@ -168,7 +169,7 @@ export function AvatarCropDialog({
   };
 
   const dialog = (
-    <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-ink/70 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="profile-photo-crop-title">
+    <div className="fixed inset-0 z-[2147483645] flex items-center justify-center bg-ink/70 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="profile-photo-crop-title">
       <div className="w-full max-w-md overflow-y-auto rounded-lg border border-border-bright bg-surface p-4 shadow-2xl max-h-[94dvh] sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -274,6 +275,7 @@ export function AvatarCropDialog({
 export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' }: ProfilePhotoEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [preparingSelection, setPreparingSelection] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingCurrent, setLoadingCurrent] = useState(false);
   const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
@@ -305,6 +307,22 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
       alert(error instanceof Error ? error.message : 'The profile photo could not be uploaded.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const prepareSelectedPhoto = async (selected: File) => {
+    setPreparingSelection(true);
+    try {
+      const prepared = await prepareImageUpload(selected, {
+        maxDimension: 2400,
+        maxBytes: 25 * 1024 * 1024,
+        quality: 0.9,
+      });
+      setCropFile(prepared.file);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'The selected photo could not be opened.');
+    } finally {
+      setPreparingSelection(false);
     }
   };
 
@@ -340,7 +358,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
         <button
           type="button"
           onClick={editCurrentPhoto}
-          disabled={!profile || uploading || loadingCurrent}
+          disabled={!profile || uploading || loadingCurrent || preparingSelection}
           className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-border-bright bg-peri-soft shadow-sm transition-transform hover:scale-[1.02] disabled:opacity-70"
           title={avatarUrl ? 'Adjust current profile photo' : 'Choose profile photo'}
           aria-label={avatarUrl ? 'Adjust current profile photo' : 'Choose profile photo'}
@@ -348,7 +366,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
           {avatarUrl || !fallback ? (
             <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={avatarUrl} className="h-full w-full" loading="eager" />
           ) : fallback}
-          {loadingCurrent && (
+          {(loadingCurrent || preparingSelection) && (
             <span className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/45 text-white">
               <Loader2 size={18} className="animate-spin" />
             </span>
@@ -358,7 +376,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
           <button
             type="button"
             onClick={editCurrentPhoto}
-            disabled={uploading || loadingCurrent}
+            disabled={uploading || loadingCurrent || preparingSelection}
             className="absolute -bottom-1 -left-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-brass text-navy shadow-md transition-transform hover:scale-105 disabled:opacity-60"
             title="Crop and adjust current photo"
             aria-label="Crop and adjust current profile photo"
@@ -370,12 +388,12 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={!profile || uploading || loadingCurrent}
+          disabled={!profile || uploading || loadingCurrent || preparingSelection}
           className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-peri text-white shadow-md transition-transform hover:scale-105 disabled:opacity-60"
           title="Change profile photo"
           aria-label="Change profile photo"
         >
-          {uploading ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+          {uploading || preparingSelection ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
         </button>
         <input
           ref={inputRef}
@@ -383,14 +401,10 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
           accept="image/*,.heic,.heif"
           className="hidden"
           onChange={(event) => {
-            const selected = event.target.files?.[0];
+            const selected = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
             if (!selected) return;
-            if (selected.size > 12 * 1024 * 1024) {
-              alert('Choose a profile photo smaller than 12 MB.');
-              event.target.value = '';
-              return;
-            }
-            setCropFile(selected);
+            void prepareSelectedPhoto(selected);
           }}
         />
       </div>

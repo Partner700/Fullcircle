@@ -360,6 +360,14 @@ assert.match(profilePhotoEditor, /fetch\(avatarUrl, \{ cache: 'no-store' \}\)/);
 assert.match(profilePhotoEditor, /accept="image\/\*,\.heic,\.heif"/);
 assert.match(profilePhotoEditor, /setSavedAvatarUrl\(uploadedUrl\)/);
 assert.match(profilePhotoEditor, /Crop and adjust current profile photo/);
+assert.match(profilePhotoEditor, /prepareImageUpload\(selected, \{[\s\S]*maxDimension: 2400[\s\S]*maxBytes: 25 \* 1024 \* 1024/);
+assert.match(profilePhotoEditor, /event\.currentTarget\.value = ''/);
+assert.match(profilePhotoEditor, /z-\[2147483645\]/);
+assert.doesNotMatch(profilePhotoEditor, /12 \* 1024 \* 1024/);
+assert.match(profileCvModal, /bg-bg\/60/);
+assert.match(profileCvModal, /opacityOverride=\{Math\.max\(58/);
+assert.equal((tentMessenger.match(/opacityOverride=\{Math\.max\(58/g) || []).length, 2);
+assert.match(indexCss, /\.message-space-veil,[\s\S]*\.profile-cv-veil \{[\s\S]*rgba\(7, 20, 43, 0\.46\)/);
 assert.match(fcxExperience, /uploadFcxGuestAvatar/);
 assert.match(fcxExperience, /Crop participant photo/);
 for (const required of [

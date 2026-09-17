@@ -146,12 +146,18 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
       <div
-        className="relative isolate z-[2147483001] flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/94 shadow-xl animate-slide-up sm:max-w-md sm:rounded-2xl"
+        className="relative isolate z-[2147483001] flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/60 shadow-xl animate-slide-up sm:max-w-md sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <PanelImageBackdrop image={messageArtwork} opacityFallback={24} veilClassName="message-space-veil" />
+        <PanelImageBackdrop
+          image={messageArtwork}
+          opacityFallback={58}
+          opacityOverride={Math.max(58, messageArtwork?.adjustments?.opacity ?? 0)}
+          veilClassName="message-space-veil"
+          textGradient={false}
+        />
         {/* Header */}
-        <div className="relative z-10 flex items-center justify-between border-b border-border bg-surface/72 p-4 backdrop-blur-md">
+        <div className="relative z-10 flex items-center justify-between border-b border-border bg-surface/50 p-4 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center font-display text-sm font-bold text-brass">
               <UserAvatar userId={recipient.id} name={recipient.display_name} avatarUrl={recipient.avatar_url} className="h-full w-full border border-border" />
@@ -198,7 +204,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         </div>
 
         {/* Input */}
-        <div className="relative z-10 flex items-center gap-2 border-t border-border bg-surface/72 p-3 backdrop-blur-md">
+        <div className="relative z-10 flex items-center gap-2 border-t border-border bg-surface/50 p-3 backdrop-blur-sm">
           <input
             type="text"
             value={input}
@@ -318,11 +324,17 @@ export function TentGroupMessenger({
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/50 animate-fade-in sm:items-center" onClick={onClose}>
       <div
-        className="relative isolate z-[2147483001] flex max-h-[82vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/94 shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
+        className="relative isolate z-[2147483001] flex max-h-[82vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/60 shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <PanelImageBackdrop image={messageArtwork} opacityFallback={24} veilClassName="message-space-veil" />
-        <div className="relative z-10 flex items-center justify-between border-b border-border bg-surface/72 p-4 backdrop-blur-md">
+        <PanelImageBackdrop
+          image={messageArtwork}
+          opacityFallback={58}
+          opacityOverride={Math.max(58, messageArtwork?.adjustments?.opacity ?? 0)}
+          veilClassName="message-space-veil"
+          textGradient={false}
+        />
+        <div className="relative z-10 flex items-center justify-between border-b border-border bg-surface/50 p-4 backdrop-blur-sm">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-brass/25 bg-brass-soft text-brass">
               <Users size={18} />
@@ -376,7 +388,7 @@ export function TentGroupMessenger({
           })}
         </div>
 
-        <div className="relative z-10 flex items-center gap-2 border-t border-border bg-surface/72 p-3 backdrop-blur-md">
+        <div className="relative z-10 flex items-center gap-2 border-t border-border bg-surface/50 p-3 backdrop-blur-sm">
           <button
             type="button"
             onClick={() => setInput((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
