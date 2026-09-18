@@ -111,7 +111,7 @@ export function PasswordUpdateFlow({
 
   return (
     <div className="max-w-lg mx-auto space-y-5 animate-fade-in">
-      <div className="card p-6 text-center overflow-hidden relative">
+      <div data-artwork-theme={(passwordImage)?.url ? 'night' : undefined} className="card p-6 text-center overflow-hidden relative">
         <PanelImageBackdrop image={passwordImage} opacityFallback={35} veilClassName="bg-navy-2/54" />
         <div className="relative">
           <div className="w-14 h-14 rounded-2xl mx-auto mb-3 bg-surface-2 border border-border flex items-center justify-center">

@@ -244,7 +244,7 @@ function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuote
 
   return (
     <section className="space-y-2" aria-label="Quotes from Full Circle meditations">
-      <div className="quote-glass-panel relative min-h-[16rem] overflow-hidden rounded-2xl border border-border">
+      <div data-artwork-theme={(image || null)?.url ? 'night' : undefined} className="quote-glass-panel relative min-h-[16rem] overflow-hidden rounded-2xl border border-border">
         <PanelImageBackdrop image={image || null} opacityOverride={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
         <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute inset-0" aria-hidden="true" />
         <div className="relative z-10 flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${index * 100}%)` }}>
@@ -300,7 +300,7 @@ function SharedReadingView({
   const isSundayReading = new Date(`${reading.narrative_date}T12:00:00`).getDay() === 0;
   return (
     <article className="today-reading-screen space-y-5">
-      <section
+      <section data-artwork-theme={(reading.panel_images?.reading)?.url ? 'night' : undefined}
         className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up border-border backdrop-blur-sm"
         style={{ background: 'color-mix(in srgb, var(--color-navy-3) 42%, transparent)', backdropFilter: 'blur(18px) saturate(1.18)' }}
       >
@@ -318,7 +318,7 @@ function SharedReadingView({
       </section>
 
       {reading.verse_of_day && (
-        <section className={cn('card reading-glass-panel relative overflow-hidden border-brass/30 animate-slide-up', isSundayReading ? 'max-h-[60svh] p-4' : 'p-5')} style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
+        <section data-artwork-theme={(reading.panel_images?.scripture)?.url ? 'night' : undefined} className={cn('card reading-glass-panel relative overflow-hidden border-brass/30 animate-slide-up', isSundayReading ? 'max-h-[60svh] p-4' : 'p-5')} style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
           <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
           <div className="relative z-10">
             <div className={cn('flex items-center gap-2', isSundayReading ? 'mb-2' : 'mb-3')}><Sun size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">{isSundayReading ? 'Verse of the Week' : 'Verse of the Day'}</span></div>
@@ -329,7 +329,7 @@ function SharedReadingView({
         </section>
       )}
 
-      <section className="card reading-glass-panel relative isolate overflow-hidden border-border p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
+      <section data-artwork-theme={(reading.panel_images?.scripture)?.url ? 'night' : undefined} className="card reading-glass-panel relative isolate overflow-hidden border-border p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
         <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
         <div className="relative z-10">
           <div className="mb-3 flex items-center gap-2"><ScrollText size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">Scripture</span></div>
@@ -651,7 +651,7 @@ export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; valu
           <SharedGameView game={game} signupHref={signupHref} />
         )}
         {!loading && !error && kind === 'birthday' && birthday && (
-          <article className="card relative isolate min-h-[25rem] overflow-hidden p-6 sm:p-8">
+          <article data-artwork-theme={(birthday.panel_image)?.url ? 'night' : undefined} className="card relative isolate min-h-[25rem] overflow-hidden p-6 sm:p-8">
             <PanelImageBackdrop image={birthday.panel_image} opacityFallback={42} veilClassName="welcome-slide-veil" modeFilter={false} />
             <div className="relative z-10 flex min-h-[21rem] flex-col justify-between">
               <div>

@@ -955,7 +955,7 @@ export function CadetNarrative({
         </div>
       )}
       {/* ── Header card — scripture reference + theme ── */}
-      <div
+      <div data-artwork-theme={(readingImage)?.url ? 'night' : undefined}
         className="card relative overflow-hidden p-4 sm:p-5 animate-slide-up border-border backdrop-blur-sm"
         style={{ background: 'color-mix(in srgb, var(--color-navy-3) 42%, transparent)', backdropFilter: 'blur(18px) saturate(1.18)' }}
       >
@@ -985,7 +985,7 @@ export function CadetNarrative({
       </div>
 
       {narrative.verse_of_day && (
-        <div
+        <div data-artwork-theme={(scriptureImage)?.url ? 'night' : undefined}
           className={cn(
             'card reading-glass-panel relative overflow-hidden animate-slide-up border-brass/30',
             isSundayRest ? 'max-h-[60svh] p-4' : 'p-5',
@@ -1013,7 +1013,7 @@ export function CadetNarrative({
       )}
 
       {/* ── Scripture text ── */}
-      <div
+      <div data-artwork-theme={(scriptureImage)?.url ? 'night' : undefined}
         className="card reading-glass-panel relative isolate overflow-hidden p-5 animate-slide-up border-border"
         style={{
           backdropFilter: 'blur(26px) saturate(1.22)',
@@ -1316,7 +1316,7 @@ export function CadetNarrative({
       )}
 
       {/* ── Meditation submission — three sections ── */}
-      {!isSundayRest && !isHistoricalReading && <div
+      {!isSundayRest && !isHistoricalReading && <div data-artwork-theme={(meditationImage)?.url ? 'night' : undefined}
         className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
         aria-disabled={!hasAccess}
         onClickCapture={(event) => {
@@ -1433,7 +1433,7 @@ export function CadetNarrative({
       </div>}
 
       {isHistoricalReading && meditation && (
-        <div className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
+        <div data-artwork-theme={(meditationImage)?.url ? 'night' : undefined} className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up">
           <PanelImageBackdrop image={meditationImage} opacityFallback={100} veilClassName="" modeFilter={false} textGradient={false} />
           <div className="panel-veil-layer award-panel-veil pointer-events-none absolute" aria-hidden="true" />
           <div className="relative z-10">
@@ -1455,7 +1455,7 @@ export function CadetNarrative({
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}
       {!isSundayRest && !isHistoricalReading && narrative.challenge_active && narrative.challenge_title && (
-        <div
+        <div data-artwork-theme={(challengeImage)?.url ? 'night' : undefined}
           className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
           aria-disabled={!hasAccess}
           onClickCapture={(event) => {

@@ -4,7 +4,7 @@
 
 @layer base {
   :root,
-  [data-theme="night"] {
+  [data-theme="night"], [data-artwork-theme="night"] {
     /* Background layers — night mode */
     --color-navy: #17243C;
     --color-navy-2: #1E2F4A;
@@ -32,7 +32,7 @@
     --panel-image-mode-filter: brightness(0.34) saturate(0.76) contrast(1.12);
   }
 
-  [data-theme="day"] {
+  [data-theme="day"], [data-artwork-theme="day"] {
     /* Pale blue day mode — bright surfaces, dark navy text */
     --color-navy: #EDF6FF;
     --color-navy-2: #E3F0FC;
@@ -62,16 +62,15 @@
 
   /* Tailwind's legacy text utilities are fixed dark-theme colors. Rebind
      them in day mode so image-panel copy remains readable. */
-  [data-theme="day"] .text-ink { color: var(--color-peri); }
-  [data-theme="day"] .text-stone { color: var(--color-peri-dim); }
-  [data-theme="day"] .text-stone-dim { color: var(--color-stone-dim); }
+  :is([data-theme="day"], [data-artwork-theme="day"]) .text-ink:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) { color: var(--color-peri); }
+  :is([data-theme="day"], [data-artwork-theme="day"]) .text-stone:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) { color: var(--color-peri-dim); }
+  :is([data-theme="day"], [data-artwork-theme="day"]) .text-stone-dim:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) { color: var(--color-stone-dim); }
 
   /* The weekly artwork is the app canvas, not a panel illustration. */
-  [data-theme="night"] .weekly-app-background-image,
-  :root:not([data-theme="day"]) .weekly-app-background-image {
-    filter: brightness(0.27) saturate(0.82) contrast(1.15) var(--panel-image-adjustment-filter, none) !important;
+  .weekly-app-background {
+    background-color: #EDF6FF;
   }
-  [data-theme="day"] .weekly-app-background-image {
+  .weekly-app-background-image {
     filter: brightness(1.72) saturate(0.82) contrast(0.9) var(--panel-image-adjustment-filter, none) !important;
   }
 
@@ -151,12 +150,12 @@
     font-weight: 700;
   }
 
-  [data-theme="day"] select {
+  :is([data-theme="day"], [data-artwork-theme="day"]) select:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     color-scheme: light;
   }
 
-  [data-theme="day"] select option,
-  [data-theme="day"] select optgroup {
+  :is([data-theme="day"], [data-artwork-theme="day"]) select option:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)),
+  :is([data-theme="day"], [data-artwork-theme="day"]) select optgroup:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: #f7f9ff;
     color: #14233a;
   }
@@ -167,13 +166,14 @@
     box-shadow: 0 18px 55px rgba(7, 24, 43, 0.14), inset 0 1px 0 color-mix(in srgb, var(--color-peri) 10%, transparent);
   }
 
-  [data-theme="day"] .reading-glass-panel {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .reading-glass-panel:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: color-mix(in srgb, #f6fbff 48%, transparent);
     border-color: rgba(13, 33, 55, 0.12);
     box-shadow: 0 18px 55px rgba(13, 33, 55, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.36);
   }
 
-  [data-theme="night"] .reading-glass-panel {
+  .reading-glass-panel[data-artwork-theme="night"],
+  :is([data-theme="night"], [data-artwork-theme="night"]) .reading-glass-panel:not(:where([data-artwork-theme="day"], [data-artwork-theme="day"] *)) {
     background: color-mix(in srgb, var(--color-navy-3) 34%, transparent);
   }
 
@@ -224,15 +224,15 @@
     background: var(--color-peri-medium);
     border-color: var(--color-peri);
   }
-  [data-theme="day"] .sentry-overview-actions .btn-primary,
-  [data-theme="day"] .sentry-overview-actions .btn-secondary {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .sentry-overview-actions .btn-primary:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)),
+  :is([data-theme="day"], [data-artwork-theme="day"]) .sentry-overview-actions .btn-secondary:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: rgba(18, 30, 63, 0.88) !important;
     border-color: rgba(221, 227, 255, 0.22) !important;
     color: #DDE3FF !important;
     box-shadow: 0 12px 28px rgba(7, 18, 38, 0.16) !important;
   }
-  [data-theme="day"] .sentry-overview-actions .btn-primary:hover,
-  [data-theme="day"] .sentry-overview-actions .btn-secondary:hover {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .sentry-overview-actions .btn-primary:hover:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)),
+  :is([data-theme="day"], [data-artwork-theme="day"]) .sentry-overview-actions .btn-secondary:hover:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: rgba(30, 47, 74, 0.92) !important;
     border-color: rgba(221, 227, 255, 0.36) !important;
   }
@@ -380,7 +380,7 @@
   select.input-field::-ms-expand {
     display: none;
   }
-  [data-theme="day"] select.input-field {
+  :is([data-theme="day"], [data-artwork-theme="day"]) select.input-field:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: color-mix(in srgb, #ffffff 92%, var(--color-peri-soft));
     background-image:
       linear-gradient(180deg, rgba(255,255,255,0.98), color-mix(in srgb, var(--color-peri-soft) 48%, transparent)),
@@ -399,7 +399,7 @@
   select.input-field optgroup {
     padding: 0.75rem 1rem;
   }
-  [data-theme="day"] select.input-field:hover {
+  :is([data-theme="day"], [data-artwork-theme="day"]) select.input-field:hover:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: #ffffff;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -1px 0 var(--color-border-bright), 0 8px 18px rgba(13, 33, 55, 0.12);
   }
@@ -411,7 +411,7 @@
       linear-gradient(135deg, var(--color-peri) 50%, transparent 50%);
     box-shadow: inset 0 1px 0 var(--color-peri-medium), 0 0 0 3px var(--color-peri-soft), 0 8px 18px rgba(7, 15, 29, 0.18);
   }
-  [data-theme="day"] select.input-field:focus {
+  :is([data-theme="day"], [data-artwork-theme="day"]) select.input-field:focus:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-image:
       linear-gradient(180deg, rgba(255,255,255,0.98), color-mix(in srgb, var(--color-peri-soft) 72%, transparent)),
       linear-gradient(90deg, transparent calc(100% - 2.85rem), color-mix(in srgb, var(--color-peri-soft) 86%, transparent) calc(100% - 2.85rem)),
@@ -549,19 +549,19 @@
   .quote-picture-veil {
     background-color: rgba(18, 30, 63, 0.432);
   }
-  [data-theme="night"] .quote-picture-veil,
+  :is([data-theme="night"], [data-artwork-theme="night"]) .quote-picture-veil:not(:where([data-artwork-theme="day"], [data-artwork-theme="day"] *)),
   :root:not([data-theme="day"]) .quote-picture-veil {
     background-color: rgba(18, 30, 63, 0.432);
   }
-  [data-theme="day"] .quote-glass-panel {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .quote-glass-panel:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     border-color: rgba(255, 255, 255, 0.5);
     background-color: rgba(241, 246, 255, 0.56);
     box-shadow: 0 18px 50px rgba(42, 55, 96, 0.14);
   }
-  [data-theme="day"] .quote-glass-tint {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .quote-glass-tint:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(241, 246, 255, 0.58);
   }
-  [data-theme="day"] .quote-picture-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .quote-picture-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(255, 255, 255, 0.342);
   }
   .reminder-picture-veil {
@@ -572,7 +572,7 @@
       rgba(18, 30, 63, 0.7) 100%
     );
   }
-  [data-theme="day"] .reminder-picture-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .reminder-picture-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: radial-gradient(
       ellipse at center,
       rgba(255, 255, 255, 0.5) 0%,
@@ -588,7 +588,7 @@
       rgba(18, 30, 63, 0.7) 100%
     );
   }
-  [data-theme="day"] .fcx-slide-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .fcx-slide-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: radial-gradient(
       ellipse at 38% 42%,
       rgba(255, 255, 255, 0.46) 0%,
@@ -597,26 +597,26 @@
     );
   }
   .fcx-progress-fill,
-  [data-theme="night"] .fcx-progress-fill {
+  :is([data-theme="night"], [data-artwork-theme="night"]) .fcx-progress-fill:not(:where([data-artwork-theme="day"], [data-artwork-theme="day"] *)) {
     background: #ffe347;
     box-shadow: 0 0 6px rgba(255, 227, 71, 0.95), 0 0 16px rgba(255, 227, 71, 0.72);
   }
-  [data-theme="day"] .fcx-progress-fill {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .fcx-progress-fill:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: #0f2037;
     box-shadow: 0 0 6px rgba(15, 32, 55, 0.86), 0 0 15px rgba(43, 74, 154, 0.62);
   }
-  [data-theme="day"] .fcx-slide-content .fcx-line {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .fcx-slide-content .fcx-line:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     border-color: rgba(13, 33, 55, 0.55) !important;
     border-width: 2px;
   }
-  [data-theme="day"] .fcx-slide-content .fcx-seat-line {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .fcx-slide-content .fcx-seat-line:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     border-color: rgba(13, 33, 55, 0.5) !important;
     border-width: 2px;
   }
   .quote-rhude-icon {
     color: #d9c8ff;
   }
-  [data-theme="day"] .quote-rhude-icon {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .quote-rhude-icon:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     color: var(--color-royal);
   }
   .verse-highlight-insight {
@@ -648,7 +648,7 @@
       rgba(7, 18, 38, 0.54) 100%
     );
   }
-  [data-theme="day"] .welcome-first-slide-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .welcome-first-slide-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background: radial-gradient(
       ellipse at center,
       rgba(255, 255, 255, 0.06) 0%,
@@ -657,13 +657,13 @@
       rgba(255, 255, 255, 0.57) 100%
     );
   }
-  [data-theme="day"] .welcome-slide-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .welcome-slide-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(255, 255, 255, 0.36);
   }
-  [data-theme="day"] .quiz-podium-slide-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .quiz-podium-slide-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(255, 255, 255, 0.66);
   }
-  [data-theme="day"] .welcome-blessing-text {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .welcome-blessing-text:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     color: rgba(18, 30, 63, 0.56);
   }
   .welcome-house-glass {
@@ -693,20 +693,20 @@
     background-color: rgba(7, 18, 38, 0.42);
     background-image: none;
   }
-  [data-theme="day"] .award-panel-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .award-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(255, 255, 255, 0.66);
   }
   .tent-award-panel-veil {
     background-color: rgba(7, 18, 38, 0.42);
     background-image: none;
   }
-  [data-theme="day"] .tent-award-panel-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .tent-award-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(255, 255, 255, 0.64);
   }
   .panel-picture-veil {
     background-color: rgba(0, 0, 0, 0.08);
   }
-  [data-theme="day"] .panel-picture-veil {
+  :is([data-theme="day"], [data-artwork-theme="day"]) .panel-picture-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(255, 255, 255, 0.08);
   }
   .animate-float { animation: float 4s ease-in-out infinite; }
@@ -2304,7 +2304,7 @@
     color: #ffffff;
   }
 
-  [data-theme="night"] .current-user-avatar-marker {
+  :is([data-theme="night"], [data-artwork-theme="night"]) .current-user-avatar-marker:not(:where([data-artwork-theme="day"], [data-artwork-theme="day"] *)) {
     border-color: rgba(7, 32, 58, 0.9);
     background: #ffd84d;
     color: #071f38;
@@ -2327,24 +2327,24 @@
   background: rgba(7, 20, 43, 0.78);
 }
 
-[data-theme="day"] .daily-trivia-panel-veil {
+:is([data-theme="day"], [data-artwork-theme="day"]) .daily-trivia-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
   background: rgba(255, 255, 255, 0.79);
 }
 
-[data-theme="day"] .arena-panel-veil {
+:is([data-theme="day"], [data-artwork-theme="day"]) .arena-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
   background: rgba(255, 255, 255, 0.86);
 }
 
-[data-theme="day"] .story-mode-panel-veil {
+:is([data-theme="day"], [data-artwork-theme="day"]) .story-mode-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
   background: rgba(7, 20, 43, 0.64);
 }
 
-[data-theme="day"] .hidden-composer-panel-veil {
+:is([data-theme="day"], [data-artwork-theme="day"]) .hidden-composer-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
   background: rgba(255, 255, 255, 0.82);
 }
 
-[data-theme="day"] .message-space-veil,
-[data-theme="day"] .profile-cv-veil {
+:is([data-theme="day"], [data-artwork-theme="day"]) .message-space-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)),
+:is([data-theme="day"], [data-artwork-theme="day"]) .profile-cv-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
   background: rgba(255, 255, 255, 0.4);
 }
 
@@ -2377,7 +2377,7 @@
   background: rgba(7, 20, 43, 0.82);
 }
 
-[data-theme="day"] .weekly-quiz-window-artwork .card::after {
+:is([data-theme="day"], [data-artwork-theme="day"]) .weekly-quiz-window-artwork .card:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *))::after {
   background: rgba(255, 255, 255, 0.84);
 }
 

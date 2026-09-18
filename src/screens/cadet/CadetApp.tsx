@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { hasCompleteTopbarStats, mergeConfirmedTopbarStats } from '../../lib/liveStats';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell } from '../../components/AppShell';
@@ -98,6 +99,7 @@ function readCachedTopbarStats(userId: string) {
   if (typeof window === 'undefined') return null;
   try {
     const parsed = JSON.parse(window.localStorage.getItem(topbarStatsCacheKey(userId)) || 'null');
+    if (!hasCompleteTopbarStats(parsed)) return null;
     return {
       denarii: Number(parsed?.denarii) || 0,
       streak: Number(parsed?.streak) || 0,
@@ -111,11 +113,7 @@ function readCachedTopbarStats(userId: string) {
 function writeCachedTopbarStats(userId: string, patch: Partial<{ denarii: number; streak: number; marks: number }>) {
   if (typeof window === 'undefined') return;
   const current = readCachedTopbarStats(userId) || { denarii: 0, streak: 0, marks: 0 };
-  const next = {
-    denarii: Number(patch.denarii) > 0 ? Number(patch.denarii) : current.denarii,
-    streak: Number(patch.streak) > 0 ? Number(patch.streak) : current.streak,
-    marks: Number(patch.marks) > 0 ? Number(patch.marks) : current.marks,
-  };
+  const next = mergeConfirmedTopbarStats(current, patch);
   try {
     window.localStorage.setItem(topbarStatsCacheKey(userId), JSON.stringify(next));
   } catch {}
@@ -269,6 +267,7 @@ export function CadetApp() {
   const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
   const streakLoadedRef = useRef(false);
   const toolbarStatsRef = useRef({ userId: '', denarii: 0, streak: 0, marks: 0 });
+  const toolbarConfirmedRef = useRef(false);
   const toolbarRequestRef = useRef<Promise<void> | null>(null);
   const notificationRequestRef = useRef<Promise<void> | null>(null);
   const notificationRefreshQueuedRef = useRef(false);
@@ -298,7 +297,8 @@ export function CadetApp() {
     setStreakCount(cached?.streak || 0);
     setDenariiTotal(cached?.denarii || 0);
     setMarksTotal(cached?.marks || 0);
-    setToolbarReady(!!cached && (cached.streak > 0 || cached.denarii > 0 || cached.marks > 0));
+    setToolbarReady(!!cached);
+    toolbarConfirmedRef.current = !!cached;
     setTentInfo({ tent: null, members: [] });
   }, [toolbarUserId]);
 
@@ -344,18 +344,13 @@ export function CadetApp() {
     if (!toolbarUserId) return Promise.resolve();
     if (toolbarRequestRef.current) return toolbarRequestRef.current;
 
+    void fetchStreakProtectionState().then(setStreakProtection).catch(() => undefined);
     const request = (async () => {
-      const [protectionResult, reliableResult] = await Promise.allSettled([
-        fetchStreakProtectionState(),
-        fetchReliableToolbarStats(toolbarUserId),
-      ]);
-      if (protectionResult.status === 'fulfilled') setStreakProtection(protectionResult.value);
-      if (reliableResult.status !== 'fulfilled') return;
-
-      const reliable = reliableResult.value;
-      const stableDenarii = Number(reliable.total_denarii) || 0;
-      const stableStreak = Number(reliable.current_streak) || 0;
-      const stableMarks = Number(reliable.marks) || 0;
+      const reliable = await fetchReliableToolbarStats(toolbarUserId);
+      if (toolbarStatsRef.current.userId !== toolbarUserId) return;
+      const stableDenarii = reliable.total_denarii;
+      const stableStreak = reliable.current_streak;
+      const stableMarks = reliable.marks;
       toolbarStatsRef.current = {
         userId: toolbarUserId,
         denarii: stableDenarii,
@@ -364,6 +359,7 @@ export function CadetApp() {
       };
 
       setToolbarReady(true);
+      toolbarConfirmedRef.current = true;
       setDenariiTotal(stableDenarii);
       setMarksTotal(stableMarks);
       setStreakCount((previous) => {
@@ -375,7 +371,7 @@ export function CadetApp() {
         return stableStreak;
       });
       writeCachedTopbarStats(toolbarUserId, { denarii: stableDenarii, streak: stableStreak, marks: stableMarks });
-    })();
+    })().catch(() => undefined);
 
     const shared = request.finally(() => {
       if (toolbarRequestRef.current === shared) toolbarRequestRef.current = null;
@@ -390,17 +386,12 @@ export function CadetApp() {
     const acceptConfirmedStats = (event: Event) => {
       const detail = (event as CustomEvent<{ userId?: string; denarii?: number; streak?: number; marks?: number }>).detail;
       if (!detail || detail.userId !== toolbarUserId) return;
-      const confirmedDenarii = Number(detail.denarii) || 0;
-      const confirmedStreak = Number(detail.streak) || 0;
-      const confirmedMarks = Number(detail.marks) || 0;
       const retained = toolbarStatsRef.current.userId === toolbarUserId
         ? toolbarStatsRef.current
         : { userId: toolbarUserId, denarii: 0, streak: 0, marks: 0 };
       const next = {
         userId: toolbarUserId,
-        denarii: detail.denarii === undefined ? retained.denarii : confirmedDenarii,
-        streak: detail.streak === undefined ? retained.streak : confirmedStreak,
-        marks: detail.marks === undefined ? retained.marks : confirmedMarks,
+        ...mergeConfirmedTopbarStats(retained, detail),
       };
       toolbarStatsRef.current = next;
       setDenariiTotal(next.denarii);
@@ -409,8 +400,11 @@ export function CadetApp() {
         if (next.streak > previous) setStreakCelebration(next.streak);
         return next.streak;
       });
-      setToolbarReady(true);
-      writeCachedTopbarStats(toolbarUserId, next);
+      if (toolbarConfirmedRef.current || hasCompleteTopbarStats(detail)) {
+        toolbarConfirmedRef.current = true;
+        setToolbarReady(true);
+        writeCachedTopbarStats(toolbarUserId, next);
+      }
     };
 
     window.addEventListener('full-circle-toolbar-stats', acceptConfirmedStats);
@@ -422,13 +416,11 @@ export function CadetApp() {
     const retryTimers = [0, 4_000].map((delay) => window.setTimeout(() => {
       void loadToolbarStats();
     }, delay));
-    const resolveTimer = window.setTimeout(() => setToolbarReady(true), 6_000);
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadToolbarStats();
     }, 45_000);
     return () => {
       retryTimers.forEach((timer) => window.clearTimeout(timer));
-      window.clearTimeout(resolveTimer);
       window.clearInterval(interval);
     };
   }, [loadToolbarStats, toolbarUserId]);

@@ -108,63 +108,38 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     if (!hasLoadedRef.current) setLoading(true);
 
     const request = (async () => {
-      const coreRequest = Promise.allSettled([
-        fetchNarrative(today),
-        fetchDailyRecords(profile.id, `${today.slice(0, 7)}-01`),
-        fetchLedgerEntries(profile.id, 100),
-        fetchGameAttempts(profile.id, today),
-        fetchChallengeSubmission(profile.id, today),
-      ]);
-      const secondaryRequest = Promise.allSettled([
-        fetchStrictStreak(profile.id),
-        fetchDailyQuoteFeed(12),
-        fetchAnnouncements(),
-        fetchActiveFcxExperience(),
-        fetchLatestWeeklyQuizRankings(undefined, 'cadet'),
+      await Promise.allSettled([
+        fetchNarrative(today).then(async (narrative) => {
+          setNarrative(narrative);
+          setLoading(false);
+          hasLoadedRef.current = true;
+          if (narrative?.verse_of_day) {
+            setVerseReactions(await fetchDailyVerseReactions([narrative.narrative_date], profile.id));
+          }
+        }),
+        fetchDailyRecords(profile.id, `${today.slice(0, 7)}-01`).then(setRecords),
+        fetchLedgerEntries(profile.id, 100).then(setLedger),
+        fetchGameAttempts(profile.id, today).then(setGames),
+        fetchChallengeSubmission(profile.id, today).then(setChallenge),
+        fetchStrictStreak(profile.id).then(setStreakData),
+        fetchDailyQuoteFeed(12).then(async (quotes) => {
+          setQuotes(quotes);
+          if (quotes.length) setQuoteReactions(await fetchDailyQuoteReactions(quotes, profile.id));
+        }),
+        fetchAnnouncements().then(setAnnouncements),
+        fetchActiveFcxExperience().then(setFcxExperience),
+        fetchLatestWeeklyQuizRankings(undefined, 'cadet').then(setQuizPodium),
         fetchPanelImageSettings([
           'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
-        ]),
-      ]);
-
-      const [narr, recs, led, gms, chal] = await coreRequest;
-      if (narr.status === 'fulfilled') setNarrative(narr.value);
-      const activeNarrative = narr.status === 'fulfilled' ? narr.value : null;
-      if (recs.status === 'fulfilled') setRecords(recs.value);
-      if (led.status === 'fulfilled') setLedger(led.value);
-      if (gms.status === 'fulfilled') setGames(gms.value);
-      if (chal.status === 'fulfilled') setChallenge(chal.value);
-      setLoading(false);
-      hasLoadedRef.current = true;
-
-      const [strict, quoteFeed, activeAnnouncements, activeFcx, activeQuizPodium, activePanelImages] = await secondaryRequest;
-      if (strict.status === 'fulfilled') setStreakData(strict.value);
-      const quoteItems = quoteFeed.status === 'fulfilled' ? quoteFeed.value : [];
-      if (quoteFeed.status === 'fulfilled') setQuotes(quoteItems);
-      if (activeAnnouncements.status === 'fulfilled') setAnnouncements(activeAnnouncements.value);
-      if (activeFcx.status === 'fulfilled') setFcxExperience(activeFcx.value);
-      if (activeQuizPodium.status === 'fulfilled') setQuizPodium(activeQuizPodium.value);
-      if (activePanelImages.status === 'fulfilled') setPanelImages(activePanelImages.value);
-      void fetchAwards()
-        .then((awards) => {
+        ]).then(setPanelImages),
+        fetchAwards().then((awards) => {
           const currentMonth = today.slice(0, 7);
           setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === currentMonth).slice(0, 10));
-        })
-        .catch(() => undefined);
-      const [quoteReactionResult, verseReactionResult] = await Promise.allSettled([
-        quoteFeed.status === 'fulfilled' && quoteItems.length > 0
-          ? fetchDailyQuoteReactions(quoteItems, profile.id)
-          : Promise.resolve({}),
-        activeNarrative?.verse_of_day
-          ? fetchDailyVerseReactions([activeNarrative.narrative_date], profile.id)
-          : Promise.resolve({}),
+        }),
       ]);
-      if (quoteReactionResult.status === 'fulfilled' && quoteFeed.status === 'fulfilled') {
-        setQuoteReactions(quoteReactionResult.value as Record<string, QuoteReactionState>);
-      }
-      if (verseReactionResult.status === 'fulfilled' && narr.status === 'fulfilled') {
-        setVerseReactions(verseReactionResult.value as Record<string, QuoteReactionState>);
-      }
+      setLoading(false);
+      hasLoadedRef.current = true;
     })().catch((error) => {
       console.error('Dashboard load error:', error);
       setLoading(false);
@@ -387,7 +362,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       </div>
 
       {/* Today's status bar */}
-      <div className="card relative overflow-hidden p-4">
+      <div data-artwork-theme={(panelImages.progress)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
         <PanelImageBackdrop image={panelImages.progress} />
         <div className="relative">
           <SectionHeader title="Today's Progress" subtitle="Complete each item to keep your streak alive" />
@@ -437,7 +412,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
 
       {/* Two-column: narrative preview + recent activity */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="card relative overflow-hidden p-4 card-hover">
+        <div data-artwork-theme={(panelImages.reading)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4 card-hover">
           <PanelImageBackdrop image={panelImages.reading} />
           <div className="relative">
             <SectionHeader title="Today's Reading" />
@@ -454,7 +429,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           </div>
         </div>
 
-        <div className="card relative overflow-hidden p-4">
+        <div data-artwork-theme={(panelImages.recent_denarii)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
           <PanelImageBackdrop image={panelImages.recent_denarii} />
           <div className="relative">
           <SectionHeader title="Recent Denarii" subtitle={`${formatDenarii(denariiTotal)} total`} />
@@ -480,7 +455,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       </div>
 
       {/* Quick links */}
-      <div className="relative overflow-hidden rounded-2xl">
+      <div data-artwork-theme={(panelImages.quick_links)?.url ? 'night' : undefined} className="relative overflow-hidden rounded-2xl">
         <PanelImageBackdrop image={panelImages.quick_links} />
         <div className="relative grid grid-cols-2 gap-3 md:grid-cols-4">
           <QuickLink icon={BookOpen} label="Read Today" badge={notificationBadges.narrative || 0} onClick={() => onNavigate('narrative')} />
@@ -600,7 +575,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
       >
         {visibleSlides.map((slide, slideIndex) => {
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
-            ? slide.announcement.announcement_type.replace(/_/g, ' ')
+            ? slide.announcement.announcement_type === 'midday_reminder' ? 'Week-day reminder' : slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
           const isReminder = slide.kind === 'announcement'
             && REMINDER_ANNOUNCEMENT_TYPES.has(slide.announcement.announcement_type);
@@ -615,7 +590,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
               : panelImages[slide.kind];
 
           return (
-            <div
+            <div data-artwork-theme={slide.kind === 'announcement' && slide.announcement.announcement_type === 'midday_reminder' ? 'day' : slide.kind !== 'quote' && slideImage?.url ? 'night' : undefined}
               key={`${slide.id}-${slideIndex}`}
               data-guide-slide-active={displayIndex === slideIndex ? 'true' : 'false'}
               data-guide-slide-kind={slide.kind === 'quote' && slide.quote.user_id !== currentUserId ? 'other_quote' : slide.kind}
@@ -795,7 +770,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
                           )}
                         </div>
-                        <p className={cn('mt-3 font-display font-medium italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-sm' : slide.quote.daily_quote.length > 120 ? 'text-base' : 'text-xl')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
+                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}

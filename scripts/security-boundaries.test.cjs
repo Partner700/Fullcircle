@@ -61,6 +61,9 @@ const quoteReactions = read('src/components/QuoteReactions.tsx');
 const awardReactions = read('src/components/AwardReactions.tsx');
 const reactionState = read('src/lib/reactionState.ts');
 const quoteQueries = read('src/lib/queries.ts');
+const liveStatsParser = read('src/lib/liveStats.ts');
+const fastMemberStats = read('supabase/migrations/20260918100000_fast_complete_member_stats.sql');
+const weekDayReminderLabel = read('supabase/migrations/20260918103000_week_day_reminder_label.sql');
 const tentGroupChat = read('supabase/migrations/20260819100000_tent_group_chat.sql');
 const quoteCommentReplies = read('supabase/migrations/20260819103000_quote_comment_replies.sql');
 const scriptureInsightReactions = read('supabase/migrations/20260821160000_scripture_insight_reactions.sql');
@@ -294,7 +297,7 @@ assert.match(reactionState, /count: Math\.max\(0, Number\(previous\.count \|\| 0
 assert.match(cadetDashboard, /setQuoteReactions\(\(current\) => updateReactionOptimistically/);
 assert.match(cadetDashboard, /slide\.kind === 'quiz_podium' \? 'quiz-podium-slide-veil'/);
 assert.match(read('src/index.css'), /\.quiz-podium-slide-veil[\s\S]*?rgba\(7, 18, 38, 0\.64\)/);
-assert.match(read('src/index.css'), /\[data-theme="day"\] \.quiz-podium-slide-veil[\s\S]*?rgba\(255, 255, 255, 0\.66\)/);
+assert.match(read('src/index.css'), /\[data-artwork-theme="day"\]\) \.quiz-podium-slide-veil[\s\S]*?rgba\(255, 255, 255, 0\.66\)/);
 assert.match(cadetNarrative, /fill=\{reaction\.reacted \? 'currentColor' : 'none'\}/);
 assert.match(publicShareScreen, /setPendingReaction\(key\);\s*applyReaction\(optimisticReacted\);\s*try \{\s*const reacted = await/);
 assert.match(tentMessenger, /size === 'xs' \? 'h-4 w-4 text-\[7px\]'/);
@@ -773,7 +776,7 @@ assert.ok(!cadetApp.includes('fetchLedgerTotal'), 'Cadet toolbar refresh must no
 assert.ok(!cadetApp.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
 assert.match(cadetApp, /toolbarRequestRef/);
 assert.match(cadetApp, /notificationRefreshQueuedRef/);
-assert.match(cadetDashboard, /if \(narr\.status === 'fulfilled'\) setNarrative\(narr\.value\)/);
+assert.match(cadetDashboard, /fetchNarrative\(today\)\.then\(async \(narrative\) =>/);
 assert.ok(
   !cadetDashboard.includes("setNarrative(narr.status === 'fulfilled' ? narr.value : null)"),
   'A transient dashboard request failure must not erase confirmed content.',
@@ -1448,11 +1451,26 @@ assert.doesNotMatch(cadetQuiz, /\{figs\}\/\{maxFigs\}/);
 assert.doesNotMatch(publicQuizResultClaim, /result\.figs/);
 assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
 assert.match(cadetDashboard, /kind: 'quiz_podium'/);
-assert.match(quoteQueries, /marks: liveStats\?\.marks \?\? toolbar\?\.marks \?\? 0/);
+assert.match(quoteQueries, /return shareReadRequest\(`live-stats:\$\{userId\}`/);
+assert.match(quoteQueries, /return parseLiveStats\(data, userId\)/);
+assert.doesNotMatch(quoteQueries, /marks: liveStats\?\.marks \?\? toolbar\?\.marks \?\? 0/);
+assert.match(liveStatsParser, /String\(value\)\.trim\(\) === '' \|\| !Number\.isFinite/);
+assert.match(liveStatsParser, /mergeConfirmedTopbarStats/);
+assert.match(fastMemberStats, /CREATE OR REPLACE FUNCTION public\.get_user_live_stats/);
+assert.match(fastMemberStats, /public\.get_lifetime_qualifying_streak_days/);
+assert.doesNotMatch(fastMemberStats, /get_marks_board_live/);
+assert.match(weekDayReminderLabel, /WHEN 'midday_reminder' THEN 'Week-day reminder'/);
+assert.match(cadetDashboard, /announcement_type === 'midday_reminder' \? 'Week-day reminder'/);
+assert.match(cadetDashboard, /announcement_type === 'midday_reminder' \? 'day'/);
+assert.match(hiddenChallengeStatus, /setPointerCapture/);
+assert.match(hiddenChallengeStatus, /full-circle-hidden-item-position/);
+assert.match(hiddenChallengeStatus, /Math\.hypot\(dx, dy\) > 6/);
+assert.match(appShell, /className="weekly-app-background fixed z-0"/);
+assert.match(indexCss, /\.weekly-app-background-image \{\s*filter: brightness\(1\.72\)/);
 assert.match(cadetApp, /<ChiRhoMark size=\{14\}/);
 assert.match(cadetApp, /marksTotal\.toLocaleString/);
 assert.match(cadetSettings, /label: 'Marks'/);
-assert.match(cadetSettings, /liveStats\?\.marks/);
+assert.match(cadetSettings, /rhudes: live\.rhudes, marks: live\.marks/);
 assert.match(sentryApp, /sentryMarks\.toLocaleString/);
 assert.match(cadetDashboard, /max-h-\[66\.666svh\]/);
 assert.match(cadetDashboard, /previewLimit=\{1\}/);
@@ -1966,7 +1984,7 @@ for (const required of [
 }
 assert.match(instructorApp, /panel_image_messages', label: 'Messages'/);
 assert.match(instructorApp, /panel_image_story_mode', label: 'Story Mode'/);
-assert.match(indexCss, /\[data-theme="day"\] \.arena-panel-veil[\s\S]*?rgba\(255, 255, 255/);
+assert.match(indexCss, /\[data-artwork-theme="day"\]\) \.arena-panel-veil[\s\S]*?rgba\(255, 255, 255/);
 assert.match(indexCss, /\.weekly-quiz-window-artwork \.card::before/);
 
 for (const required of [

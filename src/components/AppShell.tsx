@@ -265,7 +265,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
       {weeklyBackground && (
         <PanelImageBackdrop
           image={weeklyBackground}
-          className="fixed z-0"
+          className="weekly-app-background fixed z-0"
           imageClassName="weekly-app-background-image"
           veilClassName=""
           opacityFallback={24}

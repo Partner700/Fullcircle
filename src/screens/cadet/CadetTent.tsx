@@ -282,7 +282,7 @@ export function CadetTent() {
 
       {/* Awards belong to the tent as a family. */}
       <section className="card relative isolate overflow-visible border-gold/35">
-        <div className="absolute inset-0 isolate overflow-hidden rounded-[inherit]">
+        <div data-artwork-theme={(awardsImage)?.url ? 'night' : undefined} className="absolute inset-0 isolate overflow-hidden rounded-[inherit]">
           <PanelImageBackdrop image={awardsImage} opacityFallback={100} veilClassName="" modeFilter={false} textGradient={false} />
           <div className="panel-veil-layer tent-award-panel-veil pointer-events-none absolute" aria-hidden="true" />
         </div>

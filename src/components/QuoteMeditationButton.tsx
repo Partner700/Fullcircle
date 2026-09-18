@@ -30,7 +30,7 @@ export function QuoteMeditationButton({ quote, image }: { quote: DailyQuoteFeedI
         if (event.target === event.currentTarget) setOpen(false);
       }}
     >
-      <article className="card relative isolate max-h-[86vh] w-full max-w-xl overflow-hidden border-border shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
+      <article data-artwork-theme={(image || null)?.url ? 'night' : undefined} className="card relative isolate max-h-[86vh] w-full max-w-xl overflow-hidden border-border shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
         <PanelImageBackdrop image={image || null} opacityFallback={100} veilClassName="" modeFilter={false} textGradient={false} />
         <div className="panel-veil-layer award-panel-veil pointer-events-none absolute inset-0" aria-hidden="true" />
         <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4">

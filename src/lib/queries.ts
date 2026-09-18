@@ -18,6 +18,7 @@ import { uploadAppFile } from './storageUploads';
 import { getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
+import { parseLiveStats, type UserLiveStats } from './liveStats';
 
 const sharedReadRequests = new Map<string, Promise<unknown>>();
 let lastReminderBootstrapAt = 0;
@@ -895,157 +896,19 @@ export async function fetchLedgerTotal(userId: string): Promise<number> {
   }
 }
 
-export type UserLiveStats = {
-  user_id: string;
-  total_denarii: number;
-  current_streak: number;
-  longest_streak: number;
-  consecutive_inactive: number;
-  cumulative_inactive: number;
-  total_figs: number;
-  rhudes: number;
-  marks: number;
-};
-
-export type ToolbarStats = Pick<
-  UserLiveStats,
-  'user_id' | 'total_denarii' | 'current_streak' | 'longest_streak' | 'consecutive_inactive' | 'cumulative_inactive' | 'marks'
->;
-
-export async function fetchOwnToolbarStats(): Promise<ToolbarStats> {
-  let { data, error } = await supabase.rpc('get_my_toolbar_stats_v6');
-  if (error) {
-    const versionFive = await supabase.rpc('get_my_toolbar_stats_v5');
-    data = versionFive.data;
-    error = versionFive.error;
-  }
-  if (error) {
-    const versionFour = await supabase.rpc('get_my_toolbar_stats_v4');
-    data = versionFour.data;
-    error = versionFour.error;
-  }
-  if (error) {
-    const versionThree = await supabase.rpc('get_my_toolbar_stats_v3');
-    data = versionThree.data;
-    error = versionThree.error;
-  }
-  if (error) {
-    const versionTwo = await supabase.rpc('get_my_toolbar_stats_v2');
-    data = versionTwo.data;
-    error = versionTwo.error;
-  }
-  if (error) {
-    const legacy = await supabase.rpc('get_my_toolbar_stats');
-    data = legacy.data;
-    error = legacy.error;
-  }
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.user_id) throw new Error('Live toolbar stats were unavailable.');
-  return {
-    user_id: String(row.user_id),
-    total_denarii: Number(row.total_denarii) || 0,
-    current_streak: Number(row.current_streak) || 0,
-    longest_streak: Number(row.longest_streak) || 0,
-    consecutive_inactive: Number(row.consecutive_inactive) || 0,
-    cumulative_inactive: Number(row.cumulative_inactive) || 0,
-    marks: Number(row.marks) || 0,
-  };
-}
+export type { UserLiveStats } from './liveStats';
+export type ToolbarStats = UserLiveStats;
 
 export async function fetchReliableToolbarStats(userId: string): Promise<ToolbarStats> {
-  const toolbarRequest = fetchOwnToolbarStats();
-  const liveStatsRequest = fetchUserLiveStats(userId);
-  const balanceRequest = (async () => {
-    const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: userId });
-    if (error) throw error;
-    return Number(data) || 0;
-  })();
-  const streakRequest = (async () => {
-    let { data, error } = await supabase.rpc('get_authoritative_streak', { p_user_id: userId });
-    if (error) {
-      const strict = await supabase.rpc('compute_strict_streak', { p_user_id: userId });
-      data = strict.data;
-      error = strict.error;
-    }
-    if (error) throw error;
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) throw new Error('Authoritative streak data were unavailable.');
-    return {
-      current_streak: Number(row.current_streak) || 0,
-      longest_streak: Number(row.longest_streak) || 0,
-      consecutive_inactive: Number(row.consecutive_inactive) || 0,
-      cumulative_inactive: Number(row.cumulative_inactive) || 0,
-    };
-  })();
-
-  const [toolbarResult, balanceResult, streakResult, liveStatsResult] = await Promise.allSettled([
-    toolbarRequest,
-    balanceRequest,
-    streakRequest,
-    liveStatsRequest,
-  ]);
-  const toolbar = toolbarResult.status === 'fulfilled' ? toolbarResult.value : null;
-  const liveStats = liveStatsResult.status === 'fulfilled' ? liveStatsResult.value : null;
-
-  let balance = balanceResult.status === 'fulfilled'
-    ? balanceResult.value
-    : toolbar?.total_denarii ?? liveStats?.total_denarii ?? null;
-  if (balance === null) {
-    const entries = await fetchLedgerEntries(userId).catch(() => null);
-    if (entries) {
-      balance = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-    }
-  }
-
-  const streak = streakResult.status === 'fulfilled'
-    ? streakResult.value
-    : liveStats
-      ? {
-          current_streak: liveStats.current_streak,
-          longest_streak: liveStats.longest_streak,
-          consecutive_inactive: liveStats.consecutive_inactive,
-          cumulative_inactive: liveStats.cumulative_inactive,
-        }
-      : toolbar
-        ? {
-            current_streak: toolbar.current_streak,
-            longest_streak: toolbar.longest_streak,
-            consecutive_inactive: toolbar.consecutive_inactive,
-            cumulative_inactive: toolbar.cumulative_inactive,
-          }
-        : null;
-
-  if (balance === null && !toolbar && !liveStats) throw new Error('Live Denarii data were unavailable.');
-  if (!streak && !toolbar && !liveStats) throw new Error('Live streak data were unavailable.');
-
-  return {
-    user_id: userId,
-    total_denarii: balance ?? 0,
-    current_streak: streak?.current_streak ?? 0,
-    longest_streak: streak?.longest_streak ?? 0,
-    consecutive_inactive: streak?.consecutive_inactive ?? toolbar?.consecutive_inactive ?? 0,
-    cumulative_inactive: streak?.cumulative_inactive ?? toolbar?.cumulative_inactive ?? 0,
-    marks: liveStats?.marks ?? toolbar?.marks ?? 0,
-  };
+  return fetchUserLiveStats(userId);
 }
 
 export async function fetchUserLiveStats(userId: string): Promise<UserLiveStats> {
-  const { data, error } = await supabase.rpc('get_user_live_stats', { p_user_id: userId });
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.user_id) throw new Error('Live user stats were unavailable.');
-  return {
-    user_id: row?.user_id || userId,
-    total_denarii: Number(row?.total_denarii) || 0,
-    current_streak: Number(row?.current_streak) || 0,
-    longest_streak: Number(row?.longest_streak) || 0,
-    consecutive_inactive: Number(row?.consecutive_inactive) || 0,
-    cumulative_inactive: Number(row?.cumulative_inactive) || 0,
-    total_figs: Number(row?.total_figs) || 0,
-    rhudes: Number(row?.rhudes) || 0,
-    marks: Number(row?.marks) || 0,
-  };
+  return shareReadRequest(`live-stats:${userId}`, async () => {
+    const { data, error } = await supabase.rpc('get_user_live_stats', { p_user_id: userId });
+    if (error) throw error;
+    return parseLiveStats(data, userId);
+  });
 }
 
 export async function fetchProfileCv(userId: string) {

@@ -142,6 +142,7 @@ export function SentryApp() {
   const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
   const [sentryDenarii, setSentryDenarii] = useState(0);
   const [sentryMarks, setSentryMarks] = useState(0);
+  const [ownStatsReady, setOwnStatsReady] = useState(false);
   const [sentryLedger, setSentryLedger] = useState<DenariiLedgerEntry[]>([]);
   const [subStatus, setSubStatus] = useState<SubscriptionStatusView | null>(null);
   const [subscriptionClock, setSubscriptionClock] = useState(() => Date.now());
@@ -166,22 +167,20 @@ export function SentryApp() {
     if (!profile) return Promise.resolve();
     if (statsRequestRef.current) return statsRequestRef.current;
     const request = (async () => {
-      const [protection, toolbarStats, ownLedger] = await Promise.allSettled([
-        fetchStreakProtectionState(),
-        fetchReliableToolbarStats(profile.id),
-        fetchLedgerEntries(profile.id, 80),
-      ]);
-      if (protection.status === 'fulfilled') setStreakProtection(protection.value);
-      if (toolbarStats.status === 'fulfilled') {
-        const resolvedStreak = Number(toolbarStats.value.current_streak) || 0;
+      await Promise.allSettled([
+        fetchStreakProtectionState().then(setStreakProtection),
+        fetchLedgerEntries(profile.id, 80).then(setSentryLedger),
+        fetchReliableToolbarStats(profile.id).then((stats) => {
+        const resolvedStreak = stats.current_streak;
         setSentryStreak((previous) => {
           if (hasLoadedRef.current && resolvedStreak > previous) setStreakCelebration(resolvedStreak);
           return resolvedStreak;
         });
-        setSentryDenarii(Number(toolbarStats.value.total_denarii) || 0);
-        setSentryMarks(Number(toolbarStats.value.marks) || 0);
-      }
-      if (ownLedger.status === 'fulfilled') setSentryLedger(ownLedger.value);
+        setSentryDenarii(stats.total_denarii);
+        setSentryMarks(stats.marks);
+        setOwnStatsReady(true);
+        }),
+      ]);
     })();
     const shared = request.finally(() => {
       if (statsRequestRef.current === shared) statsRequestRef.current = null;
@@ -545,19 +544,19 @@ export function SentryApp() {
           )}
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-coral-soft border border-coral/30" title={`${sentryStreak} day streak`}>
             <StreakStatusIcon protection={streakProtection} />
-            <span className="font-display font-bold text-coral text-[13px]">{sentryStreak}</span>
+            <span className="font-display font-bold text-coral text-[13px]">{ownStatsReady ? sentryStreak : '...'}</span>
           </div>
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-border-bright bg-surface-2" title={`${sentryMarks.toLocaleString(undefined, { maximumFractionDigits: 2 })} Marks`}>
             <ChiRhoMark size={14} className="text-peri-2" />
             <span className="font-display text-[13px] font-bold text-peri-2">
-              {sentryMarks.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              {ownStatsReady ? sentryMarks.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '...'}
             </span>
           </div>
           <NotificationCenter onNavigate={navigateFromAction} />
           <div data-denarii-target className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-peri-soft border border-border-bright" title={`${sentryDenarii.toLocaleString()} Denarii`}>
             <Coins size={16} className="text-gold" />
             <span className="font-display font-bold text-gold text-[13px]">
-              {sentryDenarii >= 1000 ? `${(sentryDenarii / 1000).toFixed(1)}K` : sentryDenarii}
+              {ownStatsReady ? sentryDenarii >= 1000 ? `${(sentryDenarii / 1000).toFixed(1)}K` : sentryDenarii : '...'}
             </span>
           </div>
           {tent?.tent_house_id ? <TentHouseSymbol houseId={tent.tent_house_id} size={28} /> : null}
@@ -966,7 +965,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         <StatCard icon={Sunrise} label="Day Type" value={dayType === 'saturday' ? 'Quiz' : dayType === 'sunday' ? 'Rest' : 'Weekday'} color="#9A8B72" />
       </div>
 
-      <div className="card relative overflow-hidden p-4">
+      <div data-artwork-theme={(panelImages.recent_denarii)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
         <PanelImageBackdrop image={panelImages.recent_denarii} />
         <div className="relative">
           <SectionHeader title="Recent Denarii" subtitle={`${formatDenarii(denariiTotal)} total · ${todayDenarii >= 0 ? '+' : ''}${formatDenarii(todayDenarii)} today`} />

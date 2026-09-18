@@ -264,7 +264,7 @@ function ItemComposer({
 
   const modal = (
     <div className="fixed inset-0 z-[2147483400] flex items-end justify-center overflow-y-auto bg-navy/75 p-0 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4" onClick={onClose}>
-      <section className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-lg border border-border bg-bg shadow-2xl sm:rounded-lg" onClick={(event) => event.stopPropagation()}>
+      <section data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-lg border border-border bg-bg shadow-2xl sm:rounded-lg" onClick={(event) => event.stopPropagation()}>
         <PanelImageBackdrop image={arenaImage} opacityFallback={26} veilClassName="hidden-composer-panel-veil" />
         <header className="relative z-10 flex items-center justify-between border-b border-border bg-surface/75 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -536,7 +536,7 @@ export function HiddenItemsMarket({
 
   return (
     <>
-      <section className="card relative overflow-hidden p-5">
+      <section data-artwork-theme={(marketImage || null)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/82" />
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -552,7 +552,7 @@ export function HiddenItemsMarket({
         {notice && <div role="alert" className="relative z-10 mt-3 rounded-md border border-coral/30 bg-coral/10 px-3 py-2 text-xs text-coral">{notice}</div>}
 
         <div className="relative z-10 mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="relative isolate overflow-hidden rounded-lg border border-border bg-transparent p-4">
+          <div data-artwork-theme={(marketImage || null)?.url ? 'night' : undefined} className="relative isolate overflow-hidden rounded-lg border border-border bg-transparent p-4">
             <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/82" />
             <div className="relative z-10 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Gift size={18} className="text-gold" /><span className="text-sm font-bold text-ink">Treasure Box</span></div>
@@ -569,7 +569,7 @@ export function HiddenItemsMarket({
             </div>
           </div>
 
-          <div className="relative isolate overflow-hidden rounded-lg border border-border bg-transparent p-4">
+          <div data-artwork-theme={(marketImage || null)?.url ? 'night' : undefined} className="relative isolate overflow-hidden rounded-lg border border-border bg-transparent p-4">
             <PanelImageBackdrop image={marketImage || null} opacityFallback={18} veilClassName="bg-navy-2/82" />
             <div className="relative z-10 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2"><Bomb size={18} className="text-coral" /><span className="text-sm font-bold text-ink">Mine</span></div>

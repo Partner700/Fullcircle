@@ -136,7 +136,7 @@ export function ProfileCvHost() {
 
   return createPortal(
     <div className="profile-cv-overlay fixed inset-0 z-[2147483500] flex items-center justify-center bg-navy/72 p-3 backdrop-blur-sm animate-fade-in" onClick={close}>
-      <section
+      <section data-artwork-theme={(artwork)?.url ? 'night' : undefined}
         className="profile-cv-panel relative isolate w-full overflow-auto rounded-lg border border-border-bright bg-bg/[0.45] shadow-2xl animate-fade-in"
         onClick={(event) => event.stopPropagation()}
         role="dialog"

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { fetchLedgerTotal, fetchRelicInventory, fetchAwards, fetchStrictStreak, fetchQuizScoreboard, fetchRhudeBoard, fetchMarksBoard, fetchUserLiveStats } from '../lib/queries';
+import { fetchRelicInventory, fetchAwards, fetchUserLiveStats } from '../lib/queries';
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
@@ -40,18 +40,13 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
-    setLoading(true);
     try {
-    const [balance, streakInfo, awards, relics, memberData, sentryTentData, figBoard, rhudeBoard, marksBoard] = await Promise.allSettled([
-      fetchLedgerTotal(profile.id),
-      fetchStrictStreak(profile.id),
+    const [liveStats, awards, relics, memberData, sentryTentData] = await Promise.allSettled([
+      fetchUserLiveStats(profile.id),
       fetchAwards(),
       fetchRelicInventory(profile.id),
       supabase.from('tent_members').select('*, tents(*, tent_houses(*))').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
-      fetchQuizScoreboard(),
-      fetchRhudeBoard(),
-      fetchMarksBoard(),
     ]);
 
     const memberRow = memberData.status === 'fulfilled' ? memberData.value.data : null;
@@ -76,42 +71,16 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
       tent = { name: t.name, houseId: t.tent_house_id, sentryName };
     }
 
-    let figTotal = figBoard.status === 'fulfilled' ? Number(figBoard.value.find((row) => row.user_id === profile.id)?.total_score || 0) : 0;
-    let rhudeTotal = rhudeBoard.status === 'fulfilled' ? Number(rhudeBoard.value.find((row) => row.user_id === profile.id)?.rhudes || 0) : 0;
-    let marksTotal = marksBoard.status === 'fulfilled' ? Number(marksBoard.value.find((row) => row.user_id === profile.id)?.marks || 0) : 0;
-
-    if (!figTotal || !rhudeTotal || !marksTotal) {
-      const [quizAttempts, gameAttempts, arenaWins] = await Promise.allSettled([
-        supabase.from('quiz_attempts').select('figs_scored,talents_scored,score').eq('user_id', profile.id),
-        supabase.from('game_attempts').select('score').eq('user_id', profile.id),
-        supabase.from('arena_rooms').select('id', { count: 'exact', head: true }).eq('winner_id', profile.id).eq('status', 'completed'),
-      ]);
-      if (!figTotal) {
-        const quizFigs = quizAttempts.status === 'fulfilled'
-          ? (quizAttempts.value.data || []).reduce((sum: number, row: any) => sum + Number(row.figs_scored ?? row.talents_scored ?? row.score ?? 0), 0)
-          : 0;
-        const gameFigs = gameAttempts.status === 'fulfilled'
-          ? (gameAttempts.value.data || []).reduce((sum: number, row: any) => sum + Number(row.score || 0), 0)
-          : 0;
-        figTotal = quizFigs + gameFigs;
-      }
-      if (!rhudeTotal && arenaWins.status === 'fulfilled') rhudeTotal = Number(arenaWins.value.count || 0);
-      if (!marksTotal) {
-        const liveStats = await fetchUserLiveStats(profile.id).catch(() => null);
-        marksTotal = Number(liveStats?.marks || 0);
-      }
-    }
-
-    setStats({
-      denarii: balance.status === 'fulfilled' ? balance.value : 0,
-      streak: streakInfo.status === 'fulfilled' ? streakInfo.value.current_streak : 0,
-      longestStreak: streakInfo.status === 'fulfilled' ? streakInfo.value.longest_streak : 0,
-      awards: myAwards,
-      relics: relics.status === 'fulfilled' ? relics.value.length : 0,
-      figs: figTotal,
-      rhudes: rhudeTotal,
-      marks: marksTotal,
-    });
+    setStats((previous) => ({
+      ...previous,
+      ...(liveStats.status === 'fulfilled' ? {
+        denarii: liveStats.value.total_denarii, streak: liveStats.value.current_streak,
+        longestStreak: liveStats.value.longest_streak, figs: liveStats.value.total_figs,
+        rhudes: liveStats.value.rhudes, marks: liveStats.value.marks,
+      } : {}),
+      awards: awards.status === 'fulfilled' ? myAwards : previous.awards,
+      relics: relics.status === 'fulfilled' ? relics.value.length : previous.relics,
+    }));
     setTentInfo(tent);
     } catch (e) { console.error('Settings load error:', e); }
     setLoading(false);

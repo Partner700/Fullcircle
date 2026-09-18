@@ -409,7 +409,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_announcement', label: 'General / Announcement Panel', audience: 'all' },
   { type: 'panel_image_birthday', label: 'Birthday Announcement Panel', audience: 'all' },
   { type: 'panel_image_morning_call', label: 'Morning Call', audience: 'all' },
-  { type: 'panel_image_midday_reminder', label: 'Midday Reminder', audience: 'all' },
+  { type: 'panel_image_midday_reminder', label: 'Week-day Reminder', audience: 'all' },
   { type: 'panel_image_evening_reminder', label: 'Evening Reminder', audience: 'all' },
   { type: 'panel_image_quote_of_day', label: 'Quote of the Day Notice', audience: 'all' },
   { type: 'panel_image_streakboard_release', label: 'Streakboard Release', audience: 'all' },
@@ -930,7 +930,7 @@ function AnnouncementManager() {
             <AppSelect value={announcementType} onChange={setAnnouncementType} options={[
               { value: 'general', label: 'General' },
               { value: 'morning_call', label: 'Morning Call' },
-              { value: 'midday_reminder', label: 'Midday Reminder' },
+              { value: 'midday_reminder', label: 'Week-day Reminder' },
               { value: 'evening_reminder', label: 'Evening Reminder' },
               { value: 'quote_of_day', label: 'Quote of the Day' },
               { value: 'birthday', label: 'Birthday' },
@@ -1121,7 +1121,7 @@ function AnnouncementManager() {
                     )}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap gap-1.5 mb-1">
-                      <span className="badge badge-neutral text-[10px]">{announcement.announcement_type.replace(/_/g, ' ')}</span>
+                      <span className="badge badge-neutral text-[10px]">{announcement.announcement_type === 'midday_reminder' ? 'Week-day Reminder' : announcement.announcement_type.replace(/_/g, ' ')}</span>
                       <span className="badge badge-peri text-[10px]">{announcement.audience}</span>
                       <span className={cn('badge text-[10px]', announcement.is_active ? 'badge-moss' : 'badge-neutral')}>
                         {announcement.is_active ? 'Active' : 'Paused'}
@@ -1507,7 +1507,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <section className="card relative overflow-hidden p-5">
+      <section data-artwork-theme={(coverImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={coverImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
         <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
@@ -1621,7 +1621,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
           <div className="quote-glass-panel flex items-start gap-3 rounded-2xl p-4 ring-1 ring-black/5">
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-1">Quote Feed</p>
-              <p className="text-base text-ink font-display font-medium italic leading-snug">"{featuredQuote.daily_quote}"</p>
+              <p className="text-[15px] text-ink font-display font-semibold italic leading-snug">"{featuredQuote.daily_quote}"</p>
               <QuoteAuthorStats quote={featuredQuote} showDate={false} compact currentUserId={instructorId} onMessageOpenChange={setQuotePaused} />
               {quotes.length > 1 && (
                 <div className="mt-2 flex items-center gap-1.5">

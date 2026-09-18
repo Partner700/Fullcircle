@@ -97,7 +97,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   };
 
   return (
-    <section className="card relative isolate overflow-hidden border-gold/30 bg-surface-2">
+    <section data-artwork-theme={(image)?.url ? 'night' : undefined} className="card relative isolate overflow-hidden border-gold/30 bg-surface-2">
       <PanelImageBackdrop
         image={image}
         opacityFallback={100}

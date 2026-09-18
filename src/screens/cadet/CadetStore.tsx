@@ -503,7 +503,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       )}
 
       {giftRecipients.length > 0 && (
-        <div className="card relative overflow-hidden p-4">
+        <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
           <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/80" />
           <label className="relative z-10 text-xs text-stone block mb-1">Buy for</label>
           <div className="relative z-10">
@@ -522,7 +522,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       )}
 
       {/* Balance bar */}
-      <div className="card relative flex flex-col items-start justify-between gap-2 overflow-hidden p-4 min-[460px]:flex-row min-[460px]:items-center">
+      <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative flex flex-col items-start justify-between gap-2 overflow-hidden p-4 min-[460px]:flex-row min-[460px]:items-center">
         <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/78" />
         <div className="relative z-10 flex items-center gap-2">
           <Coins size={20} className="text-gold" />
@@ -532,7 +532,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         <span className="relative z-10 text-xs text-stone">Cash prices in FCFA</span>
       </div>
 
-      <div className="card relative overflow-hidden p-5">
+      <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
         <div className="relative z-10 flex items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold"><Ticket size={21} /></span>
@@ -560,7 +560,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       />
 
       {/* Streak Freezers */}
-      <div className="card p-5 relative overflow-hidden">
+      <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card p-5 relative overflow-hidden">
         <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
         <div className="relative z-10 flex items-center gap-2 mb-3">
           <Snowflake size={20} className="text-brass" />
@@ -618,7 +618,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       </div>
 
       {/* Relics */}
-      <div className="card relative overflow-hidden p-5">
+      <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
         <div className="relative z-10 flex items-center gap-2 mb-3">
           <ShoppingBag size={20} className="text-royal" />

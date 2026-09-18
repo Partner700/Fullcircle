@@ -91,13 +91,15 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
       ]);
       setRecords(recs.status === 'fulfilled' ? recs.value : []);
       setFreezers(frz.status === 'fulfilled' ? frz.value : []);
-      setDenariiBalance((bal.status === 'fulfilled' && bal.value.data) ? Number(bal.value.data) : 0);
+      const confirmedBalance = bal.status === 'fulfilled' && !bal.value.error && bal.value.data !== null
+        && Number.isFinite(Number(bal.value.data)) ? Number(bal.value.data) : undefined;
+      if (confirmedBalance !== undefined) setDenariiBalance(confirmedBalance);
       setStreakData(strict.status === 'fulfilled' ? strict.value : null);
       if (strict.status === 'fulfilled') {
         window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
           detail: {
             userId: profile.id,
-            ...(bal.status === 'fulfilled' ? { denarii: Number(bal.value.data) || 0 } : {}),
+            ...(confirmedBalance !== undefined ? { denarii: confirmedBalance } : {}),
             streak: strict.value.current_streak,
           },
         }));

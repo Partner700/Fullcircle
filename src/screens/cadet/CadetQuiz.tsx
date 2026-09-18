@@ -41,7 +41,7 @@ function QuizArtworkFrame({ image, className, children }: {
     '--weekly-quiz-position': `${image.positionX ?? 50}% ${image.positionY ?? 50}%`,
     '--weekly-quiz-blur': `${Math.max(0, Number(image.adjustments?.blur || 0) / 8)}px`,
   } as CSSProperties) : undefined;
-  return <div className={cn('weekly-quiz-window', image && 'weekly-quiz-window-artwork', className)} style={style}>{children}</div>;
+  return <div data-artwork-theme={image?.url ? 'night' : undefined} className={cn('weekly-quiz-window', image && 'weekly-quiz-window-artwork', className)} style={style}>{children}</div>;
 }
 
 function quizErrorMessage(error: unknown) {

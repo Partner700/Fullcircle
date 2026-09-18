@@ -506,7 +506,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
 
         {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
 
-        <div className="card relative overflow-hidden p-5">
+        <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
           <PanelImageBackdrop image={arenaImage} opacityFallback={24} veilClassName="arena-panel-veil" />
           <div className="relative z-10">
           <h3 className="font-display text-lg font-semibold text-ink mb-1">{room?.room_name || 'Arena Room'}</h3>
@@ -640,7 +640,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           <ArrowLeft size={15} /> Back to Daily Games
         </button>
       )}
-      <div className="card relative overflow-hidden p-4 sm:p-5">
+      <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4 sm:p-5">
         <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="arena-panel-veil" />
         <div className="relative z-10">
           <SectionHeader title="The Arena" subtitle="Challenge cadets and sentries to real-time quiz battles. Stake denarii, winner takes all." />
@@ -784,7 +784,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
             const pot = room.stake_amount * participants.length * 10;
             return (
-              <div key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">
+              <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={18} veilClassName="arena-panel-veil" />
                 <div className="relative z-10 w-10 h-10 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
                   <Swords size={20} className="text-gold" />

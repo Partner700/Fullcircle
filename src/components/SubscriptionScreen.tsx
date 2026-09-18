@@ -300,7 +300,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 animate-fade-in">
-      <section className="card relative overflow-hidden p-6 text-center">
+      <section data-artwork-theme={(panelImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-6 text-center">
         <PanelImageBackdrop image={panelImage} veilClassName="welcome-slide-veil" opacityFallback={35} />
         <div className="relative z-10">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-gold/25 bg-gold-soft">

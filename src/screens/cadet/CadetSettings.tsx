@@ -4,7 +4,7 @@ import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchStrictStreak, fetchLedgerTotal, fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
+import { fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -52,83 +52,37 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
 
   const load = useCallback(async () => {
     if (!profile) return;
-    setLoading(true);
     try {
-      const [balance, streak, sub, liveStats] = await Promise.all([
-        fetchLedgerTotal(profile.id),
-        fetchStrictStreak(profile.id),
-        getSubscriptionStatus(profile.id),
-        fetchUserLiveStats(profile.id).catch(() => null),
+      await Promise.allSettled([
+        fetchUserLiveStats(profile.id).then((live) => {
+          setStats((previous) => ({ ...previous,
+            denarii: live.total_denarii, currentStreak: live.current_streak,
+            longestStreak: live.longest_streak, figs: live.total_figs,
+            rhudes: live.rhudes, marks: live.marks,
+          }));
+          window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
+            detail: { userId: profile.id, denarii: live.total_denarii, streak: live.current_streak, marks: live.marks },
+          }));
+        }),
+        getSubscriptionStatus(profile.id).then(setSubStatus),
+        ...(['game_attempts', 'quiz_attempts', 'daily_records', 'awards'] as const).map(async (table, index) => {
+          let query = supabase.from(table).select('*', { count: 'exact', head: true }).eq('user_id', profile.id);
+          if (table === 'daily_records') query = query.eq('meditation_submitted', true);
+          const { count, error } = await query;
+          if (error) throw error;
+          const key = (['gamesPlayed', 'quizzesTaken', 'narrativesRead', 'awardsCount'] as const)[index];
+          setStats((previous) => ({ ...previous, [key]: count ?? 0 }));
+        }),
+        (async () => {
+          const { data, error } = await supabase.from('relic_inventory').select('quantity').eq('user_id', profile.id);
+          if (error) throw error;
+          setStats((previous) => ({ ...previous, relicsOwned: (data || []).reduce((sum, row) => sum + row.quantity, 0) }));
+        })(),
       ]);
-
-      const { count: gamesPlayed } = await supabase
-        .from('game_attempts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id);
-
-      const { count: quizzesTaken } = await supabase
-        .from('quiz_attempts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id);
-
-      const { count: narrativesRead } = await supabase
-        .from('daily_records')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('meditation_submitted', true);
-
-      const { data: streakRecords } = await supabase
-        .from('daily_records')
-        .select('record_date, streak_valid')
-        .eq('user_id', profile.id)
-        .order('record_date', { ascending: true });
-      let historicalLongest = 0;
-      let run = 0;
-      (streakRecords || []).forEach((record: any) => {
-        if (record.streak_valid) {
-          run += 1;
-          historicalLongest = Math.max(historicalLongest, run);
-        } else {
-          run = 0;
-        }
-      });
-
-      const { count: awardsCount } = await supabase
-        .from('awards')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id);
-
-      const { data: relics } = await supabase
-        .from('relic_inventory')
-        .select('quantity')
-        .eq('user_id', profile.id);
-      const relicsOwned = (relics || []).reduce((sum: number, r: any) => sum + (r.quantity || 0), 0);
-
-      setStats({
-        denarii: balance,
-        currentStreak: streak.current_streak,
-        longestStreak: Math.max(streak.longest_streak, historicalLongest),
-        awardsCount: awardsCount || 0,
-        figs: Number(liveStats?.total_figs || 0),
-        rhudes: Number(liveStats?.rhudes || 0),
-        marks: Number(liveStats?.marks || 0),
-        gamesPlayed: gamesPlayed || 0,
-        quizzesTaken: quizzesTaken || 0,
-        narrativesRead: narrativesRead || 0,
-        relicsOwned,
-      });
-      window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
-        detail: {
-          userId: profile.id,
-          denarii: balance,
-          streak: streak.current_streak,
-          marks: Number(liveStats?.marks || 0),
-        },
-      }));
-      setSubStatus(sub);
-    } catch {}
-    setLoading(false);
-  }, [profile]);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile?.id]);
 
   useEffect(() => { void load(); }, [load, refreshKey]);
 

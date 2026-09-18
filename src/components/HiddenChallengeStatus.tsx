@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bomb, CheckCircle2, Gift, Loader2, MapPin, PackageSearch, TimerReset, X, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyHiddenChallengeStatus, HIDDEN_CHALLENGE_STATUS_EVENT } from '../lib/hiddenChallenges';
@@ -55,6 +55,51 @@ export function HiddenChallengeStatus() {
   const [items, setItems] = useState<HiddenChallengeCreatorStatus[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const positionKey = `full-circle-hidden-item-position:${profile?.id || ''}`;
+
+  const moveButton = useCallback((point: { x: number; y: number }) => {
+    const viewport = window.visualViewport;
+    const left = viewport?.offsetLeft || 0;
+    const top = viewport?.offsetTop || 0;
+    const next = {
+      x: Math.max(left + 8, Math.min(point.x, left + (viewport?.width || window.innerWidth) - 52)),
+      y: Math.max(top + 8, Math.min(point.y, top + (viewport?.height || window.innerHeight) - 52)),
+    };
+    setPosition(next);
+    return next;
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(positionKey) || 'null');
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) moveButton(saved);
+      else setPosition(null);
+    } catch { setPosition(null); }
+  }, [positionKey, moveButton]);
+
+  useEffect(() => {
+    const keepVisible = () => {
+      setPosition((current) => {
+        if (!current) return null;
+        const viewport = window.visualViewport;
+        const left = viewport?.offsetLeft || 0;
+        const top = viewport?.offsetTop || 0;
+        return {
+          x: Math.max(left + 8, Math.min(current.x, left + (viewport?.width || window.innerWidth) - 52)),
+          y: Math.max(top + 8, Math.min(current.y, top + (viewport?.height || window.innerHeight) - 52)),
+        };
+      });
+    };
+    window.addEventListener('resize', keepVisible);
+    window.visualViewport?.addEventListener('resize', keepVisible);
+    return () => {
+      window.removeEventListener('resize', keepVisible);
+      window.visualViewport?.removeEventListener('resize', keepVisible);
+    };
+  }, []);
 
   const load = useCallback(async (showLoading = false) => {
     if (!profile?.id) return;
@@ -104,9 +149,39 @@ export function HiddenChallengeStatus() {
     <>
       <button
         type="button"
-        onClick={() => { setOpen(true); void load(true); }}
-        className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl transition-transform hover:scale-105 md:bottom-6 md:right-6"
-        title="Treasures and Mines you have hidden"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          suppressClick.current = false;
+          drag.current = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const start = drag.current;
+          if (!start) return;
+          const dx = event.clientX - start.x;
+          const dy = event.clientY - start.y;
+          if (Math.hypot(dx, dy) > 6) start.moved = true;
+          if (start.moved) moveButton({ x: start.left + dx, y: start.top + dy });
+        }}
+        onPointerUp={(event) => {
+          const start = drag.current;
+          if (start?.moved) {
+            suppressClick.current = true;
+            const next = moveButton({ x: start.left + event.clientX - start.x, y: start.top + event.clientY - start.y });
+            try { localStorage.setItem(positionKey, JSON.stringify(next)); } catch { /* Optional preference. */ }
+          }
+          drag.current = null;
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => { suppressClick.current = !!drag.current?.moved; drag.current = null; }}
+        onClick={(event) => {
+          if (suppressClick.current && event.detail !== 0) { suppressClick.current = false; return; }
+          setOpen(true); void load(true);
+        }}
+        style={position ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto', touchAction: 'none' } : { touchAction: 'none' }}
+        className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl cursor-grab active:cursor-grabbing md:bottom-6 md:right-6"
+        title="Treasures and Mines (drag to move)"
         aria-label="Open hidden item status"
       >
         <PackageSearch size={20} />

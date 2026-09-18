@@ -497,14 +497,14 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     ];
 
   const BoardPanel = ({ children, className = 'p-4' }: { children: ReactNode; className?: string }) => (
-    <div className={cn('card relative overflow-hidden', className)}>
+    <div data-artwork-theme={(boardImage)?.url ? 'night' : undefined} className={cn('card relative overflow-hidden', className)}>
       <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
       <div className="relative z-10">{children}</div>
     </div>
   );
 
   const boardNavigation = (
-    <div className="card relative overflow-hidden p-3">
+    <div data-artwork-theme={(boardImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-3">
       <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
       <div className="relative z-10 mb-3 flex items-center justify-between gap-3">
         <div>

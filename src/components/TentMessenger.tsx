@@ -145,7 +145,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
 
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
-      <div
+      <div data-artwork-theme={(messageArtwork)?.url ? 'night' : undefined}
         className="relative isolate z-[2147483001] flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/[0.45] shadow-xl animate-slide-up sm:max-w-md sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -323,7 +323,7 @@ export function TentGroupMessenger({
 
   const modal = (
     <div className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/50 animate-fade-in sm:items-center" onClick={onClose}>
-      <div
+      <div data-artwork-theme={(messageArtwork)?.url ? 'night' : undefined}
         className="relative isolate z-[2147483001] flex max-h-[82vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-bg/[0.45] shadow-xl animate-slide-up sm:max-w-lg sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
