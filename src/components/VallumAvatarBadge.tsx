@@ -15,9 +15,11 @@ let loadedAt = 0;
 let loadPromise: Promise<void> | null = null;
 let realtimeStarted = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let cacheHydrated = false;
 const listeners = new Set<() => void>();
 const CACHE_MS = 60_000;
 const RETRY_MS = 5_000;
+const STORAGE_KEY = 'full-circle-standing-avatar-awards-v1';
 
 const AWARD_ICONS = {
   rhetoric: MessageCircle,
@@ -60,17 +62,51 @@ function publish() {
   listeners.forEach((listener) => listener());
 }
 
+function hydrateCachedAwards() {
+  if (cacheHydrated || typeof window === 'undefined') return;
+  cacheHydrated = true;
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]') as Array<AvatarAward & { user_id: string }>;
+    if (!Array.isArray(cached) || cached.length === 0) return;
+    holderAwards = new Map(cached.map((award) => [award.user_id, {
+      award_type: normalizedAwardType(award.award_type, award.title),
+      title: award.title,
+      cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
+    }]));
+    publish();
+  } catch {
+    // A blocked or damaged browser cache must not prevent live award loading.
+  }
+}
+
+function persistCurrentAwards() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(
+      [...holderAwards.entries()].map(([user_id, award]) => ({ user_id, ...award })),
+    ));
+  } catch {
+    // The live result remains usable when private browsing blocks storage.
+  }
+}
+
 async function loadCurrentAwards(force = false) {
+  hydrateCachedAwards();
   if (!force && loadedAt && Date.now() - loadedAt < CACHE_MS) return;
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     const { data, error } = await supabase.rpc('get_current_avatar_awards');
     if (error) throw error;
-    holderAwards = new Map((data || []).map((award: any) => [award.user_id, {
+    const nextAwards = new Map<string, AvatarAward>((data || []).map((award: any) => [award.user_id, {
       award_type: normalizedAwardType(String(award.award_type || ''), String(award.title || '')),
       title: String(award.title || 'Full Circle award'),
       cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
     }]));
+    if (nextAwards.size === 0 && holderAwards.size > 0) {
+      throw new Error('Standing award refresh returned no holders. Keeping the last verified result.');
+    }
+    holderAwards = nextAwards;
+    persistCurrentAwards();
     loadedAt = Date.now();
     if (retryTimer) {
       clearTimeout(retryTimer);
@@ -126,6 +162,7 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   useEffect(() => {
     const listener = () => render((value) => value + 1);
     listeners.add(listener);
+    hydrateCachedAwards();
     ensureRealtimeUpdates();
     void loadCurrentAwards();
     return () => { listeners.delete(listener); };
@@ -138,14 +175,14 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   const isVallum = awardType === 'vallum';
 
   const shellClass = size === 'auto'
-    ? 'h-[36%] w-[36%] min-h-2.5 min-w-2.5 max-h-5 max-w-5 border'
+    ? 'h-[42%] w-[42%] min-h-4 min-w-4 max-h-6 max-w-6 border-2'
     : size === 'xs' ? 'h-3.5 w-3.5 border' : size === 'md' ? 'h-5 w-5 border-2' : 'h-4 w-4 border';
-  const markSize = size === 'auto' ? 9 : size === 'xs' ? 8 : size === 'md' ? 12 : 10;
+  const markSize = size === 'auto' ? 11 : size === 'xs' ? 8 : size === 'md' ? 12 : 10;
 
   return (
     <span
       className={cn(
-        'full-circle-avatar-award-badge pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
+        'full-circle-avatar-award-badge pointer-events-none absolute -left-1 -top-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
         isVallum
           ? 'border-gold/90 bg-navy-2 text-gold'
           : 'border-sage/80 bg-navy-2 text-sage-bright',

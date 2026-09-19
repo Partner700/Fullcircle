@@ -1,10 +1,10 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v136';
+const CACHE_VERSION = 'full-circle-v137';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
-const RECOVERY_MARKER = '129';
+const RECOVERY_MARKER = '130';
 const NAVIGATION_FALLBACK_DELAY_MS = 4_500;
 
 const NOTIFICATION_SYMBOLS = {
@@ -168,14 +168,12 @@ async function refreshInstalledClient(client) {
   const target = new URL(client.url);
   if (target.origin !== self.location.origin) return;
 
-  // Existing home-screen installations retain the start_url query from the
-  // manifest. Refresh those clients once when a new worker activates so they
-  // cannot remain pinned to an old GitHub Pages shell.
-  const installedLaunch = target.searchParams.has('fc-launch');
   const previousWorker = target.searchParams.get('fc-worker');
-  if (!installedLaunch && previousWorker === null) return;
   if (previousWorker === RECOVERY_MARKER) return;
 
+  // Refresh every same-origin application window once. Some installed copies
+  // have lost their original start_url query, so checking only fc-launch can
+  // leave those clients pinned to an older GitHub Pages shell indefinitely.
   target.searchParams.set('fc-worker', RECOVERY_MARKER);
   target.searchParams.set('fc-refreshed-at', String(Date.now()));
   await client.navigate(target.href);
