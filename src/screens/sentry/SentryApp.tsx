@@ -677,7 +677,6 @@ export function SentryApp() {
           onActivated={async (status) => {
             setSubStatus(status);
             await load();
-            setTab('overview');
           }}
         />
       )}

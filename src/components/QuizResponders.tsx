@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { fetchLatestQuizSession, fetchLatestWeeklyQuizRankings, fetchQuizResponders } from '../lib/queries';
+import {
+  fetchLatestQuizSession,
+  fetchLatestWeeklyQuizRankings,
+  fetchQuizResponders,
+  fetchQuizResponseBoard,
+} from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import type { QuizResponder, WeeklyQuizRanking } from '../lib/types';
+import type { QuizResponder, QuizResponseBoardMember, WeeklyQuizRanking } from '../lib/types';
 import { cn } from '../lib/utils';
+import { TENT_HOUSES } from '../lib/constants';
+import { publicAsset } from '../lib/publicAsset';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
+import { TentHouseSymbol } from './TentHouseSymbol';
 import { useAuth } from '../context/AuthContext';
 import { UserAvatar } from './UserAvatar';
 
@@ -21,13 +29,13 @@ export function QuizResponders({
 }) {
   const { profile } = useAuth();
   const [resolvedSessionId, setResolvedSessionId] = useState(sessionId || null);
-  const [responders, setResponders] = useState<QuizResponder[]>([]);
+  const [board, setBoard] = useState<QuizResponseBoardMember[]>([]);
   const [rankings, setRankings] = useState<WeeklyQuizRanking[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!active) return;
-    setLoading((current) => current || responders.length === 0);
+    setLoading((current) => current || board.length === 0);
     try {
       let quizSessionId = sessionId || null;
       if (!sessionId) {
@@ -36,26 +44,36 @@ export function QuizResponders({
         if (quizSessionId !== resolvedSessionId) setResolvedSessionId(quizSessionId);
       }
       if (!quizSessionId) {
-        setResponders([]);
+        setBoard([]);
         setRankings([]);
         return;
       }
-      const [nextResponders, nextRankings] = await Promise.all([
-        fetchQuizResponders(quizSessionId),
-        fetchLatestWeeklyQuizRankings(quizSessionId).catch(() => []),
+
+      const [boardResult, rankingResult] = await Promise.allSettled([
+        fetchQuizResponseBoard(quizSessionId),
+        fetchLatestWeeklyQuizRankings(quizSessionId),
       ]);
-      setResponders(nextResponders);
-      setRankings(nextRankings);
+      if (boardResult.status === 'fulfilled') {
+        setBoard(boardResult.value);
+      } else {
+        const responders = await fetchQuizResponders(quizSessionId);
+        setBoard(responders.map((responder: QuizResponder) => ({
+          ...responder,
+          competitor_role: 'cadet' as const,
+          tent_house_id: null,
+        })));
+      }
+      setRankings(rankingResult.status === 'fulfilled' ? rankingResult.value : []);
     } catch (error) {
       console.warn('Quiz responder feed could not load:', error);
     } finally {
       setLoading(false);
     }
-  }, [active, responders.length, resolvedSessionId, sessionId]);
+  }, [active, board.length, resolvedSessionId, sessionId]);
 
   useEffect(() => {
     setResolvedSessionId(sessionId || null);
-    setResponders([]);
+    setBoard([]);
     setRankings([]);
   }, [sessionId]);
 
@@ -82,60 +100,68 @@ export function QuizResponders({
   }, [active, load, resolvedSessionId, sessionId, variant]);
 
   const isSlide = variant === 'slide';
+  const responders = useMemo(() => board.filter((member) => Boolean(member.answered_at)), [board]);
   const placementByUserId = new Map(rankings.map((ranking) => [ranking.user_id, ranking.placement]));
-  const content = (
-    <>
-      <div className="flex items-center justify-between gap-3">
-        <p className={cn('flex items-center gap-1.5 font-semibold text-ink', isSlide ? 'text-[10px] uppercase' : 'text-sm')}>
-          <CheckCircle2 size={isSlide ? 12 : 16} className="text-moss" />
-          Already answered
-        </p>
-        <span className={cn('font-bold tabular-nums text-moss', isSlide ? 'text-xs' : 'text-sm')}>
-          {responders.length}
-        </span>
-      </div>
-
-      {responders.length > 0 ? (
-        <div className={cn(
-          'mt-2 flex items-center',
-          isSlide ? 'flex-nowrap gap-1.5 overflow-x-auto pb-1' : 'flex-wrap gap-2',
-        )}>
-          {responders.map((responder) => (
-            <div
-              key={responder.user_id}
-              title={`${responder.display_name} answered the quiz`}
-              aria-label={responder.display_name}
-              className={cn(
-                'relative flex shrink-0 items-center justify-center rounded-full font-bold text-gold',
-                isSlide ? 'h-6 w-6 text-[8px]' : 'h-9 w-9 text-[10px]',
-              )}
-            >
-              <UserAvatar userId={responder.user_id} name={responder.display_name} avatarUrl={responder.avatar_url} className="h-full w-full border border-moss/55 shadow-sm" />
-
-              <CurrentUserAvatarMarker isCurrentUser={responder.user_id === profile?.id} compact={isSlide} />
-              {placementByUserId.get(responder.user_id) ? (
-                <span className={cn(
-                  'absolute right-0 top-0 z-20 flex -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border border-white/80 bg-navy font-black tabular-nums text-white shadow-sm',
-                  isSlide ? 'h-3 min-w-3 px-0.5 text-[6px]' : 'h-4 min-w-4 px-1 text-[8px]',
-                )} title={`Position ${placementByUserId.get(responder.user_id)}`}>
-                  {placementByUserId.get(responder.user_id)}
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className={cn('mt-2 text-stone', isSlide ? 'text-[10px]' : 'text-xs')}>
-          {loading ? 'Checking quiz responses…' : 'No completed answers yet.'}
-        </p>
-      )}
-    </>
-  );
+  const answeredByTent = useMemo(() => {
+    const totals = new Map<string, number>();
+    responders.forEach((member) => {
+      if (member.tent_house_id) totals.set(member.tent_house_id, (totals.get(member.tent_house_id) || 0) + 1);
+    });
+    return totals;
+  }, [responders]);
 
   if (isSlide) {
     return (
-      <div className={cn('mt-3 max-w-sm rounded-lg border border-white/20 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md', className)}>
-        {content}
+      <div className={cn('mt-3 grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-white/20 bg-surface/55 px-3 py-2.5 shadow-sm backdrop-blur-md', className)} aria-live="polite">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-ink">
+            <CheckCircle2 size={12} className="text-moss" /> Quiz response board
+          </p>
+          {board.length > 0 ? (
+            <div className="mt-2 grid max-w-[20rem] grid-cols-10 gap-1.5" aria-label={`${responders.length} of ${board.length} camp members answered`}>
+              {board.map((member) => {
+                const answered = Boolean(member.answered_at);
+                return (
+                  <span
+                    key={member.user_id}
+                    title={answered ? `${member.display_name} answered the quiz` : 'Waiting for an answer'}
+                    className={cn('relative flex h-6 w-6 items-center justify-center rounded-full border shadow-sm', answered ? 'border-moss/60 bg-navy/78' : 'border-white/30 bg-surface/35')}
+                  >
+                    {answered ? (
+                      <UserAvatar userId={member.user_id} name={member.display_name} avatarUrl={member.avatar_url} className="h-full w-full" />
+                    ) : (
+                      <img src={publicAsset('icons/fullcircle-dove-clean.png')} alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
+                    )}
+                    {answered && <CurrentUserAvatarMarker isCurrentUser={member.user_id === profile?.id} compact />}
+                    {answered && placementByUserId.get(member.user_id) ? (
+                      <span
+                        className="absolute right-0 top-0 z-20 flex h-3 min-w-3 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border border-white/80 bg-navy px-0.5 text-[6px] font-black tabular-nums text-white shadow-sm"
+                        title={`Position ${placementByUserId.get(member.user_id)}`}
+                      >
+                        {placementByUserId.get(member.user_id)}
+                      </span>
+                    ) : null}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-2 text-[10px] text-stone">{loading ? 'Checking quiz responses...' : 'No camp roster is available yet.'}</p>
+          )}
+        </div>
+
+        <div className="min-w-[3.25rem] border-l border-white/20 pl-2 text-right">
+          <p className="font-display text-base font-black tabular-nums text-ink">{responders.length}/{board.length || responders.length}</p>
+          <p className="text-[8px] font-bold uppercase text-stone">answered</p>
+          <div className="mt-1.5 space-y-1">
+            {TENT_HOUSES.map((house) => (
+              <div key={house.id} className="flex items-center justify-end gap-1" title={`${house.name}: ${answeredByTent.get(house.id) || 0} answered`}>
+                <TentHouseSymbol houseId={house.id} size={15} />
+                <span className="min-w-3 text-right text-[9px] font-black tabular-nums text-ink">{answeredByTent.get(house.id) || 0}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -145,11 +171,28 @@ export function QuizResponders({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow text-stone">Quiz Activity</p>
-          <h3 className="mt-1 font-display text-base font-semibold text-ink">Who has answered</h3>
+          <h3 className="mt-1 font-display text-base font-semibold text-ink">Already answered</h3>
         </div>
-        {loading && responders.length === 0 && <Loader2 size={16} className="animate-spin text-brass" />}
+        {loading && responders.length === 0 ? <Loader2 size={16} className="animate-spin text-brass" /> : <span className="text-sm font-bold tabular-nums text-moss">{responders.length}</span>}
       </div>
-      <div className="mt-3">{content}</div>
+      {responders.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {responders.map((responder) => (
+            <span key={responder.user_id} title={`${responder.display_name} answered the quiz`} className="relative flex h-9 w-9 items-center justify-center rounded-full">
+              <UserAvatar userId={responder.user_id} name={responder.display_name} avatarUrl={responder.avatar_url} className="h-full w-full border border-moss/55 shadow-sm" />
+              <CurrentUserAvatarMarker isCurrentUser={responder.user_id === profile?.id} />
+              {placementByUserId.get(responder.user_id) ? (
+                <span
+                  className="absolute right-0 top-0 z-20 flex h-4 min-w-4 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border border-white/80 bg-navy px-1 text-[8px] font-black text-white shadow-sm"
+                  title={`Position ${placementByUserId.get(responder.user_id)}`}
+                >
+                  {placementByUserId.get(responder.user_id)}
+                </span>
+              ) : null}
+            </span>
+          ))}
+        </div>
+      ) : <p className="mt-3 text-xs text-stone">{loading ? 'Checking quiz responses...' : 'No completed answers yet.'}</p>}
     </section>
   );
 }

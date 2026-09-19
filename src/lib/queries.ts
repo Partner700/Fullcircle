@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
-  QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, WeeklyQuizRanking, QuestionResponse, WeeklyQuizReleasedResult,
+  QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, QuizResponseBoardMember, WeeklyQuizRanking, QuestionResponse, WeeklyQuizReleasedResult,
   DenariiLedgerEntry, GameAttempt, RelicType, RelicInventory,
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
@@ -643,6 +643,15 @@ export async function launchQuizSession(sessionId: string) {
   return data as QuizSession;
 }
 
+export async function extendQuizSession(sessionId: string, additionalMinutes: number) {
+  const { data, error } = await supabase.rpc('extend_quiz_session', {
+    p_quiz_session_id: sessionId,
+    p_additional_minutes: additionalMinutes,
+  });
+  if (error) throw error;
+  return data as QuizSession;
+}
+
 export async function deleteQuizSession(sessionId: string) {
   const { data, error } = await supabase.rpc('delete_quiz_session_cascade', {
     p_quiz_session_id: sessionId,
@@ -777,6 +786,14 @@ export async function fetchQuizResponders(sessionId: string) {
   });
   if (error) throw error;
   return (data || []) as QuizResponder[];
+}
+
+export async function fetchQuizResponseBoard(sessionId: string) {
+  const { data, error } = await supabase.rpc('get_quiz_response_board', {
+    p_quiz_session_id: sessionId,
+  });
+  if (error) throw error;
+  return (data || []) as QuizResponseBoardMember[];
 }
 
 export async function fetchLatestWeeklyQuizRankings(

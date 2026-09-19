@@ -1186,7 +1186,6 @@ export function CadetApp() {
             onActivated={async (status) => {
               setSubStatus(status);
               await refreshCadetState();
-              setTab('dashboard');
             }}
           />
         )}

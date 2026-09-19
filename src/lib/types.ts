@@ -627,6 +627,15 @@ export interface QuizResponder {
   answered_at: string;
 }
 
+export interface QuizResponseBoardMember {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  competitor_role: 'cadet' | 'sentry';
+  tent_house_id: string | null;
+  answered_at: string | null;
+}
+
 export interface WeeklyQuizRanking {
   quiz_session_id: string;
   quiz_title: string;

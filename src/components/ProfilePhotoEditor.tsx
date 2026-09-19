@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { createPortal } from 'react-dom';
 import { Camera, Check, Crop, Loader2, RotateCcw, X, ZoomIn } from 'lucide-react';
 import { uploadAvatar } from '../lib/queries';
-import { prepareImageUpload } from '../lib/uploads';
+import { imageFileType } from '../lib/uploads';
 import { cn } from '../lib/utils';
 import type { Profile } from '../lib/types';
 import { announceNewcomerGuidanceAction } from '../lib/newcomerGuidance';
@@ -150,7 +150,8 @@ export function AvatarCropDialog({
       outputSize,
       outputSize,
     );
-    const blob = await canvasBlob(canvas, 'image/webp', 0.9);
+    const blob = await canvasBlob(canvas, 'image/webp', 0.9)
+      || await canvasBlob(canvas, 'image/jpeg', 0.9);
     if (!blob) throw new Error('The cropped photo could not be prepared.');
     const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/jpeg' ? 'jpg' : 'webp';
     return new File([blob], `profile-photo-${Date.now()}.${extension}`, { type: blob.type || 'image/webp' });
@@ -273,15 +274,29 @@ export function AvatarCropDialog({
 
 export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' }: ProfilePhotoEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const profileIdRef = useRef(profile?.id || null);
+  const lastUploadedUrlRef = useRef<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [preparingSelection, setPreparingSelection] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingCurrent, setLoadingCurrent] = useState(false);
   const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
+  const [statusMessage, setStatusMessage] = useState('');
   const avatarUrl = savedAvatarUrl || profile?.avatar_url || null;
 
   useEffect(() => {
-    setSavedAvatarUrl(profile?.avatar_url || null);
+    if (profileIdRef.current !== (profile?.id || null)) {
+      profileIdRef.current = profile?.id || null;
+      lastUploadedUrlRef.current = null;
+      setSavedAvatarUrl(profile?.avatar_url || null);
+      return;
+    }
+    if (profile?.avatar_url) {
+      setSavedAvatarUrl(profile.avatar_url);
+      if (profile.avatar_url === lastUploadedUrlRef.current) lastUploadedUrlRef.current = null;
+    } else if (!lastUploadedUrlRef.current) {
+      setSavedAvatarUrl(null);
+    }
   }, [profile?.id, profile?.avatar_url]);
 
   const closeCropper = () => {
@@ -292,9 +307,12 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
   const saveCroppedPhoto = async (file: File) => {
     if (!profile) return;
     setUploading(true);
+    setStatusMessage('Uploading photo...');
     try {
       const uploadedUrl = await uploadAvatar(profile.id, file);
+      lastUploadedUrlRef.current = uploadedUrl;
       setSavedAvatarUrl(uploadedUrl);
+      setStatusMessage('Profile photo saved');
       announceNewcomerGuidanceAction('profile_photo_saved');
       closeCropper();
       try {
@@ -303,7 +321,9 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
         console.warn('The new profile photo was saved; profile refresh will retry later.', refreshError);
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'The profile photo could not be uploaded.');
+      const message = error instanceof Error ? error.message : 'The profile photo could not be uploaded.';
+      setStatusMessage(message);
+      alert(message);
     } finally {
       setUploading(false);
     }
@@ -311,15 +331,20 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
 
   const prepareSelectedPhoto = async (selected: File) => {
     setPreparingSelection(true);
+    setStatusMessage('Opening photo...');
     try {
-      const prepared = await prepareImageUpload(selected, {
-        maxDimension: 2400,
-        maxBytes: 25 * 1024 * 1024,
-        quality: 0.9,
-      });
-      setCropFile(prepared.file);
+      const type = imageFileType(selected);
+      if (!type.startsWith('image/')) throw new Error('Choose a photo from your phone.');
+      if (selected.size <= 0 || selected.size > 25 * 1024 * 1024) throw new Error('Choose a photo smaller than 25 MB.');
+      const selectedWithType = selected.type === type
+        ? selected
+        : new File([selected], selected.name || `profile-photo-${Date.now()}`, { type });
+      setCropFile(selectedWithType);
+      setStatusMessage('Adjust the photo, then tap Use photo.');
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'The selected photo could not be opened.');
+      const message = error instanceof Error ? error.message : 'The selected photo could not be opened.';
+      setStatusMessage(message);
+      alert(message);
     } finally {
       setPreparingSelection(false);
     }
@@ -399,13 +424,14 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
           type="file"
           accept="image/*,.heic,.heif"
           className="hidden"
+          onClick={(event) => { event.currentTarget.value = ''; }}
           onChange={(event) => {
             const selected = event.currentTarget.files?.[0];
-            event.currentTarget.value = '';
             if (!selected) return;
             void prepareSelectedPhoto(selected);
           }}
         />
+        <span className="sr-only" role="status" aria-live="polite">{statusMessage}</span>
       </div>
       {cropFile && (
         <AvatarCropDialog

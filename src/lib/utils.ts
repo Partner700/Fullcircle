@@ -1,4 +1,4 @@
-import type { DayType, DailyRecord, StreakInfo, RemovalState } from './types';
+import type { DayType, DailyRecord, StreakInfo, RemovalState, StreakFreezer } from './types';
 import {
   ATTENDANCE_CUTOFF_HOUR,
   MEDITATION_CUTOFF_HOUR,
@@ -231,6 +231,26 @@ export function formatCountdown(ms: number): string {
 export function getTodayISODate(): string {
   const { year, month, day } = appDateParts();
   return `${year}-${month}-${day}`;
+}
+
+export function getAppWeekStart(date = getTodayISODate()): string {
+  const day = parseCalendarDate(date).getUTCDay();
+  return shiftISODate(date, -(day === 0 ? 6 : day - 1));
+}
+
+export function visibleStreakFreezersForCurrentWeek(
+  freezers: StreakFreezer[],
+  today = getTodayISODate(),
+): StreakFreezer[] {
+  const weekStart = getAppWeekStart(today);
+  return freezers.filter((freezer) => {
+    if (!freezer.used_at && !freezer.applied_to_date) return true;
+    const activityDate = freezer.applied_to_date || (() => {
+      const parts = appDateParts(new Date(freezer.used_at!));
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    })();
+    return activityDate >= weekStart && activityDate <= today;
+  });
 }
 
 export function shiftISODate(date: string, days: number): string {

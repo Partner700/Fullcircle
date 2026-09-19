@@ -196,6 +196,8 @@ const retainPreviousPagesAssets = read('scripts/retain-previous-pages-assets.cjs
 const orderedAnswersAndMarketContinuity = read('supabase/migrations/20260917100000_ordered_answers_and_market_continuity.sql');
 const reliableTentDeletion = read('supabase/migrations/20260917110000_reliable_tent_deletion.sql');
 const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
+const weekendQuotesQuizExtensions = read('supabase/migrations/20260919130000_weekend_quotes_quiz_extensions_and_response_board.sql');
+const storageUploads = read('src/lib/storageUploads.ts');
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.story_mode_world_builds',
@@ -336,6 +338,10 @@ assert.doesNotMatch(quizRespondersAndMonthlyWatch, /RETURNS TABLE[\s\S]{0,500}(q
 assert.match(quizResponders, /fetchQuizResponders/);
 assert.match(quizResponders, /Already answered/);
 assert.match(quizResponders, /table: 'quiz_attempts'/);
+assert.match(quizResponders, /fetchQuizResponseBoard/);
+assert.match(quizResponders, /board\.map\(\(member\)/);
+assert.match(quizResponders, /TENT_HOUSES\.map\(\(house\)/);
+assert.match(quizResponders, /answeredByTent\.get\(house\.id\)/);
 assert.match(cadetDashboard, /announcement_type === 'weekly_quiz_reminder'[\s\S]*<QuizResponders/);
 assert.match(cadetQuiz, /const responderPanel = <QuizResponders sessionId=\{session\.id\}/);
 assert.match(instructorApp, /title: 'Bethel Stone', description: 'Overall Best Tent of the Month'/);
@@ -367,7 +373,10 @@ assert.match(profilePhotoEditor, /fetch\(avatarUrl, \{ cache: 'no-store' \}\)/);
 assert.match(profilePhotoEditor, /accept="image\/\*,\.heic,\.heif"/);
 assert.match(profilePhotoEditor, /setSavedAvatarUrl\(uploadedUrl\)/);
 assert.match(profilePhotoEditor, /Crop and adjust current profile photo/);
-assert.match(profilePhotoEditor, /prepareImageUpload\(selected, \{[\s\S]*maxDimension: 2400[\s\S]*maxBytes: 25 \* 1024 \* 1024/);
+assert.match(profilePhotoEditor, /imageFileType\(selected\)/);
+assert.match(profilePhotoEditor, /selected\.size > 25 \* 1024 \* 1024/);
+assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
+assert.doesNotMatch(profilePhotoEditor, /prepareImageUpload\(selected/);
 assert.match(profilePhotoEditor, /event\.currentTarget\.value = ''/);
 assert.match(profilePhotoEditor, /z-\[2147483645\]/);
 assert.doesNotMatch(profilePhotoEditor, /12 \* 1024 \* 1024/);
@@ -452,8 +461,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v134'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '127'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v135'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '128'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
@@ -464,20 +473,20 @@ assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not ab
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '113'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '114'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=113`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=114`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /set\('fc-release', '113'\)/);
+assert.match(staleBundleRecovery, /set\('fc-release', '114'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-18-v134/);
+assert.match(releaseCache, /2026-09-19-v135/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=110/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=113'/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=111/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=114'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
@@ -487,7 +496,7 @@ assert.match(appIndex, /__fullCircleBootRelease/);
 assert.match(appIndex, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=110"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=111"/);
 assert.match(viteConfig, /target: 'es2017'/);
 assert.match(appIndex, /Array\.prototype\.flatMap/);
 assert.match(appIndex, /Object\.fromEntries/);
@@ -2153,6 +2162,37 @@ assert.match(rootApp, /const AuthenticatedOverlays = lazy/);
 assert.match(rootApp, /session && profile && <Suspense fallback=\{null\}><AuthenticatedOverlays \/><\/Suspense>/);
 assert.match(retainPreviousPagesAssets, /manifest\.json/);
 assert.match(retainPreviousPagesAssets, /fs\.copyFileSync/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_daily_quote_feed',
+  'clock.iso_day IN (6, 7)',
+  'eligible.interaction_count',
+  'THEN 3',
+  'CREATE OR REPLACE FUNCTION public.extend_quiz_session',
+  'Only the instructor can extend a quiz.',
+  'greatest(coalesce(live_closes_at, now()), now())',
+  'CREATE OR REPLACE FUNCTION public.get_quiz_response_board',
+  "attempt.status IN ('submitted', 'timed_out')",
+  'REVOKE ALL ON FUNCTION public.get_quiz_response_board(uuid) FROM PUBLIC, anon',
+  'CREATE OR REPLACE FUNCTION public.save_own_avatar',
+]) {
+  assert.ok(weekendQuotesQuizExtensions.includes(required), `Missing weekend quote, quiz extension, response-board, or avatar safeguard: ${required}`);
+}
+assert.doesNotMatch(weekendQuotesQuizExtensions, /RETURNS TABLE[\s\S]{0,450}(correct_answer|question_payload|response\.answer|talents_scored)/i);
+assert.match(calendarUtilities, /visibleStreakFreezersForCurrentWeek/);
+assert.match(calendarUtilities, /activityDate >= weekStart && activityDate <= today/);
+assert.match(cadetNarrative, /ReadingArchiveBrowser[\s\S]*image=\{readingImage\}/);
+assert.match(cadetNarrative, /No reading published[\s\S]*PanelImageBackdrop/);
+assert.match(fcxExperience, /MessageSquare size=\{13\} \/> Pay/);
+assert.match(fcxExperience, /font-display text-sm font-extrabold tabular-nums/);
+assert.doesNotMatch(cadetApp, /onActivated=\{async \(status\) => \{[\s\S]{0,180}setTab\('dashboard'\)/);
+assert.doesNotMatch(sentryApp, /onActivated=\{async \(status\) => \{[\s\S]{0,180}setTab\('overview'\)/);
+assert.match(instructorApp, /extendQuizSession\(selectedSession\.id, extensionMinutes\)/);
+assert.match(instructorApp, /Extend or reopen this quiz/);
+assert.match(profilePhotoEditor, /lastUploadedUrlRef/);
+assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
+assert.match(storageUploads, /attempt < 3/);
+assert.match(storageUploads, /cacheControl: '31536000'/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;

@@ -36,7 +36,7 @@ import { supabase } from '../../lib/supabase';
 import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
   fetchAllNarratives, fetchAwards,
-  fetchQuizSessions, createQuizSession, launchQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
+  fetchQuizSessions, createQuizSession, launchQuizSession, extendQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
@@ -3295,6 +3295,8 @@ function QuizBuilder() {
   const [savingSessionDetails, setSavingSessionDetails] = useState(false);
   const [launchingSessionId, setLaunchingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [extensionMinutes, setExtensionMinutes] = useState(15);
+  const [extendingSessionId, setExtendingSessionId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3569,6 +3571,20 @@ function QuizBuilder() {
     }
   };
 
+  const extendRunningQuiz = async () => {
+    if (!selectedSession || selectedSession.status === 'scheduled' || extendingSessionId) return;
+    setExtendingSessionId(selectedSession.id);
+    try {
+      const updated = await extendQuizSession(selectedSession.id, extensionMinutes);
+      setSelectedSession(updated);
+      await load();
+    } catch (error: any) {
+      alert(error.message || 'Could not extend this quiz.');
+    } finally {
+      setExtendingSessionId(null);
+    }
+  };
+
   const markRelaunchReady = async (session: QuizSession) => {
     if (!isQuizRelaunchDraft(session) || session.relaunch_ready) return;
     const { data, error } = await supabase.from('quiz_sessions')
@@ -3649,6 +3665,28 @@ function QuizBuilder() {
 
         {selectedIsRelaunch && selectedEditable && !selectedSession.relaunch_ready && (
           <p className="rounded-lg border border-gold/35 bg-gold-soft px-3 py-2 text-xs text-stone">Review the quiz and save an edit. Relaunch becomes available immediately after it is saved.</p>
+        )}
+
+        {!selectedEditable && (
+          <div className="card flex flex-col gap-3 bg-surface-2 p-4 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-ink">Extend or reopen this quiz</p>
+              <p className="mt-1 text-xs text-stone">
+                Adds time from the current closing time, or from now if it already closed. Completed attempts stay complete; members who missed it can begin while the new window is open.
+              </p>
+              <p className="mt-1 text-[10px] font-semibold text-brass">
+                Current close: {new Date(selectedSession.live_closes_at).toLocaleString('en-US', { timeZone: APP_TIME_ZONE, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </p>
+            </div>
+            <label className="block w-full text-xs text-stone sm:w-28">
+              Extra minutes
+              <input type="number" min={1} max={1440} value={extensionMinutes} onChange={(event) => setExtensionMinutes(Math.min(1440, Math.max(1, Number(event.target.value) || 1)))} className="input-field mt-1 w-full" />
+            </label>
+            <button type="button" onClick={extendRunningQuiz} disabled={extendingSessionId === selectedSession.id} className="btn-primary justify-center text-sm sm:shrink-0">
+              {extendingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+              Extend Quiz
+            </button>
+          </div>
         )}
 
         {selectedEditable && generatedQuestions.length === 0 && (

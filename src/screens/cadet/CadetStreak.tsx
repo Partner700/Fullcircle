@@ -4,7 +4,7 @@ import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
 import { fetchDailyRecords, fetchStrictStreak } from '../../lib/queries';
-import { getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid } from '../../lib/utils';
+import { getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import type { DailyRecord, RemovalState, StreakInfo } from '../../lib/types';
 import {
   Flame, Calendar, TrendingUp, AlertTriangle, ShieldCheck, XCircle,
@@ -377,11 +377,11 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
           </div>
         </div>
 
-        {freezers.length > 0 && (
+        {visibleStreakFreezersForCurrentWeek(freezers).length > 0 && (
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-xs font-medium text-stone mb-2">Your freezers:</p>
             <div className="flex flex-wrap gap-2">
-              {freezers.map((f) => (
+              {visibleStreakFreezersForCurrentWeek(freezers).map((f) => (
                 <span
                   key={f.id}
                   className={`badge text-[10px] ${f.used_at || f.applied_to_date ? 'badge-neutral' : 'badge-brass'}`}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, MessageSquare, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
@@ -7,12 +7,13 @@ import {
   fetchActiveFcxExperience,
   fetchAwards,
   fetchAllProfiles,
+  fetchFcxTicketContact,
   fetchPreviousMuralis,
   removeFcxRegistration,
   saveFcxExperience,
   uploadFcxGuestAvatar,
 } from '../lib/queries';
-import { cn, formatXaf, getAppDateTimeMs, getTodayISODate } from '../lib/utils';
+import { cn, formatXaf, getAppDateTimeMs, getTodayISODate, whatsappUrl } from '../lib/utils';
 import { publicAsset } from '../lib/publicAsset';
 import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
@@ -55,6 +56,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const [previousWinner, setPreviousWinner] = useState<AwardWithRecipient | null>(null);
+  const [paymentContact, setPaymentContact] = useState<string | null>(null);
   const displayTitle = visibleExperience.title.replace(/\s*\(FCX\)\s*/gi, ' ').trim() || 'Full Circle Experience';
   const registrations = visibleExperience.registrations || [];
   const occupied = Math.min(registrations.length, visibleExperience.capacity);
@@ -67,6 +69,10 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     () => countdownParts(countdownDate, countdownNow),
     [countdownDate, countdownNow],
   );
+  const paymentBase = whatsappUrl(paymentContact);
+  const paymentHref = paymentBase
+    ? `${paymentBase}?text=${encodeURIComponent('Hello Vedette, I want to pay for the Full Circle Experience (FCX).')}`
+    : null;
 
   useEffect(() => {
     setVisibleExperience(experience);
@@ -93,6 +99,15 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
 
     return () => { cancelled = true; };
   }, [active, experience.id]);
+
+  useEffect(() => {
+    if (!active || paymentContact) return;
+    let cancelled = false;
+    void fetchFcxTicketContact()
+      .then((contact) => { if (!cancelled) setPaymentContact(contact?.whatsapp_number || null); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [active, paymentContact]);
 
   useEffect(() => {
     if (!active) return;
@@ -152,8 +167,8 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
           </span>
         </div>
         <div className="flex-shrink-0 text-right">
-          <p className="text-xl font-bold text-ink">{occupied}/{visibleExperience.capacity}</p>
-          <p className="text-[10px] font-semibold uppercase text-stone">spaces filled</p>
+          <p className="font-display text-sm font-extrabold tabular-nums text-ink">{occupied}/{visibleExperience.capacity}</p>
+          <p className="text-[8px] font-semibold uppercase text-stone">players</p>
         </div>
       </div>
 
@@ -166,7 +181,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         </p>
       </div>
 
-      <div className="fcx-line mt-2.5 inline-flex min-h-12 max-w-full items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
+      <div className="fcx-line mt-2.5 flex min-h-12 max-w-full flex-wrap items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
         <Clock3 size={17} className="shrink-0 text-brass" />
         {eventHasStarted ? (
           <p className="text-sm font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
@@ -181,6 +196,11 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
               ))}
             </div>
           </>
+        )}
+        {paymentHref && (
+          <a href={paymentHref} target="_blank" rel="noopener noreferrer" className="btn-primary ml-auto min-h-8 shrink-0 px-2.5 py-1 text-[10px]">
+            <MessageSquare size={13} /> Pay
+          </a>
         )}
       </div>
 

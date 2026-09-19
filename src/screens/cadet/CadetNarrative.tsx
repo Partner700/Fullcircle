@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
-import { EmptyState } from '../../components/AppShell';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
@@ -223,19 +222,22 @@ function ReadingArchiveBrowser({
   open,
   loading,
   readings,
+  image,
   onToggle,
   onOpenReading,
 }: {
   open: boolean;
   loading: boolean;
   readings: ArchivedReading[];
+  image: PanelImageSetting | null;
   onToggle: () => void;
   onOpenReading: (date: string) => void;
 }) {
   const groups = useMemo(() => readingArchiveGroups(readings), [readings]);
   return (
-    <section className="card p-5 animate-slide-up bg-surface border-border">
-      <div className="flex items-center justify-between gap-3">
+    <section data-artwork-theme={image?.url ? 'night' : undefined} className="card relative isolate overflow-hidden border-border bg-surface p-5 animate-slide-up">
+      <PanelImageBackdrop image={image} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+      <div className="relative z-10 flex items-center justify-between gap-3">
         <div>
           <p className="eyebrow text-stone">Reading Archive</p>
           <p className="mt-1 text-sm text-ink">Full readings and conversations, grouped by month and week</p>
@@ -245,7 +247,7 @@ function ReadingArchiveBrowser({
         </button>
       </div>
       {open && (
-        <div className="mt-4 space-y-5">
+        <div className="relative z-10 mt-4 space-y-5">
           {loading && <p className="text-xs text-stone">Loading your reading archive...</p>}
           {!loading && readings.length === 0 && <p className="text-xs text-stone">No previous readings are available yet.</p>}
           {groups.map((month) => (
@@ -905,7 +907,16 @@ export function CadetNarrative({
   if (!narrative) {
     return (
       <div className="space-y-5 max-w-3xl mx-auto">
-        <EmptyState icon={BookOpen} title="No reading published" message="This date has no published reading. Your previous readings remain available below." />
+        <section data-artwork-theme={readingImage?.url ? 'night' : undefined} className="card relative isolate overflow-hidden p-8 text-center">
+          <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
+          <div className="relative z-10">
+            <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-navy-3/80 backdrop-blur-md">
+              <BookOpen size={24} className="text-peri-dim" />
+            </div>
+            <h3 className="font-display font-bold text-peri mb-1">No reading published</h3>
+            <p className="mx-auto max-w-sm text-sm text-peri-dim">This date has no published reading. Your previous readings remain available below.</p>
+          </div>
+        </section>
         {isHistoricalReading && (
           <button type="button" className="btn-secondary text-xs" onClick={() => setArchiveDate(null)}>
             <ArrowLeft size={14} /> Return to Today
@@ -915,6 +926,7 @@ export function CadetNarrative({
           open={showHistory}
           loading={historyLoading}
           readings={readingHistory}
+          image={readingImage}
           onToggle={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}
           onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
         />
@@ -1448,6 +1460,7 @@ export function CadetNarrative({
         open={showHistory}
         loading={historyLoading}
         readings={readingHistory}
+        image={readingImage}
         onToggle={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}
         onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
       />

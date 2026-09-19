@@ -8,7 +8,7 @@ import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchFcxTicketContact } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
-import { cn, formatDenarii, formatXaf, whatsappUrl } from '../../lib/utils';
+import { cn, formatDenarii, formatXaf, visibleStreakFreezersForCurrentWeek, whatsappUrl } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
@@ -605,9 +605,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           </div>
         </div>
 
-        {freezers.length > 0 && (
+        {visibleStreakFreezersForCurrentWeek(freezers).length > 0 && (
           <div className="relative z-10 mt-3 flex flex-wrap gap-1.5">
-            {freezers.map((f) => (
+            {visibleStreakFreezersForCurrentWeek(freezers).map((f) => (
               <span key={f.id} className={cn('badge text-[10px]', f.used_at || f.applied_to_date ? 'badge-neutral' : 'badge-brass')}>
                 <Snowflake size={10} className="mr-1" />
                 {f.freezer_type === 'daily' ? 'Daily' : 'Weekly'} · {f.used_at ? 'Used' : f.applied_to_date ? 'Applied' : 'Ready'}
