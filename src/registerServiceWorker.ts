@@ -24,10 +24,10 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js?v=114`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}sw.js?v=115`, { updateViaCache: 'none' })
       .then((registration) => {
-        // Check for a new worker at launch. The worker itself activates safely;
-        // this client never forces a mid-session reload.
+        // Check for a new worker at launch. Installed copies are refreshed once
+        // by the worker so a saved GitHub Pages start URL cannot pin old HTML.
         void registration.update().catch(() => undefined);
 
         // Periodically check for updates (every hour)
