@@ -15,7 +15,6 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { AppSelect } from '../../components/AppSelect';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
-import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { ChiRhoMark } from '../../components/ChiRhoMark';
 import { UserAvatar } from '../../components/UserAvatar';
 import { SubscriptionGate, SubscriptionScreen, type SubscriptionStatusView } from '../../components/SubscriptionScreen';
@@ -1311,7 +1310,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
             <div className="flex items-start gap-3">
               <span className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center text-sm font-bold text-brass">
                 <UserAvatar userId={confirmCadet.user_id} name={confirmCadet.display_name} avatarUrl={confirmCadet.avatar_url} className="h-full w-full border border-brass/30" />
-                <VallumAvatarBadge userId={confirmCadet.user_id} size="sm" />
+
               </span>
               <div className="min-w-0">
                 <h3 className="font-display text-base font-semibold text-ink">Add {confirmCadet.display_name}?</h3>

@@ -7,7 +7,6 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { MessageAvatar } from '../../components/TentMessenger';
 import { Dove } from '../../components/Dove';
-import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
 import { RelativeTime } from '../../components/RelativeTime';
 import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordExternalShare, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
@@ -163,7 +162,7 @@ function MentionTextarea({
             >
               <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
                 <UserAvatar userId={candidate.user_id} name={candidate.display_name} avatarUrl={candidate.avatar_url} className="h-full w-full border border-border" />
-                <VallumAvatarBadge userId={candidate.user_id} size="sm" />
+
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-xs font-bold text-ink">{candidate.display_name}</span>

@@ -452,8 +452,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v133'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '126'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v134'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '127'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
@@ -464,20 +464,20 @@ assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not ab
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '112'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '113'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=112`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=113`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /set\('fc-release', '112'\)/);
+assert.match(staleBundleRecovery, /set\('fc-release', '113'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-17-v133/);
+assert.match(releaseCache, /2026-09-18-v134/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=110/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=112'/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=113'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
@@ -487,7 +487,7 @@ assert.match(appIndex, /__fullCircleBootRelease/);
 assert.match(appIndex, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=109"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=110"/);
 assert.match(viteConfig, /target: 'es2017'/);
 assert.match(appIndex, /Array\.prototype\.flatMap/);
 assert.match(appIndex, /Object\.fromEntries/);
@@ -1393,9 +1393,17 @@ for (const required of [
 ]) {
   assert.ok(vallumAvatarBadge.includes(required), `Missing prioritized avatar award badge behavior: ${required}`);
 }
-assert.match(tentMessenger, /<VallumAvatarBadge userId=\{profile\.id\}/);
+assert.match(userAvatar, /<VallumAvatarBadge userId=\{userId\}/);
+assert.match(userAvatar, /showAwardBadge = true/);
 assert.match(boardRow, /<MessageAvatar/);
-assert.match(appShell, /<VallumAvatarBadge userId=\{profile\?\.id\}/);
+for (const file of sourceFiles(path.join(root, 'src'))) {
+  if (file.endsWith(`${path.sep}UserAvatar.tsx`)) continue;
+  assert.doesNotMatch(
+    fs.readFileSync(file, 'utf8'),
+    /<VallumAvatarBadge\b/,
+    `Avatar award rendering must stay centralized in UserAvatar: ${path.relative(root, file)}`,
+  );
+}
 for (const required of [
   'function ArenaBattleBoard',
   'const rollDie = useCallback',

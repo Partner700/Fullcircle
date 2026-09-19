@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dove } from './Dove';
 import { cn } from '../lib/utils';
+import { VallumAvatarBadge, type AvatarBadgeSize } from './VallumAvatarBadge';
 
 const AVATAR_BACKGROUNDS = [
   '#315a99',
@@ -29,6 +30,8 @@ export function UserAvatar({
   imageClassName,
   doveClassName,
   loading = 'lazy',
+  showAwardBadge = true,
+  awardBadgeSize = 'auto',
 }: {
   userId?: string | null;
   name?: string | null;
@@ -37,6 +40,8 @@ export function UserAvatar({
   imageClassName?: string;
   doveClassName?: string;
   loading?: 'eager' | 'lazy';
+  showAwardBadge?: boolean;
+  awardBadgeSize?: AvatarBadgeSize;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [avatarUrl]);
@@ -46,23 +51,30 @@ export function UserAvatar({
 
   return (
     <span
-      className={cn('inline-flex items-center justify-center overflow-hidden rounded-full', className)}
+      className={cn(
+        'full-circle-user-avatar relative inline-flex items-center justify-center overflow-visible rounded-full',
+        showAwardBadge && 'full-circle-user-avatar-award-enabled',
+        className,
+      )}
       style={showPhoto ? undefined : { backgroundColor }}
       role="img"
       aria-label={name ? `${name}'s profile picture` : 'Full Circle member profile picture'}
     >
-      {showPhoto ? (
-        <img
-          src={avatarUrl || ''}
-          alt=""
-          loading={loading}
-          decoding="async"
-          className={cn('h-full w-full object-cover', imageClassName)}
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <Dove size={96} className={cn('h-[82%] w-[82%] object-contain drop-shadow-sm', doveClassName)} />
-      )}
+      <span className="absolute inset-0 inline-flex items-center justify-center overflow-hidden rounded-[inherit]">
+        {showPhoto ? (
+          <img
+            src={avatarUrl || ''}
+            alt=""
+            loading={loading}
+            decoding="async"
+            className={cn('h-full w-full object-cover', imageClassName)}
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <Dove size={96} className={cn('h-[82%] w-[82%] object-contain drop-shadow-sm', doveClassName)} />
+        )}
+      </span>
+      {showAwardBadge && <VallumAvatarBadge userId={userId} size={awardBadgeSize} />}
     </span>
   );
 }

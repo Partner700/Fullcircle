@@ -45,7 +45,6 @@ import type {
 } from '../lib/types';
 import { cn, formatDenarii } from '../lib/utils';
 import { Dove } from './Dove';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { UserAvatar } from './UserAvatar';
 
 const HIDDEN_CHALLENGE_SECONDS = 40;
@@ -97,7 +96,7 @@ function ParticipantStack({ participants }: { participants: HiddenChallengeParti
             style={{ marginLeft: index === 0 ? 0 : -7, zIndex: shown.length - index }}
           >
             <UserAvatar userId={participant.user_id} name={participant.display_name} avatarUrl={participant.avatar_url} className="h-full w-full border-2 border-surface shadow-sm" />
-            <VallumAvatarBadge userId={participant.user_id} size="xs" />
+
           </span>
         ))}
       </div>

@@ -4,7 +4,6 @@ import { fetchLatestQuizSession, fetchLatestWeeklyQuizRankings, fetchQuizRespond
 import { supabase } from '../lib/supabase';
 import type { QuizResponder, WeeklyQuizRanking } from '../lib/types';
 import { cn } from '../lib/utils';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 import { useAuth } from '../context/AuthContext';
 import { UserAvatar } from './UserAvatar';
@@ -112,7 +111,7 @@ export function QuizResponders({
               )}
             >
               <UserAvatar userId={responder.user_id} name={responder.display_name} avatarUrl={responder.avatar_url} className="h-full w-full border border-moss/55 shadow-sm" />
-              <VallumAvatarBadge userId={responder.user_id} size={isSlide ? 'xs' : 'sm'} />
+
               <CurrentUserAvatarMarker isCurrentUser={responder.user_id === profile?.id} compact={isSlide} />
               {placementByUserId.get(responder.user_id) ? (
                 <span className={cn(

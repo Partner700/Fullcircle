@@ -5,7 +5,6 @@ import { uploadAvatar } from '../lib/queries';
 import { prepareImageUpload } from '../lib/uploads';
 import { cn } from '../lib/utils';
 import type { Profile } from '../lib/types';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { announceNewcomerGuidanceAction } from '../lib/newcomerGuidance';
 import { UserAvatar } from './UserAvatar';
 
@@ -384,7 +383,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
             {loadingCurrent ? <Loader2 size={15} className="animate-spin" /> : <Crop size={15} />}
           </button>
         )}
-        <VallumAvatarBadge userId={profile?.id} size="md" />
+
         <button
           type="button"
           onClick={() => inputRef.current?.click()}

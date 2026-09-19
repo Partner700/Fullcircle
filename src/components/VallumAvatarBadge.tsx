@@ -7,15 +7,17 @@ import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { ChiRhoMark } from './ChiRhoMark';
 
-type BadgeSize = 'xs' | 'sm' | 'md';
+export type AvatarBadgeSize = 'auto' | 'xs' | 'sm' | 'md';
 type AvatarAward = { award_type: string; title: string; cadence: 'weekly' | 'monthly' };
 
 let holderAwards = new Map<string, AvatarAward>();
 let loadedAt = 0;
 let loadPromise: Promise<void> | null = null;
 let realtimeStarted = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
 const CACHE_MS = 60_000;
+const RETRY_MS = 5_000;
 
 const AWARD_ICONS = {
   rhetoric: MessageCircle,
@@ -70,9 +72,19 @@ async function loadCurrentAwards(force = false) {
       cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
     }]));
     loadedAt = Date.now();
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
     publish();
   })().catch((error) => {
     console.warn('Current avatar awards could not be loaded:', error);
+    if (!retryTimer && listeners.size > 0) {
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void loadCurrentAwards(true);
+      }, RETRY_MS);
+    }
   }).finally(() => {
     loadPromise = null;
   });
@@ -93,6 +105,8 @@ function ensureRealtimeUpdates() {
       void refreshVallumAvatarBadges();
     })
     .subscribe();
+  window.addEventListener('online', () => void refreshVallumAvatarBadges());
+  window.addEventListener('focus', () => void loadCurrentAwards());
 }
 
 export function AwardBadgeGlyph({ awardType, title, size = 10 }: { awardType: string; title?: string; size?: number }) {
@@ -104,7 +118,7 @@ export function AwardBadgeGlyph({ awardType, title, size = 10 }: { awardType: st
 
 export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   userId?: string | null;
-  size?: BadgeSize;
+  size?: AvatarBadgeSize;
   className?: string;
 }) {
   const [, render] = useState(0);
@@ -123,13 +137,15 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   if (awardType !== 'vallum' && awardType !== 'centurion') return null;
   const isVallum = awardType === 'vallum';
 
-  const shellClass = size === 'xs' ? 'h-3.5 w-3.5 border' : size === 'md' ? 'h-5 w-5 border-2' : 'h-4 w-4 border';
-  const markSize = size === 'xs' ? 8 : size === 'md' ? 12 : 10;
+  const shellClass = size === 'auto'
+    ? 'h-[36%] w-[36%] min-h-2.5 min-w-2.5 max-h-5 max-w-5 border'
+    : size === 'xs' ? 'h-3.5 w-3.5 border' : size === 'md' ? 'h-5 w-5 border-2' : 'h-4 w-4 border';
+  const markSize = size === 'auto' ? 9 : size === 'xs' ? 8 : size === 'md' ? 12 : 10;
 
   return (
     <span
       className={cn(
-        'pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
+        'full-circle-avatar-award-badge pointer-events-none absolute -bottom-1 -right-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
         isVallum
           ? 'border-gold/90 bg-navy-2 text-gold'
           : 'border-sage/80 bg-navy-2 text-sage-bright',

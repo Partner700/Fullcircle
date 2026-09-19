@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { fetchLatestWeeklyQuizRankings } from '../lib/queries';
 import type { WeeklyQuizRanking } from '../lib/types';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { useAuth } from '../context/AuthContext';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 import { UserAvatar } from './UserAvatar';
@@ -63,7 +62,7 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
                 <span className="w-6 shrink-0 text-center text-xs font-black tabular-nums text-gold">{ranking.placement}</span>
                 <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-navy text-[10px] font-black text-gold">
                   <UserAvatar userId={ranking.user_id} name={ranking.display_name} avatarUrl={ranking.avatar_url} className="h-full w-full" />
-                  <VallumAvatarBadge userId={ranking.user_id} size="xs" />
+
                   <CurrentUserAvatarMarker isCurrentUser={ranking.user_id === profile?.id} compact />
                 </span>
                 <p className="min-w-0 flex-1 truncate text-sm font-bold text-ink">{ranking.display_name}</p>

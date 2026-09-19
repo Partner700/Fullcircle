@@ -1,7 +1,6 @@
 import { type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn, formatPlayerNumber } from '../lib/utils';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { DoveMark } from './Dove';
 import { LogOut, Sun, Moon, Menu, PhoneCall, X, Volume2, VolumeX } from 'lucide-react';
 import { fetchPanelImageSetting } from '../lib/queries';
@@ -313,7 +312,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
           <button type="button" onClick={() => openProfileCv(profile?.id)} className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-navy-3" aria-label="Open my Full Circle profile">
             <span className="relative inline-flex shrink-0">
               <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-8 w-8" />
-              <VallumAvatarBadge userId={profile?.id} size="sm" />
+
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>
@@ -460,7 +459,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               <button type="button" onClick={() => { openProfileCv(profile?.id); setMobileNavOpen(false); }} className="flex w-full items-center gap-2.5 rounded-lg bg-navy-3 px-3 py-2 text-left transition-colors hover:bg-navy-4" aria-label="Open my Full Circle profile">
                 <span className="relative inline-flex shrink-0">
                   <UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-8 w-8" />
-                  <VallumAvatarBadge userId={profile?.id} size="sm" />
+
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-peri truncate">{profile?.display_name}</p>

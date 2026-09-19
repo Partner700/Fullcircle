@@ -10,7 +10,6 @@ import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { VallumText } from '../../components/ChiRhoMark';
-import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { PanelImageSetting } from '../../lib/types';
 import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
@@ -316,7 +315,7 @@ export function CadetTent() {
                 <article key={award.id} className="flex items-center gap-3 rounded-lg border border-gold/30 bg-surface/80 p-3 backdrop-blur-sm">
                   <span className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center text-gold">
                     <UserAvatar userId={recipient?.user_id} name={recipient?.profiles.display_name || award.profiles?.display_name} avatarUrl={recipient?.profiles.avatar_url || award.profiles?.avatar_url} className="h-full w-full" />
-                    <VallumAvatarBadge userId={recipient?.user_id} size="sm" />
+
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-ink"><VallumText text={award.title} size={14} /></p>

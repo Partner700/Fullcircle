@@ -28,7 +28,6 @@ import type {
 } from '../lib/types';
 import { cn } from '../lib/utils';
 import { Dove } from './Dove';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { UserAvatar } from './UserAvatar';
 
 function ParticipantStack({ participants, total }: { participants: DoveQuestionParticipant[]; total: number }) {
@@ -44,7 +43,7 @@ function ParticipantStack({ participants, total }: { participants: DoveQuestionP
             style={{ marginLeft: index === 0 ? 0 : -6, zIndex: shown.length - index }}
           >
             <UserAvatar userId={participant.user_id} name={participant.display_name} avatarUrl={participant.avatar_url} className="h-full w-full border border-peri/50 shadow-sm" />
-            <VallumAvatarBadge userId={participant.user_id} size="xs" />
+
           </span>
         ))}
       </div>

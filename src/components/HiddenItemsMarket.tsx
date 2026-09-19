@@ -25,7 +25,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { AppSelect } from './AppSelect';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import { UserAvatar } from './UserAvatar';
 import {
   createHiddenChallenge,
@@ -305,7 +304,7 @@ function ItemComposer({
                   >
                     <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
                       <UserAvatar userId={candidate.user_id} name={candidate.display_name} avatarUrl={candidate.avatar_url} className="h-full w-full border border-border" />
-                      <VallumAvatarBadge userId={candidate.user_id} size="sm" />
+
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-bold text-ink">{candidate.display_name}</span>

@@ -24,7 +24,6 @@ import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { CampTreasury } from '../../components/InstructorTreasury';
 import { VallumText } from '../../components/ChiRhoMark';
-import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
 import { SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { CadetStore } from '../cadet/CadetStore';
@@ -1582,7 +1581,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                   <div key={item.userId} className="flex items-center gap-3 px-3 py-2.5">
                     <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-bold text-peri">
                       <UserAvatar userId={item.userId} name={item.name} avatarUrl={item.avatarUrl} className="h-full w-full" />
-                      <VallumAvatarBadge userId={item.userId} size="sm" />
+
                     </span>
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{item.name}</p><p className="truncate text-xs text-stone">{item.tentName}</p></div>
                     <span className={cn('badge text-[10px]', item.status === 'present' ? 'badge-moss' : 'badge-roman')}>
@@ -1729,7 +1728,7 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
   return <section className="card mb-5 p-5">
     <SectionHeader title="Tent Join Requests" subtitle="Approve cadets until each tent reaches ten cadets plus its sentry." />
     <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
-      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={request.user_id} size="sm" /></span>
+      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /></span>
       <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
       <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
       <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
@@ -2064,7 +2063,7 @@ function CadetManagement({ profiles, roles, members, tents, awards, onRefresh, i
           return (
             <div key={r.user_id} className="card p-4 card-hover">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={p.id} name={p.display_name} avatarUrl={p.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={p.id} size="sm" /></span>
+                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={p.id} name={p.display_name} avatarUrl={p.avatar_url} className="h-full w-full" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
                   <p className="text-xs text-stone">
@@ -2270,7 +2269,7 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
           return (
             <div key={r.user_id} className="card p-4">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={p.id} name={p.display_name} avatarUrl={p.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={p.id} size="sm" /></span>
+                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={p.id} name={p.display_name} avatarUrl={p.avatar_url} className="h-full w-full" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{p.display_name}</p>
                   <p className="text-xs text-stone">
@@ -5277,7 +5276,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
           {users.map((u) => (
             <div key={u.user_id} className="card p-4 bg-surface">
               <div className="flex items-start gap-3 mb-3">
-                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={u.user_id} name={u.display_name} avatarUrl={u.avatar_url} className="h-full w-full" /><VallumAvatarBadge userId={u.user_id} size="sm" /></span>
+                <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={u.user_id} name={u.display_name} avatarUrl={u.avatar_url} className="h-full w-full" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-ink">{u.display_name}</p>
                   <p className="text-xs text-stone">{u.email}</p>

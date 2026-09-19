@@ -23,7 +23,6 @@ import {
   publishDoveQuestion,
 } from '../lib/doveQuestions';
 import { supabase } from '../lib/supabase';
-import { VallumAvatarBadge } from './VallumAvatarBadge';
 import type {
   DoveQuestion,
   DoveQuestionDeliveryMode,
@@ -64,7 +63,7 @@ function ParticipantStack({ participants }: { participants: DoveQuestionParticip
           style={{ marginLeft: index === 0 ? 0 : -6, zIndex: shown.length - index }}
         >
           <UserAvatar userId={participant.user_id} name={participant.display_name} avatarUrl={participant.avatar_url} className="h-full w-full border border-peri/45 shadow-sm" />
-          <VallumAvatarBadge userId={participant.user_id} size="xs" />
+
         </span>
       ))}
       {participants.length > shown.length && (

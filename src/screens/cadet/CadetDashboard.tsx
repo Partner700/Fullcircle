@@ -8,7 +8,6 @@ import { BirthdayReactions } from '../../components/BirthdayReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { QuoteMeditationButton } from '../../components/QuoteMeditationButton';
 import { VallumText } from '../../components/ChiRhoMark';
-import { VallumAvatarBadge } from '../../components/VallumAvatarBadge';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
@@ -643,7 +642,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             <span className="mb-1 text-[10px] font-black uppercase text-gold">No. {ranking.placement}</span>
                             <span className="relative flex h-10 w-10 items-center justify-center overflow-visible rounded-full border-2 border-gold/60 bg-navy text-xs font-black text-gold sm:h-12 sm:w-12">
                               <UserAvatar userId={ranking.user_id} name={ranking.display_name} avatarUrl={ranking.avatar_url} className="h-full w-full" />
-                              <VallumAvatarBadge userId={ranking.user_id} size="sm" />
+
                               <CurrentUserAvatarMarker isCurrentUser={ranking.user_id === currentUserId} compact />
                             </span>
                             <p className="mt-1.5 w-full truncate text-xs font-black text-ink">{ranking.display_name}</p>
@@ -678,7 +677,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                                 ) : (
                                   <span className="flex h-full w-full items-center justify-center rounded-full border border-brass/45 bg-brass-soft"><Trophy size={15} className="text-brass" /></span>
                                 )}
-                                <VallumAvatarBadge userId={award.user_id} size="sm" />
+
                               </span>
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-xs font-black text-ink">{name}</p>
