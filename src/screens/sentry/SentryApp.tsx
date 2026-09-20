@@ -885,9 +885,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
     kind: 'quote' as const,
     quote,
   }));
-  const weekendQuoteSlides = dayType === 'weekday' ? [] : quoteSlides;
-  const weekdayQuoteSlides = dayType === 'weekday' ? quoteSlides : [];
-  const heroSlides: DashboardHeroSlide[] = [
+  const standardHeroSlides: DashboardHeroSlide[] = [
     {
       id: 'sentry-charge',
       kind: 'custom',
@@ -895,7 +893,6 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
-    ...weekendQuoteSlides,
     ...(cadetQuizPodium.length ? [{ id: `quiz-podium-cadets-${cadetQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: cadetQuizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(sentryQuizPodium.length ? [{ id: `quiz-podium-sentries-${sentryQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: sentryQuizPodium.slice(0, 3), division: 'Sentries' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
@@ -910,8 +907,15 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       kind: 'announcement' as const,
       announcement,
     })),
-    ...weekdayQuoteSlides,
   ];
+  const weekendQuoteIndex = Math.min(3, standardHeroSlides.length);
+  const heroSlides: DashboardHeroSlide[] = dayType === 'weekday'
+    ? [...standardHeroSlides, ...quoteSlides]
+    : [
+        ...standardHeroSlides.slice(0, weekendQuoteIndex),
+        ...quoteSlides,
+        ...standardHeroSlides.slice(weekendQuoteIndex),
+      ];
 
   useAutoAdvance(heroSlides.length > 1 && !heroPaused && !heroHeld, () => {
     setHeroIndex((index) => index + 1);

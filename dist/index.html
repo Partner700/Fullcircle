@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=119" />
+  <link rel="manifest" href="./manifest.webmanifest?v=120" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -149,7 +149,7 @@
     // Keep recovery explicit. Automatic cache deletion and reloads made weak
     // mobile connections restart just as the application was about to open.
     (function () {
-      var release = '120';
+      var release = '121';
       var marker = 'fc-repair';
       var repairStarted = false;
       window.__fullCircleBootRelease = release;
@@ -175,13 +175,13 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('./sw.js?v=122', { updateViaCache: 'none' })
+          .register('./sw.js?v=123', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-C3-uWbSK.js"></script>
+  <script type="module" crossorigin src="./assets/index-BKFprNmH.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
   <link rel="stylesheet" crossorigin href="./assets/style-CO-7L0aA.css">
 </head>

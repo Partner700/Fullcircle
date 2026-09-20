@@ -2195,10 +2195,27 @@ export async function fetchQuizTaggedGameQuestions(limit = 50) {
 
 export async function fetchDailyQuoteFeed(limit = 12) {
   return shareReadRequest(`daily-quote-feed:${limit}`, async () => {
-    const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
-    if (error) throw error;
-    const quotes = await mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
-    return getDayType(getTodayISODate()) === 'weekday' ? quotes : quotes.slice(0, 1);
+    const dayType = getDayType(getTodayISODate());
+    const requestQuotes = async () => {
+      const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
+      if (error) throw error;
+      return mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
+    };
+
+    let quotes: import('./types').DailyQuoteFeedItem[];
+    try {
+      quotes = await requestQuotes();
+    } catch (firstError) {
+      if (dayType === 'weekday') throw firstError;
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
+      quotes = await requestQuotes();
+    }
+
+    if (dayType !== 'weekday' && quotes.length === 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
+      quotes = await requestQuotes();
+    }
+    return dayType === 'weekday' ? quotes : quotes.slice(0, 1);
   });
 }
 

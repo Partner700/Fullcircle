@@ -213,11 +213,8 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     kind: 'quote' as const,
     quote,
   }));
-  const weekendQuoteSlides = dayType === 'weekday' ? [] : quoteSlides;
-  const weekdayQuoteSlides = dayType === 'weekday' ? quoteSlides : [];
-  const heroSlides: DashboardHeroSlide[] = [
+  const standardHeroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
-    ...weekendQuoteSlides,
     ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
@@ -231,8 +228,15 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       kind: 'announcement' as const,
       announcement,
     })),
-    ...weekdayQuoteSlides,
   ];
+  const weekendQuoteIndex = Math.min(3, standardHeroSlides.length);
+  const heroSlides: DashboardHeroSlide[] = dayType === 'weekday'
+    ? [...standardHeroSlides, ...quoteSlides]
+    : [
+        ...standardHeroSlides.slice(0, weekendQuoteIndex),
+        ...quoteSlides,
+        ...standardHeroSlides.slice(weekendQuoteIndex),
+      ];
   const heroSlideCount = heroSlides.length;
   const guideVerseSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'verse');
   const guideQuoteSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'quote' && slide.quote.user_id !== profile?.id);
