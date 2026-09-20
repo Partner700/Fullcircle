@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
@@ -72,6 +72,9 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   const paymentBase = whatsappUrl(paymentContact);
   const paymentHref = paymentBase
     ? `${paymentBase}?text=${encodeURIComponent('Hello Vedette, I want to pay for the Full Circle Experience (FCX).')}`
+    : null;
+  const askHref = paymentBase
+    ? `${paymentBase}?text=${encodeURIComponent('Hello Vedette, I have a question about the Full Circle Experience (FCX).')}`
     : null;
 
   useEffect(() => {
@@ -181,30 +184,43 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         </p>
       </div>
 
-      <div className="mt-2.5 flex max-w-full items-stretch gap-2">
-        <div className="fcx-line flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
-          <Clock3 size={17} className="shrink-0 text-brass" />
+      <div className="mt-2.5 flex h-12 max-w-full items-stretch gap-1.5">
+        <div className="fcx-line flex h-12 min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden rounded-lg border border-white/25 bg-surface/55 px-2 py-1 shadow-sm backdrop-blur-md">
+          <Clock3 size={15} className="shrink-0 text-brass" />
           {eventHasStarted ? (
-            <p className="text-sm font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
+            <p className="truncate text-xs font-bold text-ink sm:text-sm">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
           ) : (
             <>
-              <span className="text-[10px] font-bold uppercase text-stone">Starts in</span>
-              <div className="grid grid-cols-4 gap-1.5" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
+              <span className="hidden shrink-0 text-[9px] font-bold uppercase text-stone sm:inline">Starts in</span>
+              <div className="grid min-w-0 flex-1 grid-cols-4 gap-0.5" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
                 {countdown.map((part) => (
-                  <span key={part.label} className="min-w-8 whitespace-nowrap text-center text-base font-black tabular-nums leading-none text-ink">
-                    {String(part.value).padStart(2, '0')}<span className="ml-0.5 text-[9px] font-bold text-stone">{part.shortLabel}</span>
+                  <span key={part.label} className="min-w-0 whitespace-nowrap text-center text-sm font-black tabular-nums leading-none text-ink sm:text-base">
+                    {String(part.value).padStart(2, '0')}<span className="ml-px text-[7px] font-bold text-stone sm:text-[8px]">{part.shortLabel}</span>
                   </span>
                 ))}
               </div>
             </>
           )}
         </div>
+        {askHref && (
+          <a
+            href={askHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-white/80 bg-white text-[#07182b] shadow-sm transition hover:bg-[#f5f8ff] active:scale-[0.98] active:shadow-[0_0_14px_rgba(255,255,255,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            aria-label="Ask about the Full Circle Experience"
+            title="Ask about FCX"
+          >
+            <MessageCircle size={16} strokeWidth={2.4} />
+            <span className="text-[8px] font-black uppercase leading-none">Ask</span>
+          </a>
+        )}
         {paymentHref && (
           <a
             href={paymentHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="fcx-line flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-brass/45 bg-brass text-navy shadow-sm transition hover:bg-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/70"
+            className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] active:shadow-[0_0_16px_rgba(255,216,77,0.72)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd84d]/80"
             aria-label="Pay for the Full Circle Experience"
             title="Pay for FCX"
           >
@@ -241,9 +257,9 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
                 : '',
             )}
           >
-            <span className={cn('flex h-full w-full items-center justify-center overflow-hidden rounded-full border shadow-sm', registration ? 'border-brass/55 bg-navy/78' : 'border-white/30 bg-surface/35')}>
+            <span className={cn('flex h-full w-full items-center justify-center overflow-visible rounded-full border shadow-sm', registration ? 'border-brass/55 bg-navy/78' : 'border-white/30 bg-surface/35')}>
               {registration ? (
-                <UserAvatar userId={registration.user_id || registration.id} name={registration.display_name} avatarUrl={registration.avatar_url} className="h-full w-full" />
+                <UserAvatar userId={registration.user_id || registration.id} name={registration.display_name} avatarUrl={registration.avatar_url} className="h-full w-full" awardBadgeSize="xs" />
               ) : (
                 <img src={publicAsset('icons/fullcircle-dove-clean.png')} alt="" className="h-3.5 w-3.5 object-contain opacity-45" />
               )}

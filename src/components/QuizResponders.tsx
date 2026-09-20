@@ -126,7 +126,7 @@ export function QuizResponders({
           'relative flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border shadow-sm transition',
           answered
             ? 'border-moss/60 bg-navy/78'
-            : 'border-white/25 bg-surface/35 opacity-40 grayscale',
+            : 'border-white/25 bg-surface/35 opacity-60 grayscale',
         )}
       >
         <UserAvatar

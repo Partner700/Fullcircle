@@ -1,10 +1,10 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v139';
+const CACHE_VERSION = 'full-circle-v140';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
-const RECOVERY_MARKER = '132';
+const RECOVERY_MARKER = '133';
 const NAVIGATION_FALLBACK_DELAY_MS = 4_500;
 
 const NOTIFICATION_SYMBOLS = {
