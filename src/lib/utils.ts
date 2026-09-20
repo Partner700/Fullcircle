@@ -161,6 +161,19 @@ export function formatShortDate(date: string | Date): string {
   });
 }
 
+export function formatNumericDate(date: string | Date): string {
+  const d = typeof date === 'string' ? parseCalendarDate(date) : date;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      timeZone: typeof date === 'string' && ISO_DATE_PATTERN.test(date) ? 'UTC' : APP_TIME_ZONE,
+    }).formatToParts(d).map((part) => [part.type, part.value]),
+  );
+  return `${parts.day}/${parts.month}/${parts.year}`;
+}
+
 export function formatTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleTimeString('en-US', {

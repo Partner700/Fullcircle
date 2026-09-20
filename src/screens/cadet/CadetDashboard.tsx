@@ -16,7 +16,7 @@ import { CurrentUserAvatarMarker } from '../../components/CurrentUserAvatarMarke
 import { UserAvatar } from '../../components/UserAvatar';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
-import { getRemovalState, formatDenarii, getDayType, getTodayISODate, cn } from '../../lib/utils';
+import { getRemovalState, formatDenarii, formatNumericDate, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { openProfileCv } from '../../lib/profileCv';
@@ -493,6 +493,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   onCommentOpenChange: (open: boolean) => void;
   onHoldChange: (held: boolean) => void;
 }) {
+  const isWeekend = dayType === 'saturday' || dayType === 'sunday';
   const welcomeScriptures = [
     'Let all that you do be done in love.',
     'Commit your work to the Lord, and your plans will be established.',
@@ -769,11 +770,18 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       />
                       <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
                       <div className="relative z-10">
-                        <div className="mb-1 flex items-center justify-between gap-3">
-                          <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> Quotes From Daily Meditations</p>
-                          {slide.quote.tent_house_id && (
-                            <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
-                          )}
+                        <div className="mb-1 flex items-start justify-between gap-3">
+                          <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> {isWeekend ? 'Quote of the Week' : 'Quotes From Daily Meditations'}</p>
+                          <div className="flex shrink-0 items-start gap-2">
+                            {isWeekend && (
+                              <time dateTime={slide.quote.record_date} className="pt-0.5 text-[9px] font-semibold tabular-nums text-stone/55">
+                                {formatNumericDate(slide.quote.record_date)}
+                              </time>
+                            )}
+                            {slide.quote.tent_house_id && (
+                              <TentHouseSymbol houseId={slide.quote.tent_house_id} size={34} className="-mt-1" />
+                            )}
+                          </div>
                         </div>
                         <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />

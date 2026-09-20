@@ -39,7 +39,7 @@ import {
   fetchQuizSessions, createQuizSession, launchQuizSession, extendQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
-import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
+import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
 import { uploadAppFile } from '../../lib/storageUploads';
@@ -1503,6 +1503,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const presentMorningCall = markedMorningCall.filter((item) => item.status === 'present');
   const absentMorningCall = markedMorningCall.filter((item) => item.status === 'absent');
   const isWeekday = getDayType(new Date()) === 'weekday';
+  const isWeekendQuote = !isWeekday;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -1619,7 +1620,14 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         >
           <div className="quote-glass-panel flex items-start gap-3 rounded-2xl p-4 ring-1 ring-black/5">
             <div className="min-w-0 flex-1">
-              <p className="eyebrow mb-1">Quote Feed</p>
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <p className="eyebrow">{isWeekendQuote ? 'Quote of the Week' : 'Quote Feed'}</p>
+                {isWeekendQuote && (
+                  <time dateTime={featuredQuote.record_date} className="text-[9px] font-semibold tabular-nums text-stone/55">
+                    {formatNumericDate(featuredQuote.record_date)}
+                  </time>
+                )}
+              </div>
               <p className="text-[15px] text-ink font-display font-semibold italic leading-snug">"{featuredQuote.daily_quote}"</p>
               <QuoteAuthorStats quote={featuredQuote} showDate={false} compact currentUserId={instructorId} onMessageOpenChange={setQuotePaused} />
               {quotes.length > 1 && (

@@ -15,7 +15,7 @@ import { isPanelImageContent, panelImageFromAnnouncement, selectPanelImageAnnoun
 import type { RoadHomeResponse } from './roadHomeTypes';
 import { imageFileType, prepareImageUpload } from './uploads';
 import { uploadAppFile } from './storageUploads';
-import { getTodayISODate } from './utils';
+import { getDayType, getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
 import { parseLiveStats, type UserLiveStats } from './liveStats';
@@ -2197,7 +2197,8 @@ export async function fetchDailyQuoteFeed(limit = 12) {
   return shareReadRequest(`daily-quote-feed:${limit}`, async () => {
     const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
     if (error) throw error;
-    return mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
+    const quotes = await mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
+    return getDayType(getTodayISODate()) === 'weekday' ? quotes : quotes.slice(0, 1);
   });
 }
 
