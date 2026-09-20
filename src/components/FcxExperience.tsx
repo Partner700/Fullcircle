@@ -204,11 +204,12 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             href={paymentHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="fcx-line flex min-h-12 w-11 shrink-0 items-center justify-center rounded-lg border border-brass/45 bg-brass text-navy shadow-sm transition hover:bg-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/70"
+            className="fcx-line flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-brass/45 bg-brass text-navy shadow-sm transition hover:bg-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/70"
             aria-label="Pay for the Full Circle Experience"
             title="Pay for FCX"
           >
-            <CircleDollarSign size={19} strokeWidth={2.4} />
+            <CircleDollarSign size={16} strokeWidth={2.4} />
+            <span className="text-[8px] font-black uppercase leading-none">Pay</span>
           </a>
         )}
       </div>

@@ -107,6 +107,7 @@ export function QuizResponders({
     [board, competitorRole],
   );
   const responders = useMemo(() => visibleBoard.filter((member) => Boolean(member.answered_at)), [visibleBoard]);
+  const waitingMembers = useMemo(() => visibleBoard.filter((member) => !member.answered_at), [visibleBoard]);
   const placementByUserId = new Map(rankings.map((ranking) => [ranking.user_id, ranking.placement]));
   const answeredByTent = useMemo(() => {
     const totals = new Map<string, number>();
@@ -117,6 +118,27 @@ export function QuizResponders({
   }, [responders]);
 
   if (variant === 'podium') {
+    const participantAvatar = (member: QuizResponseBoardMember, answered: boolean) => (
+      <span
+        key={member.user_id}
+        title={`${member.display_name} ${answered ? 'answered' : 'did not answer'}`}
+        className={cn(
+          'relative flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border shadow-sm transition',
+          answered
+            ? 'border-moss/60 bg-navy/78'
+            : 'border-white/25 bg-surface/35 opacity-40 grayscale',
+        )}
+      >
+        <UserAvatar
+          userId={member.user_id}
+          name={member.display_name}
+          avatarUrl={member.avatar_url}
+          className="h-full w-full"
+        />
+        <CurrentUserAvatarMarker isCurrentUser={member.user_id === profile?.id} compact />
+      </span>
+    );
+
     return (
       <div className={cn('mt-3', className)} aria-live="polite">
         {visibleBoard.length > 0 ? (
@@ -124,30 +146,17 @@ export function QuizResponders({
             <p className="text-[9px] font-bold uppercase text-stone">
               {responders.length}/{visibleBoard.length} answered
             </p>
-            <div className="mt-1.5 grid max-w-[19rem] grid-cols-10 gap-1.5" aria-label={`${responders.length} of ${visibleBoard.length} participants answered`}>
-              {visibleBoard.map((member) => {
-                const answered = Boolean(member.answered_at);
-                return (
-                  <span
-                    key={member.user_id}
-                    title={`${member.display_name} ${answered ? 'answered' : 'did not answer'}`}
-                    className={cn(
-                      'relative flex h-6 w-6 items-center justify-center rounded-full border shadow-sm transition',
-                      answered
-                        ? 'border-moss/60 bg-navy/78'
-                        : 'border-white/25 bg-surface/35 opacity-40 grayscale',
-                    )}
-                  >
-                    <UserAvatar
-                      userId={member.user_id}
-                      name={member.display_name}
-                      avatarUrl={member.avatar_url}
-                      className="h-full w-full"
-                    />
-                    <CurrentUserAvatarMarker isCurrentUser={member.user_id === profile?.id} compact />
-                  </span>
-                );
-              })}
+            <div className="mt-1.5 flex max-w-[19rem] flex-wrap items-center gap-x-2 gap-y-1.5" aria-label={`${responders.length} of ${visibleBoard.length} participants answered`}>
+              {responders.length > 0 && (
+                <div className="flex max-w-full flex-wrap gap-1" aria-label="Participants who answered">
+                  {responders.map((member) => participantAvatar(member, true))}
+                </div>
+              )}
+              {waitingMembers.length > 0 && (
+                <div className={cn('flex max-w-full flex-wrap gap-1', responders.length > 0 && 'border-l border-white/30 pl-2')} aria-label="Participants who did not answer">
+                  {waitingMembers.map((member) => participantAvatar(member, false))}
+                </div>
+              )}
             </div>
           </>
         ) : (

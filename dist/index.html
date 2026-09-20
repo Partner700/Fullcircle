@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=114" />
+  <link rel="manifest" href="./manifest.webmanifest?v=115" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -149,7 +149,7 @@
     // Keep recovery explicit. Automatic cache deletion and reloads made weak
     // mobile connections restart just as the application was about to open.
     (function () {
-      var release = '117';
+      var release = '118';
       var marker = 'fc-repair';
       var repairStarted = false;
       window.__fullCircleBootRelease = release;
@@ -175,15 +175,15 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('./sw.js?v=117', { updateViaCache: 'none' })
+          .register('./sw.js?v=118', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-Du4dnyrm.js"></script>
+  <script type="module" crossorigin src="./assets/index-D_987jbi.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
-  <link rel="stylesheet" crossorigin href="./assets/style-CQLvYpZv.css">
+  <link rel="stylesheet" crossorigin href="./assets/style-pbkAWSLE.css">
 </head>
 <body>
   <main id="root">
@@ -201,7 +201,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
-      var bootRelease = window.__fullCircleBootRelease || '117';
+      var bootRelease = window.__fullCircleBootRelease || '118';
       var emergencyUrl = 'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
       root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>The connection is taking longer than usual.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Retry Full Circle</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Release ' + bootRelease + '</p><a href="' + emergencyUrl + '" style="display:inline-block;margin-top:8px;color:#ffd83d;font:800 14px system-ui">Open emergency copy</a></div></div>';
     }, 20000);
