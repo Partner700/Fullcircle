@@ -208,8 +208,16 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     };
   }, [narrative, profile?.id, quotes]);
 
+  const quoteSlides: DashboardHeroSlide[] = quotes.map((quote) => ({
+    id: `quote-${quote.user_id}-${quote.record_date}`,
+    kind: 'quote' as const,
+    quote,
+  }));
+  const weekendQuoteSlides = dayType === 'weekday' ? [] : quoteSlides;
+  const weekdayQuoteSlides = dayType === 'weekday' ? quoteSlides : [];
   const heroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
+    ...weekendQuoteSlides,
     ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
@@ -223,11 +231,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       kind: 'announcement' as const,
       announcement,
     })),
-    ...quotes.map((quote) => ({
-      id: `quote-${quote.user_id}-${quote.record_date}`,
-      kind: 'quote' as const,
-      quote,
-    })),
+    ...weekdayQuoteSlides,
   ];
   const heroSlideCount = heroSlides.length;
   const guideVerseSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'verse');
