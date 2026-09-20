@@ -650,6 +650,12 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           </div>
                         ))}
                       </div>
+                      <QuizResponders
+                        sessionId={slide.rankings[0]?.quiz_session_id}
+                        variant="podium"
+                        competitorRole={slide.division === 'Cadets' ? 'cadet' : 'sentry'}
+                        active={displayIndex === slideIndex}
+                      />
                     </div>
                   )}
 

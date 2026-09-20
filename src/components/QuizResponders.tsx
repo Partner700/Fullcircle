@@ -19,11 +19,13 @@ import { UserAvatar } from './UserAvatar';
 export function QuizResponders({
   sessionId,
   variant = 'card',
+  competitorRole,
   active = true,
   className,
 }: {
   sessionId?: string | null;
-  variant?: 'card' | 'slide';
+  variant?: 'card' | 'slide' | 'podium';
+  competitorRole?: 'cadet' | 'sentry';
   active?: boolean;
   className?: string;
 }) {
@@ -51,7 +53,7 @@ export function QuizResponders({
 
       const [boardResult, rankingResult] = await Promise.allSettled([
         fetchQuizResponseBoard(quizSessionId),
-        fetchLatestWeeklyQuizRankings(quizSessionId),
+        fetchLatestWeeklyQuizRankings(quizSessionId, competitorRole),
       ]);
       if (boardResult.status === 'fulfilled') {
         setBoard(boardResult.value);
@@ -69,7 +71,7 @@ export function QuizResponders({
     } finally {
       setLoading(false);
     }
-  }, [active, board.length, resolvedSessionId, sessionId]);
+  }, [active, board.length, competitorRole, resolvedSessionId, sessionId]);
 
   useEffect(() => {
     setResolvedSessionId(sessionId || null);
@@ -100,7 +102,11 @@ export function QuizResponders({
   }, [active, load, resolvedSessionId, sessionId, variant]);
 
   const isSlide = variant === 'slide';
-  const responders = useMemo(() => board.filter((member) => Boolean(member.answered_at)), [board]);
+  const visibleBoard = useMemo(
+    () => competitorRole ? board.filter((member) => member.competitor_role === competitorRole) : board,
+    [board, competitorRole],
+  );
+  const responders = useMemo(() => visibleBoard.filter((member) => Boolean(member.answered_at)), [visibleBoard]);
   const placementByUserId = new Map(rankings.map((ranking) => [ranking.user_id, ranking.placement]));
   const answeredByTent = useMemo(() => {
     const totals = new Map<string, number>();
@@ -110,6 +116,47 @@ export function QuizResponders({
     return totals;
   }, [responders]);
 
+  if (variant === 'podium') {
+    return (
+      <div className={cn('mt-3', className)} aria-live="polite">
+        {visibleBoard.length > 0 ? (
+          <>
+            <p className="text-[9px] font-bold uppercase text-stone">
+              {responders.length}/{visibleBoard.length} answered
+            </p>
+            <div className="mt-1.5 grid max-w-[19rem] grid-cols-10 gap-1.5" aria-label={`${responders.length} of ${visibleBoard.length} participants answered`}>
+              {visibleBoard.map((member) => {
+                const answered = Boolean(member.answered_at);
+                return (
+                  <span
+                    key={member.user_id}
+                    title={`${member.display_name} ${answered ? 'answered' : 'did not answer'}`}
+                    className={cn(
+                      'relative flex h-6 w-6 items-center justify-center rounded-full border shadow-sm transition',
+                      answered
+                        ? 'border-moss/60 bg-navy/78'
+                        : 'border-white/25 bg-surface/35 opacity-40 grayscale',
+                    )}
+                  >
+                    <UserAvatar
+                      userId={member.user_id}
+                      name={member.display_name}
+                      avatarUrl={member.avatar_url}
+                      className="h-full w-full"
+                    />
+                    <CurrentUserAvatarMarker isCurrentUser={member.user_id === profile?.id} compact />
+                  </span>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <p className="text-[10px] text-stone">{loading ? 'Loading participants...' : 'No participants are available.'}</p>
+        )}
+      </div>
+    );
+  }
+
   if (isSlide) {
     return (
       <div className={cn('mt-3 grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-white/20 bg-surface/55 px-3 py-2.5 shadow-sm backdrop-blur-md', className)} aria-live="polite">
@@ -117,9 +164,9 @@ export function QuizResponders({
           <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-ink">
             <CheckCircle2 size={12} className="text-moss" /> Quiz response board
           </p>
-          {board.length > 0 ? (
-            <div className="mt-2 grid max-w-[20rem] grid-cols-10 gap-1.5" aria-label={`${responders.length} of ${board.length} camp members answered`}>
-              {board.map((member) => {
+          {visibleBoard.length > 0 ? (
+            <div className="mt-2 grid max-w-[20rem] grid-cols-10 gap-1.5" aria-label={`${responders.length} of ${visibleBoard.length} camp members answered`}>
+              {visibleBoard.map((member) => {
                 const answered = Boolean(member.answered_at);
                 return (
                   <span
@@ -151,7 +198,7 @@ export function QuizResponders({
         </div>
 
         <div className="min-w-[3.25rem] border-l border-white/20 pl-2 text-right">
-          <p className="font-display text-base font-black tabular-nums text-ink">{responders.length}/{board.length || responders.length}</p>
+          <p className="font-display text-base font-black tabular-nums text-ink">{responders.length}/{visibleBoard.length || responders.length}</p>
           <p className="text-[8px] font-bold uppercase text-stone">answered</p>
           <div className="mt-1.5 space-y-1">
             {TENT_HOUSES.map((house) => (

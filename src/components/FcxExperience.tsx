@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, MessageSquare, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
@@ -181,25 +181,34 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         </p>
       </div>
 
-      <div className="fcx-line mt-2.5 flex min-h-12 max-w-full flex-wrap items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
-        <Clock3 size={17} className="shrink-0 text-brass" />
-        {eventHasStarted ? (
-          <p className="text-sm font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
-        ) : (
-          <>
-            <span className="text-[10px] font-bold uppercase text-stone">Starts in</span>
-            <div className="grid grid-cols-4 gap-1.5" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
-              {countdown.map((part) => (
-                <span key={part.label} className="min-w-8 whitespace-nowrap text-center text-base font-black tabular-nums leading-none text-ink">
-                  {String(part.value).padStart(2, '0')}<span className="ml-0.5 text-[9px] font-bold text-stone">{part.shortLabel}</span>
-                </span>
-              ))}
-            </div>
-          </>
-        )}
+      <div className="mt-2.5 flex max-w-full items-stretch gap-2">
+        <div className="fcx-line flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-2.5 rounded-lg border border-white/25 bg-surface/55 px-3 py-2 shadow-sm backdrop-blur-md">
+          <Clock3 size={17} className="shrink-0 text-brass" />
+          {eventHasStarted ? (
+            <p className="text-sm font-bold text-ink">{eventIsToday ? 'FCX is underway' : 'FCX has begun'}</p>
+          ) : (
+            <>
+              <span className="text-[10px] font-bold uppercase text-stone">Starts in</span>
+              <div className="grid grid-cols-4 gap-1.5" aria-label={`FCX starts in ${countdown.map((part) => `${part.value} ${part.label}`).join(', ')}`}>
+                {countdown.map((part) => (
+                  <span key={part.label} className="min-w-8 whitespace-nowrap text-center text-base font-black tabular-nums leading-none text-ink">
+                    {String(part.value).padStart(2, '0')}<span className="ml-0.5 text-[9px] font-bold text-stone">{part.shortLabel}</span>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         {paymentHref && (
-          <a href={paymentHref} target="_blank" rel="noopener noreferrer" className="btn-primary ml-auto min-h-8 shrink-0 px-2.5 py-1 text-[10px]">
-            <MessageSquare size={13} /> Pay
+          <a
+            href={paymentHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fcx-line flex min-h-12 w-11 shrink-0 items-center justify-center rounded-lg border border-brass/45 bg-brass text-navy shadow-sm transition hover:bg-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/70"
+            aria-label="Pay for the Full Circle Experience"
+            title="Pay for FCX"
+          >
+            <CircleDollarSign size={19} strokeWidth={2.4} />
           </a>
         )}
       </div>
