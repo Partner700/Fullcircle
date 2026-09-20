@@ -821,6 +821,17 @@ export async function fetchWeeklyAwardMetrics(weekStart?: string) {
   return (data || []) as import('./types').WeeklyAwardMetric[];
 }
 
+export async function fetchMonthlyMessengerAwardMetrics(monthStart?: string) {
+  const normalizedMonthStart = monthStart && /^\d{4}-\d{2}$/.test(monthStart)
+    ? `${monthStart}-01`
+    : monthStart || null;
+  const { data, error } = await supabase.rpc('get_monthly_messenger_award_metrics', {
+    p_month_start: normalizedMonthStart,
+  });
+  if (error) throw error;
+  return (data || []) as import('./types').MonthlyMessengerAwardMetric[];
+}
+
 export async function recordExternalShare(
   shareKind: 'reading' | 'quiz' | 'game' | 'meditation',
   referenceKey: string,

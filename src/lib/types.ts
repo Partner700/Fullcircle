@@ -823,6 +823,20 @@ export interface WeeklyAwardMetric {
   avatar_url: string | null;
   total_figs: number;
   quote_reactions: number;
+  quote_comments: number;
+  insight_reactions: number;
+  insight_comments: number;
+  rhetoric_score: number;
+  insight_likes: number;
+  public_meditations: number;
+  external_shares: number;
+  messenger_score: number;
+}
+
+export interface MonthlyMessengerAwardMetric {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
   insight_likes: number;
   public_meditations: number;
   external_shares: number;

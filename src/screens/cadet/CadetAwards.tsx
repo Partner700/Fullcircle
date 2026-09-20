@@ -104,6 +104,21 @@ const AWARD_LABEL_MAP: Record<string, string> = {
   temple_mount: 'Temple Mount',
 };
 
+const WEEKLY_AWARD_CYCLE = /^week-(\d{4}-\d{2}-\d{2})$/;
+
+function awardMatchesMonth(award: AwardWithRecipient, month: string) {
+  const cycle = String(award.award_month || '');
+  const weeklyDate = cycle.match(WEEKLY_AWARD_CYCLE)?.[1];
+  const cycleMonth = weeklyDate?.slice(0, 7) || cycle.slice(0, 7);
+  const publishedMonth = String(award.created_at || '').slice(0, 7);
+  return cycleMonth === month || (Boolean(weeklyDate) && publishedMonth === month);
+}
+
+function formatAwardCycle(cycle: string) {
+  const weeklyDate = String(cycle || '').match(WEEKLY_AWARD_CYCLE)?.[1];
+  return weeklyDate ? `Week of ${formatShortDate(weeklyDate)}` : formatShortDate(cycle);
+}
+
 export function CadetAwards() {
   const { profile } = useAuth();
   const [awards, setAwards] = useState<AwardWithRecipient[]>([]);
@@ -148,9 +163,12 @@ export function CadetAwards() {
   const awardTypeOptions = Array.from(new Set(awards.map((award) => award.award_type).filter(Boolean))).sort((a, b) => (
     (AWARD_LABEL_MAP[a] || a).localeCompare(AWARD_LABEL_MAP[b] || b)
   ));
-  const monthlyAwards = awards.filter((award) => String(award.award_month || '').startsWith(awardMonth));
+  const monthlyAwards = awards.filter((award) => awardMatchesMonth(award, awardMonth));
   const visibleAwards = monthlyAwards.filter((award) => awardType === 'all' || award.award_type === awardType);
-  const myAwards = visibleAwards.filter((a) => a.award_target_type !== 'tent' && a.user_id === profile?.id);
+  const myAwards = visibleAwards.filter((award) => (
+    award.award_target_type !== 'tent'
+    && (award.user_id === profile?.id || award.award_target_id === profile?.id)
+  ));
 
   if (loading) return <div className="text-center py-12 text-stone animate-fade-in">Loading awards…</div>;
 
@@ -161,7 +179,7 @@ export function CadetAwards() {
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-center gap-2">
             <LaurelWreath size={22} className="text-brass" />
-            <SectionHeader title="My Awards" subtitle={`${myAwards.length} earned this month`} />
+            <SectionHeader title="My Awards" subtitle={`${myAwards.length} earned in this period`} />
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(9rem,auto)_minmax(12rem,auto)]">
             <label className="block text-xs font-bold text-stone">
@@ -211,7 +229,7 @@ export function CadetAwards() {
                         <h4 className="font-display font-semibold text-ink truncate"><VallumText text={award.title} size={14} /></h4>
                         {houseId && <TentHouseSymbol houseId={houseId} size={19} />}
                       </div>
-                      <p className="text-xs text-stone mt-0.5">{formatShortDate(award.award_month)}</p>
+                      <p className="text-xs text-stone mt-0.5">{formatAwardCycle(award.award_month)}</p>
                     </div>
                     <span className={cn(badgeClass, 'text-[10px] flex-shrink-0')}>
                       <VallumText text={(AWARD_LABEL_MAP[award.award_type] || award.award_type).replace(/ of.*/, '')} size={10} />
@@ -225,7 +243,7 @@ export function CadetAwards() {
             })}
           </div>
         ) : (
-          <EmptyState icon={(props) => <AwardIcon {...props} />} title="No awards yet" message="Awards are computed monthly from your streak, quiz, game, and challenge performance. Keep going!" />
+          <EmptyState icon={(props) => <AwardIcon {...props} />} title="No awards yet" message="Weekly and monthly honors for this period will appear here as they are awarded." />
         )}
       </div>
 
@@ -238,7 +256,7 @@ export function CadetAwards() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <LaurelWreath size={22} className="text-brass" />
-          <SectionHeader title="All Awards" subtitle="This month's visible honors across cadets, sentries, and tents" />
+          <SectionHeader title="All Awards" subtitle="Weekly and monthly honors across cadets, sentries, and tents" />
         </div>
         {visibleAwards.length > 0 ? (
           <div className="space-y-2">
@@ -288,7 +306,7 @@ export function CadetAwards() {
                     )}
                     <AwardReactions state={reactions[award.id]} disabled={!!reacting?.startsWith(`${award.id}:`)} currentUserId={profile?.id} onReact={(type) => void handleReaction(award.id, type)} />
                   </div>
-                  <span className="text-xs text-stone flex-shrink-0">{formatShortDate(award.award_month)}</span>
+                  <span className="text-xs text-stone flex-shrink-0">{formatAwardCycle(award.award_month)}</span>
                 </div>
               );
             })}

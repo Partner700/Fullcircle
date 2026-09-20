@@ -39,6 +39,7 @@ const cadetSettings = read('src/screens/cadet/CadetSettings.tsx');
 const calendarUtilities = read('src/lib/utils.ts');
 const toolbarStats = read('supabase/migrations/20260814172000_authoritative_toolbar_stats.sql');
 const cadetDashboard = read('src/screens/cadet/CadetDashboard.tsx');
+const cadetAwards = read('src/screens/cadet/CadetAwards.tsx');
 const sentryApp = read('src/screens/sentry/SentryApp.tsx');
 const arenaGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 const cadetArena = read('src/screens/cadet/CadetArena.tsx');
@@ -197,6 +198,7 @@ const orderedAnswersAndMarketContinuity = read('supabase/migrations/202609171000
 const reliableTentDeletion = read('supabase/migrations/20260917110000_reliable_tent_deletion.sql');
 const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
 const weekendQuotesQuizExtensions = read('supabase/migrations/20260919130000_weekend_quotes_quiz_extensions_and_response_board.sql');
+const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
 for (const required of [
@@ -461,8 +463,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v140'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '133'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v141'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '134'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
@@ -476,20 +478,20 @@ assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not ab
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '119'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '120'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=119`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=120`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /set\('fc-release', '119'\)/);
+assert.match(staleBundleRecovery, /set\('fc-release', '120'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-20-v140/);
+assert.match(releaseCache, /2026-09-20-v141/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=116/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=119'/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=117/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=120'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
@@ -499,7 +501,7 @@ assert.match(appIndex, /__fullCircleBootRelease/);
 assert.match(appIndex, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=116"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=117"/);
 assert.match(viteConfig, /target: 'es2017'/);
 assert.match(appIndex, /Array\.prototype\.flatMap/);
 assert.match(appIndex, /Object\.fromEntries/);
@@ -1637,12 +1639,28 @@ for (const required of [
   "title: 'Scribe Award'",
   'metric.total_figs',
   "title: 'Rhetoric Award (Orator)'",
-  'metric.quote_reactions',
+  'metric.rhetoric_score',
   "title: 'Messenger Award (Nuncio)'",
+  'fetchMonthlyMessengerAwardMetrics(watchMonth)',
   "title: 'Angel Award (Angelos)'",
 ]) {
-  assert.ok(instructorApp.includes(required), `Missing instructor weekly award behavior: ${required}`);
+  assert.ok(instructorApp.includes(required), `Missing instructor award behavior: ${required}`);
 }
+for (const required of [
+  'CREATE FUNCTION public.get_weekly_award_metrics(',
+  'FROM public.daily_quote_comments comment',
+  'FROM public.scripture_insight_comments comment',
+  'FROM public.public_scripture_insight_reactions reaction',
+  'AS rhetoric_score',
+  'CREATE OR REPLACE FUNCTION public.get_monthly_messenger_award_metrics(',
+  "IF p_title = 'Messenger Award (Nuncio)'",
+  "'Rhetoric Award (Orator)', 'Angel Award (Angelos)', 'Rumor Award'",
+]) {
+  assert.ok(awardCadenceVisibilityAndRhetoric.includes(required), `Missing corrected award cadence or rhetoric metric: ${required}`);
+}
+assert.match(cadetAwards, /WEEKLY_AWARD_CYCLE/);
+assert.match(cadetAwards, /awardMatchesMonth\(award, awardMonth\)/);
+assert.match(cadetAwards, /Weekly and monthly honors across cadets, sentries, and tents/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.scripture_alarm_occurrences',

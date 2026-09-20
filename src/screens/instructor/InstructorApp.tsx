@@ -43,7 +43,7 @@ import { cn, whatsappUrl, formatShortDate, getDayType, getTodayISODate, getAppCl
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
 import { uploadAppFile } from '../../lib/storageUploads';
-import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments, MonthlyVallumWatchRow } from '../../lib/types';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments, MonthlyVallumWatchRow, MonthlyMessengerAwardMetric } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import {
@@ -68,7 +68,7 @@ import {
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
   fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, savePanelImageSetting, fetchPanelImageSetting,
-  fetchMarksBoard, fetchMonthlyVallumWatch, fetchWeeklyAwardMetrics,
+  fetchMarksBoard, fetchMonthlyVallumWatch, fetchWeeklyAwardMetrics, fetchMonthlyMessengerAwardMetrics,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
@@ -2487,8 +2487,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Weekly Individual',
     cadence: 'weekly',
     awards: [
-      { title: 'Rhetoric Award (Orator)', description: 'Most reactions received across quotes during the week' },
-      { title: 'Messenger Award (Nuncio)', description: 'Leading insight likes, public meditations, and external shares' },
+      { title: 'Rhetoric Award (Orator)', description: 'Most reactions and comments received across quotes and scripture insights during the week' },
       { title: 'Angel Award (Angelos)', description: 'Weekly leader in insight likes, public meditations, and external shares' },
       { title: 'Rumor Award', description: 'Weekly Vallum: the cadet leading the Marks table' },
       { title: 'Scribe Award', description: 'Highest total figs earned during the week' },
@@ -2510,6 +2509,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'monthly',
     awards: [
       { title: 'Vallum', description: 'Overall Best Cadet of the Month by Marks' },
+      { title: 'Messenger Award (Nuncio)', description: 'Monthly leader in insight likes, public meditations, and external shares' },
       { title: 'Monthly Scribe', description: 'Highest Monthly Fig Total' },
       { title: 'Monthly Valley Champion', description: 'Most Monthly Arena Victories' },
       { title: 'Muralis', description: 'Winner of the previous Full Circle Experience' },
@@ -2606,6 +2606,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [watchMonth, setWatchMonth] = useState(getTodayISODate().slice(0, 7));
   const [monthlyWatch, setMonthlyWatch] = useState<MonthlyVallumWatchRow[]>([]);
+  const [monthlyMessengerWatch, setMonthlyMessengerWatch] = useState<MonthlyMessengerAwardMetric[]>([]);
   const [loadingMonthlyWatch, setLoadingMonthlyWatch] = useState(false);
 
   const cadets = useMemo(() => roles.filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved')), [roles]);
@@ -2619,11 +2620,22 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     const loadMonthlyWatch = async () => {
       setLoadingMonthlyWatch(true);
       try {
-        const rows = await fetchMonthlyVallumWatch(watchMonth);
-        if (!cancelled) setMonthlyWatch(rows);
+        const [vallumResult, messengerResult] = await Promise.allSettled([
+          fetchMonthlyVallumWatch(watchMonth),
+          fetchMonthlyMessengerAwardMetrics(watchMonth),
+        ]);
+        if (!cancelled) {
+          setMonthlyWatch(vallumResult.status === 'fulfilled' ? vallumResult.value : []);
+          setMonthlyMessengerWatch(messengerResult.status === 'fulfilled' ? messengerResult.value : []);
+        }
+        if (vallumResult.status === 'rejected') console.warn('Monthly Vallum watch could not load:', vallumResult.reason);
+        if (messengerResult.status === 'rejected') console.warn('Monthly Nuncio watch could not load:', messengerResult.reason);
       } catch (error) {
-        console.warn('Monthly Vallum watch could not load:', error);
-        if (!cancelled) setMonthlyWatch([]);
+        console.warn('Monthly award watches could not load:', error);
+        if (!cancelled) {
+          setMonthlyWatch([]);
+          setMonthlyMessengerWatch([]);
+        }
       } finally {
         if (!cancelled) setLoadingMonthlyWatch(false);
       }
@@ -2816,21 +2828,27 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           })),
         });
 
-        const quoteRanking = [...cadetWeeklyMetrics]
-          .filter((metric) => Number(metric.quote_reactions) > 0)
-          .sort((left, right) => Number(right.quote_reactions) - Number(left.quote_reactions) || left.display_name.localeCompare(right.display_name))
+        const rhetoricValue = (metric: typeof cadetWeeklyMetrics[number]) => (
+          Number(metric.rhetoric_score ?? metric.quote_reactions ?? 0)
+        );
+        const rhetoricRanking = [...cadetWeeklyMetrics]
+          .filter((metric) => rhetoricValue(metric) > 0)
+          .sort((left, right) => rhetoricValue(right) - rhetoricValue(left) || left.display_name.localeCompare(right.display_name))
           .slice(0, 4);
-        const quoteLeader = quoteRanking[0];
-        if (quoteLeader) {
+        const rhetoricDetail = (metric: typeof rhetoricRanking[number]) => (
+          `${rhetoricValue(metric).toLocaleString()} received interaction(s) · ${Number(metric.quote_reactions || 0)} quote reaction(s) · ${Number(metric.quote_comments || 0)} quote comment(s) · ${Number(metric.insight_reactions || 0)} insight reaction(s) · ${Number(metric.insight_comments || 0)} insight comment(s)`
+        );
+        const rhetoricLeader = rhetoricRanking[0];
+        if (rhetoricLeader) {
           next.push({
             title: 'Rhetoric Award (Orator)',
-            candidate: quoteLeader.display_name,
-            candidateId: quoteLeader.user_id,
-            detail: `${Number(quoteLeader.quote_reactions).toLocaleString()} reactions received across their quotes this week.`,
-            runnersUp: quoteRanking.slice(1).map((item) => ({
+            candidate: rhetoricLeader.display_name,
+            candidateId: rhetoricLeader.user_id,
+            detail: rhetoricDetail(rhetoricLeader),
+            runnersUp: rhetoricRanking.slice(1).map((item) => ({
               candidate: item.display_name,
               candidateId: item.user_id,
-              detail: `${Number(item.quote_reactions).toLocaleString()} quote reactions received.`,
+              detail: rhetoricDetail(item),
             })),
           });
         }
@@ -2855,13 +2873,6 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             candidateId: metric.user_id,
             detail: messengerDetail(metric),
           }));
-          next.push({
-            title: 'Messenger Award (Nuncio)',
-            candidate: topMessenger.display_name,
-            candidateId: topMessenger.user_id,
-            detail: messengerDetail(topMessenger),
-            runnersUp,
-          });
           next.push({
             title: 'Angel Award (Angelos)',
             candidate: topMessenger.display_name,
@@ -2980,6 +2991,22 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       avatarUrl: row.avatar_url,
       detail: `${Number(row.monthly_figs).toLocaleString()} figs this month`,
     }));
+  const monthlyNuncioEntries: MonthlyWatchEntry[] = [...monthlyMessengerWatch]
+    .filter((row) => Number(row.messenger_score) > 0)
+    .sort((left, right) => (
+      Number(right.messenger_score) - Number(left.messenger_score)
+      || Number(right.insight_likes) - Number(left.insight_likes)
+      || Number(right.public_meditations) - Number(left.public_meditations)
+      || Number(right.external_shares) - Number(left.external_shares)
+      || left.display_name.localeCompare(right.display_name)
+    ))
+    .slice(0, 4)
+    .map((row) => ({
+      id: row.user_id,
+      name: row.display_name,
+      avatarUrl: row.avatar_url,
+      detail: `${Number(row.messenger_score).toLocaleString()} communication actions · ${Number(row.insight_likes)} insight like(s) · ${Number(row.public_meditations)} public meditation(s) · ${Number(row.external_shares)} external share(s)`,
+    }));
   const monthlyValleyEntries: MonthlyWatchEntry[] = [...monthlyWatch]
     .filter((row) => Number(row.monthly_rhudes) > 0)
     .sort((left, right) => Number(right.monthly_rhudes) - Number(left.monthly_rhudes) || right.activity_points - left.activity_points)
@@ -3038,6 +3065,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             title="Monthly Scribe"
             subtitle="Monthly figs from completed quizzes"
             entries={monthlyScribeEntries}
+          />
+          <MonthlyWatchCard
+            title="Messenger Award (Nuncio)"
+            subtitle="Monthly insight likes, public meditations, and external shares"
+            entries={monthlyNuncioEntries}
           />
           <MonthlyWatchCard
             title="Monthly Valley Champion"
