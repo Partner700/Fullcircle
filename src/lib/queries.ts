@@ -2196,6 +2196,10 @@ export async function fetchQuizTaggedGameQuestions(limit = 50) {
 export async function fetchDailyQuoteFeed(limit = 100) {
   return shareReadRequest(`daily-quote-feed:${limit}`, async () => {
     const dayType = getDayType(getTodayISODate());
+    const requestPublicFallback = () => fetchPublicDailyQuotes(
+      getTodayISODate(),
+      Math.min(Math.max(limit, 1), 30),
+    );
     const requestQuotes = async () => {
       const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
       if (error) throw error;
@@ -2209,14 +2213,23 @@ export async function fetchDailyQuoteFeed(limit = 100) {
     try {
       quotes = await requestQuotes();
     } catch (firstError) {
-      if (dayType === 'weekday') throw firstError;
-      await new Promise((resolve) => window.setTimeout(resolve, 450));
-      quotes = await requestQuotes();
+      try {
+        quotes = await requestPublicFallback();
+      } catch {
+        if (dayType === 'weekday') throw firstError;
+        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        quotes = await requestQuotes();
+      }
+    }
+
+    if (quotes.length === 0) {
+      const fallback = await requestPublicFallback().catch(() => []);
+      if (fallback.length > 0) quotes = fallback;
     }
 
     if (dayType !== 'weekday' && quotes.length === 0) {
-      await new Promise((resolve) => window.setTimeout(resolve, 650));
-      quotes = await requestQuotes();
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
+      quotes = await requestQuotes().catch(() => quotes);
     }
     return quotes;
   });

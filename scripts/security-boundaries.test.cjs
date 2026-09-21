@@ -200,6 +200,7 @@ const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
 const weekendQuotesQuizExtensions = read('supabase/migrations/20260919130000_weekend_quotes_quiz_extensions_and_response_board.sql');
 const completeDailyQuotesAndOptionalTour = read('supabase/migrations/20260921130000_complete_daily_quotes_and_optional_tour.sql');
 const persistentOptionalTourDismissal = read('supabase/migrations/20260921140000_persist_optional_tour_dismissal.sql');
+const restoredDailyQuoteExecution = read('supabase/migrations/20260921173000_restore_daily_quote_feed_execution.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -2222,6 +2223,10 @@ assert.match(newcomerGuidanceApi, /dismiss_my_newcomer_guidance/);
 assert.match(newcomerGuide, /Skip optional tour/);
 assert.doesNotMatch(newcomerGuide, /WELCOME_SOCIAL_STEPS\.has\(step\) && activeTab !== 'dashboard'[\s\S]{0,100}onNavigate\('dashboard'\)/);
 assert.doesNotMatch(quoteQueries, /quotes\.slice\(0, 1\)/);
+assert.match(restoredDailyQuoteExecution, /ALTER FUNCTION public\.get_daily_quote_feed\(integer\) VOLATILE/);
+assert.match(restoredDailyQuoteExecution, /ALTER FUNCTION public\.get_public_daily_quotes\(date, integer\) VOLATILE/);
+assert.match(quoteQueries, /requestPublicFallback/);
+assert.match(quoteQueries, /fetchPublicDailyQuotes/);
 for (const required of [
   'ADD COLUMN IF NOT EXISTS dismissed_at timestamptz',
   'dismissed_at = COALESCE(dismissed_at, now())',
