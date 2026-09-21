@@ -157,3 +157,13 @@ export async function completeNewcomerGuidanceStep(step: NewcomerGuidanceStep) {
   }
   return next;
 }
+
+export async function dismissNewcomerGuidance() {
+  const { data, error } = await supabase.rpc('dismiss_my_newcomer_guidance');
+  if (error) throw error;
+  const next = data as NewcomerGuidanceState;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(NEWCOMER_GUIDANCE_REFRESH_EVENT, { detail: next }));
+  }
+  return next;
+}

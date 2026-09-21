@@ -44,7 +44,7 @@ export type DashboardHeroSlide =
   | { id: string; kind: 'honors'; awards: AwardWithRecipient[] }
   | { id: string; kind: 'verse'; narrative: DailyNarrative }
   | { id: string; kind: 'announcement'; announcement: ScheduledAnnouncement }
-  | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem };
+  | { id: string; kind: 'quote'; quote: DailyQuoteFeedItem; featured?: boolean };
 
 const STARTUP_WELCOME_ARTWORK: PanelImageSetting = {
   url: publicAsset('fullcircle-startup-artwork.jpeg'),
@@ -121,7 +121,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchGameAttempts(profile.id, today).then(setGames),
         fetchChallengeSubmission(profile.id, today).then(setChallenge),
         fetchStrictStreak(profile.id).then(setStreakData),
-        fetchDailyQuoteFeed(12).then(async (quotes) => {
+        fetchDailyQuoteFeed(100).then(async (quotes) => {
           setQuotes(quotes);
           if (quotes.length) setQuoteReactions(await fetchDailyQuoteReactions(quotes, profile.id));
         }),
@@ -208,10 +208,11 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     };
   }, [narrative, profile?.id, quotes]);
 
-  const quoteSlides: DashboardHeroSlide[] = quotes.map((quote) => ({
+  const quoteSlides: DashboardHeroSlide[] = quotes.map((quote, quoteIndex) => ({
     id: `quote-${quote.user_id}-${quote.record_date}`,
     kind: 'quote' as const,
     quote,
+    featured: dayType !== 'weekday' && quoteIndex === 0,
   }));
   const standardHeroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
@@ -779,7 +780,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
                       <div className="relative z-10">
                         <div className="mb-1 flex items-start justify-between gap-3">
-                          <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> {isWeekend ? 'Quote of the Week' : 'Quotes From Daily Meditations'}</p>
+                          <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> {isWeekend ? (slide.featured ? 'Quote of the Week' : 'Weekly Quote Highlight') : 'Quotes From Daily Meditations'}</p>
                           <div className="flex shrink-0 items-start gap-2">
                             {isWeekend && (
                               <time dateTime={slide.quote.record_date} className="pt-0.5 text-[9px] font-semibold tabular-nums text-stone/55">

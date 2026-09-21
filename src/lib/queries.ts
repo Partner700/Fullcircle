@@ -2193,7 +2193,7 @@ export async function fetchQuizTaggedGameQuestions(limit = 50) {
   return data as import('./types').CustomQuestion[];
 }
 
-export async function fetchDailyQuoteFeed(limit = 12) {
+export async function fetchDailyQuoteFeed(limit = 100) {
   return shareReadRequest(`daily-quote-feed:${limit}`, async () => {
     const dayType = getDayType(getTodayISODate());
     const requestQuotes = async () => {
@@ -2215,7 +2215,7 @@ export async function fetchDailyQuoteFeed(limit = 12) {
       await new Promise((resolve) => window.setTimeout(resolve, 650));
       quotes = await requestQuotes();
     }
-    return dayType === 'weekday' ? quotes : quotes.slice(0, 1);
+    return quotes;
   });
 }
 

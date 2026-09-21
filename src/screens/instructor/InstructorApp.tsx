@@ -1422,7 +1422,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
     fetchPanelImageSetting('instructor_dashboard', ['instructors', 'all'])
       .then((image) => { if (!cancelled) setCoverImage(image); })
       .catch(() => { if (!cancelled) setCoverImage(null); });
-    fetchDailyQuoteFeed(6)
+    fetchDailyQuoteFeed(100)
       .then(async (items) => {
         if (cancelled) return;
         setQuotes(items);
@@ -1499,6 +1499,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   }, []);
 
   const featuredQuote = quotes[quoteIndex % Math.max(quotes.length, 1)];
+  const featuredQuoteIndex = quoteIndex % Math.max(quotes.length, 1);
   const markedMorningCall = morningCall.filter((item) => item.status !== 'unmarked');
   const presentMorningCall = markedMorningCall.filter((item) => item.status === 'present');
   const absentMorningCall = markedMorningCall.filter((item) => item.status === 'absent');
@@ -1621,7 +1622,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
           <div className="quote-glass-panel flex items-start gap-3 rounded-2xl p-4 ring-1 ring-black/5">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-3">
-                <p className="eyebrow">{isWeekendQuote ? 'Quote of the Week' : 'Quote Feed'}</p>
+                <p className="eyebrow">{isWeekendQuote ? (featuredQuoteIndex === 0 ? 'Quote of the Week' : 'Weekly Quote Highlight') : 'Quote Feed'}</p>
                 {isWeekendQuote && (
                   <time dateTime={featuredQuote.record_date} className="text-[9px] font-semibold tabular-nums text-stone/55">
                     {formatNumericDate(featuredQuote.record_date)}

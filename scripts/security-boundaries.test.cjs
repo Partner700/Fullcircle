@@ -198,6 +198,7 @@ const orderedAnswersAndMarketContinuity = read('supabase/migrations/202609171000
 const reliableTentDeletion = read('supabase/migrations/20260917110000_reliable_tent_deletion.sql');
 const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
 const weekendQuotesQuizExtensions = read('supabase/migrations/20260919130000_weekend_quotes_quiz_extensions_and_response_board.sql');
+const completeDailyQuotesAndOptionalTour = read('supabase/migrations/20260921130000_complete_daily_quotes_and_optional_tour.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -463,8 +464,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v144'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '137'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v145'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '138'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
@@ -483,12 +484,12 @@ assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=123`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=124`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
 assert.match(staleBundleRecovery, /set\('fc-release', '123'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-20-v144/);
+assert.match(releaseCache, /2026-09-21-v145/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=120/);
 assert.match(appIndex, /var release = '121'/);
@@ -1824,7 +1825,7 @@ for (const required of [
   assert.ok(welcomeSocialNewcomerTour.includes(required), 'Missing verified Welcome Panel tour safeguard: ' + required);
 }
 assert.match(newcomerGuide, /NEWCOMER_GUIDANCE_ACTION_EVENT/);
-assert.match(newcomerGuide, /directNewcomerGuidanceHero/);
+assert.doesNotMatch(newcomerGuide, /directNewcomerGuidanceHero/);
 assert.match(newcomerGuide, /animate-newcomer-horizontal-swipe/);
 assert.match(cadetDashboard, /data-guide="welcome-carousel"/);
 assert.match(cadetDashboard, /data-guide-slide-active/);
@@ -2205,6 +2206,21 @@ for (const required of [
   assert.ok(weekendQuotesQuizExtensions.includes(required), `Missing weekend quote, quiz extension, response-board, or avatar safeguard: ${required}`);
 }
 assert.doesNotMatch(weekendQuotesQuizExtensions, /RETURNS TABLE[\s\S]{0,450}(correct_answer|question_payload|response\.answer|talents_scored)/i);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_daily_quote_feed',
+  'COALESCE(p_limit, 100)',
+  'THEN 3',
+  'CREATE OR REPLACE FUNCTION public.dismiss_my_newcomer_guidance()',
+  "v_guidance.current_step = 'choose_tent'",
+  "SET current_step = 'complete'",
+  'GRANT EXECUTE ON FUNCTION public.dismiss_my_newcomer_guidance() TO authenticated',
+]) {
+  assert.ok(completeDailyQuotesAndOptionalTour.includes(required), `Missing complete quote or optional-tour safeguard: ${required}`);
+}
+assert.match(newcomerGuidanceApi, /dismiss_my_newcomer_guidance/);
+assert.match(newcomerGuide, /Skip optional tour/);
+assert.doesNotMatch(newcomerGuide, /WELCOME_SOCIAL_STEPS\.has\(step\) && activeTab !== 'dashboard'[\s\S]{0,100}onNavigate\('dashboard'\)/);
+assert.doesNotMatch(quoteQueries, /quotes\.slice\(0, 1\)/);
 assert.match(calendarUtilities, /visibleStreakFreezersForCurrentWeek/);
 assert.match(calendarUtilities, /activityDate >= weekStart && activityDate <= today/);
 assert.match(cadetNarrative, /ReadingArchiveBrowser[\s\S]*image=\{readingImage\}/);
@@ -2234,14 +2250,15 @@ assert.match(profilePhotoEditor, /lastUploadedUrlRef/);
 assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
 assert.match(storageUploads, /attempt < 3/);
 assert.match(storageUploads, /cacheControl: '31536000'/);
-assert.match(quoteQueries, /return dayType === 'weekday' \? quotes : quotes\.slice\(0, 1\)/);
+assert.match(quoteQueries, /export async function fetchDailyQuoteFeed\(limit = 100\)/);
+assert.match(quoteQueries, /return quotes;/);
 assert.match(calendarUtilities, /export function formatNumericDate/);
 assert.match(calendarUtilities, /return `\$\{parts\.day\}\/\$\{parts\.month\}\/\$\{parts\.year\}`/);
-assert.match(cadetDashboard, /isWeekend \? 'Quote of the Week' : 'Quotes From Daily Meditations'/);
+assert.match(cadetDashboard, /slide\.featured \? 'Quote of the Week' : 'Weekly Quote Highlight'/);
 assert.match(cadetDashboard, /dateTime=\{slide\.quote\.record_date\}[\s\S]{0,180}formatNumericDate\(slide\.quote\.record_date\)/);
 assert.match(cadetDashboard, /const weekendQuoteIndex = Math\.min\(3, standardHeroSlides\.length\)/);
 assert.match(cadetDashboard, /standardHeroSlides\.slice\(0, weekendQuoteIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);
-assert.match(instructorApp, /isWeekendQuote \? 'Quote of the Week' : 'Quote Feed'/);
+assert.match(instructorApp, /featuredQuoteIndex === 0 \? 'Quote of the Week' : 'Weekly Quote Highlight'/);
 assert.match(instructorApp, /dateTime=\{featuredQuote\.record_date\}[\s\S]{0,180}formatNumericDate\(featuredQuote\.record_date\)/);
 assert.match(sentryApp, /const weekendQuoteIndex = Math\.min\(3, standardHeroSlides\.length\)/);
 assert.match(sentryApp, /standardHeroSlides\.slice\(0, weekendQuoteIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);

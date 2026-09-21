@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BellRing, BookOpen, Gamepad2, Loader2, MoveUp, Pointer, Sparkles } from 'lucide-react';
+import { BellRing, BookOpen, Gamepad2, Loader2, MoveUp, Pointer, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   completeNewcomerGuidanceStep,
-  directNewcomerGuidanceHero,
+  dismissNewcomerGuidance,
   fetchMyNewcomerGuidance,
   NEWCOMER_GUIDANCE_ACTION_EVENT,
   NEWCOMER_GUIDANCE_REFRESH_EVENT,
@@ -50,15 +50,6 @@ const STEP_COPY: Partial<Record<NewcomerGuidanceStep, { title: string; text: str
   profile_photo: { title: 'Add your profile picture', text: 'Choose a picture, crop it, and save the view you want everyone to see.' },
   profile_details: { title: 'Save your details', text: 'Review the remaining profile information and save it together.' },
 };
-
-const WELCOME_SOCIAL_STEPS = new Set<NewcomerGuidanceStep>([
-  'welcome_swipe_to_verse',
-  'welcome_like_verse',
-  'welcome_comment_verse',
-  'welcome_swipe_to_quote',
-  'welcome_like_quote',
-  'welcome_comment_quote',
-]);
 
 const WELCOME_SWIPE_STEPS = new Set<NewcomerGuidanceStep>([
   'welcome_swipe_to_verse',
@@ -144,6 +135,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
   const [targets, setTargets] = useState<TargetBox[]>([]);
   const [pushReady, setPushReady] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [dismissBusy, setDismissBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState('');
   const advancingRef = useRef(false);
   const scrollStartRef = useRef(0);
@@ -265,14 +257,22 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     }
   };
 
+  const dismissOptionalTour = async () => {
+    if (step === 'choose_tent' || dismissBusy) return;
+    setDismissBusy(true);
+    try {
+      setGuidance(await dismissNewcomerGuidance());
+    } catch (error) {
+      setPushMessage(error instanceof Error ? error.message : 'The optional guide could not be dismissed yet.');
+    } finally {
+      setDismissBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!step || step === 'complete') return;
     if (step === 'choose_tent' && activeTab !== 'tent') {
       onNavigate('tent');
-      return;
-    }
-    if (WELCOME_SOCIAL_STEPS.has(step) && activeTab !== 'dashboard') {
-      onNavigate('dashboard');
       return;
     }
     if (step === 'dashboard_after_tent' && activeTab === 'dashboard') void completeStep(step);
@@ -281,27 +281,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     if (step === 'daily_games' && activeTab === 'games') void completeStep(step);
     if (step === 'daily_trivia' && activeTab === 'game') void completeStep(step);
     if (step === 'profile_settings' && activeTab === 'settings') void completeStep(step);
-    if ((step === 'profile_photo' || step === 'profile_details') && activeTab !== 'settings') onNavigate('settings');
   }, [activeTab, completeStep, onNavigate, step]);
-
-  useEffect(() => {
-    if (!step || !WELCOME_SOCIAL_STEPS.has(step) || activeTab !== 'dashboard') {
-      directNewcomerGuidanceHero(null, false);
-      return;
-    }
-    const target = step === 'welcome_swipe_to_verse'
-      ? 'welcome'
-      : step === 'welcome_like_verse' || step === 'welcome_comment_verse' || step === 'welcome_swipe_to_quote'
-        ? 'verse'
-        : 'other_quote';
-    const direct = () => directNewcomerGuidanceHero(target, true);
-    direct();
-    const timer = window.setInterval(direct, 750);
-    return () => {
-      window.clearInterval(timer);
-      directNewcomerGuidanceHero(null, false);
-    };
-  }, [activeTab, step]);
 
   useEffect(() => {
     if (step !== 'scroll_reading') return;
@@ -386,7 +366,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
   const copy = STEP_COPY[step];
   const tour = (
     <div className="pointer-events-none fixed inset-0 z-[2147482000]" aria-live="polite">
-      <aside className={`newcomer-guide-message fixed left-1/2 top-[max(5.5rem,env(safe-area-inset-top))] w-[min(92vw,27rem)] -translate-x-1/2 rounded-lg border border-gold/55 bg-navy-2/96 px-4 py-3 text-center shadow-2xl backdrop-blur-xl ${step === 'choose_tent' ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+      <aside className="newcomer-guide-message pointer-events-auto fixed left-1/2 top-[max(5.5rem,env(safe-area-inset-top))] w-[min(92vw,27rem)] -translate-x-1/2 rounded-lg border border-gold/55 bg-navy-2/96 px-4 py-3 text-center shadow-2xl backdrop-blur-xl">
         <p className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> Full Circle Guide</p>
         <h2 className="mt-1 font-display text-base font-bold text-peri">{copy?.title}</h2>
         <p className="mt-0.5 text-xs leading-relaxed text-peri-dim">{copy?.text}</p>
@@ -397,6 +377,17 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
           </button>
         )}
         {step === 'choose_tent' && pushReady && <p className="mt-1.5 text-[10px] font-bold text-sage">Phone alarm delivery is ready.</p>}
+        {step !== 'choose_tent' && (
+          <button
+            type="button"
+            onClick={() => void dismissOptionalTour()}
+            disabled={dismissBusy}
+            className="btn-ghost mx-auto mt-2 px-3 py-1.5 text-[11px] text-peri-dim"
+          >
+            {dismissBusy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+            Skip optional tour
+          </button>
+        )}
         {pushMessage && <p className="mt-1.5 text-[10px] leading-relaxed text-coral">{pushMessage}</p>}
       </aside>
       {step === 'scroll_reading' ? (

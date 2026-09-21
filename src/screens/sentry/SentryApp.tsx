@@ -284,7 +284,7 @@ export function SentryApp() {
     const coreRequest = Promise.allSettled([
       supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
-      fetchDailyQuoteFeed(12),
+      fetchDailyQuoteFeed(100),
       fetchNarrative(today),
     ]);
     const secondaryRequest = Promise.allSettled([
@@ -880,10 +880,11 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
     </div>
   );
 
-  const quoteSlides: DashboardHeroSlide[] = quotes.map((quote) => ({
+  const quoteSlides: DashboardHeroSlide[] = quotes.map((quote, quoteIndex) => ({
     id: `quote-${quote.user_id}-${quote.record_date}`,
     kind: 'quote' as const,
     quote,
+    featured: dayType !== 'weekday' && quoteIndex === 0,
   }));
   const standardHeroSlides: DashboardHeroSlide[] = [
     {
