@@ -13,6 +13,7 @@ interface PanelImageBackdropProps {
   modeFilter?: boolean;
   textGradient?: boolean;
   simple?: boolean;
+  eager?: boolean;
 }
 
 export function PanelImageBackdrop({
@@ -25,6 +26,7 @@ export function PanelImageBackdrop({
   modeFilter = true,
   textGradient = true,
   simple = false,
+  eager = false,
 }: PanelImageBackdropProps) {
   if (!image?.url) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
@@ -44,7 +46,8 @@ export function PanelImageBackdrop({
           <img
             src={image.url}
             alt=""
-            loading="eager"
+            loading={eager ? 'eager' : 'lazy'}
+            fetchPriority={eager ? 'high' : 'low'}
             decoding="async"
             className={cn('panel-image-layer h-full w-full object-cover', imageClassName)}
             style={{ objectPosition: panelImageObjectPosition(image), opacity }}
@@ -114,7 +117,8 @@ export function PanelImageBackdrop({
       <img
         src={image.url}
         alt=""
-        loading="eager"
+        loading={eager ? 'eager' : 'lazy'}
+        fetchPriority={eager ? 'high' : 'low'}
         decoding="async"
         className={cn('panel-image-layer h-full w-full object-cover', imageClassName)}
         style={imageStyle}

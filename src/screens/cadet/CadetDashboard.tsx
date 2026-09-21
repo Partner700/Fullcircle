@@ -92,7 +92,6 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
   const [heroGuidePaused, setHeroGuidePaused] = useState(false);
-  const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
   const loadRequestRef = useRef<Promise<void> | null>(null);
   const lastForegroundRefreshRef = useRef(0);
@@ -102,46 +101,52 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const dayType = getDayType(todayDate);
 
   const load = useCallback(() => {
-    if (!profile) { setLoading(false); return Promise.resolve(); }
+    if (!profile) return Promise.resolve();
     if (loadRequestRef.current) return loadRequestRef.current;
-    if (!hasLoadedRef.current) setLoading(true);
 
     const request = (async () => {
+      // Let the dashboard become interactive immediately. Reading content and
+      // artwork are the first network priority; secondary stats fill in after.
       await Promise.allSettled([
-        fetchNarrative(today).then(async (narrative) => {
+        fetchNarrative(today).then((narrative) => {
           setNarrative(narrative);
-          setLoading(false);
-          hasLoadedRef.current = true;
           if (narrative?.verse_of_day) {
-            setVerseReactions(await fetchDailyVerseReactions([narrative.narrative_date], profile.id));
+            void fetchDailyVerseReactions([narrative.narrative_date], profile.id)
+              .then(setVerseReactions)
+              .catch(() => undefined);
           }
         }),
+        fetchDailyQuoteFeed(100).then((quotes) => {
+          setQuotes(quotes);
+          if (quotes.length) {
+            void fetchDailyQuoteReactions(quotes, profile.id)
+              .then(setQuoteReactions)
+              .catch(() => undefined);
+          }
+        }),
+        fetchPanelImageSettings([
+          'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
+        ]).then(setPanelImages),
+      ]);
+
+      await Promise.allSettled([
         fetchDailyRecords(profile.id, `${today.slice(0, 7)}-01`).then(setRecords),
         fetchLedgerEntries(profile.id, 100).then(setLedger),
         fetchGameAttempts(profile.id, today).then(setGames),
         fetchChallengeSubmission(profile.id, today).then(setChallenge),
         fetchStrictStreak(profile.id).then(setStreakData),
-        fetchDailyQuoteFeed(100).then(async (quotes) => {
-          setQuotes(quotes);
-          if (quotes.length) setQuoteReactions(await fetchDailyQuoteReactions(quotes, profile.id));
-        }),
         fetchAnnouncements().then(setAnnouncements),
         fetchActiveFcxExperience().then(setFcxExperience),
         fetchLatestWeeklyQuizRankings(undefined, 'cadet').then(setQuizPodium),
-        fetchPanelImageSettings([
-          'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
-          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
-        ]).then(setPanelImages),
         fetchAwards().then((awards) => {
           const currentMonth = today.slice(0, 7);
           setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === currentMonth).slice(0, 10));
         }),
       ]);
-      setLoading(false);
       hasLoadedRef.current = true;
     })().catch((error) => {
       console.error('Dashboard load error:', error);
-      setLoading(false);
     });
 
     const shared = request.finally(() => {
@@ -286,10 +291,6 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const completedLevels = games.filter((g) => g.status === 'passed').length;
   const todayDenarii = ledger.filter((l) => l.created_at.startsWith(today)).reduce((s, l) => s + l.amount, 0);
   const recentLedger = ledger.slice(0, 5);
-  if (loading) {
-    return <div className="text-center py-12 text-stone">Loading your dashboard…</div>;
-  }
-
   return (
     <div className="space-y-5 animate-fade-in">
       <DashboardHeroSlideshow
@@ -581,6 +582,24 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
         }}
       >
         {visibleSlides.map((slide, slideIndex) => {
+          const logicalSlideIndex = count > 0 ? slideIndex % count : 0;
+          const previousSlideIndex = count > 0 ? (counterIndex - 1 + count) % count : 0;
+          const nextSlideIndex = count > 0 ? (counterIndex + 1) % count : 0;
+          const isLogicalActiveSlide = logicalSlideIndex === counterIndex;
+          const isDisplayedSlide = displayIndex === slideIndex;
+          const isNearbySlide = count <= 3
+            || logicalSlideIndex === previousSlideIndex
+            || isLogicalActiveSlide
+            || logicalSlideIndex === nextSlideIndex;
+          if (!isNearbySlide) {
+            return (
+              <div
+                key={`${slide.id}-${slideIndex}`}
+                aria-hidden="true"
+                className="min-w-full"
+              />
+            );
+          }
           const announcementTitle = slide.kind === 'announcement' && slide.announcement.announcement_type
             ? slide.announcement.announcement_type === 'midday_reminder' ? 'Week-day reminder' : slide.announcement.announcement_type.replace(/_/g, ' ')
             : 'Announcement';
@@ -612,6 +631,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                   modeFilter={false}
                   textGradient={false}
                   simple={slide.kind === 'quote' || slide.kind === 'fcx' || isReminder}
+                  eager={isDisplayedSlide}
                 />
               )}
               <div className={cn('relative flex items-start justify-between gap-3', conversationOpen && 'h-full')}>
@@ -774,6 +794,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         textGradient={false}
                         simple
                         imageClassName="quote-glass-image"
+                        eager={isDisplayedSlide}
                       />
                       <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
                       <div className="relative z-10">

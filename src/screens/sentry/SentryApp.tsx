@@ -281,9 +281,11 @@ export function SentryApp() {
 
   const loadOverview = useCallback(async () => {
     if (!profile) return;
-    const coreRequest = Promise.allSettled([
+    const tentRequest = Promise.allSettled([
       supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
+    ]);
+    const contentRequest = Promise.allSettled([
       fetchDailyQuoteFeed(100),
       fetchNarrative(today),
     ]);
@@ -297,7 +299,7 @@ export function SentryApp() {
       ], ['all', 'cadets', 'sentries']),
     ]);
 
-    const [memberPointer, ownedTent, quoteFeed, sentryNarrative] = await coreRequest;
+    const [memberPointer, ownedTent] = await tentRequest;
     let sentryTent = tentRef.current;
     let tentWasConfirmed = false;
     const ownedTentLookupSucceeded = ownedTent.status === 'fulfilled' && !ownedTent.value.error;
@@ -334,17 +336,19 @@ export function SentryApp() {
       }
     }
 
-    const activeQuotes = quoteFeed.status === 'fulfilled' ? quoteFeed.value : quotesRef.current;
-    if (quoteFeed.status === 'fulfilled') {
-      quotesRef.current = activeQuotes;
-      setQuotes(activeQuotes);
-    }
-    const activeNarrative = sentryNarrative.status === 'fulfilled' ? sentryNarrative.value : narrativeRef.current;
-    if (sentryNarrative.status === 'fulfilled') {
-      narrativeRef.current = activeNarrative;
-      setNarrative(activeNarrative);
-    }
-    void refreshSocialStats(activeQuotes, activeNarrative);
+    void contentRequest.then(([quoteFeed, sentryNarrative]) => {
+      const activeQuotes = quoteFeed.status === 'fulfilled' ? quoteFeed.value : quotesRef.current;
+      if (quoteFeed.status === 'fulfilled') {
+        quotesRef.current = activeQuotes;
+        setQuotes(activeQuotes);
+      }
+      const activeNarrative = sentryNarrative.status === 'fulfilled' ? sentryNarrative.value : narrativeRef.current;
+      if (sentryNarrative.status === 'fulfilled') {
+        narrativeRef.current = activeNarrative;
+        setNarrative(activeNarrative);
+      }
+      void refreshSocialStats(activeQuotes, activeNarrative);
+    });
 
     void secondaryRequest.then(([activeFcx, subscription, sentryAnnouncements, sentryPanelImages]) => {
       if (activeFcx.status === 'fulfilled') setFcxExperience(activeFcx.value);

@@ -201,6 +201,8 @@ const weekendQuotesQuizExtensions = read('supabase/migrations/20260919130000_wee
 const completeDailyQuotesAndOptionalTour = read('supabase/migrations/20260921130000_complete_daily_quotes_and_optional_tour.sql');
 const persistentOptionalTourDismissal = read('supabase/migrations/20260921140000_persist_optional_tour_dismissal.sql');
 const restoredDailyQuoteExecution = read('supabase/migrations/20260921173000_restore_daily_quote_feed_execution.sql');
+const fastDailyQuoteFeeds = read('supabase/migrations/20260921180000_fast_daily_quote_feeds.sql');
+const quoteFeedLifetimeTotals = read('supabase/migrations/20260921183000_quote_feed_lifetime_figs_and_rhudes.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -466,7 +468,7 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v146'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v148'/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '139'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
@@ -491,7 +493,7 @@ assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' 
 assert.match(staleBundleRecovery, /set\('fc-release', '123'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-21-v146/);
+assert.match(releaseCache, /2026-09-21-v148/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=120/);
 assert.match(appIndex, /var release = '121'/);
@@ -794,7 +796,8 @@ assert.ok(!cadetApp.includes('fetchLedgerTotal'), 'Cadet toolbar refresh must no
 assert.ok(!cadetApp.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
 assert.match(cadetApp, /toolbarRequestRef/);
 assert.match(cadetApp, /notificationRefreshQueuedRef/);
-assert.match(cadetDashboard, /fetchNarrative\(today\)\.then\(async \(narrative\) =>/);
+assert.match(cadetDashboard, /fetchNarrative\(today\)\.then\(\(narrative\) =>/);
+assert.match(cadetDashboard, /void fetchDailyVerseReactions/);
 assert.ok(
   !cadetDashboard.includes("setNarrative(narr.status === 'fulfilled' ? narr.value : null)"),
   'A transient dashboard request failure must not erase confirmed content.',
@@ -2227,6 +2230,24 @@ assert.match(restoredDailyQuoteExecution, /ALTER FUNCTION public\.get_daily_quot
 assert.match(restoredDailyQuoteExecution, /ALTER FUNCTION public\.get_public_daily_quotes\(date, integer\) VOLATILE/);
 assert.match(quoteQueries, /requestPublicFallback/);
 assert.match(quoteQueries, /fetchPublicDailyQuotes/);
+assert.match(fastDailyQuoteFeeds, /CREATE OR REPLACE FUNCTION public\.get_daily_quote_feed/);
+assert.match(fastDailyQuoteFeeds, /CREATE OR REPLACE FUNCTION public\.get_public_daily_quotes/);
+assert.match(fastDailyQuoteFeeds, /streakboard_snapshots_user_latest_idx/);
+assert.match(fastDailyQuoteFeeds, /challenge_board_snapshots_subject_latest_idx/);
+assert.doesNotMatch(fastDailyQuoteFeeds, /compute_strict_streak|get_marks_board_live|get_member_mark_components/);
+assert.match(quoteFeedLifetimeTotals, /public\.get_user_lifetime_figs\(author\.user_id, NULL\)/);
+assert.match(quoteFeedLifetimeTotals, /room\.winner_id = author\.user_id/);
+assert.match(quoteFeedLifetimeTotals, /room\.status = 'completed'/);
+assert.match(quoteFeedLifetimeTotals, /candidate_users AS MATERIALIZED/);
+assert.doesNotMatch(quoteFeedLifetimeTotals, /challenge_board_daily_snapshots/);
+assert.doesNotMatch(quoteAuthorStats, /fetchPublicQuoteStreak|useEffect|useState/);
+assert.match(panelImageBackdrop, /loading=\{eager \? 'eager' : 'lazy'\}/);
+assert.match(panelImageBackdrop, /fetchPriority=\{eager \? 'high' : 'low'\}/);
+assert.match(cadetDashboard, /const isNearbySlide = count <= 3/);
+assert.match(cadetDashboard, /aria-hidden="true"[\s\S]{0,100}className="min-w-full"/);
+assert.doesNotMatch(cadetDashboard, /Loading your dashboard/);
+assert.match(sentryApp, /const contentRequest = Promise\.allSettled/);
+assert.match(sentryApp, /void contentRequest\.then/);
 for (const required of [
   'ADD COLUMN IF NOT EXISTS dismissed_at timestamptz',
   'dismissed_at = COALESCE(dismissed_at, now())',
