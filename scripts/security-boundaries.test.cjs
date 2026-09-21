@@ -199,6 +199,7 @@ const reliableTentDeletion = read('supabase/migrations/20260917110000_reliable_t
 const roadHomeEngine = read('supabase/functions/_shared/road-home-engine.ts');
 const weekendQuotesQuizExtensions = read('supabase/migrations/20260919130000_weekend_quotes_quiz_extensions_and_response_board.sql');
 const completeDailyQuotesAndOptionalTour = read('supabase/migrations/20260921130000_complete_daily_quotes_and_optional_tour.sql');
+const persistentOptionalTourDismissal = read('supabase/migrations/20260921140000_persist_optional_tour_dismissal.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -2221,6 +2222,14 @@ assert.match(newcomerGuidanceApi, /dismiss_my_newcomer_guidance/);
 assert.match(newcomerGuide, /Skip optional tour/);
 assert.doesNotMatch(newcomerGuide, /WELCOME_SOCIAL_STEPS\.has\(step\) && activeTab !== 'dashboard'[\s\S]{0,100}onNavigate\('dashboard'\)/);
 assert.doesNotMatch(quoteQueries, /quotes\.slice\(0, 1\)/);
+for (const required of [
+  'ADD COLUMN IF NOT EXISTS dismissed_at timestamptz',
+  'dismissed_at = COALESCE(dismissed_at, now())',
+  'IF v_guidance.dismissed_at IS NOT NULL THEN',
+  "SET current_step = 'complete'",
+]) {
+  assert.ok(persistentOptionalTourDismissal.includes(required), `Missing persistent optional-tour dismissal safeguard: ${required}`);
+}
 assert.match(calendarUtilities, /visibleStreakFreezersForCurrentWeek/);
 assert.match(calendarUtilities, /activityDate >= weekStart && activityDate <= today/);
 assert.match(cadetNarrative, /ReadingArchiveBrowser[\s\S]*image=\{readingImage\}/);
