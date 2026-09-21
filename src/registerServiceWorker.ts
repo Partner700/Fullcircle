@@ -24,7 +24,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js?v=124`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}sw.js?v=125`, { updateViaCache: 'none' })
       .then((registration) => {
         // Check for a new worker at launch. Installed copies are refreshed once
         // by the worker so a saved GitHub Pages start URL cannot pin old HTML.

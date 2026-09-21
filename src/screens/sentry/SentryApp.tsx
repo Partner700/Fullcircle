@@ -909,14 +909,12 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       announcement,
     })),
   ];
-  const weekendQuoteIndex = Math.min(3, standardHeroSlides.length);
-  const heroSlides: DashboardHeroSlide[] = dayType === 'weekday'
-    ? [...standardHeroSlides, ...quoteSlides]
-    : [
-        ...standardHeroSlides.slice(0, weekendQuoteIndex),
-        ...quoteSlides,
-        ...standardHeroSlides.slice(weekendQuoteIndex),
-      ];
+  const quoteStartIndex = Math.min(3, standardHeroSlides.length);
+  const heroSlides: DashboardHeroSlide[] = [
+    ...standardHeroSlides.slice(0, quoteStartIndex),
+    ...quoteSlides,
+    ...standardHeroSlides.slice(quoteStartIndex),
+  ];
 
   useAutoAdvance(heroSlides.length > 1 && !heroPaused && !heroHeld, () => {
     setHeroIndex((index) => index + 1);

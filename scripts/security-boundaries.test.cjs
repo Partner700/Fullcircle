@@ -465,8 +465,8 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v145'/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '138'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v146'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '139'/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
@@ -485,12 +485,12 @@ assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=124`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=125`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
 assert.match(staleBundleRecovery, /set\('fc-release', '123'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-21-v145/);
+assert.match(releaseCache, /2026-09-21-v146/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=120/);
 assert.match(appIndex, /var release = '121'/);
@@ -2261,16 +2261,17 @@ assert.match(storageUploads, /attempt < 3/);
 assert.match(storageUploads, /cacheControl: '31536000'/);
 assert.match(quoteQueries, /export async function fetchDailyQuoteFeed\(limit = 100\)/);
 assert.match(quoteQueries, /return quotes;/);
+assert.doesNotMatch(quoteQueries, /return mergePublicStreakValues\(\(data \|\| \[\]\).*DailyQuoteFeedItem/);
 assert.match(calendarUtilities, /export function formatNumericDate/);
 assert.match(calendarUtilities, /return `\$\{parts\.day\}\/\$\{parts\.month\}\/\$\{parts\.year\}`/);
 assert.match(cadetDashboard, /slide\.featured \? 'Quote of the Week' : 'Weekly Quote Highlight'/);
 assert.match(cadetDashboard, /dateTime=\{slide\.quote\.record_date\}[\s\S]{0,180}formatNumericDate\(slide\.quote\.record_date\)/);
-assert.match(cadetDashboard, /const weekendQuoteIndex = Math\.min\(3, standardHeroSlides\.length\)/);
-assert.match(cadetDashboard, /standardHeroSlides\.slice\(0, weekendQuoteIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);
+assert.match(cadetDashboard, /const quoteStartIndex = Math\.min\(3, standardHeroSlides\.length\)/);
+assert.match(cadetDashboard, /standardHeroSlides\.slice\(0, quoteStartIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);
 assert.match(instructorApp, /featuredQuoteIndex === 0 \? 'Quote of the Week' : 'Weekly Quote Highlight'/);
 assert.match(instructorApp, /dateTime=\{featuredQuote\.record_date\}[\s\S]{0,180}formatNumericDate\(featuredQuote\.record_date\)/);
-assert.match(sentryApp, /const weekendQuoteIndex = Math\.min\(3, standardHeroSlides\.length\)/);
-assert.match(sentryApp, /standardHeroSlides\.slice\(0, weekendQuoteIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);
+assert.match(sentryApp, /const quoteStartIndex = Math\.min\(3, standardHeroSlides\.length\)/);
+assert.match(sentryApp, /standardHeroSlides\.slice\(0, quoteStartIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);
 assert.match(quoteQueries, /dayType !== 'weekday' && quotes\.length === 0/);
 
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {

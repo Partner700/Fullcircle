@@ -230,14 +230,12 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       announcement,
     })),
   ];
-  const weekendQuoteIndex = Math.min(3, standardHeroSlides.length);
-  const heroSlides: DashboardHeroSlide[] = dayType === 'weekday'
-    ? [...standardHeroSlides, ...quoteSlides]
-    : [
-        ...standardHeroSlides.slice(0, weekendQuoteIndex),
-        ...quoteSlides,
-        ...standardHeroSlides.slice(weekendQuoteIndex),
-      ];
+  const quoteStartIndex = Math.min(3, standardHeroSlides.length);
+  const heroSlides: DashboardHeroSlide[] = [
+    ...standardHeroSlides.slice(0, quoteStartIndex),
+    ...quoteSlides,
+    ...standardHeroSlides.slice(quoteStartIndex),
+  ];
   const heroSlideCount = heroSlides.length;
   const guideVerseSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'verse');
   const guideQuoteSlideIndex = heroSlides.findIndex((slide) => slide.kind === 'quote' && slide.quote.user_id !== profile?.id);

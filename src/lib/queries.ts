@@ -2199,7 +2199,10 @@ export async function fetchDailyQuoteFeed(limit = 100) {
     const requestQuotes = async () => {
       const { data, error } = await supabase.rpc('get_daily_quote_feed', { p_limit: limit });
       if (error) throw error;
-      return mergePublicStreakValues((data || []) as import('./types').DailyQuoteFeedItem[]);
+      // Return the quotes as soon as the feed is ready. Each visible quote
+      // resolves its live streak independently, so a slow camp-wide streak
+      // refresh must never keep the quote slides off the Welcome Panel.
+      return (data || []) as import('./types').DailyQuoteFeedItem[];
     };
 
     let quotes: import('./types').DailyQuoteFeedItem[];
