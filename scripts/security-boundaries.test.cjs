@@ -514,7 +514,7 @@ assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
 assert.doesNotMatch(appIndex, /window\.caches\.delete/);
 assert.match(appIndex, /searchParams\.set\(marker, release\)/);
 assert.match(appIndex, /__fullCircleBootRelease/);
-assert.match(appIndex, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages/);
+assert.match(appIndex, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages\/index\.html/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=122"/);
