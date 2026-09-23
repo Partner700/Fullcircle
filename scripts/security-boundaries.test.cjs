@@ -206,6 +206,7 @@ const restoredDailyQuoteExecution = read('supabase/migrations/20260921173000_res
 const fastDailyQuoteFeeds = read('supabase/migrations/20260921180000_fast_daily_quote_feeds.sql');
 const quoteFeedLifetimeTotals = read('supabase/migrations/20260921183000_quote_feed_lifetime_figs_and_rhudes.sql');
 const sentryQualification100 = read('supabase/migrations/20260923100000_sentry_qualification_100_streaks.sql');
+const tenPersonTentCapacity = read('supabase/migrations/20260923120000_ten_person_tent_join_capacity.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -1873,7 +1874,9 @@ assert.match(confirmedPresenceStreak, /v_affected_date date := date '2026-09-08'
 assert.match(confirmedPresenceStreak, /AND public\.streak_requirement_met\(v_ph_id, v_affected_date\)/);
 assert.match(confirmedPresenceStreak, /record\.record_date >= date '2026-09-08'/);
 assert.match(confirmedPresenceStreak, /SELECT public\.refresh_all_streak_snapshots\(\)/);
-assert.match(cadetTent, /data-guide-tent-choice/);
+assert.match(cadetTent, /data-guide-tent-choice=\{full \? undefined : 'available'\}/);
+assert.match(cadetTent, /item\.member_count >= TENT_MEMBER_CAPACITY/);
+assert.match(cadetTent, /\{item\.member_count\}\/\{TENT_MEMBER_CAPACITY\} people/);
 assert.match(cadetNarrative, /data-guide="best-verse"/);
 assert.match(cadetNarrative, /data-guide="daily-meditation"/);
 assert.match(cadetNarrative, /data-guide="daily-quote"/);
@@ -2256,6 +2259,17 @@ assert.doesNotMatch(quoteFeedLifetimeTotals, /challenge_board_daily_snapshots/);
 assert.match(sentryQualification100, /v_streak < 100 OR v_figs <= 10000/);
 assert.match(sentryQualification100, /'required_streak', 100/);
 assert.match(sentryQualification100, /100-day reading discipline/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.enforce_tent_capacity()',
+  'BEFORE INSERT OR UPDATE OF tent_id, user_id ON public.tent_members',
+  'count(DISTINCT member.user_id)',
+  "RAISE EXCEPTION 'This tent is full (maximum 10 people).'",
+  'CREATE OR REPLACE FUNCTION public.request_to_join_tent(p_tent_id uuid)',
+  'CREATE OR REPLACE FUNCTION public.review_tent_join_request(p_request_id uuid, p_approve boolean)',
+  "request.status = 'pending'",
+]) {
+  assert.ok(tenPersonTentCapacity.includes(required), `Missing ten-person tent safeguard: ${required}`);
+}
 assert.doesNotMatch(quoteAuthorStats, /fetchPublicQuoteStreak|useEffect|useState/);
 assert.match(panelImageBackdrop, /loading=\{eager \? 'eager' : 'lazy'\}/);
 assert.match(panelImageBackdrop, /fetchPriority=\{eager \? 'high' : 'auto'\}/);

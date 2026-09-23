@@ -45,6 +45,18 @@ type ReactionRow = {
   created_at: string;
 };
 
+type TentJoinOption = {
+  id: string;
+  name: string;
+  profile_image_url: string | null;
+  sentry_id: string | null;
+  tent_houses?: { name?: string | null } | null;
+  member_count: number;
+};
+type TentJoinRow = Omit<TentJoinOption, 'member_count'>;
+
+const TENT_MEMBER_CAPACITY = 10;
+
 export function CadetTent() {
   const { profile } = useAuth();
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
@@ -57,7 +69,7 @@ export function CadetTent() {
   const [awardsImage, setAwardsImage] = useState<PanelImageSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
-  const [availableTents, setAvailableTents] = useState<any[]>([]);
+  const [availableTents, setAvailableTents] = useState<TentJoinOption[]>([]);
   const [pendingTentId, setPendingTentId] = useState<string | null>(null);
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
   const [awardView, setAwardView] = useState('week');
@@ -72,14 +84,28 @@ export function CadetTent() {
       if (!member) {
         setTent(null);
         setMembers([]);
-        const [{ data: tentRows }, { data: requestRow }] = await Promise.all([
-          supabase.from('tents').select('id,name,max_cadets,profile_image_url,tent_houses(name)').order('name'),
+        const [tentOptionsResult, requestResult, memberOptionsResult] = await Promise.all([
+          supabase.from('tents').select('id,name,profile_image_url,sentry_id,tent_houses(name)').order('name'),
           supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
+          supabase.from('tent_members').select('tent_id,user_id'),
         ]);
-        const tentsWithCounts = await Promise.all((tentRows || []).map(async (row: any) => {
-          const { count } = await supabase.from('tent_members').select('id', { count: 'exact', head: true }).eq('tent_id', row.id).eq('role', 'cadet');
-          return { ...row, cadet_count: count || 0 };
-        }));
+        if (tentOptionsResult.error) throw tentOptionsResult.error;
+        if (requestResult.error) throw requestResult.error;
+        if (memberOptionsResult.error) throw memberOptionsResult.error;
+        const tentRows = (tentOptionsResult.data || []) as unknown as TentJoinRow[];
+        const requestRow = requestResult.data;
+        const memberRows = memberOptionsResult.data || [];
+        const membersByTent = new Map<string, Set<string>>();
+        memberRows.forEach((member: { tent_id: string; user_id: string }) => {
+          const people = membersByTent.get(member.tent_id) || new Set<string>();
+          people.add(member.user_id);
+          membersByTent.set(member.tent_id, people);
+        });
+        const tentsWithCounts = tentRows.map((row) => {
+          const people = membersByTent.get(row.id) || new Set<string>();
+          if (row.sentry_id) people.add(row.sentry_id);
+          return { ...row, member_count: people.size } as TentJoinOption;
+        });
         setAvailableTents(tentsWithCounts);
         setPendingTentId(requestRow?.tent_id || null);
         return;
@@ -144,12 +170,24 @@ export function CadetTent() {
   }, [load, profile]);
 
   const requestTent = async (tentId: string) => {
+    const selectedTent = availableTents.find((item) => item.id === tentId);
+    if (!selectedTent || selectedTent.member_count >= TENT_MEMBER_CAPACITY) {
+      alert('This tent already has 10 people. Please choose a tent with an available place.');
+      await load();
+      return;
+    }
     setRequestingTentId(tentId);
-    const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: tentId });
-    setRequestingTentId(null);
-    if (error) return alert(error.message);
-    setPendingTentId(tentId);
-    await completeNewcomerGuidanceStep('choose_tent').catch(() => undefined);
+    try {
+      const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: tentId });
+      if (error) throw error;
+      setPendingTentId(tentId);
+      await completeNewcomerGuidanceStep('choose_tent').catch(() => undefined);
+    } catch (error: unknown) {
+      await load();
+      alert(error instanceof Error ? error.message : 'This tent cannot accept another request right now.');
+    } finally {
+      setRequestingTentId(null);
+    }
   };
 
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
@@ -199,13 +237,18 @@ export function CadetTent() {
         <EmptyState icon={Users} title="You're not in a tent yet" message="Choose a tent below and request to join its family." />
         <div className="grid gap-3 sm:grid-cols-2">
           {availableTents.map((item) => {
-            const full = item.cadet_count >= (item.max_cadets || 10);
+            const full = item.member_count >= TENT_MEMBER_CAPACITY;
             const pending = pendingTentId === item.id;
-            return <article key={item.id} data-guide-tent-choice className="card flex items-center gap-3 p-4">
+            return <article
+              key={item.id}
+              data-guide-tent-choice={full ? undefined : 'available'}
+              aria-disabled={full || undefined}
+              className={cn('card flex items-center gap-3 p-4', full && 'opacity-60')}
+            >
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
                 {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
               </div>
-              <div className="min-w-0 flex-1"><p className="font-bold text-ink">{item.name}</p><p className="text-xs text-stone">{item.tent_houses?.name} · {item.cadet_count}/{item.max_cadets || 10} cadets</p></div>
+              <div className="min-w-0 flex-1"><p className="font-bold text-ink">{item.name}</p><p className="text-xs text-stone">{item.tent_houses?.name} · {item.member_count}/{TENT_MEMBER_CAPACITY} people</p></div>
               <button type="button" disabled={full || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
                 {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : <><UserPlus size={14} /> Join</>}
               </button>
