@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import type { PanelImageSetting } from '../lib/types';
 import { cn } from '../lib/utils';
 import { normaliseAdjustments, panelImageFilter, panelImageObjectPosition, panelImageOpacity } from '../lib/panelImages';
+import { useResilientImage } from '../lib/useResilientImage';
 
 interface PanelImageBackdropProps {
   image: PanelImageSetting | null | undefined;
@@ -28,6 +29,7 @@ export function PanelImageBackdrop({
   simple = false,
   eager = false,
 }: PanelImageBackdropProps) {
+  const resilientImage = useResilientImage(image?.url);
   if (!image?.url) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
   const opacity = opacityOverride === undefined ? panelImageOpacity(image, opacityFallback) : opacityOverride / 100;
@@ -44,13 +46,15 @@ export function PanelImageBackdrop({
           style={{ filter: adjustmentFilter, transform: imageScale > 1 ? `scale(${imageScale})` : undefined }}
         >
           <img
-            src={image.url}
+            src={resilientImage.source}
             alt=""
             loading={eager ? 'eager' : 'lazy'}
-            fetchPriority={eager ? 'high' : 'low'}
+            fetchPriority={eager ? 'high' : 'auto'}
             decoding="async"
             className={cn('panel-image-layer h-full w-full object-cover', imageClassName)}
             style={{ objectPosition: panelImageObjectPosition(image), opacity }}
+            onError={resilientImage.onError}
+            onLoad={resilientImage.onLoad}
           />
         </div>
         {roughnessOpacity > 0 && (
@@ -115,13 +119,15 @@ export function PanelImageBackdrop({
   return (
     <div className={cn('panel-image-backdrop pointer-events-none absolute inset-0 overflow-hidden', className)} aria-hidden="true">
       <img
-        src={image.url}
+        src={resilientImage.source}
         alt=""
         loading={eager ? 'eager' : 'lazy'}
-        fetchPriority={eager ? 'high' : 'low'}
+        fetchPriority={eager ? 'high' : 'auto'}
         decoding="async"
         className={cn('panel-image-layer h-full w-full object-cover', imageClassName)}
         style={imageStyle}
+        onError={resilientImage.onError}
+        onLoad={resilientImage.onLoad}
       />
       {effectBackgrounds.length > 0 && (
         <div

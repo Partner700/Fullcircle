@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, MoreVertical, PlusSquare, Share, X } from 'lucide-react';
+import { Download, ExternalLink, MoreVertical, PlusSquare, Share, X } from 'lucide-react';
 import { Dove } from './Dove';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -45,6 +45,18 @@ function isIOSDevice() {
 
 function isIOSSafari() {
   return isIOSDevice() && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
+}
+
+function isAndroidDevice() {
+  return /Android/i.test(navigator.userAgent);
+}
+
+function openInChrome() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('fc-repair');
+  url.searchParams.delete('fc-release');
+  const intentPath = `${url.host}${url.pathname}${url.search}`;
+  window.location.href = `intent://${intentPath}#Intent;scheme=${url.protocol.replace(':', '')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url.href)};end`;
 }
 
 /** A persistent install surface for native prompts and browser-specific guidance. */
@@ -147,7 +159,7 @@ export function PWAInstallPrompt() {
         aria-label="Install Full Circle on this device"
       >
         <Download size={16} className="text-brass" />
-        Install
+        Install / Reinstall
       </button>
 
       {visible && (
@@ -182,17 +194,24 @@ export function PWAInstallPrompt() {
               </div>
             ) : guide === 'browser' ? (
               <div className="mt-5 space-y-3 text-sm text-ink">
-                <p className="font-semibold">Install Full Circle from your browser menu:</p>
+                <p className="font-semibold">Install Full Circle from Chrome, Safari, or Edge:</p>
                 <ol className="space-y-2 text-stone">
                   <li className="flex gap-2"><MoreVertical size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Open your browser menu.</li>
                   <li className="flex gap-2"><PlusSquare size={17} className="mt-0.5 flex-shrink-0 text-brass" /> Choose <span className="font-semibold text-ink">Install app</span> or <span className="font-semibold text-ink">Add to Home Screen</span>.</li>
                 </ol>
-                <p className="rounded-lg border border-border bg-surface-2 p-3 text-xs text-stone">If the option is missing inside WhatsApp or another app, open this page in Chrome, Safari, or Edge first.</p>
+                <p className="rounded-lg border border-border bg-surface-2 p-3 text-xs text-stone">
+                  Reinstalling? Remove the old Full Circle icon first, return to this page in your main browser, then install it again. If the option is missing inside WhatsApp or another app, open this page in Chrome, Safari, or Edge first.
+                </p>
+                {isAndroidDevice() && (
+                  <button type="button" onClick={openInChrome} className="btn-secondary w-full">
+                    <ExternalLink size={16} /> Open in Chrome
+                  </button>
+                )}
                 <button onClick={dismiss} className="btn-primary mt-2 w-full">Done</button>
               </div>
             ) : (
               <div className="mt-5 flex gap-2">
-                <button ref={installButtonRef} onClick={install} className="btn-primary flex-1 text-sm">Install App</button>
+                <button ref={installButtonRef} onClick={install} className="btn-primary flex-1 text-sm">Install / Reinstall</button>
                 <button onClick={dismiss} className="btn-ghost px-4 text-sm">Not Now</button>
               </div>
             )}

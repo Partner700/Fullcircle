@@ -24,7 +24,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js?v=125`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}sw.js?v=126`, { updateViaCache: 'none' })
       .then((registration) => {
         // Check for a new worker at launch. Installed copies are refreshed once
         // by the worker so a saved GitHub Pages start URL cannot pin old HTML.
@@ -39,7 +39,7 @@ export function registerServiceWorker() {
           window.setTimeout(() => {
             const worker = registration.active || registration.waiting || registration.installing;
             worker?.postMessage({ type: 'WARM_APP_SHELL' });
-          }, 1_500);
+          }, 500);
         };
         if (document.readyState === 'complete') warmRelease();
         else window.addEventListener('load', warmRelease, { once: true });

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Dove } from './Dove';
 import { cn } from '../lib/utils';
 import { VallumAvatarBadge, type AvatarBadgeSize } from './VallumAvatarBadge';
+import { useResilientImage } from '../lib/useResilientImage';
 
 const AVATAR_BACKGROUNDS = [
   '#315a99',
@@ -43,11 +44,10 @@ export function UserAvatar({
   showAwardBadge?: boolean;
   awardBadgeSize?: AvatarBadgeSize;
 }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [avatarUrl]);
+  const resilientImage = useResilientImage(avatarUrl);
   const identity = String(userId || name || 'full-circle-member');
   const backgroundColor = useMemo(() => avatarColour(identity), [identity]);
-  const showPhoto = Boolean(avatarUrl) && !failed;
+  const showPhoto = Boolean(avatarUrl) && !resilientImage.failed;
 
   return (
     <span
@@ -63,12 +63,13 @@ export function UserAvatar({
       <span className="absolute inset-0 inline-flex items-center justify-center overflow-hidden rounded-[inherit]">
         {showPhoto ? (
           <img
-            src={avatarUrl || ''}
+            src={resilientImage.source}
             alt=""
             loading={loading}
             decoding="async"
             className={cn('h-full w-full object-cover', imageClassName)}
-            onError={() => setFailed(true)}
+            onError={resilientImage.onError}
+            onLoad={resilientImage.onLoad}
           />
         ) : (
           <Dove size={96} className={cn('h-[82%] w-[82%] object-contain drop-shadow-sm', doveClassName)} />

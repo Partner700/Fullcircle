@@ -1,11 +1,16 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v148';
-const SHELL_CACHE = `${CACHE_VERSION}-shell`;
-const ASSET_CACHE = `${CACHE_VERSION}-assets`;
-const RECOVERY_MARKER = '139';
-const NAVIGATION_FALLBACK_DELAY_MS = 4_500;
+const CACHE_VERSION = 'full-circle-v149';
+// Keep the repaired cache under the v147-compatible prefix for one release.
+// The broken v148 page cleanup retained that prefix, so even a stale page
+// cannot delete the healthy shell while this worker is taking control.
+const CACHE_STORAGE_VERSION = 'full-circle-v147-v149';
+const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
+const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
+const ROLLBACK_CACHE_PREFIXES = ['full-circle-v148'];
+const RECOVERY_MARKER = '140';
+const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -55,9 +60,38 @@ async function clearRetiredFullCircleCaches() {
   const cacheNames = await caches.keys();
   await Promise.all(
     cacheNames
-      .filter((cacheName) => isFullCircleCache(cacheName) && cacheName !== SHELL_CACHE && cacheName !== ASSET_CACHE)
+      .filter((cacheName) => (
+        isFullCircleCache(cacheName)
+        && cacheName !== SHELL_CACHE
+        && cacheName !== ASSET_CACHE
+        && !ROLLBACK_CACHE_PREFIXES.some((prefix) => cacheName === prefix || cacheName.startsWith(`${prefix}-`))
+      ))
       .map((cacheName) => caches.delete(cacheName)),
   );
+}
+
+function wait(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function fetchWithRetry(request, options, attempts = 3) {
+  let lastResponse = null;
+  let lastError = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(request, options);
+      if (response.ok) return response;
+      lastResponse = response;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < attempts - 1) await wait(400 * (attempt + 1));
+  }
+
+  if (lastResponse) return lastResponse;
+  throw lastError || new Error('The network request did not complete.');
 }
 
 async function fetchAndCache(cache, url, options) {
@@ -201,7 +235,9 @@ self.addEventListener('message', (event) => {
   } else if (event.data.type === 'CLEAR_CACHES') {
     event.waitUntil(clearRetiredFullCircleCaches());
   } else if (event.data.type === 'WARM_APP_SHELL') {
-    event.waitUntil(warmAppShell(true));
+    // Warm only the entry shell. Fetching every lazy game and admin screen at
+    // launch can saturate a mobile connection and delay the screen being used.
+    event.waitUntil(warmAppShell(false));
   } else if (event.data.type === 'OFFLINE_FALLBACK_VISIBLE') {
     event.waitUntil((async () => {
       await warmAppShell(false);
@@ -225,10 +261,9 @@ async function cachedAppShell() {
 async function networkFirstNavigation(request) {
   const shell = await caches.open(SHELL_CACHE);
   const networkRequest = fetch(request, { cache: 'no-store' }).then(async (response) => {
-    if (response.ok) {
-      await shell.put(scopedUrl('index.html'), response.clone());
-      await shell.put(scopedUrl(''), response.clone());
-    }
+    if (!response.ok) throw new Error(`Navigation failed with status ${response.status}.`);
+    await shell.put(scopedUrl('index.html'), response.clone());
+    await shell.put(scopedUrl(''), response.clone());
     return response;
   });
 
@@ -246,24 +281,31 @@ async function networkFirstNavigation(request) {
   } catch {
     const cached = await cachedAppShell();
     if (cached) return cached;
-    return networkRequest;
+    try {
+      return await networkRequest;
+    } catch {
+      return new Response('Full Circle is reconnecting. Please try again.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
   }
 }
 
 async function cacheFirstAsset(request) {
   const cache = await caches.open(ASSET_CACHE);
-  const cached = await cache.match(request, { ignoreVary: true });
+  const cached = await caches.match(request, { ignoreVary: true });
   if (cached) return cached;
-  const response = await fetch(request);
+  const response = await fetchWithRetry(request, { cache: 'reload' });
   if (response.ok) await cache.put(request, response.clone());
   return response;
 }
 
 async function cacheFirstShellFile(request) {
   const cache = await caches.open(SHELL_CACHE);
-  const cached = await cache.match(request, { ignoreSearch: true, ignoreVary: true });
+  const cached = await caches.match(request, { ignoreSearch: true, ignoreVary: true });
   if (cached) return cached;
-  const response = await fetch(request);
+  const response = await fetchWithRetry(request, { cache: 'reload' });
   if (response.ok) await cache.put(request, response.clone());
   return response;
 }

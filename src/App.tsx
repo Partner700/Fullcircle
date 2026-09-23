@@ -8,13 +8,14 @@ import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { PasswordUpdateFlow } from './components/PasswordUpdateFlow';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { useFrenchUiTranslation } from './lib/frenchUi';
+import { importWithRetry } from './lib/importWithRetry';
 import { LogOut, RefreshCw } from 'lucide-react';
 
-const CadetApp = lazy(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp })));
-const SentryApp = lazy(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp })));
-const InstructorApp = lazy(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp })));
-const PublicShareScreen = lazy(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen })));
-const AuthenticatedOverlays = lazy(() => import('./components/AuthenticatedOverlays').then((module) => ({ default: module.AuthenticatedOverlays })));
+const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }))));
+const SentryApp = lazy(() => importWithRetry(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }))));
+const InstructorApp = lazy(() => importWithRetry(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp }))));
+const PublicShareScreen = lazy(() => importWithRetry(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen }))));
+const AuthenticatedOverlays = lazy(() => importWithRetry(() => import('./components/AuthenticatedOverlays').then((module) => ({ default: module.AuthenticatedOverlays }))));
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
