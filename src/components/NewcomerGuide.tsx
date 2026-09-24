@@ -29,7 +29,7 @@ type TargetBox = {
 };
 
 const STEP_COPY: Partial<Record<NewcomerGuidanceStep, { title: string; text: string }>> = {
-  choose_tent: { title: 'Choose your tent', text: 'Pick a tent with fewer than 10 people and send your request.' },
+  choose_tent: { title: 'Join your tent', text: 'Your instructor selected your available tent. Follow the hand and send your request.' },
   dashboard_after_tent: { title: 'Return to your dashboard', text: 'Your request is with the sentry. Continue your short tour from the Dashboard.' },
   daily_scriptures: { title: "Open Today's Reading", text: 'This is where your daily Scripture journey begins.' },
   scroll_reading: { title: 'Swipe up', text: 'Scroll through the Scripture to continue.' },

@@ -1874,9 +1874,15 @@ assert.match(confirmedPresenceStreak, /v_affected_date date := date '2026-09-08'
 assert.match(confirmedPresenceStreak, /AND public\.streak_requirement_met\(v_ph_id, v_affected_date\)/);
 assert.match(confirmedPresenceStreak, /record\.record_date >= date '2026-09-08'/);
 assert.match(confirmedPresenceStreak, /SELECT public\.refresh_all_streak_snapshots\(\)/);
-assert.match(cadetTent, /data-guide-tent-choice=\{full \? undefined : 'available'\}/);
+assert.match(cadetTent, /data-guide-tent-choice=\{joinable \? 'directed' : undefined\}/);
 assert.match(cadetTent, /item\.member_count >= TENT_MEMBER_CAPACITY/);
 assert.match(cadetTent, /\{item\.member_count\}\/\{TENT_MEMBER_CAPACITY\} people/);
+assert.match(cadetTent, /fetchTentJoinDirections\(profile\.id\)/);
+assert.match(cadetTent, /directedTentId !== tentId/);
+assert.match(newcomerGuide, /Your instructor selected your available tent/);
+assert.match(instructorApp, /Direct Tentless Cadets/);
+assert.match(instructorApp, /setTentJoinDirection\(userId, tentId\)/);
+assert.match(instructorApp, /every other tent stays muted/);
 assert.match(cadetNarrative, /data-guide="best-verse"/);
 assert.match(cadetNarrative, /data-guide="daily-meditation"/);
 assert.match(cadetNarrative, /data-guide="daily-quote"/);
@@ -2262,10 +2268,15 @@ assert.match(sentryQualification100, /100-day reading discipline/);
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.enforce_tent_capacity()',
   'BEFORE INSERT OR UPDATE OF tent_id, user_id ON public.tent_members',
-  'count(DISTINCT member.user_id)',
+  'count(DISTINCT person.user_id)',
   "RAISE EXCEPTION 'This tent is full (maximum 10 people).'",
   'CREATE OR REPLACE FUNCTION public.request_to_join_tent(p_tent_id uuid)',
   'CREATE OR REPLACE FUNCTION public.review_tent_join_request(p_request_id uuid, p_approve boolean)',
+  'CREATE TABLE IF NOT EXISTS public.tent_join_directions',
+  'CREATE OR REPLACE FUNCTION public.set_tent_join_direction(p_user_id uuid, p_tent_id uuid DEFAULT NULL)',
+  'v_directed_tent_id IS DISTINCT FROM p_tent_id',
+  'The instructor has not directed this cadet to this tent.',
+  'ALTER PUBLICATION supabase_realtime ADD TABLE public.tent_join_directions',
   "request.status = 'pending'",
 ]) {
   assert.ok(tenPersonTentCapacity.includes(required), `Missing ten-person tent safeguard: ${required}`);

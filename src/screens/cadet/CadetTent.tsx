@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
 import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
-import { fetchAwards, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchAwards, fetchPanelImageSetting, fetchTentJoinDirections } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { VallumText } from '../../components/ChiRhoMark';
@@ -70,6 +70,7 @@ export function CadetTent() {
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
   const [availableTents, setAvailableTents] = useState<TentJoinOption[]>([]);
+  const [directedTentId, setDirectedTentId] = useState<string | null>(null);
   const [pendingTentId, setPendingTentId] = useState<string | null>(null);
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
   const [awardView, setAwardView] = useState('week');
@@ -84,10 +85,11 @@ export function CadetTent() {
       if (!member) {
         setTent(null);
         setMembers([]);
-        const [tentOptionsResult, requestResult, memberOptionsResult] = await Promise.all([
+        const [tentOptionsResult, requestResult, memberOptionsResult, directions] = await Promise.all([
           supabase.from('tents').select('id,name,profile_image_url,sentry_id,tent_houses(name)').order('name'),
           supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
           supabase.from('tent_members').select('tent_id,user_id'),
+          fetchTentJoinDirections(profile.id),
         ]);
         if (tentOptionsResult.error) throw tentOptionsResult.error;
         if (requestResult.error) throw requestResult.error;
@@ -107,9 +109,12 @@ export function CadetTent() {
           return { ...row, member_count: people.size } as TentJoinOption;
         });
         setAvailableTents(tentsWithCounts);
+        setDirectedTentId(directions[0]?.tent_id || null);
         setPendingTentId(requestRow?.tent_id || null);
         return;
       }
+
+      setDirectedTentId(null);
 
       const [tentResult, membersResult, reactionsResult, unreadResult, awardsResult, awardsImageResult] = await Promise.all([
         supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
@@ -161,6 +166,7 @@ export function CadetTent() {
       .channel(`cadet-tent-membership-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_members', filter: `user_id=eq.${profile.id}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_requests', filter: `user_id=eq.${profile.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_directions', filter: `user_id=eq.${profile.id}` }, refresh)
       .subscribe();
     const interval = window.setInterval(refresh, 20_000);
     return () => {
@@ -171,8 +177,13 @@ export function CadetTent() {
 
   const requestTent = async (tentId: string) => {
     const selectedTent = availableTents.find((item) => item.id === tentId);
+    if (!directedTentId || directedTentId !== tentId) {
+      alert('Your instructor has not directed you to this tent. Follow the hand to the selected tent.');
+      await load();
+      return;
+    }
     if (!selectedTent || selectedTent.member_count >= TENT_MEMBER_CAPACITY) {
-      alert('This tent already has 10 people. Please choose a tent with an available place.');
+      alert('The selected tent already has 10 people. Your instructor must direct you to another available tent.');
       await load();
       return;
     }
@@ -234,23 +245,35 @@ export function CadetTent() {
   if (!tent) {
     return (
       <div className="space-y-5 animate-fade-in">
-        <EmptyState icon={Users} title="You're not in a tent yet" message="Choose a tent below and request to join its family." />
+        <EmptyState
+          icon={Users}
+          title="You're not in a tent yet"
+          message={directedTentId
+            ? 'Your instructor selected your tent. Follow the hand and send your request.'
+            : 'Your instructor will direct you to an available tent. The choices stay muted until then.'}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           {availableTents.map((item) => {
             const full = item.member_count >= TENT_MEMBER_CAPACITY;
+            const directed = directedTentId === item.id;
+            const joinable = directed && !full;
             const pending = pendingTentId === item.id;
             return <article
               key={item.id}
-              data-guide-tent-choice={full ? undefined : 'available'}
-              aria-disabled={full || undefined}
-              className={cn('card flex items-center gap-3 p-4', full && 'opacity-60')}
+              data-guide-tent-choice={joinable ? 'directed' : undefined}
+              aria-disabled={!joinable || undefined}
+              className={cn('card flex items-center gap-3 p-4 transition-opacity', !joinable && 'opacity-50 saturate-50')}
             >
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
                 {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
               </div>
-              <div className="min-w-0 flex-1"><p className="font-bold text-ink">{item.name}</p><p className="text-xs text-stone">{item.tent_houses?.name} · {item.member_count}/{TENT_MEMBER_CAPACITY} people</p></div>
-              <button type="button" disabled={full || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
-                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : <><UserPlus size={14} /> Join</>}
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-ink">{item.name}</p>
+                <p className="text-xs text-stone">{item.tent_houses?.name} · {item.member_count}/{TENT_MEMBER_CAPACITY} people</p>
+                {directed && <p className="mt-1 text-[10px] font-bold uppercase text-gold">Instructor selected</p>}
+              </div>
+              <button type="button" disabled={!joinable || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
+                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : !directed ? 'Muted' : <><UserPlus size={14} /> Join</>}
               </button>
             </article>;
           })}

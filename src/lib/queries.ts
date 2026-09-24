@@ -245,6 +245,34 @@ export async function assignCadetToTent(tentId: string, userId: string) {
   if (error) throw error;
 }
 
+export type TentJoinDirection = {
+  user_id: string;
+  tent_id: string;
+  directed_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchTentJoinDirections(userId?: string) {
+  let query = supabase
+    .from('tent_join_directions')
+    .select('user_id,tent_id,directed_by,created_at,updated_at')
+    .order('updated_at', { ascending: false });
+  if (userId) query = query.eq('user_id', userId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as TentJoinDirection[];
+}
+
+export async function setTentJoinDirection(userId: string, tentId: string | null) {
+  const { data, error } = await supabase.rpc('set_tent_join_direction', {
+    p_user_id: userId,
+    p_tent_id: tentId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 export type TentAssignmentReceipt = {
   success: boolean;
   user_id: string;

@@ -38,6 +38,7 @@ import {
   fetchAllNarratives, fetchAwards,
   fetchQuizSessions, createQuizSession, launchQuizSession, extendQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
+  fetchTentJoinDirections, setTentJoinDirection,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
@@ -1681,13 +1682,15 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         {tents.map((t) => {
           const tentMembers = members.filter((m) => m.tent_id === t.id);
           const cadets = tentMembers.filter((m) => m.role === 'cadet');
+          const people = new Set(tentMembers.map((member) => member.user_id));
+          if (t.sentry_id) people.add(t.sentry_id);
           return (
             <div key={t.id} className="card p-4">
               <div className="flex items-center gap-2 mb-2">
                 {t.tent_houses && <TentHouseBadge houseId={t.tent_houses.id} size="sm" />}
                 <h4 className="font-display font-semibold text-ink text-sm flex-1">{t.name}</h4>
               </div>
-              <p className="text-xs text-stone">{cadets.length}/5 cadets</p>
+              <p className="text-xs text-stone">{people.size}/{TENT_PERSON_CAPACITY} people · {cadets.length} cadet{cadets.length === 1 ? '' : 's'}</p>
             </div>
           );
         })}
@@ -1735,7 +1738,7 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
   };
   if (requests.length === 0) return null;
   return <section className="card mb-5 p-5">
-    <SectionHeader title="Tent Join Requests" subtitle="Approve cadets until each tent reaches ten cadets plus its sentry." />
+    <SectionHeader title="Tent Join Requests" subtitle="Approve the instructor-directed tent while total membership remains below ten people." />
     <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
       <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /></span>
       <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
@@ -1744,6 +1747,8 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
     </div>)}</div>
   </section>;
 }
+
+const TENT_PERSON_CAPACITY = 10;
 
 function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {
   tents: (Tent & { tent_houses: any })[];
@@ -1761,6 +1766,72 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [tentActionMessage, setTentActionMessage] = useState<string | null>(null);
   const [tentActionError, setTentActionError] = useState<string | null>(null);
+  const [directions, setDirections] = useState<Record<string, string>>({});
+  const [directionDrafts, setDirectionDrafts] = useState<Record<string, string>>({});
+  const [directionSavingId, setDirectionSavingId] = useState<string | null>(null);
+  const [directionsLoading, setDirectionsLoading] = useState(true);
+
+  const tentPeopleById = useMemo(() => {
+    const counts = new Map<string, number>();
+    tents.forEach((tent) => {
+      const people = new Set(members.filter((member) => member.tent_id === tent.id).map((member) => member.user_id));
+      if (tent.sentry_id) people.add(tent.sentry_id);
+      counts.set(tent.id, people.size);
+    });
+    return counts;
+  }, [members, tents]);
+
+  const tentlessCadets = useMemo(() => {
+    const assignedUserIds = new Set(members.map((member) => member.user_id));
+    const activeCadetIds = new Set(roles
+      .filter((assignment) => assignment.role === 'cadet' && (assignment.status === 'active' || assignment.status === 'approved'))
+      .map((assignment) => assignment.user_id));
+    return profiles
+      .filter((candidate) => activeCadetIds.has(candidate.id) && !assignedUserIds.has(candidate.id))
+      .sort((left, right) => left.display_name.localeCompare(right.display_name));
+  }, [members, profiles, roles]);
+
+  const loadDirections = useCallback(async () => {
+    setDirectionsLoading(true);
+    try {
+      const rows = await fetchTentJoinDirections();
+      const next = Object.fromEntries(rows.map((row) => [row.user_id, row.tent_id]));
+      setDirections(next);
+      setDirectionDrafts(next);
+    } catch (error) {
+      setTentActionError(error instanceof Error ? error.message : 'Tent directions could not be loaded.');
+    } finally {
+      setDirectionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadDirections(); }, [loadDirections]);
+
+  const saveDirection = async (userId: string) => {
+    const tentId = directionDrafts[userId] || null;
+    setDirectionSavingId(userId);
+    setTentActionMessage(null);
+    setTentActionError(null);
+    try {
+      await setTentJoinDirection(userId, tentId);
+      setDirections((current) => {
+        const next = { ...current };
+        if (tentId) next[userId] = tentId;
+        else delete next[userId];
+        return next;
+      });
+      const cadetName = profiles.find((candidate) => candidate.id === userId)?.display_name || 'The cadet';
+      const tentName = tents.find((tent) => tent.id === tentId)?.name;
+      setTentActionMessage(tentName
+        ? `${cadetName} was directed to ${tentName}. The hand now points only there.`
+        : `${cadetName}'s tent direction was cleared.`);
+    } catch (error) {
+      setTentActionError(error instanceof Error ? error.message : 'The tent direction could not be saved.');
+      await loadDirections();
+    } finally {
+      setDirectionSavingId(null);
+    }
+  };
 
   const availableSentries = roles
     .filter((r) => r.role === 'sentry' && r.status === 'active')
@@ -1850,6 +1921,61 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
         </div>
       )}
 
+      <section className="card p-4">
+        <SectionHeader
+          title="Direct Tentless Cadets"
+          subtitle="Select one available tent for each cadet. Their hand points there and every other tent stays muted."
+        />
+        {directionsLoading ? (
+          <div className="flex items-center justify-center py-6 text-sm text-stone"><Loader2 size={16} className="mr-2 animate-spin" /> Loading directions…</div>
+        ) : tentlessCadets.length === 0 ? (
+          <p className="mt-3 text-sm text-stone">Every active cadet currently belongs to a tent.</p>
+        ) : (
+          <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+            {tentlessCadets.map((cadet) => {
+              const currentTentId = directions[cadet.id] || '';
+              const draftTentId = directionDrafts[cadet.id] ?? currentTentId;
+              const options = [
+                { value: '', label: 'No direction yet', description: 'All tents remain muted for this cadet.' },
+                ...tents
+                  .filter((tent) => (tentPeopleById.get(tent.id) || 0) < TENT_PERSON_CAPACITY || currentTentId === tent.id)
+                  .map((tent) => {
+                    const count = tentPeopleById.get(tent.id) || 0;
+                    const full = count >= TENT_PERSON_CAPACITY;
+                    return {
+                      value: tent.id,
+                      label: `${tent.name} · ${count}/${TENT_PERSON_CAPACITY}`,
+                      description: full ? 'Full — choose another tent' : `${TENT_PERSON_CAPACITY - count} place${TENT_PERSON_CAPACITY - count === 1 ? '' : 's'} available`,
+                    };
+                  }),
+              ];
+              return <div key={cadet.id} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
+                <div className="flex min-w-0 items-center gap-3">
+                  <UserAvatar userId={cadet.id} name={cadet.display_name} avatarUrl={cadet.avatar_url} className="h-10 w-10 flex-shrink-0" />
+                  <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{cadet.display_name}</p><p className="text-xs text-stone">Tentless cadet</p></div>
+                </div>
+                <AppSelect
+                  value={draftTentId}
+                  onChange={(value) => setDirectionDrafts((current) => ({ ...current, [cadet.id]: value }))}
+                  options={options}
+                  buttonClassName="text-sm"
+                  disabled={directionSavingId === cadet.id}
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveDirection(cadet.id)}
+                  disabled={directionSavingId === cadet.id || draftTentId === currentTentId}
+                  className="btn-primary min-w-24 justify-center text-xs"
+                >
+                  {directionSavingId === cadet.id ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
+                  {currentTentId ? 'Update' : 'Direct'}
+                </button>
+              </div>;
+            })}
+          </div>
+        )}
+      </section>
+
       {tents.length === 0 ? (
         <EmptyState icon={TentIcon} title="No tents yet" message="Create a tent and assign a sentry to get started." />
       ) : (
@@ -1858,9 +1984,10 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
             const tentMembers = members.filter((m) => m.tent_id === t.id);
             const sentry = tentMembers.find((m) => m.role === 'sentry');
             const cadets = tentMembers.filter((m) => m.role === 'cadet');
+            const peopleCount = tentPeopleById.get(t.id) || 0;
             const availableCadets = roles
               .filter((r) => r.role === 'cadet' && r.status === 'active')
-              .filter((r) => !members.some((m) => m.user_id === r.user_id && m.role === 'cadet'));
+              .filter((r) => !members.some((m) => m.user_id === r.user_id));
 
             return (
               <div key={t.id} className="card p-4">
@@ -1869,7 +1996,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                     {t.tent_houses && <TentHouseBadge houseId={t.tent_houses.id} size="md" />}
                     <div>
                       <h4 className="font-display font-semibold text-ink">{t.name}</h4>
-                      <p className="text-xs text-stone">{cadets.length}/5 cadets · {sentry ? 'sentry assigned' : 'no sentry'}</p>
+                      <p className="text-xs text-stone">{peopleCount}/{TENT_PERSON_CAPACITY} people · {cadets.length} cadet{cadets.length === 1 ? '' : 's'} · {sentry ? 'sentry assigned' : 'no sentry'}</p>
                     </div>
                   </div>
                   <button
@@ -1921,7 +2048,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                   ))}
                 </div>
 
-                {cadets.length < 5 && availableCadets.length > 0 && (
+                {peopleCount < TENT_PERSON_CAPACITY && availableCadets.length > 0 && (
                   <AddCadetRow tentId={t.id} availableCadets={availableCadets} profiles={profiles} onRefresh={onRefresh} />
                 )}
               </div>
