@@ -2370,6 +2370,22 @@ assert.match(sentryApp, /const quoteStartIndex = Math\.min\(3, standardHeroSlide
 assert.match(sentryApp, /standardHeroSlides\.slice\(0, quoteStartIndex\),[\s\S]{0,100}\.\.\.quoteSlides/);
 assert.match(quoteQueries, /dayType !== 'weekday' && quotes\.length === 0/);
 
+const reversibleAccountRestoration = read('supabase/migrations/20260924120000_reversible_account_restoration.sql');
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.account_inheritance_restorations',
+  'CREATE TABLE IF NOT EXISTS public.account_fig_adjustments',
+  'CREATE OR REPLACE FUNCTION public.restore_completed_account_inheritance',
+  "auth.role() IS DISTINCT FROM 'service_role'",
+  "'inheritance:' || p_inheritance_id::text || ':restored'",
+  "'inheritance:' || p_inheritance_id::text || ':returned'",
+  'PERFORM public.refresh_user_streak_snapshot',
+]) {
+  assert.ok(reversibleAccountRestoration.includes(required), `Missing account restoration safeguard: ${required}`);
+}
+assert.match(reversibleAccountRestoration, /ON CONFLICT \(user_id, source_reference\) DO NOTHING/);
+assert.match(reversibleAccountRestoration, /WHERE restoration\.inheritance_id = p_inheritance_id/);
+assert.doesNotMatch(reversibleAccountRestoration, /password\s*[=:]/i);
+
 for (const file of sourceFiles(path.join(root, 'supabase/functions'))) {
   if (!file.endsWith('.ts')) continue;
   const result = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
