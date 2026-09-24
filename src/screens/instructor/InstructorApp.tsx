@@ -15,6 +15,7 @@ import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnP
 import { TentHouseBadge } from '../../components/TentHouseSymbol';
 import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
+import { QuoteReleaseTime } from '../../components/QuoteReleaseTime';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
@@ -38,7 +39,7 @@ import {
   fetchAllNarratives, fetchAwards,
   fetchQuizSessions, createQuizSession, launchQuizSession, extendQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
   fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
-  fetchTentJoinDirections, setTentJoinDirection,
+  fetchDefaultTentJoinDirection, fetchTentJoinDirections, setDefaultTentJoinDirection, setTentJoinDirection,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
@@ -1630,7 +1631,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
                   </time>
                 )}
               </div>
-              <p className="text-[15px] text-ink font-display font-semibold italic leading-snug">"{featuredQuote.daily_quote}"</p>
+              <p className="text-[15px] text-ink font-display font-semibold italic leading-snug">"{featuredQuote.daily_quote}"<QuoteReleaseTime quote={featuredQuote} /></p>
               <QuoteAuthorStats quote={featuredQuote} showDate={false} compact currentUserId={instructorId} onMessageOpenChange={setQuotePaused} />
               {quotes.length > 1 && (
                 <div className="mt-2 flex items-center gap-1.5">
@@ -1770,6 +1771,9 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const [directionDrafts, setDirectionDrafts] = useState<Record<string, string>>({});
   const [directionSavingId, setDirectionSavingId] = useState<string | null>(null);
   const [directionsLoading, setDirectionsLoading] = useState(true);
+  const [defaultTentId, setDefaultTentId] = useState('');
+  const [defaultTentDraft, setDefaultTentDraft] = useState('');
+  const [defaultTentSaving, setDefaultTentSaving] = useState(false);
 
   const tentPeopleById = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1794,10 +1798,15 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const loadDirections = useCallback(async () => {
     setDirectionsLoading(true);
     try {
-      const rows = await fetchTentJoinDirections();
+      const [rows, campDefaultTentId] = await Promise.all([
+        fetchTentJoinDirections(),
+        fetchDefaultTentJoinDirection(),
+      ]);
       const next = Object.fromEntries(rows.map((row) => [row.user_id, row.tent_id]));
       setDirections(next);
       setDirectionDrafts(next);
+      setDefaultTentId(campDefaultTentId || '');
+      setDefaultTentDraft(campDefaultTentId || '');
     } catch (error) {
       setTentActionError(error instanceof Error ? error.message : 'Tent directions could not be loaded.');
     } finally {
@@ -1806,6 +1815,26 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   }, []);
 
   useEffect(() => { void loadDirections(); }, [loadDirections]);
+
+  const saveDefaultDirection = async () => {
+    const tentId = defaultTentDraft || null;
+    setDefaultTentSaving(true);
+    setTentActionMessage(null);
+    setTentActionError(null);
+    try {
+      await setDefaultTentJoinDirection(tentId);
+      setDefaultTentId(tentId || '');
+      const tentName = tents.find((tent) => tent.id === tentId)?.name;
+      setTentActionMessage(tentName
+        ? `The tour hand now directs every new or tentless cadet to ${tentName}.`
+        : 'The camp-wide tour tent was cleared. Tents remain muted unless a personal direction exists.');
+    } catch (error) {
+      setTentActionError(error instanceof Error ? error.message : 'The camp-wide tour tent could not be saved.');
+      await loadDirections();
+    } finally {
+      setDefaultTentSaving(false);
+    }
+  };
 
   const saveDirection = async (userId: string) => {
     const tentId = directionDrafts[userId] || null;
@@ -1923,55 +1952,101 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
 
       <section className="card p-4">
         <SectionHeader
-          title="Direct Tentless Cadets"
-          subtitle="Select one available tent for each cadet. Their hand points there and every other tent stays muted."
+          title="Tour Tent Direction"
+          subtitle="Choose the tent the hand points to for every new or tentless cadet. Personal overrides remain available below."
         />
         {directionsLoading ? (
           <div className="flex items-center justify-center py-6 text-sm text-stone"><Loader2 size={16} className="mr-2 animate-spin" /> Loading directions…</div>
-        ) : tentlessCadets.length === 0 ? (
-          <p className="mt-3 text-sm text-stone">Every active cadet currently belongs to a tent.</p>
         ) : (
-          <div className="mt-4 divide-y divide-border rounded-lg border border-border">
-            {tentlessCadets.map((cadet) => {
-              const currentTentId = directions[cadet.id] || '';
-              const draftTentId = directionDrafts[cadet.id] ?? currentTentId;
-              const options = [
-                { value: '', label: 'No direction yet', description: 'All tents remain muted for this cadet.' },
-                ...tents
-                  .filter((tent) => (tentPeopleById.get(tent.id) || 0) < TENT_PERSON_CAPACITY || currentTentId === tent.id)
-                  .map((tent) => {
-                    const count = tentPeopleById.get(tent.id) || 0;
-                    const full = count >= TENT_PERSON_CAPACITY;
-                    return {
-                      value: tent.id,
-                      label: `${tent.name} · ${count}/${TENT_PERSON_CAPACITY}`,
-                      description: full ? 'Full — choose another tent' : `${TENT_PERSON_CAPACITY - count} place${TENT_PERSON_CAPACITY - count === 1 ? '' : 's'} available`,
-                    };
-                  }),
-              ];
-              return <div key={cadet.id} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
-                <div className="flex min-w-0 items-center gap-3">
-                  <UserAvatar userId={cadet.id} name={cadet.display_name} avatarUrl={cadet.avatar_url} className="h-10 w-10 flex-shrink-0" />
-                  <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{cadet.display_name}</p><p className="text-xs text-stone">Tentless cadet</p></div>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 rounded-lg border border-gold/25 bg-gold-soft/35 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
+              <div>
+                <p className="text-sm font-bold text-ink">Camp-wide tour tent</p>
+                <p className="text-xs text-stone">This is the default for every new and tentless cadet.</p>
+              </div>
+              <AppSelect
+                value={defaultTentDraft}
+                onChange={setDefaultTentDraft}
+                options={[
+                  { value: '', label: 'No camp-wide direction', description: 'All tents stay muted unless a personal override exists.' },
+                  ...tents
+                    .filter((tent) => (tentPeopleById.get(tent.id) || 0) < TENT_PERSON_CAPACITY || defaultTentId === tent.id)
+                    .map((tent) => {
+                      const count = tentPeopleById.get(tent.id) || 0;
+                      return {
+                        value: tent.id,
+                        label: `${tent.name} · ${count}/${TENT_PERSON_CAPACITY}`,
+                        description: count >= TENT_PERSON_CAPACITY ? 'Full — choose another tent' : `${TENT_PERSON_CAPACITY - count} place${TENT_PERSON_CAPACITY - count === 1 ? '' : 's'} available`,
+                      };
+                    }),
+                ]}
+                buttonClassName="text-sm"
+                disabled={defaultTentSaving}
+              />
+              <button
+                type="button"
+                onClick={() => void saveDefaultDirection()}
+                disabled={defaultTentSaving || defaultTentDraft === defaultTentId}
+                className="btn-primary min-w-24 justify-center text-xs"
+              >
+                {defaultTentSaving ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
+                Save
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs font-extrabold uppercase text-stone">Optional personal overrides</p>
+              {tentlessCadets.length === 0 ? (
+                <p className="mt-2 text-sm text-stone">Every active cadet currently belongs to a tent.</p>
+              ) : (
+                <div className="mt-2 divide-y divide-border rounded-lg border border-border">
+                  {tentlessCadets.map((cadet) => {
+                    const currentTentId = directions[cadet.id] || '';
+                    const draftTentId = directionDrafts[cadet.id] ?? currentTentId;
+                    const options = [
+                      {
+                        value: '',
+                        label: defaultTentId ? `Use camp-wide direction · ${tents.find((tent) => tent.id === defaultTentId)?.name || 'selected tent'}` : 'No personal direction',
+                        description: defaultTentId ? 'The tour follows the camp-wide tent.' : 'All tents remain muted for this cadet.',
+                      },
+                      ...tents
+                        .filter((tent) => (tentPeopleById.get(tent.id) || 0) < TENT_PERSON_CAPACITY || currentTentId === tent.id)
+                        .map((tent) => {
+                          const count = tentPeopleById.get(tent.id) || 0;
+                          const full = count >= TENT_PERSON_CAPACITY;
+                          return {
+                            value: tent.id,
+                            label: `${tent.name} · ${count}/${TENT_PERSON_CAPACITY}`,
+                            description: full ? 'Full — choose another tent' : `${TENT_PERSON_CAPACITY - count} place${TENT_PERSON_CAPACITY - count === 1 ? '' : 's'} available`,
+                          };
+                        }),
+                    ];
+                    return <div key={cadet.id} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <UserAvatar userId={cadet.id} name={cadet.display_name} avatarUrl={cadet.avatar_url} className="h-10 w-10 flex-shrink-0" />
+                        <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{cadet.display_name}</p><p className="text-xs text-stone">Tentless cadet</p></div>
+                      </div>
+                      <AppSelect
+                        value={draftTentId}
+                        onChange={(value) => setDirectionDrafts((current) => ({ ...current, [cadet.id]: value }))}
+                        options={options}
+                        buttonClassName="text-sm"
+                        disabled={directionSavingId === cadet.id}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void saveDirection(cadet.id)}
+                        disabled={directionSavingId === cadet.id || draftTentId === currentTentId}
+                        className="btn-primary min-w-24 justify-center text-xs"
+                      >
+                        {directionSavingId === cadet.id ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
+                        {currentTentId ? 'Update' : 'Direct'}
+                      </button>
+                    </div>;
+                  })}
                 </div>
-                <AppSelect
-                  value={draftTentId}
-                  onChange={(value) => setDirectionDrafts((current) => ({ ...current, [cadet.id]: value }))}
-                  options={options}
-                  buttonClassName="text-sm"
-                  disabled={directionSavingId === cadet.id}
-                />
-                <button
-                  type="button"
-                  onClick={() => void saveDirection(cadet.id)}
-                  disabled={directionSavingId === cadet.id || draftTentId === currentTentId}
-                  className="btn-primary min-w-24 justify-center text-xs"
-                >
-                  {directionSavingId === cadet.id ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
-                  {currentTentId ? 'Update' : 'Direct'}
-                </button>
-              </div>;
-            })}
+              )}
+            </div>
           </div>
         )}
       </section>

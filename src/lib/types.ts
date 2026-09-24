@@ -1007,6 +1007,7 @@ export interface CustomQuestion {
 export interface DailyQuoteFeedItem {
   record_date: string;
   daily_quote: string;
+  released_at?: string | null;
   user_id: string;
   display_name: string;
   avatar_url: string | null;

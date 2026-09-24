@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
 import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
-import { fetchAwards, fetchPanelImageSetting, fetchTentJoinDirections } from '../../lib/queries';
+import { fetchAwards, fetchDefaultTentJoinDirection, fetchPanelImageSetting, fetchTentJoinDirections } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { VallumText } from '../../components/ChiRhoMark';
@@ -85,11 +85,12 @@ export function CadetTent() {
       if (!member) {
         setTent(null);
         setMembers([]);
-        const [tentOptionsResult, requestResult, memberOptionsResult, directions] = await Promise.all([
+        const [tentOptionsResult, requestResult, memberOptionsResult, directions, defaultTentId] = await Promise.all([
           supabase.from('tents').select('id,name,profile_image_url,sentry_id,tent_houses(name)').order('name'),
           supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
           supabase.from('tent_members').select('tent_id,user_id'),
           fetchTentJoinDirections(profile.id),
+          fetchDefaultTentJoinDirection(),
         ]);
         if (tentOptionsResult.error) throw tentOptionsResult.error;
         if (requestResult.error) throw requestResult.error;
@@ -109,7 +110,7 @@ export function CadetTent() {
           return { ...row, member_count: people.size } as TentJoinOption;
         });
         setAvailableTents(tentsWithCounts);
-        setDirectedTentId(directions[0]?.tent_id || null);
+        setDirectedTentId(directions[0]?.tent_id || defaultTentId);
         setPendingTentId(requestRow?.tent_id || null);
         return;
       }
@@ -167,6 +168,7 @@ export function CadetTent() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_members', filter: `user_id=eq.${profile.id}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_requests', filter: `user_id=eq.${profile.id}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_directions', filter: `user_id=eq.${profile.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_guidance_settings' }, refresh)
       .subscribe();
     const interval = window.setInterval(refresh, 20_000);
     return () => {

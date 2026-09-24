@@ -105,6 +105,7 @@ const chiRhoMark = read('src/components/ChiRhoMark.tsx');
 const authContext = read('src/context/AuthContext.tsx');
 const authScreen = read('src/screens/AuthScreen.tsx');
 const quoteAuthorStats = read('src/components/QuoteAuthorStats.tsx');
+const quoteReleaseTime = read('src/components/QuoteReleaseTime.tsx');
 const pwaInstallPrompt = read('src/components/PWAInstallPrompt.tsx');
 const sundayPublicReading = read('supabase/migrations/20260830120000_sunday_readings_public_conversations.sql');
 const sundayBiblicalOrder = read('supabase/migrations/20260830123000_sunday_biblical_order_and_streak_ranking.sql');
@@ -207,6 +208,7 @@ const fastDailyQuoteFeeds = read('supabase/migrations/20260921180000_fast_daily_
 const quoteFeedLifetimeTotals = read('supabase/migrations/20260921183000_quote_feed_lifetime_figs_and_rhudes.sql');
 const sentryQualification100 = read('supabase/migrations/20260923100000_sentry_qualification_100_streaks.sql');
 const tenPersonTentCapacity = read('supabase/migrations/20260923120000_ten_person_tent_join_capacity.sql');
+const globalTentDirectionAndQuoteTime = read('supabase/migrations/20260924100000_global_tent_direction_and_quote_release_time.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -1878,11 +1880,14 @@ assert.match(cadetTent, /data-guide-tent-choice=\{joinable \? 'directed' : undef
 assert.match(cadetTent, /item\.member_count >= TENT_MEMBER_CAPACITY/);
 assert.match(cadetTent, /\{item\.member_count\}\/\{TENT_MEMBER_CAPACITY\} people/);
 assert.match(cadetTent, /fetchTentJoinDirections\(profile\.id\)/);
+assert.match(cadetTent, /fetchDefaultTentJoinDirection\(\)/);
+assert.match(cadetTent, /tent_join_guidance_settings/);
 assert.match(cadetTent, /directedTentId !== tentId/);
 assert.match(newcomerGuide, /Your instructor selected your available tent/);
-assert.match(instructorApp, /Direct Tentless Cadets/);
+assert.match(instructorApp, /Camp-wide tour tent/);
+assert.match(instructorApp, /setDefaultTentJoinDirection\(tentId\)/);
 assert.match(instructorApp, /setTentJoinDirection\(userId, tentId\)/);
-assert.match(instructorApp, /every other tent stays muted/);
+assert.match(instructorApp, /Personal overrides remain available below/);
 assert.match(cadetNarrative, /data-guide="best-verse"/);
 assert.match(cadetNarrative, /data-guide="daily-meditation"/);
 assert.match(cadetNarrative, /data-guide="daily-quote"/);
@@ -2281,6 +2286,24 @@ for (const required of [
 ]) {
   assert.ok(tenPersonTentCapacity.includes(required), `Missing ten-person tent safeguard: ${required}`);
 }
+for (const required of [
+  'CREATE TABLE IF NOT EXISTS public.tent_join_guidance_settings',
+  'CREATE OR REPLACE FUNCTION public.resolve_tent_join_direction(p_user_id uuid)',
+  'CREATE OR REPLACE FUNCTION public.set_default_tent_join_direction',
+  'v_directed_tent_id := public.resolve_tent_join_direction(auth.uid())',
+  'public.resolve_tent_join_direction(v_request.user_id)',
+  'ALTER PUBLICATION supabase_realtime',
+  'released_at timestamptz',
+  'candidate.meditation_submitted_at',
+  "'released_at', quote.meditation_submitted_at",
+]) {
+  assert.ok(globalTentDirectionAndQuoteTime.includes(required), `Missing global tent or quote-time safeguard: ${required}`);
+}
+assert.match(quoteReleaseTime, /Africa\/Douala/);
+assert.match(quoteReleaseTime, /text-\[8px\]/);
+assert.match(cadetDashboard, /<QuoteReleaseTime quote=\{slide\.quote\}/);
+assert.match(instructorApp, /<QuoteReleaseTime quote=\{featuredQuote\}/);
+assert.match(publicShareScreen, /<QuoteReleaseTime quote=\{slide\.quote\}/);
 assert.doesNotMatch(quoteAuthorStats, /fetchPublicQuoteStreak|useEffect|useState/);
 assert.match(panelImageBackdrop, /loading=\{eager \? 'eager' : 'lazy'\}/);
 assert.match(panelImageBackdrop, /fetchPriority=\{eager \? 'high' : 'auto'\}/);

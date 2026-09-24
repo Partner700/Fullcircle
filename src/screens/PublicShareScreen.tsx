@@ -5,6 +5,7 @@ import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
 import { AwardBadgeGlyph } from '../components/VallumAvatarBadge';
 import { RelativeTime } from '../components/RelativeTime';
+import { QuoteReleaseTime } from '../components/QuoteReleaseTime';
 import { TentHouseSymbol } from '../components/TentHouseSymbol';
 import { UserAvatar } from '../components/UserAvatar';
 import {
@@ -253,7 +254,7 @@ function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuote
               <div>
                 <p className="eyebrow flex items-center gap-1.5 text-brass"><Quote size={14} /> Quotes From Daily Meditations</p>
                 {slide.kind === 'quote' ? (
-                  <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;{slide.quote.daily_quote}&rdquo;<button type="button" disabled={!slide.quote.has_public_meditation} className="ml-2 inline-flex align-baseline text-gold disabled:cursor-default disabled:text-stone-dim disabled:opacity-45" aria-label={slide.quote.has_public_meditation ? 'Join to read this meditation' : 'This meditation is private'} title={slide.quote.has_public_meditation ? 'Join to read this meditation' : 'This meditation is private'} onClick={() => { if (slide.quote.has_public_meditation) setJoinOpen(true); }}><Bookmark size={16} fill={slide.quote.has_public_meditation ? 'currentColor' : 'none'} /></button></p>
+                  <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;{slide.quote.daily_quote}&rdquo;<button type="button" disabled={!slide.quote.has_public_meditation} className="ml-2 inline-flex align-baseline text-gold disabled:cursor-default disabled:text-stone-dim disabled:opacity-45" aria-label={slide.quote.has_public_meditation ? 'Join to read this meditation' : 'This meditation is private'} title={slide.quote.has_public_meditation ? 'Join to read this meditation' : 'This meditation is private'} onClick={() => { if (slide.quote.has_public_meditation) setJoinOpen(true); }}><Bookmark size={16} fill={slide.quote.has_public_meditation ? 'currentColor' : 'none'} /></button><QuoteReleaseTime quote={slide.quote} /></p>
                 ) : (
                   <p className="mt-5 font-display text-2xl font-medium italic leading-snug text-ink">&ldquo;Come and read, reflect, and grow with us.&rdquo;</p>
                 )}

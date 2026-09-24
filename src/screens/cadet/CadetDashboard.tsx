@@ -7,6 +7,7 @@ import { QuoteReactions, type QuoteReactionState } from '../../components/QuoteR
 import { BirthdayReactions } from '../../components/BirthdayReactions';
 import { QuoteAuthorStats } from '../../components/QuoteAuthorStats';
 import { QuoteMeditationButton } from '../../components/QuoteMeditationButton';
+import { QuoteReleaseTime } from '../../components/QuoteReleaseTime';
 import { VallumText } from '../../components/ChiRhoMark';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
@@ -811,7 +812,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             )}
                           </div>
                         </div>
-                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /></p>
+                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /><QuoteReleaseTime quote={slide.quote} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}

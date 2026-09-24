@@ -264,6 +264,24 @@ export async function fetchTentJoinDirections(userId?: string) {
   return (data || []) as TentJoinDirection[];
 }
 
+export async function fetchDefaultTentJoinDirection() {
+  const { data, error } = await supabase
+    .from('tent_join_guidance_settings')
+    .select('tent_id')
+    .eq('setting_key', 'camp_default')
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.tent_id as string | null | undefined) || null;
+}
+
+export async function setDefaultTentJoinDirection(tentId: string | null) {
+  const { data, error } = await supabase.rpc('set_default_tent_join_direction', {
+    p_tent_id: tentId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function setTentJoinDirection(userId: string, tentId: string | null) {
   const { data, error } = await supabase.rpc('set_tent_join_direction', {
     p_user_id: userId,
