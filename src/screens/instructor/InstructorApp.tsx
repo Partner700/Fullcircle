@@ -1683,15 +1683,13 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         {tents.map((t) => {
           const tentMembers = members.filter((m) => m.tent_id === t.id);
           const cadets = tentMembers.filter((m) => m.role === 'cadet');
-          const people = new Set(tentMembers.map((member) => member.user_id));
-          if (t.sentry_id) people.add(t.sentry_id);
           return (
             <div key={t.id} className="card p-4">
               <div className="flex items-center gap-2 mb-2">
                 {t.tent_houses && <TentHouseBadge houseId={t.tent_houses.id} size="sm" />}
                 <h4 className="font-display font-semibold text-ink text-sm flex-1">{t.name}</h4>
               </div>
-              <p className="text-xs text-stone">{people.size}/{TENT_PERSON_CAPACITY} people · {cadets.length} cadet{cadets.length === 1 ? '' : 's'}</p>
+              <p className="text-xs text-stone">{cadets.length}/{TENT_CADET_CAPACITY} cadets · sentry counted separately</p>
             </div>
           );
         })}
@@ -1739,7 +1737,7 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
   };
   if (requests.length === 0) return null;
   return <section className="card mb-5 p-5">
-    <SectionHeader title="Tent Join Requests" subtitle="Approve the instructor-directed tent while total membership remains below ten people." />
+    <SectionHeader title="Tent Join Requests" subtitle="Approve the instructor-directed tent while it has fewer than ten cadets. The sentry has a separate place." />
     <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
       <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /></span>
       <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
@@ -1749,7 +1747,7 @@ function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
   </section>;
 }
 
-const TENT_PERSON_CAPACITY = 10;
+const TENT_CADET_CAPACITY = 10;
 
 function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {
   tents: (Tent & { tent_houses: any })[];
@@ -1775,12 +1773,15 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const [defaultTentDraft, setDefaultTentDraft] = useState('');
   const [defaultTentSaving, setDefaultTentSaving] = useState(false);
 
-  const tentPeopleById = useMemo(() => {
+  const tentCadetsById = useMemo(() => {
     const counts = new Map<string, number>();
     tents.forEach((tent) => {
-      const people = new Set(members.filter((member) => member.tent_id === tent.id).map((member) => member.user_id));
-      if (tent.sentry_id) people.add(tent.sentry_id);
-      counts.set(tent.id, people.size);
+      const cadets = new Set(
+        members
+          .filter((member) => member.tent_id === tent.id && member.role === 'cadet')
+          .map((member) => member.user_id),
+      );
+      counts.set(tent.id, cadets.size);
     });
     return counts;
   }, [members, tents]);
@@ -1970,13 +1971,13 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                 options={[
                   { value: '', label: 'No camp-wide direction', description: 'All tents stay muted unless a personal override exists.' },
                   ...tents
-                    .filter((tent) => (tentPeopleById.get(tent.id) || 0) < TENT_PERSON_CAPACITY || defaultTentId === tent.id)
+                    .filter((tent) => (tentCadetsById.get(tent.id) || 0) < TENT_CADET_CAPACITY || defaultTentId === tent.id)
                     .map((tent) => {
-                      const count = tentPeopleById.get(tent.id) || 0;
+                      const count = tentCadetsById.get(tent.id) || 0;
                       return {
                         value: tent.id,
-                        label: `${tent.name} · ${count}/${TENT_PERSON_CAPACITY}`,
-                        description: count >= TENT_PERSON_CAPACITY ? 'Full — choose another tent' : `${TENT_PERSON_CAPACITY - count} place${TENT_PERSON_CAPACITY - count === 1 ? '' : 's'} available`,
+                        label: `${tent.name} · ${count}/${TENT_CADET_CAPACITY} cadets`,
+                        description: count >= TENT_CADET_CAPACITY ? 'Full — choose another tent' : `${TENT_CADET_CAPACITY - count} cadet place${TENT_CADET_CAPACITY - count === 1 ? '' : 's'} available`,
                       };
                     }),
                 ]}
@@ -2010,14 +2011,14 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                         description: defaultTentId ? 'The tour follows the camp-wide tent.' : 'All tents remain muted for this cadet.',
                       },
                       ...tents
-                        .filter((tent) => (tentPeopleById.get(tent.id) || 0) < TENT_PERSON_CAPACITY || currentTentId === tent.id)
+                        .filter((tent) => (tentCadetsById.get(tent.id) || 0) < TENT_CADET_CAPACITY || currentTentId === tent.id)
                         .map((tent) => {
-                          const count = tentPeopleById.get(tent.id) || 0;
-                          const full = count >= TENT_PERSON_CAPACITY;
+                          const count = tentCadetsById.get(tent.id) || 0;
+                          const full = count >= TENT_CADET_CAPACITY;
                           return {
                             value: tent.id,
-                            label: `${tent.name} · ${count}/${TENT_PERSON_CAPACITY}`,
-                            description: full ? 'Full — choose another tent' : `${TENT_PERSON_CAPACITY - count} place${TENT_PERSON_CAPACITY - count === 1 ? '' : 's'} available`,
+                            label: `${tent.name} · ${count}/${TENT_CADET_CAPACITY} cadets`,
+                            description: full ? 'Full — choose another tent' : `${TENT_CADET_CAPACITY - count} cadet place${TENT_CADET_CAPACITY - count === 1 ? '' : 's'} available`,
                           };
                         }),
                     ];
@@ -2059,9 +2060,9 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
             const tentMembers = members.filter((m) => m.tent_id === t.id);
             const sentry = tentMembers.find((m) => m.role === 'sentry');
             const cadets = tentMembers.filter((m) => m.role === 'cadet');
-            const peopleCount = tentPeopleById.get(t.id) || 0;
+            const cadetCount = tentCadetsById.get(t.id) || 0;
             const availableCadets = roles
-              .filter((r) => r.role === 'cadet' && r.status === 'active')
+              .filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved'))
               .filter((r) => !members.some((m) => m.user_id === r.user_id));
 
             return (
@@ -2071,7 +2072,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                     {t.tent_houses && <TentHouseBadge houseId={t.tent_houses.id} size="md" />}
                     <div>
                       <h4 className="font-display font-semibold text-ink">{t.name}</h4>
-                      <p className="text-xs text-stone">{peopleCount}/{TENT_PERSON_CAPACITY} people · {cadets.length} cadet{cadets.length === 1 ? '' : 's'} · {sentry ? 'sentry assigned' : 'no sentry'}</p>
+                      <p className="text-xs text-stone">{cadetCount}/{TENT_CADET_CAPACITY} cadets · {sentry ? 'sentry assigned separately' : 'no sentry'}</p>
                     </div>
                   </div>
                   <button
@@ -2123,7 +2124,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                   ))}
                 </div>
 
-                {peopleCount < TENT_PERSON_CAPACITY && availableCadets.length > 0 && (
+                {cadetCount < TENT_CADET_CAPACITY && availableCadets.length > 0 && (
                   <AddCadetRow tentId={t.id} availableCadets={availableCadets} profiles={profiles} onRefresh={onRefresh} />
                 )}
               </div>

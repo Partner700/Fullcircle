@@ -88,6 +88,16 @@ function storeRoleHint(role: Role) {
   }
 }
 
+function readRoleHint(): Role {
+  try {
+    const role = window.localStorage.getItem('full-circle-role-hint');
+    if (role === 'instructor' || role === 'sentry' || role === 'cadet') return role;
+  } catch {
+    // A first mobile launch can deny storage while the live role request runs.
+  }
+  return 'cadet';
+}
+
 function waitFor<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeout = window.setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds);
@@ -151,11 +161,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // active role in one round trip. Retry briefly while a restored mobile
       // token settles, then retain the older two-query path as rollout safety.
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        const bootstrap = await waitForAbortable(
-          (signal) => supabase.rpc('get_my_app_bootstrap').abortSignal(signal),
-          6_000,
-          'Account bootstrap',
-        );
+        let bootstrap: PostgrestSingleResponse<unknown> | null = null;
+        try {
+          bootstrap = await waitForAbortable(
+            (signal) => supabase.rpc('get_my_app_bootstrap').abortSignal(signal),
+            8_000,
+            'Account bootstrap',
+          );
+        } catch (error) {
+          console.warn(`Account bootstrap attempt ${attempt + 1} could not finish:`, error);
+          if (attempt < 1) {
+            await pause(450);
+            continue;
+          }
+          break;
+        }
         const payload = bootstrap.data as { profile?: Profile | null; role_assignment?: RoleAssignment | null } | null;
         if (!bootstrap.error && payload?.profile) {
           const prof = payload.profile;
@@ -184,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           prof = await waitForAbortable(
             (signal) => fetchOwnProfile(userId, signal),
-            6_000,
+            8_000,
             'Profile request',
           );
           if (prof) break;
@@ -202,24 +222,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data: roleData, error: roleError } = await waitForAbortable<PostgrestSingleResponse<RoleAssignment | null>>(
-        (signal) => supabase
-          .from('role_assignments')
-          .select('*')
-          .eq('user_id', userId)
-          .in('status', ['active', 'approved'])
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .abortSignal(signal)
-          .maybeSingle(),
-        6_000,
-        'Role request',
-      );
-      if (roleError) console.warn('Role assignment could not load; opening with cadet defaults:', roleError);
+      let roleData: RoleAssignment | null = null;
+      try {
+        const roleResponse = await waitForAbortable<PostgrestSingleResponse<RoleAssignment | null>>(
+          (signal) => supabase
+            .from('role_assignments')
+            .select('*')
+            .eq('user_id', userId)
+            .in('status', ['active', 'approved'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .abortSignal(signal)
+            .maybeSingle(),
+          8_000,
+          'Role request',
+        );
+        roleData = roleResponse.data;
+        if (roleResponse.error) console.warn('Role assignment could not load; opening with the saved role:', roleResponse.error);
+      } catch (error) {
+        console.warn('Role assignment timed out; opening with the saved role:', error);
+      }
       const assignment = (roleData as RoleAssignment | null) || {
         id: `fallback-${userId}`,
         user_id: userId,
-        role: 'cadet' as Role,
+        role: readRoleHint(),
         status: 'active',
         start_date: null,
         approver_id: null,
@@ -255,11 +281,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (cached) {
             applyIdentity(cached.profile, cached.roleAssignment, false);
             setLoading(false);
-            void waitFor(loadProfile(data.session.user.id), 14_000, 'Profile refresh')
+            void waitFor(loadProfile(data.session.user.id), 28_000, 'Profile refresh')
               .catch((error) => console.warn('Cached account opened while live profile refresh waits:', error));
             return;
           }
-          await waitFor(loadProfile(data.session.user.id), 14_000, 'Profile loading');
+          await waitFor(loadProfile(data.session.user.id), 28_000, 'Profile loading');
         }
       } catch (error) {
         // A slow/offline Supabase request must not strand the app on its loading screen.
@@ -302,7 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // auth callback. Deferring avoids a mobile session-restoration deadlock.
         window.setTimeout(() => {
           if (!active) return;
-          void waitFor(loadProfile(sess.user.id), 14_000, 'Profile loading')
+          void waitFor(loadProfile(sess.user.id), 28_000, 'Profile loading')
             .catch((error) => console.warn('Initial mobile session profile could not load:', error))
             .finally(() => { if (active) setLoading(false); });
         }, 0);
@@ -325,7 +351,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!active) return;
           if (needsBlockingLoad) setLoading(true);
           try {
-            await waitFor(loadProfile(sess.user.id), 14_000, 'Profile loading');
+            await waitFor(loadProfile(sess.user.id), 28_000, 'Profile loading');
           } catch (error) {
             console.warn('Profile refresh could not complete:', error);
           } finally {
@@ -370,7 +396,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSession(signedInSession);
-      await waitFor(loadProfile(signedInSession.user.id), 15_000, 'Profile loading');
+      const cached = readCachedIdentity(signedInSession.user.id);
+      if (cached) applyIdentity(cached.profile, cached.roleAssignment, false);
+      try {
+        await waitFor(loadProfile(signedInSession.user.id), 28_000, 'Profile loading');
+      } catch (error) {
+        if (!cached) throw error;
+        console.warn('Signed in with the saved profile while the live profile reconnects:', error);
+      }
       return { error: null };
     } catch (signInError) {
       console.warn('Mobile sign-in could not complete:', signInError);
@@ -384,7 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authOperationRef.current = false;
       setLoading(false);
     }
-  }, [loadProfile]);
+  }, [applyIdentity, loadProfile]);
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string, role: Role, matricule?: string) => {

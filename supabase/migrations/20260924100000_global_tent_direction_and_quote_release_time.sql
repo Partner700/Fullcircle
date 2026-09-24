@@ -256,7 +256,6 @@ BEGIN
     'tent_direction',
     'Your tent is ready',
     'The instructor directed you to ' || coalesce(v_tent_name, 'an available tent') || '. Follow the hand to send your request.',
-    'The instructor directed you to ' || coalesce(v_tent_name, 'an available tent') || '. Follow the hand to send your request.',
     'tent',
     jsonb_build_object('tent_id', p_tent_id, 'cadet_name', v_cadet_name)
   );

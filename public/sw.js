@@ -1,16 +1,19 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v149';
-// Keep the repaired cache under the v147-compatible prefix for one release.
-// The broken v148 page cleanup retained that prefix, so even a stale page
-// cannot delete the healthy shell while this worker is taking control.
-const CACHE_STORAGE_VERSION = 'full-circle-v147-v149';
+const CACHE_VERSION = 'full-circle-v150';
+// Keep the preceding healthy shell as a rollback while this worker warms its
+// own cache. A phone changing between Wi-Fi and mobile data must never lose the
+// only application shell it can currently open.
+const CACHE_STORAGE_VERSION = 'full-circle-v147-v150';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const ROLLBACK_CACHE_PREFIXES = ['full-circle-v148'];
-const RECOVERY_MARKER = '140';
+const ROLLBACK_CACHE_PREFIXES = ['full-circle-v148', 'full-circle-v147-v149'];
+const RECOVERY_MARKER = '141';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
+const MOBILE_DATA_FALLBACK_DELAY_MS = 2_500;
+const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
+const MOBILE_DATA_FALLBACK_BASE = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/';
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -74,29 +77,60 @@ function wait(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-async function fetchWithRetry(request, options, attempts = 3) {
-  let lastResponse = null;
-  let lastError = null;
+function fetchWithDeadline(request, options, timeoutMs = NETWORK_ATTEMPT_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('The network request timed out.')), timeoutMs);
+    fetch(request, options).then(
+      (response) => {
+        clearTimeout(timeout);
+        resolve(response);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
 
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const response = await fetch(request, options);
-      if (response.ok) return response;
-      lastResponse = response;
-    } catch (error) {
-      lastError = error;
-    }
+function fallbackReleaseUrl(requestOrUrl) {
+  const requestedUrl = new URL(
+    typeof requestOrUrl === 'string' ? requestOrUrl : requestOrUrl.url,
+    self.registration.scope,
+  );
+  const scopePath = new URL(self.registration.scope).pathname;
+  const relativePath = requestedUrl.pathname.startsWith(scopePath)
+    ? requestedUrl.pathname.slice(scopePath.length)
+    : requestedUrl.pathname.replace(/^\/+/, '');
+  return new URL(relativePath || 'index.html', MOBILE_DATA_FALLBACK_BASE).href;
+}
 
-    if (attempt < attempts - 1) await wait(400 * (attempt + 1));
-  }
+async function fetchMobileDataFallback(requestOrUrl) {
+  const fallbackUrl = fallbackReleaseUrl(requestOrUrl);
+  return fetchWithDeadline(fallbackUrl, { cache: 'no-store', mode: 'cors' });
+}
 
-  if (lastResponse) return lastResponse;
-  throw lastError || new Error('The network request did not complete.');
+async function fetchReleaseWithFallback(requestOrUrl, options = {}) {
+  const primary = fetchWithDeadline(requestOrUrl, options)
+    .then((response) => (response.ok ? response : null))
+    .catch(() => null);
+  const mobileDataCopy = wait(MOBILE_DATA_FALLBACK_DELAY_MS)
+    .then(() => fetchMobileDataFallback(requestOrUrl))
+    .then((response) => (response.ok ? response : null))
+    .catch(() => null);
+
+  const first = await Promise.race([primary, mobileDataCopy]);
+  if (first) return first;
+
+  const [primaryResponse, fallbackResponse] = await Promise.all([primary, mobileDataCopy]);
+  const response = primaryResponse || fallbackResponse;
+  if (response) return response;
+  throw new Error('The primary and mobile-data release copies are unavailable.');
 }
 
 async function fetchAndCache(cache, url, options) {
   try {
-    const response = await fetch(url, options);
+    const response = await fetchReleaseWithFallback(url, options);
     if (response.ok) await cache.put(url, response.clone());
     return response;
   } catch {
@@ -106,7 +140,7 @@ async function fetchAndCache(cache, url, options) {
 
 async function readReleaseManifest() {
   const manifestUrl = scopedUrl('.vite/manifest.json');
-  const response = await fetch(manifestUrl, { cache: 'no-store' });
+  const response = await fetchReleaseWithFallback(manifestUrl, { cache: 'no-store' });
   if (!response.ok) throw new Error('Release manifest is unavailable.');
   return response.json();
 }
@@ -260,7 +294,7 @@ async function cachedAppShell() {
 
 async function networkFirstNavigation(request) {
   const shell = await caches.open(SHELL_CACHE);
-  const networkRequest = fetch(request, { cache: 'no-store' }).then(async (response) => {
+  const networkRequest = fetchReleaseWithFallback(request, { cache: 'no-store' }).then(async (response) => {
     if (!response.ok) throw new Error(`Navigation failed with status ${response.status}.`);
     await shell.put(scopedUrl('index.html'), response.clone());
     await shell.put(scopedUrl(''), response.clone());
@@ -284,10 +318,20 @@ async function networkFirstNavigation(request) {
     try {
       return await networkRequest;
     } catch {
+      try {
+        const fallback = await fetchMobileDataFallback(scopedUrl('index.html'));
+        if (fallback.ok) {
+          await shell.put(scopedUrl('index.html'), fallback.clone());
+          await shell.put(scopedUrl(''), fallback.clone());
+          return fallback;
+        }
+      } catch {
+        // The readable reconnect response below is the final fallback.
+      }
       return new Response('Full Circle is reconnecting. Please try again.', {
-        status: 503,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
     }
   }
 }
@@ -296,7 +340,7 @@ async function cacheFirstAsset(request) {
   const cache = await caches.open(ASSET_CACHE);
   const cached = await caches.match(request, { ignoreVary: true });
   if (cached) return cached;
-  const response = await fetchWithRetry(request, { cache: 'reload' });
+  const response = await fetchReleaseWithFallback(request, { cache: 'reload' });
   if (response.ok) await cache.put(request, response.clone());
   return response;
 }
@@ -305,7 +349,7 @@ async function cacheFirstShellFile(request) {
   const cache = await caches.open(SHELL_CACHE);
   const cached = await caches.match(request, { ignoreSearch: true, ignoreVary: true });
   if (cached) return cached;
-  const response = await fetchWithRetry(request, { cache: 'reload' });
+  const response = await fetchReleaseWithFallback(request, { cache: 'reload' });
   if (response.ok) await cache.put(request, response.clone());
   return response;
 }

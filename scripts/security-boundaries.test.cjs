@@ -209,6 +209,7 @@ const quoteFeedLifetimeTotals = read('supabase/migrations/20260921183000_quote_f
 const sentryQualification100 = read('supabase/migrations/20260923100000_sentry_qualification_100_streaks.sql');
 const tenPersonTentCapacity = read('supabase/migrations/20260923120000_ten_person_tent_join_capacity.sql');
 const globalTentDirectionAndQuoteTime = read('supabase/migrations/20260924100000_global_tent_direction_and_quote_release_time.sql');
+const tenCadetsPerTentAndShanaAssignment = read('supabase/migrations/20260924130000_ten_cadets_per_tent_and_shana_assignment.sql');
 const awardCadenceVisibilityAndRhetoric = read('supabase/migrations/20260920100000_award_cadence_visibility_and_rhetoric.sql');
 const storageUploads = read('src/lib/storageUploads.ts');
 
@@ -474,20 +475,21 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v149'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-v147-v149'/);
-assert.match(serviceWorker, /ROLLBACK_CACHE_PREFIXES = \['full-circle-v148'\]/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '140'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v150'/);
+assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-v147-v150'/);
+assert.match(serviceWorker, /ROLLBACK_CACHE_PREFIXES = \['full-circle-v148', 'full-circle-v147-v149'\]/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '141'/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
+assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 2_500/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
 assert.match(serviceWorker, /Promise\.race\(\[networkRequest, fallbackAfterDelay\]\)/);
-assert.match(serviceWorker, /fetch\(request, \{ cache: 'no-store' \}\)/);
+assert.match(serviceWorker, /async function fetchReleaseWithFallback/);
+assert.match(serviceWorker, /fetchReleaseWithFallback\(request, \{ cache: 'no-store' \}\)/);
 assert.match(serviceWorker, /windowClients\.map\(refreshInstalledClient\)/);
 assert.doesNotMatch(serviceWorker, /if \(!installedLaunch && previousWorker === null\) return/);
 assert.match(serviceWorker, /async function cacheFirstAsset/);
-assert.match(serviceWorker, /async function fetchWithRetry/);
 assert.match(serviceWorker, /const cached = await caches\.match\(request/);
 assert.match(serviceWorker, /WARM_APP_SHELL/);
 assert.match(serviceWorker, /event\.waitUntil\(warmAppShell\(false\)\)/);
@@ -495,32 +497,32 @@ assert.ok(!serviceWorker.includes('controller.abort()'), 'The worker must not ab
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '123'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '124'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=126`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=127`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /set\('fc-release', '123'\)/);
+assert.match(staleBundleRecovery, /set\('fc-release', '124'\)/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-23-v149/);
-assert.match(releaseCache, /'full-circle-v147-v149', 'full-circle-v148'/);
+assert.match(releaseCache, /2026-09-24-v150/);
+assert.match(releaseCache, /'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=122/);
-assert.match(appIndex, /var release = '122'/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=126'/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=123/);
+assert.match(appIndex, /var release = '123'/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=127'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
 assert.doesNotMatch(appIndex, /window\.caches\.delete/);
 assert.match(appIndex, /searchParams\.set\(marker, release\)/);
 assert.match(appIndex, /__fullCircleBootRelease/);
-assert.match(appIndex, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages\/index\.html/);
+assert.match(appIndex, /raw\.githack\.com\/TNSorganization\/Full-Circle\/gh-pages\/index\.html/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=122"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=123"/);
 assert.match(read('public/manifest.webmanifest'), /"prefer_related_applications": false/);
 assert.match(pwaInstallPrompt, /Install \/ Reinstall/);
 assert.match(pwaInstallPrompt, /Open in Chrome/);
@@ -2299,6 +2301,29 @@ for (const required of [
 ]) {
   assert.ok(globalTentDirectionAndQuoteTime.includes(required), `Missing global tent or quote-time safeguard: ${required}`);
 }
+for (const required of [
+  'UPDATE public.tents',
+  'SET max_cadets = 10',
+  'CREATE OR REPLACE FUNCTION public.tent_cadet_limit',
+  'CREATE OR REPLACE FUNCTION public.tent_cadet_count',
+  "coalesce(member.role, 'cadet') = 'cadet'",
+  'BEFORE INSERT OR UPDATE OF tent_id, user_id, role ON public.tent_members',
+  'maximum % cadets plus its sentry',
+  'CREATE OR REPLACE FUNCTION public.assign_cadet_to_tent',
+  'CREATE OR REPLACE FUNCTION public.sentry_assign_cadet_to_tent',
+  'CREATE OR REPLACE FUNCTION public.get_sentry_addable_cadets',
+  'CREATE OR REPLACE FUNCTION public.request_to_join_tent',
+  'CREATE OR REPLACE FUNCTION public.review_tent_join_request',
+  "LIKE 'shana%'",
+  "IN ('squarea0', 'squaresa0', 'a0')",
+]) {
+  assert.ok(tenCadetsPerTentAndShanaAssignment.includes(required), `Missing ten-cadet or Shana assignment safeguard: ${required}`);
+}
+assert.doesNotMatch(tenCadetsPerTentAndShanaAssignment, /maximum 10 people/);
+assert.match(instructorApp, /const TENT_CADET_CAPACITY = 10/);
+assert.match(instructorApp, /member\.role === 'cadet'/);
+assert.match(instructorApp, /sentry assigned separately/);
+assert.doesNotMatch(instructorApp, /const TENT_PERSON_CAPACITY/);
 assert.match(quoteReleaseTime, /Africa\/Douala/);
 assert.match(quoteReleaseTime, /text-\[8px\]/);
 assert.match(cadetDashboard, /<QuoteReleaseTime quote=\{slide\.quote\}/);

@@ -117,7 +117,7 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '123';
+    var RECOVERY_VERSION = '124';
     var recoveryInProgress = false;
 
     async function installRecoveryWorker() {
@@ -148,10 +148,10 @@
       } catch (error) {
         failedRecoveryAttempts += 1;
         recoveryInProgress = false;
-        if (failedRecoveryAttempts >= 2 && window.location.hostname !== 'tnsorganization.github.io') {
-          button.innerHTML = '<span class="status-dot"></span> Open Reliable App';
+        if (failedRecoveryAttempts >= 2) {
+          button.innerHTML = '<span class="status-dot"></span> Open Mobile-Data Copy';
           button.onclick = function() {
-            window.location.href = 'https://tnsorganization.github.io/Full-Circle/?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
+            window.location.href = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/index.html?fc-origin-recovery=' + encodeURIComponent(window.location.hostname);
           };
         } else {
           button.innerHTML = '<span class="status-dot"></span> Retry Connection';
