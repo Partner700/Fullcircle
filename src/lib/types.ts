@@ -724,6 +724,14 @@ export interface GameAttempt {
   answer_revealed?: boolean;
 }
 
+export interface GameActivityPlayer {
+  activity: 'daily_game' | 'arena';
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  played_at: string;
+}
+
 export interface RelicType {
   id: string;
   slug: string | null;

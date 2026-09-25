@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
+import { GameActivityProfiles } from '../../components/GameActivityProfiles';
+import { useGameActivityPlayers } from '../../hooks/useGameActivityPlayers';
 import { DAILY_GAME_CAP, DAILY_GAME_LEVELS } from '../../lib/constants';
 import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import { revealHiddenChallenge } from '../../lib/hiddenChallenges';
@@ -13,6 +15,7 @@ import {
   BookOpenCheck,
   CheckCircle2,
   Clock3,
+  Hammer,
   Loader2,
   Map,
   Play,
@@ -24,7 +27,6 @@ import {
 interface DailyGamesHubProps {
   onOpenTrivia: () => void;
   onOpenArena: () => void;
-  onOpenStory: () => void;
 }
 
 type HubState = {
@@ -43,7 +45,7 @@ const EMPTY_STATE: HubState = {
   storyImage: null,
 };
 
-export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyGamesHubProps) {
+export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps) {
   const { profile } = useAuth();
   const [state, setState] = useState<HubState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
@@ -51,6 +53,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
   const saturday = getDayType(today) === 'saturday';
   const sunday = getDayType(today) === 'sunday';
   const weeklyNarrativeDay = saturday || sunday;
+  const gameActivity = useGameActivityPlayers(today);
 
   useEffect(() => {
     if (!profile) return;
@@ -159,7 +162,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
                 <div className="h-full rounded-full bg-gold transition-[width] duration-500" style={{ width: `${completion}%` }} />
               </div>
             </div>
-            <button type="button" data-guide="daily-trivia" onClick={onOpenTrivia} className="btn-primary mt-auto w-full justify-between">
+            <GameActivityProfiles activity="daily_game" players={gameActivity.players} loading={gameActivity.loading} className="mt-auto" />
+            <button type="button" data-guide="daily-trivia" onClick={onOpenTrivia} className="btn-primary mt-3 w-full justify-between">
               <span className="inline-flex items-center gap-2"><Play size={15} /> {triviaAction}</span>
               <ArrowRight size={15} />
             </button>
@@ -195,7 +199,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
             <p className="mt-4 text-xs leading-relaxed text-stone">
               {activeArenaRoom ? 'Your saved Arena room will resume through the existing match flow.' : 'Challenge people or play the machine using the existing Arena modes.'}
             </p>
-            <button type="button" onClick={onOpenArena} className="btn-primary mt-auto w-full justify-between">
+            <GameActivityProfiles activity="arena" players={gameActivity.players} loading={gameActivity.loading} className="mt-auto" />
+            <button type="button" onClick={onOpenArena} className="btn-primary mt-3 w-full justify-between">
               <span className="inline-flex items-center gap-2"><Swords size={15} /> {activeArenaRoom ? 'Resume Match' : 'Enter Arena'}</span>
               <ArrowRight size={15} />
             </button>
@@ -219,7 +224,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
                 <Map size={22} />
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-peri backdrop-blur-sm">
-                <Sparkles size={11} /> Book I open
+                <Hammer size={11} /> Under Development
               </span>
             </div>
             <div className="mt-5">
@@ -227,13 +232,13 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
               <h3 className="mt-1 font-display text-xl font-semibold text-white">Story Mode</h3>
               <p className="mt-1 text-sm font-medium text-peri-dim">Journey through the Bible.</p>
             </div>
-            <p className="mt-5 max-w-xs text-sm leading-relaxed text-peri-dim">Begin in Genesis with Chapter 1: Brothers and the Abel Offering level.</p>
+            <p className="mt-5 max-w-xs text-sm leading-relaxed text-peri-dim">The journey through Scripture is being prepared.</p>
             <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-peri-dim">
               <span>Book</span><ArrowRight size={12} /><span>Chapter</span><ArrowRight size={12} /><span>Level</span>
             </div>
-            <button type="button" onClick={onOpenStory} className="btn-primary mt-auto w-full justify-between">
-              <span className="inline-flex items-center gap-2"><Map size={15} /> Begin the Journey</span>
-              <ArrowRight size={15} />
+            <button type="button" disabled aria-disabled="true" className="btn-secondary mt-auto w-full cursor-not-allowed justify-between opacity-80">
+              <span className="inline-flex items-center gap-2"><Hammer size={15} /> Under Development</span>
+              <Sparkles size={15} />
             </button>
           </div>
         </article>

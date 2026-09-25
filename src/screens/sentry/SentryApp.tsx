@@ -42,7 +42,7 @@ import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNav
 import { openProfileCv } from '../../lib/profileCv';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
-import { StoryModeShell } from '../cadet/story-mode/StoryModeShell';
+import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
@@ -642,7 +642,6 @@ export function SentryApp() {
         <DailyGamesHub
           onOpenTrivia={() => handleNavigate('game')}
           onOpenArena={() => handleNavigate('arena')}
-          onOpenStory={() => handleNavigate('story')}
         />
       ))}
       {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />)}
@@ -651,7 +650,7 @@ export function SentryApp() {
           <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')} />
         )
       )}
-      {tab === 'story' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <StoryModeShell onBackToDailyGames={() => handleNavigate('games')} />)}
+      {tab === 'story' && <StoryModeUnderDevelopment onBackToDailyGames={() => handleNavigate('games')} />}
       {tab === 'streak' && <CadetStreak />}
       {tab === 'quiz' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (

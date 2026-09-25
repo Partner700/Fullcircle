@@ -26,6 +26,8 @@ import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { CampTreasury } from '../../components/InstructorTreasury';
 import { VallumText } from '../../components/ChiRhoMark';
 import { UserAvatar } from '../../components/UserAvatar';
+import { GameActivityProfiles } from '../../components/GameActivityProfiles';
+import { useGameActivityPlayers } from '../../hooks/useGameActivityPlayers';
 import { SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { CadetStore } from '../cadet/CadetStore';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
@@ -1418,6 +1420,7 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
   const [endOfDayStats, setEndOfDayStats] = useState<{ records: number; attendance: number; meditations: number; streaks: number; challenges: number } | null>(null);
   const [morningCall, setMorningCall] = useState<{ userId: string; name: string; avatarUrl: string | null; tentName: string; status: 'present' | 'absent' | 'unmarked'; late: boolean }[]>([]);
   const [coverImage, setCoverImage] = useState<any>(null);
+  const gameActivity = useGameActivityPlayers();
 
   useEffect(() => {
     let cancelled = false;
@@ -1531,6 +1534,11 @@ function InstructorDashboard({ tents, members, roles, narratives, instructorId, 
         <StatBox icon={Shield} label="Sentries" value={sentryCount} tint="text-sage" />
         <StatBox icon={TentIcon} label="Tents" value={tents.length} tint="text-gold" />
         <StatBox icon={BookOpen} label="Narratives" value={narratives.length} tint="text-roman" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <GameActivityProfiles activity="daily_game" players={gameActivity.players} loading={gameActivity.loading} variant="card" />
+        <GameActivityProfiles activity="arena" players={gameActivity.players} loading={gameActivity.loading} variant="card" />
       </div>
 
       <RecentAwardsPanel onOpen={() => onNavigate('awards')} />

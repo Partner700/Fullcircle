@@ -14,7 +14,7 @@ import { CadetDashboard } from './CadetDashboard';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
 import { DailyGamesHub } from './DailyGamesHub';
-import { StoryModeShell } from './story-mode/StoryModeShell';
+import { StoryModeUnderDevelopment } from './story-mode/StoryModeUnderDevelopment';
 import { CadetQuiz } from './CadetQuiz';
 import { CadetLeaderboard } from './CadetLeaderboard';
 import { CadetAwards } from './CadetAwards';
@@ -1168,12 +1168,11 @@ export function CadetApp() {
           <DailyGamesHub
             onOpenTrivia={() => handleNavigate('game')}
             onOpenArena={() => handleNavigate('arena')}
-            onOpenStory={() => handleNavigate('story')}
           />
         ))}
         {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
         {tab === 'arena' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
-        {tab === 'story' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <StoryModeShell onBackToDailyGames={() => handleNavigate('games')} />)}
+        {tab === 'story' && <StoryModeUnderDevelopment onBackToDailyGames={() => handleNavigate('games')} />}
         {tab === 'quiz' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
         {tab === 'tent' && <CadetTent />}
         {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}

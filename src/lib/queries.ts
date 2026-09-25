@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
   QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, QuizResponseBoardMember, WeeklyQuizRanking, QuestionResponse, WeeklyQuizReleasedResult,
-  DenariiLedgerEntry, GameAttempt, RelicType, RelicInventory,
+  DenariiLedgerEntry, GameAttempt, GameActivityPlayer, RelicType, RelicInventory,
   StreakboardSnapshot, LeaderboardWeeklySnapshot, Award,
   ScheduledAnnouncement, ChallengeSubmission, StreakFreezer,
   MobileMoneySettings, MobileMoneyPayment, UserNotification,
@@ -1104,6 +1104,29 @@ export async function fetchGameAttempts(userId: string, narrativeDate?: string) 
 
 export async function fetchGameAttemptsForDate(userId: string, date: string) {
   return fetchGameAttempts(userId, date);
+}
+
+export async function fetchGameActivityPlayers(activityDate: string) {
+  return shareReadRequest(`game-activity:${activityDate}`, async () => {
+    const { data, error } = await supabase.rpc('get_game_activity_players', {
+      p_activity_date: activityDate,
+    });
+    if (error) throw error;
+    const rows = (data || []) as Array<{
+      activity: GameActivityPlayer['activity'];
+      user_id: string;
+      display_name: string | null;
+      avatar_url: string | null;
+      played_at: string;
+    }>;
+    return rows.map((row) => ({
+      activity: String(row.activity) as GameActivityPlayer['activity'],
+      user_id: String(row.user_id),
+      display_name: String(row.display_name || 'Full Circle member'),
+      avatar_url: row.avatar_url ? String(row.avatar_url) : null,
+      played_at: String(row.played_at),
+    })) as GameActivityPlayer[];
+  });
 }
 
 export async function recordSundayReadingOpen(userId: string, recordDate: string) {

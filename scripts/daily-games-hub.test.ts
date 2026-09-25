@@ -8,6 +8,11 @@ const read = (relativePath: string) => fs.readFileSync(path.join(root, relativeP
 
 const hub = read('src/screens/cadet/DailyGamesHub.tsx');
 const story = read('src/screens/cadet/story-mode/StoryModeShell.tsx');
+const storyUnavailable = read('src/screens/cadet/story-mode/StoryModeUnderDevelopment.tsx');
+const activityProfiles = read('src/components/GameActivityProfiles.tsx');
+const activityProfilesHook = read('src/hooks/useGameActivityPlayers.ts');
+const activityMigration = read('supabase/migrations/20260925110000_game_activity_profiles_and_story_pause.sql');
+const queries = read('src/lib/queries.ts');
 const routes = read('src/lib/dailyGames.ts');
 const cadetApp = read('src/screens/cadet/CadetApp.tsx');
 const sentryApp = read('src/screens/sentry/SentryApp.tsx');
@@ -23,8 +28,14 @@ assert.match(hub, /Compete\. Risk\. Win\./);
 assert.match(hub, /Journey through the Bible\./);
 assert.match(hub, /onClick=\{onOpenTrivia\}/);
 assert.match(hub, /onClick=\{onOpenArena\}/);
-assert.match(hub, /onClick=\{onOpenStory\}/);
+assert.doesNotMatch(hub, /onClick=\{onOpenStory\}/);
+assert.match(hub, /Under Development/);
+assert.match(hub, /disabled aria-disabled="true"/);
+assert.match(storyUnavailable, /Under Development/);
+assert.match(storyUnavailable, /Back to Daily Games/);
 assert.match(hub, /fetchGameAttempts\(profile\.id, today\)/);
+assert.match(hub, /GameActivityProfiles activity="daily_game"/);
+assert.match(hub, /GameActivityProfiles activity="arena"/);
 assert.match(hub, /levelsCompleted} of \{DAILY_GAME_LEVELS\} cleared/);
 assert.match(hub, /grid grid-cols-1 gap-4 lg:grid-cols-3/);
 
@@ -39,11 +50,31 @@ for (const routeBoundary of [
 
 for (const app of [cadetApp, sentryApp]) {
   assert.match(app, /'games'[\s\S]*'game'[\s\S]*'arena'[\s\S]*'story'/);
-  assert.match(app, /<DailyGamesHub[\s\S]*onOpenTrivia=\{\(\) => handleNavigate\('game'\)\}[\s\S]*onOpenArena=\{\(\) => handleNavigate\('arena'\)\}[\s\S]*onOpenStory=\{\(\) => handleNavigate\('story'\)\}/);
-  assert.match(app, /<StoryModeShell onBackToDailyGames=\{\(\) => handleNavigate\('games'\)\}/);
+  assert.match(app, /<DailyGamesHub[\s\S]*onOpenTrivia=\{\(\) => handleNavigate\('game'\)\}[\s\S]*onOpenArena=\{\(\) => handleNavigate\('arena'\)\}/);
+  assert.match(app, /<StoryModeUnderDevelopment onBackToDailyGames=\{\(\) => handleNavigate\('games'\)\}/);
+  assert.doesNotMatch(app, /<StoryModeShell/);
   assert.match(app, /navActiveKey=\{dailyGamesNavigationKey\(tab\)\}/);
   assert.match(app, /PREMIUM_TABS = new Set<Tab>\(\['games', 'game', 'arena', 'story'/);
 }
+
+for (const requiredActivityBoundary of [
+  'get_game_activity_players',
+  "'daily_game'::text",
+  "'arena'::text",
+  "room.status IN ('playing', 'completed')",
+  "attempt.status IN ('passed', 'failed')",
+  "timezone('Africa/Douala', event.played_at)::date = p_activity_date",
+  'REVOKE ALL ON FUNCTION public.get_game_activity_players(date) FROM PUBLIC, anon',
+  'GRANT EXECUTE ON FUNCTION public.get_game_activity_players(date) TO authenticated, service_role',
+]) {
+  assert.ok(activityMigration.includes(requiredActivityBoundary), `Missing game activity profile safeguard: ${requiredActivityBoundary}`);
+}
+assert.doesNotMatch(activityMigration, /attempt\.score|participant\.score|attempt\.reward|participant\.correct_count|question_ids/);
+assert.match(queries, /fetchGameActivityPlayers/);
+assert.match(activityProfiles, /UserAvatar/);
+assert.match(activityProfilesHook, /fetchGameActivityPlayers\(date\)/);
+assert.match(activityProfilesHook, /REFRESH_INTERVAL_MS = 20_000/);
+assert.match(activityProfilesHook, /visibilitychange/);
 assert.match(cadetApp, /CADET_TABS[^\n]*'game', 'arena', 'story'/);
 assert.match(sentryApp, /SENTRY_TABS[^\n]*'game', 'arena', 'story'/);
 assert.match(appShell, /activeKey: string;\s+navActiveKey\?: string;/);
