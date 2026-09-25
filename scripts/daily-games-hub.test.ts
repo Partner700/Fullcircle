@@ -71,8 +71,10 @@ assert.doesNotMatch(cadetApp, /k === 'narrative'[\s\S]{0,120}setTab\('quiz'\)/);
 
 for (const preservedArenaBoundary of [
   'activeArenaRoomStorageKey',
-  'window.localStorage.getItem',
-  'window.localStorage.setItem',
+  "safeStorageGet('local'",
+  "safeStorageSet('local'",
+  "safeStorageRemove('local'",
+  "safeJsonStorageGet<string[]>('local'",
   'Standard Trivia',
   'Ludo Trivia',
   '<RoadHomeGame',

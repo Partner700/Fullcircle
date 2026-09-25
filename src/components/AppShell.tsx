@@ -11,6 +11,7 @@ import { OPEN_APP_NAVIGATION_EVENT } from '../lib/newcomerGuidance';
 import { openProfileCv } from '../lib/profileCv';
 import { UserAvatar } from './UserAvatar';
 import { requestAudioCall } from '../lib/audioCalls';
+import { safeStorageGet, safeStorageSet } from '../lib/safeStorage';
 
 type Theme = 'night' | 'day';
 
@@ -22,16 +23,14 @@ function tabUrl(tab: string) {
 
 function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('fc-theme') as Theme | null;
-      if (saved === 'day' || saved === 'night') return saved;
-    }
+    const saved = safeStorageGet('local', 'fc-theme');
+    if (saved === 'day' || saved === 'night') return saved;
     return 'night';
   });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('fc-theme', theme);
+    safeStorageSet('local', 'fc-theme', theme);
   }, [theme]);
 
   const toggle = useCallback(() => setTheme((t) => (t === 'night' ? 'day' : 'night')), []);

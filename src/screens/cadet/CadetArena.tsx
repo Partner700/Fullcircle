@@ -32,6 +32,7 @@ import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
 import { ARENA_GAME_CALL_FEE } from '../../lib/constants';
 import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
+import { safeJsonStorageGet, safeStorageGet, safeStorageRemove, safeStorageSet } from '../../lib/safeStorage';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import type { ArenaTriviaFeedItem } from '../../lib/queries';
@@ -90,25 +91,25 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
 
   useEffect(() => {
     if (!profile) return;
-    const savedRoomId = window.localStorage.getItem(activeArenaRoomStorageKey(profile.id));
-    const dismissed = new Set(JSON.parse(window.localStorage.getItem(dismissedArenaRoomsKey(profile.id)) || '[]'));
+    const savedRoomId = safeStorageGet('local', activeArenaRoomStorageKey(profile.id));
+    const dismissed = new Set(safeJsonStorageGet<string[]>('local', dismissedArenaRoomsKey(profile.id), []));
     if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
-    if (savedRoomId && dismissed.has(savedRoomId)) window.localStorage.removeItem(activeArenaRoomStorageKey(profile.id));
+    if (savedRoomId && dismissed.has(savedRoomId)) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
   }, [profile]);
 
   useEffect(() => {
     if (!profile || !activeRoomId) return;
-    window.localStorage.setItem(activeArenaRoomStorageKey(profile.id), activeRoomId);
+    safeStorageSet('local', activeArenaRoomStorageKey(profile.id), activeRoomId);
   }, [profile, activeRoomId]);
 
   const clearActiveRoom = useCallback((dismiss = false) => {
     if (profile && activeRoomId) {
-      window.localStorage.removeItem(activeArenaRoomStorageKey(profile.id));
+      safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
       if (dismiss) {
         const key = dismissedArenaRoomsKey(profile.id);
-        const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem(key) || '[]'));
+        const dismissed = new Set(safeJsonStorageGet<string[]>('local', key, []));
         dismissed.add(activeRoomId);
-        window.localStorage.setItem(key, JSON.stringify(Array.from(dismissed).slice(-20)));
+        safeStorageSet('local', key, JSON.stringify(Array.from(dismissed).slice(-20)));
       }
     }
     setActiveRoomId(null);
@@ -119,10 +120,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   const activateRoom = useCallback((roomId: string, nextPhase: ArenaPhase = 'waiting') => {
     if (profile) {
       const dismissedKey = dismissedArenaRoomsKey(profile.id);
-      const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem(dismissedKey) || '[]'));
+      const dismissed = new Set(safeJsonStorageGet<string[]>('local', dismissedKey, []));
       dismissed.delete(roomId);
-      window.localStorage.setItem(dismissedKey, JSON.stringify(Array.from(dismissed)));
-      window.localStorage.setItem(activeArenaRoomStorageKey(profile.id), roomId);
+      safeStorageSet('local', dismissedKey, JSON.stringify(Array.from(dismissed)));
+      safeStorageSet('local', activeArenaRoomStorageKey(profile.id), roomId);
     }
     setActiveRoomId(roomId);
     setPhase(nextPhase);
@@ -237,7 +238,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           setFinishSummary({ room, rhudes: null });
         }
         setPhase('finished');
-        if (profile) window.localStorage.removeItem(activeArenaRoomStorageKey(profile.id));
+        if (profile) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
       }
     }
     const myParticipant = (room.arena_participants || []).find((participant: any) => participant.user_id === profile?.id);

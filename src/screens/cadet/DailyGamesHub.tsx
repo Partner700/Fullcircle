@@ -5,6 +5,7 @@ import { DAILY_GAME_CAP, DAILY_GAME_LEVELS } from '../../lib/constants';
 import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import { revealHiddenChallenge } from '../../lib/hiddenChallenges';
 import { fetchGameAttempts, fetchNarrative, fetchPanelImageSetting } from '../../lib/queries';
+import { safeStorageGet } from '../../lib/safeStorage';
 import type { DailyNarrative, GameAttempt, PanelImageSetting } from '../../lib/types';
 import { cn, formatDenarii, getDayType, getTodayISODate } from '../../lib/utils';
 import {
@@ -95,7 +96,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onOpenStory }: DailyG
   const totalEarned = state.attempts.reduce((sum, attempt) => sum + Number(attempt.reward || 0), 0);
   const practice = levelsCompleted === DAILY_GAME_LEVELS || totalEarned >= DAILY_GAME_CAP;
   const activeArenaRoom = profile && typeof window !== 'undefined'
-    ? window.localStorage.getItem(activeArenaRoomStorageKey(profile.id))
+    ? safeStorageGet('local', activeArenaRoomStorageKey(profile.id))
     : null;
 
   const triviaAvailability = weeklyNarrativeDay

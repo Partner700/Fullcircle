@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 import { recoverFromStaleBundle, reloadFreshApp } from '../lib/staleBundleRecovery';
+import { reportClientError } from '../lib/clientErrorReporting';
 
 type Props = {
   children: ReactNode;
@@ -28,6 +29,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    reportClientError(error, errorInfo.componentStack, 'app-boundary');
     if (recoverFromStaleBundle(error)) return;
     console.error('Full Circle screen error:', error, errorInfo);
     this.retryQuietly();
@@ -88,8 +90,8 @@ export class AppErrorBoundary extends Component<Props, State> {
             }} className="btn-primary">
               <RefreshCcw size={16} /> Try Again
             </button>
-            <button type="button" onClick={() => void reloadFreshApp()} className="btn-secondary">
-              Reload App
+            <button type="button" onClick={() => void reloadFreshApp(true)} className="btn-secondary">
+              Open Backup
             </button>
           </div>
         </div>

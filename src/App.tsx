@@ -10,6 +10,7 @@ import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { importWithRetry } from './lib/importWithRetry';
 import { LogOut, RefreshCw } from 'lucide-react';
+import { NonBlockingErrorBoundary } from './components/NonBlockingErrorBoundary';
 
 const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }))));
 const SentryApp = lazy(() => importWithRetry(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }))));
@@ -104,7 +105,15 @@ export default function App() {
 
   // Installation remains user-directed, while service-worker updates are
   // applied automatically by registerServiceWorker.
-  const overlays = <><PWAInstallPrompt /><PWAUpdateNotification />{session && profile && <Suspense fallback={null}><AuthenticatedOverlays /></Suspense>}</>;
+  const overlays = <>
+    <NonBlockingErrorBoundary name="install prompt"><PWAInstallPrompt /></NonBlockingErrorBoundary>
+    <NonBlockingErrorBoundary name="update notice"><PWAUpdateNotification /></NonBlockingErrorBoundary>
+    {session && profile && (
+      <NonBlockingErrorBoundary name="authenticated overlays">
+        <Suspense fallback={null}><AuthenticatedOverlays /></Suspense>
+      </NonBlockingErrorBoundary>
+    )}
+  </>;
 
   if (publicShare && !configError) {
     return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;

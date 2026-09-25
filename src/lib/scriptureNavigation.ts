@@ -1,3 +1,5 @@
+import { safeJsonStorageGet, safeStorageRemove, safeStorageSet } from './safeStorage';
+
 const SCRIPTURE_TARGET_KEY = 'full-circle-scripture-target';
 
 export type ScriptureNavigationTarget = {
@@ -32,7 +34,7 @@ export function scriptureTargetUrl(actionKey: string | null | undefined, metadat
 
 export function storeScriptureTarget(target: ScriptureNavigationTarget | null) {
   if (typeof window === 'undefined' || !target) return;
-  window.sessionStorage.setItem(SCRIPTURE_TARGET_KEY, JSON.stringify(target));
+  safeStorageSet('session', SCRIPTURE_TARGET_KEY, JSON.stringify(target));
   window.dispatchEvent(new CustomEvent<ScriptureNavigationTarget>('full-circle-open-scripture', { detail: target }));
 }
 
@@ -45,16 +47,12 @@ export function readScriptureTarget(): ScriptureNavigationTarget | null {
     insightId: clean(hash.get('fc-insight')),
   };
   if (hashTarget.narrativeId || hashTarget.verseReference || hashTarget.insightId) return hashTarget;
-  try {
-    return scriptureTargetFromMetadata(JSON.parse(window.sessionStorage.getItem(SCRIPTURE_TARGET_KEY) || 'null'));
-  } catch {
-    return null;
-  }
+  return scriptureTargetFromMetadata(safeJsonStorageGet<Record<string, unknown> | null>('session', SCRIPTURE_TARGET_KEY, null));
 }
 
 export function clearScriptureTarget() {
   if (typeof window === 'undefined') return;
-  window.sessionStorage.removeItem(SCRIPTURE_TARGET_KEY);
+  safeStorageRemove('session', SCRIPTURE_TARGET_KEY);
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   params.delete('fc-narrative');
   params.delete('fc-verse');

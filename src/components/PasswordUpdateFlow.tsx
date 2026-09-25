@@ -3,6 +3,7 @@ import { Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck } from 'lucide-react'
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { fetchPanelImageSetting } from '../lib/queries';
 import { supabase } from '../lib/supabase';
+import { safeStorageGet, safeStorageRemove, safeStorageSet } from '../lib/safeStorage';
 import type { PanelImageSetting } from '../lib/types';
 
 const SECRET_SCRIPTURES = [
@@ -18,7 +19,7 @@ const PASSWORD_VERIFY_WINDOW_MS = 10 * 60 * 1000;
 
 function hasRecentPasswordVerification() {
   if (typeof window === 'undefined') return false;
-  const verifiedAt = Number(sessionStorage.getItem(PASSWORD_VERIFY_KEY));
+  const verifiedAt = Number(safeStorageGet('session', PASSWORD_VERIFY_KEY));
   return Number.isFinite(verifiedAt) && Date.now() - verifiedAt < PASSWORD_VERIFY_WINDOW_MS;
 }
 
@@ -73,7 +74,7 @@ export function PasswordUpdateFlow({
       setError('That old password was not correct.');
       return;
     }
-    sessionStorage.setItem(PASSWORD_VERIFY_KEY, String(Date.now()));
+    safeStorageSet('session', PASSWORD_VERIFY_KEY, String(Date.now()));
     setOldPassword('');
     setStep('new');
   };
@@ -96,7 +97,7 @@ export function PasswordUpdateFlow({
       setError(error.message);
       return;
     }
-    sessionStorage.removeItem(PASSWORD_VERIFY_KEY);
+    safeStorageRemove('session', PASSWORD_VERIFY_KEY);
     setBusy(false);
     setNewPassword('');
     setConfirmPassword('');
@@ -105,7 +106,7 @@ export function PasswordUpdateFlow({
   };
 
   const returnToSettings = () => {
-    sessionStorage.removeItem(PASSWORD_VERIFY_KEY);
+    safeStorageRemove('session', PASSWORD_VERIFY_KEY);
     onDone();
   };
 

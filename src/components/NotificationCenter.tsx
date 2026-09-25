@@ -11,6 +11,7 @@ import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
 import { publicAsset } from '../lib/publicAsset';
 import { isDoveArrival } from '../lib/notificationArrival';
 import { openAudioCall } from '../lib/audioCalls';
+import { safeStorageGet } from '../lib/safeStorage';
 
 const DEVICE_NOTIFICATIONS_KEY = 'full-circle-browser-notifications-enabled';
 
@@ -50,11 +51,7 @@ function audioCallId(notification: UserNotification) {
 async function showDeviceNotification(notification: UserNotification) {
   if (audioCallId(notification)) return;
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
-  try {
-    if (window.localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
-  } catch {
-    return;
-  }
+  if (safeStorageGet('local', DEVICE_NOTIFICATIONS_KEY) !== 'true') return;
   const isScriptureAlarm = String(notification.notification_type || '').toLowerCase() === 'scripture_alarm';
   const options = {
     body: notification.body || 'You have a new update.',

@@ -1,5 +1,6 @@
 const SOUND_ENABLED_KEY = 'full-circle-sound-enabled';
 import { supabase } from './supabase';
+import { safeStorageGet, safeStorageSet } from './safeStorage';
 
 export type SoundMood = 'home' | 'instructor_overview' | 'sentry_overview' | 'reading' | 'tent' | 'game' | 'quiz' | 'board' | 'awards' | 'market' | 'default';
 
@@ -52,7 +53,7 @@ function getAudioContext() {
 }
 
 export function isSoundscapeEnabled() {
-  return typeof window !== 'undefined' && localStorage.getItem(SOUND_ENABLED_KEY) === 'true';
+  return safeStorageGet('local', SOUND_ENABLED_KEY) === 'true';
 }
 
 export function isSoundscapePlaying() {
@@ -239,7 +240,7 @@ async function syncDashboardSound() {
  */
 export async function setSoundscapeEnabled(enabled: boolean) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(SOUND_ENABLED_KEY, String(enabled));
+  safeStorageSet('local', SOUND_ENABLED_KEY, String(enabled));
   if (enabled) {
     const context = getAudioContext();
     if (context?.state === 'suspended') await context.resume();
