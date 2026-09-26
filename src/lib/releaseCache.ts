@@ -1,6 +1,6 @@
 const RELEASE_CACHE_KEY = 'full-circle-release-cache-version';
-const RELEASE_CACHE_VERSION = '2026-09-25-v152';
-const RETAINED_CACHE_PREFIXES = ['full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'];
+const RELEASE_CACHE_VERSION = '2026-09-26-v153';
+const RETAINED_CACHE_PREFIXES = ['full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'];
 
 export function prepareFreshReleaseCache() {
   if (typeof window === 'undefined') return;

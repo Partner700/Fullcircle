@@ -177,7 +177,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%sw.js?v=129', { updateViaCache: 'none' })
+          .register('%BASE_URL%sw.js?v=130', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }

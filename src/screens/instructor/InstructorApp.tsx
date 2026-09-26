@@ -27,6 +27,8 @@ import { CampTreasury } from '../../components/InstructorTreasury';
 import { VallumText } from '../../components/ChiRhoMark';
 import { UserAvatar } from '../../components/UserAvatar';
 import { GameActivityProfiles } from '../../components/GameActivityProfiles';
+import { AwardReleasePlanner } from '../../components/AwardReleasePlanner';
+import { awardReleaseItemKey, type AwardReleaseItem } from '../../lib/awardReleases';
 import { useGameActivityPlayers } from '../../hooks/useGameActivityPlayers';
 import { SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { CadetStore } from '../cadet/CadetStore';
@@ -92,6 +94,7 @@ function isSentryAward(a: { title: string; forSentry?: boolean }) {
 
 function awardVisibleForTarget(a: { title: string; forTent?: boolean; forSentry?: boolean }, target: AwardCatalogTarget) {
   if (target === 'tent') return !!a.forTent;
+  if (a.title.startsWith('Grand ')) return true;
   if (a.title === 'Valley Champion') return target === 'cadet' || target === 'sentry';
   if (target === 'sentry') return isSentryAward(a);
   return !a.forTent && !isSentryAward(a);
@@ -2780,10 +2783,11 @@ type MonthlyWatchEntry = {
   detail: string;
 };
 
-function MonthlyWatchCard({ title, subtitle, entries }: {
+function MonthlyWatchCard({ title, subtitle, entries, onSelect }: {
   title: string;
   subtitle: string;
   entries: MonthlyWatchEntry[];
+  onSelect: (title: string, id: string) => void;
 }) {
   return (
     <section className="rounded-lg border border-border-bright bg-surface-2 p-3">
@@ -2799,6 +2803,9 @@ function MonthlyWatchCard({ title, subtitle, entries }: {
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-ink">{entry.name}</p>
               <p className="mt-0.5 text-[10px] leading-snug text-stone">{entry.detail}</p>
+              <button type="button" onClick={() => onSelect(title, entry.id)} className="mt-1 text-xs font-semibold text-brass hover:text-gold">
+                {index === 0 ? 'Select winner' : 'Select nominee'}
+              </button>
             </div>
           </div>
         ))}
@@ -2823,6 +2830,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [awardMonth, setAwardMonth] = useState(getTodayISODate().slice(0, 7));
   const [saving, setSaving] = useState(false);
   const [recommendations, setRecommendations] = useState<AwardRecommendation[]>([]);
+  const [releaseItems, setReleaseItems] = useState<AwardReleaseItem[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [watchMonth, setWatchMonth] = useState(getTodayISODate().slice(0, 7));
   const [monthlyWatch, setMonthlyWatch] = useState<MonthlyVallumWatchRow[]>([]);
@@ -2941,8 +2949,9 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         if (topSentry) next.push({
           title: 'Reputation Award',
           candidate: profileName(topSentry[0]),
+          candidateId: topSentry[0],
           detail: `${topSentry[1]} leadership action(s) this week: morning attendance and daily meditation.`,
-          runnersUp: sentryRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), detail: `${score} leadership action(s).` })),
+          runnersUp: sentryRanking.slice(1).map(([userId, score]) => ({ candidate: profileName(userId), candidateId: userId, detail: `${score} leadership action(s).` })),
         });
 
         const tutorixScores = new Map<string, { bestScore: number; totalFigs: number }>();
@@ -2981,9 +2990,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         if (valleyRanking[0]) next.push({
           title: 'Valley Champion',
           candidate: profileName(valleyRanking[0][0]),
+          candidateId: valleyRanking[0][0],
           detail: `${valleyRanking[0][1]} Arena victor${valleyRanking[0][1] === 1 ? 'y' : 'ies'} this week across cadets and sentries.`,
           runnersUp: valleyRanking.slice(1).map(([userId, wins]) => ({
             candidate: profileName(userId),
+            candidateId: userId,
             detail: `${wins} Arena victor${wins === 1 ? 'y' : 'ies'} this week.`,
           })),
         });
@@ -3022,9 +3033,11 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         if (improvement[0]) next.push({
           title: 'The Sprout',
           candidate: profileName(improvement[0][0]),
+          candidateId: improvement[0][0],
           detail: `Improved by ${improvement[0][1]} action(s): ${improvement[0][3]} last week to ${improvement[0][2]} this week.`,
           runnersUp: improvement.slice(1).map(([userId, gain, current, previous]) => ({
             candidate: profileName(userId),
+            candidateId: userId,
             detail: `+${gain}: ${previous} last week to ${current} this week.`,
           })),
         });
@@ -3103,7 +3116,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         }
 
         const tentScores = new Map<string, number>();
-        (dailyRecords || []).forEach((record: any) => {
+        weeklyRecords.forEach((record: any) => {
           const membership = members.find((member) => member.user_id === record.user_id && member.role === 'cadet');
           if (!membership?.tent_id) return;
           const credit = record.streak_valid || record.meditation_submitted || record.attendance_status === 'present' ? 1 : 0;
@@ -3115,8 +3128,9 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           next.push({
             title: "The Lord's Secret",
             candidate: tents.find((tent) => tent.id === topTent[0])?.name || 'Leading tent',
+            candidateId: topTent[0],
             detail: `${topTent[1]} aggregate daily action(s). Tent awards are given to tents, not tent houses.`,
-            runnersUp: tentRanking.slice(1).map(([tentId, score]) => ({ candidate: tents.find((tent) => tent.id === tentId)?.name || 'Tent', detail: `${score} aggregate daily action(s).` })),
+            runnersUp: tentRanking.slice(1).map(([tentId, score]) => ({ candidate: tents.find((tent) => tent.id === tentId)?.name || 'Tent', candidateId: tentId, detail: `${score} aggregate daily action(s).` })),
           });
         }
       } catch (error) {
@@ -3147,12 +3161,29 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
 
   const prepareRecommendedAward = (title: string, candidateId: string) => {
     const definition = AWARD_CATALOG.flatMap((group) => group.awards).find((award) => award.title === title);
-    const nextTarget: 'cadet' | 'sentry' = definition && isSentryAward(definition) ? 'sentry' : 'cadet';
+    const nextTarget: AwardCatalogTarget = definition?.forTent ? 'tent'
+      : sentryIds.includes(candidateId) ? 'sentry' : 'cadet';
     setTargetType(nextTarget);
-    setSelectedTentId('');
-    setSelectedUserIds(new Set([candidateId]));
+    setSelectedTentId(nextTarget === 'tent' ? candidateId : '');
+    setSelectedUserIds(new Set(nextTarget === 'tent' ? [] : [candidateId]));
     setSelectedAwards(new Set([title]));
+    if (AWARD_CATALOG.some((group) => group.cadence === 'monthly' && group.awards.some((award) => award.title === title))) setAwardMonth(watchMonth);
     window.setTimeout(() => document.getElementById('give-award')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  };
+
+  const addToRelease = () => {
+    const recipients = targetType === 'tent' ? [selectedTentId] : [...selectedUserIds];
+    const items = [...selectedAwards].flatMap((title) => {
+      const definition = AWARD_CATALOG.flatMap((group) => group.awards).find((award) => award.title === title);
+      return recipients.filter(Boolean).map((id): AwardReleaseItem => ({
+        title, description: awardDescription.trim() || definition?.description || null,
+        target_type: targetType, target_id: id, award_month: awardMonth,
+        recipient_name: targetType === 'tent' ? tents.find((tent) => tent.id === id)?.name || 'Tent' : profileName(id),
+      }));
+    });
+    setReleaseItems((current) => [...new Map([...current, ...items].map((item) => [awardReleaseItemKey(item), item])).values()]);
+    setSelectedAwards(new Set()); setSelectedUserIds(new Set()); setSelectedTentId(''); setAwardDescription('');
+    window.setTimeout(() => document.getElementById('award-release')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   };
 
   const toggleUserId = (id: string) => {
@@ -3280,26 +3311,31 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
             title="Vallum"
             subtitle="Monthly all-round cadet activity"
             entries={vallumWatchEntries}
+            onSelect={prepareRecommendedAward}
           />
           <MonthlyWatchCard
             title="Monthly Scribe"
             subtitle="Monthly figs from completed quizzes"
             entries={monthlyScribeEntries}
+            onSelect={prepareRecommendedAward}
           />
           <MonthlyWatchCard
             title="Messenger Award (Nuncio)"
             subtitle="Monthly insight likes, public meditations, and external shares"
             entries={monthlyNuncioEntries}
+            onSelect={prepareRecommendedAward}
           />
           <MonthlyWatchCard
             title="Monthly Valley Champion"
             subtitle="Monthly Arena victories measured in rhudes"
             entries={monthlyValleyEntries}
+            onSelect={prepareRecommendedAward}
           />
           <MonthlyWatchCard
             title="Bethel Stone"
             subtitle="Monthly tent activity across its residents"
             entries={bethelStoneEntries}
+            onSelect={prepareRecommendedAward}
           />
         </div>
       </div>
@@ -3333,7 +3369,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                       <p className="text-[11px] text-stone"><VallumText text={runner.detail} size={10} /></p>
                       {runner.candidateId && (
                         <button type="button" onClick={() => prepareRecommendedAward(item.title, runner.candidateId!)} className="mt-1 text-[11px] font-semibold text-brass hover:text-gold">
-                          Select this sentry
+                          Select nominee
                         </button>
                       )}
                       {runner.quote && <p className="mt-0.5 line-clamp-2 text-xs italic text-stone">“{runner.quote}”</p>}
@@ -3372,9 +3408,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               label: `${t.name} · ${t.tent_houses?.name || ''}`,
             }))} />
             {selectedTentId && (
-              <p className="text-xs text-stone mt-1">
-                Awarding all {members.filter((m) => m.tent_id === selectedTentId && m.role === 'cadet').length} cadet(s) in this tent.
-              </p>
+              <p className="text-xs text-stone mt-1">Collective tent award · {members.filter((m) => m.tent_id === selectedTentId && m.role === 'cadet').length} cadet(s)</p>
             )}
           </div>
         ) : (
@@ -3433,13 +3467,22 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           <input type="month" className="input-field" value={awardMonth} onChange={(e) => setAwardMonth(e.target.value)} />
         </div>
 
-        <button onClick={giveAward}
-          disabled={saving || selectedAwards.size === 0 || (targetType === 'tent' ? !selectedTentId : selectedUserIds.size === 0)}
-          className="btn-primary text-sm">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <AwardIcon size={14} />}
-          Give {selectedAwards.size > 1 ? `${selectedAwards.size} Awards` : 'Award'}{selectedUserIds.size > 1 ? ` to ${selectedUserIds.size} ${targetType}s` : ''}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={addToRelease}
+            disabled={saving || selectedAwards.size === 0 || !awardMonth || (targetType === 'tent' ? !selectedTentId : selectedUserIds.size === 0)}
+            className="btn-primary text-sm"><Plus size={14} /> Add to release</button>
+          <button onClick={giveAward}
+            disabled={saving || selectedAwards.size === 0 || (targetType === 'tent' ? !selectedTentId : selectedUserIds.size === 0)}
+            className="btn-secondary text-sm">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <AwardIcon size={14} />}
+            Give {selectedAwards.size > 1 ? `${selectedAwards.size} Awards` : 'Award'}{selectedUserIds.size > 1 ? ` to ${selectedUserIds.size} ${targetType}s` : ''}
+          </button>
+        </div>
       </div>
+
+      <AwardReleasePlanner items={releaseItems}
+        onRemove={(key) => setReleaseItems((current) => current.filter((item) => awardReleaseItemKey(item) !== key))}
+        onPublished={() => { setReleaseItems([]); onRefresh(); }} />
 
       {/* Recent awards */}
       <div className="space-y-2">

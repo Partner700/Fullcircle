@@ -1,0 +1,141 @@
+const { PGlite } = require(process.env.PGLITE_MODULE_PATH || '@electric-sql/pglite');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const id = n => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+const root = path.resolve(__dirname, '..');
+const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20260926100000_scheduled_award_releases.sql'), 'utf8');
+
+(async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`
+      CREATE ROLE authenticated; CREATE ROLE anon;
+      CREATE SCHEMA auth; CREATE SCHEMA private; CREATE SCHEMA cron;
+      CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+      GRANT USAGE ON SCHEMA auth,public TO authenticated,anon;
+      CREATE TABLE profiles(id uuid PRIMARY KEY);
+      CREATE TABLE role_assignments(user_id uuid,role text,status text,end_date date);
+      CREATE FUNCTION is_instructor(uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT EXISTS(SELECT 1 FROM role_assignments WHERE user_id=$1 AND role='instructor' AND status='active') $$;
+      CREATE TABLE tents(id uuid PRIMARY KEY,sentry_id uuid REFERENCES profiles);
+      CREATE TABLE tent_members(tent_id uuid,user_id uuid);
+      CREATE TABLE awards(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid REFERENCES profiles,title text,description text,award_type text,award_month text,award_target_type text,award_target_id uuid,created_at timestamptz DEFAULT now());
+      CREATE UNIQUE INDEX award_identity ON awards(award_month,(coalesce(award_target_type,'cadet')),(coalesce(award_target_id,user_id)),title);
+      CREATE TABLE notifications(recipient uuid,actor uuid,type text,title text,body text,action text,metadata jsonb);
+      CREATE FUNCTION notify_user(uuid,uuid,text,text,text,text,jsonb) RETURNS void LANGUAGE sql AS $$ INSERT INTO notifications VALUES($1,$2,$3,$4,$5,$6,$7) $$;
+      CREATE TABLE cron.job(jobname text,active boolean);
+      INSERT INTO cron.job VALUES('full-circle-award-releases',true);
+      INSERT INTO profiles VALUES('${id(1)}'),('${id(2)}'),('${id(3)}'),('${id(4)}');
+      INSERT INTO role_assignments VALUES('${id(1)}','instructor','active',NULL),('${id(2)}','cadet','active',NULL),('${id(3)}','sentry','active',NULL),('${id(4)}','cadet','active',NULL);
+      INSERT INTO tents VALUES('${id(5)}','${id(3)}');
+      INSERT INTO tent_members VALUES('${id(5)}','${id(2)}'),('${id(5)}','${id(3)}');
+    `);
+    // PGlite does not run pg_cron; invoke the exact worker manually below.
+    await db.exec(migration.slice(0, migration.lastIndexOf('\nDO $$')));
+    const as = async (n, role = 'authenticated') => {
+      await db.exec('RESET ROLE');
+      await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [n ? id(n) : '']);
+      await db.exec(`SET ROLE ${role}`);
+    };
+    const item = (title = 'Scribe Award', target = 'cadet', user = 2) => ({ title, target_type: target, target_id: id(user), award_month: '2026-09', description: null, recipient_name: 'Selected member' });
+    const schedule = (n, items, at = null) => db.query('SELECT schedule_award_release($1,$2,$3)', [id(n), JSON.stringify(items), at]);
+    const change = (n, at = null) => db.query('SELECT change_award_release($1,$2)', [id(n), at]);
+    const count = async table => Number((await db.query(`SELECT count(*) AS n FROM ${table}`)).rows[0].n);
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    await as(null, 'anon');
+    await assert.rejects(schedule(10, [item()]), /permission denied/);
+    await as(2);
+    await assert.rejects(schedule(10, [item()]), /Only instructors/);
+    assert.equal(await count('award_releases'), 0);
+    await assert.rejects(db.query('SELECT private.publish_due_award_releases()'), /permission denied/);
+    await as(1);
+    await assert.rejects(schedule(10, []), /between 1 and 200/);
+    await assert.rejects(schedule(10, [item('Vallum', 'sentry', 3)]), /valid award/);
+    await assert.rejects(schedule(10, [item('Vallum', 'cadet', 3)]), /no longer active/);
+    await assert.rejects(schedule(10, [item('Unknown award')]), /valid award/);
+    await assert.rejects(schedule(10, [item(), item()]), /appears twice/);
+    await assert.rejects(schedule(10, [item()], '2001-01-01Z'), /future release/);
+    const batch = [item(), item('Centurion', 'sentry', 3), item('Bethel Stone', 'tent', 5)];
+    await schedule(10, batch, future);
+    await schedule(10, batch, future);
+    assert.equal(await count('award_releases'), 1, 'retry has one batch');
+    await assert.rejects(schedule(10, [item()], future), /different selection/);
+    await db.exec('RESET ROLE');
+    assert.equal(await count('awards'), 0, 'no premature awards');
+    assert.equal(await count('notifications'), 0, 'no premature notifications');
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal(await count('awards'), 0, 'worker respects release time');
+    await as(2);
+    assert.equal(await count('award_releases'), 0, 'cadets cannot see unpublished winners');
+    await assert.rejects(change(10), /Only instructors/);
+    await assert.rejects(db.exec("UPDATE award_releases SET status='published'"), /permission denied/);
+    await as(1);
+    await change(10, new Date(Date.now() + 172_800_000).toISOString());
+    await db.exec('RESET ROLE');
+    // Set the worker's due timestamp into the past, including a UTC-to-Douala Monday boundary.
+    await db.exec("UPDATE award_releases SET scheduled_at='2025-09-28T23:01:00Z' WHERE id='" + id(10) + "'");
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal(await count('awards'), 3);
+    assert.equal(await count('notifications'), 4, 'individual recipients plus distinct tent members');
+    assert.equal((await db.query('SELECT count(DISTINCT created_at)::int n FROM awards')).rows[0].n, 1, 'one timestamp');
+    assert.equal((await db.query("SELECT award_month FROM awards WHERE title='Scribe Award'")).rows[0].award_month, 'week-2025-09-29', 'release uses Cameroon week, not creation week');
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal(await count('notifications'), 4, 'worker retry is idempotent');
+    await as(1);
+    await assert.rejects(change(10), /no longer pending/);
+    await schedule(11, [item('Muralis')], future);
+    await change(11);
+    await db.exec('RESET ROLE');
+    await db.exec("UPDATE award_releases SET scheduled_at=now()-interval '1 minute' WHERE id='" + id(11) + "'");
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal(await count('awards'), 3, 'cancelled batch does not publish');
+    await as(1);
+    await schedule(12, [item('Vallum'), item('Muralis', 'cadet', 4)], future);
+    await schedule(13, [item('Monthly Scribe')], future);
+    await db.exec('RESET ROLE');
+    await db.exec("UPDATE role_assignments SET status='inactive' WHERE user_id='" + id(4) + "'; UPDATE award_releases SET scheduled_at=now()-interval '1 minute' WHERE status='scheduled'");
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal((await db.query('SELECT status FROM award_releases WHERE id=$1', [id(12)])).rows[0].status, 'failed');
+    assert.equal((await db.query("SELECT count(*)::int n FROM awards WHERE title='Vallum'")).rows[0].n, 0, 'failed batch is atomic');
+    assert.equal((await db.query('SELECT status FROM award_releases WHERE id=$1', [id(13)])).rows[0].status, 'published', 'one bad batch does not block another');
+    await db.exec("UPDATE role_assignments SET status='active' WHERE user_id='" + id(4) + "'");
+    await as(1); await change(12, future);
+    await db.exec('RESET ROLE');
+    await db.exec("UPDATE award_releases SET scheduled_at=now()-interval '1 minute' WHERE id='" + id(12) + "'");
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal((await db.query('SELECT status FROM award_releases WHERE id=$1', [id(12)])).rows[0].status, 'published');
+    const catalog = (await db.query('SELECT * FROM private.award_release_catalog()')).rows;
+    const ui = fs.readFileSync(path.join(root, 'src/screens/instructor/InstructorApp.tsx'), 'utf8');
+    for (const award of catalog) {
+      assert.ok(ui.includes(award.title), `UI includes ${award.title}`);
+      for (const target of award.targets) {
+        await as(1);
+        const before = await db.query('SELECT count(*) FROM award_releases');
+        const n = 100 + Number(before.rows[0].count);
+        await schedule(n, [item(award.title, target, target === 'tent' ? 5 : target === 'sentry' ? 3 : 2)]);
+        await schedule(n, [item(award.title, target, target === 'tent' ? 5 : target === 'sentry' ? 3 : 2)]);
+      }
+    }
+    await db.exec('RESET ROLE');
+    const before = await count('notifications');
+    await as(1); await schedule(999, [item('Muralis')]);
+    await db.exec('RESET ROLE');
+    assert.equal(await count('notifications'), before, 'existing award is not announced twice');
+    // Fail during insertion after one award, not just during pre-validation.
+    await db.exec(`CREATE FUNCTION fail_test_award() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.title='Muralis' AND NEW.award_month='2026-10' THEN RAISE EXCEPTION 'test insert failure'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER fail_test_award BEFORE INSERT ON awards FOR EACH ROW EXECUTE FUNCTION fail_test_award();`);
+    await as(1);
+    const failing=[item('Centurion','sentry',3),item('Muralis')].map(row=>({...row,award_month:'2026-10'}));
+    await schedule(1001,failing,future);
+    await db.exec('RESET ROLE');
+    await db.query("UPDATE award_releases SET scheduled_at=now()-interval '1 minute' WHERE id=$1",[id(1001)]);
+    await db.exec('SELECT private.publish_due_award_releases()');
+    assert.equal((await db.query("SELECT count(*)::int n FROM awards WHERE award_month='2026-10'")).rows[0].n,0,'mid-batch failure rolls back every award');
+    assert.equal(await count('notifications'),before,'mid-batch failure rolls back every notification');
+    await db.exec('DROP TRIGGER fail_test_award ON awards');
+    await db.exec('UPDATE cron.job SET active=false');
+    await as(1);
+    await assert.rejects(schedule(1000, [item()], future), /scheduler is unavailable/);
+    console.log('Award release tests passed: all catalog targets, authorization, privacy, scheduling, timezone, atomic publication, retries, cancellation, recovery, and notifications.');
+  } finally { await db.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });
