@@ -365,8 +365,15 @@ assert.match(cadetDashboard, /announcement_type === 'weekly_quiz_reminder'[\s\S]
 assert.match(cadetQuiz, /const responderPanel = <QuizResponders sessionId=\{session\.id\}/);
 assert.match(instructorApp, /title: 'Bethel Stone', description: 'Overall Best Tent of the Month'/);
 assert.match(instructorApp, /title: 'Temple Mount', description: 'Overall Best Tent of the Year'/);
-assert.match(instructorApp, /Monthly Award Watches/);
-assert.match(instructorApp, /Vallum watches Marks together with punctual attendance and meditation, scripture insights, comments, and reactions/);
+assert.match(instructorApp, /<MonthlyAwardNominees month=\{watchMonth\}/);
+const monthlyNominees = read('src/components/MonthlyAwardNominees.tsx');
+const monthlyNomineeSql = read('supabase/migrations/20260927072202_monthly_award_nominees.sql');
+assert.match(monthlyNominees, /get_monthly_award_nominees/);
+assert.match(monthlyNominees, /Potential winner/);
+assert.match(monthlyNominees, /role="alert"/);
+assert.match(monthlyNominees, /result\?\.month === month/);
+assert.match(monthlyNomineeSql, /Instructor access required/);
+assert.doesNotMatch(monthlyNomineeSql, /get_marks_board_live|compute_strict_streak/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.fcx_events',
@@ -480,9 +487,9 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v153'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-v147-v153'/);
-assert.match(serviceWorker, /ROLLBACK_CACHE_PREFIXES = \['full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'\]/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v154'/);
+assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-v147-v154'/);
+assert.match(serviceWorker, /ROLLBACK_CACHE_PREFIXES = \['full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'\]/);
 assert.match(serviceWorker, /RECOVERY_MARKER = '143'/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 2_500/);
@@ -509,19 +516,19 @@ assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=130`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=131`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
 assert.match(staleBundleRecovery, /RELEASE_MARKER = '125'/);
 assert.match(staleBundleRecovery, /reloadFreshApp\(true\)/);
 assert.match(staleBundleRecovery, /raw\.githack\.com\/TNSorganization\/Full-Circle\/gh-pages\/index\.html/);
 assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-09-26-v153/);
-assert.match(releaseCache, /'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'/);
+assert.match(releaseCache, /2026-09-27-v154/);
+assert.match(releaseCache, /'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
 assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=124/);
 assert.match(appIndex, /var release = '124'/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=130'/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=131'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
@@ -1675,7 +1682,7 @@ for (const required of [
   "title: 'Rhetoric Award (Orator)'",
   'metric.rhetoric_score',
   "title: 'Messenger Award (Nuncio)'",
-  'fetchMonthlyMessengerAwardMetrics(watchMonth)',
+  '<MonthlyAwardNominees',
   "title: 'Angel Award (Angelos)'",
 ]) {
   assert.ok(instructorApp.includes(required), `Missing instructor award behavior: ${required}`);
@@ -2234,7 +2241,7 @@ assert.match(rootApp, /<Suspense fallback=\{null\}><AuthenticatedOverlays \/><\/
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
 assert.match(appErrorBoundary, /reloadFreshApp\(true\)/);
-assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-09-26-v153'/);
+assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-09-27-v154'/);
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);

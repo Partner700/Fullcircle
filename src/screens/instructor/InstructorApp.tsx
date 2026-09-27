@@ -28,6 +28,7 @@ import { VallumText } from '../../components/ChiRhoMark';
 import { UserAvatar } from '../../components/UserAvatar';
 import { GameActivityProfiles } from '../../components/GameActivityProfiles';
 import { AwardReleasePlanner } from '../../components/AwardReleasePlanner';
+import { MonthlyAwardNominees } from '../../components/MonthlyAwardNominees';
 import { awardReleaseItemKey, type AwardReleaseItem } from '../../lib/awardReleases';
 import { useGameActivityPlayers } from '../../hooks/useGameActivityPlayers';
 import { SubscriptionScreen } from '../../components/SubscriptionScreen';
@@ -49,7 +50,7 @@ import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTod
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
 import { uploadAppFile } from '../../lib/storageUploads';
-import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments, MonthlyVallumWatchRow, MonthlyMessengerAwardMetric } from '../../lib/types';
+import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
 import { NarrativeEditor } from '../../components/NarrativeEditor';
 import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import {
@@ -74,7 +75,7 @@ import {
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
   fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, savePanelImageSetting, fetchPanelImageSetting,
-  fetchMarksBoard, fetchMonthlyVallumWatch, fetchWeeklyAwardMetrics, fetchMonthlyMessengerAwardMetrics,
+  fetchMarksBoard, fetchWeeklyAwardMetrics,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
@@ -2776,43 +2777,6 @@ type AwardRecommendation = {
   runnersUp: { candidate: string; candidateId?: string; detail: string; quote?: string }[];
 };
 
-type MonthlyWatchEntry = {
-  id: string;
-  name: string;
-  avatarUrl?: string | null;
-  detail: string;
-};
-
-function MonthlyWatchCard({ title, subtitle, entries, onSelect }: {
-  title: string;
-  subtitle: string;
-  entries: MonthlyWatchEntry[];
-  onSelect: (title: string, id: string) => void;
-}) {
-  return (
-    <section className="rounded-lg border border-border-bright bg-surface-2 p-3">
-      <p className="text-xs font-semibold uppercase text-brass"><VallumText text={title} size={11} /></p>
-      <p className="mt-0.5 text-[11px] text-stone">{subtitle}</p>
-      <div className="mt-3 space-y-2">
-        {entries.length === 0 ? (
-          <p className="text-xs text-stone">No qualifying activity in this month yet.</p>
-        ) : entries.map((entry, index) => (
-          <div key={entry.id} className="flex items-center gap-2.5 rounded-md border border-border bg-surface/55 p-2">
-            <span className="w-4 shrink-0 text-center text-[10px] font-bold text-brass">{index + 1}</span>
-            <UserAvatar userId={entry.id} name={entry.name} avatarUrl={entry.avatarUrl} className="h-8 w-8 shrink-0 border border-brass/35" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-ink">{entry.name}</p>
-              <p className="mt-0.5 text-[10px] leading-snug text-stone">{entry.detail}</p>
-              <button type="button" onClick={() => onSelect(title, entry.id)} className="mt-1 text-xs font-semibold text-brass hover:text-gold">
-                {index === 0 ? 'Select winner' : 'Select nominee'}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }: {
   awards: AwardWithRecipient[];
@@ -2833,9 +2797,6 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const [releaseItems, setReleaseItems] = useState<AwardReleaseItem[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [watchMonth, setWatchMonth] = useState(getTodayISODate().slice(0, 7));
-  const [monthlyWatch, setMonthlyWatch] = useState<MonthlyVallumWatchRow[]>([]);
-  const [monthlyMessengerWatch, setMonthlyMessengerWatch] = useState<MonthlyMessengerAwardMetric[]>([]);
-  const [loadingMonthlyWatch, setLoadingMonthlyWatch] = useState(false);
 
   const cadets = useMemo(() => roles.filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved')), [roles]);
   const sentries = useMemo(() => roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved')), [roles]);
@@ -2843,62 +2804,6 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const sentryIds = useMemo(() => sentries.map((r) => r.user_id), [sentries]);
   const profileName = useCallback((userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet', [profiles]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadMonthlyWatch = async () => {
-      setLoadingMonthlyWatch(true);
-      try {
-        const [vallumResult, messengerResult] = await Promise.allSettled([
-          fetchMonthlyVallumWatch(watchMonth),
-          fetchMonthlyMessengerAwardMetrics(watchMonth),
-        ]);
-        if (!cancelled) {
-          setMonthlyWatch(vallumResult.status === 'fulfilled' ? vallumResult.value : []);
-          setMonthlyMessengerWatch(messengerResult.status === 'fulfilled' ? messengerResult.value : []);
-        }
-        if (vallumResult.status === 'rejected') console.warn('Monthly Vallum watch could not load:', vallumResult.reason);
-        if (messengerResult.status === 'rejected') console.warn('Monthly Nuncio watch could not load:', messengerResult.reason);
-      } catch (error) {
-        console.warn('Monthly award watches could not load:', error);
-        if (!cancelled) {
-          setMonthlyWatch([]);
-          setMonthlyMessengerWatch([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingMonthlyWatch(false);
-      }
-    };
-    void loadMonthlyWatch();
-    const interval = window.setInterval(() => void loadMonthlyWatch(), 30_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [watchMonth]);
-
-  const monthlyTentWatch = useMemo(() => {
-    const byTent = new Map<string, { tentId: string; name: string; avatarUrl: string | null; activityPoints: number; marks: number; residents: number }>();
-    monthlyWatch.forEach((row) => {
-      const membership = members.find((member) => member.user_id === row.user_id && member.role === 'cadet');
-      if (!membership?.tent_id) return;
-      const tent = tents.find((item) => item.id === membership.tent_id);
-      const current = byTent.get(membership.tent_id) || {
-        tentId: membership.tent_id,
-        name: tent?.name || 'Tent',
-        avatarUrl: tent?.profile_image_url || null,
-        activityPoints: 0,
-        marks: 0,
-        residents: 0,
-      };
-      current.activityPoints += Number(row.activity_points || 0);
-      current.marks += Number(row.marks || 0);
-      current.residents += 1;
-      byTent.set(membership.tent_id, current);
-    });
-    return [...byTent.values()]
-      .sort((left, right) => right.activityPoints - left.activityPoints || right.marks - left.marks || left.name.localeCompare(right.name))
-      .slice(0, 4);
-  }, [members, monthlyWatch, tents]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3226,54 +3131,6 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
     annual: 'bg-coral/10 text-coral border-coral/20',
   };
 
-  const vallumWatchEntries: MonthlyWatchEntry[] = monthlyWatch.slice(0, 4).map((row) => ({
-    id: row.user_id,
-    name: row.display_name,
-    avatarUrl: row.avatar_url,
-    detail: `${Number(row.activity_points).toLocaleString()} activity points · ${row.punctual_actions} punctual · ${row.insights_written} insights · ${row.comments_written} comments · ${row.reactions_given} reactions · ${Number(row.marks).toLocaleString()} Marks`,
-  }));
-  const monthlyScribeEntries: MonthlyWatchEntry[] = [...monthlyWatch]
-    .filter((row) => Number(row.monthly_figs) > 0)
-    .sort((left, right) => Number(right.monthly_figs) - Number(left.monthly_figs) || right.activity_points - left.activity_points)
-    .slice(0, 4)
-    .map((row) => ({
-      id: row.user_id,
-      name: row.display_name,
-      avatarUrl: row.avatar_url,
-      detail: `${Number(row.monthly_figs).toLocaleString()} figs this month`,
-    }));
-  const monthlyNuncioEntries: MonthlyWatchEntry[] = [...monthlyMessengerWatch]
-    .filter((row) => Number(row.messenger_score) > 0)
-    .sort((left, right) => (
-      Number(right.messenger_score) - Number(left.messenger_score)
-      || Number(right.insight_likes) - Number(left.insight_likes)
-      || Number(right.public_meditations) - Number(left.public_meditations)
-      || Number(right.external_shares) - Number(left.external_shares)
-      || left.display_name.localeCompare(right.display_name)
-    ))
-    .slice(0, 4)
-    .map((row) => ({
-      id: row.user_id,
-      name: row.display_name,
-      avatarUrl: row.avatar_url,
-      detail: `${Number(row.messenger_score).toLocaleString()} communication actions · ${Number(row.insight_likes)} insight like(s) · ${Number(row.public_meditations)} public meditation(s) · ${Number(row.external_shares)} external share(s)`,
-    }));
-  const monthlyValleyEntries: MonthlyWatchEntry[] = [...monthlyWatch]
-    .filter((row) => Number(row.monthly_rhudes) > 0)
-    .sort((left, right) => Number(right.monthly_rhudes) - Number(left.monthly_rhudes) || right.activity_points - left.activity_points)
-    .slice(0, 4)
-    .map((row) => ({
-      id: row.user_id,
-      name: row.display_name,
-      avatarUrl: row.avatar_url,
-      detail: `${Number(row.monthly_rhudes).toLocaleString()} rhude${Number(row.monthly_rhudes) === 1 ? '' : 's'} this month`,
-    }));
-  const bethelStoneEntries: MonthlyWatchEntry[] = monthlyTentWatch.map((row) => ({
-    id: row.tentId,
-    name: row.name,
-    avatarUrl: row.avatarUrl,
-    detail: `${row.activityPoints.toLocaleString()} resident activity points · ${row.residents} resident${row.residents === 1 ? '' : 's'} · ${row.marks.toLocaleString()} combined Marks`,
-  }));
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -3286,59 +3143,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         </p>
       </div>
 
-      <div className="card p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h4 className="font-display font-semibold text-ink">Monthly Award Watches</h4>
-            <p className="mt-1 max-w-2xl text-xs text-stone">
-              <VallumText text="Vallum watches Marks together with punctual attendance and meditation, scripture insights, comments, and reactions. Bethel Stone measures the same resident activity by tent." size={11} />
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {loadingMonthlyWatch && <Loader2 size={16} className="animate-spin text-brass" />}
-            <label className="sr-only" htmlFor="monthly-award-watch">Watch month</label>
-            <input
-              id="monthly-award-watch"
-              type="month"
-              className="input-field w-auto min-w-36 py-1.5 text-xs"
-              value={watchMonth}
-              onChange={(event) => setWatchMonth(event.target.value)}
-            />
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <MonthlyWatchCard
-            title="Vallum"
-            subtitle="Monthly all-round cadet activity"
-            entries={vallumWatchEntries}
-            onSelect={prepareRecommendedAward}
-          />
-          <MonthlyWatchCard
-            title="Monthly Scribe"
-            subtitle="Monthly figs from completed quizzes"
-            entries={monthlyScribeEntries}
-            onSelect={prepareRecommendedAward}
-          />
-          <MonthlyWatchCard
-            title="Messenger Award (Nuncio)"
-            subtitle="Monthly insight likes, public meditations, and external shares"
-            entries={monthlyNuncioEntries}
-            onSelect={prepareRecommendedAward}
-          />
-          <MonthlyWatchCard
-            title="Monthly Valley Champion"
-            subtitle="Monthly Arena victories measured in rhudes"
-            entries={monthlyValleyEntries}
-            onSelect={prepareRecommendedAward}
-          />
-          <MonthlyWatchCard
-            title="Bethel Stone"
-            subtitle="Monthly tent activity across its residents"
-            entries={bethelStoneEntries}
-            onSelect={prepareRecommendedAward}
-          />
-        </div>
-      </div>
+      <MonthlyAwardNominees month={watchMonth} onMonthChange={setWatchMonth} onSelect={prepareRecommendedAward} />
 
       <div className="card p-4 sm:p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
