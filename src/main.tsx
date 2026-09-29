@@ -21,8 +21,7 @@ prepareFreshReleaseCache();
 // Vite reports a missing lazy-loaded chunk before React renders its error boundary.
 // A single quiet retry picks up the current deployment instead of showing an error page.
 window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
-  recoverFromStaleBundle((event as Event & { payload?: unknown }).payload);
+  if (recoverFromStaleBundle('vite:preloadError')) event.preventDefault();
 });
 
 window.addEventListener('error', (event) => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, MoreVertical, PlusSquare, Share, X } from 'lucide-react';
 import { Dove } from './Dove';
+import { APP_DISPLAY_MODES, isInstalledApp } from '../lib/appDisplayMode';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -33,11 +34,6 @@ function storeValue(storageName: 'localStorage' | 'sessionStorage', key: string,
   }
 }
 
-function isStandalone() {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-}
-
 function isIOSDevice() {
   const { userAgent, platform, maxTouchPoints } = navigator;
   return /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
@@ -63,13 +59,13 @@ function openInChrome() {
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
-  const [installed, setInstalled] = useState(false);
+  const [installed, setInstalled] = useState(isInstalledApp);
   const [guide, setGuide] = useState<'ios' | 'browser' | null>(null);
   const installButtonRef = useRef<HTMLButtonElement>(null);
   const showTimerRef = useRef<number | null>(null);
 
   const canAutoShow = useCallback(() => (
-    !isStandalone() && !storageValue('sessionStorage', SESSION_KEY)
+    !isInstalledApp() && !storageValue('sessionStorage', SESSION_KEY)
   ), []);
 
   const showSoon = useCallback(() => {
@@ -85,18 +81,41 @@ export function PWAInstallPrompt() {
   }, [canAutoShow]);
 
   useEffect(() => {
-    setInstalled(isStandalone());
-    if (!isStandalone()) showSoon();
+    const syncDisplayMode = () => {
+      const app = isInstalledApp();
+      setInstalled(app);
+      if (app) {
+        setVisible(false);
+        setGuide(null);
+        setDeferredPrompt(null);
+      }
+    };
+    syncDisplayMode();
+    if (!isInstalledApp()) showSoon();
+    const modes = APP_DISPLAY_MODES.map((mode) => window.matchMedia(`(display-mode: ${mode})`));
+    modes.forEach((mode) => {
+      if (mode.addEventListener) mode.addEventListener('change', syncDisplayMode);
+      else mode.addListener(syncDisplayMode);
+    });
+    window.addEventListener('pageshow', syncDisplayMode);
+    document.addEventListener('visibilitychange', syncDisplayMode);
     return () => {
       if (showTimerRef.current !== null) window.clearTimeout(showTimerRef.current);
+      modes.forEach((mode) => {
+        if (mode.removeEventListener) mode.removeEventListener('change', syncDisplayMode);
+        else mode.removeListener(syncDisplayMode);
+      });
+      window.removeEventListener('pageshow', syncDisplayMode);
+      document.removeEventListener('visibilitychange', syncDisplayMode);
     };
   }, [showSoon]);
 
   useEffect(() => {
     const handlePrompt = (event: BeforeInstallPromptEvent) => {
       event.preventDefault();
+      if (isInstalledApp()) return;
       setDeferredPrompt(event);
-      if (!isStandalone()) showSoon();
+      showSoon();
     };
     window.addEventListener('beforeinstallprompt', handlePrompt);
     return () => window.removeEventListener('beforeinstallprompt', handlePrompt);
@@ -130,6 +149,8 @@ export function PWAInstallPrompt() {
   }, []);
 
   const install = useCallback(async () => {
+    if (isInstalledApp()) return;
+    setVisible(true);
     if (isIOSDevice()) {
       setGuide('ios');
       return;
@@ -139,16 +160,21 @@ export function PWAInstallPrompt() {
       setVisible(true);
       return;
     }
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    setDeferredPrompt(null);
-    setVisible(false);
-    if (outcome === 'accepted') {
-      storeValue('localStorage', 'pwa_install_completed', String(Date.now()));
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      setVisible(false);
+      if (outcome === 'accepted') {
+        storeValue('localStorage', 'pwa_install_completed', String(Date.now()));
+      }
+    } catch {
+      setGuide('browser');
+    } finally {
+      setDeferredPrompt(null);
     }
   }, [deferredPrompt]);
 
-  if (installed) return null;
+  if (installed || isInstalledApp()) return null;
 
   return (
     <>

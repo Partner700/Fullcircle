@@ -1,3 +1,5 @@
+import { isInstalledApp } from './lib/appDisplayMode';
+
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
@@ -24,10 +26,9 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js?v=131`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}sw.js?v=132`, { updateViaCache: 'none' })
       .then((registration) => {
-        // Check for a new worker at launch. Installed copies are refreshed once
-        // by the worker so a saved GitHub Pages start URL cannot pin old HTML.
+        // Activate updates without interrupting an open screen or draft.
         void registration.update().catch(() => undefined);
 
         // Periodically check for updates (every hour)
@@ -39,7 +40,7 @@ export function registerServiceWorker() {
           window.setTimeout(() => {
             const worker = registration.active || registration.waiting || registration.installing;
             worker?.postMessage({ type: 'WARM_APP_SHELL' });
-          }, 500);
+          }, 8_000);
         };
         if (document.readyState === 'complete') warmRelease();
         else window.addEventListener('load', warmRelease, { once: true });
@@ -69,10 +70,7 @@ export function registerServiceWorker() {
  * Check if the app is running in standalone/PWA mode
  */
 export function isRunningStandalone(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  );
+  return isInstalledApp();
 }
 
 /**

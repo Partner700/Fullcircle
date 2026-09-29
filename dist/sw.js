@@ -1,15 +1,15 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v154';
+const CACHE_VERSION = 'full-circle-v155';
 // Keep the preceding healthy shell as a rollback while this worker warms its
 // own cache. A phone changing between Wi-Fi and mobile data must never lose the
 // only application shell it can currently open.
-const CACHE_STORAGE_VERSION = 'full-circle-v147-v154';
+const CACHE_STORAGE_VERSION = 'full-circle-v147-v155';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149', 'full-circle-v148'];
-const RECOVERY_MARKER = '143';
+const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149'];
+const RECOVERY_MARKER = '155';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 2_500;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
@@ -78,15 +78,30 @@ function wait(delayMs) {
 }
 
 function fetchWithDeadline(request, options, timeoutMs = NETWORK_ATTEMPT_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const signal = options && options.signal;
+  const abort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) abort();
+    else signal.addEventListener('abort', abort, { once: true });
+  }
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('The network request timed out.')), timeoutMs);
-    fetch(request, options).then(
+    const cleanup = () => {
+      clearTimeout(timeout);
+      if (signal) signal.removeEventListener('abort', abort);
+    };
+    const timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error('The network request timed out.'));
+    }, timeoutMs);
+    fetch(request, { ...options, signal: controller.signal }).then(
       (response) => {
-        clearTimeout(timeout);
+        // Once headers arrive, a slow but valid response body must not be aborted.
+        cleanup();
         resolve(response);
       },
       (error) => {
-        clearTimeout(timeout);
+        cleanup();
         reject(error);
       },
     );
@@ -105,42 +120,90 @@ function fallbackReleaseUrl(requestOrUrl) {
   return new URL(relativePath || 'index.html', MOBILE_DATA_FALLBACK_BASE).href;
 }
 
-async function fetchMobileDataFallback(requestOrUrl) {
+async function fetchMobileDataFallback(requestOrUrl, signal) {
   const fallbackUrl = fallbackReleaseUrl(requestOrUrl);
-  return fetchWithDeadline(fallbackUrl, { cache: 'no-store', mode: 'cors' });
+  return fetchWithDeadline(fallbackUrl, { mode: 'cors', signal });
 }
 
-async function fetchReleaseWithFallback(requestOrUrl, options = {}) {
-  const primary = fetchWithDeadline(requestOrUrl, options)
-    .then((response) => (response.ok ? response : null))
-    .catch(() => null);
-  const mobileDataCopy = wait(MOBILE_DATA_FALLBACK_DELAY_MS)
-    .then(() => fetchMobileDataFallback(requestOrUrl))
-    .then((response) => (response.ok ? response : null))
-    .catch(() => null);
-
-  const first = await Promise.race([primary, mobileDataCopy]);
-  if (first) return first;
-
-  const [primaryResponse, fallbackResponse] = await Promise.all([primary, mobileDataCopy]);
-  const response = primaryResponse || fallbackResponse;
-  if (response) return response;
-  throw new Error('The primary and mobile-data release copies are unavailable.');
+function validReleaseResponse(response, requestOrUrl) {
+  const path = new URL(typeof requestOrUrl === 'string' ? requestOrUrl : requestOrUrl.url, self.registration.scope).pathname;
+  // Some hosts serve their SPA HTML for missing chunks. Never cache it as JS/CSS.
+  return response.ok && !(/\.(?:js|css|json|png|jpe?g|webp|svg|woff2?)$/i.test(path)
+    && /text\/html/i.test(response.headers.get('content-type') || ''));
 }
 
-async function fetchAndCache(cache, url, options) {
+function fetchReleaseWithFallback(requestOrUrl, options = {}) {
+  return new Promise((resolve, reject) => {
+    const controllers = [new AbortController(), new AbortController()];
+    let finished = false;
+    let fallbackStarted = false;
+    let failures = 0;
+    const complete = (index, response) => {
+      if (finished) return;
+      if (!validReleaseResponse(response, requestOrUrl)) {
+        failed(index);
+        return;
+      }
+      finished = true;
+      clearTimeout(hedgeTimer);
+      controllers[1 - index].abort();
+      resolve(response);
+    };
+    const startFallback = () => {
+      if (finished || fallbackStarted) return;
+      fallbackStarted = true;
+      fetchMobileDataFallback(requestOrUrl, controllers[1].signal).then(
+        (response) => complete(1, response), () => failed(1),
+      );
+    };
+    const failed = (index) => {
+      if (finished) return;
+      failures += 1;
+      if (index === 0) startFallback();
+      if (failures === 2) {
+        finished = true;
+        clearTimeout(hedgeTimer);
+        reject(new Error('The primary and mobile-data release copies are unavailable.'));
+      }
+    };
+    const hedgeTimer = setTimeout(startFallback, MOBILE_DATA_FALLBACK_DELAY_MS);
+    fetchWithDeadline(requestOrUrl, { ...options, signal: controllers[0].signal }).then(
+      (response) => complete(0, response), () => failed(0),
+    );
+  });
+}
+
+async function cacheRead(read) {
+  // Safari storage can be unavailable or stalled. It must not block the network.
+  let timer;
   try {
-    const response = await fetchReleaseWithFallback(url, options);
-    if (response.ok) await cache.put(url, response.clone());
-    return response;
-  } catch {
-    return null;
+    return await Promise.race([
+      Promise.resolve().then(read).catch(() => null),
+      new Promise((resolve) => { timer = setTimeout(() => resolve(null), 200); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+async function safeCachePut(cacheName, url, response) {
+  try {
+    const cache = await caches.open(cacheName);
+    await cache.put(url, response);
+  } catch {
+    // Quota and private-browsing failures must never discard a valid response.
+  }
+}
+
+function keepAlive(event, promise) {
+  const settled = promise.catch(() => undefined);
+  if (event) event.waitUntil(settled);
+}
+
 async function readReleaseManifest() {
-  const manifestUrl = scopedUrl('.vite/manifest.json');
-  const response = await fetchReleaseWithFallback(manifestUrl, { cache: 'no-store' });
+  // Read this host's manifest: another host may use different build hashes.
+  const manifestUrl = scopedUrl('release-manifest.json');
+  const response = await fetchWithDeadline(manifestUrl, { cache: 'no-cache' });
   if (!response.ok) throw new Error('Release manifest is unavailable.');
   return response.json();
 }
@@ -157,105 +220,60 @@ function filesForEntry(manifest, entryKey, visited) {
   return files;
 }
 
-function allCurrentReleaseFiles(manifest) {
-  const files = new Set();
-  Object.keys(manifest).forEach((key) => {
-    const entry = manifest[key];
-    [entry.file, ...(entry.css || []), ...(entry.assets || [])]
-      .filter(Boolean)
-      .forEach((file) => files.add(file));
-  });
-  return [...files];
-}
-
 function criticalReleaseFiles(manifest) {
-  const entry = manifest['index.html'];
-  const entryKeys = ['index.html', ...((entry && entry.dynamicImports) || [])];
-  const files = new Set();
-  entryKeys.forEach((entryKey) => {
-    filesForEntry(manifest, entryKey, new Set()).forEach((file) => files.add(file));
-  });
-  return [...files];
+  return [...new Set(filesForEntry(manifest, 'index.html', new Set()))];
 }
 
-function settleAll(promises) {
-  return Promise.all(promises.map((promise) => Promise.resolve(promise).catch(() => null)));
-}
-
-async function warmAppShell(includeAllReleaseFiles = false) {
-  const shell = await caches.open(SHELL_CACHE);
-  const rootUrl = scopedUrl('');
-  const indexUrl = scopedUrl('index.html');
-  const coreUrls = [
-    rootUrl,
-    indexUrl,
-    scopedUrl('offline.html'),
-    scopedUrl('manifest.webmanifest'),
-  ];
-  if (includeAllReleaseFiles) {
-    coreUrls.push(
-      ...['72', '96', '128', '144', '152', '192', '384', '512'].map((size) => scopedUrl(`icons/icon-${size}.png`)),
-      scopedUrl('icons/apple-touch-icon.png'),
-      scopedUrl('icons/fullcircle-dove-clean.png'),
-    );
-  }
-  await settleAll(coreUrls.map((url) => fetchAndCache(shell, url, { cache: 'reload' })));
-
-  try {
+let warming = null;
+let lastWarmAt = 0;
+function warmAppShell() {
+  if (warming) return warming;
+  if (lastWarmAt && Date.now() - lastWarmAt < 300_000) return Promise.resolve();
+  warming = (async () => {
     const manifest = await readReleaseManifest();
-    const releaseFiles = includeAllReleaseFiles
-      ? allCurrentReleaseFiles(manifest)
-      : criticalReleaseFiles(manifest);
-    const assets = await caches.open(ASSET_CACHE);
-    await settleAll(
-      [...new Set(releaseFiles)].map((file) => fetchAndCache(assets, scopedUrl(file), { cache: 'reload' })),
-    );
-  } catch {
-    // A partial install remains valid; normal requests fill the cache later.
-  }
+    const files = ['index.html', 'offline.html', 'manifest.webmanifest', ...criticalReleaseFiles(manifest)];
+    // Two background fetches at most, and never fetch already-cached chunks.
+    let next = 0;
+    const fill = async () => {
+      while (next < files.length) {
+        const file = files[next++];
+        const url = scopedUrl(file);
+        if (await cacheRead(() => caches.match(url, { ignoreVary: true }))) continue;
+        try {
+          const response = await fetchReleaseWithFallback(url);
+          await safeCachePut(file.startsWith('assets/') ? ASSET_CACHE : SHELL_CACHE, url, response);
+        } catch {
+          // Normal requests can fill a partially warmed cache later.
+        }
+      }
+    };
+    await Promise.all([fill(), fill()]);
+    lastWarmAt = Date.now();
+  })().catch(() => undefined).finally(() => { warming = null; });
+  return warming;
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil((async () => {
-    await warmAppShell(false);
-    await self.skipWaiting();
-  })());
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    await clearRetiredFullCircleCaches();
+    await clearRetiredFullCircleCaches().catch(() => undefined);
     if (self.registration.navigationPreload) {
       await self.registration.navigationPreload.disable().catch(() => undefined);
     }
     await self.clients.claim();
 
-    // Tell fallback pages that a network-only worker now controls them. Healthy
+    // Tell fallback pages that the new worker now controls them. Healthy
     // application screens are deliberately left untouched so an update cannot
     // cause a mid-session reload on a phone.
     const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     windowClients.forEach((client) => {
       client.postMessage({ type: 'FULL_CIRCLE_RECOVERY_READY', worker: CACHE_VERSION });
     });
-    await settleAll(windowClients.map(refreshInstalledClient));
   })());
 });
-
-async function refreshInstalledClient(client) {
-  if (!client || typeof client.navigate !== 'function') return;
-  const target = new URL(client.url);
-  if (target.origin !== self.location.origin) return;
-
-  const previousWorker = target.searchParams.get('fc-worker');
-  if (previousWorker === RECOVERY_MARKER) return;
-
-  // Refresh every same-origin application window once. Some installed copies
-  // have lost their original start_url query, so checking only fc-launch can
-  // leave those clients pinned to an older GitHub Pages shell indefinitely.
-  target.searchParams.set('fc-worker', RECOVERY_MARKER);
-  target.searchParams.set('fc-refreshed-at', String(Date.now()));
-  await client.navigate(target.href);
-}
 
 async function recoverFallbackClient(client) {
   if (!client || typeof client.navigate !== 'function') return;
@@ -277,15 +295,15 @@ self.addEventListener('message', (event) => {
   if (event.data.type === 'SKIP_WAITING') {
     event.waitUntil(self.skipWaiting());
   } else if (event.data.type === 'CLEAR_CACHES') {
-    event.waitUntil(clearRetiredFullCircleCaches());
+    event.waitUntil(clearRetiredFullCircleCaches().catch(() => undefined));
   } else if (event.data.type === 'WARM_APP_SHELL') {
     // Warm only the entry shell. Fetching every lazy game and admin screen at
     // launch can saturate a mobile connection and delay the screen being used.
-    event.waitUntil(warmAppShell(false));
+    event.waitUntil(warmAppShell());
   } else if (event.data.type === 'OFFLINE_FALLBACK_VISIBLE') {
     event.waitUntil((async () => {
-      await warmAppShell(false);
-      await recoverFallbackClient(event.source);
+      await warmAppShell();
+      if (await cachedAppShell()) await recoverFallbackClient(event.source);
     })());
   } else if (event.data.type === 'GET_CACHE_STATUS') {
     event.waitUntil((async () => {
@@ -296,71 +314,53 @@ self.addEventListener('message', (event) => {
 });
 
 async function cachedAppShell() {
-  const cache = await caches.open(SHELL_CACHE);
-  return (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
-    || (await cache.match(scopedUrl(''), { ignoreVary: true }))
-    || (await cache.match(scopedUrl('offline.html'), { ignoreVary: true }));
+  return cacheRead(async () => {
+    const names = await caches.keys();
+    const shells = [SHELL_CACHE, ...names.filter((name) => name !== SHELL_CACHE && isFullCircleCache(name) && name.endsWith('-shell')).reverse()];
+    for (const name of shells) {
+      const cache = await caches.open(name);
+      const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
+        || (await cache.match(scopedUrl(''), { ignoreVary: true }));
+      if (response) return response;
+    }
+    return null;
+  });
 }
 
-async function networkFirstNavigation(request) {
-  const shell = await caches.open(SHELL_CACHE);
-  const networkRequest = fetchReleaseWithFallback(request, { cache: 'no-store' }).then(async (response) => {
-    if (!response.ok) throw new Error(`Navigation failed with status ${response.status}.`);
-    await shell.put(scopedUrl('index.html'), response.clone());
-    await shell.put(scopedUrl(''), response.clone());
+async function networkFirstNavigation(request, event) {
+  const networkRequest = fetchReleaseWithFallback(request, { cache: 'no-store' }).then((response) => {
+    keepAlive(event, safeCachePut(SHELL_CACHE, scopedUrl('index.html'), response.clone()));
     return response;
   });
-
-  const fallbackAfterDelay = new Promise((resolve, reject) => {
-    setTimeout(() => {
-      void cachedAppShell().then((cached) => {
-        if (cached) resolve(cached);
-        else reject(new Error('No cached application shell is available.'));
-      });
-    }, NAVIGATION_FALLBACK_DELAY_MS);
-  });
-
+  keepAlive(event, networkRequest);
+  const fallbackAfterDelay = wait(NAVIGATION_FALLBACK_DELAY_MS).then(cachedAppShell);
   try {
-    return await Promise.race([networkRequest, fallbackAfterDelay]);
+    const first = await Promise.race([networkRequest, fallbackAfterDelay]);
+    return first || await networkRequest;
   } catch {
     const cached = await cachedAppShell();
     if (cached) return cached;
-    try {
-      return await networkRequest;
-    } catch {
-      try {
-        const fallback = await fetchMobileDataFallback(scopedUrl('index.html'));
-        if (fallback.ok) {
-          await shell.put(scopedUrl('index.html'), fallback.clone());
-          await shell.put(scopedUrl(''), fallback.clone());
-          return fallback;
-        }
-      } catch {
-        // The readable reconnect response below is the final fallback.
-      }
-      return new Response('Full Circle is reconnecting. Please try again.', {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        });
-    }
+    const offline = await cacheRead(() => caches.match(scopedUrl('offline.html'), { ignoreVary: true }));
+    return offline || new Response('Full Circle is reconnecting. Please try again.', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
 }
 
-async function cacheFirstAsset(request) {
-  const cache = await caches.open(ASSET_CACHE);
-  const cached = await caches.match(request, { ignoreSearch: true, ignoreVary: true });
-  if (cached) return cached;
-  const response = await fetchReleaseWithFallback(request, { cache: 'reload' });
-  if (response.ok) await cache.put(request, response.clone());
+async function cacheFirstAsset(request, event) {
+  const cached = await cacheRead(() => caches.match(request, { ignoreSearch: true, ignoreVary: true }));
+  if (cached && validReleaseResponse(cached, request)) return cached;
+  const response = await fetchReleaseWithFallback(request);
+  keepAlive(event, safeCachePut(ASSET_CACHE, request, response.clone()));
   return response;
 }
 
-async function cacheFirstShellFile(request) {
-  const cache = await caches.open(SHELL_CACHE);
-  const cached = await caches.match(request, { ignoreSearch: true, ignoreVary: true });
+async function cacheFirstShellFile(request, event) {
+  const cached = await cacheRead(() => caches.match(request, { ignoreSearch: true, ignoreVary: true }));
   if (cached) return cached;
-  const response = await fetchReleaseWithFallback(request, { cache: 'reload' });
-  if (response.ok) await cache.put(request, response.clone());
+  const response = await fetchReleaseWithFallback(request);
+  keepAlive(event, safeCachePut(SHELL_CACHE, request, response.clone()));
   return response;
 }
 
@@ -370,16 +370,16 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(request));
+    event.respondWith(networkFirstNavigation(request, event));
     return;
   }
 
   const scopePath = new URL(self.registration.scope).pathname;
   if (!url.pathname.startsWith(scopePath)) return;
   if (/\/assets\/[^/]+-[A-Za-z0-9_-]+\.(?:js|css|png|jpe?g|webp|svg|woff2?)$/i.test(url.pathname)) {
-    event.respondWith(cacheFirstAsset(request));
+    event.respondWith(cacheFirstAsset(request, event));
   } else if (url.pathname.includes('/icons/')) {
-    event.respondWith(cacheFirstShellFile(request));
+    event.respondWith(cacheFirstShellFile(request, event));
   }
 });
 
