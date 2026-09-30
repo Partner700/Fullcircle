@@ -26,27 +26,30 @@ The deployed site root should contain:
 
 It should not rely on `src/main.tsx` in production.
 
-## Automatic FTPS deployment
+## Deployment connection
 
-The `Deploy to Hostinger` GitHub Actions workflow uploads the committed `dist`
-release after the `Quality checks` workflow succeeds on `main`. Add these
-repository secrets in **GitHub → Settings → Secrets and variables → Actions**:
+The current repository contains quality-check and GitHub Pages workflows, but
+no active Hostinger FTPS deployment workflow. Pushing `main` therefore does not,
+by itself, prove that Hostinger received the build. Hostinger must have a separate
+connected Git deployment, or the built files must be uploaded using authenticated
+hosting access. GitHub Pages publication does not update this domain.
 
-- `HOSTINGER_FTP_SERVER`
-- `HOSTINGER_FTP_USERNAME`
-- `HOSTINGER_FTP_PASSWORD`
-- `HOSTINGER_FTP_SERVER_DIR` (the site document root, including leading and
-  trailing slash, for example `/public_html/` or
-  `/domains/fullcircle.partnertai.com/public_html/`)
+For a connected Hostinger build, use `npm run build` and publish `dist`. That
+command also prepares `.htaccess` and `release-manifest.json`. Avoid publishing
+source files or skipping the postbuild step.
 
-Hostinger shows the first three values under **Websites → Manage → Files → FTP
-Accounts**. Use the FTP account whose root can access this domain's
-`public_html`. The workflow uses explicit FTPS on port 21 and does not delete
-unrelated remote files.
+## Verify without republishing
 
-After adding the secrets, open **GitHub → Actions → Deploy to Hostinger → Run
-workflow** for the first deployment. Later successful pushes to `main` deploy
-automatically.
+```bash
+node scripts/check-published-release.cjs dist
+```
+
+This read-only check compares the expected worker, the host's readable release
+manifest, its HTML entry point and the JavaScript bundle on both public hosts.
+It permits different build hashes between hosts. A DNS error or timeout is
+reported as **unreachable**, not as evidence of an outdated deployment. An HTTP
+error, invalid manifest, missing bundle or different worker is reported separately.
+No account changes or database migrations are required for these checks.
 
 ## SPA Fallback
 
