@@ -1,15 +1,15 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v155';
+const CACHE_VERSION = 'full-circle-v156';
 // Keep the preceding healthy shell as a rollback while this worker warms its
 // own cache. A phone changing between Wi-Fi and mobile data must never lose the
 // only application shell it can currently open.
-const CACHE_STORAGE_VERSION = 'full-circle-v147-v155';
+const CACHE_STORAGE_VERSION = 'full-circle-v147-v156';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149'];
-const RECOVERY_MARKER = '155';
+const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v155', 'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150', 'full-circle-v147-v149'];
+const RECOVERY_MARKER = '156';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 2_500;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
@@ -132,6 +132,19 @@ function validReleaseResponse(response, requestOrUrl) {
     && /text\/html/i.test(response.headers.get('content-type') || ''));
 }
 
+function localReleaseResponse(response, requestOrUrl) {
+  const requestedUrl = new URL(typeof requestOrUrl === 'string' ? requestOrUrl : requestOrUrl.url, self.registration.scope).href;
+  if (!response.url || response.url === requestedUrl) return response;
+  // A fetched mirror URL becomes the base for module imports unless removed.
+  // Re-wrap cached responses too: older workers stored that foreign base URL.
+  // The body is already decoded by fetch, so discard transport-only headers.
+  const headers = new Headers(response.headers);
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+  headers.delete('transfer-encoding');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 function fetchReleaseWithFallback(requestOrUrl, options = {}) {
   return new Promise((resolve, reject) => {
     const controllers = [new AbortController(), new AbortController()];
@@ -147,7 +160,7 @@ function fetchReleaseWithFallback(requestOrUrl, options = {}) {
       finished = true;
       clearTimeout(hedgeTimer);
       controllers[1 - index].abort();
-      resolve(response);
+      resolve(localReleaseResponse(response, requestOrUrl));
     };
     const startFallback = () => {
       if (finished || fallbackStarted) return;
@@ -321,7 +334,7 @@ async function cachedAppShell() {
       const cache = await caches.open(name);
       const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
         || (await cache.match(scopedUrl(''), { ignoreVary: true }));
-      if (response) return response;
+      if (response) return localReleaseResponse(response, scopedUrl('index.html'));
     }
     return null;
   });
@@ -341,7 +354,7 @@ async function networkFirstNavigation(request, event) {
     const cached = await cachedAppShell();
     if (cached) return cached;
     const offline = await cacheRead(() => caches.match(scopedUrl('offline.html'), { ignoreVary: true }));
-    return offline || new Response('Full Circle is reconnecting. Please try again.', {
+    return offline ? localReleaseResponse(offline, scopedUrl('offline.html')) : new Response('Full Circle is reconnecting. Please try again.', {
       status: 503,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
@@ -350,7 +363,7 @@ async function networkFirstNavigation(request, event) {
 
 async function cacheFirstAsset(request, event) {
   const cached = await cacheRead(() => caches.match(request, { ignoreSearch: true, ignoreVary: true }));
-  if (cached && validReleaseResponse(cached, request)) return cached;
+  if (cached && validReleaseResponse(cached, request)) return localReleaseResponse(cached, request);
   const response = await fetchReleaseWithFallback(request);
   keepAlive(event, safeCachePut(ASSET_CACHE, request, response.clone()));
   return response;
@@ -358,7 +371,7 @@ async function cacheFirstAsset(request, event) {
 
 async function cacheFirstShellFile(request, event) {
   const cached = await cacheRead(() => caches.match(request, { ignoreSearch: true, ignoreVary: true }));
-  if (cached) return cached;
+  if (cached) return localReleaseResponse(cached, request);
   const response = await fetchReleaseWithFallback(request);
   keepAlive(event, safeCachePut(SHELL_CACHE, request, response.clone()));
   return response;

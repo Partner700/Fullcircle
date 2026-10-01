@@ -35,10 +35,6 @@ export class AppErrorBoundary extends Component<Props, State> {
     this.retryQuietly();
   }
 
-  componentDidUpdate(_: Props, previousState: State) {
-    if (previousState.error && !this.state.error) this.recoveryAttempts = 0;
-  }
-
   componentWillUnmount() {
     if (this.retryTimer) window.clearTimeout(this.retryTimer);
     window.removeEventListener('online', this.retryAfterResume);

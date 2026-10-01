@@ -36,9 +36,11 @@ createRoot(appRoot).render(
   <StrictMode>
     <AppErrorBoundary>
       <AuthProvider>
-        <MessagingProvider>
-          <App />
-        </MessagingProvider>
+        <AppErrorBoundary>
+          <MessagingProvider>
+            <App />
+          </MessagingProvider>
+        </AppErrorBoundary>
       </AuthProvider>
     </AppErrorBoundary>
   </StrictMode>

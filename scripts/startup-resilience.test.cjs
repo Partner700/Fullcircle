@@ -57,7 +57,7 @@ function worker(fetcher, cache = memoryCaches()) {
   const time = clock(), requests = [], handlers = {}, navigation = [];
   const event = { jobs: [], waitUntil(promise) { this.jobs.push(promise); } };
   const context = vm.createContext({
-    URL, Response, AbortController, console, caches: cache,
+    URL, Response, Headers, AbortController, console, caches: cache,
     setTimeout: time.setTimeout, clearTimeout: time.clearTimeout,
     fetch: (request, options) => {
       const url = typeof request === 'string' ? request : request.url;
@@ -78,6 +78,12 @@ function worker(fetcher, cache = memoryCaches()) {
 }
 
 const response = (text = 'app', type = 'text/html') => new Response(text, { headers: { 'content-type': type } });
+function mirrorResponse(url, text = 'export const loaded = true;') {
+  const result = response(text, 'application/javascript');
+  Object.defineProperty(result, 'url', { value: url });
+  result.clone = () => mirrorResponse(url, text);
+  return result;
+}
 const request = (path = 'index.html') => ({ url: scope + path });
 const pendingUntilAborted = (signal) => new Promise((_, reject) => {
   if (signal.aborted) reject(new Error('aborted'));
@@ -85,6 +91,21 @@ const pendingUntilAborted = (signal) => new Promise((_, reject) => {
 });
 
 async function run() {
+  for (const cached of [false, true]) {
+    const asset = request('assets/screen-abc.js');
+    const cache = memoryCaches();
+    const foreignUrl = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/assets/screen-abc.js';
+    if (cached) await (await cache.open('full-circle-v147-v155-assets')).put(asset.url, mirrorResponse(foreignUrl));
+    const w = worker(async (url) => {
+      if (url.startsWith(scope)) throw new Error('Carrier failed');
+      return mirrorResponse(url);
+    }, cache);
+    const delivered = await w.cacheFirstAsset(asset, w.event);
+    assert.equal(delivered.url, '', 'Mirror responses, including old cached ones, must not change the module base URL.');
+    assert.equal(new URL('./runtime-abc.js', delivered.url || asset.url).href, scope + 'assets/runtime-abc.js');
+    assert.equal(await delivered.text(), 'export const loaded = true;');
+    assert.equal(w.requests.length, cached ? 0 : 2);
+  }
   {
     const w = worker(async () => response());
     assert.equal(await (await w.fetchReleaseWithFallback(request())).text(), 'app');

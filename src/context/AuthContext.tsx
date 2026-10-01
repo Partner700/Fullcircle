@@ -132,13 +132,19 @@ function pause(milliseconds: number) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, updateSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
   const [loading, setLoading] = useState(true);
   const authOperationRef = useRef(false);
+  const authRevisionRef = useRef(0);
+  const sessionRef = useRef<Session | null>(null);
   const profileRef = useRef<Profile | null>(null);
-  const profileLoadRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
+  const profileLoadRef = useRef<{ userId: string; revision: number; promise: Promise<void> } | null>(null);
+  const setSession = useCallback((value: Session | null) => {
+    sessionRef.current = value;
+    updateSession(value);
+  }, []);
 
   useEffect(() => {
     profileRef.current = profile;
@@ -154,7 +160,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback((userId: string) => {
     if (supabaseConfigError) return Promise.resolve();
-    if (profileLoadRef.current?.userId === userId) return profileLoadRef.current.promise;
+    const revision = authRevisionRef.current;
+    if (profileLoadRef.current?.userId === userId && profileLoadRef.current.revision === revision) return profileLoadRef.current.promise;
+    const applyCurrentIdentity = (prof: Profile, assignment: RoleAssignment) => {
+      if (revision === authRevisionRef.current && prof.id === userId && assignment.user_id === userId) {
+        applyIdentity(prof, assignment);
+      }
+    };
 
     const request = (async () => {
       // The bootstrap RPC returns the signed-in person's private profile and
@@ -188,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             approver_id: null,
             created_at: prof.created_at || new Date().toISOString(),
           };
-          applyIdentity(prof, assignment);
+          applyCurrentIdentity(prof, assignment);
           return;
         }
         if (attempt < 1 && !/could not find the function|get_my_app_bootstrap|schema cache/i.test(bootstrap.error?.message || '')) {
@@ -216,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!prof && profileError) throw profileError;
 
       if (!prof) {
+        if (revision !== authRevisionRef.current) return;
         profileRef.current = null;
         setProfile(null);
         setRoleAssignment(null);
@@ -251,13 +264,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approver_id: null,
         created_at: prof.created_at || new Date().toISOString(),
       };
-      applyIdentity(prof, assignment);
+      applyCurrentIdentity(prof, assignment);
     })();
 
     const shared = request.finally(() => {
       if (profileLoadRef.current?.promise === shared) profileLoadRef.current = null;
     });
-    profileLoadRef.current = { userId, promise: shared };
+    profileLoadRef.current = { userId, revision, promise: shared };
     return shared;
   }, [applyIdentity]);
 
@@ -268,12 +281,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let active = true;
+    const initialRevision = authRevisionRef.current;
     let listenerSession: Session | null | undefined;
     let recoveredSession: Session | null = null;
     const initialise = async () => {
       try {
         const { data } = await waitFor(supabase.auth.getSession(), 8_000, 'Session check');
-        if (!active) return;
+        if (!active || authOperationRef.current || initialRevision !== authRevisionRef.current) return;
         recoveredSession = data.session;
         setSession(data.session);
         if (data.session) {
@@ -290,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         // A slow/offline Supabase request must not strand the app on its loading screen.
         console.warn('Auth initialisation could not complete:', error);
-        if (active && !listenerSession) {
+        if (active && !listenerSession && !authOperationRef.current && initialRevision === authRevisionRef.current) {
           setSession(recoveredSession);
           if (!recoveredSession) {
             setProfile(null);
@@ -310,7 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // successful password session is authoritative during that handoff.
       if (!sess && authOperationRef.current) return;
       if (event === 'INITIAL_SESSION') {
-        if (!active) return;
+        if (!active || authOperationRef.current || initialRevision !== authRevisionRef.current) return;
         if (!sess) {
           setSession(null);
           setProfile(null);
@@ -338,6 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // this callback expose the session first can unmount the form before
       // complete_signup has created the profile on slower phones.
       if (sess && authOperationRef.current && event !== 'TOKEN_REFRESHED') return;
+      if (sess?.user.id !== sessionRef.current?.user.id) authRevisionRef.current += 1;
       setSession(sess);
       // A refreshed token does not change the profile or role. Avoid turning a
       // quick token refresh into a full-screen loading state.
@@ -369,16 +384,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       authListener.subscription.unsubscribe();
     };
-  }, [applyIdentity, loadProfile]);
+  }, [applyIdentity, loadProfile, setSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     if (supabaseConfigError) return { error: supabaseConfigError };
 
     authOperationRef.current = true;
-    setLoading(true);
-    setProfile(null);
-    profileRef.current = null;
-    setRoleAssignment(null);
+    authRevisionRef.current += 1;
+    // AuthScreen owns submission loading. Global loading unmounts that form,
+    // discarding its credentials and error message on an unsuccessful request.
     try {
       // signInWithPassword replaces any retained local session atomically.
       // Signing out first creates a race where a delayed SIGNED_OUT event can
@@ -397,13 +411,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(signedInSession);
       const cached = readCachedIdentity(signedInSession.user.id);
-      if (cached) applyIdentity(cached.profile, cached.roleAssignment, false);
-      try {
-        await waitFor(loadProfile(signedInSession.user.id), 28_000, 'Profile loading');
-      } catch (error) {
-        if (!cached) throw error;
-        console.warn('Signed in with the saved profile while the live profile reconnects:', error);
+      if (cached) {
+        applyIdentity(cached.profile, cached.roleAssignment, false);
+      } else {
+        profileRef.current = null;
+        setProfile(null);
+        setRoleAssignment(null);
       }
+      // Once authenticated, open the saved dashboard or the profile-recovery
+      // screen immediately. A delayed profile must not undo a valid sign-in.
+      void waitFor(loadProfile(signedInSession.user.id), 28_000, 'Profile loading')
+        .catch((error) => console.warn('Signed-in profile is reconnecting:', error));
       return { error: null };
     } catch (signInError) {
       console.warn('Mobile sign-in could not complete:', signInError);
@@ -417,13 +435,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authOperationRef.current = false;
       setLoading(false);
     }
-  }, [applyIdentity, loadProfile]);
+  }, [applyIdentity, loadProfile, setSession]);
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string, role: Role, matricule?: string) => {
       if (supabaseConfigError) return { error: supabaseConfigError };
 
       authOperationRef.current = true;
+      authRevisionRef.current += 1;
       const normalizedEmail = email.trim().toLowerCase();
       const trimmedDisplayName = displayName.trim();
 
@@ -550,18 +569,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authOperationRef.current = false;
       }
     },
-    [loadProfile],
+    [loadProfile, setSession],
   );
 
   const signOut = useCallback(async () => {
     authOperationRef.current = true;
+    authRevisionRef.current += 1;
     setLoading(false);
     setSession(null);
     profileRef.current = null;
     setProfile(null);
     setRoleAssignment(null);
 
-    if (supabaseConfigError) return;
+    if (supabaseConfigError) {
+      authOperationRef.current = false;
+      return;
+    }
 
     try {
       await Promise.race([
@@ -575,7 +598,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authOperationRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [setSession]);
 
   const refreshProfile = useCallback(async () => {
     if (session) await loadProfile(session.user.id);
