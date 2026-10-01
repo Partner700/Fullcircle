@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import {
   fetchLatestQuizSession,
@@ -15,6 +15,7 @@ import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { useAuth } from '../context/AuthContext';
 import { UserAvatar } from './UserAvatar';
+import { startVisiblePolling } from '../lib/visiblePolling';
 
 export function QuizResponders({
   sessionId,
@@ -34,16 +35,17 @@ export function QuizResponders({
   const [board, setBoard] = useState<QuizResponseBoardMember[]>([]);
   const [rankings, setRankings] = useState<WeeklyQuizRanking[]>([]);
   const [loading, setLoading] = useState(false);
+  const refreshRef = useRef<() => void>(() => undefined);
 
   const load = useCallback(async () => {
     if (!active) return;
-    setLoading((current) => current || board.length === 0);
+    setLoading(true);
     try {
       let quizSessionId = sessionId || null;
       if (!sessionId) {
         const session = await fetchLatestQuizSession();
         quizSessionId = session?.id || null;
-        if (quizSessionId !== resolvedSessionId) setResolvedSessionId(quizSessionId);
+        setResolvedSessionId(quizSessionId);
       }
       if (!quizSessionId) {
         setBoard([]);
@@ -71,7 +73,7 @@ export function QuizResponders({
     } finally {
       setLoading(false);
     }
-  }, [active, board.length, competitorRole, resolvedSessionId, sessionId]);
+  }, [active, competitorRole, sessionId]);
 
   useEffect(() => {
     setResolvedSessionId(sessionId || null);
@@ -81,9 +83,12 @@ export function QuizResponders({
 
   useEffect(() => {
     if (!active) return;
-    void load();
-    const interval = window.setInterval(() => void load(), 15_000);
-    return () => window.clearInterval(interval);
+    const polling = startVisiblePolling(load, 60_000);
+    refreshRef.current = polling.refresh;
+    return () => {
+      polling.stop();
+      refreshRef.current = () => undefined;
+    };
   }, [active, load]);
 
   useEffect(() => {
@@ -96,10 +101,10 @@ export function QuizResponders({
         schema: 'public',
         table: 'quiz_attempts',
         filter: `quiz_session_id=eq.${quizSessionId}`,
-      }, () => void load())
+      }, () => refreshRef.current())
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [active, load, resolvedSessionId, sessionId, variant]);
+  }, [active, resolvedSessionId, sessionId, variant]);
 
   const isSlide = variant === 'slide';
   const visibleBoard = useMemo(

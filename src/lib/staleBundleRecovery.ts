@@ -1,7 +1,7 @@
 const RECOVERY_KEY = 'full-circle-stale-bundle-recovery-at';
 const RECOVERY_WINDOW_MS = 300_000;
 const MOBILE_DATA_COPY = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/index.html';
-const RELEASE_MARKER = '156';
+const RELEASE_MARKER = '157';
 let lastRecoveryInMemory = 0;
 
 const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css/i;

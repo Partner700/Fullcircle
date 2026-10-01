@@ -713,7 +713,7 @@ function AnnouncementManager() {
   const uploadImage = async (file: File, type: string, targetAudience = 'all') => {
     setUploadingImageType(type);
     try {
-      const prepared = await prepareImageUpload(file, { maxDimension: 2400 });
+      const prepared = await prepareImageUpload(file);
       const version = Date.now();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
       const { data: authData, error: authError } = await supabase.auth.getUser();

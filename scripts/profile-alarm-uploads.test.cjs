@@ -36,7 +36,7 @@ async function testUploads() {
   const reduced = await uploads.prepareImageUpload(photo);
   assert.equal(reduced.extension, 'png', 'Canvas fallback must match real output MIME');
   assert.equal(reduced.file.type, 'image/png');
-  assert.equal(canvas.width, 2200); assert.equal(canvas.height, 1467); assert.equal(closed, 2);
+  assert.equal(canvas.width, 1600); assert.equal(canvas.height, 1067); assert.equal(closed, 2);
   await assert.rejects(uploads.prepareImageUpload(new File(['bad'], 'photo.svg', { type: 'image/svg+xml' })), /Choose a JPEG/);
   await assert.rejects(uploads.prepareImageUpload(new File([], 'empty.jpg')), /between 1 byte/);
   await assert.rejects(uploads.prepareImageUpload(photo, { maxBytes: 2 }), /between 1 byte/);

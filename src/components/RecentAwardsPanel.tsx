@@ -12,10 +12,11 @@ import { MessageAvatar } from './TentMessenger';
 import { AwardBadgeGlyph } from './VallumAvatarBadge';
 import { VallumText } from './ChiRhoMark';
 import { updateReactionOptimistically } from '../lib/reactionState';
+import { startVisiblePolling } from '../lib/visiblePolling';
 
 type RecentAward = AwardWithRecipient;
 
-function weeklyPublishedAwards(awards: RecentAward[]) {
+function weeklyPublishedSince() {
   const now = new Date();
   // Cameroon is UTC+1 year-round. Calculate its Saturday boundary without
   // depending on the viewer's device timezone.
@@ -26,7 +27,7 @@ function weeklyPublishedAwards(awards: RecentAward[]) {
     doualaClock.getUTCDate() - ((doualaClock.getUTCDay() + 1) % 7),
   );
   const saturdayUtc = saturdayDoualaClock - 60 * 60 * 1000;
-  return awards.filter((award) => new Date(award.created_at).getTime() >= saturdayUtc);
+  return new Date(saturdayUtc).toISOString();
 }
 
 export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
@@ -41,16 +42,18 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
 
   const load = useCallback(async () => {
     const [awardResult, imageResult] = await Promise.allSettled([
-      fetchAwards(),
+      fetchAwards(weeklyPublishedSince()),
       fetchPanelImageSetting('recent_awards'),
     ]);
-    const allAwards = weeklyPublishedAwards(awardResult.status === 'fulfilled' ? awardResult.value as RecentAward[] : []);
+    if (imageResult.status === 'fulfilled') setImage(imageResult.value);
+    if (awardResult.status !== 'fulfilled') return;
+    const allAwards = awardResult.value;
     setAwards(allAwards);
-    setImage(imageResult.status === 'fulfilled' ? imageResult.value : null);
-    if (profile && allAwards.length > 0) {
-      setReactions(await fetchAwardReactions(allAwards.map((award) => award.id), profile.id).catch(() => ({})));
+    if (profile?.id && allAwards.length > 0) {
+      const refreshed = await fetchAwardReactions(allAwards.map((award) => award.id), profile.id).catch(() => null);
+      if (refreshed) setReactions(refreshed);
     }
-  }, [profile]);
+  }, [profile?.id]);
 
   const handleReaction = async (awardId: string, reactionType: string) => {
     if (!profile || reacting) return;
@@ -75,9 +78,8 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   };
 
   useEffect(() => {
-    void load();
-    const interval = window.setInterval(() => { void load(); }, 30_000);
-    return () => window.clearInterval(interval);
+    const polling = startVisiblePolling(load, 30_000);
+    return polling.stop;
   }, [load]);
 
   useAutoAdvance(awards.length > 1 && !messageOpen && !held, () => {

@@ -5,6 +5,7 @@ import type { WeeklyQuizRanking } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
 import { UserAvatar } from './UserAvatar';
+import { startVisiblePolling } from '../lib/visiblePolling';
 
 type QuizDivision = 'cadet' | 'sentry';
 
@@ -18,7 +19,7 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
       const divisions: QuizDivision[] = role === 'sentry' || role === 'instructor'
         ? ['cadet', 'sentry']
         : ['cadet'];
-      void Promise.all(divisions.map(async (division) => (
+      return Promise.all(divisions.map(async (division) => (
         [division, await fetchLatestWeeklyQuizRankings(sessionId, division)] as const
       )))
         .then((results) => {
@@ -30,11 +31,10 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
         })
         .catch(() => undefined);
     };
-    load();
-    const interval = window.setInterval(load, 60_000);
+    const polling = startVisiblePolling(load, 60_000);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      polling.stop();
     };
   }, [role, sessionId]);
 

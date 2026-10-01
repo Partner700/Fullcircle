@@ -13,14 +13,24 @@ import type {
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement, selectPanelImageAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
-import { imageFileType, prepareImageUpload } from './uploads';
+import { AVATAR_UPLOAD_OPTIONS, imageFileType, prepareImageUpload } from './uploads';
 import { uploadAppFile } from './storageUploads';
 import { getDayType, getTodayISODate } from './utils';
 import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
 import { parseLiveStats, type UserLiveStats } from './liveStats';
+import { createReadCache } from './readCache';
 
 const sharedReadRequests = new Map<string, Promise<unknown>>();
+const panelImageReads = createReadCache<Record<string, PanelImageSetting>>(60_000);
+let panelImageReader: string | null = null;
+supabase.auth.onAuthStateChange((event, session) => {
+  const nextReader = session?.user.id || null;
+  if (nextReader !== panelImageReader || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+    panelImageReads.clear();
+    panelImageReader = nextReader;
+  }
+});
 let lastReminderBootstrapAt = 0;
 
 function shareReadRequest<T>(key: string, factory: () => Promise<T>): Promise<T> {
@@ -1292,11 +1302,13 @@ export async function fetchLeaderboardSnapshots() {
   return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
-export async function fetchAwards(): Promise<AwardWithRecipient[]> {
-  const { data, error } = await supabase
+export async function fetchAwards(createdSince?: string): Promise<AwardWithRecipient[]> {
+  let query = supabase
     .from('awards')
     .select('*, profiles(display_name, avatar_url)')
     .order('created_at', { ascending: false });
+  if (createdSince) query = query.gte('created_at', createdSince);
+  const { data, error } = await query;
   if (error) throw error;
   const awards = data as AwardWithRecipient[];
   const userIds = Array.from(new Set(awards
@@ -1494,7 +1506,7 @@ export async function fetchPanelImageSettings(
   if (announcementTypes.length === 0) return {};
   const normalizedTypes = [...announcementTypes].sort();
   const normalizedAudiences = Array.from(new Set(audiences)).sort();
-  return shareReadRequest(`panel-images:${normalizedTypes.join(',')}:${normalizedAudiences.join(',')}`, async () => {
+  return panelImageReads.read(`${normalizedTypes.join(',')}:${normalizedAudiences.join(',')}`, async () => {
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('scheduled_announcements')
@@ -1618,6 +1630,7 @@ export async function removeFcxRegistration(registrationId: string) {
 export async function createAnnouncement(announcement: Omit<ScheduledAnnouncement, 'id'>) {
   const { error } = await supabase.from('scheduled_announcements').insert(announcement);
   if (error) throw error;
+  panelImageReads.clear();
 }
 
 export async function savePanelImageSetting(setting: {
@@ -1637,17 +1650,20 @@ export async function savePanelImageSetting(setting: {
     p_position_y: setting.positionY,
   });
   if (error) throw error;
+  panelImageReads.clear();
   return data;
 }
 
 export async function updateAnnouncement(id: string, patch: Partial<Omit<ScheduledAnnouncement, 'id'>>) {
   const { error } = await supabase.from('scheduled_announcements').update(patch).eq('id', id);
   if (error) throw error;
+  panelImageReads.clear();
 }
 
 export async function deleteAnnouncement(id: string) {
   const { error } = await supabase.from('scheduled_announcements').delete().eq('id', id);
   if (error) throw error;
+  panelImageReads.clear();
 }
 
 export async function fetchUserNotifications(userId: string, limit = 30) {
@@ -1741,7 +1757,7 @@ export async function uploadChallengeEvidence(userId: string, file: File) {
   if (isPdf && (file.size <= 0 || file.size > 12 * 1024 * 1024)) throw new Error('Choose a PDF smaller than 12 MB.');
   const prepared = isPdf
     ? { file: new File([file], file.name, { type: 'application/pdf' }), extension: 'pdf' }
-    : await prepareImageUpload(file);
+    : await prepareImageUpload(file, { maxDimension: 2200, outputMaxBytes: 768 * 1024 });
   const path = `${userId}/challenge-evidence/${crypto.randomUUID()}.${prepared.extension}`;
   const url = await uploadAppFile(path, prepared.file);
   return {
@@ -2892,7 +2908,7 @@ export async function fetchFortuneQuizSession() {
 // ── Avatar upload ──
 
 export async function uploadAvatar(userId: string, file: File) {
-  const prepared = await prepareImageUpload(file, { maxDimension: 1024 });
+  const prepared = await prepareImageUpload(file, AVATAR_UPLOAD_OPTIONS);
   const version = Date.now();
   const path = `${userId}/avatar-${version}.${prepared.extension}`;
   const uploadedUrl = await uploadAppFile(path, prepared.file);
@@ -2918,12 +2934,13 @@ export async function uploadFcxGuestAvatar(eventId: string, file: File) {
   if (authError) throw authError;
   if (!authData.user) throw new Error('Sign in before adding an FCX participant photo.');
 
-  const prepared = await prepareImageUpload(file, { maxDimension: 1024, maxBytes: 8 * 1024 * 1024 });
+  const prepared = await prepareImageUpload(file, { ...AVATAR_UPLOAD_OPTIONS, maxBytes: 8 * 1024 * 1024 });
   const version = Date.now();
   const path = `${authData.user.id}/fcx/${eventId}/guest-${version}.${prepared.extension}`;
   const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
     upsert: false,
     contentType: prepared.file.type,
+    cacheControl: '31536000',
   });
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -2934,7 +2951,9 @@ export async function uploadTentProfileImage(userId: string, tentId: string, fil
   const prepared = await prepareImageUpload(file, { maxDimension: 1600, maxBytes: 10 * 1024 * 1024 });
   const version = Date.now();
   const path = `${userId}/tents/${tentId}/profile-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, { upsert: true, contentType: prepared.file.type });
+  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
+    upsert: true, contentType: prepared.file.type, cacheControl: '31536000',
+  });
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
   const publicUrl = `${data.publicUrl}?v=${version}`;

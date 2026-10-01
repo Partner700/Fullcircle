@@ -5,7 +5,9 @@ const IMAGE_TYPES: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
   avif: 'image/avif', heic: 'image/heic', heif: 'image/heif',
 };
-type ImageUploadOptions = { maxDimension?: number; maxBytes?: number; quality?: number };
+type ImageUploadOptions = { maxDimension?: number; maxBytes?: number; quality?: number; outputMaxBytes?: number };
+
+export const AVATAR_UPLOAD_OPTIONS = { maxDimension: 640, outputMaxBytes: 160 * 1024 };
 
 export function imageFileType(file: Pick<File, 'name' | 'type'>) {
   const supplied = file.type.toLowerCase();
@@ -44,9 +46,11 @@ async function decodeImage(file: File) {
 }
 
 export async function prepareImageUpload(file: File, options: ImageUploadOptions = {}) {
-  const maxDimension = options.maxDimension ?? 2200;
+  const maxDimension = options.maxDimension ?? 1600;
   const maxBytes = options.maxBytes ?? 25 * 1024 * 1024;
-  const quality = options.quality ?? 0.86;
+  const quality = options.quality ?? 0.82;
+  const outputMaxBytes = options.outputMaxBytes ?? 512 * 1024;
+  if (maxDimension <= 0 || outputMaxBytes <= 0) throw new Error('Invalid image size limit.');
   const type = imageFileType(file);
   if (!Object.values(IMAGE_TYPES).includes(type)) throw new Error('Choose a JPEG, PNG, WebP, AVIF, or supported HEIC photo.');
   if (file.size <= 0 || file.size > maxBytes) {
@@ -57,13 +61,13 @@ export async function prepareImageUpload(file: File, options: ImageUploadOptions
   try {
     if (!decoded.width || !decoded.height) throw new Error('The photo has no readable image.');
     const scale = Math.min(1, maxDimension / Math.max(decoded.width, decoded.height));
-    if (scale === 1 && file.size <= 900 * 1024 && IMAGE_EXTENSIONS[type]) {
+    if (scale === 1 && file.size <= outputMaxBytes && IMAGE_EXTENSIONS[type]) {
       return { file: typedFile, extension: IMAGE_EXTENSIONS[type] };
     }
     const canvas = document.createElement('canvas');
     let width = Math.max(1, Math.round(decoded.width * scale));
     let height = Math.max(1, Math.round(decoded.height * scale));
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
       canvas.width = width;
       canvas.height = height;
       const context = canvas.getContext('2d', { alpha: true });
@@ -74,7 +78,7 @@ export async function prepareImageUpload(file: File, options: ImageUploadOptions
       const blob = await canvasBlob(canvas, 'image/webp', Math.max(0.55, quality - attempt * 0.1));
       // Browsers can fall back to PNG when WebP encoding is unavailable.
       const extension = blob && IMAGE_EXTENSIONS[blob.type];
-      if (blob && extension && blob.size > 0 && blob.size <= 4.5 * 1024 * 1024) {
+      if (blob && extension && blob.size > 0 && blob.size <= outputMaxBytes) {
         return { file: new File([blob], (file.name.replace(/\.[^.]+$/, '') || 'image') + '.' + extension, { type: blob.type }), extension };
       }
       width = Math.max(1, Math.round(width * 0.75));
