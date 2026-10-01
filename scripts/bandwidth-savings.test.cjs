@@ -141,8 +141,45 @@ async function testVisiblePolling() {
   console.log('Hidden/offline pause, foreground catch-up, request coalescing and disposal passed');
 }
 
+async function testDiagnosticsAndPages() {
+  const { createEgressDiagnostics, diagnosticRoute } = load('src/lib/egressDiagnostics.ts', { URL, Request, Response, setTimeout, clearTimeout });
+  const diagnostics = createEgressDiagnostics();
+  const url = 'https://example.supabase.co/rest/v1/profiles?id=eq.private-user';
+  assert.equal(diagnosticRoute(url), 'database/profiles');
+  const response = new Response(JSON.stringify({ value: 'test' }));
+  await diagnostics.record(url, 'GET', response, 10);
+  assert.equal(await response.text(), '{"value":"test"}', 'Diagnostics never consume the app response');
+  assert.equal(diagnostics.report()[0].decodedBytes, 16);
+  assert.ok(!JSON.stringify(diagnostics.report()).includes('private-user'));
+  await diagnostics.record('https://example.supabase.co/auth/v1/token', 'POST', new Response('secret'), 1);
+  assert.equal(diagnostics.report().find(row => row.route.endsWith('auth')).decodedBytes, 0);
+  diagnostics.reset(); assert.equal(diagnostics.report().length, 0);
+
+  const { mergeMessagePage, messageCursorFilter } = load('src/lib/messagePages.ts');
+  const make = (id, created_at) => ({ id: `00000000-0000-0000-0000-${String(id).padStart(12, '0')}`, created_at, body: String(id) });
+  const a = make(2, '2026-10-01T10:00:00.000001+00:00');
+  const b = make(1, '2026-10-01T10:00:00.000002+00:00');
+  const merged = mergeMessagePage([b], [a, { ...b, body: 'edited' }]);
+  assert.equal(merged.length, 2); assert.equal(merged[0].id, a.id);
+  assert.equal(merged[1].body, 'edited');
+  assert.match(messageCursorFilter(a, 'before'), /000001\+00:00/, 'Keep microseconds in the cursor');
+  assert.match(messageCursorFilter(b, 'after'), /id.gt./);
+  assert.throws(() => messageCursorFilter({ ...a, id: 'bad),id.eq.any' }, 'after'));
+
+  const { subscribeToScopedChanges } = load('src/lib/scopedRealtime.ts');
+  const subscriptions = [];
+  const channel = { on: (...args) => { subscriptions.push(args); return channel; } };
+  subscribeToScopedChanges(channel, 'daily_quote_reactions', 'quote_record_date', ['2026-10-01', '2026-10-01'], () => {});
+  assert.equal(subscriptions.length, 3);
+  assert.equal(subscriptions[0][1].filter, 'quote_record_date=in.(2026-10-01)');
+  assert.equal(subscriptions[2][1].event, 'DELETE');
+  assert.equal(subscriptions[2][1].filter, undefined, 'Unlikes still refresh because DELETE cannot be filtered');
+  console.log('Private diagnostics, non-consuming measurements, microsecond cursors, message merging and scoped unlike subscriptions passed');
+}
+
 (async () => {
   await testImageBudgets();
   await testReadCache();
   await testVisiblePolling();
+  await testDiagnosticsAndPages();
 })().catch(error => { console.error(error); process.exitCode = 1; });

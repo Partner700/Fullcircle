@@ -8,7 +8,7 @@ import { MessageAvatar } from '../../components/TentMessenger';
 import { Dove } from '../../components/Dove';
 import { UserAvatar } from '../../components/UserAvatar';
 import { RelativeTime } from '../../components/RelativeTime';
-import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchNarratives, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordExternalShare, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
+import { addVerseInsightComment, editVerseInsight, editVerseInsightComment, fetchCampMentionCandidates, fetchNarrative, fetchReadingArchivePage, type ReadingArchiveItem, fetchChallengeSubmission, fetchPanelImageSetting, fetchVerseInsights, recordExternalShare, recordSundayReadingOpen, saveVerseInsight, toggleVerseInsightReaction, uploadChallengeEvidence, upsertChallengeSubmission } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { getDayType, getTodayISODate, getAppClock, cn } from '../../lib/utils';
 import { MEDITATION_CUTOFF_HOUR, MEDITATION_CUTOFF_MINUTE } from '../../lib/constants';
@@ -16,6 +16,7 @@ import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelIm
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
+import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import {
   fetchPendingHiddenVerseMarkers,
   readingVerseChallengeKey,
@@ -26,7 +27,7 @@ import {
   BookOpen, BookMarked, Heart, Lightbulb, Target, CheckCircle2, Save, Sparkles,
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
-  MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight,
+  MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight, ChevronDown,
   Lock, Share2,
 } from 'lucide-react';
 
@@ -212,12 +213,6 @@ function readingArchiveGroups<T extends { narrative_date: string }>(items: T[]) 
   }));
 }
 
-type ArchivedReading = DailyNarrative & {
-  meditation_text: string | null;
-  best_verse: string | null;
-  daily_quote: string | null;
-};
-
 function ReadingArchiveBrowser({
   open,
   loading,
@@ -225,13 +220,19 @@ function ReadingArchiveBrowser({
   image,
   onToggle,
   onOpenReading,
+  hasMore,
+  error,
+  onLoadMore,
 }: {
   open: boolean;
   loading: boolean;
-  readings: ArchivedReading[];
+  readings: ReadingArchiveItem[];
   image: PanelImageSetting | null;
   onToggle: () => void;
   onOpenReading: (date: string) => void;
+  hasMore: boolean;
+  error: string;
+  onLoadMore: () => void;
 }) {
   const groups = useMemo(() => readingArchiveGroups(readings), [readings]);
   return (
@@ -249,7 +250,7 @@ function ReadingArchiveBrowser({
       {open && (
         <div className="relative z-10 mt-4 space-y-5">
           {loading && <p className="text-xs text-stone">Loading your reading archive...</p>}
-          {!loading && readings.length === 0 && <p className="text-xs text-stone">No previous readings are available yet.</p>}
+          {!loading && !error && readings.length === 0 && <p className="text-xs text-stone">No previous readings are available yet.</p>}
           {groups.map((month) => (
             <section key={month.key} className="space-y-3">
               <div className="flex items-center gap-2 border-b border-border pb-2">
@@ -273,7 +274,7 @@ function ReadingArchiveBrowser({
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-bold text-ink">{item.title}</span>
                           <span className="mt-0.5 block truncate text-[10px] text-stone">{item.scripture_reference}</span>
-                          {item.meditation_text && <span className="mt-1 block text-[9px] font-bold uppercase text-moss">Meditation saved</span>}
+                          {item.meditation_submitted && <span className="mt-1 block text-[9px] font-bold uppercase text-moss">Meditation saved</span>}
                         </span>
                         <ChevronRight size={15} className="flex-shrink-0 text-stone transition-transform group-hover:translate-x-0.5 group-hover:text-brass" />
                       </button>
@@ -283,6 +284,8 @@ function ReadingArchiveBrowser({
               ))}
             </section>
           ))}
+          {error && <p role="alert" className="text-xs text-coral">{error}</p>}
+          {(hasMore || error) && <button type="button" disabled={loading} className="btn-secondary text-xs" onClick={onLoadMore}><ChevronDown size={14} />{error ? 'Try again' : 'Earlier readings'}</button>}
         </div>
       )}
     </section>
@@ -334,8 +337,13 @@ export function CadetNarrative({
   const [campMentionCandidates, setCampMentionCandidates] = useState<CampMentionCandidate[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [readingHistory, setReadingHistory] = useState<ArchivedReading[]>([]);
+  const [readingHistory, setReadingHistory] = useState<ReadingArchiveItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const historyPending = useRef(false);
+  const historyOwner = useRef(profile?.id);
+  historyOwner.current = profile?.id;
   const [archiveDate, setArchiveDate] = useState<string | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -561,22 +569,30 @@ export function CadetNarrative({
       });
   }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
 
+  useEffect(() => {
+    setReadingHistory([]);
+    setHistoryHasMore(false);
+    setHistoryError('');
+  }, [profile?.id]);
+
   const loadHistory = async () => {
-    if (!profile || historyLoading) return;
+    if (!profile || historyPending.current) return;
+    const userId = profile.id;
+    historyPending.current = true;
     setHistoryLoading(true);
     try {
-      const [pastNarratives, recordsResult] = await Promise.all([
-        fetchNarratives(370),
-        supabase.from('daily_records').select('record_date,meditation_text,best_verse,daily_quote').eq('user_id', profile.id).order('record_date', { ascending: false }),
-      ]);
-      const recordByDate = new Map((recordsResult.data || []).map((record) => [record.record_date, record]));
-      setReadingHistory(pastNarratives
-        .filter((item) => item.narrative_date < today)
-        .map((item) => ({ ...item, ...(recordByDate.get(item.narrative_date) || { meditation_text: null, best_verse: null, daily_quote: null }) })));
+      const page = await fetchReadingArchivePage(userId, readingHistory[readingHistory.length - 1]?.narrative_date || today);
+      if (historyOwner.current !== userId) return;
+      setReadingHistory(current => [...current, ...page.readings]);
+      setHistoryHasMore(page.hasMore);
+      setHistoryError('');
     } catch (error) {
       console.error('Reading history load error:', error);
+      if (historyOwner.current === userId) setHistoryError('Reading archive could not load. Please try again.');
+    } finally {
+      historyPending.current = false;
+      setHistoryLoading(false);
     }
-    setHistoryLoading(false);
   };
 
   useEffect(() => {
@@ -660,11 +676,13 @@ export function CadetNarrative({
     return () => { void supabase.removeChannel(channel); };
   }, [conversationNarrativeIds, profile?.id, reloadHiddenVerseMarkers]);
 
+  const visibleInsightIds = useMemo(() => verseInsights.map(insight => String(insight.id)).sort().join(','), [verseInsights]);
   useEffect(() => {
     if (!narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
     let refreshTimer: number | null = null;
 
     const refreshInsights = () => {
+      if (document.visibilityState !== 'visible') return;
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         void reloadVerseInsights();
@@ -675,16 +693,17 @@ export function CadetNarrative({
     conversationNarrativeIds.forEach((narrativeId) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `narrative_id=eq.${narrativeId}` }, refreshInsights);
     });
-    channel
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_insight_comments' }, refreshInsights)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_insight_reactions' }, refreshInsights)
-      .subscribe();
+    subscribeToScopedChanges(channel, 'scripture_insight_comments', 'insight_id', visibleInsightIds.split(','), refreshInsights);
+    subscribeToScopedChanges(channel, 'scripture_insight_reactions', 'insight_id', visibleInsightIds.split(','), refreshInsights);
+    channel.subscribe();
+    document.addEventListener('visibilitychange', refreshInsights);
 
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      document.removeEventListener('visibilitychange', refreshInsights);
       void supabase.removeChannel(channel);
     };
-  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights]);
+  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds]);
 
   useEffect(() => {
     const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
@@ -926,8 +945,11 @@ export function CadetNarrative({
           open={showHistory}
           loading={historyLoading}
           readings={readingHistory}
+          hasMore={historyHasMore}
+          error={historyError}
+          onLoadMore={() => void loadHistory()}
           image={readingImage}
-          onToggle={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}
+          onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
           onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
         />
       </div>
@@ -1460,8 +1482,11 @@ export function CadetNarrative({
         open={showHistory}
         loading={historyLoading}
         readings={readingHistory}
+        hasMore={historyHasMore}
+        error={historyError}
+        onLoadMore={() => void loadHistory()}
         image={readingImage}
-        onToggle={() => { const next = !showHistory; setShowHistory(next); if (next) void loadHistory(); }}
+        onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
         onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
       />
 

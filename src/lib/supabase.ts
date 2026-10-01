@@ -1,4 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { createEgressDiagnostics } from './egressDiagnostics';
+
+const diagnostics = import.meta.env.DEV ? createEgressDiagnostics() : null;
+if (diagnostics && typeof window !== 'undefined') {
+  Object.assign(window, { fullCircleEgress: diagnostics });
+}
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -33,6 +39,7 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
   let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const startedAt = Date.now();
     const controller = new AbortController();
     const upstreamSignal = init?.signal
       || (typeof Request !== 'undefined' && input instanceof Request ? input.signal : undefined);
@@ -46,12 +53,14 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
         ? input.clone()
         : input;
       const response = await fetch(requestInput, { ...init, signal: controller.signal });
+      void diagnostics?.record(input, method, response, Date.now() - startedAt).catch(() => undefined);
       if (canRetry && attempt === 0 && RETRYABLE_RESPONSE_STATUSES.has(response.status)) {
         await pause(350);
         continue;
       }
       return response;
     } catch (error) {
+      void diagnostics?.record(input, method, null, Date.now() - startedAt).catch(() => undefined);
       lastError = error;
       if (!canRetry || attempt === attempts - 1 || upstreamSignal?.aborted) throw error;
       await pause(350);

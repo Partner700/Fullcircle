@@ -73,8 +73,9 @@ assert.doesNotMatch(activityMigration, /attempt\.score|participant\.score|attemp
 assert.match(queries, /fetchGameActivityPlayers/);
 assert.match(activityProfiles, /UserAvatar/);
 assert.match(activityProfilesHook, /fetchGameActivityPlayers\(date\)/);
-assert.match(activityProfilesHook, /REFRESH_INTERVAL_MS = 20_000/);
-assert.match(activityProfilesHook, /visibilitychange/);
+assert.match(activityProfilesHook, /REFRESH_INTERVAL_MS = 60_000/);
+assert.match(activityProfilesHook, /startVisiblePolling\(refresh, REFRESH_INTERVAL_MS\)/);
+assert.match(activityProfilesHook, /polling.stop\(\)/);
 assert.match(cadetApp, /CADET_TABS[^\n]*'game', 'arena', 'story'/);
 assert.match(sentryApp, /SENTRY_TABS[^\n]*'game', 'arena', 'story'/);
 assert.match(appShell, /activeKey: string;\s+navActiveKey\?: string;/);

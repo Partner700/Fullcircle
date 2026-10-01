@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchGameActivityPlayers } from '../lib/queries';
 import type { GameActivityPlayer } from '../lib/types';
 import { getTodayISODate } from '../lib/utils';
+import { startVisiblePolling } from '../lib/visiblePolling';
 
-const REFRESH_INTERVAL_MS = 20_000;
+const REFRESH_INTERVAL_MS = 60_000;
 
 export function useGameActivityPlayers(date = getTodayISODate()) {
   const [players, setPlayers] = useState<GameActivityPlayer[]>([]);
@@ -24,16 +25,10 @@ export function useGameActivityPlayers(date = getTodayISODate()) {
       }
     };
 
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void refresh();
-    };
-    document.addEventListener('visibilitychange', onVisible);
+    const polling = startVisiblePolling(refresh, REFRESH_INTERVAL_MS);
     return () => {
       active = false;
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
+      polling.stop();
     };
   }, [load]);
 

@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { fetchTentMessages, sendTentMessage, editTentMessage, markTentMessageRead, fetchDirectMessages, sendDirectMessage, editDirectMessage, markDirectMessageRead, fetchTentGroupMessages, sendTentGroupMessage, editTentGroupMessage, fetchPanelImageSetting, markOpenMessageNotificationsRead } from '../lib/queries';
-import type { DirectMessage, PanelImageSetting, Profile, TentGroupMessage, TentMessage } from '../lib/types';
-import { AtSign, X, Send, Loader2, PhoneCall, Users, Pencil, Check } from 'lucide-react';
+import { fetchMessagePage, fetchConversationHiddenClaims, markMessagesRead, sendTentMessage, editTentMessage, sendDirectMessage, editDirectMessage, sendTentGroupMessage, editTentGroupMessage, fetchPanelImageSetting, markOpenMessageNotificationsRead } from '../lib/queries';
+import type { PanelImageSetting, Profile } from '../lib/types';
+import { AtSign, X, Send, Loader2, PhoneCall, Users, Pencil, Check, ChevronUp, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useMessaging } from '../context/MessagingContext';
 import { useSubscriptionAccess } from '../context/SubscriptionAccessContext';
@@ -13,6 +13,33 @@ import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { UserAvatar } from './UserAvatar';
 import { setOpenMessageContext } from '../lib/messageOpenState';
 import { requestAudioCall } from '../lib/audioCalls';
+import { useMessageHistory } from '../hooks/useMessageHistory';
+import type { ChatMessage, MessagePageOptions } from '../lib/messagePages';
+
+function useChatScroll(messages: ChatMessage[], loadingOlder: boolean) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const anchor = useRef<{ height: number; top: number } | null>(null);
+  const stickToBottom = useRef(true);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    if (anchor.current && !loadingOlder) {
+      element.scrollTop = anchor.current.top + element.scrollHeight - anchor.current.height;
+      anchor.current = null;
+    } else if (!anchor.current && stickToBottom.current) element.scrollTop = element.scrollHeight;
+  }, [messages, loadingOlder]);
+  return {
+    ref,
+    onScroll: () => {
+      const element = ref.current;
+      if (element) stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 60;
+    },
+    preserve: () => {
+      const element = ref.current;
+      if (element) anchor.current = { height: element.scrollHeight, top: element.scrollTop };
+    },
+  };
+}
 
 interface TentMessengerProps {
   recipient: Profile;
@@ -24,61 +51,60 @@ interface TentMessengerProps {
 
 export function TentMessenger({ recipient, senderId, tentId, onClose, onMessagesRead }: TentMessengerProps) {
   const { hasAccess, requireSubscription } = useSubscriptionAccess();
-  const [messages, setMessages] = useState<((TentMessage | DirectMessage) & { sender?: { display_name: string; avatar_url: string | null } })[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
   const [messageArtwork, setMessageArtwork] = useState<PanelImageSetting | null>(null);
-  const revealedClaimSetRef = useRef('');
-
-  const load = useCallback(async () => {
-    if (!hasAccess) {
-      setMessages([]);
-      setLoading(false);
-      return;
+  const revealedClaims = useRef(new Set<string>());
+  const conversationKey = `${senderId}:${recipient.id}:${tentId || ''}`;
+  const liveConversation = useRef(conversationKey);
+  useEffect(() => {
+    liveConversation.current = conversationKey;
+    return () => { liveConversation.current = ''; };
+  }, [conversationKey]);
+  const onReadRef = useRef(onMessagesRead);
+  onReadRef.current = onMessagesRead;
+  const loadPage = useCallback(async (options: MessagePageOptions) => {
+    const page = await fetchMessagePage({ userId: senderId, recipientId: recipient.id, tentId }, options);
+    if (liveConversation.current !== conversationKey) return page;
+    const unread = page.messages.filter(m => 'recipient_id' in m && m.recipient_id === senderId && !m.read_at);
+    if (unread.length) {
+      void markMessagesRead(tentId ? 'tent_messages' : 'direct_messages', senderId, unread.map(m => m.id))
+        .then(() => onReadRef.current?.()).catch(() => undefined);
     }
-    try {
-      const msgs = tentId
-        ? await fetchTentMessages(tentId, senderId)
-        : await fetchDirectMessages(senderId, recipient.id);
-      const filtered = (msgs as any[]).filter(
-        (m) => m.sender_id === senderId || m.recipient_id === senderId,
-      ).filter(
-        (m) => m.sender_id === recipient.id || m.recipient_id === recipient.id,
-      );
-      setMessages(filtered);
-      const hiddenClaimIds = !tentId
-        ? [...filtered].reverse().flatMap((message) => (
-          message.recipient_id === senderId && message.hidden_challenge_claim_id
-            ? [message.hidden_challenge_claim_id]
-            : []
-        ))
-        : [];
-      const claimSet = hiddenClaimIds.join('|');
-      if (claimSet && claimSet !== revealedClaimSetRef.current) {
-        revealedClaimSetRef.current = claimSet;
-        window.setTimeout(() => revealHiddenChallenge({ claimIds: hiddenClaimIds }), 120);
-      }
-      for (const m of filtered) {
-        if (m.recipient_id === senderId && !m.read_at) {
-          if (tentId) await markTentMessageRead(m.id);
-          else await markDirectMessageRead(m.id);
-          onMessagesRead?.();
-        }
-      }
-    } catch (e) { console.error('TentMessenger load error:', e); }
-    setLoading(false);
-  }, [hasAccess, tentId, senderId, recipient.id, onMessagesRead]);
+    const claimIds = page.messages.flatMap(m => (
+      'recipient_id' in m && m.recipient_id === senderId && 'hidden_challenge_claim_id' in m
+      && m.hidden_challenge_claim_id && !revealedClaims.current.has(m.hidden_challenge_claim_id)
+        ? [m.hidden_challenge_claim_id] : []
+    ));
+    if (claimIds.length) {
+      claimIds.forEach(id => revealedClaims.current.add(id));
+      revealHiddenChallenge({ claimIds });
+    }
+    return page;
+  }, [senderId, recipient.id, tentId, conversationKey]);
+  const { messages, loading, loadingOlder, hasOlder, error, refresh: load, loadOlder, update } = useMessageHistory(loadPage, hasAccess);
+  const scroll = useChatScroll(messages, loadingOlder);
+
+  useEffect(() => {
+    if (!hasAccess || tentId) return;
+    let active = true;
+    // Opening a conversation must still reveal a treasure attached to an older message.
+    void fetchConversationHiddenClaims(senderId, recipient.id).then(claimIds => {
+      if (!active) return;
+      const unseen = claimIds.filter(id => !revealedClaims.current.has(id));
+      unseen.forEach(id => revealedClaims.current.add(id));
+      if (unseen.length) revealHiddenChallenge({ claimIds: unseen });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [hasAccess, senderId, recipient.id, tentId]);
 
   useEffect(() => {
     if (hasAccess) return;
     requireSubscription();
     onClose();
   }, [hasAccess, onClose, requireSubscription]);
-
-  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     let active = true;
@@ -104,14 +130,21 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
   useEffect(() => {
     if (!hasAccess) return;
     const table = tentId ? 'tent_messages' : 'direct_messages';
-    const channelName = tentId ? `tent_messages_${tentId}` : `direct_messages_${senderId}_${recipient.id}`;
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table },
-        () => load())
+    const channelName = `chat_${tentId || 'direct'}_${senderId}_${recipient.id}`;
+    const changed = (payload: { eventType: string; new: Record<string, unknown> }) => {
+      const message = payload.new;
+      const isConversation = (message.sender_id === senderId && message.recipient_id === recipient.id)
+        || (message.sender_id === recipient.id && message.recipient_id === senderId);
+      if (!isConversation || (tentId && message.tent_id !== tentId)) return;
+      if (payload.eventType === 'UPDATE') update(String(message.id), message as Partial<ChatMessage>);
+      else if (document.visibilityState === 'visible') void load();
+    };
+    const channel = supabase.channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table, filter: `sender_id=eq.${senderId}` }, changed)
+      .on('postgres_changes', { event: '*', schema: 'public', table, filter: `recipient_id=eq.${senderId}` }, changed)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [hasAccess, tentId, senderId, recipient.id, load]);
+  }, [hasAccess, tentId, senderId, recipient.id, load, update]);
 
   const handleSend = async () => {
     if (!requireSubscription()) return;
@@ -133,6 +166,7 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
     try {
       if (tentId) await editTentMessage(editingId, editingBody.trim());
       else await editDirectMessage(editingId, editingBody.trim());
+      update(editingId, { body: editingBody.trim(), edited_at: new Date().toISOString() });
       setEditingId(null);
       setEditingBody('');
       await load();
@@ -173,7 +207,9 @@ export function TentMessenger({ recipient, senderId, tentId, onClose, onMessages
         </div>
 
         {/* Messages */}
-        <div className="relative z-10 min-h-[200px] flex-1 space-y-2 overflow-y-auto p-4">
+        <div ref={scroll.ref} onScroll={scroll.onScroll} className="relative z-10 min-h-[200px] flex-1 space-y-2 overflow-y-auto p-4">
+          {hasOlder && <button type="button" disabled={loadingOlder} className="btn-ghost mx-auto flex text-xs" onClick={() => { scroll.preserve(); void loadOlder(); }}><ChevronUp size={14} />{loadingOlder ? 'Loading...' : 'Earlier messages'}</button>}
+          {error && <button type="button" className="flex items-center gap-2 text-xs text-coral" onClick={() => void load()}><RefreshCw size={14} />{error}</button>}
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
           ) : messages.length === 0 ? (
@@ -235,35 +271,21 @@ export function TentGroupMessenger({
   onClose: () => void;
 }) {
   const { hasAccess, requireSubscription } = useSubscriptionAccess();
-  const [messages, setMessages] = useState<TentGroupMessage[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
   const [messageArtwork, setMessageArtwork] = useState<PanelImageSetting | null>(null);
 
-  const load = useCallback(async () => {
-    if (!hasAccess) {
-      setMessages([]);
-      setLoading(false);
-      return;
-    }
-    try {
-      setMessages(await fetchTentGroupMessages(tentId) as TentGroupMessage[]);
-    } catch (e) {
-      console.error('TentGroupMessenger load error:', e);
-    }
-    setLoading(false);
-  }, [hasAccess, tentId]);
+  const loadPage = useCallback((options: MessagePageOptions) => fetchMessagePage({ userId: senderId, tentId }, options), [senderId, tentId]);
+  const { messages, loading, loadingOlder, hasOlder, error, refresh: load, loadOlder, update } = useMessageHistory(loadPage, hasAccess);
+  const scroll = useChatScroll(messages, loadingOlder);
 
   useEffect(() => {
     if (hasAccess) return;
     requireSubscription();
     onClose();
   }, [hasAccess, onClose, requireSubscription]);
-
-  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     let active = true;
@@ -286,10 +308,13 @@ export function TentGroupMessenger({
     if (!hasAccess) return;
     const channel = supabase
       .channel(`tent_group_messages_${tentId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tent_group_messages', filter: `tent_id=eq.${tentId}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_group_messages', filter: `tent_id=eq.${tentId}` }, payload => {
+        if (payload.eventType === 'UPDATE') update(String(payload.new.id), payload.new as Partial<ChatMessage>);
+        else if (document.visibilityState === 'visible') void load();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [hasAccess, load, tentId]);
+  }, [hasAccess, load, tentId, update]);
 
   const handleSend = async () => {
     if (!requireSubscription()) return;
@@ -311,6 +336,7 @@ export function TentGroupMessenger({
     setSending(true);
     try {
       await editTentGroupMessage(editingId, editingBody.trim());
+      update(editingId, { body: editingBody.trim(), edited_at: new Date().toISOString() });
       setEditingId(null);
       setEditingBody('');
       await load();
@@ -353,7 +379,9 @@ export function TentGroupMessenger({
           </div>
         </div>
 
-        <div className="relative z-10 min-h-[240px] flex-1 space-y-2 overflow-y-auto p-4">
+        <div ref={scroll.ref} onScroll={scroll.onScroll} className="relative z-10 min-h-[240px] flex-1 space-y-2 overflow-y-auto p-4">
+          {hasOlder && <button type="button" disabled={loadingOlder} className="btn-ghost mx-auto flex text-xs" onClick={() => { scroll.preserve(); void loadOlder(); }}><ChevronUp size={14} />{loadingOlder ? 'Loading...' : 'Earlier messages'}</button>}
+          {error && <button type="button" className="flex items-center gap-2 text-xs text-coral" onClick={() => void load()}><RefreshCw size={14} />{error}</button>}
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-brass" /></div>
           ) : messages.length === 0 ? (

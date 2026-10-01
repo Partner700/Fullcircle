@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronDown, Loader2, Search, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { fetchStrictStreak } from '../lib/queries';
 import { getDateDaysAgoISO } from '../lib/utils';
 import { MessageAvatar } from './TentMessenger';
 
@@ -45,11 +44,8 @@ export function MeditationHistoryPanel({ userIds, title = 'Meditation History', 
     if (ids.length) {
       const { data: profiles } = await supabase.from('profiles').select('id,display_name,avatar_url,created_at').in('id', ids);
       setPeople(Object.fromEntries(((profiles || []) as Person[]).map((person) => [person.id, person])));
-      const streakEntries = await Promise.all(ids.map(async (id) => {
-        const streak = await fetchStrictStreak(id).catch(() => ({ current_streak: 0 }));
-        return [id, streak.current_streak] as const;
-      }));
-      setStreaks(Object.fromEntries(streakEntries));
+      const { data: streakRows, error: streakError } = await supabase.rpc('get_public_streaks', { p_user_ids: ids });
+      if (!streakError) setStreaks(Object.fromEntries((streakRows || []).map((row: { user_id: string; current_streak: number }) => [row.user_id, row.current_streak])));
     }
     setLoading(false);
   }, [userIds]);

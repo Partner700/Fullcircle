@@ -20,6 +20,8 @@ import { fetchOwnProfile } from './profileAccess';
 import { generateInstructorFallbackQuestions } from './questionGenerator';
 import { parseLiveStats, type UserLiveStats } from './liveStats';
 import { createReadCache } from './readCache';
+import { MESSAGE_PAGE_SIZE, messageCursorFilter, type ChatMessage, type MessagePage, type MessagePageOptions } from './messagePages';
+import { expandQuoteReactionSummary, type CompactQuoteReactionSummary } from './quoteReactionSummary';
 
 const sharedReadRequests = new Map<string, Promise<unknown>>();
 const panelImageReads = createReadCache<Record<string, PanelImageSetting>>(60_000);
@@ -461,6 +463,23 @@ export async function fetchNarratives(days = 7, includeFuture = false) {
     .limit(days);
   if (error) throw error;
   return data as DailyNarrative[];
+}
+
+export type ReadingArchiveItem = Pick<DailyNarrative, 'id' | 'narrative_date' | 'title' | 'scripture_reference'> & { meditation_submitted: boolean };
+
+export async function fetchReadingArchivePage(userId: string, beforeDate: string) {
+  const { data, error } = await supabase.from('daily_narratives')
+    .select('id,narrative_date,title,scripture_reference').lt('narrative_date', beforeDate)
+    .order('narrative_date', { ascending: false }).limit(21);
+  if (error) throw error;
+  const readings = (data || []).slice(0, 20);
+  if (!readings.length) return { readings: [] as ReadingArchiveItem[], hasMore: false };
+  const { data: records, error: recordsError } = await supabase.from('daily_records')
+    .select('record_date,meditation_submitted').eq('user_id', userId)
+    .in('record_date', readings.map(reading => reading.narrative_date));
+  if (recordsError) throw recordsError;
+  const submitted = new Set((records || []).filter(record => record.meditation_submitted).map(record => record.record_date));
+  return { readings: readings.map(reading => ({ ...reading, meditation_submitted: submitted.has(reading.narrative_date) })), hasMore: (data || []).length > 20 };
 }
 
 export async function fetchAllNarratives() {
@@ -2344,7 +2363,23 @@ export async function fetchPublicDailyQuotes(recordDate: string, limit = 12) {
   return (data || []) as import('./types').DailyQuoteFeedItem[];
 }
 
+let quoteSummaryUnavailableUntil = 0;
 export async function fetchDailyQuoteReactions(quotes: { user_id: string; record_date: string }[], reactorId?: string) {
+  if (!quotes.length) return {};
+  const unique = [...new Map(quotes.map(quote => [`${quote.user_id}:${quote.record_date}`, { user_id: quote.user_id, record_date: quote.record_date }])).values()];
+  return shareReadRequest(`quote-summary:${reactorId || ''}:${unique.map(q => `${q.user_id}:${q.record_date}`).sort().join(',')}`, async () => {
+    if (Date.now() >= quoteSummaryUnavailableUntil) {
+      const { data, error } = await supabase.rpc('get_quote_reaction_summaries', { p_quotes: unique });
+      if (!error) return expandQuoteReactionSummary(data as CompactQuoteReactionSummary);
+      // Older deployments can still read quotes; quota/auth failures must not fan out into extra requests.
+      if (!['PGRST202', '42883'].includes(error.code)) throw error;
+      quoteSummaryUnavailableUntil = Date.now() + 60_000;
+    }
+    return fetchDailyQuoteReactionsLegacy(unique, reactorId);
+  });
+}
+
+async function fetchDailyQuoteReactionsLegacy(quotes: { user_id: string; record_date: string }[], reactorId?: string) {
   if (quotes.length === 0) return {};
   const userIds = Array.from(new Set(quotes.map((q) => q.user_id)));
   const dates = Array.from(new Set(quotes.map((q) => q.record_date)));
@@ -2757,15 +2792,46 @@ export async function verifyCampayPayment(reference: string) {
 
 // ── Tent messages ──
 
-export async function fetchTentMessages(tentId: string, userId: string) {
-  const { data, error } = await supabase
-    .from('tent_messages')
-    .select('*, sender:profiles!sender_id(display_name,avatar_url)')
-    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
-    .eq('tent_id', tentId)
-    .order('created_at', { ascending: true });
+export async function fetchMessagePage(
+  conversation: { userId: string; recipientId?: string; tentId?: string },
+  options: MessagePageOptions = {},
+): Promise<MessagePage> {
+  const { userId, recipientId, tentId } = conversation;
+  if (![userId, recipientId, tentId].filter(Boolean).every(id => /^[0-9a-f-]{36}$/i.test(id!))) throw new Error('Invalid conversation.');
+  if (!recipientId && !tentId) throw new Error('Choose a conversation.');
+  const table = recipientId ? (tentId ? 'tent_messages' : 'direct_messages') : 'tent_group_messages';
+  const fields = table === 'tent_group_messages'
+    ? 'id,tent_id,sender_id,body,created_at,edited_at,sender:profiles!sender_id(display_name,avatar_url)'
+    : `id,${tentId ? 'tent_id,' : ''}sender_id,recipient_id,body,read_at,created_at,edited_at${tentId ? '' : ',hidden_challenge_claim_id'}`;
+  let query = supabase.from(table).select(fields);
+  if (tentId) query = query.eq('tent_id', tentId);
+  const filters: string[] = [];
+  if (recipientId) filters.push(`or(and(sender_id.eq.${userId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${userId}))`);
+  if (options.before) filters.push(messageCursorFilter(options.before, 'before'));
+  if (options.after) filters.push(messageCursorFilter(options.after, 'after'));
+  if (filters.length) query = query.or(`and(${filters.join(',')})`);
+  const ascending = Boolean(options.after);
+  const { data, error } = await query.order('created_at', { ascending }).order('id', { ascending }).limit(MESSAGE_PAGE_SIZE + 1);
   if (error) throw error;
-  return data;
+  const rows = (data || []) as unknown as ChatMessage[];
+  const messages = rows.slice(0, MESSAGE_PAGE_SIZE);
+  return { messages: ascending ? messages : messages.reverse(), hasMore: rows.length > MESSAGE_PAGE_SIZE };
+}
+
+export async function markMessagesRead(table: 'direct_messages' | 'tent_messages', userId: string, messageIds: string[]) {
+  if (!messageIds.length) return;
+  const { error } = await supabase.from(table)
+    .update({ read_at: new Date().toISOString() }).eq('recipient_id', userId)
+    .in('id', messageIds).is('read_at', null);
+  if (error) throw error;
+}
+
+export async function fetchConversationHiddenClaims(userId: string, senderId: string) {
+  const { data, error } = await supabase.from('direct_messages')
+    .select('hidden_challenge_claim_id').eq('recipient_id', userId).eq('sender_id', senderId)
+    .not('hidden_challenge_claim_id', 'is', null).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(row => row.hidden_challenge_claim_id as string);
 }
 
 export async function fetchUnreadTentMessagesForUser(userId: string) {
@@ -2814,17 +2880,6 @@ export async function markTentMessageRead(messageId: string) {
   if (error) throw error;
 }
 
-export async function fetchTentGroupMessages(tentId: string) {
-  const { data, error } = await supabase
-    .from('tent_group_messages')
-    .select('*, sender:profiles!sender_id(display_name,avatar_url)')
-    .eq('tent_id', tentId)
-    .order('created_at', { ascending: true })
-    .limit(200);
-  if (error) throw error;
-  return data || [];
-}
-
 export async function sendTentGroupMessage(tentId: string, senderId: string, body: string) {
   const { error } = await supabase
     .from('tent_group_messages')
@@ -2838,16 +2893,6 @@ export async function editTentGroupMessage(messageId: string, body: string) {
 }
 
 // ── Direct messages ──
-
-export async function fetchDirectMessages(senderId: string, recipientId: string) {
-  const { data, error } = await supabase
-    .from('direct_messages')
-    .select('*, sender:profiles!sender_id(display_name,avatar_url)')
-    .or(`and(sender_id.eq.${senderId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${senderId})`)
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  return data;
-}
 
 export async function fetchUnreadDirectMessagesForUser(userId: string) {
   const { data, error } = await supabase

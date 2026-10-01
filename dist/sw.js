@@ -1,15 +1,15 @@
 // Hashed release assets are safe to retain, while page navigation remains
 // network-first. This lets installed phones open through a weak carrier or
 // Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v157';
+const CACHE_VERSION = 'full-circle-v158';
 // Keep the preceding healthy shell as a rollback while this worker warms its
 // own cache. A phone changing between Wi-Fi and mobile data must never lose the
 // only application shell it can currently open.
-const CACHE_STORAGE_VERSION = 'full-circle-v147-v157';
+const CACHE_STORAGE_VERSION = 'full-circle-v147-v158';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v156', 'full-circle-v147-v155', 'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150'];
-const RECOVERY_MARKER = '157';
+const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v157', 'full-circle-v147-v156', 'full-circle-v147-v155', 'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151', 'full-circle-v147-v150'];
+const RECOVERY_MARKER = '158';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 2_500;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;

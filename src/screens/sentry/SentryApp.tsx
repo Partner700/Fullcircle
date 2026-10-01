@@ -40,6 +40,7 @@ import { dailyGamesNavigationKey } from '../../lib/dailyGames';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { openProfileCv } from '../../lib/profileCv';
+import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
@@ -448,13 +449,15 @@ export function SentryApp() {
         }
         void loadOwnStats();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, scheduleMemberRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` }, () => { void loadOwnStats(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_reactions' }, scheduleSocialRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_comments' }, scheduleSocialRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_reactions' }, scheduleSocialRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_comments' }, scheduleSocialRefresh)
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers', filter: `user_id=eq.${profile.id}` }, () => { void loadOwnStats(); });
+    subscribeToScopedChanges(channel, 'daily_records', 'user_id', [profile.id, ...members.map(member => member.user_id)], scheduleMemberRefresh);
+    const quoteDates = quotes.map(quote => quote.record_date);
+    const verseDates = narrative?.narrative_date ? [narrative.narrative_date] : [];
+    subscribeToScopedChanges(channel, 'daily_quote_reactions', 'quote_record_date', quoteDates, scheduleSocialRefresh);
+    subscribeToScopedChanges(channel, 'daily_quote_comments', 'quote_record_date', quoteDates, scheduleSocialRefresh);
+    subscribeToScopedChanges(channel, 'daily_verse_reactions', 'narrative_date', verseDates, scheduleSocialRefresh);
+    subscribeToScopedChanges(channel, 'daily_verse_comments', 'narrative_date', verseDates, scheduleSocialRefresh);
+    channel.subscribe();
     return () => {
       document.removeEventListener('visibilitychange', refreshVisibleStats);
       window.removeEventListener('focus', refreshVisibleStats);
@@ -466,7 +469,7 @@ export function SentryApp() {
       window.clearInterval(contentInterval);
       supabase.removeChannel(channel);
     };
-  }, [load, loadMemberData, loadOwnStats, profile, refreshSocialStats]);
+  }, [load, loadMemberData, loadOwnStats, profile, refreshSocialStats, members, quotes, narrative?.narrative_date]);
 
   const markAttendance = async (cadetId: string, status: 'present' | 'absent') => {
     if (!profile) return;

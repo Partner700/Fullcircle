@@ -21,6 +21,7 @@ import { getRemovalState, formatDenarii, formatNumericDate, getDayType, getToday
 import { publicAsset } from '../../lib/publicAsset';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { openProfileCv } from '../../lib/profileCv';
+import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import { supabase } from '../../lib/supabase';
 import { DAILY_GAME_LEVELS } from '../../lib/constants';
 import {
@@ -186,6 +187,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     let refreshTimer: number | null = null;
 
     const refreshInteractions = () => {
+      if (document.visibilityState !== 'visible') return;
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         void Promise.allSettled([
@@ -199,13 +201,14 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
       }, 120);
     };
 
-    const channel = supabase
-      .channel(`dashboard_interactions_${profile.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_reactions' }, refreshInteractions)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_quote_comments' }, refreshInteractions)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_reactions' }, refreshInteractions)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_verse_comments' }, refreshInteractions)
-      .subscribe();
+    const channel = supabase.channel(`dashboard_interactions_${profile.id}`);
+    const quoteDates = quotes.map(quote => quote.record_date);
+    const verseDates = narrative?.narrative_date ? [narrative.narrative_date] : [];
+    subscribeToScopedChanges(channel, 'daily_quote_reactions', 'quote_record_date', quoteDates, refreshInteractions);
+    subscribeToScopedChanges(channel, 'daily_quote_comments', 'quote_record_date', quoteDates, refreshInteractions);
+    subscribeToScopedChanges(channel, 'daily_verse_reactions', 'narrative_date', verseDates, refreshInteractions);
+    subscribeToScopedChanges(channel, 'daily_verse_comments', 'narrative_date', verseDates, refreshInteractions);
+    channel.subscribe();
 
     return () => {
       cancelled = true;

@@ -276,7 +276,6 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const loadInFlightRef = useRef(false);
-  const refreshTimerRef = useRef<number | null>(null);
   const lastStreakRowsRef = useRef<StreakLeaderboardRow[]>([]);
 
   const load = useCallback(async (silent = false) => {
@@ -440,14 +439,6 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     }
       }, [audience]);
 
-  const scheduleSilentRefresh = useCallback(() => {
-    if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = window.setTimeout(() => {
-      refreshTimerRef.current = null;
-      void load(true);
-    }, 1200);
-  }, [load]);
-
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     let cancelled = false;
@@ -465,25 +456,20 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     return () => { cancelled = true; };
   }, [instructorMode]);
   useEffect(() => {
-    const channel = supabase
-      .channel('cadet_quiz_scoreboard_live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, scheduleSilentRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_attempts' }, scheduleSilentRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_records' }, scheduleSilentRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, scheduleSilentRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'denarii_ledger_entries' }, scheduleSilentRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'streak_freezers' }, scheduleSilentRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'relic_inventory' }, scheduleSilentRefresh)
-      .subscribe();
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void load(true);
-    }, 60_000);
-    return () => {
-      supabase.removeChannel(channel);
-      window.clearInterval(interval);
-      if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
+    const refreshWhenAvailable = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) void load(true);
     };
-  }, [load, scheduleSilentRefresh]);
+    const interval = window.setInterval(() => {
+      refreshWhenAvailable();
+    }, 60_000);
+    window.addEventListener('online', refreshWhenAvailable);
+    document.addEventListener('visibilitychange', refreshWhenAvailable);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('online', refreshWhenAvailable);
+      document.removeEventListener('visibilitychange', refreshWhenAvailable);
+    };
+  }, [load]);
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
     ? [{ key: 'instructor', label: 'Instructor Board', icon: <ChiRhoMark size={16} /> }]
