@@ -148,14 +148,23 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-v147-v154-shell')).put(scope + 'index.html', response('retained app'));
-    await (await cache.open('full-circle-v147-v155-shell')).put(scope + 'offline.html', response('offline page'));
+    await (await cache.open('full-circle-v147-v158-shell')).put(scope + 'index.html', response('restricted-project app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
-    assert.equal(await (await w.networkFirstNavigation(request(), w.event)).text(), 'retained app');
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
-    assert.equal(w.navigation.length, 0, 'Activation must not reload an active quiz or draft.');
-    assert.ok((await cache.keys()).includes('full-circle-v147-v154-shell'));
+    assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
+    assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '160');
+    assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
+  }
+  {
+    const cache = memoryCaches();
+    await (await cache.open('full-circle-target-v160-shell')).put(scope + 'index.html', response('current target app'));
+    const w = worker(async () => { throw new Error('offline'); }, cache);
+    w.handlers.activate(w.event);
+    await Promise.all(w.event.jobs);
+    assert.equal(w.navigation.length, 0, 'A current target release must not interrupt an active quiz or draft.');
+    assert.equal(await (await w.networkFirstNavigation(request(), w.event)).text(), 'current target app');
   }
   {
     const manifest = {
@@ -189,7 +198,7 @@ async function run() {
   }
   testDisplayModes();
   await testRecovery();
-  console.log('Startup regression checks passed: network hedging, storage failures, rollback shell, bounded warming, install modes and recovery loops.');
+  console.log('Startup regression checks passed: network hedging, storage failures, target-only shell recovery, bounded warming, install modes and recovery loops.');
 }
 
 function loadTs(relative, globals) {

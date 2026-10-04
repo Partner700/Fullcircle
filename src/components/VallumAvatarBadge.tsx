@@ -19,7 +19,7 @@ let cacheHydrated = false;
 const listeners = new Set<() => void>();
 const CACHE_MS = 60_000;
 const RETRY_MS = 5_000;
-const STORAGE_KEY = 'full-circle-standing-avatar-awards-v1';
+const STORAGE_KEY = 'full-circle-standing-avatar-awards-target-v2';
 
 const AWARD_ICONS = {
   rhetoric: MessageCircle,
@@ -182,9 +182,9 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   return (
     <span
       className={cn(
-        'full-circle-avatar-award-badge pointer-events-none absolute -left-1 -top-1 z-20 inline-flex items-center justify-center rounded-full shadow-md',
+        'full-circle-avatar-award-badge pointer-events-none absolute left-0 top-0 z-20 inline-flex items-center justify-center rounded-full shadow-md',
         isVallum
-          ? 'border-gold/90 bg-navy-2 text-gold'
+          ? 'border-navy/40 bg-gold text-navy'
           : 'border-sage/80 bg-navy-2 text-sage-bright',
         shellClass,
         className,

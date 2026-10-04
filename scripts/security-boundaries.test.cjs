@@ -489,10 +489,10 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-v159'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-v147-v159'/);
-assert.match(serviceWorker, /ROLLBACK_CACHE_PREFIXES = \['full-circle-v147-v158', 'full-circle-v147-v157', 'full-circle-v147-v156', 'full-circle-v147-v155', 'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151'\]/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '159'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v160'/);
+assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v160'/);
+assert.doesNotMatch(serviceWorker, /ROLLBACK_CACHE_PREFIXES/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '160'/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 2_500/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
@@ -514,36 +514,38 @@ assert.match(serviceWorker, /release-manifest\.json/);
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '126'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '160'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=136`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=160`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /RELEASE_MARKER = '159'/);
+assert.match(staleBundleRecovery, /RELEASE_MARKER = '160'/);
 assert.doesNotMatch(staleBundleRecovery, /void reloadFreshApp\(true\)/);
-assert.match(staleBundleRecovery, /raw\.githack\.com\/TNSorganization\/Full-Circle\/gh-pages\/index\.html/);
-assert.doesNotMatch(staleBundleRecovery, /window\.caches\.delete/);
+assert.doesNotMatch(staleBundleRecovery, /raw\.githack\.com/);
+assert.match(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-10-04-v159/);
-assert.match(releaseCache, /'full-circle-v147-v159', 'full-circle-v147-v158', 'full-circle-v147-v157', 'full-circle-v147-v156', 'full-circle-v147-v155', 'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151'/);
+assert.match(releaseCache, /2026-10-04-target-v160/);
+assert.match(releaseCache, /full-circle-target-v160/);
+assert.doesNotMatch(releaseCache, /full-circle-v147-v15[1-9]/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=125/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=160/);
 assert.match(appIndex, /href="%VITE_SUPABASE_URL%" crossorigin/);
 assert.doesNotMatch(appIndex, /kckzqsafzemeijxfohuy/);
-assert.match(appIndex, /var release = '125'/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=136'/);
+assert.match(appIndex, /var release = '160'/);
+assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=160'/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
-assert.doesNotMatch(appIndex, /window\.caches\.delete/);
+assert.match(appIndex, /window\.caches\.delete/);
 assert.match(appIndex, /searchParams\.set\(marker, release\)/);
 assert.match(appIndex, /__fullCircleBootRelease/);
-assert.match(appIndex, /raw\.githack\.com\/TNSorganization\/Full-Circle\/gh-pages\/index\.html/);
+assert.doesNotMatch(appIndex, /raw\.githack\.com/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=125"/);
+assert.doesNotMatch(offlinePage, /Open Mobile-Data Copy|raw\.githack\.com/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=160"/);
 assert.match(read('public/manifest.webmanifest'), /"prefer_related_applications": false/);
 assert.match(environmentExample, /VITE_SUPABASE_URL=https:\/\/your-project-ref\.supabase\.co/);
 assert.match(environmentExample, /VITE_SUPABASE_ANON_KEY=sb_publishable_your_project_key/);
@@ -1461,15 +1463,17 @@ assert.match(instructorApp, /<DoveNotificationArrival/);
 for (const required of [
   "supabase.rpc('get_current_avatar_awards')",
   'award.cadence === \'monthly\'',
-  'full-circle-standing-avatar-awards-v1',
+  'full-circle-standing-avatar-awards-target-v2',
   'hydrateCachedAwards',
   'persistCurrentAwards',
-  '-left-1 -top-1',
+  'left-0 top-0',
   '<AwardBadgeGlyph',
   '<ChiRhoMark',
 ]) {
   assert.ok(vallumAvatarBadge.includes(required), `Missing prioritized avatar award badge behavior: ${required}`);
 }
+assert.match(chiRhoMark, /fc-chi-rho-fallback/);
+assert.match(chiRhoMark, /fc-chi-rho-mask/);
 assert.match(userAvatar, /<VallumAvatarBadge userId=\{userId\}/);
 assert.match(userAvatar, /showAwardBadge = true/);
 assert.match(boardRow, /<MessageAvatar/);
@@ -2258,8 +2262,8 @@ assert.match(rootApp, /NonBlockingErrorBoundary name="authenticated overlays"/);
 assert.match(rootApp, /<Suspense fallback=\{null\}><AuthenticatedOverlays \/><\/Suspense>/);
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
-assert.match(appErrorBoundary, /reloadFreshApp\(true\)/);
-assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-04-v159'/);
+assert.match(appErrorBoundary, /reloadFreshApp\(\)/);
+assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-04-target-v160'/);
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);

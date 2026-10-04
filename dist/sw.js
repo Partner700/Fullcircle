@@ -1,15 +1,11 @@
-// Hashed release assets are safe to retain, while page navigation remains
-// network-first. This lets installed phones open through a weak carrier or
-// Wi-Fi handoff without allowing an old HTML shell to pin a stale release.
-const CACHE_VERSION = 'full-circle-v159';
-// Keep the preceding healthy shell as a rollback while this worker warms its
-// own cache. A phone changing between Wi-Fi and mobile data must never lose the
-// only application shell it can currently open.
-const CACHE_STORAGE_VERSION = 'full-circle-v147-v159';
+// This cache namespace belongs only to the restored Supabase project. Never
+// reuse a pre-cutover shell: those bundles still address the restricted
+// project and can make an online phone appear permanently offline.
+const CACHE_VERSION = 'full-circle-target-v160';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v160';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const ROLLBACK_CACHE_PREFIXES = ['full-circle-v147-v158', 'full-circle-v147-v157', 'full-circle-v147-v156', 'full-circle-v147-v155', 'full-circle-v147-v154', 'full-circle-v147-v153', 'full-circle-v147-v152', 'full-circle-v147-v151'];
-const RECOVERY_MARKER = '159';
+const RECOVERY_MARKER = '160';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 2_500;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
@@ -61,16 +57,15 @@ function isFullCircleCache(cacheName) {
 
 async function clearRetiredFullCircleCaches() {
   const cacheNames = await caches.keys();
+  const retiredCacheNames = cacheNames.filter((cacheName) => (
+    isFullCircleCache(cacheName)
+    && cacheName !== SHELL_CACHE
+    && cacheName !== ASSET_CACHE
+  ));
   await Promise.all(
-    cacheNames
-      .filter((cacheName) => (
-        isFullCircleCache(cacheName)
-        && cacheName !== SHELL_CACHE
-        && cacheName !== ASSET_CACHE
-        && !ROLLBACK_CACHE_PREFIXES.some((prefix) => cacheName === prefix || cacheName.startsWith(`${prefix}-`))
-      ))
-      .map((cacheName) => caches.delete(cacheName)),
+    retiredCacheNames.map((cacheName) => caches.delete(cacheName)),
   );
+  return retiredCacheNames;
 }
 
 function wait(delayMs) {
@@ -272,19 +267,23 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    await clearRetiredFullCircleCaches().catch(() => undefined);
+    const retiredCaches = await clearRetiredFullCircleCaches().catch(() => []);
     if (self.registration.navigationPreload) {
       await self.registration.navigationPreload.disable().catch(() => undefined);
     }
     await self.clients.claim();
 
-    // Tell fallback pages that the new worker now controls them. Healthy
-    // application screens are deliberately left untouched so an update cannot
-    // cause a mid-session reload on a phone.
+    // Only clients carrying a retired release are refreshed. A normal worker
+    // update never interrupts an active quiz or draft.
     const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    windowClients.forEach((client) => {
-      client.postMessage({ type: 'FULL_CIRCLE_RECOVERY_READY', worker: CACHE_VERSION });
-    });
+    await Promise.all(windowClients.map(async (client) => {
+      if (retiredCaches.length > 0) await recoverFallbackClient(client);
+      client.postMessage({
+        type: 'FULL_CIRCLE_RECOVERY_READY',
+        worker: CACHE_VERSION,
+        retiredReleaseRemoved: retiredCaches.length > 0,
+      });
+    }));
   })());
 });
 
@@ -293,8 +292,12 @@ async function recoverFallbackClient(client) {
   try {
     const target = new URL(client.url);
     if (target.origin !== self.location.origin) return;
-    target.pathname = new URL(self.registration.scope).pathname;
-    target.search = '';
+    const scopePath = new URL(self.registration.scope).pathname;
+    if (!target.pathname.startsWith(scopePath) || target.pathname.endsWith('/offline.html')) {
+      target.pathname = scopePath;
+      target.search = '';
+      target.hash = '';
+    }
     target.searchParams.set('fc-worker', RECOVERY_MARKER);
     target.searchParams.set('fc-recovered-at', String(Date.now()));
     await client.navigate(target.href);
@@ -328,15 +331,10 @@ self.addEventListener('message', (event) => {
 
 async function cachedAppShell() {
   return cacheRead(async () => {
-    const names = await caches.keys();
-    const shells = [SHELL_CACHE, ...names.filter((name) => name !== SHELL_CACHE && isFullCircleCache(name) && name.endsWith('-shell')).reverse()];
-    for (const name of shells) {
-      const cache = await caches.open(name);
-      const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
-        || (await cache.match(scopedUrl(''), { ignoreVary: true }));
-      if (response) return localReleaseResponse(response, scopedUrl('index.html'));
-    }
-    return null;
+    const cache = await caches.open(SHELL_CACHE);
+    const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
+      || (await cache.match(scopedUrl(''), { ignoreVary: true }));
+    return response ? localReleaseResponse(response, scopedUrl('index.html')) : null;
   });
 }
 
