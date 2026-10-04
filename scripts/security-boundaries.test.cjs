@@ -9,7 +9,8 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 const closure = read('supabase/migrations/20260810144000_final_rpc_security_closure.sql');
 const release = read('supabase/migrations/20260810143000_release_integrity_followup.sql');
 const streakIntegrity = read('supabase/migrations/20260810145000_deterministic_streak_calculator.sql');
-const serviceWorker = read('public/sw.js');
+const serviceWorker = read('public/fc-worker.js');
+const legacyServiceWorker = read('public/sw.js');
 const offlinePage = read('public/offline.html');
 const serviceWorkerRegistration = read('src/registerServiceWorker.ts');
 const staleBundleRecovery = read('src/lib/staleBundleRecovery.ts');
@@ -489,10 +490,10 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v160'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v160'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v161'/);
+assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v161'/);
 assert.doesNotMatch(serviceWorker, /ROLLBACK_CACHE_PREFIXES/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '160'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '161'/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 2_500/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
@@ -514,27 +515,28 @@ assert.match(serviceWorker, /release-manifest\.json/);
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '160'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '161'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}sw\.js\?v=160`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}fc-worker\.js\?v=161`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /RELEASE_MARKER = '160'/);
+assert.match(staleBundleRecovery, /RELEASE_MARKER = '161'/);
 assert.doesNotMatch(staleBundleRecovery, /void reloadFreshApp\(true\)/);
 assert.doesNotMatch(staleBundleRecovery, /raw\.githack\.com/);
 assert.match(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-10-04-target-v160/);
-assert.match(releaseCache, /full-circle-target-v160/);
+assert.match(releaseCache, /2026-10-04-target-v161/);
+assert.match(releaseCache, /full-circle-target-v161/);
 assert.doesNotMatch(releaseCache, /full-circle-v147-v15[1-9]/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=160/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=161/);
 assert.match(appIndex, /href="%VITE_SUPABASE_URL%" crossorigin/);
 assert.doesNotMatch(appIndex, /kckzqsafzemeijxfohuy/);
-assert.match(appIndex, /var release = '160'/);
-assert.match(appIndex, /register\('%BASE_URL%sw\.js\?v=160'/);
+assert.match(appIndex, /var release = '161'/);
+assert.match(appIndex, /register\('%BASE_URL%fc-worker\.js\?v=161'/);
+assert.match(legacyServiceWorker, /importScripts\('\.\/fc-worker\.js\?v=161'\)/);
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
@@ -545,7 +547,7 @@ assert.doesNotMatch(appIndex, /raw\.githack\.com/);
 assert.match(appIndex, /data-fc-boot-shell/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.doesNotMatch(offlinePage, /Open Mobile-Data Copy|raw\.githack\.com/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=160"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=161"/);
 assert.match(read('public/manifest.webmanifest'), /"prefer_related_applications": false/);
 assert.match(environmentExample, /VITE_SUPABASE_URL=https:\/\/your-project-ref\.supabase\.co/);
 assert.match(environmentExample, /VITE_SUPABASE_ANON_KEY=sb_publishable_your_project_key/);
@@ -576,10 +578,11 @@ assert.match(appIndex, /canonicalUrl\.hostname = 'fullcircle\.partnertai\.com'/)
 assert.match(hostingerHeaders, /\^www\\\.fullcircle\\\.partnertai\\\.com\$/);
 assert.match(hostingerHeaders, /https:\/\/fullcircle\.partnertai\.com%\{REQUEST_URI\}/);
 assert.ok(
-  hostingerHeaders.lastIndexOf('^(index\\.html|sw\\.js|manifest\\.webmanifest|offline\\.html)$')
-    > hostingerHeaders.indexOf('^(?!sw\\.js$).*\\.(js|css)$'),
+  hostingerHeaders.lastIndexOf('^(index\\.html|sw\\.js|fc-worker\\.js|manifest\\.webmanifest|offline\\.html)$')
+    > hostingerHeaders.indexOf('^(?!(?:sw|fc-worker)\\.js$).*\\.(js|css)$'),
   'Hostinger must override immutable JS caching for the service worker.',
 );
+assert.match(hostingerHeaders, /<Files "fc-worker\.js">[\s\S]*Service-Worker-Allowed "\/"/);
 assert.match(saturdayQuizReminders, /extract\(isodow[\s\S]*= 6/);
 assert.match(saturdayQuizReminders, /'weekly_quiz_reminder'[\s\S]*time '09:15'/);
 assert.match(saturdayQuizReminders, /'15 8 \* \* 6'/);
@@ -2263,7 +2266,7 @@ assert.match(rootApp, /<Suspense fallback=\{null\}><AuthenticatedOverlays \/><\/
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
 assert.match(appErrorBoundary, /reloadFreshApp\(\)/);
-assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-04-target-v160'/);
+assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-04-target-v161'/);
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);

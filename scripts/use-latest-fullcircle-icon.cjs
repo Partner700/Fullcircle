@@ -113,8 +113,8 @@ async function main() {
 
   updateHtml('index.html');
   updateHtml('dist/index.html');
-  updateSw('public/sw.js');
-  updateSw('dist/sw.js');
+  updateSw('public/fc-worker.js');
+  updateSw('dist/fc-worker.js');
 
   console.log('Updated all app icons and link-preview images from the latest Full Circle image.');
   console.log('Removed old SVG icon references so the old picture cannot be preferred by browsers.');

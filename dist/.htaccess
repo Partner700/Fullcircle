@@ -15,19 +15,23 @@
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "^(?!sw\.js$).*\.(js|css)$">
+  <FilesMatch "^(?!(?:sw|fc-worker)\.js$).*\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 
   # These files control which application release starts. Keep this block
-  # after the general JS/CSS rule; sw.js is also excluded from that rule.
-  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest|offline\.html)$">
+  # after the general JS/CSS rule; both worker paths are excluded above.
+  <FilesMatch "^(index\.html|sw\.js|fc-worker\.js|manifest\.webmanifest|offline\.html)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
     Header set Expires "0"
   </FilesMatch>
 
   <Files "sw.js">
+    Header set Service-Worker-Allowed "/"
+  </Files>
+
+  <Files "fc-worker.js">
     Header set Service-Worker-Allowed "/"
   </Files>
 </IfModule>
