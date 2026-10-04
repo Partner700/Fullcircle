@@ -24,10 +24,10 @@ const modules = {
 
 async function testMirror(browser) {
   const mirror = await listen((req, res) => send(res, 'application/javascript', modules[path.basename(req.url)] || '', 200));
-  const original = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
+  const original = fs.readFileSync(path.join(root, 'public/fc-worker.js'), 'utf8');
   let repair = true;
   const primary = await listen((req, res) => {
-    if (req.url.startsWith('/Full-Circle/sw.js')) {
+    if (req.url.startsWith('/Full-Circle/fc-worker.js')) {
       let worker = original.replace('https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/', address(mirror) + '/');
       if (!repair) worker = worker.replace('resolve(localReleaseResponse(response, requestOrUrl))', 'resolve(response)');
       return send(res, 'application/javascript', worker);
@@ -43,7 +43,7 @@ async function testMirror(browser) {
       const page = await context.newPage();
       await page.goto(address(primary) + '/Full-Circle/');
       await page.evaluate(async () => {
-        await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.register('./fc-worker.js');
         await navigator.serviceWorker.ready;
         if (!navigator.serviceWorker.controller) await new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
       });

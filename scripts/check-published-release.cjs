@@ -36,7 +36,7 @@ function checkSite(base, expectedWorker, read = download) {
     return result;
   }
 
-  const worker = get('sw.js');
+  const worker = get('fc-worker.js');
   if (!worker) return report;
   const currentWorker = worker.body.match(/const CACHE_VERSION = '([^']+)'/)?.[1];
   if (currentWorker !== expectedWorker) {
@@ -85,7 +85,7 @@ function checkSite(base, expectedWorker, read = download) {
 
 function main() {
   const dist = path.resolve(process.argv[2] || path.join(__dirname, '..', 'dist'));
-  const expectedWorker = fs.readFileSync(path.join(dist, 'sw.js'), 'utf8').match(/const CACHE_VERSION = '([^']+)'/)?.[1];
+  const expectedWorker = fs.readFileSync(path.join(dist, 'fc-worker.js'), 'utf8').match(/const CACHE_VERSION = '([^']+)'/)?.[1];
   if (!expectedWorker) throw new Error('The prepared release has no worker version.');
   const sites = process.argv.slice(3);
   if (!sites.length) sites.push('https://tnsorganization.github.io/Full-Circle/', 'https://fullcircle.partnertai.com/');

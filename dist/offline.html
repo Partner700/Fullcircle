@@ -117,12 +117,12 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '160';
+    var RECOVERY_VERSION = '161';
     var recoveryInProgress = false;
 
     async function installRecoveryWorker() {
       if (!('serviceWorker' in navigator)) return null;
-      var registration = await navigator.serviceWorker.register(new URL('sw.js?v=' + RECOVERY_VERSION, window.location.href), { updateViaCache: 'none' });
+      var registration = await navigator.serviceWorker.register(new URL('fc-worker.js?v=' + RECOVERY_VERSION, window.location.href), { updateViaCache: 'none' });
       await registration.update().catch(function() {});
       if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       var worker = registration.active || registration.waiting || registration.installing;

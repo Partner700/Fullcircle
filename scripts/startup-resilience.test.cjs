@@ -70,7 +70,7 @@ function worker(fetcher, cache = memoryCaches()) {
       addEventListener: (name, fn) => { handlers[name] = fn; },
     },
   });
-  vm.runInContext(fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'public/fc-worker.js'), 'utf8'), context);
   return {
     time, requests, handlers, event, navigation, cache,
     ...vm.runInContext('({fetchReleaseWithFallback, networkFirstNavigation, cacheFirstAsset, cachedAppShell, warmAppShell, criticalReleaseFiles})', context),
@@ -154,12 +154,12 @@ async function run() {
     await Promise.all(w.event.jobs);
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '160');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '161');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v160-shell')).put(scope + 'index.html', response('current target app'));
+    await (await cache.open('full-circle-target-v161-shell')).put(scope + 'index.html', response('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
