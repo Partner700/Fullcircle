@@ -54,6 +54,7 @@ const scriptureDeepLinks = read('supabase/migrations/20260817183000_scripture_no
 const messageMentions = read('supabase/migrations/20260817190000_notify_mentions_in_messages.sql');
 const directMessageNotifications = read('supabase/migrations/20260818123000_direct_message_notifications.sql');
 const pushDelivery = read('supabase/functions/send-push-notification/index.ts');
+const targetPushRouting = read('supabase/migrations/20261004100000_target_push_endpoint_routing.sql');
 const scriptureNavigation = read('src/lib/scriptureNavigation.ts');
 const appShell = read('src/components/AppShell.tsx');
 const vallumAvatarBadge = read('src/components/VallumAvatarBadge.tsx');
@@ -938,6 +939,12 @@ for (const required of [
 
 assert.match(supabaseConfig, /\[functions\.campay-webhook\][\s\S]*?verify_jwt = false/);
 assert.match(supabaseConfig, /\[functions\.send-push-notification\][\s\S]*?verify_jwt = false/);
+assert.match(targetPushRouting, /nffqohxdelaglrmuzjwb\.supabase\.co\/functions\/v1\/send-push-notification/);
+assert.match(targetPushRouting, /CREATE OR REPLACE FUNCTION private\.push_delivery_endpoint\(\)/);
+assert.match(targetPushRouting, /pg_get_functiondef\(p\.oid\)/);
+assert.match(targetPushRouting, /configured_routes < 3/);
+assert.match(targetPushRouting, /remaining_old_routes <> 0/);
+assert.match(targetPushRouting, /remaining_direct_routes <> 0/);
 assert.match(campayWebhook, /requestedPayment\.user_id !== authenticatedUserId/);
 assert.doesNotMatch(campayWebhook, /ageMs >= 35_000/);
 assert.match(campayWebhook, /Keep an unconfirmed transaction pending/);
