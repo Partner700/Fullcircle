@@ -1,15 +1,18 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v161';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v161';
+const CACHE_VERSION = 'full-circle-target-v162';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v162';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '161';
+const RECOVERY_MARKER = '162';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
-const MOBILE_DATA_FALLBACK_DELAY_MS = 2_500;
+const MOBILE_DATA_FALLBACK_DELAY_MS = 1_800;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
-const MOBILE_DATA_FALLBACK_BASE = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/';
+const MOBILE_DATA_FALLBACK_BASES = [
+  'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/',
+  'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/',
+];
 
 const NOTIFICATION_SYMBOLS = {
   message: 'notification-symbols/message.svg',
@@ -103,7 +106,7 @@ function fetchWithDeadline(request, options, timeoutMs = NETWORK_ATTEMPT_TIMEOUT
   });
 }
 
-function fallbackReleaseUrl(requestOrUrl) {
+function fallbackReleaseUrl(requestOrUrl, fallbackBase) {
   const requestedUrl = new URL(
     typeof requestOrUrl === 'string' ? requestOrUrl : requestOrUrl.url,
     self.registration.scope,
@@ -112,12 +115,26 @@ function fallbackReleaseUrl(requestOrUrl) {
   const relativePath = requestedUrl.pathname.startsWith(scopePath)
     ? requestedUrl.pathname.slice(scopePath.length)
     : requestedUrl.pathname.replace(/^\/+/, '');
-  return new URL(relativePath || 'index.html', MOBILE_DATA_FALLBACK_BASE).href;
+  return new URL(relativePath || 'index.html', fallbackBase).href;
 }
 
 async function fetchMobileDataFallback(requestOrUrl, signal) {
-  const fallbackUrl = fallbackReleaseUrl(requestOrUrl);
-  return fetchWithDeadline(fallbackUrl, { mode: 'cors', signal });
+  return new Promise((resolve, reject) => {
+    let failures = 0;
+    const failed = () => {
+      failures += 1;
+      if (failures === MOBILE_DATA_FALLBACK_BASES.length) {
+        reject(new Error('Every independent release copy is unavailable.'));
+      }
+    };
+    MOBILE_DATA_FALLBACK_BASES.forEach((fallbackBase) => {
+      const fallbackUrl = fallbackReleaseUrl(requestOrUrl, fallbackBase);
+      fetchWithDeadline(fallbackUrl, { mode: 'cors', signal }).then((response) => {
+        if (validReleaseResponse(response, requestOrUrl)) resolve(response);
+        else failed();
+      }, failed);
+    });
+  });
 }
 
 function validReleaseResponse(response, requestOrUrl) {
@@ -137,6 +154,11 @@ function localReleaseResponse(response, requestOrUrl) {
   headers.delete('content-encoding');
   headers.delete('content-length');
   headers.delete('transfer-encoding');
+  const pathname = new URL(requestedUrl).pathname;
+  if (/\.js$/i.test(pathname)) headers.set('content-type', 'text/javascript; charset=utf-8');
+  else if (/\.css$/i.test(pathname)) headers.set('content-type', 'text/css; charset=utf-8');
+  else if (/\.json$/i.test(pathname)) headers.set('content-type', 'application/json; charset=utf-8');
+  else if (/\.html?$/i.test(pathname)) headers.set('content-type', 'text/html; charset=utf-8');
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -211,7 +233,7 @@ function keepAlive(event, promise) {
 async function readReleaseManifest() {
   // Read this host's manifest: another host may use different build hashes.
   const manifestUrl = scopedUrl('release-manifest.json');
-  const response = await fetchWithDeadline(manifestUrl, { cache: 'no-cache' });
+  const response = await fetchReleaseWithFallback(manifestUrl, { cache: 'no-cache' });
   if (!response.ok) throw new Error('Release manifest is unavailable.');
   return response.json();
 }
