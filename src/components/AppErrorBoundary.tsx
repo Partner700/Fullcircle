@@ -86,8 +86,8 @@ export class AppErrorBoundary extends Component<Props, State> {
             }} className="btn-primary">
               <RefreshCcw size={16} /> Try Again
             </button>
-            <button type="button" onClick={() => void reloadFreshApp(true)} className="btn-secondary">
-              Open Backup
+            <button type="button" onClick={() => void reloadFreshApp()} className="btn-secondary">
+              Reload App
             </button>
           </div>
         </div>

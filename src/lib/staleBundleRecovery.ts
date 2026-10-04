@@ -1,44 +1,28 @@
 const RECOVERY_KEY = 'full-circle-stale-bundle-recovery-at';
 const RECOVERY_WINDOW_MS = 300_000;
-const MOBILE_DATA_COPY = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/index.html';
-const RELEASE_MARKER = '159';
+const RELEASE_MARKER = '160';
+const CURRENT_CACHE_PREFIX = 'full-circle-target-v160';
 let lastRecoveryInMemory = 0;
 
 const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css/i;
 
-function canLeaveCurrentOrigin(currentUrl: URL) {
-  const sensitiveHash = /(?:access_token|refresh_token|type=recovery)/i.test(currentUrl.hash);
-  return !currentUrl.searchParams.has('code') && !sensitiveHash;
-}
-
-function mobileDataCopyUrl() {
-  const current = new URL(window.location.href);
-  const target = new URL(MOBILE_DATA_COPY);
-  ['share', 'date', 'id', 'signup', 'fc-access'].forEach((key) => {
-    const value = current.searchParams.get(key);
-    if (value) target.searchParams.set(key, value);
-  });
-  target.searchParams.set('fc-origin-recovery', current.hostname);
-  target.searchParams.set('fc-release', RELEASE_MARKER);
-  if (!/(?:access_token|refresh_token|type=recovery)/i.test(current.hash)) target.hash = current.hash;
-  return target.toString();
-}
-
-export async function reloadFreshApp(useMobileDataCopy = false): Promise<void> {
+export async function reloadFreshApp(): Promise<void> {
   if (typeof window === 'undefined') return;
 
   const currentUrl = new URL(window.location.href);
-  if (useMobileDataCopy
-      && canLeaveCurrentOrigin(currentUrl)
-      && currentUrl.hostname !== new URL(MOBILE_DATA_COPY).hostname) {
-    window.location.replace(mobileDataCopyUrl());
-    return;
-  }
-
   if ('serviceWorker' in navigator) {
     void navigator.serviceWorker.getRegistration().then((registration) => {
+      registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+      registration?.active?.postMessage({ type: 'CLEAR_CACHES' });
       void registration?.update().catch(() => undefined);
     }).catch(() => undefined);
+  }
+  if ('caches' in window) {
+    void window.caches.keys().then((cacheNames) => Promise.all(
+      cacheNames
+        .filter((cacheName) => cacheName.startsWith('full-circle-') && !cacheName.startsWith(CURRENT_CACHE_PREFIX))
+        .map((cacheName) => window.caches.delete(cacheName)),
+    )).catch(() => undefined);
   }
 
   const freshUrl = currentUrl;

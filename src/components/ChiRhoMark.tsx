@@ -4,16 +4,27 @@ import { publicAsset } from '../lib/publicAsset';
 export function ChiRhoMark({ size = 20, className = '' }: { size?: number; className?: string }) {
   return (
     <span
-      className={`inline-block shrink-0 bg-current ${className}`}
-      style={{
-        width: size,
-        height: size,
-        WebkitMask: `url(${publicAsset('labarum-mark.png')}) center / contain no-repeat`,
-        mask: `url(${publicAsset('labarum-mark.png')}) center / contain no-repeat`,
-      }}
+      className={`fc-chi-rho-mark relative inline-flex shrink-0 items-center justify-center ${className}`}
+      style={{ width: size, height: size }}
       aria-label="Labarum"
       title="Labarum"
-    />
+    >
+      <span
+        className="fc-chi-rho-fallback font-serif font-black leading-none"
+        style={{ fontSize: Math.max(10, Math.round(size * 1.05)) }}
+        aria-hidden="true"
+      >
+        ☧
+      </span>
+      <span
+        className="fc-chi-rho-mask absolute inset-0 bg-current"
+        style={{
+          WebkitMask: `url(${publicAsset('labarum-mark.png')}) center / contain no-repeat`,
+          mask: `url(${publicAsset('labarum-mark.png')}) center / contain no-repeat`,
+        }}
+        aria-hidden="true"
+      />
+    </span>
   );
 }
 
