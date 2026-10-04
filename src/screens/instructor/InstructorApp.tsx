@@ -4233,7 +4233,7 @@ function InstructorSettings({ profile, tents, members }: {
           <p>· CAMPAY_APP_USERNAME — your CamPay app username</p>
           <p>· CAMPAY_APP_PASSWORD — your CamPay app password</p>
           <p>· CAMPAY_WEBHOOK_KEY — your CamPay webhook key</p>
-          <p><strong>Webhook URL:</strong> https://kckzqsafzemeijxfohuy.supabase.co/functions/v1/campay-webhook</p>
+          <p><strong>Webhook URL:</strong> {`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/campay-webhook`}</p>
         </div>
       </div>
 
