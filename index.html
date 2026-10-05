@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=162" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=163" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -151,8 +151,8 @@
     // A pre-migration worker may still control an installed phone. Retire only
     // those old caches, then keep recovery on the user's current origin.
     (function () {
-      var release = '162';
-      var currentCachePrefix = 'full-circle-target-v162';
+      var release = '163';
+      var currentCachePrefix = 'full-circle-target-v163';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -189,7 +189,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=162', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=163', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -249,7 +249,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
-      var bootRelease = window.__fullCircleBootRelease || '162';
+      var bootRelease = window.__fullCircleBootRelease || '163';
       root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle is taking longer than usual to open.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Retry Full Circle</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Release ' + bootRelease + '</p></div></div>';
     }, 30000);
   </script>

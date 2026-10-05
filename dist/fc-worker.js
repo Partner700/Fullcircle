@@ -1,11 +1,11 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v162';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v162';
+const CACHE_VERSION = 'full-circle-target-v163';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v163';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '162';
+const RECOVERY_MARKER = '163';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 1_800;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
@@ -243,7 +243,9 @@ function filesForEntry(manifest, entryKey, visited) {
   visited.add(entryKey);
   const entry = manifest[entryKey];
   if (!entry) return [];
-  const files = [entry.file, ...(entry.css || []), ...(entry.assets || [])].filter(Boolean);
+  // Release CSS is embedded in index.html so a phone never has to complete a
+  // second critical request before the interface becomes usable.
+  const files = [entry.file, ...(entry.assets || [])].filter(Boolean);
   for (const importedKey of entry.imports || []) {
     files.push(...filesForEntry(manifest, importedKey, visited));
   }
