@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { PostgrestSingleResponse, Session } from '@supabase/supabase-js';
-import { supabase, supabaseConfigError } from '../lib/supabase';
+import { supabase, supabaseConfigError, supabaseUrl } from '../lib/supabase';
 import { fetchOwnProfile } from '../lib/profileAccess';
 import type { Profile, Role, RoleAssignment } from '../lib/types';
 
@@ -57,7 +57,6 @@ function writeCachedIdentity(profile: Profile, roleAssignment: RoleAssignment) {
 
 function clearLocalAuthStorage() {
   if (typeof window === 'undefined') return;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   let projectRef: string | null = null;
   try {
     projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : null;

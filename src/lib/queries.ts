@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAnonKey, supabaseUrl } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
   QuizSession, GeneratedQuestion, QuizAttempt, QuizRuntimeState, QuizResponder, QuizResponseBoardMember, WeeklyQuizRanking, QuestionResponse, WeeklyQuizReleasedResult,
@@ -2676,7 +2676,7 @@ export type SubscriptionPlan = {
 };
 
 async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
-  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-session`;
+  const fnUrl = `${supabaseUrl}/functions/v1/create-checkout-session`;
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new Error('You must be signed in to start checkout.');
@@ -2684,7 +2684,7 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   const res = await fetch(fnUrl, {
     method: 'POST',
     headers: {
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      apikey: supabaseAnonKey,
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
@@ -2734,7 +2734,7 @@ export async function startCampayCheckout(
 }
 
 export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
-  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-session`;
+  const fnUrl = `${supabaseUrl}/functions/v1/create-checkout-session`;
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   const userId = sessionData.session?.user.id;
@@ -2743,7 +2743,7 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
   const response = await fetch(fnUrl, {
     method: 'POST',
     headers: {
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      apikey: supabaseAnonKey,
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
@@ -2797,13 +2797,13 @@ export async function startSubscriptionCheckout(
 }
 
 export async function verifyCampayPayment(reference: string) {
-  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/campay-webhook`;
+  const fnUrl = `${supabaseUrl}/functions/v1/campay-webhook`;
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   const res = await fetch(fnUrl, {
     method: 'POST',
     headers: {
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      apikey: supabaseAnonKey,
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       'Content-Type': 'application/json',
     },
@@ -3197,8 +3197,6 @@ export async function prepareArenaQuestionDeck(payload: {
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before preparing the Arena.');
 
   const res = await fetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
@@ -3229,8 +3227,6 @@ export async function generateInstructorQuestionsWithAI(payload: {
 }) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before generating questions.');
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
@@ -3264,8 +3260,6 @@ export async function generateInstructorQuestionsWithAI(payload: {
 async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHomeResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again to continue The Road Home.');
   const response = await fetch(`${supabaseUrl}/functions/v1/road-home-game`, {
     method: 'POST',
