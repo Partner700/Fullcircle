@@ -6,13 +6,12 @@ if (diagnostics && typeof window !== 'undefined') {
   Object.assign(window, { fullCircleEgress: diagnostics });
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabaseConfigError =
-  !supabaseUrl || !supabaseAnonKey
-    ? 'Missing Supabase env vars. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before building.'
-    : null;
+// These are public browser credentials, not service-role secrets. Pinning the
+// production project here prevents a stale hosting environment variable from
+// ever rebuilding Full Circle against the retired, quota-restricted project.
+export const supabaseUrl = 'https://nffqohxdelaglrmuzjwb.supabase.co';
+export const supabaseAnonKey = 'sb_publishable_sRypQ222Tr1j9ocjRYqw5g_deLrtax-';
+export const supabaseConfigError: string | null = null;
 
 const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
