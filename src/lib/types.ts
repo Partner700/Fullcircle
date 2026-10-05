@@ -768,6 +768,12 @@ export interface InstructorResourceGrantResult {
   relic_quantity_granted: number;
 }
 
+export interface InstructorBulkResourceGrantResult {
+  success: boolean;
+  recipient_count: number;
+  grants: InstructorResourceGrantResult[];
+}
+
 export interface StreakboardSnapshot {
   id: string;
   snapshot_date: string;
