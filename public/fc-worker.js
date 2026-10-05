@@ -1,11 +1,11 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v165';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v165';
+const CACHE_VERSION = 'full-circle-target-v166';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v166';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '165';
+const RECOVERY_MARKER = '166';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 3_000;
 const SECONDARY_MIRROR_DELAY_MS = 1_200;
@@ -165,9 +165,20 @@ async function fetchMobileDataFallback(requestOrUrl, signal) {
 
 function validReleaseResponse(response, requestOrUrl) {
   const path = new URL(typeof requestOrUrl === 'string' ? requestOrUrl : requestOrUrl.url, self.registration.scope).pathname;
+  const contentType = response.headers.get('content-type') || '';
+  const documentRequest = (typeof requestOrUrl !== 'string' && requestOrUrl && requestOrUrl.mode === 'navigate')
+    || /\.html?$/i.test(path);
+  // A document navigation must never render a JavaScript or CSS response as
+  // text. This also repairs iPhone tabs stranded on an old asset URL.
+  if (documentRequest && !/text\/html|application\/xhtml\+xml/i.test(contentType)) return false;
   // Some hosts serve their SPA HTML for missing chunks. Never cache it as JS/CSS.
   return response.ok && !(/\.(?:js|css|json|png|jpe?g|webp|svg|woff2?)$/i.test(path)
-    && /text\/html/i.test(response.headers.get('content-type') || ''));
+    && /text\/html/i.test(contentType));
+}
+
+function isReleaseAssetPath(pathname) {
+  return /\/assets\//i.test(pathname)
+    || /\.(?:js|mjs|css|json|map|png|jpe?g|gif|webp|svg|woff2?|ttf|otf)$/i.test(pathname);
 }
 
 function localReleaseResponse(response, requestOrUrl) {
@@ -343,7 +354,11 @@ async function recoverFallbackClient(client) {
     const target = new URL(client.url);
     if (target.origin !== self.location.origin) return;
     const scopePath = new URL(self.registration.scope).pathname;
-    if (!target.pathname.startsWith(scopePath) || target.pathname.endsWith('/offline.html')) {
+    if (
+      !target.pathname.startsWith(scopePath)
+      || target.pathname.endsWith('/offline.html')
+      || isReleaseAssetPath(target.pathname)
+    ) {
       target.pathname = scopePath;
       target.search = '';
       target.hash = '';
@@ -389,7 +404,9 @@ async function cachedAppShell() {
 }
 
 async function networkFirstNavigation(request, event) {
-  const networkRequest = fetchReleaseWithFallback(request, { cache: 'no-store' }).then((response) => {
+  const requestedPath = new URL(request.url).pathname;
+  const releaseRequest = isReleaseAssetPath(requestedPath) ? scopedUrl('index.html') : request;
+  const networkRequest = fetchReleaseWithFallback(releaseRequest, { cache: 'no-store' }).then((response) => {
     keepAlive(event, safeCachePut(SHELL_CACHE, scopedUrl('index.html'), response.clone()));
     return response;
   });

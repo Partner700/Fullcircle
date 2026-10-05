@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trophy } from 'lucide-react';
-import { fetchLatestWeeklyQuizRankings } from '../lib/queries';
+import { fetchFortuneQuizRankings, fetchLatestWeeklyQuizRankings } from '../lib/queries';
 import type { WeeklyQuizRanking } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { CurrentUserAvatarMarker } from './CurrentUserAvatarMarker';
@@ -9,7 +9,15 @@ import { startVisiblePolling } from '../lib/visiblePolling';
 
 type QuizDivision = 'cadet' | 'sentry';
 
-export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
+export function WeeklyQuizRankings({
+  sessionId,
+  quizType = 'saturday',
+  availableAt,
+}: {
+  sessionId: string;
+  quizType?: 'saturday' | 'fortune';
+  availableAt?: string;
+}) {
   const { role, profile } = useAuth();
   const [rankings, setRankings] = useState<Record<QuizDivision, WeeklyQuizRanking[]>>({ cadet: [], sentry: [] });
 
@@ -20,7 +28,12 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
         ? ['cadet', 'sentry']
         : ['cadet'];
       return Promise.all(divisions.map(async (division) => (
-        [division, await fetchLatestWeeklyQuizRankings(sessionId, division)] as const
+        [
+          division,
+          await (quizType === 'fortune'
+            ? fetchFortuneQuizRankings(sessionId, division)
+            : fetchLatestWeeklyQuizRankings(sessionId, division)),
+        ] as const
       )))
         .then((results) => {
           if (cancelled) return;
@@ -32,11 +45,16 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
         .catch(() => undefined);
     };
     const polling = startVisiblePolling(load, 60_000);
+    const releaseAtMs = Date.parse(availableAt || '');
+    const releaseTimer = Number.isFinite(releaseAtMs) && releaseAtMs > Date.now()
+      ? window.setTimeout(() => { void load(); }, Math.min(releaseAtMs - Date.now() + 250, 2_147_000_000))
+      : null;
     return () => {
       cancelled = true;
+      if (releaseTimer !== null) window.clearTimeout(releaseTimer);
       polling.stop();
     };
-  }, [role, sessionId]);
+  }, [availableAt, quizType, role, sessionId]);
 
   const divisions: QuizDivision[] = role === 'sentry' || role === 'instructor'
     ? ['cadet', 'sentry']
@@ -49,9 +67,9 @@ export function WeeklyQuizRankings({ sessionId }: { sessionId: string }) {
         <section key={division} className="card overflow-hidden p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="eyebrow text-gold">Released with quiz results</p>
+              <p className="eyebrow text-gold">{quizType === 'fortune' ? 'Released when time elapsed' : 'Released with quiz results'}</p>
               <h3 className="mt-1 font-display text-base font-semibold text-ink">
-                {division === 'cadet' ? 'Cadet' : 'Sentry'} Weekly Quiz Top Three
+                {division === 'cadet' ? 'Cadet' : 'Sentry'} {quizType === 'fortune' ? 'Fortune Quiz' : 'Weekly Quiz'} Top Three
               </h3>
             </div>
             <Trophy size={21} className="text-gold" />

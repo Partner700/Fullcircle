@@ -466,8 +466,23 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   };
 
   const resultsReleaseAt = localQuizResultsRelease(session.session_date);
-  const responderPanel = <QuizResponders sessionId={session.id} />;
-  const rankingPanel = session.quiz_type === 'saturday' ? <WeeklyQuizRankings sessionId={session.id} /> : null;
+  const rankingsAvailableAt = session.quiz_type === 'fortune'
+    ? session.live_closes_at
+    : new Date(resultsReleaseAt).toISOString();
+  const responderPanel = (
+    <QuizResponders
+      sessionId={session.id}
+      quizType={session.quiz_type}
+      rankingsAvailableAt={rankingsAvailableAt}
+    />
+  );
+  const rankingPanel = (
+    <WeeklyQuizRankings
+      sessionId={session.id}
+      quizType={session.quiz_type}
+      availableAt={rankingsAvailableAt}
+    />
+  );
 
   const shareQuiz = async () => {
     const url = new URL(window.location.href);

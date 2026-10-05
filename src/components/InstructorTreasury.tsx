@@ -6,12 +6,14 @@ import { UserAvatar } from './UserAvatar';
 import { fetchRelicTypes, grantInstructorResourcesBulk } from '../lib/queries';
 import { cn } from '../lib/utils';
 import type { Profile, RelicType, RoleAssignment } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 
 export function CampTreasury({ profiles, roles, loading }: {
   profiles: Profile[];
   roles: RoleAssignment[];
   loading: boolean;
 }) {
+  const { profile } = useAuth();
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
   const [recipientSearch, setRecipientSearch] = useState('');
   const [denariiAmount, setDenariiAmount] = useState('');
@@ -35,8 +37,11 @@ export function CampTreasury({ profiles, roles, loading }: {
   }, [roles]);
 
   const campMembers = useMemo(() => profiles
-    .filter((member) => activeRoleByUser.has(member.id))
-    .sort((left, right) => left.display_name.localeCompare(right.display_name)), [activeRoleByUser, profiles]);
+    .filter((member) => (
+      member.id !== profile?.id
+      && activeRoleByUser.has(member.id)
+    ))
+    .sort((left, right) => left.display_name.localeCompare(right.display_name)), [activeRoleByUser, profile?.id, profiles]);
 
   const selectedRecipientSet = useMemo(() => new Set(selectedRecipientIds), [selectedRecipientIds]);
   const filteredCampMembers = useMemo(() => {
@@ -150,7 +155,7 @@ export function CampTreasury({ profiles, roles, loading }: {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Camp Treasury" subtitle="Grant Denarii and relics to any active camp member" />
+      <SectionHeader title="Camp Treasury" subtitle="Grant resources to active camp members other than yourself" />
       <form onSubmit={submitGrant} className="card space-y-5 p-4 sm:p-5">
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-3">

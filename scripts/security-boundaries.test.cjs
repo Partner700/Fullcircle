@@ -174,6 +174,7 @@ const forwardOnlyStreak = read('supabase/migrations/20260908140000_forward_only_
 const persistentRevivalRelicStreaks = read('supabase/migrations/20260916100000_persistent_revival_relic_streaks.sql');
 const instructorTreasuryAndRecoveryAnchors = read('supabase/migrations/20260916113000_instructor_treasury_and_recovery_anchors.sql');
 const bulkInstructorResourceGrants = read('supabase/migrations/20261005090338_bulk_instructor_resource_grants.sql');
+const fortuneAndInstructorCompetition = read('supabase/migrations/20261005120000_fortune_and_instructor_competition.sql');
 const instructorTreasury = read('src/components/InstructorTreasury.tsx');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
@@ -368,7 +369,7 @@ assert.match(quizResponders, /visibleBoard\.map\(\(member\)/);
 assert.match(quizResponders, /TENT_HOUSES\.map\(\(house\)/);
 assert.match(quizResponders, /answeredByTent\.get\(house\.id\)/);
 assert.match(cadetDashboard, /announcement_type === 'weekly_quiz_reminder'[\s\S]*<QuizResponders/);
-assert.match(cadetQuiz, /const responderPanel = <QuizResponders sessionId=\{session\.id\}/);
+assert.match(cadetQuiz, /<QuizResponders[\s\S]*sessionId=\{session\.id\}[\s\S]*quizType=\{session\.quiz_type\}/);
 assert.match(instructorApp, /title: 'Bethel Stone', description: 'Overall Best Tent of the Month'/);
 assert.match(instructorApp, /title: 'Temple Mount', description: 'Overall Best Tent of the Year'/);
 assert.match(instructorApp, /<MonthlyAwardNominees month=\{watchMonth\}/);
@@ -493,10 +494,10 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v165'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v165'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v166'/);
+assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v166'/);
 assert.doesNotMatch(serviceWorker, /ROLLBACK_CACHE_PREFIXES/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '165'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '166'/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 3_000/);
 assert.match(serviceWorker, /response\.clone\(\)\.arrayBuffer\(\)/);
@@ -504,9 +505,12 @@ assert.match(serviceWorker, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circl
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
+assert.match(serviceWorker, /const releaseRequest = isReleaseAssetPath\(requestedPath\) \? scopedUrl\('index\.html'\) : request/);
+assert.match(serviceWorker, /documentRequest && !\/text\\\/html\|application\\\/xhtml/);
+assert.match(serviceWorker, /isReleaseAssetPath\(target\.pathname\)/);
 assert.match(serviceWorker, /Promise\.race\(\[networkRequest, fallbackAfterDelay\]\)/);
 assert.match(serviceWorker, /function fetchReleaseWithFallback/);
-assert.match(serviceWorker, /fetchReleaseWithFallback\(request, \{ cache: 'no-store' \}\)/);
+assert.match(serviceWorker, /fetchReleaseWithFallback\(releaseRequest, \{ cache: 'no-store' \}\)/);
 assert.doesNotMatch(serviceWorker, /refreshInstalledClient/);
 assert.doesNotMatch(serviceWorker, /if \(!installedLaunch && previousWorker === null\) return/);
 assert.match(serviceWorker, /async function cacheFirstAsset/);
@@ -520,27 +524,27 @@ assert.match(serviceWorker, /release-manifest\.json/);
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '165'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '166'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}fc-worker\.js\?v=165`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}fc-worker\.js\?v=166`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /RELEASE_MARKER = '165'/);
+assert.match(staleBundleRecovery, /RELEASE_MARKER = '166'/);
 assert.doesNotMatch(staleBundleRecovery, /void reloadFreshApp\(true\)/);
 assert.doesNotMatch(staleBundleRecovery, /raw\.githack\.com/);
 assert.match(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-10-05-target-v165/);
-assert.match(releaseCache, /full-circle-target-v165/);
+assert.match(releaseCache, /2026-10-05-target-v166/);
+assert.match(releaseCache, /full-circle-target-v166/);
 assert.doesNotMatch(releaseCache, /full-circle-v147-v15[1-9]/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=165/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=166/);
 assert.match(appIndex, /href="%VITE_SUPABASE_URL%" crossorigin/);
 assert.doesNotMatch(appIndex, /kckzqsafzemeijxfohuy/);
-assert.match(appIndex, /var release = '165'/);
-assert.match(appIndex, /register\('%BASE_URL%fc-worker\.js\?v=165'/);
+assert.match(appIndex, /var release = '166'/);
+assert.match(appIndex, /register\('%BASE_URL%fc-worker\.js\?v=166'/);
 assert.equal(legacyServiceWorker, serviceWorker, 'The legacy worker URL must install without a second network request.');
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
@@ -563,7 +567,7 @@ assert.match(appIndex, /data-full-circle-fonts/);
 assert.match(builtAppIndex, /onerror="window\.__loadFullCircleMirror\(this\.src\)"/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.doesNotMatch(offlinePage, /Open Mobile-Data Copy|raw\.githack\.com/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=165"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=166"/);
 assert.match(read('public/manifest.webmanifest'), /"prefer_related_applications": false/);
 assert.match(environmentExample, /VITE_SUPABASE_URL=https:\/\/your-project-ref\.supabase\.co/);
 assert.match(environmentExample, /VITE_SUPABASE_ANON_KEY=sb_publishable_your_project_key/);
@@ -1528,9 +1532,13 @@ for (const required of [
   assert.ok(resultsReleaseRankingsAndWeeklyAwards.includes(required), `Missing quiz-day ranking boundary: ${required}`);
 }
 assert.match(resultsReleaseRankingsAndWeeklyAwards, /correct_count DESC[\s\S]*figs_earned DESC[\s\S]*answered_at ASC/);
-assert.match(weeklyQuizRankings, /Weekly Quiz Top Three/);
+assert.match(weeklyQuizRankings, /'Weekly Quiz'/);
+assert.match(weeklyQuizRankings, /Top Three/);
 assert.match(weeklyQuizRankings, /Released with quiz results/);
 assert.match(weeklyQuizRankings, /fetchLatestWeeklyQuizRankings/);
+assert.match(weeklyQuizRankings, /fetchFortuneQuizRankings/);
+assert.match(weeklyQuizRankings, /quizType === 'fortune'/);
+assert.match(weeklyQuizRankings, /availableAt/);
 assert.match(weeklyQuizRankings, /rankings\[division\]\.slice\(0, 3\)/);
 assert.match(weeklyQuizRankings, /\['cadet', 'sentry'\]/);
 assert.match(weeklyQuizRankings, /role === 'sentry' \|\| role === 'instructor'/);
@@ -1557,7 +1565,8 @@ assert.match(quizResponders, /placementByUserId/);
 assert.match(quizResponders, /Position \$\{placementByUserId\.get\(responder\.user_id\)\}/);
 assert.doesNotMatch(cadetQuiz, /\{figs\}\/\{maxFigs\}/);
 assert.doesNotMatch(publicQuizResultClaim, /result\.figs/);
-assert.match(cadetQuiz, /<WeeklyQuizRankings sessionId=\{session\.id\} \/>/);
+assert.match(cadetQuiz, /<WeeklyQuizRankings[\s\S]*sessionId=\{session\.id\}[\s\S]*quizType=\{session\.quiz_type\}/);
+assert.match(cadetQuiz, /session\.quiz_type === 'fortune'[\s\S]*session\.live_closes_at/);
 assert.match(cadetDashboard, /kind: 'quiz_podium'/);
 assert.match(quoteQueries, /return shareReadRequest\(`live-stats:\$\{userId\}`/);
 assert.match(quoteQueries, /return parseLiveStats\(data, userId\)/);
@@ -1838,6 +1847,9 @@ assert.match(alarmPreferences, /MAX_ALARM_VOLUME = 200/);
 assert.match(alarmPreferences, /DEFAULT_ALARM_VOLUME = 200/);
 assert.match(browserNotificationSettings, /<AlarmVolumeControl/);
 assert.match(scriptureAlarmOverlay, /startAlarmEffects\(alarmVolume\)/);
+assert.match(scriptureAlarmOverlay, /saveAlarmVolume\(MAX_ALARM_VOLUME\)/);
+assert.match(scriptureAlarmOverlay, /setAlarmVolumeState\(MAX_ALARM_VOLUME\)/);
+assert.match(scriptureAlarmOverlay, /alarmRingingKey/);
 assert.match(scriptureAlarmOverlay, /getNotifications\(\{ tag: 'full-circle-scripture-alarm' \}\)/);
 assert.match(newcomerGuide, /data-guide-nav/);
 assert.match(newcomerGuide, /scroll_reading/);
@@ -2040,8 +2052,36 @@ assert.match(instructorTreasury, /Select all \$\{filteredCampMembers\.length\} r
 assert.match(instructorTreasury, /Select all \$\{campMembers\.length\} members/);
 assert.match(instructorTreasury, /selectedRecipientIds\.length/);
 assert.match(instructorTreasury, /Every grant is recorded in the camp ledger/);
+assert.match(instructorTreasury, /member\.id !== profile\?\.id/);
 assert.match(instructorApp, /key: 'treasury', label: 'Camp Treasury'/);
 assert.match(instructorApp, /<CampTreasury profiles=\{profiles\} roles=\{roles\} loading=\{loading\} \/>/);
+
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.prevent_instructor_self_resource_grant()',
+  'IF NEW.instructor_id = NEW.recipient_id THEN',
+  'BEFORE INSERT OR UPDATE OF instructor_id, recipient_id',
+  'CREATE OR REPLACE FUNCTION public.get_fortune_quiz_rankings_by_role(',
+  "session.quiz_type = 'fortune'",
+  'statement_timestamp() >= session.live_closes_at',
+  "v_viewer_role = 'cadet' AND v_competitor_role <> 'cadet'",
+  'competitor.role = v_competitor_role',
+  'row_number() OVER',
+  'CREATE OR REPLACE FUNCTION public.get_instructor_competitive_boards()',
+  "('instructor_narratives'::text, totals.narratives, totals.previous_narratives)",
+  "('instructor_residents'::text, totals.residents, totals.previous_residents)",
+  "('instructor_marks'::text, totals.marks, totals.previous_marks)",
+  "('instructor_denarii'::text, totals.total_denarii, totals.previous_denarii)",
+  "('instructor_figs'::text, totals.total_figs, totals.previous_figs)",
+  'camp.member_marks + camp.narratives + camp.residents * 5',
+]) {
+  assert.ok(fortuneAndInstructorCompetition.includes(required), `Missing fortune/instructor competition safeguard: ${required}`);
+}
+assert.match(fortuneAndInstructorCompetition, /REVOKE ALL ON FUNCTION public\.get_fortune_quiz_rankings_by_role[\s\S]*FROM PUBLIC, anon/);
+assert.match(fortuneAndInstructorCompetition, /REVOKE ALL ON FUNCTION public\.get_instructor_competitive_boards[\s\S]*FROM PUBLIC, anon/);
+assert.match(cadetLeaderboard, /get_instructor_competitive_boards/);
+for (const boardKey of ['instructor_narratives', 'instructor_residents', 'instructor_marks', 'instructor_denarii', 'instructor_figs']) {
+  assert.match(cadetLeaderboard, new RegExp(boardKey));
+}
 
 for (const required of [
   'CREATE OR REPLACE FUNCTION public.release_account_deletion_references',
@@ -2305,7 +2345,7 @@ assert.equal((cadetDashboard.match(/loadCommentPreview=\{isDisplayedSlide\}/g) |
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
 assert.match(appErrorBoundary, /reloadFreshApp\(\)/);
-assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-05-target-v165'/);
+assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-05-target-v166'/);
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);

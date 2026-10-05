@@ -16,7 +16,11 @@ import type { PendingScriptureAlarm } from '../lib/types';
 import { cn } from '../lib/utils';
 import { Dove } from './Dove';
 import { AlarmVolumeControl } from './AlarmVolumeControl';
-import { getAlarmVolume } from '../lib/alarmPreferences';
+import {
+  getAlarmVolume,
+  MAX_ALARM_VOLUME,
+  setAlarmVolume as saveAlarmVolume,
+} from '../lib/alarmPreferences';
 import { syncExistingWebPush } from '../lib/pushNotifications';
 
 const SLOT_LABELS: Record<PendingScriptureAlarm['alarm_slot'], string> = {
@@ -150,11 +154,13 @@ export function ScriptureAlarmOverlay() {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<'wrong' | 'correct' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [alarmVolume, setAlarmVolume] = useState(getAlarmVolume);
+  const [alarmVolume, setAlarmVolumeState] = useState(getAlarmVolume);
   const loadRef = useRef<Promise<void> | null>(null);
   const submittingRef = useRef(false);
   const dialogRef = useRef<HTMLElement | null>(null);
+  const lastRingingAlarmRef = useRef<string | null>(null);
   const alarmId = alarm?.id || null;
+  const alarmRingingKey = alarm ? `${alarm.id}:${alarm.triggered_at}` : null;
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -180,6 +186,12 @@ export function ScriptureAlarmOverlay() {
       try {
         const result = await fetchPendingScriptureAlarm();
         const pending = result && Date.parse(result.expires_at) > Date.now() ? result : null;
+        const ringingKey = pending ? `${pending.id}:${pending.triggered_at}` : null;
+        if (ringingKey && ringingKey !== lastRingingAlarmRef.current) {
+          lastRingingAlarmRef.current = ringingKey;
+          saveAlarmVolume(MAX_ALARM_VOLUME);
+          setAlarmVolumeState(MAX_ALARM_VOLUME);
+        }
         if (!pending) void clearDeliveredAlarmNotification();
         setError(null);
         setAlarm((current) => {
@@ -261,9 +273,9 @@ export function ScriptureAlarmOverlay() {
   }, [alarmId]);
 
   useEffect(() => {
-    if (!alarmId || feedback === 'correct') return;
+    if (!alarmRingingKey || feedback === 'correct') return;
     return startAlarmEffects(alarmVolume);
-  }, [alarmId, alarmVolume, feedback]);
+  }, [alarmRingingKey, alarmVolume, feedback]);
 
   useEffect(() => {
     if (!alarm?.expires_at) return;
@@ -420,7 +432,7 @@ export function ScriptureAlarmOverlay() {
           )}
           {error && <div role="alert" className="mt-3 rounded-md border border-coral/35 bg-coral/10 px-3 py-2 text-xs text-coral">{error}</div>}
 
-          <AlarmVolumeControl compact onVolumeChange={setAlarmVolume} />
+          <AlarmVolumeControl compact onVolumeChange={setAlarmVolumeState} />
 
           <button
             type="button"
