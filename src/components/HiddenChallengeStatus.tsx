@@ -120,7 +120,7 @@ export function HiddenChallengeStatus() {
     }
     void load();
     const refresh = () => void load();
-    const interval = window.setInterval(refresh, 20_000);
+    const interval = window.setInterval(refresh, 120_000);
     const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener(HIDDEN_CHALLENGE_STATUS_EVENT, refresh);
     window.addEventListener('focus', refresh);

@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=164" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=165" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -133,16 +133,25 @@
   <meta name="twitter:description" content="Gamified discipleship platform with daily Bible quizzes, streak tracking, and leaderboards." />
   <meta name="twitter:image" content="https://fullcircle.partnertai.com/social/fullcircle-share.jpeg?v=7" />
 
-  <!-- Preconnect for performance -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+  <!-- Keep the database connection warm; artwork fonts wait until the app has
+       loaded so they cannot compete with the entry bundle on iPhone data. -->
   <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
   <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
 
-  <!-- Load branded fonts after first paint; system fonts keep slow phones usable. -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+  <!-- System fonts render the whole app immediately. Branded fonts are a
+       progressive enhancement once Safari's critical requests are complete. -->
+  <script>
+    window.addEventListener('load', function () {
+      window.setTimeout(function () {
+        if (document.querySelector('link[data-full-circle-fonts]')) return;
+        var fonts = document.createElement('link');
+        fonts.rel = 'stylesheet';
+        fonts.href = 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap';
+        fonts.setAttribute('data-full-circle-fonts', 'true');
+        document.head.appendChild(fonts);
+      }, 2500);
+    }, { once: true });
+  </script>
   <noscript><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" rel="stylesheet" /></noscript>
 
   <!-- Release-aware recovery for installed and in-browser copies. -->
@@ -151,8 +160,8 @@
     // A pre-migration worker may still control an installed phone. Retire only
     // those old caches, then keep recovery on the user's current origin.
     (function () {
-      var release = '164';
-      var currentCachePrefix = 'full-circle-target-v164';
+      var release = '165';
+      var currentCachePrefix = 'full-circle-target-v165';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -189,7 +198,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=164', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=165', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -209,8 +218,8 @@
         mirrorStarted = true;
         var assetPath = failedUrl.pathname.slice(assetMarker + 1);
         var mirrors = [
-          'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/',
-          'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/'
+          'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/',
+          'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/'
         ];
         var loadMirror = function (index) {
           if (index >= mirrors.length) {
@@ -249,7 +258,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
-      var bootRelease = window.__fullCircleBootRelease || '164';
+      var bootRelease = window.__fullCircleBootRelease || '165';
       root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle is taking longer than usual to open.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Retry Full Circle</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Release ' + bootRelease + '</p></div></div>';
     }, 30000);
   </script>

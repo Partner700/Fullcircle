@@ -262,7 +262,7 @@ export function AudioCallManager() {
     }
     void load();
     const refresh = () => { if (document.visibilityState === 'visible') void load(); };
-    const interval = window.setInterval(refresh, 30_000);
+    const interval = window.setInterval(refresh, 120_000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {

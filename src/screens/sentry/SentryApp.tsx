@@ -435,7 +435,7 @@ export function SentryApp() {
       if (document.visibilityState === 'visible') {
         void Promise.allSettled([loadOwnStats(), loadMemberData()]);
       }
-    }, 60_000);
+    }, 120_000);
     const contentInterval = window.setInterval(refreshVisibleStats, 2 * 60_000);
     document.addEventListener('visibilitychange', refreshVisibleStats);
     window.addEventListener('focus', refreshVisibleStats);

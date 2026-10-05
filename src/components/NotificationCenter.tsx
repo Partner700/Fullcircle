@@ -90,7 +90,7 @@ export function NotificationCenter({ onNavigate }: Props) {
   useEffect(() => {
     if (!profile) return;
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void load(); };
-    const interval = window.setInterval(refreshWhenVisible, 30_000);
+    const interval = window.setInterval(refreshWhenVisible, 120_000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => { window.clearInterval(interval); window.removeEventListener('focus', refreshWhenVisible); document.removeEventListener('visibilitychange', refreshWhenVisible); };

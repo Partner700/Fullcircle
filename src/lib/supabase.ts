@@ -27,6 +27,16 @@ function pause(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+async function waitForApiBody(response: Response, method: string) {
+  if (method === 'HEAD' || !response.body) return;
+  const contentType = response.headers.get('content-type') || '';
+  if (!/(?:json|text\/|vnd\.pgrst)/i.test(contentType)) return;
+  // fetch() resolves when headers arrive. Reading a clone keeps the deadline
+  // active until the small Auth/REST/Function payload has actually arrived,
+  // while preserving the original Response for supabase-js to consume.
+  await response.clone().arrayBuffer();
+}
+
 /**
  * Mobile carriers occasionally leave a request pending instead of reporting a
  * disconnect. Bound every attempt and retry read-only requests once so screens
@@ -53,6 +63,7 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
         ? input.clone()
         : input;
       const response = await fetch(requestInput, { ...init, signal: controller.signal });
+      await waitForApiBody(response, method);
       void diagnostics?.record(input, method, response, Date.now() - startedAt).catch(() => undefined);
       if (canRetry && attempt === 0 && RETRYABLE_RESPONSE_STATUSES.has(response.status)) {
         await pause(350);

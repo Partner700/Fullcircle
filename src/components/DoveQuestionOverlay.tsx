@@ -131,7 +131,7 @@ export function DoveQuestionOverlay() {
     const refreshWhenAvailable = () => {
       if (document.visibilityState === 'visible') void loadPending();
     };
-    const interval = window.setInterval(refreshWhenAvailable, 30_000);
+    const interval = window.setInterval(refreshWhenAvailable, 120_000);
     window.addEventListener('focus', refreshWhenAvailable);
     window.addEventListener('online', refreshWhenAvailable);
     document.addEventListener('visibilitychange', refreshWhenAvailable);

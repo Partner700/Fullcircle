@@ -1,17 +1,18 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v164';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v164';
+const CACHE_VERSION = 'full-circle-target-v165';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v165';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '164';
+const RECOVERY_MARKER = '165';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
-const MOBILE_DATA_FALLBACK_DELAY_MS = 1_800;
-const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
+const MOBILE_DATA_FALLBACK_DELAY_MS = 3_000;
+const SECONDARY_MIRROR_DELAY_MS = 1_200;
+const NETWORK_ATTEMPT_TIMEOUT_MS = 18_000;
 const MOBILE_DATA_FALLBACK_BASES = [
-  'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/',
   'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/',
+  'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/',
 ];
 
 const NOTIFICATION_SYMBOLS = {
@@ -75,35 +76,32 @@ function wait(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-function fetchWithDeadline(request, options, timeoutMs = NETWORK_ATTEMPT_TIMEOUT_MS) {
+async function fetchWithDeadline(request, options = {}, timeoutMs = NETWORK_ATTEMPT_TIMEOUT_MS) {
   const controller = new AbortController();
   const signal = options && options.signal;
+  let timedOut = false;
   const abort = () => controller.abort();
   if (signal) {
     if (signal.aborted) abort();
     else signal.addEventListener('abort', abort, { once: true });
   }
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      clearTimeout(timeout);
-      if (signal) signal.removeEventListener('abort', abort);
-    };
-    const timeout = setTimeout(() => {
-      controller.abort();
-      reject(new Error('The network request timed out.'));
-    }, timeoutMs);
-    fetch(request, { ...options, signal: controller.signal }).then(
-      (response) => {
-        // Once headers arrive, a slow but valid response body must not be aborted.
-        cleanup();
-        resolve(response);
-      },
-      (error) => {
-        cleanup();
-        reject(error);
-      },
-    );
-  });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    const response = await fetch(request, { ...options, signal: controller.signal });
+    // fetch resolves at headers. Validate that the complete release body can be
+    // read before choosing this route and aborting a potentially healthy copy.
+    if (response.body) await response.clone().arrayBuffer();
+    return response;
+  } catch (error) {
+    if (timedOut) throw new Error('The network request timed out.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    if (signal) signal.removeEventListener('abort', abort);
+  }
 }
 
 function fallbackReleaseUrl(requestOrUrl, fallbackBase) {
@@ -120,20 +118,48 @@ function fallbackReleaseUrl(requestOrUrl, fallbackBase) {
 
 async function fetchMobileDataFallback(requestOrUrl, signal) {
   return new Promise((resolve, reject) => {
+    const controllers = MOBILE_DATA_FALLBACK_BASES.map(() => new AbortController());
+    let finished = false;
+    let started = 0;
     let failures = 0;
-    const failed = () => {
+    let secondaryTimer;
+    const abortAll = () => controllers.forEach((controller) => controller.abort());
+    const cleanup = () => {
+      clearTimeout(secondaryTimer);
+      if (signal) signal.removeEventListener('abort', abortAll);
+    };
+    const succeed = (winner, response) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      controllers.forEach((controller, index) => { if (index !== winner) controller.abort(); });
+      resolve(response);
+    };
+    const fail = () => {
       failures += 1;
-      if (failures === MOBILE_DATA_FALLBACK_BASES.length) {
+      if (started < MOBILE_DATA_FALLBACK_BASES.length) start(started);
+      if (!finished && started === MOBILE_DATA_FALLBACK_BASES.length && failures === started) {
+        finished = true;
+        cleanup();
         reject(new Error('Every independent release copy is unavailable.'));
       }
     };
-    MOBILE_DATA_FALLBACK_BASES.forEach((fallbackBase) => {
+    const start = (index) => {
+      if (finished || index >= MOBILE_DATA_FALLBACK_BASES.length || index < started) return;
+      started = index + 1;
+      const fallbackBase = MOBILE_DATA_FALLBACK_BASES[index];
       const fallbackUrl = fallbackReleaseUrl(requestOrUrl, fallbackBase);
-      fetchWithDeadline(fallbackUrl, { mode: 'cors', signal }).then((response) => {
-        if (validReleaseResponse(response, requestOrUrl)) resolve(response);
-        else failed();
-      }, failed);
-    });
+      fetchWithDeadline(fallbackUrl, { mode: 'cors', signal: controllers[index].signal }).then((response) => {
+        if (validReleaseResponse(response, requestOrUrl)) succeed(index, response);
+        else fail();
+      }, fail);
+    };
+    if (signal) {
+      if (signal.aborted) abortAll();
+      else signal.addEventListener('abort', abortAll, { once: true });
+    }
+    start(0);
+    secondaryTimer = setTimeout(() => start(1), SECONDARY_MIRROR_DELAY_MS);
   });
 }
 

@@ -242,7 +242,7 @@ export function HiddenChallengeOverlay() {
       if (document.visibilityState === 'visible') void loadContext({ placement: 'app_open' });
     };
     const initial = window.setTimeout(checkAppOpen, 500);
-    const interval = window.setInterval(checkAppOpen, 30_000);
+    const interval = window.setInterval(checkAppOpen, 120_000);
     const onReveal = (event: Event) => {
       void loadContext((event as CustomEvent<HiddenChallengeEventDetail>).detail || {});
     };
