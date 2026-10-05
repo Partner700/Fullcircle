@@ -888,6 +888,18 @@ export async function fetchLatestWeeklyQuizRankings(
   return (data || []) as WeeklyQuizRanking[];
 }
 
+export async function fetchFortuneQuizRankings(
+  sessionId: string,
+  competitorRole: 'cadet' | 'sentry' = 'cadet',
+) {
+  const { data, error } = await supabase.rpc('get_fortune_quiz_rankings_by_role', {
+    p_quiz_session_id: sessionId,
+    p_competitor_role: competitorRole,
+  });
+  if (error) throw error;
+  return (data || []) as WeeklyQuizRanking[];
+}
+
 export async function fetchWeeklyAwardMetrics(weekStart?: string) {
   const { data, error } = await supabase.rpc('get_weekly_award_metrics', {
     p_week_start: weekStart || null,

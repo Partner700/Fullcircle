@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import {
   fetchLatestQuizSession,
+  fetchFortuneQuizRankings,
   fetchLatestWeeklyQuizRankings,
   fetchQuizResponders,
   fetchQuizResponseBoard,
@@ -21,16 +22,20 @@ export function QuizResponders({
   sessionId,
   variant = 'card',
   competitorRole,
+  quizType = 'saturday',
+  rankingsAvailableAt,
   active = true,
   className,
 }: {
   sessionId?: string | null;
   variant?: 'card' | 'slide' | 'podium';
   competitorRole?: 'cadet' | 'sentry';
+  quizType?: 'saturday' | 'fortune';
+  rankingsAvailableAt?: string;
   active?: boolean;
   className?: string;
 }) {
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const [resolvedSessionId, setResolvedSessionId] = useState(sessionId || null);
   const [board, setBoard] = useState<QuizResponseBoardMember[]>([]);
   const [rankings, setRankings] = useState<WeeklyQuizRanking[]>([]);
@@ -53,9 +58,24 @@ export function QuizResponders({
         return;
       }
 
+      const fortuneRankingRequest = async () => {
+        const divisions: Array<'cadet' | 'sentry'> = competitorRole
+          ? [competitorRole]
+          : role === 'sentry' || role === 'instructor'
+            ? ['cadet', 'sentry']
+            : ['cadet'];
+        const dividedRankings = await Promise.allSettled(
+          divisions.map((division) => fetchFortuneQuizRankings(quizSessionId, division)),
+        );
+        return dividedRankings.flatMap((result) => (
+          result.status === 'fulfilled' ? result.value : []
+        ));
+      };
       const [boardResult, rankingResult] = await Promise.allSettled([
         fetchQuizResponseBoard(quizSessionId),
-        fetchLatestWeeklyQuizRankings(quizSessionId, competitorRole),
+        quizType === 'fortune'
+          ? fortuneRankingRequest()
+          : fetchLatestWeeklyQuizRankings(quizSessionId, competitorRole),
       ]);
       if (boardResult.status === 'fulfilled') {
         setBoard(boardResult.value);
@@ -73,7 +93,7 @@ export function QuizResponders({
     } finally {
       setLoading(false);
     }
-  }, [active, competitorRole, sessionId]);
+  }, [active, competitorRole, quizType, role, sessionId]);
 
   useEffect(() => {
     setResolvedSessionId(sessionId || null);
@@ -90,6 +110,17 @@ export function QuizResponders({
       refreshRef.current = () => undefined;
     };
   }, [active, load]);
+
+  useEffect(() => {
+    if (!active) return;
+    const availableAtMs = Date.parse(rankingsAvailableAt || '');
+    if (!Number.isFinite(availableAtMs) || availableAtMs <= Date.now()) return;
+    const timer = window.setTimeout(
+      () => refreshRef.current(),
+      Math.min(availableAtMs - Date.now() + 250, 2_147_000_000),
+    );
+    return () => window.clearTimeout(timer);
+  }, [active, rankingsAvailableAt]);
 
   useEffect(() => {
     const quizSessionId = sessionId || resolvedSessionId;

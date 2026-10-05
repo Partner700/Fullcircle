@@ -10,10 +10,11 @@ import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetc
 import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
 import { resolveBoardMovement } from '../../lib/boardMovement';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
-import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, Cross, ArrowDown, ArrowUp, Sparkles, Info } from 'lucide-react';
+import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 
-type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'instructor';
+type InstructorBoardTab = 'instructor_narratives' | 'instructor_residents' | 'instructor_marks' | 'instructor_denarii' | 'instructor_figs';
+type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | InstructorBoardTab;
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
 
 type InstructorBoardRow = {
@@ -22,8 +23,22 @@ type InstructorBoardRow = {
   avatar_url: string | null;
   narratives: number;
   residents: number;
+  marks: number;
+  total_denarii: number;
+  total_figs: number;
   rank: number;
 };
+
+type InstructorBoardKey = InstructorBoardTab;
+type InstructorBoardRows = Record<InstructorBoardKey, (InstructorBoardRow & CompetitiveRow)[]>;
+
+const emptyInstructorBoards = (): InstructorBoardRows => ({
+  instructor_narratives: [],
+  instructor_residents: [],
+  instructor_marks: [],
+  instructor_denarii: [],
+  instructor_figs: [],
+});
 
 type TentLeaderboardRow = {
   tent_id: string;
@@ -271,7 +286,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
   const [economyRules, setEconomyRules] = useState<FullCircleEconomyRules | null>(null);
   const [marksInfoOpen, setMarksInfoOpen] = useState(false);
-  const [instructorRows, setInstructorRows] = useState<(InstructorBoardRow & CompetitiveRow)[]>([]);
+  const [instructorBoards, setInstructorBoards] = useState<InstructorBoardRows>(emptyInstructorBoards);
   const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
@@ -286,20 +301,37 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     try {
       if (audience === 'instructor') {
         const movementResult = await withBoardTimeout(
-          supabase.rpc('get_competitive_board_movements', { p_audience: 'instructor' }),
-          'Instructor board',
+          supabase.rpc('get_instructor_competitive_boards'),
+          'Instructor boards',
         );
         if (!movementResult.error && movementResult.data) {
-          setInstructorRows(rowsFromBoardPayload<InstructorBoardRow>(movementResult.data as BoardMovementRow[], 'instructor'));
+          const movements = movementResult.data as BoardMovementRow[];
+          setInstructorBoards({
+            instructor_narratives: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_narratives'),
+            instructor_residents: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_residents'),
+            instructor_marks: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_marks'),
+            instructor_denarii: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_denarii'),
+            instructor_figs: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_figs'),
+          });
         } else {
           const { data, error } = await withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback');
           if (error) throw error;
-          setInstructorRows(hydrateBoardHistory(
-            (data || []) as InstructorBoardRow[],
-            'full-circle-board-history-instructor-instructor',
-            (row) => row.user_id,
-            (row) => Number(row.narratives),
-          ));
+          const fallbackRows = (data || []) as InstructorBoardRow[];
+          setInstructorBoards({
+            ...emptyInstructorBoards(),
+            instructor_narratives: hydrateBoardHistory(
+              fallbackRows,
+              'full-circle-board-history-instructor-narratives',
+              (row) => row.user_id,
+              (row) => Number(row.narratives),
+            ),
+            instructor_residents: hydrateBoardHistory(
+              fallbackRows,
+              'full-circle-board-history-instructor-residents',
+              (row) => row.user_id,
+              (row) => Number(row.residents),
+            ),
+          });
         }
         setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
         setLastUpdatedAt(new Date());
@@ -471,8 +503,26 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     };
   }, [load]);
 
+  const instructorTabs: Array<{
+    key: InstructorBoardTab;
+    label: string;
+    title: string;
+    description: string;
+    valueKey: 'narratives' | 'residents' | 'marks' | 'total_denarii' | 'total_figs';
+    valueLabel: string;
+    icon: React.ReactNode;
+  }> = [
+    { key: 'instructor_narratives', label: 'Narrative', title: 'Narrative Board', description: 'Every published camp narrative adds 1 instructor-board Mark.', valueKey: 'narratives', valueLabel: 'Narratives', icon: <BookOpen size={16} /> },
+    { key: 'instructor_residents', label: 'Residents', title: 'Resident Board', description: 'Every active Resident adds 5 instructor-board Marks.', valueKey: 'residents', valueLabel: 'Residents', icon: <Users size={16} /> },
+    { key: 'instructor_marks', label: 'Marks', title: 'Overall Camp Marks', description: 'All member Marks, plus Narrative and Resident Marks for the camp.', valueKey: 'marks', valueLabel: 'Camp Marks', icon: <ChiRhoMark size={16} /> },
+    { key: 'instructor_denarii', label: 'Denarii', title: 'Camp Denarii Board', description: 'The overall Denarii held across the instructor\'s camp.', valueKey: 'total_denarii', valueLabel: 'Camp Denarii', icon: <Coins size={16} /> },
+    { key: 'instructor_figs', label: 'Figs', title: 'Camp Fig Board', description: 'The overall lifetime Figs earned across the instructor\'s camp.', valueKey: 'total_figs', valueLabel: 'Camp Figs', icon: <BadgeCheck size={16} /> },
+  ];
+  const activeInstructorBoard = instructorTabs.find((item) => item.key === tab) || instructorTabs[0];
+  const activeInstructorRows = instructorBoards[activeInstructorBoard.key];
+
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
-    ? [{ key: 'instructor', label: 'Instructor Board', icon: <ChiRhoMark size={16} /> }]
+    ? instructorTabs
     : [
       { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
       { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
@@ -502,7 +552,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
             <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5" role="group" aria-label="Board audience">
               <button type="button" onClick={() => { setAudience('cadet'); setTab('streak'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'cadet' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Cadet Boards</button>
               <button type="button" onClick={() => { setAudience('sentry'); setTab('streak'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'sentry' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Sentry Boards</button>
-              {instructorMode && <button type="button" onClick={() => { setAudience('instructor'); setTab('instructor'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'instructor' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Instructor Boards</button>}
+              {instructorMode && <button type="button" onClick={() => { setAudience('instructor'); setTab('instructor_narratives'); }} className={cn('rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors', audience === 'instructor' ? 'bg-brass-soft text-brass' : 'text-stone hover:text-ink')}>Instructor Boards</button>}
             </div>
           )}
           <span className="badge badge-brass text-[10px]">Camp Stats</span>
@@ -529,39 +579,48 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     <div className="space-y-5 animate-fade-in">
       {boardNavigation}
 
-      {instructorMode && audience === 'instructor' && tab === 'instructor' && (
+      {instructorMode && audience === 'instructor' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
-              <ChiRhoMark size={22} className="text-royal" />
-              <h3 className="font-display font-semibold text-ink">Instructor Challenge Board</h3>
+              <span className="text-royal">{activeInstructorBoard.icon}</span>
+              <h3 className="font-display font-semibold text-ink">{activeInstructorBoard.title}</h3>
               <span className="badge badge-brass text-[10px]">Camp-wide</span>
             </div>
-            <p className="text-xs text-stone">Narratives published and Residents served by each instructor.</p>
+            <p className="text-xs text-stone">{activeInstructorBoard.description}</p>
           </BoardPanel>
-          {instructorRows.length > 0 ? (
+          {activeInstructorRows.length > 0 ? (
             <BoardPanel>
-              <BoardMovementSummary rows={instructorRows} valueForRow={(row) => Number((row as InstructorBoardRow).narratives)} />
+              <BoardMovementSummary
+                rows={activeInstructorRows}
+                valueForRow={(row) => Number((row as InstructorBoardRow)[activeInstructorBoard.valueKey] || 0)}
+              />
               <div className="mt-4" />
               <BoardList>
-                {instructorRows.map((row) => (
-                  <BoardRow
-                    key={row.user_id}
-                    rank={row.rank}
-                    name={row.display_name}
-                    value={`${row.narratives} Narratives · ${row.residents} Residents`}
-                    userId={row.user_id}
-                    avatarUrl={row.avatar_url}
-                    currentUserId={profile?.id}
-                    isCurrentUser={row.user_id === profile?.id}
-                    movement={rankMovement(row, Number(row.narratives))}
-                    isRecord={isNewRecord(row, Number(row.narratives))}
-                    valueLabel="Instructor activity"
-                  />
-                ))}
+                {activeInstructorRows.map((row) => {
+                  const value = Number(row[activeInstructorBoard.valueKey] || 0);
+                  const formattedValue = activeInstructorBoard.valueKey === 'total_denarii'
+                    ? formatDenarii(value)
+                    : `${formatMarks(value)} ${activeInstructorBoard.valueLabel}`;
+                  return (
+                    <BoardRow
+                      key={row.user_id}
+                      rank={row.rank}
+                      name={row.display_name}
+                      value={formattedValue}
+                      userId={row.user_id}
+                      avatarUrl={row.avatar_url}
+                      currentUserId={profile?.id}
+                      isCurrentUser={row.user_id === profile?.id}
+                      movement={rankMovement(row, value)}
+                      isRecord={isNewRecord(row, value)}
+                      valueLabel={activeInstructorBoard.valueLabel}
+                    />
+                  );
+                })}
               </BoardList>
             </BoardPanel>
-          ) : <EmptyState icon={(props) => <ChiRhoMark size={props.size} className={props.className || ''} />} title="No instructor data yet" message="Instructor activity will appear here once a narrative is published." />}
+          ) : <EmptyState icon={(props) => <ChiRhoMark size={props.size} className={props.className || ''} />} title="No instructor data yet" message="Camp activity will appear here as Narrative, Resident, Mark, Denarii, and Fig totals are recorded." />}
         </div>
       )}
 

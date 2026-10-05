@@ -152,7 +152,10 @@ async function run() {
       return { put: () => behavior === 'stalled' ? new Promise(() => {}) : Promise.reject(new Error('Quota exceeded')) };
     };
     cache.match = () => behavior === 'stalled' ? new Promise(() => {}) : Promise.reject(new Error('Storage denied'));
-    const w = worker(async () => response('healthy', 'application/javascript'), cache);
+    const w = worker(async (url) => response(
+      'healthy',
+      url.includes('/assets/') ? 'application/javascript' : 'text/html',
+    ), cache);
     assert.equal(await (await w.networkFirstNavigation(request(), w.event)).text(), 'healthy');
     const asset = w.cacheFirstAsset(request('assets/entry-abcd.js'), w.event);
     await w.time.advance(200);
@@ -166,12 +169,12 @@ async function run() {
     await Promise.all(w.event.jobs);
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '165');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '166');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v165-shell')).put(scope + 'index.html', response('current target app'));
+    await (await cache.open('full-circle-target-v166-shell')).put(scope + 'index.html', response('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
@@ -207,6 +210,18 @@ async function run() {
   {
     const w = worker(async (url) => url.startsWith(scope) ? response('<html>SPA fallback</html>') : response('valid JS', 'application/javascript'));
     assert.equal(await (await w.cacheFirstAsset(request('assets/missing-abcd.js'), w.event)).text(), 'valid JS');
+  }
+  {
+    const w = worker(async (url) => {
+      assert.equal(url, scope + 'index.html', 'A tab stranded on a bundle URL must request the app document.');
+      return response('<!doctype html><main>Full Circle</main>', 'text/html');
+    });
+    const delivered = await w.networkFirstNavigation({
+      url: scope + 'assets/retired-entry.js',
+      mode: 'navigate',
+    }, w.event);
+    assert.match(await delivered.text(), /Full Circle/);
+    assert.match(delivered.headers.get('content-type'), /text\/html/);
   }
   testDisplayModes();
   await testRecovery();
