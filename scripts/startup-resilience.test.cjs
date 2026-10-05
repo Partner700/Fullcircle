@@ -104,7 +104,7 @@ async function run() {
     assert.equal(delivered.url, '', 'Mirror responses, including old cached ones, must not change the module base URL.');
     assert.equal(new URL('./runtime-abc.js', delivered.url || asset.url).href, scope + 'assets/runtime-abc.js');
     assert.equal(await delivered.text(), 'export const loaded = true;');
-    assert.equal(w.requests.length, cached ? 0 : 2);
+    assert.equal(w.requests.length, cached ? 0 : 3);
   }
   {
     const w = worker(async () => response());
@@ -116,12 +116,12 @@ async function run() {
   {
     const w = worker(async (url) => { if (url.startsWith(scope)) throw new Error('carrier failed'); return response('backup'); });
     assert.equal(await (await w.fetchReleaseWithFallback(request())).text(), 'backup');
-    assert.equal(w.requests.length, 2, 'Primary failure should start backup immediately.');
+    assert.equal(w.requests.length, 3, 'Primary failure should start both independent backups immediately.');
   }
   {
     const w = worker((url, options) => url.startsWith(scope) ? pendingUntilAborted(options.signal) : response('backup'));
     const load = w.fetchReleaseWithFallback(request());
-    await w.time.advance(2500);
+    await w.time.advance(1800);
     assert.equal(await (await load).text(), 'backup');
     assert.equal(w.requests[0].options.signal.aborted, true, 'Stop the losing stalled request.');
     await w.time.advance(15_000);
@@ -154,12 +154,12 @@ async function run() {
     await Promise.all(w.event.jobs);
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '161');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '162');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v161-shell')).put(scope + 'index.html', response('current target app'));
+    await (await cache.open('full-circle-target-v162-shell')).put(scope + 'index.html', response('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);

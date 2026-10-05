@@ -86,7 +86,7 @@
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=161" />
+  <link rel="manifest" href="./manifest.webmanifest?v=162" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -151,10 +151,11 @@
     // A pre-migration worker may still control an installed phone. Retire only
     // those old caches, then keep recovery on the user's current origin.
     (function () {
-      var release = '161';
-      var currentCachePrefix = 'full-circle-target-v161';
+      var release = '162';
+      var currentCachePrefix = 'full-circle-target-v162';
       var marker = 'fc-repair';
       var repairStarted = false;
+      var mirrorStarted = false;
       window.__fullCircleBootRelease = release;
 
       window.__repairFullCircleBoot = async function (force) {
@@ -188,13 +189,50 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('./fc-worker.js?v=161', { updateViaCache: 'none' })
+          .register('./fc-worker.js?v=162', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
+      if (new URL(window.location.href).searchParams.get(marker) === release) {
+        void window.__repairFullCircleBoot(false);
+      }
+
+      // If the page itself arrives but its application bundle is blocked by a
+      // carrier or a partial CDN rollout, load that same immutable bundle from
+      // an independent CDN. This keeps the user's session on the current
+      // origin and avoids sending them through a second sign-in.
+      window.__loadFullCircleMirror = function (failedSource) {
+        if (mirrorStarted || !failedSource) return;
+        var failedUrl = new URL(failedSource, window.location.href);
+        var assetMarker = failedUrl.pathname.lastIndexOf('/assets/');
+        if (assetMarker < 0) return;
+        mirrorStarted = true;
+        var assetPath = failedUrl.pathname.slice(assetMarker + 1);
+        var mirrors = [
+          'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/',
+          'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/'
+        ];
+        var loadMirror = function (index) {
+          if (index >= mirrors.length) {
+            mirrorStarted = false;
+            return;
+          }
+          var script = document.createElement('script');
+          script.type = 'module';
+          script.crossOrigin = 'anonymous';
+          script.src = mirrors[index] + assetPath + '?fc-mirror=' + release;
+          script.onload = function () { mirrorStarted = false; };
+          script.onerror = function () {
+            script.remove();
+            loadMirror(index + 1);
+          };
+          document.head.appendChild(script);
+        };
+        loadMirror(0);
+      };
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-BP5O2E2q.js"></script>
+  <script type="module" crossorigin src="./assets/index-Bha9pXmy.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
   <link rel="stylesheet" crossorigin href="./assets/style-y8hHhdsM.css">
 </head>
@@ -214,7 +252,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
-      var bootRelease = window.__fullCircleBootRelease || '161';
+      var bootRelease = window.__fullCircleBootRelease || '162';
       root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle is taking longer than usual to open.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Retry Full Circle</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Release ' + bootRelease + '</p></div></div>';
     }, 30000);
   </script>
