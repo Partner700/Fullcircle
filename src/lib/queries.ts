@@ -9,7 +9,7 @@ import type {
   QuizScoreboardRow, QuestionPayload, PanelImageSetting, AwardWithRecipient,
   FcxExperience, MonthlyVallumWatchRow, PlayerNumberAssignmentResult,
   PlayerNumberState, PlayerNumberMarketplaceState, FcxTicketContact,
-  InstructorResourceGrantResult,
+  InstructorBulkResourceGrantResult, InstructorResourceGrantResult,
 } from '../lib/types';
 import { isPanelImageContent, panelImageFromAnnouncement, selectPanelImageAnnouncement } from './panelImages';
 import type { RoadHomeResponse } from './roadHomeTypes';
@@ -1230,6 +1230,24 @@ export async function grantInstructorResources(input: {
   });
   if (error) throw error;
   return data as InstructorResourceGrantResult;
+}
+
+export async function grantInstructorResourcesBulk(input: {
+  recipientIds: string[];
+  denariiAmount: number;
+  relicTypeId?: string | null;
+  relicQuantity: number;
+  note?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('grant_instructor_resources_bulk', {
+    p_recipient_ids: input.recipientIds,
+    p_denarii_amount: input.denariiAmount,
+    p_relic_type_id: input.relicQuantity > 0 ? input.relicTypeId || null : null,
+    p_relic_quantity: input.relicQuantity,
+    p_note: input.note?.trim() || null,
+  });
+  if (error) throw error;
+  return data as InstructorBulkResourceGrantResult;
 }
 
 async function mergePublicStreakValues<T extends {
