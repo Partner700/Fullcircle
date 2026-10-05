@@ -52,6 +52,9 @@ export default function App() {
   const { session, profile, role, configError, loading, refreshProfile, signOut } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
   const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);
+  const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
+  const authenticatedUserId = session?.user.id || null;
+  const authenticatedProfileId = profile?.id || null;
   useFrenchUiTranslation(profile?.language_code);
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
@@ -78,6 +81,17 @@ export default function App() {
   useEffect(() => {
     document.documentElement.lang = profile?.language_code || 'en';
   }, [profile?.language_code]);
+
+  useEffect(() => {
+    if (!authenticatedUserId || !authenticatedProfileId) {
+      setAuthenticatedOverlaysReady(false);
+      return;
+    }
+    // Let the selected workspace paint and begin its essential reads before
+    // optional global services load their code and fallback polling.
+    const timer = window.setTimeout(() => setAuthenticatedOverlaysReady(true), 2_500);
+    return () => window.clearTimeout(timer);
+  }, [authenticatedProfileId, authenticatedUserId]);
 
   useEffect(() => {
     if (!session || profile || loading) return;
@@ -108,7 +122,7 @@ export default function App() {
   const overlays = <>
     <NonBlockingErrorBoundary name="install prompt"><PWAInstallPrompt /></NonBlockingErrorBoundary>
     <NonBlockingErrorBoundary name="update notice"><PWAUpdateNotification /></NonBlockingErrorBoundary>
-    {session && profile && (
+    {session && profile && authenticatedOverlaysReady && (
       <NonBlockingErrorBoundary name="authenticated overlays">
         <Suspense fallback={null}><AuthenticatedOverlays /></Suspense>
       </NonBlockingErrorBoundary>

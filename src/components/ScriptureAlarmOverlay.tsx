@@ -210,7 +210,7 @@ export function ScriptureAlarmOverlay() {
     const refresh = () => {
       if (document.visibilityState === 'visible') void loadPending();
     };
-    const interval = window.setInterval(refresh, 12_000);
+    const interval = window.setInterval(refresh, 60_000);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
     document.addEventListener('visibilitychange', refresh);

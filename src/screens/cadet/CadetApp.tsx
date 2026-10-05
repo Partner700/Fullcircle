@@ -414,11 +414,11 @@ export function CadetApp() {
   useEffect(() => {
     if (!toolbarUserId) return;
     const retryTimers = [0, 4_000].map((delay) => window.setTimeout(() => {
-      void loadToolbarStats();
+      if (delay === 0 || !toolbarConfirmedRef.current) void loadToolbarStats();
     }, delay));
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadToolbarStats();
-    }, 45_000);
+    }, 120_000);
     return () => {
       retryTimers.forEach((timer) => window.clearTimeout(timer));
       window.clearInterval(interval);
@@ -828,7 +828,10 @@ export function CadetApp() {
   }, [loadNotifications, refreshCadetState]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void loadNotifications(); }, 650);
+    // Dashboard content and the reliable top bar are the first paint. The
+    // notification digest can follow without competing for Safari's limited
+    // mobile connection slots.
+    const timer = window.setTimeout(() => { void loadNotifications(); }, 3_000);
     return () => window.clearTimeout(timer);
   }, [loadNotifications]);
 

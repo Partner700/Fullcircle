@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 
 type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
+const fetchVerseCommentsForWelcome = (_quoteUserId: string, quoteRecordDate: string) => fetchDailyVerseComments(quoteRecordDate);
 
 export type DashboardHeroSlide =
   | { id: string; kind: 'welcome' }
@@ -742,7 +743,8 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         quoteUserId={currentUserId || undefined}
                         quoteRecordDate={slide.narrative.narrative_date}
                         currentUserId={currentUserId || undefined}
-                        fetchComments={(_quoteUserId, quoteRecordDate) => fetchDailyVerseComments(quoteRecordDate)}
+                        fetchComments={fetchVerseCommentsForWelcome}
+                        loadCommentPreview={isDisplayedSlide}
                         onComment={async (body) => {
                           if (!currentUserId) throw new Error('Sign in to comment.');
                           await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
@@ -826,6 +828,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           quoteRecordDate={slide.quote.record_date}
                           currentUserId={currentUserId || undefined}
                           fetchComments={fetchDailyQuoteComments}
+                          loadCommentPreview={isDisplayedSlide}
                           onComment={(body) => currentUserId
                             ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
                             : Promise.reject(new Error('Sign in to comment.'))}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AtSign, Check, Flame, HeartHandshake, Lightbulb, Loader2, MessageCircle, Pencil, Reply, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { DailyQuoteComment } from '../lib/types';
@@ -37,6 +37,7 @@ export function QuoteReactions({
   onCommentOpenChange,
   onMessageOpenChange,
   guideScope,
+  loadCommentPreview = true,
   previewLimit = 2,
   commentsTitle = 'Quote Comments',
   commentPlaceholder = 'Comment on this quote...',
@@ -56,6 +57,7 @@ export function QuoteReactions({
   onCommentOpenChange?: (open: boolean) => void;
   onMessageOpenChange?: (open: boolean) => void;
   guideScope?: QuoteReactionGuideScope;
+  loadCommentPreview?: boolean;
   previewLimit?: number;
   commentsTitle?: string;
   commentPlaceholder?: string;
@@ -71,8 +73,11 @@ export function QuoteReactions({
   const [replyTarget, setReplyTarget] = useState<DailyQuoteComment | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
+  const fetchCommentsRef = useRef(fetchComments);
+  const loadedCommentsKeyRef = useRef<string | null>(null);
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
   const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
+  const commentsKey = quoteUserId && quoteRecordDate ? `${quoteUserId}:${quoteRecordDate}` : null;
   const guideReactionAction = guideScope === 'welcome-daily-verse' ? 'welcome_verse_reacted' : 'welcome_quote_reacted';
   const guideCommentAction = guideScope === 'welcome-daily-verse' ? 'welcome_verse_commented' : 'welcome_quote_commented';
 
@@ -84,18 +89,44 @@ export function QuoteReactions({
   }, [commentsPanelOpen, onCommentOpenChange]);
 
   useEffect(() => {
-    if (!commentsEnabled || !quoteUserId || !quoteRecordDate || !fetchComments) {
+    fetchCommentsRef.current = fetchComments;
+    loadedCommentsKeyRef.current = null;
+  }, [fetchComments]);
+
+  useEffect(() => {
+    loadedCommentsKeyRef.current = null;
+    setComments([]);
+    setCommentError(null);
+  }, [commentsKey]);
+
+  useEffect(() => {
+    const loadComments = fetchCommentsRef.current;
+    if (!commentsEnabled || !quoteUserId || !quoteRecordDate || !loadComments) {
       setComments([]);
       return;
     }
+    if (!loadCommentPreview && !commentsPanelOpen) return;
+    if (!commentsKey || loadedCommentsKeyRef.current === commentsKey) return;
+
     let cancelled = false;
+    let settled = false;
+    loadedCommentsKeyRef.current = commentsKey;
     setLoadingComments(true);
-    fetchComments(quoteUserId, quoteRecordDate)
+    loadComments(quoteUserId, quoteRecordDate)
       .then((items) => { if (!cancelled) setComments(items); })
-      .catch(() => { if (!cancelled) setCommentError('Comments need setup before they can load.'); })
-      .finally(() => { if (!cancelled) setLoadingComments(false); });
-    return () => { cancelled = true; };
-  }, [commentsEnabled, fetchComments, quoteRecordDate, quoteUserId]);
+      .catch(() => {
+        if (loadedCommentsKeyRef.current === commentsKey) loadedCommentsKeyRef.current = null;
+        if (!cancelled) setCommentError('Comments need setup before they can load.');
+      })
+      .finally(() => {
+        settled = true;
+        if (!cancelled) setLoadingComments(false);
+      });
+    return () => {
+      cancelled = true;
+      if (!settled && loadedCommentsKeyRef.current === commentsKey) loadedCommentsKeyRef.current = null;
+    };
+  }, [commentsEnabled, commentsKey, commentsPanelOpen, fetchComments, loadCommentPreview, quoteRecordDate, quoteUserId]);
 
   const submitComment = async () => {
     if (!onComment || !body.trim()) return;

@@ -38,7 +38,7 @@ export function BirthdayReactions({ announcement, active, onOpenChange, onMessag
       void refresh().then(() => { if (!disposed) setError(''); }).catch(() => { if (!disposed) setError('Birthday wishes could not load. Please try again.'); });
     };
     load();
-    const timer = window.setInterval(load, 10000);
+    const timer = window.setInterval(load, 30_000);
     document.addEventListener('visibilitychange', load);
     window.addEventListener('online', load);
     return () => {

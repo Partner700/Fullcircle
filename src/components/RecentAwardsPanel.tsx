@@ -78,7 +78,7 @@ export function RecentAwardsPanel({ onOpen }: { onOpen?: () => void }) {
   };
 
   useEffect(() => {
-    const polling = startVisiblePolling(load, 30_000);
+    const polling = startVisiblePolling(load, 120_000);
     return polling.stop;
   }, [load]);
 
