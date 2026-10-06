@@ -73,11 +73,13 @@ function worker(fetcher, cache = memoryCaches()) {
   vm.runInContext(fs.readFileSync(path.join(root, 'public/fc-worker.js'), 'utf8'), context);
   return {
     time, requests, handlers, event, navigation, cache,
-    ...vm.runInContext('({fetchReleaseWithFallback, networkFirstNavigation, cacheFirstAsset, cachedAppShell, warmAppShell, criticalReleaseFiles})', context),
+    ...vm.runInContext('({fetchReleaseWithFallback, networkFirstNavigation, cacheFirstAsset, cachedAppShell, warmAppShell, criticalReleaseFiles, safeAppNavigationUrl})', context),
   };
 }
 
 const response = (text = 'app', type = 'text/html') => new Response(text, { headers: { 'content-type': type } });
+const appHtml = (text = 'app') => `<!doctype html><html><head><meta name="full-circle-release" content="168"></head><body><main id="root">${text}</main></body></html>`;
+const appResponse = (text = 'app') => response(appHtml(text), 'text/html');
 function mirrorResponse(url, text = 'export const loaded = true;') {
   const result = response(text, 'application/javascript');
   Object.defineProperty(result, 'url', { value: url });
@@ -107,22 +109,22 @@ async function run() {
     assert.equal(w.requests.length, cached ? 0 : 2);
   }
   {
-    const w = worker(async () => response());
-    assert.equal(await (await w.fetchReleaseWithFallback(request())).text(), 'app');
+    const w = worker(async () => appResponse());
+    assert.match(await (await w.fetchReleaseWithFallback(request())).text(), />app</);
     await w.time.advance(15_000);
     assert.equal(w.requests.length, 1, 'Successful primary must cancel the backup timer.');
     assert.equal(w.requests[0].options.signal.aborted, false, 'Never abort the successful body.');
   }
   {
-    const w = worker(async (url) => { if (url.startsWith(scope)) throw new Error('carrier failed'); return response('backup'); });
-    assert.equal(await (await w.fetchReleaseWithFallback(request())).text(), 'backup');
+    const w = worker(async (url) => { if (url.startsWith(scope)) throw new Error('carrier failed'); return appResponse('backup'); });
+    assert.match(await (await w.fetchReleaseWithFallback(request())).text(), />backup</);
     assert.equal(w.requests.length, 2, 'Primary failure should use one complete CDN copy without flooding the connection.');
   }
   {
-    const w = worker((url, options) => url.startsWith(scope) ? pendingUntilAborted(options.signal) : response('backup'));
+    const w = worker((url, options) => url.startsWith(scope) ? pendingUntilAborted(options.signal) : appResponse('backup'));
     const load = w.fetchReleaseWithFallback(request());
     await w.time.advance(3000);
-    assert.equal(await (await load).text(), 'backup');
+    assert.match(await (await load).text(), />backup</);
     assert.equal(w.requests[0].options.signal.aborted, true, 'Stop the losing stalled request.');
     await w.time.advance(15_000);
     assert.equal(w.requests[1].options.signal.aborted, false);
@@ -130,7 +132,7 @@ async function run() {
   {
     const w = worker((url, options) => {
       if (!url.startsWith(scope)) return response('complete backup', 'application/javascript');
-      const headersOnly = response('unused');
+      const headersOnly = appResponse('unused');
       headersOnly.clone = () => ({ arrayBuffer: () => pendingUntilAborted(options.signal) });
       return headersOnly;
     });
@@ -153,10 +155,10 @@ async function run() {
     };
     cache.match = () => behavior === 'stalled' ? new Promise(() => {}) : Promise.reject(new Error('Storage denied'));
     const w = worker(async (url) => response(
-      'healthy',
+      url.includes('/assets/') ? 'healthy' : appHtml('healthy'),
       url.includes('/assets/') ? 'application/javascript' : 'text/html',
     ), cache);
-    assert.equal(await (await w.networkFirstNavigation(request(), w.event)).text(), 'healthy');
+    assert.match(await (await w.networkFirstNavigation(request(), w.event)).text(), /healthy/);
     const asset = w.cacheFirstAsset(request('assets/entry-abcd.js'), w.event);
     await w.time.advance(200);
     assert.equal(await (await asset).text(), 'healthy', `${behavior} cache must not block network assets.`);
@@ -169,17 +171,17 @@ async function run() {
     await Promise.all(w.event.jobs);
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '167');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '168');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v167-shell')).put(scope + 'index.html', response('current target app'));
+    await (await cache.open('full-circle-target-v168-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
     assert.equal(w.navigation.length, 0, 'A current target release must not interrupt an active quiz or draft.');
-    assert.equal(await (await w.networkFirstNavigation(request(), w.event)).text(), 'current target app');
+    assert.match(await (await w.networkFirstNavigation(request(), w.event)).text(), /current target app/);
   }
   {
     const manifest = {
@@ -193,7 +195,10 @@ async function run() {
     const w = worker(async (url) => {
       active++; peak = Math.max(peak, active);
       await flush(); active--;
-      return url.endsWith('release-manifest.json') ? response(JSON.stringify(manifest), 'application/json') : response('ok', 'application/javascript');
+      if (url.endsWith('release-manifest.json')) return response(JSON.stringify(manifest), 'application/json');
+      if (url.endsWith('index.html')) return appResponse('ok');
+      if (url.endsWith('full-circle-release.css')) return response(':root{}', 'text/css');
+      return response('ok', 'application/javascript');
     }, cache);
     const first = w.warmAppShell();
     assert.equal(w.warmAppShell(), first, 'Warming must be single-flight.');
@@ -201,6 +206,7 @@ async function run() {
     const urls = w.requests.map((item) => item.url);
     assert.ok(!urls.some((url) => /instructor|game|runtime|\.vite/.test(url)));
     assert.ok(urls.includes(scope + 'assets/index-abc.js'));
+    assert.ok(urls.includes(scope + 'full-circle-release.css'));
     assert.ok(peak <= 2, 'Background warm concurrency must be bounded.');
     await w.warmAppShell();
     assert.equal(w.requests.length, urls.length, 'Repeated launches must not flood the network.');
@@ -214,7 +220,7 @@ async function run() {
   {
     const w = worker(async (url) => {
       assert.equal(url, scope + 'index.html', 'A tab stranded on a bundle URL must request the app document.');
-      return response('<!doctype html><main>Full Circle</main>', 'text/html');
+      return appResponse('Full Circle');
     });
     const delivered = await w.networkFirstNavigation({
       url: scope + 'assets/retired-entry.js',
@@ -222,6 +228,30 @@ async function run() {
     }, w.event);
     assert.match(await delivered.text(), /Full Circle/);
     assert.match(delivered.headers.get('content-type'), /text\/html/);
+  }
+  {
+    const w = worker(async (url) => (
+      url.startsWith(scope)
+        ? response('<!doctype html><title>Temporary host error</title>', 'text/html')
+        : appResponse('verified mirror shell')
+    ));
+    const delivered = await w.fetchReleaseWithFallback(request());
+    assert.match(await delivered.text(), /verified mirror shell/, 'An HTML error page without the release marker must never become the app shell.');
+  }
+  {
+    const cache = memoryCaches();
+    await (await cache.open('full-circle-target-v168-shell')).put(
+      scope + 'index.html',
+      response('<html><main id="root">proxy error</main></html>', 'text/html'),
+    );
+    const w = worker(async () => { throw new Error('offline'); }, cache);
+    assert.equal(await w.cachedAppShell(), null, 'Unmarked cached HTML must be rejected.');
+  }
+  {
+    const w = worker(async () => appResponse());
+    assert.equal(w.safeAppNavigationUrl(scope + 'assets/index-old.js'), scope);
+    assert.equal(w.safeAppNavigationUrl('https://unrelated.test/app'), scope);
+    assert.equal(w.safeAppNavigationUrl(scope + '?screen=quiz'), scope + '?screen=quiz');
   }
   testDisplayModes();
   await testRecovery();

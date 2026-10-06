@@ -11,12 +11,26 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
+  <meta name="full-circle-release" content="168" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="%BASE_URL%icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="%BASE_URL%browserconfig.xml" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <link rel="canonical" href="https://fullcircle.partnertai.com/" />
+
+  <!-- This tiny shell is deliberately kept inline. The complete application
+       stylesheet is verified separately before React is allowed to mount. -->
+  <style data-full-circle-critical-styles="168">
+    html,body,#root{min-height:100%;margin:0;background:#0f2037;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    html::before{content:"Opening Full Circle";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f2037;color:#dde3ff;font:700 15px system-ui;z-index:0}
+    body{position:relative;z-index:1}
+    [data-fc-boot-shell],[data-fc-recovery-shell]{min-height:100vh;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:24px;text-align:center;background:#0f2037}
+    [data-fc-boot-shell]>div,[data-fc-recovery-shell]>div{width:min(100%,360px)}
+    [data-fc-boot-shell] img{display:block;margin:0 auto 16px}
+    [data-fc-boot-shell] p,[data-fc-recovery-shell] p{margin:0}
+    [data-fc-recovery-shell] button{margin-top:18px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui;cursor:pointer}
+  </style>
 
   <script>
     // The app is also opened inside older Android and social-app WebViews.
@@ -83,10 +97,22 @@
       canonicalUrl.port = '';
       window.location.replace(canonicalUrl.toString());
     }
+    // A retired shortcut or malformed notification must never leave a user on
+    // a JavaScript/CSS document. When an SPA host returns this shell for such a
+    // navigation, immediately restore the real application route.
+    if (/\/assets\/|\.(?:js|mjs|css|json|map)$/i.test(window.location.pathname)) {
+      var assetSegment = window.location.pathname.toLowerCase().lastIndexOf('/assets/');
+      var appPath = assetSegment >= 0
+        ? window.location.pathname.slice(0, assetSegment + 1)
+        : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
+      var appUrl = new URL(appPath || '/', window.location.origin);
+      appUrl.searchParams.set('fc-asset-recovery', '168');
+      window.location.replace(appUrl.toString());
+    }
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=167" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=168" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -160,12 +186,63 @@
     // A pre-migration worker may still control an installed phone. Retire only
     // those old caches, then keep recovery on the user's current origin.
     (function () {
-      var release = '167';
-      var currentCachePrefix = 'full-circle-target-v167';
+      var release = '168';
+      var currentCachePrefix = 'full-circle-target-v168';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
+      var styleAttempt = 0;
+      var styleTimer = 0;
       window.__fullCircleBootRelease = release;
+      window.__fullCircleStylesReady = false;
+
+      window.__showFullCircleRecovery = function () {
+        var show = function () {
+          var root = document.getElementById('root');
+          if (!root || root.dataset.fcAppMounted === 'true') return;
+          root.innerHTML = '<div data-fc-recovery-shell><div><p style="font-size:16px;font-weight:800">Full Circle is reconnecting.</p><p style="margin-top:9px;color:#cbd5e1;font-size:13px;line-height:1.5">Your account and progress are safe.</p><button type="button" onclick="window.__repairFullCircleBoot(true)">Try Again</button><p style="margin-top:14px;color:#94a3b8;font-size:11px">Release ' + release + '</p></div></div>';
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, { once: true });
+        else show();
+      };
+
+      window.__markFullCircleStylesReady = function (link) {
+        window.requestAnimationFrame(function () {
+          var markerValue = window.getComputedStyle(document.documentElement)
+            .getPropertyValue('--full-circle-release-style')
+            .replace(/["']/g, '')
+            .trim();
+          if (markerValue !== release) {
+            window.__loadFullCircleStyleMirror(link);
+            return;
+          }
+          window.clearTimeout(styleTimer);
+          window.__fullCircleStylesReady = true;
+          document.documentElement.dataset.fcStylesReady = release;
+          window.dispatchEvent(new CustomEvent('fullcircle:styles-ready', { detail: { release: release } }));
+        });
+      };
+
+      window.__loadFullCircleStyleMirror = function (failedLink) {
+        var link = failedLink || document.querySelector('link[data-full-circle-release-styles]');
+        if (!link || window.__fullCircleStylesReady) return;
+        window.clearTimeout(styleTimer);
+        if (!link.dataset.fcStylePrimary) link.dataset.fcStylePrimary = link.href;
+        var baseUrl = new URL('.', link.dataset.fcStylePrimary);
+        var candidates = [
+          new URL('full-circle-release.css?fc-style=' + release + '-' + Date.now(), baseUrl).href,
+          'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/full-circle-release.css?v=' + release,
+          'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/full-circle-release.css?v=' + release
+        ];
+        if (styleAttempt >= candidates.length) {
+          window.__showFullCircleRecovery();
+          return;
+        }
+        link.href = candidates[styleAttempt++];
+        styleTimer = window.setTimeout(function () {
+          window.__loadFullCircleStyleMirror(link);
+        }, 6000);
+      };
 
       window.__repairFullCircleBoot = async function (force) {
         if (repairStarted) return;
@@ -198,7 +275,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=167', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=168', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -239,14 +316,23 @@
         };
         loadMirror(0);
       };
+
+      window.addEventListener('DOMContentLoaded', function () {
+        window.setTimeout(function () {
+          if (window.__fullCircleStylesReady) return;
+          window.__loadFullCircleStyleMirror(
+            document.querySelector('link[data-full-circle-release-styles]')
+          );
+        }, 6000);
+      }, { once: true });
     })();
   </script>
 </head>
 <body>
   <main id="root">
-    <div data-fc-boot-shell style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font-family:system-ui;text-align:center">
+    <div data-fc-boot-shell>
       <div>
-        <img src="%BASE_URL%icons/icon-192.png?v=7" width="82" height="82" alt="" style="display:block;margin:0 auto 16px" />
+        <img src="%BASE_URL%icons/icon-192.png?v=7" width="82" height="82" alt="" />
         <p style="margin:0;font-size:15px;font-weight:700;color:#dde3ff">Opening Full Circle</p>
         <p style="margin:8px 0 0;font-size:12px;color:#aebbe5">Restoring your saved app while the connection settles.</p>
       </div>
@@ -258,8 +344,7 @@
     window.__fullCircleBootWatchdog = window.setTimeout(function () {
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
-      var bootRelease = window.__fullCircleBootRelease || '167';
-      root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f2037;color:#fff;font:600 16px system-ui;text-align:center"><div><p>Full Circle is taking longer than usual to open.</p><button type="button" onclick="window.__repairFullCircleBoot(true)" style="margin-top:16px;border:0;border-radius:8px;padding:12px 18px;background:#ffd83d;color:#0f2037;font:800 14px system-ui">Retry Full Circle</button><p style="margin:14px 0 0;font-size:13px;color:#cbd5e1">Release ' + bootRelease + '</p></div></div>';
+      window.__showFullCircleRecovery();
     }, 30000);
   </script>
   <script type="module" src="/src/main.tsx" onerror="window.__loadFullCircleMirror(this.src)"></script>
