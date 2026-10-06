@@ -333,13 +333,13 @@ export function CampTreasury({ profiles, roles, loading }: {
         </div>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold text-stone">Grant note</span>
+          <span className="mb-1.5 block text-xs font-semibold text-stone">Message to recipients</span>
           <input
             className="input-field w-full"
             maxLength={240}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Optional reason"
+            placeholder="Optional message shown with their gift"
           />
         </label>
 

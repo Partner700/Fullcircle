@@ -316,6 +316,8 @@ export function cn(...classes: (string | false | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
+export const FULL_CIRCLE_WHATSAPP_CONTACT = '+237683081463';
+
 export function whatsappUrl(number: string | null): string | null {
   if (!number) return null;
   const digits = number.replace(/[^0-9]/g, '');

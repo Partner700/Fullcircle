@@ -6,13 +6,13 @@ import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchFcxTicketContact } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
-import { cn, formatDenarii, formatXaf, visibleStreakFreezersForCurrentWeek, whatsappUrl } from '../../lib/utils';
+import { cn, formatDenarii, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, visibleStreakFreezersForCurrentWeek, whatsappUrl } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
-import type { FcxTicketContact, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
+import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
   ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
   Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield, Ticket,
@@ -115,7 +115,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
-  const [fcxTicketContact, setFcxTicketContact] = useState<FcxTicketContact | null>(null);
   const latestInventoryRef = useRef<Record<string, number>>({});
 
   const paymentConfirmed = isPaymentSuccessful(paymentResult?.status);
@@ -139,13 +138,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setLoading(true);
     setLoadError(null);
     try {
-      const [relicData, invData, balance, frz, marketPanelImage, ticketContact] = await Promise.all([
+      const [relicData, invData, balance, frz, marketPanelImage] = await Promise.all([
         supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
         fetchLedgerTotal(profile.id),
         fetchStreakFreezers(profile.id),
         fetchPanelImageSetting('market').catch(() => null),
-        fetchFcxTicketContact().catch(() => null),
       ]);
       setRelics(relicData.data as RelicType[] || []);
       const invMap: Record<string, number> = {};
@@ -155,7 +153,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       setDenarii(balance);
       setFreezers(frz);
       setMarketImage(marketPanelImage);
-      setFcxTicketContact(ticketContact);
     } catch (err: any) {
       setLoadError(err?.message || 'The Market could not load. Please try again.');
     }
@@ -487,9 +484,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const lazarusMarketDescription = 'Take or retake the Saturday quiz late and submit before 2:45 PM. Denarii only.';
   const readyDailyFreezers = freezers.filter((f) => f.freezer_type === 'daily' && !f.used_at && !f.applied_to_date).length;
   const readyWeeklyFreezers = freezers.filter((f) => f.freezer_type === 'weekly' && !f.used_at && !f.applied_to_date).length;
-  const fcxWhatsappBase = whatsappUrl(fcxTicketContact?.whatsapp_number || null);
+  const fcxWhatsappBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
   const fcxWhatsappLink = fcxWhatsappBase
-    ? `${fcxWhatsappBase}?text=${encodeURIComponent('Hello Vedette, I want to pay for the Full Circle Experience (FCX).')}`
+    ? `${fcxWhatsappBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
     : null;
 
   return (

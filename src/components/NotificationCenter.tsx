@@ -20,7 +20,7 @@ type Props = { onNavigate?: (actionKey: string, metadata?: Record<string, unknow
 function notificationTone(notification: UserNotification) {
   const status = String(notification.metadata?.status || '').toLowerCase();
   if (notification.notification_type === 'payment' && ['rejected', 'failed', 'cancelled'].includes(status)) return 'warning';
-  if (['payment', 'purchase', 'relic', 'economy', 'award'].includes(notification.notification_type)) return 'success';
+  if (['payment', 'purchase', 'relic', 'economy', 'award', 'resource_grant'].includes(notification.notification_type)) return 'success';
   return 'info';
 }
 
@@ -31,7 +31,7 @@ function notificationSymbol(type: string) {
   if (key === 'award') return publicAsset('notification-symbols/award.svg');
   if (key === 'arena' || key.startsWith('arena_')) return publicAsset('notification-symbols/arena.svg');
   if (key === 'streak') return publicAsset('notification-symbols/streak.svg');
-  if (['relic', 'reward', 'treasure'].includes(key)) return publicAsset('notification-symbols/relic.svg');
+  if (['relic', 'reward', 'treasure', 'resource_grant'].includes(key)) return publicAsset('notification-symbols/relic.svg');
   if (['payment', 'purchase', 'economy'].includes(key)) return publicAsset('notification-symbols/payment.svg');
   if (['challenge', 'dove_question', 'mine', 'quiz', 'quiz_release', 'weekly_quiz_reminder'].includes(key)) return publicAsset('notification-symbols/challenge.svg');
   return publicAsset('notification-symbols/reading.svg');
