@@ -179,6 +179,7 @@ const fortuneAndInstructorCompetition = read('supabase/migrations/20261005120000
 const instructorBoardsGrantCelebrationsAndVallum = read('supabase/migrations/20261006162107_instructor_boards_grant_celebrations_and_vallum.sql');
 const guaranteedInstructorCampTotals = read('supabase/migrations/20261006184005_guarantee_current_instructor_camp_totals.sql');
 const fastAuthoritativeInstructorCampTotals = read('supabase/migrations/20261006193000_fast_authoritative_instructor_camp_totals.sql');
+const schemaSafeRoleHelpers = read('supabase/migrations/20261006194500_schema_safe_role_helpers.sql');
 const instructorTreasury = read('src/components/InstructorTreasury.tsx');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
@@ -2178,6 +2179,17 @@ for (const required of [
   assert.ok(fastAuthoritativeInstructorCampTotals.includes(required), `Missing fast instructor-total safeguard: ${required}`);
 }
 assert.doesNotMatch(fastAuthoritativeInstructorCampTotals, /get_member_mark_components/);
+for (const helperName of ['get_user_active_role', 'is_instructor', 'is_sentry', 'get_user_tent_id']) {
+  assert.match(schemaSafeRoleHelpers, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${helperName}\\(`));
+}
+assert.equal(
+  (schemaSafeRoleHelpers.match(/SET search_path = ''/g) || []).length,
+  4,
+  'Every shared role helper must pin an empty search path.',
+);
+assert.match(schemaSafeRoleHelpers, /FROM public\.role_assignments assignment/);
+assert.match(schemaSafeRoleHelpers, /FROM public\.tent_members member/);
+assert.doesNotMatch(schemaSafeRoleHelpers, /FROM role_assignments|FROM tent_members/);
 assert.match(instructorBoardsGrantCelebrationsAndVallum, /GRANT EXECUTE ON FUNCTION public\.get_current_avatar_awards\(\) TO anon, authenticated, service_role/);
 assert.match(calendarUtilities, /FULL_CIRCLE_WHATSAPP_CONTACT = '\+237683081463'/);
 assert.match(fcxExperience, /whatsappUrl\(FULL_CIRCLE_WHATSAPP_CONTACT\)/);
