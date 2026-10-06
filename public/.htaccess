@@ -7,6 +7,13 @@
   RewriteCond %{HTTP_HOST} ^www\.fullcircle\.partnertai\.com$ [NC]
   RewriteRule ^ https://fullcircle.partnertai.com%{REQUEST_URI} [R=308,L,NE]
 
+  # An old shortcut or notification must never display a bundle as a text
+  # document. Script/style subrequests still pass through normally.
+  RewriteCond %{REQUEST_URI} ^/assets/.*\.(?:js|mjs|css|json|map)$ [NC]
+  RewriteCond %{HTTP:Sec-Fetch-Dest} =document [OR]
+  RewriteCond %{HTTP:Accept} text/html [NC]
+  RewriteRule ^ /?fc-asset-recovery=168 [R=302,L,NE]
+
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
@@ -33,5 +40,10 @@
 
   <Files "fc-worker.js">
     Header set Service-Worker-Allowed "/"
+  </Files>
+
+  <Files "index.html">
+    Header set Content-Type "text/html; charset=UTF-8"
+    Header set X-Content-Type-Options "nosniff"
   </Files>
 </IfModule>

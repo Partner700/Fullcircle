@@ -16,11 +16,11 @@ if (fs.existsSync(manifest)) {
   fs.copyFileSync(manifest, path.join(root, 'dist', 'release-manifest.json'));
 }
 
-// The stylesheet is the visual application shell. Some mobile networks have
-// delivered index.html while dropping the immediately following CSS request,
-// leaving users with a functional but completely unstyled sign-in form. Vite
-// emits one CSS file because cssCodeSplit is disabled, so embedding that file
-// removes the extra critical request without changing lazy application code.
+// Keep index.html small enough to arrive atomically on weak mobile networks.
+// The prior release embedded the full stylesheet in the document; a truncated
+// response could therefore end inside <style> before the app shell existed.
+// Publish the one Vite stylesheet at a stable, independently recoverable URL
+// and append a marker that the bootstrap verifies before React may mount.
 const builtIndex = path.join(root, 'dist', 'index.html');
 if (fs.existsSync(builtIndex)) {
   let html = fs.readFileSync(builtIndex, 'utf8');
@@ -29,8 +29,10 @@ if (fs.existsSync(builtIndex)) {
     (tag, relativeCssPath) => {
       const cssPath = path.join(root, 'dist', relativeCssPath.replace(/^\.\//, ''));
       if (!fs.existsSync(cssPath)) return tag;
-      const css = fs.readFileSync(cssPath, 'utf8').replace(/<\/style/gi, '<\\/style');
-      return `<style data-full-circle-release-styles="true">${css}</style>`;
+      const releaseCss = path.join(root, 'dist', 'full-circle-release.css');
+      const css = `${fs.readFileSync(cssPath, 'utf8')}\n:root{--full-circle-release-style:"168"}\n`;
+      fs.writeFileSync(releaseCss, css);
+      return '<link rel="stylesheet" href="./full-circle-release.css?v=168" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">';
     },
   );
 

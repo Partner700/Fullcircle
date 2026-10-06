@@ -9,12 +9,16 @@ import { recoverFromStaleBundle } from './lib/staleBundleRecovery.ts';
 import { prepareFreshReleaseCache } from './lib/releaseCache.ts';
 import './index.css';
 
-const bootWindow = window as Window & { __fullCircleBootWatchdog?: number };
-if (bootWindow.__fullCircleBootWatchdog !== undefined) {
-  window.clearTimeout(bootWindow.__fullCircleBootWatchdog);
-}
+type FullCircleBootWindow = Window & {
+  __fullCircleBootWatchdog?: number;
+  __fullCircleStylesReady?: boolean;
+  __showFullCircleRecovery?: () => void;
+};
+
+const RELEASE_STYLE_MARKER = '168';
+const bootWindow = window as FullCircleBootWindow;
 const appRoot = document.getElementById('root')!;
-appRoot.dataset.fcAppMounted = 'true';
+let appMounted = false;
 
 prepareFreshReleaseCache();
 
@@ -32,18 +36,43 @@ window.addEventListener('unhandledrejection', (event) => {
   if (recoverFromStaleBundle(event.reason)) event.preventDefault();
 });
 
-createRoot(appRoot).render(
-  <StrictMode>
-    <AppErrorBoundary>
-      <AuthProvider>
-        <AppErrorBoundary>
-          <MessagingProvider>
-            <App />
-          </MessagingProvider>
-        </AppErrorBoundary>
-      </AuthProvider>
-    </AppErrorBoundary>
-  </StrictMode>
-);
+function releaseStylesAreReady() {
+  if (import.meta.env.DEV) return true;
+  const marker = window.getComputedStyle(document.documentElement)
+    .getPropertyValue('--full-circle-release-style')
+    .replace(/["']/g, '')
+    .trim();
+  return bootWindow.__fullCircleStylesReady === true && marker === RELEASE_STYLE_MARKER;
+}
 
-registerServiceWorker();
+function mountFullCircle() {
+  if (appMounted || !releaseStylesAreReady()) return;
+  appMounted = true;
+  if (bootWindow.__fullCircleBootWatchdog !== undefined) {
+    window.clearTimeout(bootWindow.__fullCircleBootWatchdog);
+  }
+  appRoot.dataset.fcAppMounted = 'true';
+  createRoot(appRoot).render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <AuthProvider>
+          <AppErrorBoundary>
+            <MessagingProvider>
+              <App />
+            </MessagingProvider>
+          </AppErrorBoundary>
+        </AuthProvider>
+      </AppErrorBoundary>
+    </StrictMode>,
+  );
+  registerServiceWorker();
+}
+
+if (releaseStylesAreReady()) {
+  mountFullCircle();
+} else {
+  window.addEventListener('fullcircle:styles-ready', mountFullCircle, { once: true });
+  window.setTimeout(() => {
+    if (!appMounted) bootWindow.__showFullCircleRecovery?.();
+  }, 24_000);
+}

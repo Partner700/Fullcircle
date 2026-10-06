@@ -67,9 +67,28 @@ function checkSite(base, expectedWorker, read = download) {
   }
   const html = get('index.html');
   if (!html) return report;
+  const releaseNumber = expectedWorker.match(/v(\d+)$/)?.[1];
+  if (!releaseNumber || !html.body.includes(`name="full-circle-release" content="${releaseNumber}"`)) {
+    report.status = 'incomplete';
+    report.details.push('The page is missing the verified Full Circle release marker.');
+    return report;
+  }
+  if (Buffer.byteLength(html.body) >= 40_000) {
+    report.status = 'incomplete';
+    report.details.push('The initial page is too large for the weak-network startup safety budget.');
+    return report;
+  }
   if (!html.body.includes(`src="./${entryFile}"`) && !html.body.includes(`src="/${entryFile}"`)) {
     report.status = 'incomplete';
     report.details.push('The page and release manifest reference different application bundles.');
+    return report;
+  }
+  const releaseCss = get('full-circle-release.css');
+  if (!releaseCss) return report;
+  if (!/text\/css/i.test(releaseCss.contentType || '')
+    || !releaseCss.body.includes(`--full-circle-release-style:"${releaseNumber}"`)) {
+    report.status = 'incomplete';
+    report.details.push('The independently recoverable release stylesheet is missing or mismatched.');
     return report;
   }
   const entry = get(entryFile);
