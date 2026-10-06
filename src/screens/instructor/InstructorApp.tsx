@@ -37,6 +37,7 @@ import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNav
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { announceNewcomerGuidanceAction } from '../../lib/newcomerGuidance';
 import { openProfileCv } from '../../lib/profileCv';
+import { readContinuedTab } from '../../lib/appContinuity';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { supabase, supabaseUrl } from '../../lib/supabase';
 import {
@@ -211,10 +212,17 @@ const NAV_ITEMS = [
   { key: 'awards', label: 'Awards', icon: AwardIcon },
   { key: 'settings', label: 'Settings', icon: Shield },
 ];
+const INSTRUCTOR_TABS: Tab[] = NAV_ITEMS.map((item) => item.key as Tab);
 
 export function InstructorApp() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>(() => readContinuedTab(
+    profile?.id || '',
+    'instructor',
+    INSTRUCTOR_TABS,
+    'dashboard',
+    ['quiz'],
+  ));
   const [tents, setTents] = useState<(Tent & { tent_houses: any })[]>([]);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);

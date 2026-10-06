@@ -35,6 +35,7 @@ const draft = {
   },
   openUserInsights: 'Genesis 1:1',
   openInsightReplies: 'insight-1',
+  openVerse: 2,
 };
 
 writeReadingDraft(userId, readingDate, draft, storage);

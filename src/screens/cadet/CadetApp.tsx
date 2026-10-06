@@ -48,6 +48,7 @@ import { openProfileCv } from '../../lib/profileCv';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { isDoveArrival } from '../../lib/notificationArrival';
 import { openAudioCall } from '../../lib/audioCalls';
+import { readContinuedTab } from '../../lib/appContinuity';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag, CreditCard,
@@ -165,10 +166,8 @@ const NAV_ITEMS = [
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-function getInitialCadetTab(): Tab {
-  if (typeof window === 'undefined') return 'dashboard';
-  const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  return CADET_TABS.includes(key as Tab) ? key as Tab : 'dashboard';
+function getInitialCadetTab(userId: string): Tab {
+  return readContinuedTab(userId, 'cadet', CADET_TABS, 'dashboard', ['quiz']);
 }
 
 function actionKeyToTab(actionKey: string | null | undefined): Tab | undefined {
@@ -247,7 +246,7 @@ function getCountdownParts(target?: string | null) {
 export function CadetApp() {
   const { profile, session } = useAuth();
   const toolbarUserId = session?.user.id || profile?.id || '';
-  const [tab, setTab] = useState<Tab>(getInitialCadetTab);
+  const [tab, setTab] = useState<Tab>(() => getInitialCadetTab(toolbarUserId));
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
