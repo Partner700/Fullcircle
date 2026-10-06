@@ -48,6 +48,8 @@ const emptyInstructorBoards = (): InstructorBoardRows => ({
   instructor_figs: [],
 });
 
+const INSTRUCTOR_BOARD_CACHE_PREFIX = 'full-circle-instructor-camp-boards';
+
 type TentLeaderboardRow = {
   tent_id: string;
   tent_name: string;
@@ -294,6 +296,31 @@ function buildInstructorBoards(rows: InstructorBoardRow[]): InstructorBoardRows 
   };
 }
 
+function hasCompleteInstructorBoards(boards: InstructorBoardRows): boolean {
+  return INSTRUCTOR_BOARD_KEYS.every((boardKey) => boards[boardKey].length > 0);
+}
+
+function readCachedInstructorBoards(userId: string | undefined): InstructorBoardRows | null {
+  if (!userId || typeof window === 'undefined') return null;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(`${INSTRUCTOR_BOARD_CACHE_PREFIX}-${userId}`) || 'null');
+    if (!value || typeof value !== 'object') return null;
+    const boards = value as InstructorBoardRows;
+    return hasCompleteInstructorBoards(boards) ? boards : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedInstructorBoards(userId: string | undefined, boards: InstructorBoardRows) {
+  if (!userId || typeof window === 'undefined' || !hasCompleteInstructorBoards(boards)) return;
+  try {
+    window.localStorage.setItem(`${INSTRUCTOR_BOARD_CACHE_PREFIX}-${userId}`, JSON.stringify(boards));
+  } catch {
+    // Private browsing can deny storage; the live board remains available.
+  }
+}
+
 function buildInstructorFallbackBoards(
   fallbackRows: InstructorBoardRow[],
   memberRows: MarksBoardRow[],
@@ -357,8 +384,8 @@ function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; v
 
 export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch = false }: { instructorMode?: boolean; allowAudienceSwitch?: boolean } = {}) {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<BoardTab>('streak');
-  const [audience, setAudience] = useState<BoardAudience>('cadet');
+  const [tab, setTab] = useState<BoardTab>(() => instructorMode ? 'instructor_narratives' : 'streak');
+  const [audience, setAudience] = useState<BoardAudience>(() => instructorMode ? 'instructor' : 'cadet');
   const [streakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
   const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
   const [liveRows, setLiveRows] = useState<LiveLeaderboardRow[]>([]);
@@ -372,20 +399,53 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const loadInFlightRef = useRef(false);
+  const loadsInFlightRef = useRef<Set<BoardAudience>>(new Set());
+  const lastInstructorBoardsRef = useRef<InstructorBoardRows | null>(null);
   const lastStreakRowsRef = useRef<StreakLeaderboardRow[]>([]);
 
   const load = useCallback(async (silent = false) => {
     if (silent && typeof document !== 'undefined' && document.body.dataset.fullCircleMessengerOpen === 'true') return;
-    if (loadInFlightRef.current) return;
-    loadInFlightRef.current = true;
+    const requestedAudience = audience;
+    if (loadsInFlightRef.current.has(requestedAudience)) return;
+    loadsInFlightRef.current.add(requestedAudience);
     if (!silent) setLoading(true);
     try {
-      if (audience === 'instructor') {
-        const movementResult = await withBoardTimeout(
-          supabase.rpc('get_instructor_competitive_boards'),
-          'Instructor boards',
+      if (requestedAudience === 'instructor') {
+        const applyInstructorBoards = (boards: InstructorBoardRows) => {
+          if (!hasCompleteInstructorBoards(boards)) return false;
+          lastInstructorBoardsRef.current = boards;
+          setInstructorBoards(boards);
+          writeCachedInstructorBoards(profile?.id, boards);
+          setLastUpdatedAt(new Date());
+          setLoading(false);
+          return true;
+        };
+
+        // The current camp total is the small, authoritative request. Show it
+        // first; movement history must never hold the board UI hostage.
+        const currentTotalsResult = await withBoardTimeout(
+          supabase.rpc('get_current_instructor_camp_totals'),
+          'Current instructor camp totals',
+          7_000,
         ).catch(() => null);
+        const currentTotals = currentTotalsResult && !currentTotalsResult.error
+          ? (currentTotalsResult.data || []) as InstructorBoardRow[]
+          : [];
+        let hasDisplayedTotals = currentTotals.length > 0
+          ? applyInstructorBoards(buildInstructorBoards(currentTotals))
+          : false;
+
+        if (!hasDisplayedTotals) {
+          const retainedBoards = lastInstructorBoardsRef.current || readCachedInstructorBoards(profile?.id);
+          if (retainedBoards) hasDisplayedTotals = applyInstructorBoards(retainedBoards);
+        }
+
+        const movementRequest = withBoardTimeout(
+          supabase.rpc('get_instructor_competitive_boards'),
+          'Instructor board movement history',
+          12_000,
+        ).catch(() => null);
+        const movementResult = await movementRequest;
         const movements = movementResult && !movementResult.error
           ? (movementResult.data || []) as BoardMovementRow[]
           : [];
@@ -396,38 +456,33 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           instructor_denarii: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_denarii'),
           instructor_figs: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_figs'),
         };
-        if (INSTRUCTOR_BOARD_KEYS.every((boardKey) => movementBoards[boardKey].length > 0)) {
-          setInstructorBoards(movementBoards);
-        } else {
-          const [currentTotalsResult, challengeResult, marksResult] = await Promise.allSettled([
-            withBoardTimeout(supabase.rpc('get_current_instructor_camp_totals'), 'Current instructor camp totals'),
+        if (applyInstructorBoards(movementBoards)) {
+          hasDisplayedTotals = true;
+        } else if (!hasDisplayedTotals) {
+          const [challengeResult, marksResult] = await Promise.allSettled([
             withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback'),
             withBoardTimeout(fetchMarksBoard(), 'Instructor camp totals fallback'),
           ]);
-          const currentTotalsResponse = currentTotalsResult.status === 'fulfilled' ? currentTotalsResult.value : null;
-          const currentTotals = currentTotalsResponse && !currentTotalsResponse.error
-            ? (currentTotalsResponse.data || []) as InstructorBoardRow[]
-            : [];
           const challengeResponse = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
           const fallbackRows = challengeResponse && !challengeResponse.error
             ? (challengeResponse.data || []) as InstructorBoardRow[]
             : [];
           const memberRows = marksResult.status === 'fulfilled' ? marksResult.value : [];
-          setInstructorBoards(currentTotals.length > 0
-            ? buildInstructorBoards(currentTotals)
-            : buildInstructorFallbackBoards(fallbackRows, memberRows, profile));
+          applyInstructorBoards(buildInstructorFallbackBoards(fallbackRows, memberRows, profile));
         }
         setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
         setLastUpdatedAt(new Date());
         return;
       }
 
+      const memberAudience: Exclude<BoardAudience, 'instructor'> = requestedAudience;
+
       const [leaders, boardMovements, independentStreaks] = await Promise.allSettled([
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
-        withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: audience }), 'Challenge boards'),
+        withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: memberAudience }), 'Challenge boards'),
         // The streak board has its own quick, published feed so a slow
         // movement query can never hide it from sentries.
-        withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board', 5_500),
+        withBoardTimeout(fetchStreakboardSnapshots(memberAudience), 'Streak board', 5_500),
       ]);
       const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
       setLeaderRows(leaderRowsRaw as any);
@@ -446,7 +501,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       let quizRowsWithHistory: (QuizScoreboardRow & CompetitiveRow)[];
       let rhudeRowsWithHistory: (RhudeBoardRow & CompetitiveRow)[];
       let marksRowsWithHistory: (MarksBoardRow & CompetitiveRow)[];
-      const historyPrefix = `full-circle-board-history-${audience}`;
+      const historyPrefix = `full-circle-board-history-${memberAudience}`;
 
       if (authoritativeMovements.length > 0) {
         streakRowsWithHistory = rowsFromBoardPayload<StreakLeaderboardRow>(authoritativeMovements, 'streak');
@@ -471,7 +526,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           || streakRowsWithHistory.some((row) => !row.user_id || !row.profiles?.display_name)
         ) {
           const streakFallback = await Promise.allSettled([
-            withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board recovery'),
+            withBoardTimeout(fetchStreakboardSnapshots(memberAudience), 'Streak board recovery'),
           ]);
           const streakRowsRaw = streakFallback[0].status === 'fulfilled' ? streakFallback[0].value : [];
           if (streakRowsRaw.length > 0) {
@@ -487,9 +542,9 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         // Keep the existing board RPCs as a rollout fallback until the new
         // migration reaches production. Once deployed, phones use one payload.
         const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
-          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: audience }), 'Denarii board fallback'),
+          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: memberAudience }), 'Denarii board fallback'),
           withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board fallback'),
-          withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board fallback'),
+          withBoardTimeout(fetchQuizScoreboard(memberAudience), 'Fig board fallback'),
           withBoardTimeout(fetchRhudeBoard(), 'Valley board fallback'),
           withBoardTimeout(fetchMarksBoard(), 'Marks board fallback'),
         ]);
@@ -497,9 +552,9 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
         const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows);
         const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
-        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === audience);
-        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === audience);
-        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === audience);
+        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === memberAudience);
+        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === memberAudience);
+        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === memberAudience);
         streakRowsWithHistory = hydrateBoardHistory(independentStreakRows, `${historyPrefix}-streak`, (row) => row.user_id, (row) => Number(row.current_streak ?? row.consistency ?? 0));
         liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `${historyPrefix}-denarii`, (row) => row.user_id, (row) => Number(row.total_denarii ?? 0));
         tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number(row.combined_score ?? 0));
@@ -550,10 +605,19 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           .catch(() => undefined);
     } catch (e) { console.error('Leaderboard load error:', e); }
     finally {
-      loadInFlightRef.current = false;
+      loadsInFlightRef.current.delete(requestedAudience);
       setLoading(false);
     }
       }, [audience, profile]);
+
+  useEffect(() => {
+    if (!instructorMode || audience !== 'instructor') return;
+    const cached = readCachedInstructorBoards(profile?.id);
+    if (!cached) return;
+    lastInstructorBoardsRef.current = cached;
+    setInstructorBoards((current) => hasCompleteInstructorBoards(current) ? current : cached);
+    setLoading(false);
+  }, [audience, instructorMode, profile?.id]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
