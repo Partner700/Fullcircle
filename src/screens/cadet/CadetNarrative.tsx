@@ -373,6 +373,7 @@ export function CadetNarrative({
     replyTargets,
     openUserInsights,
     openInsightReplies,
+    openVerse,
     editingInsightId,
     editingInsightBody,
     editingCommentId,
@@ -392,6 +393,7 @@ export function CadetNarrative({
     myInsightDrafts,
     openInsightReplies,
     openUserInsights,
+    openVerse,
     replyDrafts,
     replyTargets,
     savedMeditation,
@@ -463,7 +465,7 @@ export function CadetNarrative({
     setLoading(true);
     setReaderVerses([]);
     setVerseInsights([]);
-    setOpenVerse(null);
+    setOpenVerse(localDraft.openVerse);
     setMeditation(localDraft.meditation);
     setBestVerse(localDraft.bestVerse);
     setDailyQuote(localDraft.dailyQuote);

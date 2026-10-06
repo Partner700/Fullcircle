@@ -12,8 +12,14 @@ import { openProfileCv } from '../lib/profileCv';
 import { UserAvatar } from './UserAvatar';
 import { requestAudioCall } from '../lib/audioCalls';
 import { safeStorageGet, safeStorageSet } from '../lib/safeStorage';
+import {
+  persistContinuedScroll,
+  persistContinuedTab,
+  readContinuedScroll,
+} from '../lib/appContinuity';
 
 type Theme = 'night' | 'day';
+const CONTINUITY_EXCLUDED_TABS = ['quiz'] as const;
 
 function tabUrl(tab: string) {
   const url = new URL(window.location.href);
@@ -129,6 +135,73 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
 
   useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
   useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
+
+  useEffect(() => {
+    if (!profile?.id || !role) return;
+    persistContinuedTab(profile.id, role, activeKey, CONTINUITY_EXCLUDED_TABS);
+  }, [activeKey, profile?.id, role]);
+
+  useEffect(() => {
+    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    const target = readContinuedScroll(profile.id, role, activeKey);
+    if (target === null) return;
+
+    let cancelled = false;
+    let userInteracted = false;
+    const stopRestoring = () => { userInteracted = true; };
+    const restore = () => {
+      if (cancelled || userInteracted) return;
+      const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      window.scrollTo({ top: Math.min(target, maximum), left: 0, behavior: 'auto' });
+    };
+    const timers = [0, 80, 240, 600, 1200, 2200].map((delay) => window.setTimeout(restore, delay));
+    window.addEventListener('touchstart', stopRestoring, { passive: true });
+    window.addEventListener('pointerdown', stopRestoring, { passive: true });
+    window.addEventListener('wheel', stopRestoring, { passive: true });
+    window.addEventListener('keydown', stopRestoring);
+
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener('touchstart', stopRestoring);
+      window.removeEventListener('pointerdown', stopRestoring);
+      window.removeEventListener('wheel', stopRestoring);
+      window.removeEventListener('keydown', stopRestoring);
+    };
+  }, [activeKey, profile?.id, role]);
+
+  useEffect(() => {
+    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    let animationFrame = 0;
+    const save = () => persistContinuedScroll(
+      profile.id,
+      role,
+      activeKey,
+      window.scrollY,
+      CONTINUITY_EXCLUDED_TABS,
+    );
+    const scheduleSave = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = 0;
+        save();
+      });
+    };
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') save();
+    };
+
+    window.addEventListener('scroll', scheduleSave, { passive: true });
+    window.addEventListener('pagehide', save);
+    document.addEventListener('visibilitychange', saveWhenHidden);
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      save();
+      window.removeEventListener('scroll', scheduleSave);
+      window.removeEventListener('pagehide', save);
+      document.removeEventListener('visibilitychange', saveWhenHidden);
+    };
+  }, [activeKey, profile?.id, role]);
 
   useLayoutEffect(() => {
     const header = headerRef.current;

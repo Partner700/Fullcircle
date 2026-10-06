@@ -284,9 +284,20 @@ function rankInstructorRows(
   );
 }
 
+function buildInstructorBoards(rows: InstructorBoardRow[]): InstructorBoardRows {
+  return {
+    instructor_narratives: rankInstructorRows(rows, 'instructor_narratives', (row) => row.narratives),
+    instructor_residents: rankInstructorRows(rows, 'instructor_residents', (row) => row.residents),
+    instructor_marks: rankInstructorRows(rows, 'instructor_marks', (row) => row.marks),
+    instructor_denarii: rankInstructorRows(rows, 'instructor_denarii', (row) => row.total_denarii),
+    instructor_figs: rankInstructorRows(rows, 'instructor_figs', (row) => row.total_figs),
+  };
+}
+
 function buildInstructorFallbackBoards(
   fallbackRows: InstructorBoardRow[],
   memberRows: MarksBoardRow[],
+  currentInstructor?: { id: string; display_name?: string | null; avatar_url?: string | null } | null,
 ): InstructorBoardRows {
   const memberTotals = memberRows.reduce((totals, row) => ({
     marks: totals.marks + Number(row.marks || 0),
@@ -294,7 +305,23 @@ function buildInstructorFallbackBoards(
     figs: totals.figs + Number(row.total_figs || 0),
   }), { marks: 0, denarii: 0, figs: 0 });
 
-  const completeRows = fallbackRows.map((row) => ({
+  const sourceRows = fallbackRows.length > 0
+    ? fallbackRows
+    : currentInstructor?.id
+      ? [{
+        user_id: currentInstructor.id,
+        display_name: currentInstructor.display_name || 'Instructor',
+        avatar_url: currentInstructor.avatar_url || null,
+        narratives: 0,
+        residents: memberRows.length,
+        marks: 0,
+        total_denarii: 0,
+        total_figs: 0,
+        rank: 1,
+      }]
+      : [];
+
+  const completeRows = sourceRows.map((row) => ({
     ...row,
     narratives: Number(row.narratives || 0),
     residents: Number(row.residents || 0),
@@ -303,13 +330,7 @@ function buildInstructorFallbackBoards(
     total_figs: memberTotals.figs,
   }));
 
-  return {
-    instructor_narratives: rankInstructorRows(completeRows, 'instructor_narratives', (row) => row.narratives),
-    instructor_residents: rankInstructorRows(completeRows, 'instructor_residents', (row) => row.residents),
-    instructor_marks: rankInstructorRows(completeRows, 'instructor_marks', (row) => row.marks),
-    instructor_denarii: rankInstructorRows(completeRows, 'instructor_denarii', (row) => row.total_denarii),
-    instructor_figs: rankInstructorRows(completeRows, 'instructor_figs', (row) => row.total_figs),
-  };
+  return buildInstructorBoards(completeRows);
 }
 
 function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; valueForRow?: (row: CompetitiveRow) => number }) {
@@ -378,17 +399,23 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         if (INSTRUCTOR_BOARD_KEYS.every((boardKey) => movementBoards[boardKey].length > 0)) {
           setInstructorBoards(movementBoards);
         } else {
-          const [challengeResult, marksResult] = await Promise.allSettled([
+          const [currentTotalsResult, challengeResult, marksResult] = await Promise.allSettled([
+            withBoardTimeout(supabase.rpc('get_current_instructor_camp_totals'), 'Current instructor camp totals'),
             withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback'),
             withBoardTimeout(fetchMarksBoard(), 'Instructor camp totals fallback'),
           ]);
+          const currentTotalsResponse = currentTotalsResult.status === 'fulfilled' ? currentTotalsResult.value : null;
+          const currentTotals = currentTotalsResponse && !currentTotalsResponse.error
+            ? (currentTotalsResponse.data || []) as InstructorBoardRow[]
+            : [];
           const challengeResponse = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
-          if (!challengeResponse || challengeResponse.error) {
-            throw challengeResponse?.error || new Error('Instructor boards could not be loaded.');
-          }
-          const fallbackRows = (challengeResponse.data || []) as InstructorBoardRow[];
+          const fallbackRows = challengeResponse && !challengeResponse.error
+            ? (challengeResponse.data || []) as InstructorBoardRow[]
+            : [];
           const memberRows = marksResult.status === 'fulfilled' ? marksResult.value : [];
-          setInstructorBoards(buildInstructorFallbackBoards(fallbackRows, memberRows));
+          setInstructorBoards(currentTotals.length > 0
+            ? buildInstructorBoards(currentTotals)
+            : buildInstructorFallbackBoards(fallbackRows, memberRows, profile));
         }
         setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
         setLastUpdatedAt(new Date());
@@ -526,7 +553,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       loadInFlightRef.current = false;
       setLoading(false);
     }
-      }, [audience]);
+      }, [audience, profile]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {

@@ -41,6 +41,7 @@ import { updateReactionOptimistically } from '../../lib/reactionState';
 import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNavigation';
 import { openProfileCv } from '../../lib/profileCv';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
+import { readContinuedTab } from '../../lib/appContinuity';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
@@ -95,11 +96,12 @@ const NAV_ITEMS = [
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-function getInitialSentryTab(): Tab {
-  if (typeof window === 'undefined') return 'overview';
-  const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
-  if (key === 'narrative') return 'reading';
-  return SENTRY_TABS.includes(key as Tab) ? key as Tab : 'overview';
+function getInitialSentryTab(userId: string): Tab {
+  if (typeof window !== 'undefined') {
+    const key = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('fc-tab');
+    if (key === 'narrative') return 'reading';
+  }
+  return readContinuedTab(userId, 'sentry', SENTRY_TABS, 'overview', ['quiz']);
 }
 
 const TENT_REQUIRED_TABS = new Set<Tab>(['overview', 'attendance', 'cadets', 'challenges']);
@@ -123,7 +125,7 @@ function streakForMember(
 
 export function SentryApp() {
   const { profile, signOut } = useAuth();
-  const [tab, setTab] = useState<Tab>(getInitialSentryTab);
+  const [tab, setTab] = useState<Tab>(() => getInitialSentryTab(profile?.id || ''));
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [allRecords, setAllRecords] = useState<Record<string, DailyRecord[]>>({});

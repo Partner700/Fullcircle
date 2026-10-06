@@ -1,12 +1,12 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v169';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v169';
+const CACHE_VERSION = 'full-circle-target-v170';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v170';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '169';
-const RELEASE_DOCUMENT_MARKER = '<meta name="full-circle-release" content="169"';
+const RECOVERY_MARKER = '170';
+const RELEASE_DOCUMENT_MARKER = '<meta name="full-circle-release" content="170"';
 const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 3_000;
 const SECONDARY_MIRROR_DELAY_MS = 1_200;
@@ -422,18 +422,23 @@ async function cachedAppShell() {
 async function networkFirstNavigation(request, event) {
   const requestedPath = new URL(request.url).pathname;
   const releaseRequest = isReleaseAssetPath(requestedPath) ? scopedUrl('index.html') : request;
+  const cached = await cachedAppShell();
   const networkRequest = fetchReleaseWithFallback(releaseRequest, { cache: 'no-store' }).then((response) => {
     keepAlive(event, safeCachePut(SHELL_CACHE, scopedUrl('index.html'), response.clone()));
     return response;
   });
   keepAlive(event, networkRequest);
+  // Returning the verified local shell immediately keeps an installed app in
+  // place when a phone resumes it. The fresh release is still fetched and
+  // cached in the background for the next launch.
+  if (cached) return cached;
   const fallbackAfterDelay = wait(NAVIGATION_FALLBACK_DELAY_MS).then(cachedAppShell);
   try {
     const first = await Promise.race([networkRequest, fallbackAfterDelay]);
     return first || await networkRequest;
   } catch {
-    const cached = await cachedAppShell();
-    if (cached) return cached;
+    const recovered = await cachedAppShell();
+    if (recovered) return recovered;
     const offline = await cacheRead(() => caches.match(scopedUrl('offline.html'), { ignoreVary: true }));
     return offline ? localReleaseResponse(offline, scopedUrl('offline.html')) : emergencyRecoveryResponse();
   }

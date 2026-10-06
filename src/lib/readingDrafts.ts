@@ -15,6 +15,7 @@ export interface ReadingDraft {
   replyTargets: Record<string, ReadingReplyTarget | null>;
   openUserInsights: string | null;
   openInsightReplies: string | null;
+  openVerse: number | null;
   editingInsightId: string | null;
   editingInsightBody: string;
   editingCommentId: string | null;
@@ -41,6 +42,7 @@ export function emptyReadingDraft(): ReadingDraft {
     replyTargets: {},
     openUserInsights: null,
     openInsightReplies: null,
+    openVerse: null,
     editingInsightId: null,
     editingInsightBody: '',
     editingCommentId: null,
@@ -98,6 +100,9 @@ function normalizeReadingDraft(value: unknown): ReadingDraft {
     replyTargets: replyTargetMap(candidate.replyTargets),
     openUserInsights: optionalString(candidate.openUserInsights),
     openInsightReplies: optionalString(candidate.openInsightReplies),
+    openVerse: typeof candidate.openVerse === 'number' && Number.isInteger(candidate.openVerse) && candidate.openVerse >= 0
+      ? candidate.openVerse
+      : null,
     editingInsightId: optionalString(candidate.editingInsightId),
     editingInsightBody: typeof candidate.editingInsightBody === 'string' ? candidate.editingInsightBody : '',
     editingCommentId: optionalString(candidate.editingCommentId),
@@ -133,6 +138,7 @@ function hasDraftContent(draft: ReadingDraft) {
     draft.challengeLink ||
     draft.editingInsightBody ||
     draft.editingCommentBody ||
+    draft.openVerse !== null ||
     Object.values(draft.insightDrafts).some(Boolean) ||
     Object.values(draft.replyDrafts).some(Boolean),
   );
