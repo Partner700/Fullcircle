@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, FileQuestion, Loader2, Mail, ShieldQuestion, UserPlus, X } from 'lucide-react';
+import { Check, Coins, FileQuestion, Gem, Gift, Loader2, Mail, ShieldQuestion, Sparkles, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchCampMentionCandidates, fetchUserNotifications, markNotificationRead, reviewTentJoinRequest } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserNotification } from '../lib/types';
-import { isDoveArrival, isMessageArrival, isQuizArrival, isTentJoinRequestArrival } from '../lib/notificationArrival';
+import { isDoveArrival, isMessageArrival, isQuizArrival, isResourceGrantArrival, isTentJoinRequestArrival } from '../lib/notificationArrival';
 import { Dove } from './Dove';
 import { TentGroupMessenger, TentMessenger } from './TentMessenger';
 import { getOpenMessageContext, messageNotificationMatchesContext, OPEN_MESSAGE_CONTEXT_EVENT } from '../lib/messageOpenState';
@@ -146,6 +146,12 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
         return;
       }
 
+      if (isResourceGrantArrival(arrival)) {
+        advanceArrival();
+        onNavigate(arrival.action_key || 'store', arrival.metadata);
+        return;
+      }
+
       if (isMessageArrival(arrival) && directMessageArrival(arrival)) {
         const senderId = messageSenderId(arrival);
         if (senderId) {
@@ -185,19 +191,37 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
   };
 
   const tentApplication = arrival ? isTentJoinRequestArrival(arrival) : false;
+  const resourceGrant = arrival ? isResourceGrantArrival(arrival) : false;
+  const denariiGranted = resourceGrant ? Number(arrival?.metadata?.denarii_amount || 0) : 0;
+  const relicQuantity = resourceGrant ? Number(arrival?.metadata?.relic_quantity || 0) : 0;
+  const relicName = resourceGrant ? String(arrival?.metadata?.relic_name || 'Relic') : '';
+  const instructorMessage = resourceGrant ? String(arrival?.metadata?.instructor_message || '').trim() : '';
+  const dismissArrival = () => {
+    if (arrival && resourceGrant) void markNotificationRead(arrival.id).catch(() => undefined);
+    advanceArrival();
+  };
   const prompt = arrival && typeof document !== 'undefined' ? createPortal(
-    <aside className="fixed bottom-5 left-1/2 z-[2147483200] w-[min(92vw,26rem)] -translate-x-1/2 overflow-hidden rounded-lg border border-peri/45 bg-surface/96 shadow-2xl backdrop-blur-xl animate-slide-up" role="status" aria-live="polite">
+    <aside className={`fixed bottom-5 left-1/2 z-[2147483200] w-[min(92vw,26rem)] -translate-x-1/2 overflow-hidden rounded-lg border shadow-2xl backdrop-blur-xl animate-slide-up ${resourceGrant ? 'border-gold/70 bg-surface/98' : 'border-peri/45 bg-surface/96'}`} role="status" aria-live="polite">
       <div className="flex w-full items-center gap-3 px-4 py-3 pr-12 text-left">
         <span className="relative flex h-16 w-16 shrink-0 items-center justify-center">
           <Dove size={62} className="animate-float" />
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface bg-peri text-white shadow-md">
-            {tentApplication ? <UserPlus size={15} /> : isQuizArrival(arrival) ? <FileQuestion size={15} /> : <Mail size={15} />}
+          <span className={`absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface shadow-md ${resourceGrant ? 'bg-gold text-navy' : 'bg-peri text-white'}`}>
+            {resourceGrant ? <Gift size={15} /> : tentApplication ? <UserPlus size={15} /> : isQuizArrival(arrival) ? <FileQuestion size={15} /> : <Mail size={15} />}
           </span>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[10px] font-black uppercase text-peri">Delivered by the Dove</span>
+          <span className={`flex items-center gap-1 text-[10px] font-black uppercase ${resourceGrant ? 'text-gold' : 'text-peri'}`}>
+            {resourceGrant && <Sparkles size={11} />} {resourceGrant ? 'Instructor gift' : 'Delivered by the Dove'}
+          </span>
           <strong className="mt-0.5 block text-sm font-bold text-ink">{arrival.title}</strong>
-          <span className="mt-0.5 block line-clamp-2 text-xs leading-relaxed text-stone">{arrival.body}</span>
+          <span className={`mt-0.5 block text-xs leading-relaxed text-stone ${resourceGrant ? '' : 'line-clamp-2'}`}>{arrival.body}</span>
+          {resourceGrant && (denariiGranted > 0 || relicQuantity > 0) && (
+            <span className="mt-2 flex flex-wrap gap-1.5">
+              {denariiGranted > 0 && <span className="inline-flex items-center gap-1 rounded-full border border-gold/35 bg-gold/10 px-2 py-1 text-[10px] font-black text-ink"><Coins size={12} className="text-gold" /> {denariiGranted.toLocaleString()} Denarii</span>}
+              {relicQuantity > 0 && <span className="inline-flex items-center gap-1 rounded-full border border-peri/30 bg-peri-soft px-2 py-1 text-[10px] font-black text-ink"><Gem size={12} className="text-peri" /> {relicQuantity.toLocaleString()} x {relicName}</span>}
+            </span>
+          )}
+          {instructorMessage && <span className="mt-2 block rounded-md border-l-2 border-gold bg-gold/10 px-2.5 py-2 text-xs italic leading-relaxed text-ink">&ldquo;{instructorMessage}&rdquo;</span>}
           {tentApplication ? (
             <span className="mt-2 flex flex-wrap gap-2">
               <button type="button" disabled={!!reviewing} onClick={() => void reviewTentApplication(true)} className="btn-primary px-3 py-1.5 text-[11px]">
@@ -209,14 +233,14 @@ export function DoveNotificationArrival({ onNavigate }: Props) {
             </span>
           ) : (
             <button type="button" onClick={() => void openArrival()} disabled={opening} className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-peri">
-              {opening ? <Loader2 size={11} className="animate-spin" /> : isQuizArrival(arrival) ? <FileQuestion size={11} /> : <Mail size={11} />}
-              {opening ? 'Opening...' : isQuizArrival(arrival) ? 'Open Weekly Quiz' : 'Open message'}
+              {opening ? <Loader2 size={11} className="animate-spin" /> : resourceGrant ? <Gift size={11} /> : isQuizArrival(arrival) ? <FileQuestion size={11} /> : <Mail size={11} />}
+              {opening ? 'Opening...' : resourceGrant ? 'View resources' : isQuizArrival(arrival) ? 'Open Weekly Quiz' : 'Open message'}
             </button>
           )}
         </span>
         {tentApplication && <ShieldQuestion size={18} className="shrink-0 text-gold" />}
       </div>
-      <button type="button" onClick={advanceArrival} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-stone hover:bg-surface-2 hover:text-ink" aria-label="Dismiss notification"><X size={16} /></button>
+      <button type="button" onClick={dismissArrival} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md text-stone hover:bg-surface-2 hover:text-ink" aria-label="Dismiss notification"><X size={16} /></button>
     </aside>,
     document.body,
   ) : null;

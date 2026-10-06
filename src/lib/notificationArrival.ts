@@ -20,6 +20,13 @@ export function isTentJoinRequestArrival(notification: UserNotification) {
     && notification.metadata?.approved === undefined;
 }
 
+export function isResourceGrantArrival(notification: UserNotification) {
+  return String(notification.notification_type || '').toLowerCase() === 'resource_grant';
+}
+
 export function isDoveArrival(notification: UserNotification) {
-  return isMessageArrival(notification) || isQuizArrival(notification) || isTentJoinRequestArrival(notification);
+  return isMessageArrival(notification)
+    || isQuizArrival(notification)
+    || isTentJoinRequestArrival(notification)
+    || isResourceGrantArrival(notification);
 }

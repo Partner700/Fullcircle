@@ -7,13 +7,12 @@ import {
   fetchActiveFcxExperience,
   fetchAwards,
   fetchAllProfiles,
-  fetchFcxTicketContact,
   fetchPreviousMuralis,
   removeFcxRegistration,
   saveFcxExperience,
   uploadFcxGuestAvatar,
 } from '../lib/queries';
-import { cn, formatXaf, getAppDateTimeMs, getTodayISODate, whatsappUrl } from '../lib/utils';
+import { cn, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, getAppDateTimeMs, getTodayISODate, whatsappUrl } from '../lib/utils';
 import { publicAsset } from '../lib/publicAsset';
 import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
@@ -56,7 +55,6 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const [previousWinner, setPreviousWinner] = useState<AwardWithRecipient | null>(null);
-  const [paymentContact, setPaymentContact] = useState<string | null>(null);
   const displayTitle = visibleExperience.title.replace(/\s*\(FCX\)\s*/gi, ' ').trim() || 'Full Circle Experience';
   const registrations = visibleExperience.registrations || [];
   const occupied = Math.min(registrations.length, visibleExperience.capacity);
@@ -69,12 +67,12 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     () => countdownParts(countdownDate, countdownNow),
     [countdownDate, countdownNow],
   );
-  const paymentBase = whatsappUrl(paymentContact);
+  const paymentBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
   const paymentHref = paymentBase
-    ? `${paymentBase}?text=${encodeURIComponent('Hello Vedette, I want to pay for the Full Circle Experience (FCX).')}`
+    ? `${paymentBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
     : null;
   const askHref = paymentBase
-    ? `${paymentBase}?text=${encodeURIComponent('Hello Vedette, I have a question about the Full Circle Experience (FCX).')}`
+    ? `${paymentBase}?text=${encodeURIComponent('Hello, I have a question about the Full Circle Experience (FCX).')}`
     : null;
 
   useEffect(() => {
@@ -102,15 +100,6 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
 
     return () => { cancelled = true; };
   }, [active, experience.id]);
-
-  useEffect(() => {
-    if (!active || paymentContact) return;
-    let cancelled = false;
-    void fetchFcxTicketContact()
-      .then((contact) => { if (!cancelled) setPaymentContact(contact?.whatsapp_number || null); })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [active, paymentContact]);
 
   useEffect(() => {
     if (!active) return;

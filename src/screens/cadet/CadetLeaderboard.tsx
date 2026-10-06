@@ -32,6 +32,14 @@ type InstructorBoardRow = {
 type InstructorBoardKey = InstructorBoardTab;
 type InstructorBoardRows = Record<InstructorBoardKey, (InstructorBoardRow & CompetitiveRow)[]>;
 
+const INSTRUCTOR_BOARD_KEYS: InstructorBoardKey[] = [
+  'instructor_narratives',
+  'instructor_residents',
+  'instructor_marks',
+  'instructor_denarii',
+  'instructor_figs',
+];
+
 const emptyInstructorBoards = (): InstructorBoardRows => ({
   instructor_narratives: [],
   instructor_residents: [],
@@ -251,6 +259,59 @@ function rowsFromBoardPayload<T>(movements: BoardMovementRow[], boardKey: string
     })) as (T & CompetitiveRow)[];
 }
 
+function rankInstructorRows(
+  rows: InstructorBoardRow[],
+  boardKey: InstructorBoardKey,
+  valueForRow: (row: InstructorBoardRow) => number,
+) {
+  let previousValue: number | null = null;
+  let previousRank = 0;
+  const ranked = [...rows]
+    .sort((left, right) => valueForRow(right) - valueForRow(left) || left.display_name.localeCompare(right.display_name))
+    .map((row, index) => {
+      const value = valueForRow(row);
+      const rank = previousValue !== null && value === previousValue ? previousRank : index + 1;
+      previousValue = value;
+      previousRank = rank;
+      return { ...row, rank };
+    });
+
+  return hydrateBoardHistory(
+    ranked,
+    `full-circle-board-history-${boardKey.replace('instructor_', 'instructor-')}`,
+    (row) => row.user_id,
+    valueForRow,
+  );
+}
+
+function buildInstructorFallbackBoards(
+  fallbackRows: InstructorBoardRow[],
+  memberRows: MarksBoardRow[],
+): InstructorBoardRows {
+  const memberTotals = memberRows.reduce((totals, row) => ({
+    marks: totals.marks + Number(row.marks || 0),
+    denarii: totals.denarii + Number(row.total_denarii || 0),
+    figs: totals.figs + Number(row.total_figs || 0),
+  }), { marks: 0, denarii: 0, figs: 0 });
+
+  const completeRows = fallbackRows.map((row) => ({
+    ...row,
+    narratives: Number(row.narratives || 0),
+    residents: Number(row.residents || 0),
+    marks: memberTotals.marks + Number(row.narratives || 0) + Number(row.residents || 0) * 5,
+    total_denarii: memberTotals.denarii,
+    total_figs: memberTotals.figs,
+  }));
+
+  return {
+    instructor_narratives: rankInstructorRows(completeRows, 'instructor_narratives', (row) => row.narratives),
+    instructor_residents: rankInstructorRows(completeRows, 'instructor_residents', (row) => row.residents),
+    instructor_marks: rankInstructorRows(completeRows, 'instructor_marks', (row) => row.marks),
+    instructor_denarii: rankInstructorRows(completeRows, 'instructor_denarii', (row) => row.total_denarii),
+    instructor_figs: rankInstructorRows(completeRows, 'instructor_figs', (row) => row.total_figs),
+  };
+}
+
 function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; valueForRow?: (row: CompetitiveRow) => number }) {
   const up = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) > 0).length;
   const down = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) < 0).length;
@@ -303,35 +364,31 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         const movementResult = await withBoardTimeout(
           supabase.rpc('get_instructor_competitive_boards'),
           'Instructor boards',
-        );
-        if (!movementResult.error && movementResult.data) {
-          const movements = movementResult.data as BoardMovementRow[];
-          setInstructorBoards({
-            instructor_narratives: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_narratives'),
-            instructor_residents: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_residents'),
-            instructor_marks: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_marks'),
-            instructor_denarii: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_denarii'),
-            instructor_figs: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_figs'),
-          });
+        ).catch(() => null);
+        const movements = movementResult && !movementResult.error
+          ? (movementResult.data || []) as BoardMovementRow[]
+          : [];
+        const movementBoards: InstructorBoardRows = {
+          instructor_narratives: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_narratives'),
+          instructor_residents: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_residents'),
+          instructor_marks: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_marks'),
+          instructor_denarii: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_denarii'),
+          instructor_figs: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_figs'),
+        };
+        if (INSTRUCTOR_BOARD_KEYS.every((boardKey) => movementBoards[boardKey].length > 0)) {
+          setInstructorBoards(movementBoards);
         } else {
-          const { data, error } = await withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback');
-          if (error) throw error;
-          const fallbackRows = (data || []) as InstructorBoardRow[];
-          setInstructorBoards({
-            ...emptyInstructorBoards(),
-            instructor_narratives: hydrateBoardHistory(
-              fallbackRows,
-              'full-circle-board-history-instructor-narratives',
-              (row) => row.user_id,
-              (row) => Number(row.narratives),
-            ),
-            instructor_residents: hydrateBoardHistory(
-              fallbackRows,
-              'full-circle-board-history-instructor-residents',
-              (row) => row.user_id,
-              (row) => Number(row.residents),
-            ),
-          });
+          const [challengeResult, marksResult] = await Promise.allSettled([
+            withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback'),
+            withBoardTimeout(fetchMarksBoard(), 'Instructor camp totals fallback'),
+          ]);
+          const challengeResponse = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
+          if (!challengeResponse || challengeResponse.error) {
+            throw challengeResponse?.error || new Error('Instructor boards could not be loaded.');
+          }
+          const fallbackRows = (challengeResponse.data || []) as InstructorBoardRow[];
+          const memberRows = marksResult.status === 'fulfilled' ? marksResult.value : [];
+          setInstructorBoards(buildInstructorFallbackBoards(fallbackRows, memberRows));
         }
         setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
         setLastUpdatedAt(new Date());

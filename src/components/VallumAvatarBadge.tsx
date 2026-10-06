@@ -58,6 +58,32 @@ function normalizedAwardType(awardType: string, title = '') {
   return type || 'award';
 }
 
+function awardPriority(award: AvatarAward) {
+  const type = normalizedAwardType(award.award_type, award.title);
+  return type === 'vallum' ? 2 : type === 'centurion' ? 1 : 0;
+}
+
+function addStandingAward(target: Map<string, AvatarAward>, userId: string, award: AvatarAward) {
+  if (!userId) return;
+  const current = target.get(userId);
+  if (!current || awardPriority(award) > awardPriority(current)) target.set(userId, award);
+}
+
+function mergeVerifiedStandingAwards(incoming: Map<string, AvatarAward>) {
+  const merged = new Map(holderAwards);
+  (['vallum', 'centurion'] as const).forEach((standingType) => {
+    const replacements = [...incoming.entries()].filter(([, award]) => (
+      normalizedAwardType(award.award_type, award.title) === standingType
+    ));
+    if (replacements.length === 0) return;
+    [...merged.entries()].forEach(([userId, award]) => {
+      if (normalizedAwardType(award.award_type, award.title) === standingType) merged.delete(userId);
+    });
+    replacements.forEach(([userId, award]) => addStandingAward(merged, userId, award));
+  });
+  return merged;
+}
+
 function publish() {
   listeners.forEach((listener) => listener());
 }
@@ -68,11 +94,13 @@ function hydrateCachedAwards() {
   try {
     const cached = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]') as Array<AvatarAward & { user_id: string }>;
     if (!Array.isArray(cached) || cached.length === 0) return;
-    holderAwards = new Map(cached.map((award) => [award.user_id, {
+    const cachedAwards = new Map<string, AvatarAward>();
+    cached.forEach((award) => addStandingAward(cachedAwards, award.user_id, {
       award_type: normalizedAwardType(award.award_type, award.title),
       title: award.title,
       cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
-    }]));
+    }));
+    holderAwards = cachedAwards;
     publish();
   } catch {
     // A blocked or damaged browser cache must not prevent live award loading.
@@ -97,15 +125,16 @@ async function loadCurrentAwards(force = false) {
   loadPromise = (async () => {
     const { data, error } = await supabase.rpc('get_current_avatar_awards');
     if (error) throw error;
-    const nextAwards = new Map<string, AvatarAward>((data || []).map((award: any) => [award.user_id, {
+    const nextAwards = new Map<string, AvatarAward>();
+    (data || []).forEach((award: any) => addStandingAward(nextAwards, String(award.user_id || ''), {
       award_type: normalizedAwardType(String(award.award_type || ''), String(award.title || '')),
       title: String(award.title || 'Full Circle award'),
       cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
-    }]));
+    }));
     if (nextAwards.size === 0 && holderAwards.size > 0) {
       throw new Error('Standing award refresh returned no holders. Keeping the last verified result.');
     }
-    holderAwards = nextAwards;
+    holderAwards = mergeVerifiedStandingAwards(nextAwards);
     persistCurrentAwards();
     loadedAt = Date.now();
     if (retryTimer) {
