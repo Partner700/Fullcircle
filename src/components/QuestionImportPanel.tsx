@@ -25,6 +25,7 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
   const [report, setReport] = useState<QuestionImportReport | null>(null);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<'neutral' | 'success' | 'error'>('neutral');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const existingKeys = useMemo(() => new Set(existingPrompts.map(questionImportKey)), [existingPrompts]);
@@ -52,6 +53,7 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
 
   const analyse = () => {
     setNotice(null);
+    setNoticeTone('neutral');
     setReport(parseQuestionImport(source, defaults));
   };
 
@@ -59,8 +61,10 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
     try {
       await navigator.clipboard.writeText(questionImportPrompt(destination));
       setNotice('Generation format copied.');
+      setNoticeTone('success');
     } catch {
       setNotice('The format could not be copied on this device.');
+      setNoticeTone('error');
     }
   };
 
@@ -68,6 +72,7 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
     if (!file) return;
     if (file.size > 2_000_000) {
       setNotice('Choose a text file smaller than 2 MB.');
+      setNoticeTone('error');
       return;
     }
     try {
@@ -75,8 +80,10 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
       setSource(text);
       setReport(null);
       setNotice(file.name);
+      setNoticeTone('neutral');
     } catch {
       setNotice('The selected file could not be read.');
+      setNoticeTone('error');
     }
   };
 
@@ -84,13 +91,16 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
     if (newQuestions.length === 0 || importing) return;
     setImporting(true);
     setNotice(null);
+    setNoticeTone('neutral');
     try {
       const result = await onImport(newQuestions);
       setNotice(result.message || `${result.imported} questions imported.`);
+      setNoticeTone('success');
       setSource('');
       setReport(null);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The question set could not be imported.');
+      setNoticeTone('error');
     } finally {
       setImporting(false);
     }
@@ -141,7 +151,7 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
 
           <textarea
             value={source}
-            onChange={(event) => { setSource(event.target.value); setReport(null); setNotice(null); }}
+            onChange={(event) => { setSource(event.target.value); setReport(null); setNotice(null); setNoticeTone('neutral'); }}
             className="input-field min-h-44 resize-y font-mono text-xs leading-relaxed"
             placeholder="Paste JSON or labelled questions"
             spellCheck={false}
@@ -151,7 +161,20 @@ export function QuestionImportPanel({ destination, defaults, existingPrompts, on
             <button type="button" className="btn-primary text-xs" disabled={!source.trim()} onClick={analyse}>
               <ScanSearch size={14} /> Validate and Segment
             </button>
-            {notice && <p className="text-xs font-medium text-stone">{notice}</p>}
+            {notice && (
+              <p
+                className={cn(
+                  'text-xs font-semibold',
+                  noticeTone === 'success' && 'text-moss',
+                  noticeTone === 'error' && 'text-coral',
+                  noticeTone === 'neutral' && 'text-stone',
+                )}
+                role={noticeTone === 'error' ? 'alert' : 'status'}
+                aria-live="polite"
+              >
+                {notice}
+              </p>
+            )}
           </div>
 
           {report && (
