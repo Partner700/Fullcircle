@@ -78,7 +78,7 @@ function worker(fetcher, cache = memoryCaches()) {
 }
 
 const response = (text = 'app', type = 'text/html') => new Response(text, { headers: { 'content-type': type } });
-const appHtml = (text = 'app') => `<!doctype html><html><head><meta name="full-circle-release" content="172"></head><body><main id="root">${text}</main></body></html>`;
+const appHtml = (text = 'app') => `<!doctype html><html><head><meta name="full-circle-release" content="173"></head><body><main id="root">${text}</main></body></html>`;
 const appResponse = (text = 'app') => response(appHtml(text), 'text/html');
 function mirrorResponse(url, text = 'export const loaded = true;') {
   const result = response(text, 'application/javascript');
@@ -171,12 +171,12 @@ async function run() {
     await Promise.all(w.event.jobs);
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '172');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '173');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v172-shell')).put(scope + 'index.html', appResponse('current target app'));
+    await (await cache.open('full-circle-target-v173-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
@@ -240,7 +240,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v172-shell')).put(
+    await (await cache.open('full-circle-target-v173-shell')).put(
       scope + 'index.html',
       response('<html><main id="root">proxy error</main></html>', 'text/html'),
     );
