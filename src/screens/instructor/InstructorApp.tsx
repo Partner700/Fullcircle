@@ -4686,8 +4686,11 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
   const [selectedNarrativeDate, setSelectedNarrativeDate] = useState('');
   const [questions, setQuestions] = useState<CustomQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const loadRequestRef = useRef(0);
+  const questionsSectionRef = useRef<HTMLDivElement>(null);
   const [levelQuestionType, setLevelQuestionType] = useState('true_false');
   const [roundQuestionTypes, setRoundQuestionTypes] = useState<Record<number, string>>({ 1: 'comprehension', 2: 'multiple_choice', 3: 'standard_text' });
   const [roundTimers, setRoundTimers] = useState<Record<number, number>>({
@@ -4715,16 +4718,35 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
   });
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
-    try {
-      const [narrs, data] = await Promise.all([
-        fetchNarratives(60, true),
-        selectedNarrativeDate ? fetchCustomGameQuestions(selectedLevel, selectedNarrativeDate) : Promise.resolve([]),
-      ]);
-      setNarratives(narrs || []);
+    setLoadError(null);
+    const [narrativeResult, questionResult] = await Promise.allSettled([
+      fetchNarratives(60, true),
+      selectedNarrativeDate ? fetchCustomGameQuestions(selectedLevel, selectedNarrativeDate) : Promise.resolve([]),
+    ]);
+    if (requestId !== loadRequestRef.current) return;
+
+    const errors: string[] = [];
+    if (narrativeResult.status === 'fulfilled') {
+      const narrs = narrativeResult.value || [];
+      setNarratives(narrs);
       if (!selectedNarrativeDate && narrs.length > 0) setSelectedNarrativeDate(narrs[0].narrative_date);
-      setQuestions(data || []);
-    } catch {}
+    } else {
+      console.warn('Game question Narrative Days could not load:', narrativeResult.reason);
+      errors.push('The Narrative Day selector could not refresh.');
+    }
+
+    if (questionResult.status === 'fulfilled') {
+      setQuestions(questionResult.value || []);
+    } else {
+      console.warn('Saved game questions could not load:', questionResult.reason);
+      setQuestions([]);
+      errors.push(questionResult.reason instanceof Error
+        ? questionResult.reason.message
+        : 'The saved questions could not refresh.');
+    }
+    setLoadError(errors.length > 0 ? errors.join(' ') : null);
     setLoading(false);
   }, [selectedLevel, selectedNarrativeDate]);
 
@@ -4860,13 +4882,41 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     });
 
     const importedCount = await importCustomGameQuestions(rowsToInsert);
-    await load();
+    const firstQuestion = incoming[0];
+    const focusDate = firstQuestion.narrativeDate || selectedNarrativeDate;
+    const focusLevel = firstQuestion.level || selectedLevel;
+    if (!focusDate) {
+      throw new Error('The questions were saved, but no Narrative Day was available to display them.');
+    }
+
+    let refreshedQuestions: CustomQuestion[];
+    try {
+      refreshedQuestions = await fetchCustomGameQuestions(focusLevel, focusDate);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'The saved question list could not refresh.';
+      setLoadError(detail);
+      throw new Error(`The questions were saved, but the list could not refresh. ${detail}`);
+    }
+    if (refreshedQuestions.length === 0) {
+      const detail = `No saved questions were returned for ${focusDate}, Level ${focusLevel}.`;
+      setLoadError(detail);
+      throw new Error(`The import completed, but the list could not confirm it. ${detail}`);
+    }
+
+    setSelectedNarrativeDate(focusDate);
+    setSelectedLevel(focusLevel);
+    setSelectedRound('all');
+    setQuestions(refreshedQuestions);
+    setLoadError(null);
+    window.setTimeout(() => {
+      questionsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
     return {
       imported: importedCount,
       skipped: incoming.length - importedCount,
       message: importedCount > 0
-        ? `${importedCount} questions imported into their Daily Trivia levels and rounds.`
-        : 'Every validated question already exists in its Daily Trivia bank.',
+        ? `${importedCount} questions imported. Showing ${focusDate}, Level ${focusLevel}, all rounds below.`
+        : `Every validated question already exists. Showing ${focusDate}, Level ${focusLevel}, all rounds below.`,
     };
   };
 
@@ -5269,11 +5319,13 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
       </div>
 
       {/* Existing questions */}
-      <div className="card p-5">
+      <div ref={questionsSectionRef} className="card p-5 scroll-mt-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h4 className="font-display font-semibold text-ink">
-              {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
+              {selectedNarrative
+                ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}`
+                : selectedNarrativeDate || 'Questions'} · Level {selectedLevel} ({rows.length})
             </h4>
             <p className="mt-1 text-xs text-stone">Only approved questions are available to cadets in Daily Trivia.</p>
           </div>
@@ -5281,11 +5333,19 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
             <CheckCircle2 size={12} /> Approve visible
           </button>
         </div>
+        {loadError && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-coral/35 bg-coral-soft p-3" role="alert">
+            <p className="text-xs font-semibold text-coral">{loadError}</p>
+            <button type="button" onClick={() => void load()} className="btn-secondary text-xs">
+              <RotateCcw size={12} /> Retry list
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-brass" /></div>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && !loadError ? (
           <p className="text-sm text-stone text-center py-6">No questions yet. Sync from the packet or add questions manually.</p>
-        ) : (
+        ) : rows.length > 0 ? (
           <div className="space-y-2">
             {rows.map((q, i) => (
               <div key={q.id} className="p-3 rounded-lg border border-border-bright bg-surface-2 flex items-start gap-3">
@@ -5318,7 +5378,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

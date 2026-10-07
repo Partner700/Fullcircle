@@ -83,6 +83,7 @@ const saturdayQuizReminders = read('supabase/migrations/20260822110000_saturday_
 const weeklyQuizRelease = read('supabase/migrations/20260822120000_weekly_quiz_4pm_release.sql');
 const externalQuestionMetadata = read('supabase/migrations/20260822130000_external_question_import_metadata.sql');
 const atomicGameQuestionImport = read('supabase/migrations/20261007100000_atomic_game_question_import.sql');
+const reliableGameQuestionRefresh = read('supabase/migrations/20261007110000_reliable_game_question_refresh.sql');
 const questionImportPanel = read('src/components/QuestionImportPanel.tsx');
 const quizLifecycle = read('supabase/migrations/20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql');
 const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_authoritative_streak_lifecycle.sql');
@@ -501,11 +502,11 @@ const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v172'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v172'/);
+assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v173'/);
+assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v173'/);
 assert.doesNotMatch(serviceWorker, /ROLLBACK_CACHE_PREFIXES/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '172'/);
-assert.match(serviceWorker, /RELEASE_DOCUMENT_MARKER = '<meta name="full-circle-release" content="172"'/);
+assert.match(serviceWorker, /RECOVERY_MARKER = '173'/);
+assert.match(serviceWorker, /RELEASE_DOCUMENT_MARKER = '<meta name="full-circle-release" content="173"'/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 3_000/);
 assert.match(serviceWorker, /response\.clone\(\)\.arrayBuffer\(\)/);
@@ -535,27 +536,27 @@ assert.match(serviceWorker, /release-manifest\.json/);
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '172'/);
+assert.match(offlinePage, /RECOVERY_VERSION = '173'/);
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
 assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}fc-worker\.js\?v=172`/);
+assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}fc-worker\.js\?v=173`/);
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /RELEASE_MARKER = '172'/);
+assert.match(staleBundleRecovery, /RELEASE_MARKER = '173'/);
 assert.doesNotMatch(staleBundleRecovery, /void reloadFreshApp\(true\)/);
 assert.doesNotMatch(staleBundleRecovery, /raw\.githack\.com/);
 assert.match(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-10-07-target-v172/);
-assert.match(releaseCache, /full-circle-target-v172/);
+assert.match(releaseCache, /2026-10-07-target-v173/);
+assert.match(releaseCache, /full-circle-target-v173/);
 assert.doesNotMatch(releaseCache, /full-circle-v147-v15[1-9]/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=172/);
+assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=173/);
 assert.match(appIndex, /href="https:\/\/nffqohxdelaglrmuzjwb\.supabase\.co" crossorigin/);
 assert.doesNotMatch(appIndex, /kckzqsafzemeijxfohuy/);
-assert.match(appIndex, /var release = '172'/);
-assert.match(appIndex, /register\('%BASE_URL%fc-worker\.js\?v=172'/);
+assert.match(appIndex, /var release = '173'/);
+assert.match(appIndex, /register\('%BASE_URL%fc-worker\.js\?v=173'/);
 assert.equal(legacyServiceWorker, serviceWorker, 'The legacy worker URL must install without a second network request.');
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
@@ -569,19 +570,19 @@ assert.match(appIndex, /raw\.githack\.com/);
 assert.match(appIndex, /cdn\.jsdelivr\.net/);
 assert.match(appIndex, /onerror="window\.__loadFullCircleMirror\(this\.src\)"/);
 assert.match(appIndex, /data-fc-boot-shell/);
-assert.match(appIndex, /name="full-circle-release" content="172"/);
-assert.match(appIndex, /data-full-circle-critical-styles="172"/);
+assert.match(appIndex, /name="full-circle-release" content="173"/);
+assert.match(appIndex, /data-full-circle-critical-styles="173"/);
 assert.match(appIndex, /html::before\{content:"Opening Full Circle"/);
 assert.match(appIndex, /__markFullCircleStylesReady/);
 assert.match(appIndex, /__loadFullCircleStyleMirror/);
 assert.match(appIndex, /__showFullCircleRecovery/);
 assert.match(postbuildScript, /data-full-circle-release-styles/);
 assert.match(postbuildScript, /__loadFullCircleMirror/);
-assert.match(builtAppIndex, /<link rel="stylesheet" href="\.\/full-circle-release\.css\?v=172" data-full-circle-release-styles="true"/);
+assert.match(builtAppIndex, /<link rel="stylesheet" href="\.\/full-circle-release\.css\?v=173" data-full-circle-release-styles="true"/);
 assert.doesNotMatch(builtAppIndex, /<style data-full-circle-release-styles="true">/);
 assert.ok(Buffer.byteLength(builtAppIndex) < 40_000, 'index.html must stay compact enough for weak mobile connections.');
-assert.match(read('dist/full-circle-release.css'), /--full-circle-release-style:"172"/);
-assert.match(read('src/main.tsx'), /RELEASE_STYLE_MARKER = '172'/);
+assert.match(read('dist/full-circle-release.css'), /--full-circle-release-style:"173"/);
+assert.match(read('src/main.tsx'), /RELEASE_STYLE_MARKER = '173'/);
 assert.match(read('src/main.tsx'), /fullcircle:styles-ready/);
 assert.match(serviceWorker, /await validReleaseResponse\(response, scopedUrl\('index\.html'\)\)/);
 assert.match(serviceWorker, /safeAppNavigationUrl\(urlToOpen\)/);
@@ -591,7 +592,7 @@ assert.match(appIndex, /data-full-circle-fonts/);
 assert.match(builtAppIndex, /onerror="window\.__loadFullCircleMirror\(this\.src\)"/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.doesNotMatch(offlinePage, /Open Mobile-Data Copy|raw\.githack\.com/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=172"/);
+assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=173"/);
 assert.match(read('public/manifest.webmanifest'), /"prefer_related_applications": false/);
 assert.match(environmentExample, /VITE_SUPABASE_URL=https:\/\/your-project-ref\.supabase\.co/);
 assert.match(environmentExample, /VITE_SUPABASE_ANON_KEY=sb_publishable_your_project_key/);
@@ -670,6 +671,28 @@ assert.match(quoteQueries, /importCustomGameQuestions[\s\S]*supabase\.auth\.refr
 assert.doesNotMatch(quoteQueries, /insertCustomQuestions/);
 assert.match(instructorApp, /const importedCount = await importCustomGameQuestions\(rowsToInsert\)/);
 assert.doesNotMatch(instructorApp, /fetchCustomGameQuestionsForNarrative/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_instructor_custom_game_questions(',
+  'SECURITY INVOKER',
+  "SET search_path = ''",
+  'public.is_instructor(v_user_id)',
+  'p_level NOT BETWEEN 1 AND 7',
+  'FROM public.custom_questions question',
+  'LIMIT 500',
+  'REVOKE ALL ON FUNCTION public.get_instructor_custom_game_questions(integer, date, boolean)',
+  'GRANT EXECUTE ON FUNCTION public.get_instructor_custom_game_questions(integer, date, boolean)',
+]) {
+  assert.ok(reliableGameQuestionRefresh.includes(required), `Missing reliable game-question refresh safeguard: ${required}`);
+}
+assert.match(quoteQueries, /fetchCustomGameQuestions[\s\S]*supabase\.rpc\('get_instructor_custom_game_questions'/);
+assert.match(quoteQueries, /get_instructor_custom_game_questions[\s\S]*supabase\.auth\.refreshSession\(\)/);
+assert.match(instructorApp, /Promise\.allSettled\(\[[\s\S]*fetchNarratives\(60, true\)[\s\S]*fetchCustomGameQuestions/);
+assert.match(instructorApp, /const focusDate = firstQuestion\.narrativeDate \|\| selectedNarrativeDate/);
+assert.match(instructorApp, /setSelectedNarrativeDate\(focusDate\)[\s\S]*setSelectedLevel\(focusLevel\)[\s\S]*setSelectedRound\('all'\)/);
+assert.match(instructorApp, /The questions were saved, but the list could not refresh/);
+assert.match(instructorApp, /rows\.length === 0 && !loadError/);
+assert.match(instructorApp, /Retry list/);
+assert.match(instructorApp, /const load = useCallback\(async \(\) => \{[\s\S]*?Promise\.allSettled[\s\S]*?setLoadError\(errors\.length > 0 \? errors\.join\(' '\) : null\);/);
 assert.match(questionImportPanel, /noticeTone === 'error' \? 'alert' : 'status'/);
 assert.match(orderedAnswersAndMarketContinuity, /CREATE OR REPLACE FUNCTION public\.normalize_order_sequence_answer/);
 assert.match(orderedAnswersAndMarketContinuity, /IF v_type = 'order_sequence'/);
@@ -2484,7 +2507,7 @@ assert.equal((cadetDashboard.match(/loadCommentPreview=\{isDisplayedSlide\}/g) |
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
 assert.match(appErrorBoundary, /reloadFreshApp\(\)/);
-assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-07-target-v172'/);
+assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-07-target-v173'/);
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);

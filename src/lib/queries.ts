@@ -2325,17 +2325,28 @@ export async function deleteCustomQuestion(id: string) {
 }
 
 export async function fetchCustomGameQuestions(level: number, narrativeDate?: string, approvedOnly = false) {
-  let query = supabase
-    .from('custom_questions')
-    .select('*')
-    .not('game_level', 'is', null)
-    .eq('game_level', level)
-    .order('question_index');
-  if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
-  if (approvedOnly) query = query.eq('is_approved', true);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data as import('./types').CustomQuestion[];
+  const request = () => supabase.rpc('get_instructor_custom_game_questions', {
+    p_level: level,
+    p_narrative_date: narrativeDate || null,
+    p_approved_only: approvedOnly,
+  });
+
+  let result = await request();
+  if (result.error && /jwt|token.*expired|invalid.*token/i.test(result.error.message || '')) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) throw refreshed.error;
+    result = await request();
+  }
+  if (result.error) {
+    if (result.error.code === 'PGRST202' || /schema cache|could not find the function/i.test(result.error.message || '')) {
+      throw new Error('The saved question list is still updating. Please wait a moment and retry.');
+    }
+    throw new Error(result.error.message || 'The saved game questions could not be loaded.');
+  }
+  if (!Array.isArray(result.data)) {
+    throw new Error('The saved game question list returned an invalid response.');
+  }
+  return result.data as import('./types').CustomQuestion[];
 }
 
 export async function fetchCustomGameQuestionsForNarrative(narrativeDate: string) {
