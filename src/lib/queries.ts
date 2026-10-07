@@ -2271,10 +2271,47 @@ export async function insertCustomQuestion(q: Partial<import('./types').CustomQu
   if (error) throw error;
 }
 
-export async function insertCustomQuestions(questions: Partial<import('./types').CustomQuestion>[]) {
-  if (questions.length === 0) return;
-  const { error } = await supabase.from('custom_questions').insert(questions);
-  if (error) throw error;
+export async function importCustomGameQuestions(questions: Partial<import('./types').CustomQuestion>[]) {
+  if (questions.length === 0) return 0;
+
+  const payload = questions.map((question) => ({
+    game_level: question.game_level,
+    narrative_date: question.narrative_date,
+    game_round: question.game_round,
+    round_timer_seconds: question.round_timer_seconds,
+    passage_display_seconds: question.passage_display_seconds,
+    is_bonus: Boolean(question.is_bonus),
+    use_for_quiz: Boolean(question.use_for_quiz),
+    question_text: question.question_text,
+    question_type: question.question_type,
+    options: question.options ?? null,
+    correct_answer: question.correct_answer,
+    accepted_answers: question.accepted_answers ?? [],
+    explanation: question.explanation ?? null,
+    scripture_reference: question.scripture_reference ?? null,
+    passage: question.passage ?? null,
+    difficulty_tag: question.difficulty_tag,
+  }));
+
+  const save = () => supabase.rpc('import_custom_game_questions', { p_questions: payload });
+  let result = await save();
+  if (result.error && /jwt|token.*expired|invalid.*token/i.test(result.error.message || '')) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) throw refreshed.error;
+    result = await save();
+  }
+  if (result.error) {
+    if (result.error.code === 'PGRST202' || /schema cache|could not find the function/i.test(result.error.message || '')) {
+      throw new Error('The question importer is still updating. Please wait a moment and press Import again.');
+    }
+    throw new Error(result.error.message || 'The validated questions could not be saved.');
+  }
+
+  const imported = Number(result.data);
+  if (!Number.isInteger(imported) || imported < 0) {
+    throw new Error('The question importer returned an invalid result. Nothing was removed from your validated set.');
+  }
+  return imported;
 }
 
 export async function updateCustomQuestion(id: string, patch: Partial<import('./types').CustomQuestion>) {

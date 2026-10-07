@@ -69,8 +69,8 @@ import { customQuestionToPayload, GAME_TYPE_LABELS } from '../../lib/gameEngines
 import { importedQuestionToPayload, questionImportKey, type ImportedQuestion } from '../../lib/questionImport';
 import {
   fetchAllChallengeSubmissions, reviewChallengeSubmission, promoteCadetToSentry, promoteSentryToInstructor,
-  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, insertCustomQuestions, updateCustomQuestion, deleteCustomQuestion,
-  fetchCustomGameQuestions, fetchCustomGameQuestionsForNarrative, fetchQuizTaggedGameQuestions,
+  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, importCustomGameQuestions, updateCustomQuestion, deleteCustomQuestion,
+  fetchCustomGameQuestions, fetchQuizTaggedGameQuestions,
   fetchMobileMoneySettings, saveMobileMoneySettings, fetchInstructorMobileMoneyPayments,
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
@@ -4832,53 +4832,21 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     const incoming = imported.filter((question) => question.destination === 'game');
     if (incoming.length === 0) return { imported: 0, skipped: imported.length, message: 'No Daily Trivia questions were found in this set.' };
 
-    const narrativeByDate = new Map(narratives.map((narrative) => [narrative.narrative_date, narrative]));
-    const targetDates = Array.from(new Set(incoming.map((question) => question.narrativeDate || selectedNarrativeDate).filter(Boolean))) as string[];
-    const missingDates = targetDates.filter((date) => !narrativeByDate.has(date));
-    if (missingDates.length > 0) {
-      throw new Error(`No published Daily Reading exists for ${missingDates.join(', ')}. Select an existing Narrative Day or correct narrative_date in the file.`);
-    }
-
-    const existingByDate = await Promise.all(targetDates.map((date) => fetchCustomGameQuestionsForNarrative(date)));
-    const existing = existingByDate.flat();
-    const existingKeys = new Set(existing.map((question) => questionImportKey(question.question_text)));
-    const additions = incoming.filter((question) => !existingKeys.has(questionImportKey(question.question)));
-    if (additions.length === 0) {
-      return { imported: 0, skipped: incoming.length, message: 'Every question already exists in the selected Daily Trivia bank.' };
-    }
-
-    const nextIndexBySegment = new Map<string, number>();
-    existing.forEach((question) => {
-      const key = `${question.narrative_date}|${question.game_level}|${question.game_round || 1}`;
-      nextIndexBySegment.set(key, Math.max(nextIndexBySegment.get(key) || 0, question.question_index + 1));
-    });
-
-    const rowsToInsert = additions.map((question) => {
+    const rowsToInsert = incoming.map((question) => {
       const narrativeDate = question.narrativeDate || selectedNarrativeDate;
-      const narrative = narrativeByDate.get(narrativeDate);
-      if (!narrative) throw new Error(`No published Daily Reading exists for ${narrativeDate}.`);
       const level = question.level || selectedLevel;
       const round = question.round || (selectedRound === 'all' ? 1 : selectedRound);
-      const segmentKey = `${narrativeDate}|${level}|${round}`;
-      const questionIndex = nextIndexBySegment.get(segmentKey) || 0;
-      nextIndexBySegment.set(segmentKey, questionIndex + 1);
       const baseTimer = LEVEL_TIMERS[level - 1] || 60;
       const defaultTimer = round === 1 ? baseTimer : Math.max(baseTimer - (round - 1) * 5, 20);
 
       return {
-        instructor_id: profile.id,
-        quiz_session_id: null,
         game_level: level,
         narrative_date: narrativeDate,
-        narrative_title: narrative.title,
-        narrative_theme: narrative.theme,
         game_round: round,
         round_timer_seconds: question.roundTimerSeconds || defaultTimer,
         passage_display_seconds: question.passageDisplaySeconds || DEFAULT_PASSAGE_DISPLAY_SECONDS,
         is_bonus: question.isBonus,
         use_for_quiz: question.useForQuiz,
-        generated_from_packet: false,
-        packet_section: 'external import',
         question_text: question.question,
         question_type: question.type,
         options: question.options.length > 0 ? question.options : null,
@@ -4888,17 +4856,17 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
         scripture_reference: question.reference || null,
         passage: question.passage || null,
         difficulty_tag: question.difficulty,
-        question_index: questionIndex,
-        is_approved: true,
       };
     });
 
-    await insertCustomQuestions(rowsToInsert);
+    const importedCount = await importCustomGameQuestions(rowsToInsert);
     await load();
     return {
-      imported: rowsToInsert.length,
-      skipped: incoming.length - rowsToInsert.length,
-      message: `${rowsToInsert.length} questions segmented into their Daily Trivia levels and rounds.`,
+      imported: importedCount,
+      skipped: incoming.length - importedCount,
+      message: importedCount > 0
+        ? `${importedCount} questions imported into their Daily Trivia levels and rounds.`
+        : 'Every validated question already exists in its Daily Trivia bank.',
     };
   };
 
