@@ -59,14 +59,14 @@ export function FullCircleWordmark({ size = 'md', className, color }: {
     <div className={cn('flex flex-col items-center leading-none', className)}>
       <span
         className={cn('font-display font-extrabold text-peri', fullSizes[size])}
-        style={{ fontFamily: 'Nunito, system-ui, sans-serif', fontWeight: 800, letterSpacing: '0.01em', color: color || 'var(--color-peri)' }}
+        style={{ fontFamily: 'var(--font-body)', fontWeight: 800, letterSpacing: '0.01em', color: color || 'var(--color-peri)' }}
       >
         FULL
       </span>
       <span
         className={cn('font-display font-bold text-peri', circleSizes[size])}
         style={{
-          fontFamily: 'Nunito, system-ui, sans-serif',
+          fontFamily: 'var(--font-body)',
           fontWeight: 600,
           letterSpacing: circleSpacing[size],
           marginTop: size === 'lg' ? '2px' : '0px',
