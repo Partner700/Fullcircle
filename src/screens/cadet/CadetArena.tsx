@@ -21,6 +21,8 @@ import {
   finishArenaGame,
   submitArenaTriviaAnswer,
   fetchArenaTriviaFeed,
+  fetchArenaLiveTriviaState,
+  publishArenaTriviaState,
   watchArenaRoom,
   heartbeatArenaViewer,
   leaveArenaRoomView,
@@ -39,7 +41,7 @@ import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import { safeJsonStorageGet, safeStorageGet, safeStorageRemove, safeStorageSet } from '../../lib/safeStorage';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
-import type { ArenaChatGameCall, ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
+import type { ArenaChatGameCall, ArenaLiveTriviaState, ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
   Shield, ArrowLeft, ChevronDown, Eye, Radio,
@@ -52,9 +54,10 @@ const dismissedArenaRoomsKey = (userId: string) => `full-circle-dismissed-arena-
 interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
   onBackToDailyGames?: () => void;
+  witnessOnly?: boolean;
 }
 
-export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaProps) {
+export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [rooms, setRooms] = useState<any[]>([]);
@@ -184,8 +187,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     try {
       const [roomsData, balance, invitees, panelImage] = await Promise.allSettled([
         fetchArenaRooms(),
-        fetchLedgerTotal(profile.id),
-        fetchArenaInvitees(),
+        witnessOnly ? Promise.resolve(0) : fetchLedgerTotal(profile.id),
+        witnessOnly ? Promise.resolve([] as InvitePlayer[]) : fetchArenaInvitees(),
         fetchPanelImageSetting('arena'),
       ]);
       setRooms(roomsData.status === 'fulfilled' ? roomsData.value : []);
@@ -197,7 +200,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, witnessOnly]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -608,6 +611,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             roomName={activeRoomName}
             userId={profile!.id}
             spectator={isSpectating}
+            spectatorCanChallenge={!witnessOnly}
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
             prepareQuestions={isSpectating ? undefined : async () => {
@@ -636,6 +640,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             room={activeRoom}
             userId={profile!.id}
             onExit={() => clearActiveRoom(false)}
+            allowChallenges={!witnessOnly}
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
           />
@@ -895,11 +900,16 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4 sm:p-5">
         <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="arena-panel-veil" />
         <div className="relative z-10">
-          <SectionHeader title="The Arena" subtitle="Challenge cadets and sentries to real-time quiz battles. Stake denarii, winner takes all." />
+          <SectionHeader
+            title={witnessOnly ? 'Arena Witness' : 'The Arena'}
+            subtitle={witnessOnly
+              ? 'Watch every active Standard Trivia and Ludo Trivia match as it happens.'
+              : 'Challenge cadets and sentries to real-time quiz battles. Stake denarii, winner takes all.'}
+          />
         </div>
       </div>
 
-      <div className="card p-4">
+      {!witnessOnly && <div className="card p-4">
         <div className="flex items-center gap-2">
           <Coins size={20} className="text-gold" />
           <div>
@@ -907,20 +917,20 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             <span className="font-display font-bold text-gold text-xl">{formatDenarii(denarii)} Ð</span>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="card p-4 sm:p-5">
+      {!witnessOnly && <div className="card p-4 sm:p-5">
         <p className="eyebrow text-stone">Arena Match</p>
         <h3 className="mt-1 font-display text-base font-semibold text-ink">Choose your battle, then create one room.</h3>
         <p className="mt-1 text-xs leading-relaxed text-stone">Play the machine or invite people. Both use the same match setup and the same tenfold prize rule.</p>
         <button onClick={() => setShowCreate(!showCreate)} className="btn-primary mt-4 w-full sm:w-auto text-sm">
           <Plus size={14} /> {showCreate ? 'Close Match Setup' : 'Create Arena Match'}
         </button>
-      </div>
+      </div>}
 
       {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
 
-      {showCreate && (
+      {!witnessOnly && showCreate && (
         <div className="card p-5 space-y-3 animate-slide-up">
           <h4 className="font-display font-semibold text-ink">Create Arena Match</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1052,11 +1062,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                     <ArenaWitnessStrip witnesses={witnesses} compact />
                     <button
                       type="button"
-                      onClick={() => isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
+                      onClick={() => !witnessOnly && isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
                       className="btn-primary min-w-[6.5rem] text-xs"
                     >
-                      {isParticipant ? <Play size={14} /> : <Eye size={14} />}
-                      {isParticipant ? 'Enter Game' : 'Witness'}
+                      {!witnessOnly && isParticipant ? <Play size={14} /> : <Eye size={14} />}
+                      {!witnessOnly && isParticipant ? 'Enter Game' : 'Witness'}
                     </button>
                   </div>
                 </div>
@@ -1066,6 +1076,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
         </div>
       )}
 
+      {witnessOnly && !rooms.some((room) => isLiveArenaRoom(room)) && (
+        <EmptyState icon={(props) => <Eye {...props} />} title="No live matches" message="Active Arena games will appear here the moment they begin." />
+      )}
+
+      {!witnessOnly && <>
       <div className="space-y-2">
         <h4 className="font-display font-semibold text-ink text-sm">Open Rooms</h4>
         {rooms.filter((r) => r.status === 'waiting').length === 0 ? (
@@ -1168,6 +1183,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           })}
         </div>
       )}
+      </>}
     </div>
   );
 }
@@ -1181,7 +1197,13 @@ function cleanArenaRoomName(roomName: string) {
 }
 
 function isLiveArenaRoom(room: any) {
-  return room?.status === 'playing' && Boolean(room.started_at) && !room.completed_at;
+  if (room?.status !== 'playing' || !room.started_at || room.completed_at) return false;
+  const cutoff = Date.now() - 3 * 60_000;
+  return (room.arena_participants || []).some((participant: any) => {
+    if (participant.forfeited_at || participant.finished_at) return false;
+    const lastActive = Date.parse(participant.last_active_at || participant.joined_at || room.started_at);
+    return Number.isFinite(lastActive) && lastActive >= cutoff;
+  });
 }
 
 function isWitnessableArenaRoom(room: any) {
@@ -1248,14 +1270,17 @@ function ArenaWitnessStrip({ witnesses, compact = false }: { witnesses: ArenaVie
   );
 }
 
-function ArenaStandardSpectator({ room, userId, onExit, onGameCallCreated, onGameCallAction }: {
+function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameCallCreated, onGameCallAction }: {
   room: any;
   userId: string;
   onExit: () => void;
+  allowChallenges: boolean;
   onGameCallCreated: (gameCall: ArenaChatGameCall) => Promise<void> | void;
   onGameCallAction: (gameCall: ArenaChatGameCall) => Promise<void> | void;
 }) {
   const [feed, setFeed] = useState<ArenaTriviaFeedItem[]>([]);
+  const [liveQuestion, setLiveQuestion] = useState<ArenaLiveTriviaState | null>(null);
+  const [playbackNow, setPlaybackNow] = useState(() => Date.now());
   const [feedError, setFeedError] = useState<string | null>(null);
   const participants = useMemo(() => room.arena_participants || [], [room.arena_participants]);
   const machineMatch = room.play_mode === 'machine';
@@ -1303,6 +1328,35 @@ function ArenaStandardSpectator({ room, userId, onExit, onGameCallCreated, onGam
       void supabase.removeChannel(channel);
     };
   }, [machineMatch, participants, refreshFeed, room.id, userId]);
+
+  const refreshLiveQuestion = useCallback(async () => {
+    try {
+      setLiveQuestion(await fetchArenaLiveTriviaState(room.id));
+    } catch {
+      // The room heartbeat or next Realtime event will retry a settling turn.
+    }
+  }, [room.id]);
+
+  useEffect(() => {
+    void refreshLiveQuestion();
+    const channel = supabase
+      .channel(`arena-live-question-${room.id}-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'arena_live_trivia_states', filter: `room_id=eq.${room.id}` },
+        () => { void refreshLiveQuestion(); },
+      )
+      .subscribe();
+    const refreshInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshLiveQuestion();
+    }, 5000);
+    const clockInterval = window.setInterval(() => setPlaybackNow(Date.now()), 250);
+    return () => {
+      window.clearInterval(refreshInterval);
+      window.clearInterval(clockInterval);
+      void supabase.removeChannel(channel);
+    };
+  }, [refreshLiveQuestion, room.id, userId]);
 
   const scores = feed.reduce((totals, response) => {
     totals.set(response.user_id, (totals.get(response.user_id) || 0) + response.figs_earned);
@@ -1365,16 +1419,72 @@ function ArenaStandardSpectator({ room, userId, onExit, onGameCallCreated, onGam
           roomId={room.id}
           userId={userId}
           compact
-          allowGameCalls
-          challengeTargets={participants.map((participant: any) => ({
+          allowGameCalls={allowChallenges}
+          challengeTargets={allowChallenges ? participants.map((participant: any) => ({
             userId: participant.user_id,
             name: participant.profiles?.display_name || 'Arena player',
             avatarUrl: participant.profiles?.avatar_url || null,
-          }))}
-          onGameCallCreated={onGameCallCreated}
-          onGameCallAction={onGameCallAction}
+          })) : []}
+          onGameCallCreated={allowChallenges ? onGameCallCreated : undefined}
+          onGameCallAction={allowChallenges ? onGameCallAction : undefined}
         />
       </details>
+      {liveQuestion && (
+        liveQuestion.phase === 'question'
+        || (liveQuestion.answered_at != null && playbackNow - Date.parse(liveQuestion.answered_at) < 2800)
+      ) && <ArenaWitnessQuestionOverlay state={liveQuestion} />}
+    </div>
+  );
+}
+
+function ArenaWitnessQuestionOverlay({ state }: { state: ArenaLiveTriviaState }) {
+  const question = state.question || ({} as QuestionPayload);
+  const selected = state.selected_answer || '';
+  const verdictVisible = state.phase === 'verdict';
+  const options = question.type === 'true_false' ? ['True', 'False'] : question.options || [];
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm">
+      <div className="pointer-events-auto relative z-[2147483001] max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-label="Live Arena question">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="relative flex h-10 w-10 flex-shrink-0">
+            <UserAvatar userId={state.player_id || 'arena-machine'} name={state.actor_name} avatarUrl={state.actor_avatar_url} className="h-full w-full border-2 border-gold" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-ink">{state.actor_name}</p>
+            <p className="eyebrow mt-0.5">Question {state.question_index + 1} · Witness view</p>
+          </div>
+        </div>
+        <h3 className="mb-5 font-display text-lg font-semibold leading-snug text-ink sm:text-xl">{question.question || 'The next question is opening...'}</h3>
+        {verdictVisible && (
+          <div className={cn('mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold', state.is_correct ? 'border-sage/40 bg-sage-soft text-sage' : 'border-coral/40 bg-coral-soft text-coral')}>
+            {state.is_correct ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+            {state.is_correct ? 'Right answer' : 'Wrong answer'}
+          </div>
+        )}
+        {options.length > 0 ? (
+          <div className={cn('grid gap-2', question.type === 'true_false' && 'grid-cols-2')}>
+            {options.map((option) => {
+              const wasSelected = verdictVisible && option.trim().toLowerCase() === selected.trim().toLowerCase();
+              return (
+                <div key={option} className={cn(
+                  'rounded-lg border p-3.5 text-sm font-semibold text-ink',
+                  wasSelected && state.is_correct && 'border-sage bg-sage-soft text-sage',
+                  wasSelected && !state.is_correct && 'border-coral bg-coral-soft text-coral',
+                  !wasSelected && 'border-border bg-surface-2',
+                )}>
+                  {option}{wasSelected && <span className="ml-2 text-[10px] uppercase">Selected</span>}
+                </div>
+              );
+            })}
+          </div>
+        ) : verdictVisible ? (
+          <div className={cn('rounded-lg border px-4 py-3 text-sm font-semibold', state.is_correct ? 'border-sage bg-sage-soft text-sage' : 'border-coral bg-coral-soft text-coral')}>
+            {selected || 'No answer'} <span className="ml-2 text-[10px] uppercase">Selected</span>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-stone">The player is typing an answer.</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1666,6 +1776,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     setAnswerFeedback({ correct: result.correct, answer: answer || 'No answer' });
     setLatestOutcome({ player: profile?.display_name || 'You', correct: result.correct, answer: answer || 'No answer' });
     setTurnPhase('user-feedback');
+    void publishArenaTriviaState(roomId, currentQ, 'verdict', 'player').catch(() => null);
     void refreshAnswerFeed();
     setSubmittingAnswer(false);
 
@@ -1701,6 +1812,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       return;
     }
     setTurnPhase('machine-thinking');
+    void publishArenaTriviaState(roomId, machineQuestionIndex, 'question', 'machine').catch(() => null);
     const delay = machineDifficulty === 'easy' ? 2600 : machineDifficulty === 'hard' ? 1250 : 1850;
     await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
     const machineCorrect = Boolean(result.machineCorrect);
@@ -1709,6 +1821,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     setMachineScore(nextMachineScore);
     setLatestOutcome({ player: 'The Scribe', correct: machineCorrect, answer: selected });
     setTurnPhase('machine-feedback');
+    void publishArenaTriviaState(roomId, machineQuestionIndex, 'verdict', 'machine').catch(() => null);
     await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
     advance(nextMachineScore, 2);
   }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, completeGame, profile?.display_name]);
@@ -1753,10 +1866,11 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       rollRevealTimerRef.current = window.setTimeout(() => {
         setRevealingRoll(false);
         setQuestionOpen(true);
+        void publishArenaTriviaState(roomId, currentQ, 'question', 'player').catch(() => null);
         void playSoundEffect('sound_arena_round', 0.62);
       }, 950);
     }, 70);
-  }, [answeredIds, currentQ, isMyTurn, questionOpen, revealingRoll, rolling, turnPhase]);
+  }, [answeredIds, currentQ, isMyTurn, questionOpen, revealingRoll, rolling, roomId, turnPhase]);
 
   useEffect(() => () => {
     if (rollRevealTimerRef.current) window.clearTimeout(rollRevealTimerRef.current);

@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '179', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '180', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -605,7 +605,9 @@ assert.match(appIndex, /data-full-circle-fonts/);
 assert.doesNotMatch(appIndex, /window\.addEventListener\('load',[\s\S]{0,500}?data-full-circle-fonts/);
 assert.match(indexCss, /--font-body: 'Nunito'/);
 assert.match(indexCss, /--font-display: 'Baloo 2', 'Nunito'/);
-assert.match(indexCss, /\.font-display, h1, h2, h3 \{\s*font-family: var\(--font-display\)/);
+assert.match(indexCss, /\.font-display \{\s*font-family: var\(--font-body\)/);
+assert.match(indexCss, /h1,\s*h2,\s*h3,[\s\S]{0,500}?font-family: var\(--font-display\)/);
+assert.match(indexCss, /\.font-display\.text-lg/);
 assert.match(indexCss, /html \{[\s\S]{0,160}?font-family: var\(--font-body\)/);
 assert.match(read('tailwind.config.js'), /display: \['var\(--font-display\)'\]/);
 assert.match(read('tailwind.config.js'), /sans: \['var\(--font-body\)'\]/);
@@ -1729,7 +1731,7 @@ assert.match(scrollBoundaryFades, /SCROLL_SELECTOR = '\.overflow-y-auto/);
 assert.match(scrollBoundaryFades, /scroll-fade-bottom/);
 assert.match(rootApp, /useScrollBoundaryFades\(\)/);
 assert.doesNotMatch(quoteReactions, /disabled=\{disabled \|\| data\.reacted\}/);
-assert.match(roadHomeGame, /<ArenaRoomChat[\s\S]*allowGameCalls=\{spectator\}/);
+assert.match(roadHomeGame, /<ArenaRoomChat[\s\S]*allowGameCalls=\{spectator && spectatorCanChallenge\}/);
 assert.doesNotMatch(roadHomeGame, /OpponentPlayFeed|function EventLog/);
 assert.match(chiRhoMark, /size \* 0\.34/);
 

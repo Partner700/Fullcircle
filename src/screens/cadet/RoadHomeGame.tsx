@@ -11,7 +11,7 @@ import { fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, se
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 import type { ArenaChatGameCall } from '../../lib/queries';
-import type { RoadHomePawn, RoadHomePlayer, RoadHomeState } from '../../lib/roadHomeTypes';
+import type { RoadHomePawn, RoadHomePlayer, RoadHomeQuestion, RoadHomeState } from '../../lib/roadHomeTypes';
 import { playRoundWarningBeep, playSoundEffect } from '../../lib/soundscape';
 
 type Props = {
@@ -19,6 +19,7 @@ type Props = {
   roomName: string;
   userId: string;
   spectator?: boolean;
+  spectatorCanChallenge?: boolean;
   prepareQuestions?: () => Promise<void>;
   onExit: () => void;
   onStateChanged?: () => Promise<void> | void;
@@ -110,6 +111,7 @@ export function RoadHomeGame({
   roomName,
   userId,
   spectator = false,
+  spectatorCanChallenge = true,
   prepareQuestions,
   onExit,
   onStateChanged,
@@ -135,7 +137,15 @@ export function RoadHomeGame({
   const pawnAnimationTimers = useRef<number[]>([]);
   const [homeCelebration, setHomeCelebration] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [witnessVerdict, setWitnessVerdict] = useState<{
+    question: RoadHomeQuestion;
+    player: RoadHomePlayer;
+    selectedAnswer: string;
+    correct: boolean;
+  } | null>(null);
   const previousHomeCountsRef = useRef<Record<string, number>>({});
+  const witnessQuestionRef = useRef<{ question: RoadHomeQuestion; player: RoadHomePlayer } | null>(null);
+  const witnessAnswerEventRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -344,6 +354,34 @@ export function RoadHomeGame({
   }, [secondsLeft, state?.phase]);
 
   useEffect(() => {
+    if (!spectator || !state) return;
+    const turnPlayer = state.players[state.activePlayerIndex];
+    if (state.phase === 'QUESTION' && state.currentQuestion && turnPlayer) {
+      witnessQuestionRef.current = { question: state.currentQuestion, player: turnPlayer };
+      setWitnessVerdict(null);
+    }
+
+    const answerEvent = [...state.eventLog].reverse().find((event) => (
+      event.type === 'QUESTION_CORRECT' || event.type === 'QUESTION_INCORRECT'
+    ));
+    if (!answerEvent) return;
+    if (witnessAnswerEventRef.current == null) {
+      witnessAnswerEventRef.current = answerEvent.id;
+      return;
+    }
+    if (witnessAnswerEventRef.current === answerEvent.id || !witnessQuestionRef.current) return;
+    witnessAnswerEventRef.current = answerEvent.id;
+    const selectedAnswer = answerEvent.message.match(/chose\s+"([\s\S]*?)"\s+[—-]/i)?.[1] || 'No answer';
+    setWitnessVerdict({
+      ...witnessQuestionRef.current,
+      selectedAnswer,
+      correct: answerEvent.type === 'QUESTION_CORRECT',
+    });
+    const timer = window.setTimeout(() => setWitnessVerdict(null), 2800);
+    return () => window.clearTimeout(timer);
+  }, [spectator, state]);
+
+  useEffect(() => {
     if (!rollReveal) return;
     const timer = window.setTimeout(() => setRollReveal(null), 1200);
     return () => window.clearTimeout(timer);
@@ -456,12 +494,12 @@ export function RoadHomeGame({
             <ArenaRoomChat
               roomId={roomId}
               userId={userId}
-              allowGameCalls={spectator}
-              challengeTargets={spectator ? state.players
+              allowGameCalls={spectator && spectatorCanChallenge}
+              challengeTargets={spectator && spectatorCanChallenge ? state.players
                 .filter((player) => !player.isBot)
                 .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
-              onGameCallCreated={spectator ? onGameCallCreated : undefined}
-              onGameCallAction={onGameCallAction}
+              onGameCallCreated={spectator && spectatorCanChallenge ? onGameCallCreated : undefined}
+              onGameCallAction={spectator && spectatorCanChallenge ? onGameCallAction : undefined}
             />
           )}
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
@@ -485,6 +523,64 @@ export function RoadHomeGame({
           </div>
         </div>
       )}
+      {spectator && state.phase === 'QUESTION' && state.currentQuestion && activePlayer && (
+        <RoadHomeWitnessQuestion
+          question={state.currentQuestion}
+          player={activePlayer}
+          secondsLeft={secondsLeft}
+        />
+      )}
+      {spectator && witnessVerdict && state.phase !== 'QUESTION' && (
+        <RoadHomeWitnessQuestion
+          question={witnessVerdict.question}
+          player={witnessVerdict.player}
+          secondsLeft={0}
+          selectedAnswer={witnessVerdict.selectedAnswer}
+          correct={witnessVerdict.correct}
+        />
+      )}
+    </div>
+  );
+}
+
+function RoadHomeWitnessQuestion({ question, player, secondsLeft, selectedAnswer, correct }: {
+  question: RoadHomeQuestion;
+  player: RoadHomePlayer;
+  secondsLeft: number;
+  selectedAnswer?: string;
+  correct?: boolean;
+}) {
+  const verdictVisible = typeof correct === 'boolean';
+  const options = question.type === 'true_false' ? ['True', 'False'] : question.options || [];
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Live Ludo Trivia question">
+      <div className="pointer-events-auto w-full max-w-lg rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl animate-scale-in">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <PlayerAvatar player={player} size="lg" />
+            <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="eyebrow mt-0.5">Ludo Trivia · Witness view</p></div>
+          </div>
+          {!verdictVisible && <span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span>}
+        </div>
+        <h3 className="mt-4 text-base font-bold leading-snug text-ink">{question.prompt}</h3>
+        {verdictVisible && (
+          <div className={cn('mt-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold', correct ? 'border-sage/40 bg-sage-soft text-sage' : 'border-coral/40 bg-coral-soft text-coral')}>
+            {correct ? 'Right answer' : 'Wrong answer'}
+          </div>
+        )}
+        {options.length > 0 ? (
+          <div className={cn('mt-4 grid gap-2', question.type === 'true_false' && 'grid-cols-2')}>
+            {options.map((option) => {
+              const chosen = verdictVisible && option.trim().toLowerCase() === (selectedAnswer || '').trim().toLowerCase();
+              return <div key={option} className={cn('rounded-lg border p-3 text-xs font-semibold text-ink', chosen && correct && 'border-sage bg-sage-soft text-sage', chosen && !correct && 'border-coral bg-coral-soft text-coral', !chosen && 'border-border bg-surface-2')}>{option}{chosen && <span className="ml-2 text-[9px] uppercase">Selected</span>}</div>;
+            })}
+          </div>
+        ) : verdictVisible ? (
+          <div className={cn('mt-4 rounded-lg border px-4 py-3 text-sm font-semibold', correct ? 'border-sage bg-sage-soft text-sage' : 'border-coral bg-coral-soft text-coral')}>{selectedAnswer || 'No answer'} <span className="ml-2 text-[9px] uppercase">Selected</span></div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-stone">The player is typing an answer.</div>
+        )}
+      </div>
     </div>
   );
 }

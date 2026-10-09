@@ -9,6 +9,7 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
+import { CadetArena } from '../cadet/CadetArena';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -57,7 +58,7 @@ import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
-  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
+  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck, Swords,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
   Cake, Aperture, Blend, CircleDot, Contrast, Droplets, EyeOff, Focus, Gauge,
@@ -79,7 +80,7 @@ import {
   fetchMarksBoard, fetchWeeklyAwardMetrics,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'arena' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -199,6 +200,7 @@ const NAV_ITEMS = [
   { key: 'dove_questions', label: 'Dove Questions', icon: MessageCircle },
   { key: 'quiz', label: 'Quiz Builder', icon: FileQuestion },
   { key: 'game_questions', label: 'Game Questions', icon: Gamepad2 },
+  { key: 'arena', label: 'Arena Witness', icon: Swords },
   { key: 'tents', label: 'Tents', icon: TentIcon },
   { key: 'cadets', label: 'Cadets', icon: Users },
   { key: 'sentries', label: 'Sentries', icon: Shield },
@@ -305,7 +307,7 @@ export function InstructorApp() {
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
-    game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
+    game_questions: 'Game Questions', arena: 'Arena Witness', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
     challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', subscribe: 'Subscription', settings: 'Settings',
     unassigned: 'Unassigned Users',
@@ -359,6 +361,7 @@ export function InstructorApp() {
       {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}
       {tab === 'quiz' && <QuizBuilder />}
       {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} />}
+      {tab === 'arena' && <CadetArena witnessOnly />}
       {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
       {tab === 'mobile_money' && <MobileMoneyManager />}
       {tab === 'store' && <CadetStore />}
