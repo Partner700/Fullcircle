@@ -26,7 +26,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=174`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=177`, { updateViaCache: 'none' })
       .then((registration) => {
         // Activate updates without interrupting an open screen or draft.
         void registration.update().catch(() => undefined);
@@ -92,6 +92,6 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
 export async function clearAllCaches(): Promise<void> {
   const registration = await getServiceWorkerRegistration();
   if (registration?.active) {
-    registration.active.postMessage({ type: 'CLEAR_CACHES' });
+    registration.active.postMessage({ type: 'RESET_APP_SHELL' });
   }
 }

@@ -117,7 +117,7 @@
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '174';
+    var RECOVERY_VERSION = '177';
     var recoveryInProgress = false;
 
     async function installRecoveryWorker() {
@@ -132,17 +132,50 @@
 
     var failedRecoveryAttempts = 0;
 
+    async function isVerifiedAppShell(response) {
+      if (!response || !response.ok) return false;
+      var contentType = response.headers.get('content-type') || '';
+      if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return false;
+      var html = await response.clone().text().catch(function() { return ''; });
+      var tags = html.match(/<meta\b[^>]*>/gi) || [];
+      var release = 0;
+      for (var index = 0; index < tags.length; index += 1) {
+        if (!/\bname=["']full-circle-release["']/i.test(tags[index])) continue;
+        var match = tags[index].match(/\bcontent=["'](\d+)["']/i);
+        release = match ? Number(match[1]) : 0;
+        break;
+      }
+      return release >= Number(RECOVERY_VERSION) && /id=["']root["']/.test(html);
+    }
+
+    async function clearBrokenShells(registration) {
+      var worker = registration && (registration.active || registration.waiting || registration.installing);
+      if (worker) worker.postMessage({ type: 'RESET_APP_SHELL' });
+      if (!('caches' in window)) return;
+      var names = await window.caches.keys().catch(function() { return []; });
+      await Promise.all(names.filter(function(name) {
+        return name.indexOf('full-circle-') === 0;
+      }).map(function(name) {
+        return window.caches.delete(name);
+      })).catch(function() {});
+    }
+
     async function recoverFullCircle() {
       if (recoveryInProgress) return;
       recoveryInProgress = true;
       var button = document.querySelector('.retry-btn');
       button.innerHTML = '<span class="status-dot online"></span> Reconnecting...';
       try {
-        await installRecoveryWorker().catch(function() {});
+        var registration = await installRecoveryWorker().catch(function() { return null; });
         var indexUrl = new URL('index.html', window.location.href);
         var response = await fetch(new URL('index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href), { cache: 'no-store' }).catch(function() { return null; });
-        var cachedShell = (!response || !response.ok) && 'caches' in window ? await window.caches.match(indexUrl) : null;
-        if ((!response || !response.ok) && !cachedShell) throw new Error('Full Circle is not reachable yet.');
+        var networkReady = await isVerifiedAppShell(response);
+        var cachedShell = !networkReady && 'caches' in window
+          ? await window.caches.match(indexUrl, { ignoreSearch: true }).catch(function() { return null; })
+          : null;
+        var cachedReady = await isVerifiedAppShell(cachedShell);
+        if (!networkReady && !cachedReady) throw new Error('Full Circle is not reachable yet.');
+        if (networkReady) await clearBrokenShells(registration);
         failedRecoveryAttempts = 0;
         window.location.replace(new URL('./?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
       } catch (error) {

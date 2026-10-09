@@ -73,13 +73,13 @@ function worker(fetcher, cache = memoryCaches()) {
   vm.runInContext(fs.readFileSync(path.join(root, 'public/fc-worker.js'), 'utf8'), context);
   return {
     time, requests, handlers, event, navigation, cache,
-    ...vm.runInContext('({fetchReleaseWithFallback, networkFirstNavigation, cacheFirstAsset, cachedAppShell, warmAppShell, criticalReleaseFiles, safeAppNavigationUrl})', context),
+    ...vm.runInContext('({fetchReleaseWithFallback, networkFirstNavigation, cacheFirstAsset, cachedAppShell, warmAppShell, criticalReleaseFiles, safeAppNavigationUrl, validReleaseResponse, isRecoveryNavigation, emergencyRecoveryResponse})', context),
   };
 }
 
 const response = (text = 'app', type = 'text/html') => new Response(text, { headers: { 'content-type': type } });
-const appHtml = (text = 'app') => `<!doctype html><html><head><meta name="full-circle-release" content="176"></head><body><main id="root">${text}</main></body></html>`;
-const appResponse = (text = 'app') => response(appHtml(text), 'text/html');
+const appHtml = (text = 'app', release = '177') => `<!doctype html><html><head><meta name="full-circle-release" content="${release}"></head><body><main id="root">${text}</main></body></html>`;
+const appResponse = (text = 'app', release = '177') => response(appHtml(text, release), 'text/html');
 function mirrorResponse(url, text = 'export const loaded = true;') {
   const result = response(text, 'application/javascript');
   Object.defineProperty(result, 'url', { value: url });
@@ -166,17 +166,19 @@ async function run() {
   {
     const cache = memoryCaches();
     await (await cache.open('full-circle-v147-v158-shell')).put(scope + 'index.html', response('restricted-project app'));
+    await (await cache.open('full-circle-target-v176-shell')).put(scope + 'index.html', appResponse('broken release 176 shell', '176'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
+    assert.ok(!(await cache.keys()).includes('full-circle-target-v176-shell'), 'The Release 176 loop must be removed from affected phones.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '176');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '177');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v176-shell')).put(scope + 'index.html', appResponse('current target app'));
+    await (await cache.open('full-circle-target-v177-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
@@ -240,12 +242,38 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v176-shell')).put(
+    await (await cache.open('full-circle-target-v177-shell')).put(
       scope + 'index.html',
       response('<html><main id="root">proxy error</main></html>', 'text/html'),
     );
     const w = worker(async () => { throw new Error('offline'); }, cache);
     assert.equal(await w.cachedAppShell(), null, 'Unmarked cached HTML must be rejected.');
+  }
+  {
+    const w = worker(async () => appResponse());
+    assert.equal(await w.validReleaseResponse(appResponse('future release', '178'), request()), true, 'A verified newer shell must not be rejected by an older worker.');
+    assert.equal(await w.validReleaseResponse(appResponse('retired release', '176'), request()), false, 'The broken retired shell must never be accepted again.');
+  }
+  {
+    const cache = memoryCaches();
+    await (await cache.open('full-circle-target-v177-shell')).put(scope + 'index.html', appResponse('cached shell'));
+    const w = worker(async () => appResponse('fresh network shell'), cache);
+    const delivered = await w.networkFirstNavigation({
+      url: scope + '?fc-repair=177',
+      mode: 'navigate',
+    }, w.event);
+    assert.match(await delivered.text(), /fresh network shell/, 'A recovery navigation must bypass the cached shell.');
+  }
+  {
+    const cache = memoryCaches();
+    await cache.open('full-circle-target-v177-shell');
+    await cache.open('full-circle-target-v176-assets');
+    const w = worker(async () => appResponse(), cache);
+    const resetEvent = { data: { type: 'RESET_APP_SHELL' }, jobs: [], waitUntil(promise) { this.jobs.push(promise); } };
+    w.handlers.message(resetEvent);
+    await Promise.all(resetEvent.jobs);
+    assert.deepEqual(await cache.keys(), [], 'A manual reset must remove the current broken shell as well as retired caches.');
+    assert.doesNotMatch(await w.emergencyRecoveryResponse().text(), /location\.reload\(\)/, 'The emergency retry must not repeat an ordinary reload loop.');
   }
   {
     const w = worker(async () => appResponse());
@@ -255,7 +283,7 @@ async function run() {
   }
   testDisplayModes();
   await testRecovery();
-  console.log('Startup regression checks passed: network hedging, storage failures, target-only shell recovery, bounded warming, install modes and recovery loops.');
+  console.log('Startup regression checks passed: network hedging, release compatibility, hard cache escape, bounded warming, install modes and recovery loops.');
 }
 
 function loadTs(relative, globals) {
