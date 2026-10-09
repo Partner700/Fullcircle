@@ -3255,6 +3255,60 @@ export async function sendArenaRoomMessage(roomId: string, senderId: string, bod
   if (error) throw error;
 }
 
+export type ArenaChatGameCall = {
+  id: string;
+  source_room_id: string;
+  target_room_id: string;
+  creator_id: string;
+  creator_name: string;
+  creator_avatar_url: string | null;
+  game_type: 'standard' | 'ludo';
+  room_name: string;
+  stake_amount: number;
+  max_players: number;
+  participant_count: number;
+  participant_ids: string[];
+  room_status: 'waiting' | 'playing' | 'completed' | 'cancelled' | 'expired';
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchArenaChatGameCalls(roomId: string): Promise<ArenaChatGameCall[]> {
+  const { data, error } = await supabase.rpc('get_arena_chat_game_calls', {
+    p_source_room_id: roomId,
+  });
+  if (error) throw error;
+  return (data || []).map((value: unknown) => {
+    const gameCall = value as Record<string, unknown>;
+    return {
+      ...gameCall,
+      stake_amount: Number(gameCall.stake_amount) || 0,
+      max_players: Number(gameCall.max_players) || 0,
+      participant_count: Number(gameCall.participant_count) || 0,
+      participant_ids: Array.isArray(gameCall.participant_ids)
+        ? gameCall.participant_ids.filter((id): id is string => typeof id === 'string')
+        : [],
+    } as ArenaChatGameCall;
+  });
+}
+
+export async function createArenaChatGameCall(payload: {
+  sourceRoomId: string;
+  gameType: 'standard' | 'ludo';
+  stakeAmount: number;
+  maxPlayers: number;
+}) {
+  const { data, error } = await supabase.rpc('create_arena_chat_game_call', {
+    p_source_room_id: payload.sourceRoomId,
+    p_game_type: payload.gameType,
+    p_stake_amount: payload.stakeAmount,
+    p_max_players: payload.maxPlayers,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
 export async function fetchQuizWaitingMessages(sessionId: string) {
   const { data, error } = await supabase.from('quiz_waiting_messages').select('id,quiz_session_id,sender_id,body,created_at').eq('quiz_session_id', sessionId).order('created_at', { ascending: true }).limit(100);
   if (error) throw error;

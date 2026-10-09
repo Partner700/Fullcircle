@@ -175,7 +175,8 @@ function normalizeQuizQuestion(raw: unknown): ArenaQuestion | null {
 
   const acceptedAnswers = distinctStrings(source.accepted_answers)
     .filter((answer) => type !== "standard_text" || isSingleWordAnswer(answer));
-  const difficulty = normalizedText(source.difficulty_tag);
+  const suppliedDifficulty = normalizedText(source.difficulty_tag).toLowerCase();
+  const difficulty = suppliedDifficulty === "medium" ? "moderate" : suppliedDifficulty;
   return {
     type,
     question,
@@ -202,7 +203,7 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
 }
 
 function applyArenaTiming(question: ArenaQuestion, index: number): ArenaQuestion {
-  const round = index < 6 ? 1 : index < 12 ? 2 : index < 18 ? 3 : 4;
+  const round = index < 6 ? 1 : index < 12 ? 2 : 3;
   return {
     ...question,
     difficulty_tag: round === 1 ? "easy" : round === 2 ? "moderate" : "hard",
@@ -230,7 +231,34 @@ async function buildQuizArchiveDeck(roomId: string, targetCount: number) {
       `Arena needs ${targetCount} distinct questions from previous Weekly or Fortune quizzes, but ${playable.length} are currently available. Upload and complete more quiz questions first.`,
     );
   }
-  return seededShuffle(playable, roomId).slice(0, targetCount).map(applyArenaTiming);
+  const shuffled = seededShuffle(playable, roomId);
+  if (targetCount !== 19) return shuffled.slice(0, targetCount).map(applyArenaTiming);
+
+  const roundSpecs: Array<{ difficulty: ArenaQuestion['difficulty_tag']; count: number }> = [
+    { difficulty: 'easy', count: 6 },
+    { difficulty: 'moderate', count: 6 },
+    { difficulty: 'hard', count: 7 },
+  ];
+  const selectedKeys = new Set<string>();
+  const rounds = roundSpecs.map((spec) => {
+    const preferred = shuffled
+      .filter((question) => question.difficulty_tag === spec.difficulty && !selectedKeys.has(questionKey(question)))
+      .slice(0, spec.count);
+    preferred.forEach((question) => selectedKeys.add(questionKey(question)));
+    return preferred;
+  });
+
+  roundSpecs.forEach((spec, roundIndex) => {
+    const missing = spec.count - rounds[roundIndex].length;
+    if (missing <= 0) return;
+    const fallback = shuffled
+      .filter((question) => !selectedKeys.has(questionKey(question)))
+      .slice(0, missing);
+    fallback.forEach((question) => selectedKeys.add(questionKey(question)));
+    rounds[roundIndex].push(...fallback);
+  });
+
+  return rounds.flat().map(applyArenaTiming);
 }
 
 Deno.serve(async (req) => {

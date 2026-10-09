@@ -1,7 +1,7 @@
 const RECOVERY_KEY = 'full-circle-stale-bundle-recovery-at';
 const RECOVERY_WINDOW_MS = 300_000;
 const RELEASE_MARKER = '174';
-const CURRENT_CACHE_PREFIX = 'full-circle-target-v174';
+const CURRENT_CACHE_PREFIX = 'full-circle-target-v175';
 let lastRecoveryInMemory = 0;
 
 const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css/i;

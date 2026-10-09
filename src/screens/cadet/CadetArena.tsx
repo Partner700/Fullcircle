@@ -4,6 +4,7 @@ import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
+import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { RoadHomeGame } from './RoadHomeGame';
 import { supabase } from '../../lib/supabase';
 import {
@@ -22,8 +23,6 @@ import {
   watchArenaRoom,
   heartbeatArenaViewer,
   leaveArenaRoomView,
-  fetchArenaRoomMessages,
-  sendArenaRoomMessage,
   fetchArenaRooms,
   fetchArenaRoom,
   fetchRhudeBoard,
@@ -38,9 +37,9 @@ import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import { safeJsonStorageGet, safeStorageGet, safeStorageRemove, safeStorageSet } from '../../lib/safeStorage';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
-import type { ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
+import type { ArenaChatGameCall, ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
 import {
-  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
+  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
   Shield, ArrowLeft, ChevronDown, Eye, Radio,
 } from 'lucide-react';
 
@@ -155,18 +154,20 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     }
   }, []);
 
-  const watchRoom = useCallback(async (roomId: string) => {
-    if (!profile) return;
+  const watchRoom = useCallback(async (roomId: string, roomStatus: 'waiting' | 'playing' = 'playing') => {
+    if (!profile) return false;
     setError(null);
     try {
       await watchArenaRoom(roomId);
       setIsSpectating(true);
       setActiveRoomId(roomId);
       setFinishSummary(null);
-      setPhase('playing');
-      await refreshRoom(roomId);
+      const freshRoom = await refreshRoom(roomId);
+      setPhase((freshRoom?.status || roomStatus) === 'waiting' ? 'waiting' : 'playing');
+      return true;
     } catch (watchError: any) {
       setError(watchError?.message || 'This live Arena match could not be opened.');
+      return false;
     }
   }, [profile, refreshRoom]);
 
@@ -192,6 +193,51 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   }, [profile]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleGameCallCreated = useCallback(async (gameCall: ArenaChatGameCall) => {
+    activateRoom(gameCall.target_room_id, 'waiting');
+    await Promise.all([load(), Promise.resolve(onBalanceChanged?.())]);
+  }, [activateRoom, load, onBalanceChanged]);
+
+  const handleGameCallAction = useCallback(async (gameCall: ArenaChatGameCall) => {
+    if (!profile) return;
+    let targetRoom = await fetchArenaRoom(gameCall.target_room_id);
+    if (!targetRoom || ['completed', 'cancelled', 'expired'].includes(targetRoom.status)) {
+      throw new Error('That game call is no longer open.');
+    }
+
+    const alreadyPlaying = (targetRoom.arena_participants || []).some((participant: any) => (
+      participant.user_id === profile.id && !participant.forfeited_at
+    ));
+    if (alreadyPlaying) {
+      activateRoom(targetRoom.id, targetRoom.status === 'playing' ? 'playing' : 'waiting');
+      await load();
+      return;
+    }
+
+    const activePlayers = (targetRoom.arena_participants || []).filter((participant: any) => !participant.forfeited_at);
+    if (targetRoom.status === 'waiting' && activePlayers.length < targetRoom.max_players) {
+      try {
+        await joinArenaRoom(targetRoom.id, profile.id);
+        activateRoom(targetRoom.id, 'waiting');
+        await Promise.all([load(), Promise.resolve(onBalanceChanged?.())]);
+        return;
+      } catch (joinError) {
+        targetRoom = await fetchArenaRoom(targetRoom.id);
+        const refreshedPlayers = (targetRoom?.arena_participants || []).filter((participant: any) => !participant.forfeited_at);
+        const becameWatchOnly = targetRoom
+          && (targetRoom.status === 'playing' || (targetRoom.status === 'waiting' && refreshedPlayers.length >= targetRoom.max_players));
+        if (!becameWatchOnly) throw joinError;
+      }
+    }
+
+    if (targetRoom?.status === 'waiting' || targetRoom?.status === 'playing') {
+      const watching = await watchRoom(targetRoom.id, targetRoom.status);
+      if (!watching) throw new Error('That game could not be opened as a viewer.');
+      return;
+    }
+    throw new Error('That game call is no longer open.');
+  }, [activateRoom, load, onBalanceChanged, profile, watchRoom]);
 
   useEffect(() => {
     if (!profile || phase !== 'lobby') return;
@@ -268,7 +314,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile]);
 
   useEffect(() => {
-    if (!profile || !activeRoomId || phase !== 'playing' || !isSpectating) return;
+    if (!profile || !activeRoomId || !['waiting', 'playing'].includes(phase) || !isSpectating) return;
     let cancelled = false;
     const heartbeat = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -505,6 +551,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             roomName={activeRoomName}
             userId={profile!.id}
             spectator={isSpectating}
+            onGameCallCreated={handleGameCallCreated}
+            onGameCallAction={handleGameCallAction}
             prepareQuestions={isSpectating ? undefined : async () => {
               const generated = await prepareArenaQuestionDeck({
                 roomId: activeRoomId,
@@ -524,7 +572,13 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     if (isSpectating) {
       return (
         <div className="space-y-4">
-          <ArenaStandardSpectator room={activeRoom} userId={profile!.id} onExit={() => clearActiveRoom(false)} />
+          <ArenaStandardSpectator
+            room={activeRoom}
+            userId={profile!.id}
+            onExit={() => clearActiveRoom(false)}
+            onGameCallCreated={handleGameCallCreated}
+            onGameCallAction={handleGameCallAction}
+          />
           <ArenaViewerStrip viewers={viewers} />
         </div>
       );
@@ -613,6 +667,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       );
     }
     const participants = room?.arena_participants || [];
+    const viewers = (room?.arena_viewers || []) as ArenaViewer[];
     const isCreator = room?.creator_id === profile?.id;
     const machineMatch = room?.play_mode === 'machine';
     const canStart = machineMatch || participants.length >= 2;
@@ -660,7 +715,13 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             ))}
           </div>
 
-          {!machineMatch && <ArenaWaitingChat roomId={room.id} userId={profile!.id} />}
+          {!machineMatch && (
+            <ArenaRoomChat
+              roomId={room.id}
+              userId={profile!.id}
+              onGameCallAction={isSpectating ? handleGameCallAction : undefined}
+            />
+          )}
 
           {isCreator && !machineMatch && (
             <div className="p-3 rounded-lg border border-border bg-surface-2 mb-4 space-y-3">
@@ -736,7 +797,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             </div>
           )}
 
-          {isCreator ? (
+          {isSpectating ? (
+            <div className="space-y-3">
+              <p className="text-center text-xs text-stone">You are watching this room fill. When the host starts, the board will open here.</p>
+              <ArenaViewerStrip viewers={viewers} />
+            </div>
+          ) : isCreator ? (
             <div className="grid sm:grid-cols-2 gap-2">
               <button onClick={startGame} disabled={!canStart || starting} className="btn-primary w-full disabled:opacity-50">
                 {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
@@ -940,6 +1006,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
         ) : (
           rooms.filter((r) => r.status === 'waiting').map((room) => {
             const participants = room.arena_participants || [];
+            const viewers = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((p: any) => p.user_id === profile?.id);
             const host = participants.find((p: any) => p.user_id === room.creator_id)?.profiles;
             const invited = Array.isArray(room.tagged_user_ids) && profile?.id ? room.tagged_user_ids.includes(profile.id) : false;
@@ -970,6 +1037,13 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                   <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary relative z-10 text-xs">
                     Enter Room
                   </button>
+                ) : participants.length >= room.max_players ? (
+                  <div className="relative z-10 flex items-center gap-2">
+                    <ArenaViewerStrip viewers={viewers} compact />
+                    <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
+                      <Eye size={14} /> Watch
+                    </button>
+                  </div>
                 ) : (
                   <button onClick={() => joinRoom(room.id)} disabled={denarii < room.stake_amount || participants.length >= room.max_players}
                     className="btn-primary relative z-10 text-xs disabled:opacity-40">
@@ -1044,7 +1118,13 @@ function ArenaViewerStrip({ viewers, compact = false }: { viewers: ArenaViewer[]
   );
 }
 
-function ArenaStandardSpectator({ room, userId, onExit }: { room: any; userId: string; onExit: () => void }) {
+function ArenaStandardSpectator({ room, userId, onExit, onGameCallCreated, onGameCallAction }: {
+  room: any;
+  userId: string;
+  onExit: () => void;
+  onGameCallCreated: (gameCall: ArenaChatGameCall) => Promise<void> | void;
+  onGameCallAction: (gameCall: ArenaChatGameCall) => Promise<void> | void;
+}) {
   const [feed, setFeed] = useState<ArenaTriviaFeedItem[]>([]);
   const [feedError, setFeedError] = useState<string | null>(null);
   const participants = useMemo(() => room.arena_participants || [], [room.arena_participants]);
@@ -1125,7 +1205,7 @@ function ArenaStandardSpectator({ room, userId, onExit }: { room: any; userId: s
       <div className="flex items-center justify-between gap-3 px-1">
         <button type="button" onClick={onExit} className="btn-ghost text-sm"><ArrowLeft size={14} /> Arena</button>
         <span className="badge badge-gold"><Eye size={12} /> Watching Live</span>
-        <span className="text-xs font-bold text-stone">Round {currentRound + 1}</span>
+        <span className="text-xs font-bold text-stone">Round {currentRound + 1} · {ARENA_ROUND_LABELS[currentRound]}</span>
       </div>
       <div className="flex gap-1.5 px-1">
         {ARENA_ROUND_LENGTHS.map((_, index) => <div key={index} className={cn('h-1.5 flex-1 rounded-full', index < currentRound ? 'bg-sage' : index === currentRound ? 'bg-gold' : 'bg-surface-2')} />)}
@@ -1146,61 +1226,26 @@ function ArenaStandardSpectator({ room, userId, onExit }: { room: any; userId: s
         waitingName={machineMatch ? 'The match is live' : activeParticipant?.profiles?.display_name}
         onRoll={() => undefined}
       />
-      {!machineMatch && (
-        <details className="group overflow-hidden rounded-lg border border-border bg-surface/80">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-ink">
-            <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Match chat</span>
-            <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
-          </summary>
-          <ArenaWaitingChat roomId={room.id} userId={userId} compact readOnly />
-        </details>
-      )}
+      <details className="group overflow-hidden rounded-lg border border-border bg-surface/80">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-ink">
+          <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Match chat</span>
+          <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
+        </summary>
+        <ArenaRoomChat
+          roomId={room.id}
+          userId={userId}
+          compact
+          allowGameCalls
+          onGameCallCreated={onGameCallCreated}
+          onGameCallAction={onGameCallAction}
+        />
+      </details>
     </div>
   );
 }
 
-function ArenaWaitingChat({ roomId, userId, compact = false, readOnly = false }: { roomId: string; userId: string; compact?: boolean; readOnly?: boolean }) {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
-  const loadMessages = useCallback(async () => {
-    try { setMessages(await fetchArenaRoomMessages(roomId)); } catch (error) { console.error('Arena chat load failed', error); }
-  }, [roomId]);
-
-  useEffect(() => {
-    void loadMessages();
-    const channel = supabase.channel(`arena-room-chat-${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}` }, () => void loadMessages())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [roomId, loadMessages]);
-
-  const send = async () => {
-    if (readOnly || !body.trim() || sending) return;
-    setSending(true);
-    try { await sendArenaRoomMessage(roomId, userId, body); setBody(''); await loadMessages(); } catch (error) { console.error('Arena chat send failed', error); }
-    setSending(false);
-  };
-
-  return (
-    <div className={cn(compact ? 'p-3 pt-1' : 'mb-4 rounded-lg border border-border bg-surface/80 p-3')}>
-      {!compact && <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink"><MessageCircle size={14} className="text-brass" /> Room chat</div>}
-      <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
-        {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk while the room fills.</p> : messages.map((message) => {
-          const mine = message.sender_id === userId;
-          return <div key={message.id} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
-            {!mine && <span className="relative mt-0.5 flex h-6 w-6"><UserAvatar userId={message.sender_id} name={message.sender?.display_name} avatarUrl={message.sender?.avatar_url} className="h-full w-full" /></span>}
-            <p className={cn('max-w-[80%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}><span className="mr-1 font-semibold">{mine ? 'You' : message.sender?.display_name || 'Cadet'}</span>{message.body}</p>
-          </div>;
-        })}</div>
-      {readOnly
-        ? <p className="mt-3 text-center text-[10px] font-semibold uppercase text-stone">Viewer chat is read-only</p>
-        : <div className="mt-3 flex gap-2"><input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void send(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Write a message..." /><button type="button" onClick={() => void send()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send room message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button></div>}
-    </div>
-  );
-}
-
-const ARENA_ROUND_LENGTHS = [6, 6, 6, 1];
+const ARENA_ROUND_LENGTHS = [6, 6, 7];
+const ARENA_ROUND_LABELS = ['Easy', 'Medium', 'Hard'];
 
 type ArenaBoardPlayer = {
   userId: string;
@@ -1645,7 +1690,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
           {forfeiting ? <Loader2 size={14} className="animate-spin" /> : <Flag size={14} />} Forfeit
         </button>
         <span className="badge badge-gold"><Zap size={12} /> Arena Battle</span>
-        <span className="text-xs font-bold text-stone">Round {currentRound + 1}</span>
+        <span className="text-xs font-bold text-stone">Round {currentRound + 1} · {ARENA_ROUND_LABELS[currentRound]}</span>
       </div>
 
       <div className="flex gap-1.5 px-1">
@@ -1679,7 +1724,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
             <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Room chat</span>
             <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
           </summary>
-          <ArenaWaitingChat roomId={roomId} userId={userId} compact />
+          <ArenaRoomChat roomId={roomId} userId={userId} compact />
         </details>
       )}
 
@@ -1689,7 +1734,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="relative flex h-10 w-10 flex-shrink-0"><UserAvatar userId={profile?.id} name={profile?.display_name} avatarUrl={profile?.avatar_url} className="h-full w-full border-2 border-gold" /></span>
-                <div className="min-w-0"><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? 'Bonus · 2 figs' : `Round ${currentRound + 1} · Question ${roundQuestionNumber}`}</p></div>
+                <div className="min-w-0"><p className="text-xs font-bold text-ink">{profile?.display_name || 'Your question'}</p><p className="eyebrow mt-0.5">{q.is_bonus ? `${ARENA_ROUND_LABELS[currentRound]} Bonus · 2 figs` : `${ARENA_ROUND_LABELS[currentRound]} · Question ${roundQuestionNumber}`}</p></div>
               </div>
               <div className={cn('flex h-11 min-w-11 items-center justify-center rounded-full border px-2 font-display text-sm font-black', timeLeft <= 5 ? 'border-coral bg-coral-soft text-coral' : timeLeft <= 10 ? 'border-gold bg-gold-soft text-gold' : 'border-sage bg-sage-soft text-sage')}><Clock size={13} className="mr-1" />{timeLeft}</div>
             </div>

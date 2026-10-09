@@ -180,8 +180,9 @@ GRANT EXECUTE ON FUNCTION public.watch_arena_room(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.heartbeat_arena_viewer(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.leave_arena_room_view(uuid) TO authenticated;
 
--- Viewers may read the same sanitised match surfaces as players. They still
--- cannot write chat, submit answers, move pawns, settle games, or earn rewards.
+-- Viewers may read the same sanitised match surfaces as players. The later
+-- viewer-chat migration grants chat only; viewers still cannot submit answers,
+-- move pawns, settle games, or earn rewards.
 DROP POLICY IF EXISTS "arena members read waiting room chat" ON public.arena_room_messages;
 DROP POLICY IF EXISTS "arena players and viewers read room chat" ON public.arena_room_messages;
 CREATE POLICY "arena players and viewers read room chat"

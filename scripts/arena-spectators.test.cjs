@@ -6,9 +6,12 @@ const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 const migration = read('supabase/migrations/20261009014844_arena_live_spectators.sql');
+const viewerChatMigration = read('supabase/migrations/20261009025309_arena_viewer_chat_game_calls.sql');
 const queries = read('src/lib/queries.ts');
 const arena = read('src/screens/cadet/CadetArena.tsx');
 const roadHome = read('src/screens/cadet/RoadHomeGame.tsx');
+const arenaRoomChat = read('src/components/ArenaRoomChat.tsx');
+const arenaQuestionGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.arena_viewers/);
 assert.match(migration, /ALTER TABLE public\.arena_viewers ENABLE ROW LEVEL SECURITY/);
@@ -50,10 +53,42 @@ assert.match(arena, /table: 'arena_trivia_responses'.*filter: `room_id=eq\.\$\{r
 assert.match(arena, /setFeed\(\(current\) => \[[\s\S]*?\.slice\(0, 160\)\)/);
 assert.match(arena, /score: scores\.get\(ARENA_MACHINE_USER_ID\) \|\| 0/);
 assert.doesNotMatch(arena, /score: Number\(room\.machine_score\)/);
-assert.match(arena, /Viewer chat is read-only/);
+assert.doesNotMatch(arena, /Viewer chat is read-only/);
+assert.match(arena, /const ARENA_ROUND_LENGTHS = \[6, 6, 7\]/);
+assert.match(arena, /const ARENA_ROUND_LABELS = \['Easy', 'Medium', 'Hard'\]/);
+assert.match(arena, /allowGameCalls/);
+assert.match(arena, /participants\.length >= room\.max_players[\s\S]*?watchRoom\(room\.id, 'waiting'\)/);
 
 assert.match(roadHome, /spectator\s*\? await fetchRoadHomeSpectatorState\(roomId\)/);
 assert.match(roadHome, /if \(spectator \|\| !state \|\| sending\) return false/);
-assert.match(roadHome, /<ArenaMatchChat roomId=\{roomId\} userId=\{userId\} readOnly=\{spectator\}/);
+assert.match(roadHome, /<ArenaRoomChat[\s\S]*?allowGameCalls=\{spectator\}/);
+assert.doesNotMatch(roadHome, /Viewer chat is read-only/);
 
-console.log('Arena spectator checks passed.');
+assert.match(viewerChatMigration, /CREATE TABLE IF NOT EXISTS public\.arena_chat_game_calls/);
+assert.match(viewerChatMigration, /ALTER TABLE public\.arena_chat_game_calls ENABLE ROW LEVEL SECURITY/);
+assert.match(viewerChatMigration, /arena players and viewers write room chat/);
+assert.match(viewerChatMigration, /sender_id = \(SELECT auth\.uid\(\)\)/);
+assert.match(viewerChatMigration, /CREATE OR REPLACE FUNCTION public\.create_arena_chat_game_call/);
+assert.match(viewerChatMigration, /Only a current viewer can call a game from this live chat/);
+assert.match(viewerChatMigration, /v_target_room_id := public\.create_arena_room/);
+assert.match(viewerChatMigration, /CASE WHEN v_game_type = 'ludo' THEN 4 ELSE 8 END/);
+assert.match(viewerChatMigration, /CREATE OR REPLACE FUNCTION public\.get_arena_chat_game_calls/);
+assert.match(viewerChatMigration, /room\.status IN \('waiting', 'playing'\)/);
+assert.match(viewerChatMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.%I|ALTER PUBLICATION supabase_realtime ADD TABLE public\.arena_chat_game_calls/);
+
+assert.match(queries, /export type ArenaChatGameCall/);
+assert.match(queries, /export async function fetchArenaChatGameCalls/);
+assert.match(queries, /export async function createArenaChatGameCall/);
+assert.match(arenaRoomChat, /Talk during the match/);
+assert.match(arenaRoomChat, /Call game/);
+assert.match(arenaRoomChat, /gameCall\.participant_count < gameCall\.max_players/);
+assert.match(arenaRoomChat, /label: 'Watch'/);
+assert.match(arenaRoomChat, /sendArenaRoomMessage\(roomId, userId, body\)/);
+
+assert.match(arenaQuestionGenerator, /const round = index < 6 \? 1 : index < 12 \? 2 : 3/);
+assert.match(arenaQuestionGenerator, /\{ difficulty: 'easy', count: 6 \}/);
+assert.match(arenaQuestionGenerator, /\{ difficulty: 'moderate', count: 6 \}/);
+assert.match(arenaQuestionGenerator, /\{ difficulty: 'hard', count: 7 \}/);
+assert.doesNotMatch(arenaQuestionGenerator, /index < 18 \? 3 : 4/);
+
+console.log('Arena spectator, shared chat, game-call, and three-round checks passed.');
