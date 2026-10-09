@@ -17,6 +17,7 @@ import {
   persistContinuedTab,
   readContinuedScroll,
 } from '../lib/appContinuity';
+import { signalActiveQuizExitIntent } from '../lib/quizIntegrity';
 
 type Theme = 'night' | 'day';
 const CONTINUITY_EXCLUDED_TABS = ['quiz'] as const;
@@ -136,6 +137,15 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
   useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
 
+  const signalQuizExitFor = useCallback((destination?: string) => {
+    if (activeKeyRef.current === 'quiz' && destination !== 'quiz') signalActiveQuizExitIntent();
+  }, []);
+
+  const handleSignOut = useCallback(() => {
+    signalQuizExitFor();
+    void signOut();
+  }, [signOut, signalQuizExitFor]);
+
   useEffect(() => {
     if (!profile?.id || !role) return;
     persistContinuedTab(profile.id, role, activeKey, CONTINUITY_EXCLUDED_TABS);
@@ -241,21 +251,24 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
       if (mobileNavOpen) {
         setMobileNavOpen(false);
         if (typeof previousTab === 'string' && previousTab !== activeKeyRef.current) {
+          signalQuizExitFor(previousTab);
           handlingPopStateRef.current = true;
           onNavigateRef.current(previousTab);
         }
         return;
       }
       if (typeof previousTab === 'string' && previousTab !== activeKeyRef.current) {
+        signalQuizExitFor(previousTab);
         handlingPopStateRef.current = true;
         onNavigateRef.current(previousTab);
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [mobileNavOpen]);
+  }, [mobileNavOpen, signalQuizExitFor]);
 
   const navigate = (key: string) => {
+    signalQuizExitFor(key);
     onNavigate(key);
     setMobileNavOpen(false);
   };
@@ -391,7 +404,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               <p className="text-xs text-peri-dim truncate">{profile?.email}</p>
             </div>
           </button>
-          <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-peri-dim hover:bg-navy-3 hover:text-peri transition-colors font-bold">
+          <button onClick={handleSignOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-peri-dim hover:bg-navy-3 hover:text-peri transition-colors font-bold">
             <LogOut size={16} /> Sign Out
           </button>
         </div>
@@ -423,7 +436,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 <ThemeToggle />
                 {showTopSignOut && (
                   <button
-                    onClick={signOut}
+                    onClick={handleSignOut}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:bg-coral-soft hover:text-coral"
                     title="Sign out"
                   >
@@ -444,7 +457,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               </div>
               {showTopSignOut && (
                 <button
-                  onClick={signOut}
+                  onClick={handleSignOut}
                   className="hidden h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:bg-coral-soft hover:text-coral md:inline-flex"
                   title="Sign out"
                 >

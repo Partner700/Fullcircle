@@ -42,6 +42,7 @@ import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNav
 import { openProfileCv } from '../../lib/profileCv';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import { readContinuedTab } from '../../lib/appContinuity';
+import { signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
@@ -393,8 +394,9 @@ export function SentryApp() {
     return () => window.clearInterval(interval);
   }, []);
   const handleNavigate = useCallback((next: Tab) => {
+    if (tab === 'quiz' && next !== 'quiz') signalActiveQuizExitIntent();
     setTab(isExpired && PREMIUM_TABS.has(next) ? 'subscribe' : next);
-  }, [isExpired]);
+  }, [isExpired, tab]);
   const navigateFromAction = useCallback((key: string) => {
     const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets', challenges: 'challenges', subscribe: 'subscribe' };
     if (destination[key]) handleNavigate(destination[key]);
@@ -408,7 +410,10 @@ export function SentryApp() {
     return () => window.removeEventListener(APP_NAVIGATION_EVENT, navigate);
   }, [navigateFromAction]);
   useEffect(() => {
-    if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
+    if (isExpired && PREMIUM_TABS.has(tab)) {
+      if (tab === 'quiz') signalActiveQuizExitIntent();
+      setTab('subscribe');
+    }
   }, [isExpired, tab]);
   useEffect(() => {
     if (!profile) return;

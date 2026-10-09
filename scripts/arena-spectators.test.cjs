@@ -10,6 +10,7 @@ const viewerChatMigration = read('supabase/migrations/20261009025309_arena_viewe
 const directChallengeMigration = read('supabase/migrations/20261009032717_arena_viewer_direct_player_challenges.sql');
 const witnessIntegrityMigration = read('supabase/migrations/20261009120000_arena_live_witness_integrity.sql');
 const witnessPlaybackMigration = read('supabase/migrations/20261009150000_arena_witness_playback_and_cleanup.sql');
+const witnessDeliveryMigration = read('supabase/migrations/20261009160000_arena_witness_delivery_and_quiz_sleep_safety.sql');
 const queries = read('src/lib/queries.ts');
 const arena = read('src/screens/cadet/CadetArena.tsx');
 const roadHome = read('src/screens/cadet/RoadHomeGame.tsx');
@@ -106,16 +107,31 @@ assert.doesNotMatch(witnessPlaybackMigration, /room_name NOT ILIKE '%\[arena:lud
 assert.match(witnessPlaybackMigration, /DELETE FROM public\.arena_viewers viewer[\s\S]*?room\.status <> 'playing'/);
 assert.match(witnessPlaybackMigration, /PERFORM public\.repair_orphaned_arena_matches\(\)/);
 
+assert.match(witnessDeliveryMigration, /CREATE OR REPLACE FUNCTION public\.sync_arena_player_verdict_for_witnesses/);
+assert.match(witnessDeliveryMigration, /AFTER INSERT OR UPDATE OF submitted_answer, is_correct/);
+assert.match(witnessDeliveryMigration, /phase = 'verdict'/);
+assert.match(witnessDeliveryMigration, /NEW\.submitted_answer/);
+assert.match(witnessDeliveryMigration, /NEW\.is_correct/);
+assert.match(witnessDeliveryMigration, /REVOKE ALL ON FUNCTION public\.sync_arena_player_verdict_for_witnesses\(\) FROM PUBLIC, anon, authenticated/);
+assert.match(witnessDeliveryMigration, /ALTER PUBLICATION supabase_realtime ADD TABLE public\.arena_live_trivia_states/);
+assert.doesNotMatch(witnessDeliveryMigration, /viewer\.last_seen_at\s*>=/);
+assert.doesNotMatch(witnessDeliveryMigration, /arena_question_decks/);
+
 assert.match(queries, /export type ArenaLiveTriviaState/);
 assert.match(queries, /export async function publishArenaTriviaState/);
+assert.match(queries, /const retryDelays = \[0, 250, 700, 1_400, 2_800\]/);
+assert.match(queries, /if \(!error && data === true\) return true/);
 assert.match(queries, /export async function fetchArenaLiveTriviaState/);
 assert.match(queries, /await supabase\.rpc\('repair_orphaned_arena_matches'\)/);
 assert.match(arena, /witnessOnly\?: boolean/);
 assert.match(arena, /function ArenaWitnessQuestionOverlay/);
 assert.match(arena, /Live Arena question/);
-assert.match(arena, /publishArenaTriviaState\(roomId, currentQ, 'question', 'player'\)/);
-assert.match(arena, /publishArenaTriviaState\(roomId, currentQ, 'verdict', 'player'\)/);
-assert.match(arena, /publishArenaTriviaState\(roomId, machineQuestionIndex, 'question', 'machine'\)/);
+assert.match(arena, /await publishArenaTriviaState\(roomId, currentQ, 'question', 'player'\)/);
+assert.doesNotMatch(arena, /publishArenaTriviaState\(roomId, currentQ, 'verdict', 'player'\)/);
+assert.match(arena, /await publishArenaTriviaState\(roomId, machineQuestionIndex, 'question', 'machine'\)/);
+assert.match(arena, /await publishArenaTriviaState\(roomId, machineQuestionIndex, 'verdict', 'machine'\)/);
+assert.doesNotMatch(arena, /publishArenaTriviaState[^;]+\.catch\(\(\) => null\)/);
+assert.match(arena, /playbackNow - Date\.parse\(liveQuestion\.answered_at\) < 5000/);
 assert.match(arena, /allowGameCalls=\{allowChallenges\}/);
 assert.match(roadHome, /function RoadHomeWitnessQuestion/);
 assert.match(roadHome, /QUESTION_CORRECT' \|\| event\.type === 'QUESTION_INCORRECT/);
