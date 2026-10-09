@@ -457,8 +457,11 @@ export function RoadHomeGame({
               roomId={roomId}
               userId={userId}
               allowGameCalls={spectator}
+              challengeTargets={spectator ? state.players
+                .filter((player) => !player.isBot)
+                .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
               onGameCallCreated={spectator ? onGameCallCreated : undefined}
-              onGameCallAction={spectator ? onGameCallAction : undefined}
+              onGameCallAction={onGameCallAction}
             />
           )}
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}

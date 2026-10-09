@@ -94,6 +94,13 @@ async function commandExists(roomId: string, commandId: string) {
   return Boolean(rows?.length);
 }
 
+async function hasPendingViewerChallenge(roomId: string, playerId: string) {
+  const rows = await rest(
+    `arena_chat_game_calls?source_room_id=eq.${roomId}&challenged_user_id=eq.${playerId}&response_status=eq.pending&select=id&limit=1`,
+  );
+  return Boolean(rows?.length);
+}
+
 async function replenishQuestionPool(state: RoadHomeState, roomName: string) {
   const remaining = state.questionPool.filter((question) => !state.usedQuestionIds.includes(question.id)).length;
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() || "";
@@ -275,6 +282,9 @@ Deno.serve(async (request) => {
     if (await commandExists(roomId, commandId)) {
       const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
       return json({ state: publicRoadHomeState(normalized), version: normalized.version, duplicate: true });
+    }
+    if (action !== "FORFEIT" && await hasPendingViewerChallenge(roomId, actorId)) {
+      return json({ error: "Respond to the Arena challenge before playing your next move." }, 409);
     }
     if (body.expectedVersion != null && Number(body.expectedVersion) !== Number(existingPrivate.version)) {
       const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);

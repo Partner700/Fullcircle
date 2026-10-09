@@ -3262,6 +3262,11 @@ export type ArenaChatGameCall = {
   creator_id: string;
   creator_name: string;
   creator_avatar_url: string | null;
+  challenged_user_id: string | null;
+  challenged_user_name: string | null;
+  challenged_user_avatar_url: string | null;
+  challenge_status: 'pending' | 'accepted' | 'declined' | 'scheduled';
+  source_play_mode: 'machine' | 'versus' | null;
   game_type: 'standard' | 'ludo';
   room_name: string;
   stake_amount: number;
@@ -3298,12 +3303,28 @@ export async function createArenaChatGameCall(payload: {
   gameType: 'standard' | 'ludo';
   stakeAmount: number;
   maxPlayers: number;
+  challengedUserId?: string | null;
 }) {
   const { data, error } = await supabase.rpc('create_arena_chat_game_call', {
     p_source_room_id: payload.sourceRoomId,
     p_game_type: payload.gameType,
     p_stake_amount: payload.stakeAmount,
     p_max_players: payload.maxPlayers,
+    p_challenged_user_id: payload.challengedUserId || null,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export type ArenaChallengeResponse = 'accept' | 'decline' | 'schedule';
+
+export async function respondArenaChatChallenge(
+  targetRoomId: string,
+  response: ArenaChallengeResponse,
+) {
+  const { data, error } = await supabase.rpc('respond_arena_chat_challenge', {
+    p_target_room_id: targetRoomId,
+    p_response: response,
   });
   if (error) throw error;
   return String(data);

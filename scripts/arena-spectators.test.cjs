@@ -7,10 +7,13 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 const migration = read('supabase/migrations/20261009014844_arena_live_spectators.sql');
 const viewerChatMigration = read('supabase/migrations/20261009025309_arena_viewer_chat_game_calls.sql');
+const directChallengeMigration = read('supabase/migrations/20261009032717_arena_viewer_direct_player_challenges.sql');
 const queries = read('src/lib/queries.ts');
 const arena = read('src/screens/cadet/CadetArena.tsx');
 const roadHome = read('src/screens/cadet/RoadHomeGame.tsx');
+const roadHomeFunction = read('supabase/functions/road-home-game/index.ts');
 const arenaRoomChat = read('src/components/ArenaRoomChat.tsx');
+const arenaChallengeGate = read('src/components/ArenaChallengeGate.tsx');
 const arenaQuestionGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.arena_viewers/);
@@ -84,6 +87,33 @@ assert.match(arenaRoomChat, /Call game/);
 assert.match(arenaRoomChat, /gameCall\.participant_count < gameCall\.max_players/);
 assert.match(arenaRoomChat, /label: 'Watch'/);
 assert.match(arenaRoomChat, /sendArenaRoomMessage\(roomId, userId, body\)/);
+
+assert.match(directChallengeMigration, /direct_challenge_user_id uuid/);
+assert.match(directChallengeMigration, /direct_challenge_status IN \('pending', 'accepted', 'declined', 'scheduled'\)/);
+assert.match(directChallengeMigration, /arena_one_unresolved_direct_challenge_idx/);
+assert.match(directChallengeMigration, /p_challenged_user_id uuid DEFAULT NULL/);
+assert.match(directChallengeMigration, /CREATE OR REPLACE FUNCTION public\.respond_arena_chat_challenge/);
+assert.match(directChallengeMigration, /Accept is available only while playing against the machine/);
+assert.match(directChallengeMigration, /forfeit_reason = 'accepted_challenge'/);
+assert.match(directChallengeMigration, /restarted_as_room_id = v_target_room\.id/);
+assert.match(directChallengeMigration, /INSERT INTO public\.arena_viewers[\s\S]*?v_target_room\.id/);
+assert.match(directChallengeMigration, /DELETE FROM public\.arena_viewers\s+WHERE room_id = v_source_room\.id/);
+assert.match(directChallengeMigration, /Respond to the Arena challenge before playing your next move/);
+assert.match(directChallengeMigration, /BEFORE INSERT ON public\.arena_trivia_responses/);
+assert.match(directChallengeMigration, /game_call\.response_status = 'scheduled'/);
+
+assert.match(queries, /export async function respondArenaChatChallenge/);
+assert.doesNotMatch(queries, /acceptArenaChatChallenge/);
+assert.match(arenaChallengeGate, /Choose before your next move/);
+assert.match(arenaChallengeGate, /respond\('decline'\)/);
+assert.match(arenaChallengeGate, /respond\('schedule'\)/);
+assert.match(arenaChallengeGate, /machineMatch && \(/);
+assert.match(arenaChallengeGate, /Accept and restart match/);
+assert.match(arena, /<ArenaChallengeGate roomId=\{activeRoomId\}/);
+assert.match(arena, /Start Scheduled/);
+assert.match(arena, /room\.restarted_as_room_id/);
+assert.match(roadHomeFunction, /hasPendingViewerChallenge/);
+assert.match(roadHomeFunction, /Respond to the Arena challenge before playing your next move/);
 
 assert.match(arenaQuestionGenerator, /const round = index < 6 \? 1 : index < 12 \? 2 : 3/);
 assert.match(arenaQuestionGenerator, /\{ difficulty: 'easy', count: 6 \}/);

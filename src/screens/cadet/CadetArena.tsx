@@ -5,6 +5,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
 import { RoadHomeGame } from './RoadHomeGame';
 import { supabase } from '../../lib/supabase';
 import {
@@ -29,6 +30,7 @@ import {
   fetchArenaInvitees,
   prepareArenaQuestionDeck,
   fetchPanelImageSetting,
+  respondArenaChatChallenge,
 } from '../../lib/queries';
 import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
@@ -79,6 +81,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
   const [finishSummary, setFinishSummary] = useState<{ room: any | null; rhudes: number | null } | null>(null);
   const previousSoundPhase = useRef<ArenaPhase | null>(null);
+  const followingRestartRef = useRef<string | null>(null);
 
   useEffect(() => {
     void setScenarioSound(phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
@@ -195,7 +198,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   useEffect(() => { load(); }, [load]);
 
   const handleGameCallCreated = useCallback(async (gameCall: ArenaChatGameCall) => {
-    activateRoom(gameCall.target_room_id, 'waiting');
+    if (!gameCall.challenged_user_id) activateRoom(gameCall.target_room_id, 'waiting');
     await Promise.all([load(), Promise.resolve(onBalanceChanged?.())]);
   }, [activateRoom, load, onBalanceChanged]);
 
@@ -213,6 +216,18 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       activateRoom(targetRoom.id, targetRoom.status === 'playing' ? 'playing' : 'waiting');
       await load();
       return;
+    }
+
+    if (gameCall.challenged_user_id) {
+      if (gameCall.challenged_user_id === profile.id) {
+        throw new Error('Answer this challenge from the decision shown in your current match.');
+      }
+      if (targetRoom.status === 'waiting' || targetRoom.status === 'playing') {
+        const watching = await watchRoom(targetRoom.id, targetRoom.status);
+        if (!watching) throw new Error('That challenge could not be opened as a viewer.');
+        return;
+      }
+      throw new Error('That Arena challenge is no longer open.');
     }
 
     const activePlayers = (targetRoom.arena_participants || []).filter((participant: any) => !participant.forfeited_at);
@@ -238,6 +253,22 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     }
     throw new Error('That game call is no longer open.');
   }, [activateRoom, load, onBalanceChanged, profile, watchRoom]);
+
+  const startScheduledChallenge = useCallback(async (targetRoomId: string) => {
+    setError(null);
+    try {
+      const roomId = await respondArenaChatChallenge(targetRoomId, 'accept');
+      activateRoom(roomId, 'playing');
+      await Promise.all([load(), Promise.resolve(onBalanceChanged?.())]);
+    } catch (responseError: any) {
+      setError(responseError?.message || 'That scheduled Arena challenge could not be started.');
+    }
+  }, [activateRoom, load, onBalanceChanged]);
+
+  const handleAcceptedChallenge = useCallback(async (targetRoomId: string) => {
+    activateRoom(targetRoomId, 'playing');
+    await Promise.all([load(), Promise.resolve(onBalanceChanged?.())]);
+  }, [activateRoom, load, onBalanceChanged]);
 
   useEffect(() => {
     if (!profile || phase !== 'lobby') return;
@@ -369,6 +400,28 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       setError(room.status === 'expired' ? 'That arena room expired.' : 'That arena room was closed by the host.');
       clearActiveRoom(false);
     }
+    if (room.status === 'completed' && room.restarted_as_room_id) {
+      const restartedRoomId = String(room.restarted_as_room_id);
+      if (followingRestartRef.current !== restartedRoomId) {
+        followingRestartRef.current = restartedRoomId;
+        void fetchArenaRoom(restartedRoomId)
+          .then(async (restartedRoom) => {
+            if (!restartedRoom || !profile) return;
+            setRooms((current) => [restartedRoom, ...current.filter((candidate) => candidate.id !== restartedRoomId)]);
+            const isRestartedPlayer = (restartedRoom.arena_participants || []).some((participant: any) => (
+              participant.user_id === profile.id && !participant.forfeited_at
+            ));
+            if (isRestartedPlayer) {
+              activateRoom(restartedRoomId, 'playing');
+              await load();
+              return;
+            }
+            await watchRoom(restartedRoomId, 'playing');
+          })
+          .catch(() => { followingRestartRef.current = null; });
+      }
+      return;
+    }
     if (room.status === 'completed') {
       if (isSpectating) {
         if (phase !== 'finished') {
@@ -399,7 +452,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
         : 'You forfeited this Arena match.');
       clearActiveRoom(true);
     }
-  }, [activeRoomId, phase, rooms, profile, clearActiveRoom, isSpectating, refreshRoom]);
+  }, [activeRoomId, activateRoom, phase, rooms, profile, clearActiveRoom, isSpectating, load, refreshRoom, watchRoom]);
 
   useEffect(() => {
     if (!activeRoomId || phase !== 'waiting') return;
@@ -566,6 +619,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             }}
           />
           <ArenaViewerStrip viewers={viewers} />
+          {!isSpectating && (
+            <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
+          )}
         </div>
       );
     }
@@ -612,8 +668,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           onForfeit={forfeitStandardMatch}
           forfeiting={forfeiting}
           onExit={() => clearActiveRoom(true)}
+          onGameCallAction={handleGameCallAction}
         />
         <ArenaViewerStrip viewers={viewers} />
+        <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
       </div>
     );
   }
@@ -1010,6 +1068,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             const isParticipant = participants.some((p: any) => p.user_id === profile?.id);
             const host = participants.find((p: any) => p.user_id === room.creator_id)?.profiles;
             const invited = Array.isArray(room.tagged_user_ids) && profile?.id ? room.tagged_user_ids.includes(profile.id) : false;
+            const directChallengeUserId = room.direct_challenge_user_id as string | null | undefined;
+            const isDirectChallenge = Boolean(directChallengeUserId);
+            const isChallengeTarget = directChallengeUserId === profile?.id;
+            const directChallengeStatus = room.direct_challenge_status as string | null | undefined;
+            const challengeSourceRoomId = room.direct_challenge_source_room_id as string | null | undefined;
             const expiresAt = room.expires_at ? new Date(room.expires_at).getTime() : null;
             const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
             const pot = room.stake_amount * participants.length * 10;
@@ -1021,9 +1084,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                 </div>
                 <div className="relative z-10 flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <p className="text-sm font-semibold text-ink truncate">{room.room_name}</p>
+                    <p className="text-sm font-semibold text-ink truncate">{cleanArenaRoomName(room.room_name)}</p>
                     {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
-                    {invited && !isParticipant && <span className="badge badge-gold text-[9px]">Invited</span>}
+                    {isDirectChallenge && <span className="badge badge-gold text-[9px]">Challenge</span>}
+                    {invited && !isParticipant && !isDirectChallenge && <span className="badge badge-gold text-[9px]">Invited</span>}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-stone">
                     <span className="flex items-center gap-0.5"><Coins size={11} /> {formatDenarii(room.stake_amount)} Ð</span>
@@ -1037,6 +1101,27 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                   <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary relative z-10 text-xs">
                     Enter Room
                   </button>
+                ) : isChallengeTarget && directChallengeStatus === 'scheduled' ? (
+                  <button onClick={() => void startScheduledChallenge(room.id)} className="btn-primary relative z-10 text-xs">
+                    <Play size={14} /> Start Scheduled
+                  </button>
+                ) : isChallengeTarget && directChallengeStatus === 'pending' ? (
+                  <button
+                    onClick={() => {
+                      if (challengeSourceRoomId) activateRoom(challengeSourceRoomId, 'playing');
+                      else setError('Open your current Arena match to answer this challenge.');
+                    }}
+                    className="btn-primary relative z-10 text-xs"
+                  >
+                    <Swords size={14} /> Decide in Match
+                  </button>
+                ) : isDirectChallenge && !isChallengeTarget ? (
+                  <div className="relative z-10 flex items-center gap-2">
+                    <ArenaViewerStrip viewers={viewers} compact />
+                    <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
+                      <Eye size={14} /> Watch
+                    </button>
+                  </div>
                 ) : participants.length >= room.max_players ? (
                   <div className="relative z-10 flex items-center gap-2">
                     <ArenaViewerStrip viewers={viewers} compact />
@@ -1236,6 +1321,11 @@ function ArenaStandardSpectator({ room, userId, onExit, onGameCallCreated, onGam
           userId={userId}
           compact
           allowGameCalls
+          challengeTargets={participants.map((participant: any) => ({
+            userId: participant.user_id,
+            name: participant.profiles?.display_name || 'Arena player',
+            avatarUrl: participant.profiles?.avatar_url || null,
+          }))}
           onGameCallCreated={onGameCallCreated}
           onGameCallAction={onGameCallAction}
         />
@@ -1361,7 +1451,7 @@ function dedupeArenaQuestions(items: QuestionPayload[]) {
   });
 }
 
-function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit }: {
+function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit, onGameCallAction }: {
   roomName: string;
   roomId: string;
   userId: string;
@@ -1370,6 +1460,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   onForfeit: () => void;
   forfeiting: boolean;
   onExit: () => void;
+  onGameCallAction: (gameCall: ArenaChatGameCall) => Promise<void> | void;
 }) {
   const { profile } = useAuth();
   const [questions, setQuestions] = useState<QuestionPayload[]>([]);
@@ -1724,7 +1815,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
             <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Room chat</span>
             <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
           </summary>
-          <ArenaRoomChat roomId={roomId} userId={userId} compact />
+          <ArenaRoomChat roomId={roomId} userId={userId} compact onGameCallAction={onGameCallAction} />
         </details>
       )}
 
