@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign, Clock, Crown, Dices, Gift, Loader2,
-  Flag, LockKeyhole, MessageCircle, RotateCw, Send, Shield, Sparkles, Trophy, X,
+  Eye, Flag, LockKeyhole, MessageCircle, RotateCw, Shield, Sparkles, Trophy, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { UserAvatar } from '../../components/UserAvatar';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
-import { fetchArenaRoomMessages, fetchRoadHomeState, initializeRoadHome, sendArenaRoomMessage, sendRoadHomeCommand } from '../../lib/queries';
+import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+import { fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
+import type { ArenaChatGameCall } from '../../lib/queries';
 import type { RoadHomePawn, RoadHomePlayer, RoadHomeState } from '../../lib/roadHomeTypes';
 import { playRoundWarningBeep, playSoundEffect } from '../../lib/soundscape';
 
@@ -16,9 +18,12 @@ type Props = {
   roomId: string;
   roomName: string;
   userId: string;
+  spectator?: boolean;
   prepareQuestions?: () => Promise<void>;
   onExit: () => void;
   onStateChanged?: () => Promise<void> | void;
+  onGameCallCreated?: (gameCall: ArenaChatGameCall) => Promise<void> | void;
+  onGameCallAction?: (gameCall: ArenaChatGameCall) => Promise<void> | void;
 };
 
 type Coordinate = readonly [number, number];
@@ -100,7 +105,17 @@ function formatPhase(state: RoadHomeState, mine: boolean) {
   return 'The Road Home';
 }
 
-export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExit, onStateChanged }: Props) {
+export function RoadHomeGame({
+  roomId,
+  roomName,
+  userId,
+  spectator = false,
+  prepareQuestions,
+  onExit,
+  onStateChanged,
+  onGameCallCreated,
+  onGameCallAction,
+}: Props) {
   const [state, setState] = useState<RoadHomeState | null>(null);
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
@@ -124,17 +139,21 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
 
   const load = useCallback(async () => {
     try {
-      const response = await fetchRoadHomeState(roomId);
+      const response = spectator
+        ? await fetchRoadHomeSpectatorState(roomId)
+        : await fetchRoadHomeState(roomId);
       if (response.state) {
         hasState.current = true;
         setState(response.state);
         setError(null);
-      } else if (response.needsInitialization) {
+      } else if (response.needsInitialization && !spectator) {
         setInitializing(true);
         try { await prepareQuestions?.(); } catch { /* The server has a verified local question pool. */ }
         const initialized = await initializeRoadHome(roomId);
         hasState.current = Boolean(initialized.state);
         setState(initialized.state);
+      } else if (response.needsInitialization) {
+        setError('The live board is being prepared. It will appear here automatically.');
       }
     } catch (loadError: unknown) {
       if (!hasState.current) setError(roadHomeError(loadError, 'The Road Home board could not load.'));
@@ -142,7 +161,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       setLoading(false);
       setInitializing(false);
     }
-  }, [prepareQuestions, roomId]);
+  }, [prepareQuestions, roomId, spectator]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -165,7 +184,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [load, roomId]);
 
   const send = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
-    if (!state || sending) return false;
+    if (spectator || !state || sending) return false;
     const rollStartedAt = action === 'ROLL' ? performance.now() : 0;
     setSending(true);
     setError(null);
@@ -220,7 +239,7 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       if (action === 'ROLL') setDiceRolling(false);
       setSending(false);
     }
-  }, [load, roomId, sending, state, userId]);
+  }, [load, roomId, sending, spectator, state, userId]);
 
   const activePlayer = state?.players[state.activePlayerIndex] || null;
   const myTurn = activePlayer?.id === userId;
@@ -366,7 +385,9 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><p className="eyebrow">Full Circle: The Road Home</p><h2 className="truncate font-display text-xl font-bold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2></div>
         <div className="flex items-center gap-2">
-          <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>
+          {spectator
+            ? <span className="badge badge-gold"><Eye size={12} /> Watching Live</span>
+            : <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>}
           <button onClick={onExit} className="btn-ghost h-9 w-9 p-0" title="Leave this view"><X size={17} /></button>
         </div>
       </div>
@@ -431,7 +452,18 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
           <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
             <MessageCircle size={15} /> Match Chat
           </button>
-          {chatOpen && <ArenaMatchChat roomId={roomId} userId={userId} />}
+          {chatOpen && (
+            <ArenaRoomChat
+              roomId={roomId}
+              userId={userId}
+              allowGameCalls={spectator}
+              challengeTargets={spectator ? state.players
+                .filter((player) => !player.isBot)
+                .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
+              onGameCallCreated={spectator ? onGameCallCreated : undefined}
+              onGameCallAction={onGameCallAction}
+            />
+          )}
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
         </aside>
       </div>
@@ -453,57 +485,6 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function ArenaMatchChat({ roomId, userId }: { roomId: string; userId: string }) {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
-  const loadMessages = useCallback(async () => {
-    try { setMessages(await fetchArenaRoomMessages(roomId)); } catch (error) { console.error('Arena match chat load failed', error); }
-  }, [roomId]);
-
-  useEffect(() => {
-    void loadMessages();
-    const channel = supabase.channel(`road-home-chat-${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}` }, () => void loadMessages())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [loadMessages, roomId]);
-
-  const submit = async () => {
-    if (!body.trim() || sending) return;
-    setSending(true);
-    try {
-      await sendArenaRoomMessage(roomId, userId, body);
-      setBody('');
-      await loadMessages();
-    } catch (error) {
-      console.error('Arena match chat send failed', error);
-    }
-    setSending(false);
-  };
-
-  return (
-    <div className="rounded-lg border border-border bg-surface/95 p-3 animate-slide-up">
-      <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-        {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk during the match.</p> : messages.slice(-8).map((message) => {
-          const mine = message.sender_id === userId;
-          return (
-            <div key={message.id} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
-              <p className={cn('max-w-[84%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}>
-                <span className="mr-1 font-bold">{mine ? 'You' : message.sender?.display_name || 'Player'}</span>{message.body}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-3 flex gap-2">
-        <input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void submit(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Send a match message..." />
-        <button type="button" onClick={() => void submit()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send match message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button>
-      </div>
     </div>
   );
 }

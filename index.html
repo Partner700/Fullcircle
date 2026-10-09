@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="173" />
+  <meta name="full-circle-release" content="176" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="%BASE_URL%icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="%BASE_URL%browserconfig.xml" />
@@ -21,7 +21,7 @@
 
   <!-- This tiny shell is deliberately kept inline. The complete application
        stylesheet is verified separately before React is allowed to mount. -->
-  <style data-full-circle-critical-styles="173">
+  <style data-full-circle-critical-styles="174">
     html,body,#root{min-height:100%;margin:0;background:#0f2037;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     html::before{content:"Opening Full Circle";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f2037;color:#dde3ff;font:700 15px system-ui;z-index:0}
     body{position:relative;z-index:1}
@@ -106,13 +106,13 @@
         ? window.location.pathname.slice(0, assetSegment + 1)
         : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
       var appUrl = new URL(appPath || '/', window.location.origin);
-      appUrl.searchParams.set('fc-asset-recovery', '173');
+      appUrl.searchParams.set('fc-asset-recovery', '174');
       window.location.replace(appUrl.toString());
     }
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=173" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=174" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -186,8 +186,8 @@
     // A pre-migration worker may still control an installed phone. Retire only
     // those old caches, then keep recovery on the user's current origin.
     (function () {
-      var release = '173';
-      var currentCachePrefix = 'full-circle-target-v173';
+      var release = '174';
+      var currentCachePrefix = 'full-circle-target-v176';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -275,7 +275,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=173', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=174', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }

@@ -3195,10 +3195,39 @@ export type ArenaTriviaFeedItem = {
   created_at: string;
 };
 
+export type ArenaViewer = {
+  room_id: string;
+  user_id: string;
+  joined_at: string;
+  last_seen_at: string;
+  profiles: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+};
+
 export async function fetchArenaTriviaFeed(roomId: string) {
   const { data, error } = await supabase.rpc('get_arena_trivia_feed', { p_room_id: roomId });
   if (error) throw error;
   return (data || []) as ArenaTriviaFeedItem[];
+}
+
+export async function watchArenaRoom(roomId: string) {
+  const { data, error } = await supabase.rpc('watch_arena_room', { p_room_id: roomId });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function heartbeatArenaViewer(roomId: string) {
+  const { data, error } = await supabase.rpc('heartbeat_arena_viewer', { p_room_id: roomId });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function leaveArenaRoomView(roomId: string) {
+  const { error } = await supabase.rpc('leave_arena_room_view', { p_room_id: roomId });
+  if (error) throw error;
 }
 
 export async function fetchArenaRoomMessages(roomId: string) {
@@ -3224,6 +3253,81 @@ export async function sendArenaRoomMessage(roomId: string, senderId: string, bod
     body: body.trim(),
   });
   if (error) throw error;
+}
+
+export type ArenaChatGameCall = {
+  id: string;
+  source_room_id: string;
+  target_room_id: string;
+  creator_id: string;
+  creator_name: string;
+  creator_avatar_url: string | null;
+  challenged_user_id: string | null;
+  challenged_user_name: string | null;
+  challenged_user_avatar_url: string | null;
+  challenge_status: 'pending' | 'accepted' | 'declined' | 'scheduled';
+  source_play_mode: 'machine' | 'versus' | null;
+  game_type: 'standard' | 'ludo';
+  room_name: string;
+  stake_amount: number;
+  max_players: number;
+  participant_count: number;
+  participant_ids: string[];
+  room_status: 'waiting' | 'playing' | 'completed' | 'cancelled' | 'expired';
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchArenaChatGameCalls(roomId: string): Promise<ArenaChatGameCall[]> {
+  const { data, error } = await supabase.rpc('get_arena_chat_game_calls', {
+    p_source_room_id: roomId,
+  });
+  if (error) throw error;
+  return (data || []).map((value: unknown) => {
+    const gameCall = value as Record<string, unknown>;
+    return {
+      ...gameCall,
+      stake_amount: Number(gameCall.stake_amount) || 0,
+      max_players: Number(gameCall.max_players) || 0,
+      participant_count: Number(gameCall.participant_count) || 0,
+      participant_ids: Array.isArray(gameCall.participant_ids)
+        ? gameCall.participant_ids.filter((id): id is string => typeof id === 'string')
+        : [],
+    } as ArenaChatGameCall;
+  });
+}
+
+export async function createArenaChatGameCall(payload: {
+  sourceRoomId: string;
+  gameType: 'standard' | 'ludo';
+  stakeAmount: number;
+  maxPlayers: number;
+  challengedUserId?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('create_arena_chat_game_call', {
+    p_source_room_id: payload.sourceRoomId,
+    p_game_type: payload.gameType,
+    p_stake_amount: payload.stakeAmount,
+    p_max_players: payload.maxPlayers,
+    p_challenged_user_id: payload.challengedUserId || null,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export type ArenaChallengeResponse = 'accept' | 'decline' | 'schedule';
+
+export async function respondArenaChatChallenge(
+  targetRoomId: string,
+  response: ArenaChallengeResponse,
+) {
+  const { data, error } = await supabase.rpc('respond_arena_chat_challenge', {
+    p_target_room_id: targetRoomId,
+    p_response: response,
+  });
+  if (error) throw error;
+  return String(data);
 }
 
 export async function fetchQuizWaitingMessages(sessionId: string) {
@@ -3335,6 +3439,20 @@ export function fetchRoadHomeState(roomId: string) {
   return callRoadHomeServer({ roomId, action: 'GET' });
 }
 
+export async function fetchRoadHomeSpectatorState(roomId: string): Promise<RoadHomeResponse> {
+  const { data, error } = await supabase
+    .from('arena_ludo_public_states')
+    .select('version,public_state')
+    .eq('room_id', roomId)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    state: data?.public_state || null,
+    version: data?.version == null ? undefined : Number(data.version),
+    needsInitialization: !data,
+  } as RoadHomeResponse;
+}
+
 export function initializeRoadHome(roomId: string) {
   return callRoadHomeServer({ roomId, action: 'INIT', commandId: crypto.randomUUID() });
 }
@@ -3358,14 +3476,27 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
   if (rooms.length === 0) return [];
 
   const roomIds = rooms.map((room) => room.id);
-  const { data: participants, error: participantError } = await supabase
-    .from('arena_participants')
-    .select('*')
-    .in('room_id', roomIds)
-    .order('joined_at', { ascending: true });
+  const activeViewerCutoff = new Date(Date.now() - 2 * 60_000).toISOString();
+  const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }] = await Promise.all([
+    supabase
+      .from('arena_participants')
+      .select('id,room_id,user_id,stake_paid,score,correct_count,finished_at,joined_at,last_active_at,forfeited_at,forfeit_reason')
+      .in('room_id', roomIds)
+      .order('joined_at', { ascending: true }),
+    supabase
+      .from('arena_viewers')
+      .select('room_id,user_id,joined_at,last_seen_at')
+      .in('room_id', roomIds)
+      .gte('last_seen_at', activeViewerCutoff)
+      .order('joined_at', { ascending: true }),
+  ]);
   if (participantError) throw participantError;
+  if (viewerError && viewerError.code !== '42P01' && viewerError.code !== 'PGRST205') throw viewerError;
 
-  const userIds = Array.from(new Set((participants || []).map((participant: any) => participant.user_id).filter(Boolean)));
+  const userIds = Array.from(new Set([
+    ...(participants || []).map((participant: any) => participant.user_id),
+    ...(viewers || []).map((viewer: any) => viewer.user_id),
+  ].filter(Boolean)));
   const profileMap = new Map<string, any>();
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
@@ -3383,6 +3514,12 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
         ...participant,
         profiles: profileMap.get(participant.user_id) || null,
       })),
+    arena_viewers: (viewers || [])
+      .filter((viewer: any) => viewer.room_id === room.id)
+      .map((viewer: any) => ({
+        ...viewer,
+        profiles: profileMap.get(viewer.user_id) || null,
+      })) as ArenaViewer[],
   }));
 }
 
