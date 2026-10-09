@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="179" />
+  <meta name="full-circle-release" content="180" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="./icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="./browserconfig.xml" />
@@ -21,7 +21,7 @@
 
   <!-- This tiny shell is deliberately kept inline. The complete application
        stylesheet is verified separately before React is allowed to mount. -->
-  <style data-full-circle-critical-styles="179">
+  <style data-full-circle-critical-styles="180">
     html,body,#root{min-height:100%;margin:0;background:#0f2037;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     html::before{content:"Opening Full Circle";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f2037;color:#dde3ff;font:700 15px system-ui;z-index:0}
     body{position:relative;z-index:1}
@@ -106,13 +106,13 @@
         ? window.location.pathname.slice(0, assetSegment + 1)
         : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
       var appUrl = new URL(appPath || '/', window.location.origin);
-      appUrl.searchParams.set('fc-asset-recovery', '179');
+      appUrl.searchParams.set('fc-asset-recovery', '180');
       window.location.replace(appUrl.toString());
     }
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="./manifest.webmanifest?v=179" />
+  <link rel="manifest" href="./manifest.webmanifest?v=180" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=7" />
@@ -179,8 +179,8 @@
     // updates quiet, but let an explicit retry verify the network and replace
     // every Full Circle shell cache that could be trapping the phone.
     (function () {
-      var release = '179';
-      var currentCachePrefix = 'full-circle-target-v179';
+      var release = '180';
+      var currentCachePrefix = 'full-circle-target-v180';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -323,7 +323,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('./fc-worker.js?v=179', { updateViaCache: 'none' })
+          .register('./fc-worker.js?v=180', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -375,9 +375,9 @@
       }, { once: true });
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-whLAbEQa.js" onerror="window.__loadFullCircleMirror(this.src)"></script>
+  <script type="module" crossorigin src="./assets/index-DUmiQQKc.js" onerror="window.__loadFullCircleMirror(this.src)"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-DpNgz4Wy.js">
-  <link rel="stylesheet" href="./full-circle-release.css?v=179" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">
+  <link rel="stylesheet" href="./full-circle-release.css?v=180" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">
 </head>
 <body>
   <main id="root">

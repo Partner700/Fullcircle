@@ -3207,10 +3207,49 @@ export type ArenaViewer = {
   } | null;
 };
 
+export type ArenaLiveTriviaState = {
+  room_id: string;
+  question_index: number;
+  actor_kind: 'player' | 'machine';
+  player_id: string | null;
+  actor_name: string;
+  actor_avatar_url: string | null;
+  phase: 'question' | 'verdict';
+  question: QuestionPayload;
+  selected_answer: string | null;
+  is_correct: boolean | null;
+  opened_at: string;
+  answered_at: string | null;
+  updated_at: string;
+};
+
 export async function fetchArenaTriviaFeed(roomId: string) {
   const { data, error } = await supabase.rpc('get_arena_trivia_feed', { p_room_id: roomId });
   if (error) throw error;
   return (data || []) as ArenaTriviaFeedItem[];
+}
+
+export async function publishArenaTriviaState(
+  roomId: string,
+  questionIndex: number,
+  phase: 'question' | 'verdict',
+  actorKind: 'player' | 'machine' = 'player',
+) {
+  const { data, error } = await supabase.rpc('publish_arena_trivia_state', {
+    p_room_id: roomId,
+    p_question_index: questionIndex,
+    p_phase: phase,
+    p_actor_kind: actorKind,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function fetchArenaLiveTriviaState(roomId: string) {
+  const { data, error } = await supabase.rpc('get_arena_live_trivia_state', { p_room_id: roomId });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? row as ArenaLiveTriviaState : null;
 }
 
 export async function watchArenaRoom(roomId: string) {
@@ -3526,6 +3565,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
 export async function fetchArenaRooms() {
   try {
     await supabase.rpc('expire_stale_arena_rooms');
+    await supabase.rpc('repair_orphaned_arena_matches');
   } catch {}
 
   const { data, error } = await supabase
@@ -3540,6 +3580,7 @@ export async function fetchArenaRooms() {
 export async function fetchArenaRoom(roomId: string) {
   try {
     await supabase.rpc('expire_stale_arena_rooms');
+    await supabase.rpc('repair_orphaned_arena_matches');
   } catch {}
 
   const { data, error } = await supabase
