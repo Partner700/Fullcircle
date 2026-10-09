@@ -162,14 +162,18 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
     setError(null);
     try {
       await watchArenaRoom(roomId);
+      const freshRoom = await refreshRoom(roomId);
+      if (freshRoom && !isWitnessableArenaRoom(freshRoom)) {
+        await leaveArenaRoomView(roomId).catch(() => undefined);
+        throw new Error('This Arena match has ended and cannot be witnessed.');
+      }
       setIsSpectating(true);
       setActiveRoomId(roomId);
       setFinishSummary(null);
-      const freshRoom = await refreshRoom(roomId);
       setPhase((freshRoom?.status || roomStatus) === 'waiting' ? 'waiting' : 'playing');
       return true;
     } catch (watchError: any) {
-      setError(watchError?.message || 'This live Arena match could not be opened.');
+      setError(watchError?.message || 'This live Arena match could not be witnessed.');
       return false;
     }
   }, [profile, refreshRoom]);
@@ -224,7 +228,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       }
       if (targetRoom.status === 'waiting' || targetRoom.status === 'playing') {
         const watching = await watchRoom(targetRoom.id, targetRoom.status);
-        if (!watching) throw new Error('That challenge could not be opened as a viewer.');
+        if (!watching) throw new Error('That challenge could not be opened as a witness.');
         return;
       }
       throw new Error('That Arena challenge is no longer open.');
@@ -248,7 +252,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
 
     if (targetRoom?.status === 'waiting' || targetRoom?.status === 'playing') {
       const watching = await watchRoom(targetRoom.id, targetRoom.status);
-      if (!watching) throw new Error('That game could not be opened as a viewer.');
+      if (!watching) throw new Error('That game could not be opened as a witness.');
       return;
     }
     throw new Error('That game call is no longer open.');
@@ -592,7 +596,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   if (phase === 'playing' && activeRoomId) {
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
     const activeRoomName = activeRoom?.room_name || roomName;
-    const viewers = (activeRoom?.arena_viewers || []) as ArenaViewer[];
+    const witnesses = (activeRoom?.arena_viewers || []) as ArenaViewer[];
     if (isSpectating && !activeRoom) {
       return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3"><Loader2 size={24} className="animate-spin text-brass" /><p className="text-sm text-stone">Opening the live Arena...</p></div>;
     }
@@ -618,7 +622,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
               await onBalanceChanged?.();
             }}
           />
-          <ArenaViewerStrip viewers={viewers} />
+          <ArenaWitnessStrip witnesses={witnesses} />
           {!isSpectating && (
             <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
           )}
@@ -635,7 +639,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
           />
-          <ArenaViewerStrip viewers={viewers} />
+          <ArenaWitnessStrip witnesses={witnesses} />
         </div>
       );
     }
@@ -670,7 +674,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           onExit={() => clearActiveRoom(true)}
           onGameCallAction={handleGameCallAction}
         />
-        <ArenaViewerStrip viewers={viewers} />
+        <ArenaWitnessStrip witnesses={witnesses} />
         <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
       </div>
     );
@@ -725,7 +729,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       );
     }
     const participants = room?.arena_participants || [];
-    const viewers = (room?.arena_viewers || []) as ArenaViewer[];
+    const witnesses = (room?.arena_viewers || []) as ArenaViewer[];
     const isCreator = room?.creator_id === profile?.id;
     const machineMatch = room?.play_mode === 'machine';
     const canStart = machineMatch || participants.length >= 2;
@@ -857,8 +861,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
 
           {isSpectating ? (
             <div className="space-y-3">
-              <p className="text-center text-xs text-stone">You are watching this room fill. When the host starts, the board will open here.</p>
-              <ArenaViewerStrip viewers={viewers} />
+              <p className="text-center text-xs text-stone">You are witnessing this room fill. When the host starts, the board will open here.</p>
+              <ArenaWitnessStrip witnesses={witnesses} />
             </div>
           ) : isCreator ? (
             <div className="grid sm:grid-cols-2 gap-2">
@@ -1018,15 +1022,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
         </div>
       )}
 
-      {rooms.some((room) => room.status === 'playing') && (
+      {rooms.some((room) => isLiveArenaRoom(room)) && (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <h4 className="flex items-center gap-2 font-display text-sm font-semibold text-ink"><Radio size={15} className="animate-pulse text-coral" /> Live Now</h4>
-            <span className="text-[10px] font-semibold uppercase text-stone">Watch without joining the match</span>
+            <span className="text-[10px] font-semibold uppercase text-stone">Witness without joining the match</span>
           </div>
-          {rooms.filter((room) => room.status === 'playing').map((room) => {
+          {rooms.filter((room) => isLiveArenaRoom(room)).map((room) => {
             const participants = room.arena_participants || [];
-            const viewers = (room.arena_viewers || []) as ArenaViewer[];
+            const witnesses = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((participant: any) => participant.user_id === profile?.id && !participant.forfeited_at);
             return (
               <div data-artwork-theme={arenaImage?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4">
@@ -1036,18 +1040,23 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                     <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-coral/35 bg-coral-soft text-coral"><Swords size={20} /></span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
-                      <p className="mt-0.5 text-xs text-stone">{participants.map((participant: any) => participant.profiles?.display_name || 'Player').join(' vs ')} · {parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</p>
+                      <p className="mt-0.5 truncate text-xs text-stone">{participants.map((participant: any) => participant.profiles?.display_name || 'Player').join(' vs ')}</p>
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-stone">
+                        <span>{parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</span>
+                        <span aria-hidden="true">·</span>
+                        <ArenaElapsedTimer startedAt={room.started_at} />
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-3 sm:justify-end">
-                    <ArenaViewerStrip viewers={viewers} compact />
+                    <ArenaWitnessStrip witnesses={witnesses} compact />
                     <button
                       type="button"
                       onClick={() => isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
                       className="btn-primary min-w-[6.5rem] text-xs"
                     >
                       {isParticipant ? <Play size={14} /> : <Eye size={14} />}
-                      {isParticipant ? 'Enter Game' : 'Watch'}
+                      {isParticipant ? 'Enter Game' : 'Witness'}
                     </button>
                   </div>
                 </div>
@@ -1064,7 +1073,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
         ) : (
           rooms.filter((r) => r.status === 'waiting').map((room) => {
             const participants = room.arena_participants || [];
-            const viewers = (room.arena_viewers || []) as ArenaViewer[];
+            const witnesses = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((p: any) => p.user_id === profile?.id);
             const host = participants.find((p: any) => p.user_id === room.creator_id)?.profiles;
             const invited = Array.isArray(room.tagged_user_ids) && profile?.id ? room.tagged_user_ids.includes(profile.id) : false;
@@ -1117,16 +1126,16 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
                   </button>
                 ) : isDirectChallenge && !isChallengeTarget ? (
                   <div className="relative z-10 flex items-center gap-2">
-                    <ArenaViewerStrip viewers={viewers} compact />
+                    <ArenaWitnessStrip witnesses={witnesses} compact />
                     <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
-                      <Eye size={14} /> Watch
+                      <Eye size={14} /> Witness
                     </button>
                   </div>
                 ) : participants.length >= room.max_players ? (
                   <div className="relative z-10 flex items-center gap-2">
-                    <ArenaViewerStrip viewers={viewers} compact />
+                    <ArenaWitnessStrip witnesses={witnesses} compact />
                     <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
-                      <Eye size={14} /> Watch
+                      <Eye size={14} /> Witness
                     </button>
                   </div>
                 ) : (
@@ -1171,6 +1180,42 @@ function cleanArenaRoomName(roomName: string) {
   return roomName.replace(/\s*\[.*?\]/g, '').trim() || 'Arena Match';
 }
 
+function isLiveArenaRoom(room: any) {
+  return room?.status === 'playing' && Boolean(room.started_at) && !room.completed_at;
+}
+
+function isWitnessableArenaRoom(room: any) {
+  if (!room || room.completed_at) return false;
+  return room.status === 'waiting' || isLiveArenaRoom(room);
+}
+
+function formatArenaElapsedTime(startedAt?: string | null, now = Date.now()) {
+  const started = startedAt ? Date.parse(startedAt) : Number.NaN;
+  const totalSeconds = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0
+    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function ArenaElapsedTimer({ startedAt }: { startedAt?: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <span className="inline-flex items-center gap-1 tabular-nums" title="Time since this match started" aria-label={`Match underway for ${formatArenaElapsedTime(startedAt, now)}`}>
+      <Clock size={12} aria-hidden="true" />
+      {formatArenaElapsedTime(startedAt, now)}
+    </span>
+  );
+}
+
 const ARENA_MACHINE_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 function parseArenaDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
@@ -1178,22 +1223,22 @@ function parseArenaDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
   return (match?.[1]?.toLowerCase() as 'easy' | 'medium' | 'hard') || 'medium';
 }
 
-function ArenaViewerStrip({ viewers, compact = false }: { viewers: ArenaViewer[]; compact?: boolean }) {
-  const visible = viewers.slice(0, compact ? 4 : 8);
-  const remaining = Math.max(0, viewers.length - visible.length);
+function ArenaWitnessStrip({ witnesses, compact = false }: { witnesses: ArenaViewer[]; compact?: boolean }) {
+  const visible = witnesses.slice(0, compact ? 4 : 8);
+  const remaining = Math.max(0, witnesses.length - visible.length);
   return (
     <div className={cn(
       'flex min-w-0 items-center',
       compact ? 'gap-2' : 'mx-auto w-full max-w-3xl justify-between gap-3 rounded-lg border border-border bg-surface/85 px-3 py-2.5',
-    )} aria-label={`${viewers.length} watching this Arena match`}>
+    )} aria-label={`${witnesses.length} witnessing this Arena match`}>
       <span className={cn('flex items-center gap-1.5 font-semibold text-stone', compact ? 'text-[10px]' : 'text-xs')}>
-        <Eye size={compact ? 13 : 15} className="text-royal" /> {viewers.length} watching
+        <Eye size={compact ? 13 : 15} className="text-royal" /> {witnesses.length} witnessing
       </span>
       {visible.length > 0 && (
         <span className="flex -space-x-2">
-          {visible.map((viewer) => (
-            <span key={viewer.user_id} className={cn('relative inline-flex flex-shrink-0 rounded-full border-2 border-surface bg-surface shadow-sm', compact ? 'h-7 w-7' : 'h-8 w-8')} title={viewer.profiles?.display_name || 'Arena viewer'}>
-              <UserAvatar userId={viewer.user_id} name={viewer.profiles?.display_name} avatarUrl={viewer.profiles?.avatar_url} className="h-full w-full" />
+          {visible.map((witness) => (
+            <span key={witness.user_id} className={cn('relative inline-flex flex-shrink-0 rounded-full border-2 border-surface bg-surface shadow-sm', compact ? 'h-7 w-7' : 'h-8 w-8')} title={witness.profiles?.display_name || 'Arena witness'}>
+              <UserAvatar userId={witness.user_id} name={witness.profiles?.display_name} avatarUrl={witness.profiles?.avatar_url} className="h-full w-full" />
             </span>
           ))}
           {remaining > 0 && <span className={cn('relative inline-flex flex-shrink-0 items-center justify-center rounded-full border-2 border-surface bg-royal font-bold text-white shadow-sm', compact ? 'h-7 w-7 text-[8px]' : 'h-8 w-8 text-[9px]')}>+{remaining}</span>}
@@ -1289,7 +1334,7 @@ function ArenaStandardSpectator({ room, userId, onExit, onGameCallCreated, onGam
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
       <div className="flex items-center justify-between gap-3 px-1">
         <button type="button" onClick={onExit} className="btn-ghost text-sm"><ArrowLeft size={14} /> Arena</button>
-        <span className="badge badge-gold"><Eye size={12} /> Watching Live</span>
+        <span className="badge badge-gold"><Eye size={12} /> Witnessing Live</span>
         <span className="text-xs font-bold text-stone">Round {currentRound + 1} · {ARENA_ROUND_LABELS[currentRound]}</span>
       </div>
       <div className="flex gap-1.5 px-1">

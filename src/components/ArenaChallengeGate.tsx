@@ -113,7 +113,7 @@ export function ArenaChallengeGate({ roomId, userId, onAccepted }: Props) {
         </div>
 
         {machineMatch ? (
-          <p className="mt-3 text-[11px] leading-relaxed text-stone">Accepting forfeits this machine match and immediately restarts the Arena with your challenger. Everyone watching stays with the game.</p>
+          <p className="mt-3 text-[11px] leading-relaxed text-stone">Accepting forfeits this machine match and immediately restarts the Arena with your challenger. Every witness stays with the game.</p>
         ) : (
           <p className="mt-3 text-[11px] leading-relaxed text-stone">Finish your current player match first. You can decline or reserve this as your next match.</p>
         )}
