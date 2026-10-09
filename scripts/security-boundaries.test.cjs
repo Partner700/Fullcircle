@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '177', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '178', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -508,7 +508,8 @@ assert.ok(serviceWorker.includes(`CACHE_VERSION = 'full-circle-target-v${startup
 assert.ok(serviceWorker.includes(`CACHE_STORAGE_VERSION = 'full-circle-target-v${startupRelease}'`));
 assert.doesNotMatch(serviceWorker, /ROLLBACK_CACHE_PREFIXES/);
 assert.ok(serviceWorker.includes(`RECOVERY_MARKER = '${startupRelease}'`));
-assert.ok(serviceWorker.includes(`MINIMUM_SAFE_RELEASE = ${startupRelease}`));
+assert.ok(serviceWorker.includes('MINIMUM_SAFE_RELEASE = 177'));
+assert.ok(177 <= Number(startupRelease), 'The minimum safe worker release cannot exceed the current release.');
 assert.match(serviceWorker, /function releaseDocumentVersion/);
 assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 3_000/);

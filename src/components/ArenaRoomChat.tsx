@@ -48,7 +48,7 @@ function gameCallAction(gameCall: ArenaChatGameCall, userId: string, allowOpenCa
   if (gameCall.challenged_user_id) {
     if (gameCall.challenged_user_id === userId) return null;
     if (allowOpenCallActions && (gameCall.room_status === 'waiting' || gameCall.room_status === 'playing')) {
-      return { label: 'Watch', icon: Eye };
+      return { label: 'Witness', icon: Eye };
     }
     return null;
   }
@@ -57,7 +57,7 @@ function gameCallAction(gameCall: ArenaChatGameCall, userId: string, allowOpenCa
     return { label: 'Join', icon: Plus };
   }
   if (gameCall.room_status === 'waiting' || gameCall.room_status === 'playing') {
-    return { label: 'Watch', icon: Eye };
+    return { label: 'Witness', icon: Eye };
   }
   return null;
 }
@@ -126,7 +126,7 @@ function ArenaGameCallCard({
             type="button"
             onClick={() => void onAction(gameCall)}
             disabled={busy}
-            className={cn(action.label === 'Watch' ? 'btn-secondary' : 'btn-primary', 'min-w-[4.75rem] px-2.5 py-2 text-[11px]')}
+            className={cn(action.label === 'Witness' ? 'btn-secondary' : 'btn-primary', 'min-w-[4.75rem] px-2.5 py-2 text-[11px]')}
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : ActionIcon && <ActionIcon size={13} />}
             {action.label}

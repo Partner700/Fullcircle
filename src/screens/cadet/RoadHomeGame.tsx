@@ -386,7 +386,7 @@ export function RoadHomeGame({
         <div className="min-w-0"><p className="eyebrow">Full Circle: The Road Home</p><h2 className="truncate font-display text-xl font-bold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2></div>
         <div className="flex items-center gap-2">
           {spectator
-            ? <span className="badge badge-gold"><Eye size={12} /> Watching Live</span>
+            ? <span className="badge badge-gold"><Eye size={12} /> Witnessing Live</span>
             : <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>}
           <button onClick={onExit} className="btn-ghost h-9 w-9 p-0" title="Leave this view"><X size={17} /></button>
         </div>
