@@ -1,7 +1,6 @@
 const RECOVERY_KEY = 'full-circle-stale-bundle-recovery-at';
 const RECOVERY_WINDOW_MS = 300_000;
-const RELEASE_MARKER = '174';
-const CURRENT_CACHE_PREFIX = 'full-circle-target-v176';
+const RELEASE_MARKER = '177';
 let lastRecoveryInMemory = 0;
 
 const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css/i;
@@ -13,14 +12,14 @@ export async function reloadFreshApp(): Promise<void> {
   if ('serviceWorker' in navigator) {
     void navigator.serviceWorker.getRegistration().then((registration) => {
       registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-      registration?.active?.postMessage({ type: 'CLEAR_CACHES' });
+      registration?.active?.postMessage({ type: 'RESET_APP_SHELL' });
       void registration?.update().catch(() => undefined);
     }).catch(() => undefined);
   }
   if ('caches' in window) {
     void window.caches.keys().then((cacheNames) => Promise.all(
       cacheNames
-        .filter((cacheName) => cacheName.startsWith('full-circle-') && !cacheName.startsWith(CURRENT_CACHE_PREFIX))
+        .filter((cacheName) => cacheName.startsWith('full-circle-'))
         .map((cacheName) => window.caches.delete(cacheName)),
     )).catch(() => undefined);
   }

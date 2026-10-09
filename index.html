@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="176" />
+  <meta name="full-circle-release" content="177" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="%BASE_URL%icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="%BASE_URL%browserconfig.xml" />
@@ -21,7 +21,7 @@
 
   <!-- This tiny shell is deliberately kept inline. The complete application
        stylesheet is verified separately before React is allowed to mount. -->
-  <style data-full-circle-critical-styles="174">
+  <style data-full-circle-critical-styles="177">
     html,body,#root{min-height:100%;margin:0;background:#0f2037;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     html::before{content:"Opening Full Circle";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f2037;color:#dde3ff;font:700 15px system-ui;z-index:0}
     body{position:relative;z-index:1}
@@ -106,13 +106,13 @@
         ? window.location.pathname.slice(0, assetSegment + 1)
         : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
       var appUrl = new URL(appPath || '/', window.location.origin);
-      appUrl.searchParams.set('fc-asset-recovery', '174');
+      appUrl.searchParams.set('fc-asset-recovery', '177');
       window.location.replace(appUrl.toString());
     }
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=174" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=177" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -183,11 +183,12 @@
   <!-- Release-aware recovery for installed and in-browser copies. -->
   <title>Full Circle</title>
   <script>
-    // A pre-migration worker may still control an installed phone. Retire only
-    // those old caches, then keep recovery on the user's current origin.
+    // A pre-migration worker may still control an installed phone. Keep normal
+    // updates quiet, but let an explicit retry verify the network and replace
+    // every Full Circle shell cache that could be trapping the phone.
     (function () {
-      var release = '174';
-      var currentCachePrefix = 'full-circle-target-v176';
+      var release = '177';
+      var currentCachePrefix = 'full-circle-target-v177';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -200,7 +201,7 @@
         var show = function () {
           var root = document.getElementById('root');
           if (!root || root.dataset.fcAppMounted === 'true') return;
-          root.innerHTML = '<div data-fc-recovery-shell><div><p style="font-size:16px;font-weight:800">Full Circle is reconnecting.</p><p style="margin-top:9px;color:#cbd5e1;font-size:13px;line-height:1.5">Your account and progress are safe.</p><button type="button" onclick="window.__repairFullCircleBoot(true)">Try Again</button><p style="margin-top:14px;color:#94a3b8;font-size:11px">Release ' + release + '</p></div></div>';
+          root.innerHTML = '<div data-fc-recovery-shell><div><p style="font-size:16px;font-weight:800">Full Circle is reconnecting.</p><p style="margin-top:9px;color:#cbd5e1;font-size:13px;line-height:1.5">Your account and progress are safe.</p><button data-fc-retry type="button" onclick="window.__repairFullCircleBoot(true)">Try Again</button><p style="margin-top:14px;color:#94a3b8;font-size:11px">Release ' + release + '</p></div></div>';
         };
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, { once: true });
         else show();
@@ -244,38 +245,93 @@
         }, 6000);
       };
 
+      function releaseFromDocument(html) {
+        var tags = String(html || '').match(/<meta\b[^>]*>/gi) || [];
+        for (var index = 0; index < tags.length; index += 1) {
+          if (!/\bname=["']full-circle-release["']/i.test(tags[index])) continue;
+          var match = tags[index].match(/\bcontent=["'](\d+)["']/i);
+          return match ? Number(match[1]) : 0;
+        }
+        return 0;
+      }
+
+      async function verifiedNetworkShell() {
+        var appBaseUrl = new URL('%BASE_URL%', window.location.href);
+        var probeUrl = new URL('index.html', appBaseUrl);
+        probeUrl.searchParams.set('fc-connectivity', release);
+        probeUrl.searchParams.set('ts', String(Date.now()));
+        var response = await Promise.race([
+          fetch(probeUrl.href, { cache: 'no-store', headers: { Accept: 'text/html' } }),
+          new Promise(function (_, reject) {
+            window.setTimeout(function () { reject(new Error('Connection timed out.')); }, 15000);
+          })
+        ]);
+        if (!response || !response.ok) return false;
+        var contentType = response.headers.get('content-type') || '';
+        if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return false;
+        var html = await response.text();
+        return releaseFromDocument(html) >= Number(release) && /id=["']root["']/.test(html);
+      }
+
       window.__repairFullCircleBoot = async function (force) {
         if (repairStarted) return;
         repairStarted = true;
 
+        var retryButton = document.querySelector('[data-fc-retry]');
+        if (retryButton) {
+          retryButton.disabled = true;
+          retryButton.textContent = 'Reconnecting...';
+        }
+
         try {
           if ('serviceWorker' in navigator) {
             var registration = await navigator.serviceWorker.getRegistration().catch(function () { return null; });
-            if (registration && registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-            if (registration && registration.active) registration.active.postMessage({ type: 'CLEAR_CACHES' });
-            if (registration) await registration.update().catch(function () {});
+            if (registration) {
+              await Promise.race([
+                registration.update().catch(function () {}),
+                new Promise(function (resolve) { window.setTimeout(resolve, 4000); })
+              ]);
+              if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              if (!force && registration.active) registration.active.postMessage({ type: 'CLEAR_RETIRED_CACHES' });
+            }
+          }
+          if (force && !await verifiedNetworkShell()) throw new Error('Full Circle is not reachable yet.');
+          if (force && registration) {
+            var recoveryWorker = registration.active || registration.waiting || registration.installing;
+            if (recoveryWorker) recoveryWorker.postMessage({ type: 'RESET_APP_SHELL' });
           }
           if ('caches' in window) {
             var cacheNames = await window.caches.keys().catch(function () { return []; });
             await Promise.all(cacheNames.filter(function (cacheName) {
               return cacheName.indexOf('full-circle-') === 0
-                && cacheName.indexOf(currentCachePrefix) !== 0;
+                && (force || cacheName.indexOf(currentCachePrefix) !== 0);
             }).map(function (cacheName) {
               return window.caches.delete(cacheName);
             })).catch(function () {});
           }
-        } finally {
+        } catch (error) {
+          repairStarted = false;
+          if (retryButton) {
+            retryButton.disabled = false;
+            retryButton.textContent = 'Still reconnecting - Try Again';
+          }
+          return;
+        }
+
+        try {
           var freshUrl = new URL(window.location.href);
           freshUrl.searchParams.set(marker, release);
           freshUrl.searchParams.set('ts', String(Date.now()));
           if (force) window.location.replace(freshUrl.toString());
           else repairStarted = false;
+        } catch (error) {
+          repairStarted = false;
         }
       };
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=174', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=177', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }

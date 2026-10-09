@@ -24,15 +24,17 @@ if (fs.existsSync(manifest)) {
 const builtIndex = path.join(root, 'dist', 'index.html');
 if (fs.existsSync(builtIndex)) {
   let html = fs.readFileSync(builtIndex, 'utf8');
+  const release = html.match(/<meta\s+name="full-circle-release"\s+content="(\d+)"/)?.[1];
+  if (!release) throw new Error('The built application is missing its Full Circle release marker.');
   html = html.replace(
     /<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="(\.\/assets\/[^"]+\.css)")[^>]*>/g,
     (tag, relativeCssPath) => {
       const cssPath = path.join(root, 'dist', relativeCssPath.replace(/^\.\//, ''));
       if (!fs.existsSync(cssPath)) return tag;
       const releaseCss = path.join(root, 'dist', 'full-circle-release.css');
-      const css = `${fs.readFileSync(cssPath, 'utf8')}\n:root{--full-circle-release-style:"176"}\n`;
+      const css = `${fs.readFileSync(cssPath, 'utf8')}\n:root{--full-circle-release-style:"${release}"}\n`;
       fs.writeFileSync(releaseCss, css);
-      return '<link rel="stylesheet" href="./full-circle-release.css?v=174" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">';
+      return `<link rel="stylesheet" href="./full-circle-release.css?v=${release}" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">`;
     },
   );
 
