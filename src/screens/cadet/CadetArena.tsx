@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -19,6 +19,9 @@ import {
   finishArenaGame,
   submitArenaTriviaAnswer,
   fetchArenaTriviaFeed,
+  watchArenaRoom,
+  heartbeatArenaViewer,
+  leaveArenaRoomView,
   fetchArenaRoomMessages,
   sendArenaRoomMessage,
   fetchArenaRooms,
@@ -35,10 +38,10 @@ import { activeArenaRoomStorageKey } from '../../lib/dailyGames';
 import { safeJsonStorageGet, safeStorageGet, safeStorageRemove, safeStorageSet } from '../../lib/safeStorage';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
-import type { ArenaTriviaFeedItem } from '../../lib/queries';
+import type { ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Send, Flag,
-  Shield, ArrowLeft, ChevronDown,
+  Shield, ArrowLeft, ChevronDown, Eye, Radio,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -64,6 +67,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo'>('standard');
   const [arenaDifficulty, setArenaDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [isSpectating, setIsSpectating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [starting, setStarting] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -98,14 +102,18 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   }, [profile]);
 
   useEffect(() => {
-    if (!profile || !activeRoomId) return;
+    if (!profile || !activeRoomId || isSpectating) return;
     safeStorageSet('local', activeArenaRoomStorageKey(profile.id), activeRoomId);
-  }, [profile, activeRoomId]);
+  }, [profile, activeRoomId, isSpectating]);
 
   const clearActiveRoom = useCallback((dismiss = false) => {
     if (profile && activeRoomId) {
-      safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
-      if (dismiss) {
+      if (isSpectating) {
+        void leaveArenaRoomView(activeRoomId).catch(() => null);
+      } else {
+        safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
+      }
+      if (dismiss && !isSpectating) {
         const key = dismissedArenaRoomsKey(profile.id);
         const dismissed = new Set(safeJsonStorageGet<string[]>('local', key, []));
         dismissed.add(activeRoomId);
@@ -113,9 +121,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       }
     }
     setActiveRoomId(null);
+    setIsSpectating(false);
     setPhase('lobby');
     setFinishSummary(null);
-  }, [activeRoomId, profile]);
+  }, [activeRoomId, isSpectating, profile]);
 
   const activateRoom = useCallback((roomId: string, nextPhase: ArenaPhase = 'waiting') => {
     if (profile) {
@@ -125,10 +134,41 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       safeStorageSet('local', dismissedKey, JSON.stringify(Array.from(dismissed)));
       safeStorageSet('local', activeArenaRoomStorageKey(profile.id), roomId);
     }
+    setIsSpectating(false);
     setActiveRoomId(roomId);
     setPhase(nextPhase);
     setFinishSummary(null);
   }, [profile]);
+
+  const refreshRooms = useCallback(async () => {
+    try { setRooms(await fetchArenaRooms()); } catch (refreshError) { console.error('Arena room refresh failed:', refreshError); }
+  }, []);
+
+  const refreshRoom = useCallback(async (roomId: string) => {
+    try {
+      const freshRoom = await fetchArenaRoom(roomId);
+      if (!freshRoom) return null;
+      setRooms((current) => [freshRoom, ...current.filter((room) => room.id !== roomId)]);
+      return freshRoom;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const watchRoom = useCallback(async (roomId: string) => {
+    if (!profile) return;
+    setError(null);
+    try {
+      await watchArenaRoom(roomId);
+      setIsSpectating(true);
+      setActiveRoomId(roomId);
+      setFinishSummary(null);
+      setPhase('playing');
+      await refreshRoom(roomId);
+    } catch (watchError: any) {
+      setError(watchError?.message || 'This live Arena match could not be opened.');
+    }
+  }, [profile, refreshRoom]);
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -153,21 +193,48 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!profile || phase !== 'lobby') return;
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => { void refreshRooms(); }, 180);
+    };
+    const channel = supabase
+      .channel(`arena_lobby_${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_viewers' }, scheduleRefresh)
+      .subscribe();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshRooms();
+    }, 30_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshRooms(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [phase, profile, refreshRooms]);
+
   // Realtime subscription for room updates
   useEffect(() => {
     if (!activeRoomId) return;
     const channel = supabase
       .channel(`arena_room_${activeRoomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_participants', filter: `room_id=eq.${activeRoomId}` },
-        () => load())
+        () => { void refreshRoom(activeRoomId); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_viewers', filter: `room_id=eq.${activeRoomId}` },
+        () => { void refreshRoom(activeRoomId); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms', filter: `id=eq.${activeRoomId}` },
-        () => load())
+        () => { void refreshRoom(activeRoomId); })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [activeRoomId, load]);
+    return () => { void supabase.removeChannel(channel); };
+  }, [activeRoomId, refreshRoom]);
 
   useEffect(() => {
-    if (!profile || !activeRoomId || phase !== 'playing') return;
+    if (!profile || !activeRoomId || phase !== 'playing' || isSpectating) return;
     let cancelled = false;
     const heartbeat = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -198,18 +265,51 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [activeRoomId, clearActiveRoom, phase, profile]);
+  }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile]);
+
+  useEffect(() => {
+    if (!profile || !activeRoomId || phase !== 'playing' || !isSpectating) return;
+    let cancelled = false;
+    const heartbeat = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const active = await heartbeatArenaViewer(activeRoomId);
+        if (!active && !cancelled) {
+          const freshRoom = await refreshRoom(activeRoomId);
+          if (freshRoom?.status === 'completed') {
+            setFinishSummary({ room: freshRoom, rhudes: null });
+            setPhase('finished');
+            setError(null);
+            return;
+          }
+          setError('That Arena match is no longer live.');
+          clearActiveRoom(false);
+          return;
+        }
+        await refreshRoom(activeRoomId);
+      } catch { /* Realtime and the next heartbeat will retry. */ }
+    };
+    void heartbeat();
+    const interval = window.setInterval(() => { void heartbeat(); }, 25_000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void heartbeat(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile, refreshRoom]);
+
+  useEffect(() => {
+    if (!activeRoomId || !isSpectating) return;
+    return () => { void leaveArenaRoomView(activeRoomId).catch(() => null); };
+  }, [activeRoomId, isSpectating]);
 
   useEffect(() => {
     if (!activeRoomId) return;
     const room = rooms.find((r) => r.id === activeRoomId);
     if (!room) {
-      fetchArenaRoom(activeRoomId)
-        .then((freshRoom) => {
-          if (!freshRoom) return;
-          setRooms((prev) => [freshRoom, ...prev.filter((item) => item.id !== freshRoom.id)]);
-        })
-        .catch(() => null);
+      void refreshRoom(activeRoomId);
       return;
     }
 
@@ -224,10 +324,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
       clearActiveRoom(false);
     }
     if (room.status === 'completed') {
-      if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
+      if (isSpectating) {
+        if (phase !== 'finished') {
+          setFinishSummary({ room, rhudes: null });
+          setPhase('finished');
+        }
+      } else if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
       } else if (phase !== 'finished') {
-        if (profile) {
+        if (profile && !isSpectating) {
           void fetchRhudeBoard()
             .then((rows) => {
               const mine = rows.find((row) => row.user_id === profile.id);
@@ -238,17 +343,17 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
           setFinishSummary({ room, rhudes: null });
         }
         setPhase('finished');
-        if (profile) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
+        if (profile && !isSpectating) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
       }
     }
     const myParticipant = (room.arena_participants || []).find((participant: any) => participant.user_id === profile?.id);
-    if (myParticipant?.forfeited_at && room.status === 'playing') {
+    if (!isSpectating && myParticipant?.forfeited_at && room.status === 'playing') {
       setError(myParticipant.forfeit_reason === 'inactive'
         ? 'You were away from this Arena match for three minutes and forfeited your place.'
         : 'You forfeited this Arena match.');
       clearActiveRoom(true);
     }
-  }, [activeRoomId, phase, rooms, profile, clearActiveRoom]);
+  }, [activeRoomId, phase, rooms, profile, clearActiveRoom, isSpectating, refreshRoom]);
 
   useEffect(() => {
     if (!activeRoomId || phase !== 'waiting') return;
@@ -388,55 +493,74 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
   if (phase === 'playing' && activeRoomId) {
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
     const activeRoomName = activeRoom?.room_name || roomName;
+    const viewers = (activeRoom?.arena_viewers || []) as ArenaViewer[];
+    if (isSpectating && !activeRoom) {
+      return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3"><Loader2 size={24} className="animate-spin text-brass" /><p className="text-sm text-stone">Opening the live Arena...</p></div>;
+    }
     if (parseArenaGameType(activeRoomName) === 'ludo') {
       return (
-        <RoadHomeGame
-          roomId={activeRoomId}
-          roomName={activeRoomName}
-          userId={profile!.id}
-          prepareQuestions={async () => {
-            const generated = await prepareArenaQuestionDeck({
-              roomId: activeRoomId,
-            });
-            if (!generated.length) throw new Error('The Arena question deck is empty.');
-          }}
-          onExit={() => clearActiveRoom(true)}
-          onStateChanged={async () => {
-            await load();
-            await onBalanceChanged?.();
-          }}
-        />
+        <div className="space-y-4">
+          <RoadHomeGame
+            roomId={activeRoomId}
+            roomName={activeRoomName}
+            userId={profile!.id}
+            spectator={isSpectating}
+            prepareQuestions={isSpectating ? undefined : async () => {
+              const generated = await prepareArenaQuestionDeck({
+                roomId: activeRoomId,
+              });
+              if (!generated.length) throw new Error('The Arena question deck is empty.');
+            }}
+            onExit={() => clearActiveRoom(!isSpectating)}
+            onStateChanged={async () => {
+              await load();
+              await onBalanceChanged?.();
+            }}
+          />
+          <ArenaViewerStrip viewers={viewers} />
+        </div>
+      );
+    }
+    if (isSpectating) {
+      return (
+        <div className="space-y-4">
+          <ArenaStandardSpectator room={activeRoom} userId={profile!.id} onExit={() => clearActiveRoom(false)} />
+          <ArenaViewerStrip viewers={viewers} />
+        </div>
       );
     }
     return (
-      <ArenaGamePlay
-        roomName={activeRoom?.room_name || roomName}
-        roomId={activeRoomId}
-        userId={profile!.id}
-        roomQuestionSet={activeRoom?.question_set}
-        onComplete={async (score, correctCount) => {
-          try {
-            await finishArenaGame(activeRoomId, profile!.id, score, correctCount);
-          } catch (finishError) {
-            console.error('Arena finish settlement failed', finishError);
-          }
-          const [freshRoomResult, rhudeResult] = await Promise.allSettled([
-            fetchArenaRoom(activeRoomId),
-            fetchRhudeBoard(),
-          ]);
-          const finishedRoom = freshRoomResult.status === 'fulfilled' ? freshRoomResult.value : null;
-          const rhudes = rhudeResult.status === 'fulfilled'
-            ? Number(rhudeResult.value.find((row) => row.user_id === profile!.id)?.rhudes) || 0
-            : null;
-          if (finishedRoom) setRooms((prev) => [finishedRoom, ...prev.filter((item) => item.id !== finishedRoom.id)]);
-          setFinishSummary({ room: finishedRoom, rhudes });
-          setPhase('finished');
-          await onBalanceChanged?.();
-        }}
-        onForfeit={forfeitStandardMatch}
-        forfeiting={forfeiting}
-        onExit={() => clearActiveRoom(true)}
-      />
+      <div className="space-y-4">
+        <ArenaGamePlay
+          roomName={activeRoom?.room_name || roomName}
+          roomId={activeRoomId}
+          userId={profile!.id}
+          roomQuestionSet={activeRoom?.question_set}
+          onComplete={async (score, correctCount) => {
+            try {
+              await finishArenaGame(activeRoomId, profile!.id, score, correctCount);
+            } catch (finishError) {
+              console.error('Arena finish settlement failed', finishError);
+            }
+            const [freshRoomResult, rhudeResult] = await Promise.allSettled([
+              fetchArenaRoom(activeRoomId),
+              fetchRhudeBoard(),
+            ]);
+            const finishedRoom = freshRoomResult.status === 'fulfilled' ? freshRoomResult.value : null;
+            const rhudes = rhudeResult.status === 'fulfilled'
+              ? Number(rhudeResult.value.find((row) => row.user_id === profile!.id)?.rhudes) || 0
+              : null;
+            if (finishedRoom) setRooms((prev) => [finishedRoom, ...prev.filter((item) => item.id !== finishedRoom.id)]);
+            setFinishSummary({ room: finishedRoom, rhudes });
+            setPhase('finished');
+            await onBalanceChanged?.();
+          }}
+          onForfeit={forfeitStandardMatch}
+          forfeiting={forfeiting}
+          onExit={() => clearActiveRoom(true)}
+        />
+        <ArenaViewerStrip viewers={viewers} />
+      </div>
     );
   }
 
@@ -453,10 +577,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
             {winner ? <Trophy size={32} className="text-gold" /> : <Users size={32} className="text-stone" />}
           </div>
           <h2 className="font-display text-2xl font-semibold text-ink mb-2">
-            {winner ? 'You Won!' : 'Game Over'}
+            {winner ? 'You Won!' : isSpectating ? 'Match Finished' : 'Game Over'}
           </h2>
           <p className="text-stone text-sm mb-4">
-            {winner ? `You won ${formatDenarii(prize)} Ð and earned 1 Rhude for this Arena victory.` : room?.completion_reason === 'forfeit' ? 'The match ended by forfeiture.' : 'Better luck next time!'}
+            {winner ? `You won ${formatDenarii(prize)} Ð and earned 1 Rhude for this Arena victory.` : room?.completion_reason === 'forfeit' ? 'The match ended by forfeiture.' : isSpectating ? 'The live Arena match has ended.' : 'Better luck next time!'}
           </p>
           {winner && (
             <div className="mb-5 rounded-xl border border-royal/25 bg-royal-soft px-4 py-3">
@@ -770,6 +894,45 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames }: CadetArenaP
         </div>
       )}
 
+      {rooms.some((room) => room.status === 'playing') && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="flex items-center gap-2 font-display text-sm font-semibold text-ink"><Radio size={15} className="animate-pulse text-coral" /> Live Now</h4>
+            <span className="text-[10px] font-semibold uppercase text-stone">Watch without joining the match</span>
+          </div>
+          {rooms.filter((room) => room.status === 'playing').map((room) => {
+            const participants = room.arena_participants || [];
+            const viewers = (room.arena_viewers || []) as ArenaViewer[];
+            const isParticipant = participants.some((participant: any) => participant.user_id === profile?.id && !participant.forfeited_at);
+            return (
+              <div data-artwork-theme={arenaImage?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4">
+                <PanelImageBackdrop image={arenaImage} opacityFallback={20} veilClassName="arena-panel-veil" />
+                <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-coral/35 bg-coral-soft text-coral"><Swords size={20} /></span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
+                      <p className="mt-0.5 text-xs text-stone">{participants.map((participant: any) => participant.profiles?.display_name || 'Player').join(' vs ')} · {parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 sm:justify-end">
+                    <ArenaViewerStrip viewers={viewers} compact />
+                    <button
+                      type="button"
+                      onClick={() => isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
+                      className="btn-primary min-w-[6.5rem] text-xs"
+                    >
+                      {isParticipant ? <Play size={14} /> : <Eye size={14} />}
+                      {isParticipant ? 'Enter Game' : 'Watch'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="space-y-2">
         <h4 className="font-display font-semibold text-ink text-sm">Open Rooms</h4>
         {rooms.filter((r) => r.status === 'waiting').length === 0 ? (
@@ -845,12 +1008,158 @@ function parseArenaGameType(roomName: string) {
   return /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
 
+function cleanArenaRoomName(roomName: string) {
+  return roomName.replace(/\s*\[.*?\]/g, '').trim() || 'Arena Match';
+}
+
+const ARENA_MACHINE_USER_ID = '00000000-0000-0000-0000-000000000000';
+
 function parseArenaDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
   const match = roomName.match(/\[difficulty:(easy|medium|hard)\]/i);
   return (match?.[1]?.toLowerCase() as 'easy' | 'medium' | 'hard') || 'medium';
 }
 
-function ArenaWaitingChat({ roomId, userId, compact = false }: { roomId: string; userId: string; compact?: boolean }) {
+function ArenaViewerStrip({ viewers, compact = false }: { viewers: ArenaViewer[]; compact?: boolean }) {
+  const visible = viewers.slice(0, compact ? 4 : 8);
+  const remaining = Math.max(0, viewers.length - visible.length);
+  return (
+    <div className={cn(
+      'flex min-w-0 items-center',
+      compact ? 'gap-2' : 'mx-auto w-full max-w-3xl justify-between gap-3 rounded-lg border border-border bg-surface/85 px-3 py-2.5',
+    )} aria-label={`${viewers.length} watching this Arena match`}>
+      <span className={cn('flex items-center gap-1.5 font-semibold text-stone', compact ? 'text-[10px]' : 'text-xs')}>
+        <Eye size={compact ? 13 : 15} className="text-royal" /> {viewers.length} watching
+      </span>
+      {visible.length > 0 && (
+        <span className="flex -space-x-2">
+          {visible.map((viewer) => (
+            <span key={viewer.user_id} className={cn('relative inline-flex flex-shrink-0 rounded-full border-2 border-surface bg-surface shadow-sm', compact ? 'h-7 w-7' : 'h-8 w-8')} title={viewer.profiles?.display_name || 'Arena viewer'}>
+              <UserAvatar userId={viewer.user_id} name={viewer.profiles?.display_name} avatarUrl={viewer.profiles?.avatar_url} className="h-full w-full" />
+            </span>
+          ))}
+          {remaining > 0 && <span className={cn('relative inline-flex flex-shrink-0 items-center justify-center rounded-full border-2 border-surface bg-royal font-bold text-white shadow-sm', compact ? 'h-7 w-7 text-[8px]' : 'h-8 w-8 text-[9px]')}>+{remaining}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ArenaStandardSpectator({ room, userId, onExit }: { room: any; userId: string; onExit: () => void }) {
+  const [feed, setFeed] = useState<ArenaTriviaFeedItem[]>([]);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const participants = useMemo(() => room.arena_participants || [], [room.arena_participants]);
+  const machineMatch = room.play_mode === 'machine';
+
+  const refreshFeed = useCallback(async () => {
+    try {
+      setFeed(await fetchArenaTriviaFeed(room.id));
+      setFeedError(null);
+    } catch (error: any) {
+      setFeedError(error?.message || 'The live score could not be refreshed.');
+    }
+  }, [room.id]);
+
+  useEffect(() => {
+    void refreshFeed();
+    const channel = supabase
+      .channel(`arena-spectator-feed-${room.id}-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'arena_trivia_responses', filter: `room_id=eq.${room.id}` },
+        (payload) => {
+          const response = payload.new as Omit<ArenaTriviaFeedItem, 'display_name' | 'avatar_url'>;
+          const participant = participants.find((item: any) => item.user_id === response.user_id);
+          const nextResponse: ArenaTriviaFeedItem = {
+            ...response,
+            display_name: participant?.profiles?.display_name || 'Arena player',
+            avatar_url: participant?.profiles?.avatar_url || null,
+          };
+          setFeed((current) => [
+            nextResponse,
+            ...current.filter((item) => item.user_id !== nextResponse.user_id || item.question_index !== nextResponse.question_index),
+          ].slice(0, 160));
+          if (machineMatch) void refreshFeed();
+        },
+      )
+      .subscribe();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshFeed();
+    }, 20_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshFeed(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [machineMatch, participants, refreshFeed, room.id, userId]);
+
+  const scores = feed.reduce((totals, response) => {
+    totals.set(response.user_id, (totals.get(response.user_id) || 0) + response.figs_earned);
+    return totals;
+  }, new Map<string, number>());
+  const orderedFeed = [...feed].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  const latest = orderedFeed[0] || null;
+  const currentQuestion = Math.max(0, ...feed.map((response) => response.question_index));
+  const activeParticipant = participants.length > 0 ? participants[feed.length % participants.length] : null;
+  const boardPlayers: ArenaBoardPlayer[] = participants.map((participant: any) => ({
+    userId: participant.user_id,
+    name: participant.profiles?.display_name || 'Arena player',
+    avatarUrl: participant.profiles?.avatar_url || null,
+    score: scores.get(participant.user_id) || 0,
+    active: !machineMatch && participant.user_id === activeParticipant?.user_id,
+  }));
+  if (machineMatch) {
+    boardPlayers.push({
+      userId: ARENA_MACHINE_USER_ID,
+      name: 'The Scribe',
+      avatarUrl: null,
+      score: scores.get(ARENA_MACHINE_USER_ID) || 0,
+      active: false,
+    });
+  }
+  const currentRound = getArenaRoundForIndex(currentQuestion);
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <button type="button" onClick={onExit} className="btn-ghost text-sm"><ArrowLeft size={14} /> Arena</button>
+        <span className="badge badge-gold"><Eye size={12} /> Watching Live</span>
+        <span className="text-xs font-bold text-stone">Round {currentRound + 1}</span>
+      </div>
+      <div className="flex gap-1.5 px-1">
+        {ARENA_ROUND_LENGTHS.map((_, index) => <div key={index} className={cn('h-1.5 flex-1 rounded-full', index < currentRound ? 'bg-sage' : index === currentRound ? 'bg-gold' : 'bg-surface-2')} />)}
+      </div>
+      <div className="flex items-center justify-between gap-3 px-1 text-[11px] text-stone sm:text-xs">
+        <span className="truncate font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</span>
+        <span className="truncate">{boardPlayers.map((player) => `${player.name} ${player.score}`).join(' · ')}</span>
+      </div>
+      {feedError && <div className="rounded-lg border border-coral/30 bg-coral-soft px-3 py-2 text-xs text-coral">{feedError}</div>}
+      <ArenaBattleBoard
+        players={boardPlayers}
+        currentQuestion={currentQuestion}
+        isMyTurn={false}
+        rolling={false}
+        revealingRoll={false}
+        dieValue={1}
+        latestOutcome={latest ? { player: latest.display_name, correct: latest.is_correct, answer: latest.submitted_answer || 'No answer' } : null}
+        waitingName={machineMatch ? 'The match is live' : activeParticipant?.profiles?.display_name}
+        onRoll={() => undefined}
+      />
+      {!machineMatch && (
+        <details className="group overflow-hidden rounded-lg border border-border bg-surface/80">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-ink">
+            <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Match chat</span>
+            <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
+          </summary>
+          <ArenaWaitingChat roomId={room.id} userId={userId} compact readOnly />
+        </details>
+      )}
+    </div>
+  );
+}
+
+function ArenaWaitingChat({ roomId, userId, compact = false, readOnly = false }: { roomId: string; userId: string; compact?: boolean; readOnly?: boolean }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -867,7 +1176,7 @@ function ArenaWaitingChat({ roomId, userId, compact = false }: { roomId: string;
   }, [roomId, loadMessages]);
 
   const send = async () => {
-    if (!body.trim() || sending) return;
+    if (readOnly || !body.trim() || sending) return;
     setSending(true);
     try { await sendArenaRoomMessage(roomId, userId, body); setBody(''); await loadMessages(); } catch (error) { console.error('Arena chat send failed', error); }
     setSending(false);
@@ -884,7 +1193,9 @@ function ArenaWaitingChat({ roomId, userId, compact = false }: { roomId: string;
             <p className={cn('max-w-[80%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}><span className="mr-1 font-semibold">{mine ? 'You' : message.sender?.display_name || 'Cadet'}</span>{message.body}</p>
           </div>;
         })}</div>
-      <div className="mt-3 flex gap-2"><input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void send(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Write a message..." /><button type="button" onClick={() => void send()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send room message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button></div>
+      {readOnly
+        ? <p className="mt-3 text-center text-[10px] font-semibold uppercase text-stone">Viewer chat is read-only</p>
+        : <div className="mt-3 flex gap-2"><input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void send(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Write a message..." /><button type="button" onClick={() => void send()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send room message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button></div>}
     </div>
   );
 }
