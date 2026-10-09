@@ -106,6 +106,7 @@ const spadesStreakAdvancement = read('supabase/migrations/20260827104000_advance
 const quizRespondersAndMonthlyWatch = read('supabase/migrations/20260829100000_quiz_responders_and_monthly_vallum_watch.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
+const quizIntegrity = read('src/lib/quizIntegrity.ts');
 const quizResponders = read('src/components/QuizResponders.tsx');
 const weeklyQuizRankings = read('src/components/WeeklyQuizRankings.tsx');
 const roadHomeGame = read('src/screens/cadet/RoadHomeGame.tsx');
@@ -500,7 +501,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '180', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '181', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -761,8 +762,15 @@ for (const required of [
   assert.ok(cadetQuiz.includes(required), `Missing resilient quiz client behavior: ${required}`);
 }
 assert.match(cadetQuiz, /forfeitQuizAttemptOnExit/);
-assert.match(cadetQuiz, /window\.addEventListener\('pagehide', forfeitOnExit\)/);
+assert.match(cadetQuiz, /wakeLock\.request\('screen'\)/);
+assert.match(cadetQuiz, /window\.addEventListener\(ACTIVE_QUIZ_EXIT_INTENT_EVENT, forfeitOnExit\)/);
 assert.match(cadetQuiz, /document\.addEventListener\('visibilitychange', forfeitWhenHidden\)/);
+assert.doesNotMatch(cadetQuiz, /window\.addEventListener\('pagehide', forfeitOnExit\)/);
+assert.doesNotMatch(cadetQuiz, /document\.removeEventListener\('visibilitychange', forfeitWhenHidden\);\s*forfeitOnExit\(\)/);
+assert.match(quizIntegrity, /full-circle:active-quiz-exit-intent/);
+assert.match(appShell, /signalQuizExitFor\(key\)/);
+assert.match(cadetApp, /tab === 'quiz' && k !== 'quiz'/);
+assert.match(sentryApp, /tab === 'quiz' && next !== 'quiz'/);
 assert.match(appErrorBoundary, /window\.addEventListener\('online', this\.retryAfterResume\)/);
 assert.match(appErrorBoundary, /document\.addEventListener\('visibilitychange', this\.retryAfterResume\)/);
 assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_restored/);

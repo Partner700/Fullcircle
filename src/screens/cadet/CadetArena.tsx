@@ -1282,6 +1282,7 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
   const [liveQuestion, setLiveQuestion] = useState<ArenaLiveTriviaState | null>(null);
   const [playbackNow, setPlaybackNow] = useState(() => Date.now());
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const participants = useMemo(() => room.arena_participants || [], [room.arena_participants]);
   const machineMatch = room.play_mode === 'machine';
 
@@ -1332,8 +1333,9 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
   const refreshLiveQuestion = useCallback(async () => {
     try {
       setLiveQuestion(await fetchArenaLiveTriviaState(room.id));
-    } catch {
-      // The room heartbeat or next Realtime event will retry a settling turn.
+      setPlaybackError(null);
+    } catch (error) {
+      setPlaybackError(error instanceof Error ? error.message : 'The live question is reconnecting.');
     }
   }, [room.id]);
 
@@ -1349,11 +1351,16 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
       .subscribe();
     const refreshInterval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshLiveQuestion();
-    }, 5000);
+    }, 2000);
     const clockInterval = window.setInterval(() => setPlaybackNow(Date.now()), 250);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshLiveQuestion();
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       window.clearInterval(refreshInterval);
       window.clearInterval(clockInterval);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [refreshLiveQuestion, room.id, userId]);
@@ -1399,6 +1406,7 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
         <span className="truncate">{boardPlayers.map((player) => `${player.name} ${player.score}`).join(' · ')}</span>
       </div>
       {feedError && <div className="rounded-lg border border-coral/30 bg-coral-soft px-3 py-2 text-xs text-coral">{feedError}</div>}
+      {playbackError && <div className="rounded-lg border border-gold/30 bg-gold-soft px-3 py-2 text-xs text-brass">{playbackError}</div>}
       <ArenaBattleBoard
         players={boardPlayers}
         currentQuestion={currentQuestion}
@@ -1431,7 +1439,7 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
       </details>
       {liveQuestion && (
         liveQuestion.phase === 'question'
-        || (liveQuestion.answered_at != null && playbackNow - Date.parse(liveQuestion.answered_at) < 2800)
+        || (liveQuestion.answered_at != null && playbackNow - Date.parse(liveQuestion.answered_at) < 5000)
       ) && <ArenaWitnessQuestionOverlay state={liveQuestion} />}
     </div>
   );
@@ -1776,7 +1784,6 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     setAnswerFeedback({ correct: result.correct, answer: answer || 'No answer' });
     setLatestOutcome({ player: profile?.display_name || 'You', correct: result.correct, answer: answer || 'No answer' });
     setTurnPhase('user-feedback');
-    void publishArenaTriviaState(roomId, currentQ, 'verdict', 'player').catch(() => null);
     void refreshAnswerFeed();
     setSubmittingAnswer(false);
 
@@ -1812,7 +1819,12 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       return;
     }
     setTurnPhase('machine-thinking');
-    void publishArenaTriviaState(roomId, machineQuestionIndex, 'question', 'machine').catch(() => null);
+    try {
+      await publishArenaTriviaState(roomId, machineQuestionIndex, 'question', 'machine');
+    } catch (error) {
+      console.error('Arena machine question could not reach witnesses.', error);
+      setAnswerError('The live witness view is reconnecting. The match will continue.');
+    }
     const delay = machineDifficulty === 'easy' ? 2600 : machineDifficulty === 'hard' ? 1250 : 1850;
     await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
     const machineCorrect = Boolean(result.machineCorrect);
@@ -1821,7 +1833,12 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     setMachineScore(nextMachineScore);
     setLatestOutcome({ player: 'The Scribe', correct: machineCorrect, answer: selected });
     setTurnPhase('machine-feedback');
-    void publishArenaTriviaState(roomId, machineQuestionIndex, 'verdict', 'machine').catch(() => null);
+    try {
+      await publishArenaTriviaState(roomId, machineQuestionIndex, 'verdict', 'machine');
+    } catch (error) {
+      console.error('Arena machine verdict could not reach witnesses.', error);
+      setAnswerError('The live witness verdict is reconnecting.');
+    }
     await new Promise<void>((resolve) => window.setTimeout(resolve, 1100));
     advance(nextMachineScore, 2);
   }, [answeredIds, questions, currentQ, turnPhase, isMyTurn, refreshAnswerFeed, roomId, userId, machineMatch, machineDifficulty, completeGame, profile?.display_name]);
@@ -1864,10 +1881,17 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
       setRolling(false);
       setRevealingRoll(true);
       rollRevealTimerRef.current = window.setTimeout(() => {
-        setRevealingRoll(false);
-        setQuestionOpen(true);
-        void publishArenaTriviaState(roomId, currentQ, 'question', 'player').catch(() => null);
-        void playSoundEffect('sound_arena_round', 0.62);
+        void (async () => {
+          setRevealingRoll(false);
+          try {
+            await publishArenaTriviaState(roomId, currentQ, 'question', 'player');
+            setQuestionOpen(true);
+            void playSoundEffect('sound_arena_round', 0.62);
+          } catch (error) {
+            console.error('Arena question could not reach witnesses.', error);
+            setAnswerError('The shared question could not open. Roll again to reconnect it.');
+          }
+        })();
       }, 950);
     }, 70);
   }, [answeredIds, currentQ, isMyTurn, questionOpen, revealingRoll, rolling, roomId, turnPhase]);

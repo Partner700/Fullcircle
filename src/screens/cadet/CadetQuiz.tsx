@@ -16,6 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
 import { formatCountdown, formatDate, formatDenarii, getAppDateTimeMs, getTodayISODate, cn } from '../../lib/utils';
 import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
+import { ACTIVE_QUIZ_EXIT_INTENT_EVENT } from '../../lib/quizIntegrity';
 import type {
   QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative,
   PanelImageSetting, WeeklyQuizReleasedResult,
@@ -30,6 +31,64 @@ import type { LucideIcon } from 'lucide-react';
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
 
 const QUIZ_RETRY_DELAYS_MS = [0, 350, 900];
+
+type QuizWakeLockSentinel = EventTarget & {
+  released: boolean;
+  release: () => Promise<void>;
+};
+
+type QuizWakeLockNavigator = Navigator & {
+  wakeLock?: {
+    request: (type: 'screen') => Promise<QuizWakeLockSentinel>;
+  };
+};
+
+function useQuizScreenWakeLock() {
+  const sentinelRef = useRef<QuizWakeLockSentinel | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer = 0;
+
+    const acquire = async () => {
+      const wakeLock = (navigator as QuizWakeLockNavigator).wakeLock;
+      if (disposed || !wakeLock || document.visibilityState !== 'visible') return;
+      if (sentinelRef.current && !sentinelRef.current.released) return;
+
+      try {
+        const sentinel = await wakeLock.request('screen');
+        if (disposed) {
+          await sentinel.release().catch(() => undefined);
+          return;
+        }
+        sentinelRef.current = sentinel;
+        sentinel.addEventListener('release', () => {
+          if (sentinelRef.current === sentinel) sentinelRef.current = null;
+          if (!disposed && document.visibilityState === 'visible') {
+            retryTimer = window.setTimeout(() => { void acquire(); }, 250);
+          }
+        }, { once: true });
+      } catch (error) {
+        console.info('Quiz screen wake lock is unavailable on this device.', error);
+      }
+    };
+
+    const reacquireWhenVisible = () => {
+      if (document.visibilityState === 'visible') void acquire();
+    };
+
+    void acquire();
+    document.addEventListener('visibilitychange', reacquireWhenVisible);
+    return () => {
+      disposed = true;
+      window.clearTimeout(retryTimer);
+      document.removeEventListener('visibilitychange', reacquireWhenVisible);
+      const sentinel = sentinelRef.current;
+      sentinelRef.current = null;
+      if (sentinel && !sentinel.released) void sentinel.release().catch(() => undefined);
+    };
+  }, []);
+}
 
 function QuizArtworkFrame({ image, className, children }: {
   image: PanelImageSetting | null;
@@ -360,8 +419,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     return () => clearInterval(interval);
   }, [serverClockOffsetMs]);
 
-  // Mobile browsers may suspend JavaScript while the screen sleeps or another
-  // app is open. Reconcile the same attempt as soon as this screen returns.
+  // Reconcile server time after a network interruption or foreground resume.
+  // A deliberate app switch is handled separately by the exit-forfeit guard.
   useEffect(() => {
     const reconcile = () => {
       if (document.hidden) return;
@@ -803,10 +862,10 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
   const exitForfeitArmedRef = useRef(false);
   const exitForfeitSentRef = useRef(false);
 
+  useQuizScreenWakeLock();
+
   useEffect(() => {
-    // React development mode probes effect cleanup immediately after mount.
-    // Arm after that probe so only a real departure forfeits the attempt.
-    const armTimer = window.setTimeout(() => { exitForfeitArmedRef.current = true; }, 1_000);
+    exitForfeitArmedRef.current = true;
     const forfeitOnExit = () => {
       if (!exitForfeitArmedRef.current || exitForfeitSentRef.current || submissionStartedRef.current) return;
       exitForfeitSentRef.current = true;
@@ -815,15 +874,14 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
       });
     };
     const forfeitWhenHidden = () => { if (document.hidden) forfeitOnExit(); };
-    window.addEventListener('pagehide', forfeitOnExit);
     window.addEventListener('beforeunload', forfeitOnExit);
+    window.addEventListener(ACTIVE_QUIZ_EXIT_INTENT_EVENT, forfeitOnExit);
     document.addEventListener('visibilitychange', forfeitWhenHidden);
     return () => {
-      window.clearTimeout(armTimer);
-      window.removeEventListener('pagehide', forfeitOnExit);
+      exitForfeitArmedRef.current = false;
       window.removeEventListener('beforeunload', forfeitOnExit);
+      window.removeEventListener(ACTIVE_QUIZ_EXIT_INTENT_EVENT, forfeitOnExit);
       document.removeEventListener('visibilitychange', forfeitWhenHidden);
-      forfeitOnExit();
     };
   }, [attempt.id]);
 

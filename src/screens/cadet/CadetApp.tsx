@@ -49,6 +49,7 @@ import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNav
 import { isDoveArrival } from '../../lib/notificationArrival';
 import { openAudioCall } from '../../lib/audioCalls';
 import { readContinuedTab } from '../../lib/appContinuity';
+import { signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag, CreditCard,
@@ -789,7 +790,10 @@ export function CadetApp() {
   }, [loadTentInfo, loadSubStatus]);
 
   useEffect(() => {
-    if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
+    if (isExpired && PREMIUM_TABS.has(tab)) {
+      if (tab === 'quiz') signalActiveQuizExitIntent();
+      setTab('subscribe');
+    }
   }, [isExpired, tab]);
 
   useEffect(() => {
@@ -920,6 +924,7 @@ export function CadetApp() {
   };
 
   const handleNavigate = useCallback((k: string) => {
+    if (tab === 'quiz' && k !== 'quiz') signalActiveQuizExitIntent();
     if (k === 'profile') {
       openProfileCv(profile?.id);
       return;
@@ -941,7 +946,7 @@ export function CadetApp() {
       });
     }
     setTab(nextTab);
-  }, [isExpired, notifications, profile?.id]);
+  }, [isExpired, notifications, profile?.id, tab]);
 
   useEffect(() => {
     const navigate = (event: Event) => {

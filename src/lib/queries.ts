@@ -3235,14 +3235,22 @@ export async function publishArenaTriviaState(
   phase: 'question' | 'verdict',
   actorKind: 'player' | 'machine' = 'player',
 ) {
-  const { data, error } = await supabase.rpc('publish_arena_trivia_state', {
-    p_room_id: roomId,
-    p_question_index: questionIndex,
-    p_phase: phase,
-    p_actor_kind: actorKind,
-  });
-  if (error) throw error;
-  return Boolean(data);
+  const retryDelays = [0, 250, 700, 1_400, 2_800];
+  let lastError: unknown = new Error('The Arena live turn was not accepted.');
+
+  for (const delay of retryDelays) {
+    if (delay > 0) await new Promise((resolve) => window.setTimeout(resolve, delay));
+    const { data, error } = await supabase.rpc('publish_arena_trivia_state', {
+      p_room_id: roomId,
+      p_question_index: questionIndex,
+      p_phase: phase,
+      p_actor_kind: actorKind,
+    });
+    if (!error && data === true) return true;
+    lastError = error || lastError;
+  }
+
+  throw lastError;
 }
 
 export async function fetchArenaLiveTriviaState(roomId: string) {
