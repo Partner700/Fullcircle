@@ -5,6 +5,9 @@
 @layer base {
   :root,
   [data-theme="night"], [data-artwork-theme="night"] {
+    --font-body: 'Nunito', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Baloo 2', 'Nunito', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
     /* Background layers — night mode */
     --color-navy: #17243C;
     --color-navy-2: #1E2F4A;
@@ -75,7 +78,7 @@
   }
 
   html {
-    font-family: 'Nunito', system-ui, sans-serif;
+    font-family: var(--font-body);
     color: var(--color-peri);
     background-color: var(--color-navy);
     font-size: 16px;
@@ -121,22 +124,22 @@
   }
 
   .font-display, h1, h2, h3 {
-    font-family: 'Nunito', system-ui, sans-serif;
+    font-family: var(--font-display);
   }
 
   /* Keep imported scripture and legacy content from slipping into a disconnected serif face. */
   .font-serif {
-    font-family: 'Nunito', system-ui, sans-serif !important;
+    font-family: var(--font-body) !important;
   }
 
   button {
-    font-family: 'Nunito', system-ui, sans-serif;
+    font-family: var(--font-body);
   }
 
   input,
   textarea,
   select {
-    font-family: 'Nunito', system-ui, sans-serif;
+    font-family: var(--font-body);
   }
 
   select {
@@ -194,7 +197,7 @@
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl font-semibold transition-all duration-200 active:scale-[0.97] cursor-pointer;
     background: var(--color-peri);
     color: var(--color-navy-3);
-    font-family: 'Nunito', system-ui, sans-serif;
+    font-family: var(--font-body);
     isolation: isolate;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
@@ -214,7 +217,7 @@
     color: var(--color-peri);
     border: 1.5px solid var(--color-peri-2);
     background: var(--color-peri-soft);
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-body);
     isolation: isolate;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
@@ -250,7 +253,7 @@
     color: var(--color-peri-dim);
     background: transparent;
     border: 1.5px solid var(--color-border);
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-body);
     isolation: isolate;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
@@ -342,7 +345,7 @@
     border-color: var(--color-border);
     background: var(--color-navy-3);
     color: var(--color-peri);
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-body);
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;

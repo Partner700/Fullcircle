@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '178', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '179', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -600,8 +600,15 @@ assert.match(read('src/main.tsx'), /fullcircle:styles-ready/);
 assert.match(serviceWorker, /await validReleaseResponse\(response, scopedUrl\('index\.html'\)\)/);
 assert.match(serviceWorker, /safeAppNavigationUrl\(urlToOpen\)/);
 assert.match(serviceWorker, /'full-circle-release\.css'/);
-assert.doesNotMatch(appIndex, /rel="preload" as="style" href="https:\/\/fonts\.googleapis\.com/);
+assert.match(appIndex, /rel="preload" as="style" href="https:\/\/fonts\.googleapis\.com/);
 assert.match(appIndex, /data-full-circle-fonts/);
+assert.doesNotMatch(appIndex, /window\.addEventListener\('load',[\s\S]{0,500}?data-full-circle-fonts/);
+assert.match(indexCss, /--font-body: 'Nunito'/);
+assert.match(indexCss, /--font-display: 'Baloo 2', 'Nunito'/);
+assert.match(indexCss, /\.font-display, h1, h2, h3 \{\s*font-family: var\(--font-display\)/);
+assert.match(indexCss, /html \{[\s\S]{0,160}?font-family: var\(--font-body\)/);
+assert.match(read('tailwind.config.js'), /display: \['var\(--font-display\)'\]/);
+assert.match(read('tailwind.config.js'), /sans: \['var\(--font-body\)'\]/);
 assert.match(builtAppIndex, /onerror="window\.__loadFullCircleMirror\(this\.src\)"/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.doesNotMatch(offlinePage, /Open Mobile-Data Copy|raw\.githack\.com/);

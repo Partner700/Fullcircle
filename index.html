@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="178" />
+  <meta name="full-circle-release" content="179" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="%BASE_URL%icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="%BASE_URL%browserconfig.xml" />
@@ -21,7 +21,7 @@
 
   <!-- This tiny shell is deliberately kept inline. The complete application
        stylesheet is verified separately before React is allowed to mount. -->
-  <style data-full-circle-critical-styles="178">
+  <style data-full-circle-critical-styles="179">
     html,body,#root{min-height:100%;margin:0;background:#0f2037;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     html::before{content:"Opening Full Circle";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f2037;color:#dde3ff;font:700 15px system-ui;z-index:0}
     body{position:relative;z-index:1}
@@ -106,13 +106,13 @@
         ? window.location.pathname.slice(0, assetSegment + 1)
         : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
       var appUrl = new URL(appPath || '/', window.location.origin);
-      appUrl.searchParams.set('fc-asset-recovery', '178');
+      appUrl.searchParams.set('fc-asset-recovery', '179');
       window.location.replace(appUrl.toString());
     }
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=178" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=179" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -159,25 +159,17 @@
   <meta name="twitter:description" content="Gamified discipleship platform with daily Bible quizzes, streak tracking, and leaderboards." />
   <meta name="twitter:image" content="https://fullcircle.partnertai.com/social/fullcircle-share.jpeg?v=7" />
 
-  <!-- Keep the database connection warm; artwork fonts wait until the app has
-       loaded so they cannot compete with the entry bundle on iPhone data. -->
+  <!-- Keep the database connection warm. -->
   <link rel="preconnect" href="https://nffqohxdelaglrmuzjwb.supabase.co" crossorigin />
   <link rel="dns-prefetch" href="https://nffqohxdelaglrmuzjwb.supabase.co" />
 
-  <!-- System fonts render the whole app immediately. Branded fonts are a
-       progressive enhancement once Safari's critical requests are complete. -->
-  <script>
-    window.addEventListener('load', function () {
-      window.setTimeout(function () {
-        if (document.querySelector('link[data-full-circle-fonts]')) return;
-        var fonts = document.createElement('link');
-        fonts.rel = 'stylesheet';
-        fonts.href = 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap';
-        fonts.setAttribute('data-full-circle-fonts', 'true');
-        document.head.appendChild(fonts);
-      }, 2500);
-    }, { once: true });
-  </script>
+  <!-- Start the small, non-blocking brand-font request during HTML parsing.
+       Waiting for window.load made typography depend on every artwork request. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" data-full-circle-fonts="true" onload="this.onload=null;this.rel='stylesheet'" />
   <noscript><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800;900&family=VT323&display=swap" rel="stylesheet" /></noscript>
 
   <!-- Release-aware recovery for installed and in-browser copies. -->
@@ -187,8 +179,8 @@
     // updates quiet, but let an explicit retry verify the network and replace
     // every Full Circle shell cache that could be trapping the phone.
     (function () {
-      var release = '178';
-      var currentCachePrefix = 'full-circle-target-v178';
+      var release = '179';
+      var currentCachePrefix = 'full-circle-target-v179';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -331,7 +323,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=178', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=179', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
