@@ -557,13 +557,28 @@
     transform: translateZ(0);
     backface-visibility: hidden;
   }
+  .quote-glass-artwork {
+    z-index: 0;
+  }
   .quote-glass-image {
     filter: blur(6px) saturate(1.04);
     transform: scale(1.045) translateZ(0);
     backface-visibility: hidden;
   }
   .quote-glass-tint {
+    z-index: 1;
     background-color: rgba(18, 30, 63, 0.54);
+  }
+  .quote-glass-content {
+    z-index: 2;
+    transform: translateZ(1px);
+    backface-visibility: hidden;
+  }
+  .quote-glass-panel-conversation {
+    overflow: visible;
+    transform: none;
+    backface-visibility: visible;
+    background-color: rgba(18, 30, 63, 0.86);
   }
   .quote-picture-veil {
     background-color: rgba(18, 30, 63, 0.432);
@@ -576,6 +591,9 @@
     border-color: rgba(255, 255, 255, 0.5);
     background-color: rgba(241, 246, 255, 0.56);
     box-shadow: 0 18px 50px rgba(42, 55, 96, 0.14);
+  }
+  :is([data-theme="day"], [data-artwork-theme="day"]) .quote-glass-panel-conversation:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
+    background-color: rgba(241, 246, 255, 0.9);
   }
   :is([data-theme="day"], [data-artwork-theme="day"]) .quote-glass-tint:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
     background-color: rgba(241, 246, 255, 0.58);

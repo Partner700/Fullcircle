@@ -75,6 +75,7 @@ export function QuoteReactions({
   const [editingBody, setEditingBody] = useState('');
   const fetchCommentsRef = useRef(fetchComments);
   const loadedCommentsKeyRef = useRef<string | null>(null);
+  const commentsPanelRef = useRef<HTMLDivElement | null>(null);
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
   const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
   const commentsKey = quoteUserId && quoteRecordDate ? `${quoteUserId}:${quoteRecordDate}` : null;
@@ -87,6 +88,17 @@ export function QuoteReactions({
        component must not close or unpause that messenger. */
     if (commentsPanelOpen) onCommentOpenChange?.(true);
   }, [commentsPanelOpen, onCommentOpenChange]);
+
+  useEffect(() => {
+    if (!showComments) return;
+    const reveal = () => commentsPanelRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const frame = window.requestAnimationFrame(reveal);
+    const afterResize = window.setTimeout(reveal, 320);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(afterResize);
+    };
+  }, [showComments]);
 
   useEffect(() => {
     fetchCommentsRef.current = fetchComments;
@@ -225,6 +237,7 @@ export function QuoteReactions({
             className={cn(reactionButtonClass, 'border-border bg-surface-2 text-stone hover:border-royal/40 hover:text-royal')}
             title={commentButtonLabel}
             aria-label={`${commentTotal} ${commentButtonLabel.toLowerCase()}`}
+            aria-expanded={showComments}
           >
             <MessageCircle size={12} /> <span className="text-[10px] opacity-85">{commentTotal}</span>
           </button>
@@ -283,7 +296,12 @@ export function QuoteReactions({
       )}
 
       {commentsEnabled && showComments && (
-        <div className="mt-3 rounded-2xl border border-royal/25 bg-surface/95 p-4 shadow-sm animate-slide-up">
+        <div
+          ref={commentsPanelRef}
+          className="mt-3 rounded-2xl border border-royal/25 bg-surface/95 p-4 shadow-sm animate-slide-up"
+          onTouchStart={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => event.stopPropagation()}
+        >
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h3 className="font-display text-base font-semibold text-ink">{commentsTitle}</h3>
