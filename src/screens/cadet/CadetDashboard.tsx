@@ -524,7 +524,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
   const panelMaxHeight = conversationOpen
-    ? 'min(82svh, calc(100dvh - 7rem))'
+    ? 'min(70svh, calc(100dvh - 7rem))'
     : '66.666svh';
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -791,19 +791,24 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                   )}
 
                   {slide.kind === 'quote' && (
-                    <div className={cn('quote-glass-panel relative w-full max-w-2xl rounded-2xl p-4 ring-1 ring-black/5', conversationOpen && 'min-h-full')}>
-                      <PanelImageBackdrop
-                        image={slideImage}
-                        opacityOverride={100}
-                        veilClassName=""
-                        modeFilter={false}
-                        textGradient={false}
-                        simple
-                        imageClassName="quote-glass-image"
-                        eager={isDisplayedSlide}
-                      />
-                      <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
-                      <div className="relative z-10">
+                    <div className={cn('quote-glass-panel relative w-full max-w-2xl rounded-2xl p-4 ring-1 ring-black/5', conversationOpen && 'quote-glass-panel-conversation')}>
+                      {!conversationOpen && (
+                        <>
+                          <PanelImageBackdrop
+                            image={slideImage}
+                            className="quote-glass-artwork"
+                            opacityOverride={100}
+                            veilClassName=""
+                            modeFilter={false}
+                            textGradient={false}
+                            simple
+                            imageClassName="quote-glass-image"
+                            eager={isDisplayedSlide}
+                          />
+                          <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
+                        </>
+                      )}
+                      <div className="quote-glass-content relative">
                         <div className="mb-1 flex items-start justify-between gap-3">
                           <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> {isWeekend ? (slide.featured ? 'Quote of the Week' : 'Weekly Quote Highlight') : 'Quotes From Daily Meditations'}</p>
                           <div className="flex shrink-0 items-start gap-2">
