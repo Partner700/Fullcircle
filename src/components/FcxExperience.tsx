@@ -154,7 +154,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             alt=""
             className="h-8 w-8 shrink-0 object-contain drop-shadow-sm"
           />
-          <span className="max-w-[11rem] text-left text-[11px] font-black uppercase leading-snug text-ink">
+          <span className="max-w-[11rem] text-left font-display text-[11px] font-black uppercase leading-snug text-ink">
             {displayTitle} <span className="whitespace-nowrap text-[#ffd400] drop-shadow-sm">(FCX)</span>
           </span>
         </div>

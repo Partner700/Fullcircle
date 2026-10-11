@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import {
   Award, BadgeCheck, BookOpen, Crown, Gem, KeyRound, Landmark, Medal,
   MessageCircle, PenTool, Send, Shield, Sprout, Star,
@@ -16,10 +16,29 @@ let loadPromise: Promise<void> | null = null;
 let realtimeStarted = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let cacheHydrated = false;
+let lastVerifiedAt = 0;
 const listeners = new Set<() => void>();
 const CACHE_MS = 60_000;
 const RETRY_MS = 5_000;
-const STORAGE_KEY = 'full-circle-standing-avatar-awards-target-v2';
+const STORAGE_KEY = 'full-circle-standing-avatar-awards';
+const LEGACY_STORAGE_KEYS = [
+  'full-circle-standing-avatar-awards-target-v2',
+  'full-circle-standing-avatar-awards-target-v1',
+] as const;
+const EMPTY_AWARDS = new Map<string, AvatarAward>();
+
+type CachedAvatarAward = AvatarAward & { user_id: string };
+type CurrentAvatarAwardRow = {
+  user_id?: string | null;
+  award_type?: string | null;
+  title?: string | null;
+  cadence?: string | null;
+};
+type CachedAwardEnvelope = {
+  version: 3;
+  verified_at: string;
+  awards: CachedAvatarAward[];
+};
 
 const AWARD_ICONS = {
   rhetoric: MessageCircle,
@@ -88,34 +107,80 @@ function publish() {
   listeners.forEach((listener) => listener());
 }
 
-function hydrateCachedAwards() {
-  if (cacheHydrated || typeof window === 'undefined') return;
+function cachedAwardList(value: unknown): { awards: CachedAvatarAward[]; verifiedAt: number } | null {
+  const envelope = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Partial<CachedAwardEnvelope>
+    : null;
+  const awards = Array.isArray(value)
+    ? value
+    : envelope && Array.isArray(envelope.awards) ? envelope.awards : null;
+  if (!awards?.length) return null;
+  const verifiedAt = envelope?.verified_at ? Date.parse(envelope.verified_at) : 1;
+  return {
+    awards: awards as CachedAvatarAward[],
+    verifiedAt: Number.isFinite(verifiedAt) ? verifiedAt : 1,
+  };
+}
+
+function availableBrowserStorage() {
+  if (typeof window === 'undefined') return [] as Storage[];
+  const storage: Storage[] = [];
+  try { storage.push(window.localStorage); } catch { /* Private browsing can deny access. */ }
+  try { storage.push(window.sessionStorage); } catch { /* Keep the in-memory result. */ }
+  return storage;
+}
+
+function hydrateCachedAwards(force = false) {
+  if ((!force && cacheHydrated) || typeof window === 'undefined') return;
   cacheHydrated = true;
-  try {
-    const cached = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]') as Array<AvatarAward & { user_id: string }>;
-    if (!Array.isArray(cached) || cached.length === 0) return;
-    const cachedAwards = new Map<string, AvatarAward>();
-    cached.forEach((award) => addStandingAward(cachedAwards, award.user_id, {
-      award_type: normalizedAwardType(award.award_type, award.title),
-      title: award.title,
-      cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
-    }));
+
+  let best: { awards: CachedAvatarAward[]; verifiedAt: number } | null = null;
+  const keys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS];
+  availableBrowserStorage().forEach((storage) => {
+    keys.forEach((key) => {
+      try {
+        const raw = storage.getItem(key);
+        if (!raw) return;
+        const candidate = cachedAwardList(JSON.parse(raw));
+        if (candidate && (!best || candidate.verifiedAt > best.verifiedAt)) best = candidate;
+      } catch {
+        // One damaged cache entry must not hide a valid copy or block live loading.
+      }
+    });
+  });
+
+  const cached = best as { awards: CachedAvatarAward[]; verifiedAt: number } | null;
+  if (!cached || cached.verifiedAt < lastVerifiedAt) return;
+  const cachedAwards = new Map<string, AvatarAward>();
+  cached.awards.forEach((award) => addStandingAward(cachedAwards, award.user_id, {
+    award_type: normalizedAwardType(award.award_type, award.title),
+    title: award.title,
+    cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
+  }));
+  if (cachedAwards.size > 0) {
     holderAwards = cachedAwards;
+    lastVerifiedAt = cached.verifiedAt;
     publish();
-  } catch {
-    // A blocked or damaged browser cache must not prevent live award loading.
   }
 }
 
 function persistCurrentAwards() {
   if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(
-      [...holderAwards.entries()].map(([user_id, award]) => ({ user_id, ...award })),
-    ));
-  } catch {
-    // The live result remains usable when private browsing blocks storage.
-  }
+  const awards = [...holderAwards.entries()].map(([user_id, award]) => ({ user_id, ...award }));
+  const envelope: CachedAwardEnvelope = {
+    version: 3,
+    verified_at: new Date(lastVerifiedAt || Date.now()).toISOString(),
+    awards,
+  };
+  availableBrowserStorage().forEach((storage) => {
+    try {
+      storage.setItem(STORAGE_KEY, JSON.stringify(envelope));
+      // Keep the immediately previous app shell compatible during service-worker replacement.
+      storage.setItem(LEGACY_STORAGE_KEYS[0], JSON.stringify(awards));
+    } catch {
+      // The verified in-memory result remains visible when storage is unavailable.
+    }
+  });
 }
 
 async function loadCurrentAwards(force = false) {
@@ -126,7 +191,7 @@ async function loadCurrentAwards(force = false) {
     const { data, error } = await supabase.rpc('get_current_avatar_awards');
     if (error) throw error;
     const nextAwards = new Map<string, AvatarAward>();
-    (data || []).forEach((award: any) => addStandingAward(nextAwards, String(award.user_id || ''), {
+    ((data || []) as CurrentAvatarAwardRow[]).forEach((award) => addStandingAward(nextAwards, String(award.user_id || ''), {
       award_type: normalizedAwardType(String(award.award_type || ''), String(award.title || '')),
       title: String(award.title || 'Full Circle award'),
       cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
@@ -135,8 +200,9 @@ async function loadCurrentAwards(force = false) {
       throw new Error('Standing award refresh returned no holders. Keeping the last verified result.');
     }
     holderAwards = mergeVerifiedStandingAwards(nextAwards);
+    lastVerifiedAt = Date.now();
     persistCurrentAwards();
-    loadedAt = Date.now();
+    loadedAt = lastVerifiedAt;
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
@@ -162,7 +228,7 @@ export function refreshVallumAvatarBadges() {
 }
 
 function ensureRealtimeUpdates() {
-  if (realtimeStarted) return;
+  if (realtimeStarted || typeof window === 'undefined') return;
   realtimeStarted = true;
   supabase
     .channel('award-avatar-badges')
@@ -172,7 +238,33 @@ function ensureRealtimeUpdates() {
     .subscribe();
   window.addEventListener('online', () => void refreshVallumAvatarBadges());
   window.addEventListener('focus', () => void loadCurrentAwards());
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY || LEGACY_STORAGE_KEYS.includes(event.key as typeof LEGACY_STORAGE_KEYS[number])) {
+      hydrateCachedAwards(true);
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void loadCurrentAwards();
+  });
 }
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  ensureRealtimeUpdates();
+  void loadCurrentAwards();
+  return () => { listeners.delete(listener); };
+}
+
+function getAwardSnapshot() {
+  return holderAwards;
+}
+
+function getServerAwardSnapshot() {
+  return EMPTY_AWARDS;
+}
+
+// Restore the last verified holders before the first avatar is rendered.
+hydrateCachedAwards();
 
 export function AwardBadgeGlyph({ awardType, title, size = 10 }: { awardType: string; title?: string; size?: number }) {
   const type = normalizedAwardType(awardType, title);
@@ -186,18 +278,8 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   size?: AvatarBadgeSize;
   className?: string;
 }) {
-  const [, render] = useState(0);
-
-  useEffect(() => {
-    const listener = () => render((value) => value + 1);
-    listeners.add(listener);
-    hydrateCachedAwards();
-    ensureRealtimeUpdates();
-    void loadCurrentAwards();
-    return () => { listeners.delete(listener); };
-  }, []);
-
-  const award = userId ? holderAwards.get(userId) : null;
+  const awards = useSyncExternalStore(subscribe, getAwardSnapshot, getServerAwardSnapshot);
+  const award = userId ? awards.get(userId) : null;
   if (!award) return null;
   const awardType = normalizedAwardType(award.award_type, award.title);
   if (awardType !== 'vallum' && awardType !== 'centurion') return null;

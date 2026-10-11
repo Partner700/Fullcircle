@@ -501,7 +501,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '182', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '183', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -559,7 +559,7 @@ assert.doesNotMatch(staleBundleRecovery, /void reloadFreshApp\(true\)/);
 assert.doesNotMatch(staleBundleRecovery, /raw\.githack\.com/);
 assert.match(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.ok(releaseCache.includes(`2026-10-10-target-v${startupRelease}`));
+assert.ok(releaseCache.includes(`2026-10-11-target-v${startupRelease}`));
 assert.ok(releaseCache.includes(`full-circle-target-v${startupRelease}`));
 assert.doesNotMatch(releaseCache, /full-circle-v147-v15[1-9]/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
@@ -596,19 +596,27 @@ assert.ok(builtAppIndex.includes(`<link rel="stylesheet" href="./full-circle-rel
 assert.doesNotMatch(builtAppIndex, /<style data-full-circle-release-styles="true">/);
 assert.ok(Buffer.byteLength(builtAppIndex) < 40_000, 'index.html must stay compact enough for weak mobile connections.');
 assert.ok(read('dist/full-circle-release.css').includes(`--full-circle-release-style:"${startupRelease}"`));
+assert.match(postbuildScript, /relocatedCss/);
+assert.match(read('dist/full-circle-release.css'), /url\(\.\/assets\/nunito-latin-wght-normal-[^)]+\.woff2\)/);
+assert.match(read('dist/full-circle-release.css'), /url\(\.\/assets\/baloo-2-latin-wght-normal-[^)]+\.woff2\)/);
 assert.ok(read('src/main.tsx').includes(`RELEASE_STYLE_MARKER = '${startupRelease}'`));
 assert.match(read('src/main.tsx'), /fullcircle:styles-ready/);
 assert.match(serviceWorker, /await validReleaseResponse\(response, scopedUrl\('index\.html'\)\)/);
 assert.match(serviceWorker, /safeAppNavigationUrl\(urlToOpen\)/);
 assert.match(serviceWorker, /'full-circle-release\.css'/);
-assert.match(appIndex, /rel="preload" as="style" href="https:\/\/fonts\.googleapis\.com/);
-assert.match(appIndex, /data-full-circle-fonts/);
-assert.doesNotMatch(appIndex, /window\.addEventListener\('load',[\s\S]{0,500}?data-full-circle-fonts/);
+assert.doesNotMatch(appIndex, /fonts\.(?:googleapis|gstatic)\.com/);
+assert.doesNotMatch(builtAppIndex, /fonts\.(?:googleapis|gstatic)\.com/);
 assert.match(indexCss, /--font-body: 'Nunito'/);
 assert.match(indexCss, /--font-display: 'Baloo 2', 'Nunito'/);
-assert.match(indexCss, /\.font-display \{\s*font-family: var\(--font-body\)/);
-assert.match(indexCss, /h1,\s*h2,\s*h3,[\s\S]{0,500}?font-family: var\(--font-display\)/);
-assert.match(indexCss, /\.font-display\.text-lg/);
+assert.match(indexCss, /@font-face \{[\s\S]{0,250}?font-family: 'Nunito'[\s\S]{0,250}?nunito-latin-wght-normal\.woff2/);
+assert.match(indexCss, /@font-face \{[\s\S]{0,250}?font-family: 'Baloo 2'[\s\S]{0,250}?baloo-2-latin-wght-normal\.woff2/);
+assert.match(indexCss, /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6[\s\S]{0,120}?font-family: var\(--font-display\)/);
+assert.match(indexCss, /\.font-display \{\s*font-family: var\(--font-display\) !important/);
+assert.equal(fs.readFileSync(path.join(root, 'src/assets/fonts/nunito-latin-wght-normal.woff2')).subarray(0, 4).toString(), 'wOF2');
+assert.equal(fs.readFileSync(path.join(root, 'src/assets/fonts/baloo-2-latin-wght-normal.woff2')).subarray(0, 4).toString(), 'wOF2');
+assert.match(read('src/assets/fonts/OFL.txt'), /SIL OPEN FONT LICENSE Version 1\.1/);
+assert.match(read('public/fonts/OFL.txt'), /SIL OPEN FONT LICENSE Version 1\.1/);
+assert.match(read('dist/fonts/OFL.txt'), /SIL OPEN FONT LICENSE Version 1\.1/);
 assert.match(indexCss, /html \{[\s\S]{0,160}?font-family: var\(--font-body\)/);
 assert.match(read('tailwind.config.js'), /display: \['var\(--font-display\)'\]/);
 assert.match(read('tailwind.config.js'), /sans: \['var\(--font-body\)'\]/);
@@ -1602,10 +1610,15 @@ assert.match(instructorApp, /<DoveNotificationArrival/);
 for (const required of [
   "supabase.rpc('get_current_avatar_awards')",
   'award.cadence === \'monthly\'',
+  'full-circle-standing-avatar-awards',
   'full-circle-standing-avatar-awards-target-v2',
   'hydrateCachedAwards',
   'persistCurrentAwards',
   'mergeVerifiedStandingAwards',
+  'useSyncExternalStore',
+  'window.sessionStorage',
+  'visibilitychange',
+  'Restore the last verified holders before the first avatar is rendered.',
   "(['vallum', 'centurion'] as const)",
   'left-0 top-0',
   '<AwardBadgeGlyph',
@@ -1617,6 +1630,8 @@ assert.match(chiRhoMark, /fc-chi-rho-fallback/);
 assert.match(chiRhoMark, /fc-chi-rho-mask/);
 assert.match(userAvatar, /<VallumAvatarBadge userId=\{userId\}/);
 assert.match(userAvatar, /showAwardBadge = true/);
+assert.match(indexCss, /\.full-circle-user-avatar-award-enabled \{[\s\S]{0,100}?overflow: visible !important/);
+assert.match(indexCss, /\.full-circle-avatar-award-badge \{[\s\S]{0,180}?visibility: visible !important/);
 assert.match(boardRow, /<MessageAvatar/);
 for (const file of sourceFiles(path.join(root, 'src'))) {
   if (file.endsWith(`${path.sep}UserAvatar.tsx`)) continue;
@@ -2546,7 +2561,7 @@ assert.equal((cadetDashboard.match(/loadCommentPreview=\{isDisplayedSlide\}/g) |
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
 assert.match(appErrorBoundary, /reloadFreshApp\(\)/);
-assert.ok(clientErrorReporting.includes(`CLIENT_RELEASE = '2026-10-10-target-v${startupRelease}'`));
+assert.ok(clientErrorReporting.includes(`CLIENT_RELEASE = '2026-10-11-target-v${startupRelease}'`));
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);
