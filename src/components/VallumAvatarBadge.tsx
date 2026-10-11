@@ -34,6 +34,12 @@ type CurrentAvatarAwardRow = {
   title?: string | null;
   cadence?: string | null;
 };
+type DirectAvatarAwardRow = CurrentAvatarAwardRow & {
+  award_month?: string | null;
+  created_at?: string | null;
+  award_target_type?: string | null;
+  award_target_id?: string | null;
+};
 type CachedAwardEnvelope = {
   version: 3;
   verified_at: string;
@@ -86,6 +92,46 @@ function addStandingAward(target: Map<string, AvatarAward>, userId: string, awar
   if (!userId) return;
   const current = target.get(userId);
   if (!current || awardPriority(award) > awardPriority(current)) target.set(userId, award);
+}
+
+function hasStandingType(target: Map<string, AvatarAward>, standingType: 'vallum' | 'centurion') {
+  return [...target.values()].some((award) => normalizedAwardType(award.award_type, award.title) === standingType);
+}
+
+async function loadStandingAwardsDirectly() {
+  const { data, error } = await supabase
+    .from('awards')
+    .select('user_id, award_type, title, award_month, created_at, award_target_type, award_target_id')
+    .or('award_type.ilike.%vallum%,title.ilike.%vallum%,award_type.ilike.%centurion%,title.ilike.%centurion%')
+    .order('created_at', { ascending: false })
+    .limit(24);
+  if (error) throw error;
+
+  const latest = new Map<'vallum' | 'centurion', DirectAvatarAwardRow>();
+  ((data || []) as DirectAvatarAwardRow[]).forEach((award) => {
+    const type = normalizedAwardType(String(award.award_type || ''), String(award.title || ''));
+    if (type !== 'vallum' && type !== 'centurion') return;
+    const cycle = String(award.award_month || '');
+    if (!/^\d{4}-\d{2}$/.test(cycle) || award.award_target_type === 'tent') return;
+    const current = latest.get(type);
+    const createdAt = String(award.created_at || '');
+    if (!current
+      || cycle > String(current.award_month || '')
+      || (cycle === String(current.award_month || '') && createdAt > String(current.created_at || ''))) {
+      latest.set(type, award);
+    }
+  });
+
+  const result = new Map<string, AvatarAward>();
+  latest.forEach((award, type) => {
+    const recipientId = String(award.user_id || award.award_target_id || '');
+    addStandingAward(result, recipientId, {
+      award_type: type,
+      title: String(award.title || (type === 'vallum' ? 'Vallum' : 'Centurion')),
+      cadence: 'monthly',
+    });
+  });
+  return result;
 }
 
 function mergeVerifiedStandingAwards(incoming: Map<string, AvatarAward>) {
@@ -188,14 +234,28 @@ async function loadCurrentAwards(force = false) {
   if (!force && loadedAt && Date.now() - loadedAt < CACHE_MS) return;
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
-    const { data, error } = await supabase.rpc('get_current_avatar_awards');
-    if (error) throw error;
     const nextAwards = new Map<string, AvatarAward>();
-    ((data || []) as CurrentAvatarAwardRow[]).forEach((award) => addStandingAward(nextAwards, String(award.user_id || ''), {
-      award_type: normalizedAwardType(String(award.award_type || ''), String(award.title || '')),
-      title: String(award.title || 'Full Circle award'),
-      cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
-    }));
+    let rpcError: unknown = null;
+    try {
+      const { data, error } = await supabase.rpc('get_current_avatar_awards');
+      if (error) throw error;
+      ((data || []) as CurrentAvatarAwardRow[]).forEach((award) => addStandingAward(nextAwards, String(award.user_id || ''), {
+        award_type: normalizedAwardType(String(award.award_type || ''), String(award.title || '')),
+        title: String(award.title || 'Full Circle award'),
+        cadence: award.cadence === 'monthly' ? 'monthly' : 'weekly',
+      }));
+    } catch (error) {
+      rpcError = error;
+    }
+
+    if (!hasStandingType(nextAwards, 'vallum') || !hasStandingType(nextAwards, 'centurion')) {
+      try {
+        const directAwards = await loadStandingAwardsDirectly();
+        directAwards.forEach((award, userId) => addStandingAward(nextAwards, userId, award));
+      } catch (directError) {
+        if (nextAwards.size === 0) throw rpcError || directError;
+      }
+    }
     if (nextAwards.size === 0 && holderAwards.size > 0) {
       throw new Error('Standing award refresh returned no holders. Keeping the last verified result.');
     }
@@ -288,7 +348,7 @@ export function VallumAvatarBadge({ userId, size = 'sm', className }: {
   const shellClass = size === 'auto'
     ? 'h-[42%] w-[42%] min-h-4 min-w-4 max-h-6 max-w-6 border-2'
     : size === 'xs' ? 'h-3.5 w-3.5 border' : size === 'md' ? 'h-5 w-5 border-2' : 'h-4 w-4 border';
-  const markSize = size === 'auto' ? 11 : size === 'xs' ? 8 : size === 'md' ? 12 : 10;
+  const markSize = size === 'auto' ? 12 : size === 'xs' ? 10 : size === 'md' ? 13 : 11;
 
   return (
     <span

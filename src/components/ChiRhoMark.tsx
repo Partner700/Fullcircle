@@ -1,5 +1,4 @@
 import laurels from '../assets/brand-real/laureats.png';
-import { publicAsset } from '../lib/publicAsset';
 
 export function ChiRhoMark({ size = 20, className = '' }: { size?: number; className?: string }) {
   return (
@@ -9,21 +8,16 @@ export function ChiRhoMark({ size = 20, className = '' }: { size?: number; class
       aria-label="Labarum"
       title="Labarum"
     >
-      <span
-        className="fc-chi-rho-fallback font-serif font-black leading-none"
-        style={{ fontSize: Math.max(10, Math.round(size * 1.05)) }}
+      <svg
+        className="fc-chi-rho-glyph block h-full w-full overflow-visible"
+        viewBox="6 4 88 90"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
       >
-        ☧
-      </span>
-      <span
-        className="fc-chi-rho-mask absolute inset-0 bg-current"
-        style={{
-          WebkitMask: `url(${publicAsset('labarum-mark.png')}) center / contain no-repeat`,
-          mask: `url(${publicAsset('labarum-mark.png')}) center / contain no-repeat`,
-        }}
-        aria-hidden="true"
-      />
+        <path d="M18 27L82 76M82 27L18 76" stroke="currentColor" strokeWidth="12" strokeLinecap="square" strokeLinejoin="miter" />
+        <path d="M49 91V9H60C74 9 82 16 82 29C82 42 73 49 59 49H49" stroke="currentColor" strokeWidth="10" strokeLinecap="square" strokeLinejoin="miter" />
+      </svg>
     </span>
   );
 }

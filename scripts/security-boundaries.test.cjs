@@ -501,7 +501,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '183', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '184', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -1609,6 +1609,9 @@ assert.match(instructorApp, /<DoveNotificationArrival/);
 
 for (const required of [
   "supabase.rpc('get_current_avatar_awards')",
+  "from('awards')",
+  'loadStandingAwardsDirectly',
+  "award_type.ilike.%vallum%",
   'award.cadence === \'monthly\'',
   'full-circle-standing-avatar-awards',
   'full-circle-standing-avatar-awards-target-v2',
@@ -1626,8 +1629,9 @@ for (const required of [
 ]) {
   assert.ok(vallumAvatarBadge.includes(required), `Missing prioritized avatar award badge behavior: ${required}`);
 }
-assert.match(chiRhoMark, /fc-chi-rho-fallback/);
-assert.match(chiRhoMark, /fc-chi-rho-mask/);
+assert.match(chiRhoMark, /fc-chi-rho-glyph/);
+assert.match(chiRhoMark, /viewBox="6 4 88 90"/);
+assert.doesNotMatch(chiRhoMark, /publicAsset|mask:/);
 assert.match(userAvatar, /<VallumAvatarBadge userId=\{userId\}/);
 assert.match(userAvatar, /showAwardBadge = true/);
 assert.match(indexCss, /\.full-circle-user-avatar-award-enabled \{[\s\S]{0,100}?overflow: visible !important/);
