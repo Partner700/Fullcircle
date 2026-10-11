@@ -32,7 +32,13 @@ if (fs.existsSync(builtIndex)) {
       const cssPath = path.join(root, 'dist', relativeCssPath.replace(/^\.\//, ''));
       if (!fs.existsSync(cssPath)) return tag;
       const releaseCss = path.join(root, 'dist', 'full-circle-release.css');
-      const css = `${fs.readFileSync(cssPath, 'utf8')}\n:root{--full-circle-release-style:"${release}"}\n`;
+      // Vite writes asset URLs relative to dist/assets. This stable stylesheet
+      // lives at dist/, so preserve that directory when moving the CSS text.
+      const relocatedCss = fs.readFileSync(cssPath, 'utf8').replace(
+        /url\((['"]?)\.\/(?!assets\/)([^)'"\s]+)\1\)/g,
+        'url($1./assets/$2$1)',
+      );
+      const css = `${relocatedCss}\n:root{--full-circle-release-style:"${release}"}\n`;
       fs.writeFileSync(releaseCss, css);
       return `<link rel="stylesheet" href="./full-circle-release.css?v=${release}" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">`;
     },
