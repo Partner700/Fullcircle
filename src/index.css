@@ -2532,18 +2532,8 @@
   .profile-cv-footer { margin-top: 0.4rem; padding-top: 0.35rem; }
 }
 
-.fc-chi-rho-mask {
-  display: none;
-}
-
-@supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {
-  .fc-chi-rho-fallback {
-    display: none;
-  }
-
-  .fc-chi-rho-mask {
-    display: block;
-  }
+.fc-chi-rho-glyph {
+  color: inherit;
 }
 
 /* Typography and standing-award invariants live after Tailwind utilities so
