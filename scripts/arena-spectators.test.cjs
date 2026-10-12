@@ -12,6 +12,7 @@ const witnessIntegrityMigration = read('supabase/migrations/20261009120000_arena
 const witnessPlaybackMigration = read('supabase/migrations/20261009150000_arena_witness_playback_and_cleanup.sql');
 const witnessDeliveryMigration = read('supabase/migrations/20261009160000_arena_witness_delivery_and_quiz_sleep_safety.sql');
 const publicArenaMigration = read('supabase/migrations/20261012120000_public_arena_and_instructor_schedules.sql');
+const waitingWitnessMigration = read('supabase/migrations/20261012150000_arena_waiting_witnesses_and_matchups.sql');
 const publicArena = read('src/screens/PublicArenaScreen.tsx');
 const queries = read('src/lib/queries.ts');
 const arena = read('src/screens/cadet/CadetArena.tsx');
@@ -23,6 +24,8 @@ const arenaChallengeGate = read('src/components/ArenaChallengeGate.tsx');
 const arenaQuestionGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 const scorecard = read('src/components/ArenaFinalScorecard.tsx');
 const recentResult = read('src/components/ArenaRecentResult.tsx');
+const matchup = read('src/components/ArenaMatchup.tsx');
+const scheduler = read('src/components/InstructorArenaScheduler.tsx');
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.arena_viewers/);
 assert.match(migration, /ALTER TABLE public\.arena_viewers ENABLE ROW LEVEL SECURITY/);
@@ -163,8 +166,19 @@ assert.match(arena, /if \(phase === 'finished' && activeRoomId\)[\s\S]*?<ArenaFi
 assert.match(roadHome, /state\.phase === 'GAME_OVER'[\s\S]*?<ArenaFinalScorecard/);
 assert.match(scorecard, /groupArenaScoreTeams/);
 assert.match(scorecard, /TentHouseSymbol/);
-assert.match(arena, /grid min-w-0 grid-cols-\[2\.5rem_minmax\(0,1fr\)\]/);
-assert.match(arena, /col-span-2 flex min-w-0 flex-wrap items-center justify-end/);
+assert.match(arena, /<ArenaMatchup players=\{arenaMatchupPlayers\(room\)\}/);
+assert.match(matchup, /<TentHouseSymbol/);
+assert.match(matchup, /<UserAvatar/);
+assert.match(matchup, /<Swords/);
+assert.match(scheduler, /Name this match before scheduling it/);
+assert.match(waitingWitnessMigration, /CREATE OR REPLACE FUNCTION public\.repair_orphaned_arena_matches/);
+assert.match(waitingWitnessMigration, /room\.status NOT IN \('waiting', 'playing'\)/);
+assert.doesNotMatch(waitingWitnessMigration, /room\.status <> 'playing'/);
+assert.match(waitingWitnessMigration, /CREATE OR REPLACE FUNCTION public\.get_arena_matchups/);
+assert.match(waitingWitnessMigration, /FROM public\.arena_scheduled_matches schedule/);
+assert.match(waitingWitnessMigration, /public\.arena_ludo_public_states state/);
+assert.match(waitingWitnessMigration, /public\.arena_trivia_responses answer/);
+assert.match(queries, /supabase\.rpc\('get_arena_matchups'/);
 assert.match(arena, /<ArenaRecentResult key=\{room\.id\} roomId=\{room\.id\} \/>/);
 assert.match(recentResult, /fetchArenaFinalScorecard\(roomId\)/);
 assert.match(recentResult, /<PlayerSymbol player=\{players\[0\]\}/);

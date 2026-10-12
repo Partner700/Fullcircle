@@ -3620,8 +3620,9 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
   if (rooms.length === 0) return [];
 
   const roomIds = rooms.map((room) => room.id);
+  const activeRoomIds = rooms.filter((room) => ['waiting', 'playing'].includes(room.status)).map((room) => room.id);
   const activeViewerCutoff = new Date(Date.now() - 2 * 60_000).toISOString();
-  const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }, { data: schedules, error: scheduleError }, { data: guestCounts }] = await Promise.all([
+  const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }, { data: schedules, error: scheduleError }, { data: guestCounts }, { data: matchups, error: matchupError }] = await Promise.all([
     supabase
       .from('arena_participants')
       .select('id,room_id,user_id,stake_paid,score,correct_count,finished_at,joined_at,last_active_at,forfeited_at,forfeit_reason')
@@ -3638,12 +3639,17 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
       .select('room_id,starts_at,player_ids,scheduled_by')
       .in('room_id', roomIds),
     supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
+    activeRoomIds.length
+      ? supabase.rpc('get_arena_matchups', { p_room_ids: activeRoomIds })
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (participantError) throw participantError;
   if (viewerError && viewerError.code !== '42P01' && viewerError.code !== 'PGRST205') throw viewerError;
   if (scheduleError && scheduleError.code !== '42P01' && scheduleError.code !== 'PGRST205') throw scheduleError;
+  if (matchupError && matchupError.code !== '42883' && matchupError.code !== 'PGRST202') console.warn('Arena matchup refresh failed:', matchupError);
   const scheduleMap = new Map((schedules || []).map((schedule) => [schedule.room_id, schedule]));
   const guestCountMap = new Map((guestCounts || []).map((entry: { room_id: string; guest_count: number }) => [entry.room_id, Number(entry.guest_count) || 0]));
+  const matchupMap = new Map((matchups || []).map((entry: { room_id: string; players: import('./arenaMatchup').ArenaMatchupPlayer[] }) => [entry.room_id, entry.players]));
 
   const userIds = Array.from(new Set([
     ...(participants || []).map((participant: any) => participant.user_id),
@@ -3665,6 +3671,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
     scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
     scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
     arena_guest_witness_count: guestCountMap.get(room.id) || 0,
+    arena_matchup_players: matchupMap.get(room.id) || [],
     arena_participants: (participants || [])
       .filter((participant: any) => participant.room_id === room.id)
       .map((participant: any) => ({
@@ -3709,6 +3716,14 @@ export async function fetchArenaRoom(roomId: string) {
   if (error) throw error;
   const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
   return room || null;
+}
+
+export async function fetchArenaMatchups(roomIds: string[]) {
+  const ids = Array.from(new Set(roomIds)).slice(0, 50);
+  if (ids.length === 0) return new Map<string, import('./arenaMatchup').ArenaMatchupPlayer[]>();
+  const { data, error } = await supabase.rpc('get_arena_matchups', { p_room_ids: ids });
+  if (error) throw error;
+  return new Map((data || []).map((row: { room_id: string; players: import('./arenaMatchup').ArenaMatchupPlayer[] }) => [row.room_id, row.players]));
 }
 
 // ── Strict streak ──

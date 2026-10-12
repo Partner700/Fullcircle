@@ -65,6 +65,8 @@ assert.deepEqual(ROAD_HOME_CONFIG.rewards, {
   assert.equal(state.players[0].matchDenarii, before + ROAD_HOME_CONFIG.rewards.ownQuestion);
   state = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: player.pawns[0].id }, [], fixed(0.1));
   assert.equal(state.players[0].pawns[0].progress, 4);
+  assert.equal(state.players[0].pawns[0].earnedCorrect, 1);
+  assert.equal(state.players[0].stats.correct, 1);
 }
 
 // Arena difficulty timers become shorter as the question becomes harder.
@@ -131,11 +133,31 @@ assert.deepEqual(ROAD_HOME_CONFIG.rewards, {
   attacker.pawns[0].progress = 0;
   const targetGlobal = (attacker.startOffset + 3) % 52;
   victim.pawns[0].progress = (targetGlobal - victim.startOffset + 52) % 52;
+  victim.pawns[0].earnedCorrect = 3;
+  victim.stats.correct = 4;
   const before = attacker.matchDenarii;
   makeSelectable(state, 3, attacker.pawns[0].id);
   state = applyRoadHomeCommand(state, attacker.id, { action: 'MOVE', pawnId: attacker.pawns[0].id }, [], fixed(0.1));
   assert.equal(state.players[1].pawns[0].progress, -1);
+  assert.equal(state.players[1].pawns[0].earnedCorrect, 0);
+  assert.equal(state.players[1].stats.correct, 1, 'only this pawn\'s earned answers are erased');
   assert.equal(state.players[0].matchDenarii, before + ROAD_HOME_CONFIG.rewards.capture);
+}
+
+// A protected pawn keeps its score, and old matches without pawn attribution stay valid.
+{
+  let state = game();
+  const attacker = state.players[0];
+  const victim = state.players[1];
+  attacker.pawns[0].progress = 0;
+  victim.pawns[0].progress = (attacker.startOffset + 3 - victim.startOffset + 52) % 52;
+  victim.pawns[0].earnedCorrect = 2;
+  victim.stats.correct = 2;
+  victim.pawns[0].shielded = true;
+  makeSelectable(state, 3, attacker.pawns[0].id);
+  state = applyRoadHomeCommand(state, attacker.id, { action: 'MOVE', pawnId: attacker.pawns[0].id }, [], fixed(0.1));
+  assert.equal(state.players[1].stats.correct, 2);
+  assert.equal(state.players[1].pawns[0].earnedCorrect, 2);
 }
 
 // Two enemy pawns form a blockade that cannot be crossed.

@@ -57,6 +57,7 @@ export type RoadHomePawn = {
   id: string;
   number: number;
   progress: number;
+  earnedCorrect: number;
   prisonRounds: number;
   imprisonedTurn: number | null;
   shielded: boolean;
@@ -613,12 +614,15 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
         victim.progress = Math.max(0, victim.progress - 1);
         addEvent(state, 'RELIC_USED', `${opponent.name}'s Shield of Faith prevented a capture.`, opponent.id);
       } else {
+        const lostCorrect = Math.max(0, Math.min(opponent.stats.correct, victim.earnedCorrect || 0));
+        opponent.stats.correct -= lostCorrect;
+        victim.earnedCorrect = 0;
         victim.progress = -1;
         victim.prisonRounds = 0;
         opponent.stats.lost += 1;
         player.stats.captured += 1;
         addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.capture, 'captured a pawn');
-        addEvent(state, 'PAWN_CAPTURED', `${player.name} captured ${opponent.name}'s pawn ${victim.number}.`, player.id);
+        addEvent(state, 'PAWN_CAPTURED', `${player.name} captured ${opponent.name}'s pawn ${victim.number}${lostCorrect ? ` and erased ${lostCorrect} point${lostCorrect === 1 ? '' : 's'}` : ''}.`, player.id);
       }
     }
   }
@@ -642,6 +646,7 @@ function movePawn(state: RoadHomeState, pawnId: string, random: RandomFn) {
   const value = state.pendingMoveValue || 0;
   if (!pawn || !state.legalPawnIds.includes(pawnId) || !legalPawnIds(state, player.id, value).includes(pawnId)) throw new Error('That pawn cannot use this move.');
   const from = pawn.progress;
+  pawn.earnedCorrect = (pawn.earnedCorrect || 0) + 1;
   pawn.progress = from < 0 ? 0 : from + value;
   player.stats.totalMovement += value;
   addEvent(state, from < 0 ? 'PAWN_DEPLOYED' : 'PAWN_MOVED', from < 0 ? `${player.name} deployed pawn ${pawn.number}.` : `${player.name} moved pawn ${pawn.number} by ${value}.`, player.id);
@@ -765,7 +770,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
       relics: [],
       finishedRank: null,
       stats: stats(),
-      pawns: Array.from({ length: 4 }, (_, index) => ({ id: `${participant.id}-pawn-${index + 1}`, number: index + 1, progress: -1, prisonRounds: 0, imprisonedTurn: null, shielded: false })),
+      pawns: Array.from({ length: 4 }, (_, index) => ({ id: `${participant.id}-pawn-${index + 1}`, number: index + 1, progress: -1, earnedCorrect: 0, prisonRounds: 0, imprisonedTurn: null, shielded: false })),
     })),
     diceValue: null,
     bonusRollsUsed: 0,
