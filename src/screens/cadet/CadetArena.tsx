@@ -6,6 +6,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaMatchCountdown } from '../../components/ArenaMatchCountdown';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
+import { ArenaRecentResult } from '../../components/ArenaRecentResult';
 import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
@@ -1111,74 +1112,78 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
             const pot = room.stake_amount * participants.length * 10;
             return (
-              <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4 flex items-center gap-3">
+              <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={18} veilClassName="arena-panel-veil" />
-                <div className="relative z-10 w-10 h-10 rounded-lg bg-gold-soft flex items-center justify-center flex-shrink-0">
-                  <Swords size={20} className="text-gold" />
-                </div>
-                <div className="relative z-10 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <p className="text-sm font-semibold text-ink truncate">{cleanArenaRoomName(room.room_name)}</p>
-                    {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
-                    {isDirectChallenge && <span className="badge badge-gold text-[9px]">Challenge</span>}
-                    {room.scheduled && <span className="badge badge-gold text-[9px]">Scheduled</span>}
-                    {invited && !isParticipant && !isDirectChallenge && <span className="badge badge-gold text-[9px]">Invited</span>}
+                <div className="relative z-10 grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold-soft">
+                    <Swords size={20} className="text-gold" />
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-stone">
-                    <span className="flex items-center gap-0.5"><Coins size={11} /> {formatDenarii(room.stake_amount)} Ð</span>
-                    <span className="flex items-center gap-0.5"><Trophy size={11} /> {formatDenarii(pot)} Ð pot</span>
-                    <span className="flex items-center gap-0.5"><Users size={11} /> {participants.length}/{room.max_players}</span>
-                    {host?.display_name && <span className="truncate">Host: {host.display_name}</span>}
-                    {room.scheduled_start_at && <span>{new Date(room.scheduled_start_at).toLocaleString()}</span>}
-                    {!room.scheduled && minutesUntilExpiry !== null && <span>{minutesUntilExpiry}m left</span>}
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <p className="max-w-full truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
+                      {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
+                      {isDirectChallenge && <span className="badge badge-gold text-[9px]">Challenge</span>}
+                      {room.scheduled && <span className="badge badge-gold text-[9px]">Scheduled</span>}
+                      {invited && !isParticipant && !isDirectChallenge && <span className="badge badge-gold text-[9px]">Invited</span>}
+                    </div>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone">
+                      <span className="flex items-center gap-0.5"><Coins size={11} /> {formatDenarii(room.stake_amount)} Ð</span>
+                      <span className="flex items-center gap-0.5"><Trophy size={11} /> {formatDenarii(pot)} Ð pot</span>
+                      <span className="flex items-center gap-0.5"><Users size={11} /> {participants.length}/{room.max_players}</span>
+                      {host?.display_name && <span className="max-w-full truncate">Host: {host.display_name}</span>}
+                      {room.scheduled_start_at && <span>{new Date(room.scheduled_start_at).toLocaleString()}</span>}
+                      {!room.scheduled && minutesUntilExpiry !== null && <span>{minutesUntilExpiry}m left</span>}
+                    </div>
                   </div>
-                </div>
-                <button type="button" className="btn-ghost relative z-10 h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
-                {isParticipant ? (
-                  <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary relative z-10 text-xs">
-                    Enter Room
-                  </button>
-                ) : isChallengeTarget && directChallengeStatus === 'scheduled' ? (
-                  <button onClick={() => void startScheduledChallenge(room.id)} className="btn-primary relative z-10 text-xs">
-                    <Play size={14} /> Start Scheduled
-                  </button>
-                ) : isChallengeTarget && directChallengeStatus === 'pending' ? (
-                  <button
-                    onClick={() => {
-                      if (challengeSourceRoomId) activateRoom(challengeSourceRoomId, 'playing');
-                      else setError('Open your current Arena match to answer this challenge.');
-                    }}
-                    className="btn-primary relative z-10 text-xs"
-                  >
-                    <Swords size={14} /> Decide in Match
-                  </button>
-                ) : isDirectChallenge && !isChallengeTarget ? (
-                  <div className="relative z-10 flex items-center gap-2">
-                    <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
-                    <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
-                      <Eye size={14} /> Witness
-                    </button>
-                  </div>
-                ) : room.scheduled ? (
-                  <div className="relative z-10 flex flex-wrap items-center gap-2">
-                    <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>
-                    {room.scheduled_player_ids?.includes(profile?.id) && participants.length < room.max_players && (
-                      <button onClick={() => void joinRoom(room.id)} className="btn-primary text-xs"><Play size={14} /> Enter Match</button>
+                  <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
+                    <button type="button" className="btn-ghost h-9 w-9 shrink-0 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
+                    {isParticipant ? (
+                      <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary text-xs">
+                        Enter Room
+                      </button>
+                    ) : isChallengeTarget && directChallengeStatus === 'scheduled' ? (
+                      <button onClick={() => void startScheduledChallenge(room.id)} className="btn-primary text-xs">
+                        <Play size={14} /> Start Scheduled
+                      </button>
+                    ) : isChallengeTarget && directChallengeStatus === 'pending' ? (
+                      <button
+                        onClick={() => {
+                          if (challengeSourceRoomId) activateRoom(challengeSourceRoomId, 'playing');
+                          else setError('Open your current Arena match to answer this challenge.');
+                        }}
+                        className="btn-primary text-xs"
+                      >
+                        <Swords size={14} /> Decide in Match
+                      </button>
+                    ) : isDirectChallenge && !isChallengeTarget ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
+                        <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
+                          <Eye size={14} /> Witness
+                        </button>
+                      </div>
+                    ) : room.scheduled ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>
+                        {room.scheduled_player_ids?.includes(profile?.id) && participants.length < room.max_players && (
+                          <button onClick={() => void joinRoom(room.id)} className="btn-primary text-xs"><Play size={14} /> Enter Match</button>
+                        )}
+                      </div>
+                    ) : participants.length >= room.max_players ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
+                        <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
+                          <Eye size={14} /> Witness
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => joinRoom(room.id)} disabled={denarii < room.stake_amount || participants.length >= room.max_players}
+                        className="btn-primary text-xs disabled:opacity-40">
+                        {room.scheduled ? 'Enter Match' : invited ? 'Join Invite' : `Join (${formatDenarii(room.stake_amount)} Ð)`}
+                      </button>
                     )}
                   </div>
-                ) : participants.length >= room.max_players ? (
-                  <div className="relative z-10 flex items-center gap-2">
-                    <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
-                    <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
-                      <Eye size={14} /> Witness
-                    </button>
-                  </div>
-                ) : (
-                  <button onClick={() => joinRoom(room.id)} disabled={denarii < room.stake_amount || participants.length >= room.max_players}
-                    className="btn-primary relative z-10 text-xs disabled:opacity-40">
-                    {room.scheduled ? 'Enter Match' : invited ? 'Join Invite' : `Join (${formatDenarii(room.stake_amount)} Ð)`}
-                  </button>
-                )}
+                </div>
               </div>
             );
           })
@@ -1188,19 +1193,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       {rooms.filter((r) => r.status === 'completed').length > 0 && (
         <div className="space-y-2">
           <h4 className="font-display font-semibold text-ink text-sm">Recent Games</h4>
-          {rooms.filter((r) => r.status === 'completed').slice(0, 5).map((room) => {
-            const participants = room.arena_participants || [];
-            const winner = participants.find((p: any) => p.user_id === room.winner_id);
-            return (
-              <div key={room.id} className="card bg-surface/70 backdrop-blur-sm p-3 flex items-center gap-3 opacity-75">
-                <Trophy size={16} className="text-gold flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-ink">{room.room_name}</p>
-                  <p className="text-xs text-stone">Winner: {winner?.profiles?.display_name || '—'} · Prize: {formatDenarii(room.stake_amount * participants.length * 10)} Ð</p>
-                </div>
-              </div>
-            );
-          })}
+          {rooms.filter((r) => r.status === 'completed').slice(0, 5).map((room) => (
+            <ArenaRecentResult key={room.id} roomId={room.id} />
+          ))}
         </div>
       )}
       </>}
