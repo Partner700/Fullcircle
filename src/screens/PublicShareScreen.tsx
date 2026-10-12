@@ -51,7 +51,7 @@ function PublicRestDayAwards({ readingDate }: { readingDate: string }) {
         {awards.map((award) => (
           <div key={award.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
             <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-gold-soft text-gold">
-              <UserAvatar userId={award.user_id} name={award.display_name} avatarUrl={award.avatar_url} className="h-full w-full" />
+              <UserAvatar userId={award.user_id} name={award.display_name} avatarUrl={award.avatar_url} className="h-full w-full" showAwardBadge={false} />
               <span className="absolute -bottom-1 -right-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/80 bg-navy-2 text-gold">
                 <AwardBadgeGlyph awardType={award.award_type} title={award.title} size={9} />
               </span>

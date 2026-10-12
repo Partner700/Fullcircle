@@ -361,7 +361,7 @@ export function InstructorApp() {
       {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}
       {tab === 'quiz' && <QuizBuilder />}
       {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} />}
-      {tab === 'arena' && <CadetArena witnessOnly />}
+      {tab === 'arena' && <CadetArena witnessOnly instructorSchedule />}
       {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
       {tab === 'mobile_money' && <MobileMoneyManager />}
       {tab === 'store' && <CadetStore />}

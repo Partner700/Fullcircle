@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign, Clock, Crown, Dices, Gift, Loader2,
-  Eye, Flag, LockKeyhole, MessageCircle, RotateCw, Shield, Sparkles, Trophy, X,
+  Eye, Flag, LockKeyhole, MessageCircle, RotateCw, Shield, Sparkles, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { UserAvatar } from '../../components/UserAvatar';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
@@ -20,6 +21,8 @@ type Props = {
   userId: string;
   spectator?: boolean;
   spectatorCanChallenge?: boolean;
+  publicAccess?: boolean;
+  guestKey?: string;
   prepareQuestions?: () => Promise<void>;
   onExit: () => void;
   onStateChanged?: () => Promise<void> | void;
@@ -112,6 +115,8 @@ export function RoadHomeGame({
   userId,
   spectator = false,
   spectatorCanChallenge = true,
+  publicAccess = false,
+  guestKey,
   prepareQuestions,
   onExit,
   onStateChanged,
@@ -150,7 +155,7 @@ export function RoadHomeGame({
   const load = useCallback(async () => {
     try {
       const response = spectator
-        ? await fetchRoadHomeSpectatorState(roomId)
+        ? await fetchRoadHomeSpectatorState(roomId, publicAccess)
         : await fetchRoadHomeState(roomId);
       if (response.state) {
         hasState.current = true;
@@ -171,7 +176,7 @@ export function RoadHomeGame({
       setLoading(false);
       setInitializing(false);
     }
-  }, [prepareQuestions, roomId, spectator]);
+  }, [prepareQuestions, publicAccess, roomId, spectator]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -415,7 +420,7 @@ export function RoadHomeGame({
   }
 
   if (state.phase === 'GAME_OVER') {
-    return <RoadHomeResults state={state} userId={userId} onExit={onExit} />;
+    return <ArenaFinalScorecard roomId={roomId} onExit={onExit} />;
   }
 
   return (
@@ -494,6 +499,7 @@ export function RoadHomeGame({
             <ArenaRoomChat
               roomId={roomId}
               userId={userId}
+              guestKey={guestKey}
               allowGameCalls={spectator && spectatorCanChallenge}
               challengeTargets={spectator && spectatorCanChallenge ? state.players
                 .filter((player) => !player.isBot)
@@ -721,14 +727,6 @@ function RelicTray({ player, state, sending, send }: { player: RoadHomePlayer; s
   if (!player.relics.length) return <div className="rounded-lg border border-border bg-surface/90 p-3"><p className="text-xs font-bold text-ink">Relics · 0/3</p><p className="mt-1 text-[11px] text-stone">Surprise spaces can reveal match relics.</p></div>;
   const usable = (relic: string) => relic === 'Manna Pouch' || (relic === 'Key of Deliverance' && state.phase === 'PRISON_MANAGEMENT') || (relic === 'Lamp of Guidance' && state.phase === 'QUESTION' && state.currentQuestion?.type === 'multiple_choice') || (relic === 'Scroll of Recall' && state.phase === 'QUESTION') || (relic === 'Golden Scroll' && state.phase === 'QUESTION' && state.questionPurpose === 'own') || (relic === "Shepherd's Staff" && state.phase === 'INHERITED_OFFER');
   return <div className="rounded-lg border border-border bg-surface/90 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Relics</p><span className="text-[10px] text-stone">{player.relics.length}/3</span></div><div className="space-y-1.5">{player.relics.map((relic, index) => <button key={`${relic}-${index}`} disabled={sending || !usable(relic)} onClick={() => void send('USE_RELIC', { relic })} className="flex w-full items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-2 text-left text-[11px] font-semibold text-ink disabled:opacity-55"><Sparkles size={13} className="text-gold" /><span className="min-w-0 flex-1 truncate">{relic}</span>{usable(relic) && <span className="text-[9px] text-sage">Use</span>}</button>)}</div></div>;
-}
-
-function RoadHomeResults({ state, userId, onExit }: { state: RoadHomeState; userId: string; onExit: () => void }) {
-  const ranking = state.rankings.map((id) => state.players.find((player) => player.id === id)).filter(Boolean) as RoadHomePlayer[];
-  const winner = ranking[0];
-  const knowledgeable = [...state.players].sort((a, b) => b.stats.correct - a.stats.correct)[0];
-  const strategic = [...state.players].sort((a, b) => (b.stats.captured + b.stats.inheritedClaimed) - (a.stats.captured + a.stats.inheritedClaimed))[0];
-  return <div className="mx-auto max-w-3xl space-y-4 animate-scale-in"><div className="card relative overflow-hidden border-gold/40 p-6 text-center"><RoadHomeConfetti /><Trophy size={48} className="relative z-10 mx-auto text-gold" /><p className="eyebrow relative z-10 mt-3">The Road Home</p><h2 className="relative z-10 mt-1 font-display text-2xl font-bold text-ink">{winner?.id === userId ? 'You reached Home first' : `${winner?.name || 'The victor'} reached Home first`}</h2><p className="relative z-10 mt-2 text-sm text-stone">The four-pawn race is complete and the tenfold Arena reward has been settled.</p></div><div className="grid gap-3 sm:grid-cols-2">{ranking.map((player, index) => <div key={player.id} className="card flex items-center gap-3 p-4"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-soft font-display font-bold text-gold">{index + 1}</span><PlayerAvatar player={player} size="lg" /><div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="text-[10px] text-stone">{index === 0 ? 'The Victor' : index === 1 ? 'The Finisher' : index === 2 ? 'The Traveller' : 'The Sojourner'} · {player.stats.correct} correct</p></div></div>)}</div><div className="grid gap-3 sm:grid-cols-2"><div className="card p-4"><p className="eyebrow">Most Knowledgeable</p><p className="mt-1 font-bold text-ink">{knowledgeable?.name}</p><p className="text-xs text-stone">{knowledgeable?.stats.correct} correct answers</p></div><div className="card p-4"><p className="eyebrow">Most Strategic</p><p className="mt-1 font-bold text-ink">{strategic?.name}</p><p className="text-xs text-stone">{strategic?.stats.captured} captures · {strategic?.stats.inheritedClaimed} inherited claims</p></div></div><button onClick={onExit} className="btn-primary w-full">Back to Arena</button></div>;
 }
 
 function RoadHomeConfetti() {

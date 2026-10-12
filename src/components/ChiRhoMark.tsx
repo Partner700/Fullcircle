@@ -3,7 +3,7 @@ import laurels from '../assets/brand-real/laureats.png';
 export function ChiRhoMark({ size = 20, className = '' }: { size?: number; className?: string }) {
   return (
     <span
-      className={`fc-chi-rho-mark relative inline-flex shrink-0 items-center justify-center ${className}`}
+      className={`fc-chi-rho-inline relative inline-flex shrink-0 items-center justify-center ${className}`}
       style={{ width: size, height: size }}
       aria-label="Labarum"
       title="Labarum"

@@ -16,6 +16,7 @@ const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetA
 const SentryApp = lazy(() => importWithRetry(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }))));
 const InstructorApp = lazy(() => importWithRetry(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp }))));
 const PublicShareScreen = lazy(() => importWithRetry(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen }))));
+const PublicArenaScreen = lazy(() => importWithRetry(() => import('./screens/PublicArenaScreen').then((module) => ({ default: module.PublicArenaScreen }))));
 const AuthenticatedOverlays = lazy(() => importWithRetry(() => import('./components/AuthenticatedOverlays').then((module) => ({ default: module.AuthenticatedOverlays }))));
 
 const SCRIPTURE_FACTS = [
@@ -69,6 +70,10 @@ export default function App() {
     return null;
   }, []);
   const signupRequested = useMemo(() => new URLSearchParams(window.location.search).get('signup') === '1', []);
+  const publicArenaRoomId = useMemo(() => {
+    const search = new URLSearchParams(window.location.search);
+    return search.get('share') === 'arena' ? search.get('id') : null;
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -128,6 +133,10 @@ export default function App() {
       </NonBlockingErrorBoundary>
     )}
   </>;
+
+  if (publicArenaRoomId && !configError) {
+    return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening Arena witness room" />}><PublicArenaScreen roomId={publicArenaRoomId} /></Suspense></>;
+  }
 
   if (publicShare && !configError) {
     return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;

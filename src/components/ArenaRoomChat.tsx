@@ -6,6 +6,7 @@ import {
   createArenaChatGameCall,
   fetchArenaChatGameCalls,
   fetchArenaRoomMessages,
+  postPublicArenaComment,
   sendArenaRoomMessage,
 } from '../lib/queries';
 import type { ArenaChatGameCall } from '../lib/queries';
@@ -15,10 +16,10 @@ import { cn, formatDenarii } from '../lib/utils';
 type ArenaMessage = {
   id: string;
   room_id: string;
-  sender_id: string;
+  sender_id: string | null;
   body: string;
   created_at: string;
-  sender: { id: string; display_name: string; avatar_url: string | null } | null;
+  sender: { id: string | null; display_name: string; avatar_url: string | null } | null;
 };
 
 export type ArenaChallengeTarget = {
@@ -30,6 +31,7 @@ export type ArenaChallengeTarget = {
 type Props = {
   roomId: string;
   userId: string;
+  guestKey?: string;
   compact?: boolean;
   allowGameCalls?: boolean;
   challengeTargets?: ArenaChallengeTarget[];
@@ -142,6 +144,7 @@ function ArenaGameCallCard({
 export function ArenaRoomChat({
   roomId,
   userId,
+  guestKey,
   compact = false,
   allowGameCalls = false,
   challengeTargets = [],
@@ -193,14 +196,15 @@ export function ArenaRoomChat({
     }
     channel.subscribe();
     const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadMessages();
       if (useGameCalls && document.visibilityState === 'visible') void loadCalls();
-    }, 20_000);
+    }, guestKey ? 5_000 : 20_000);
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [loadCalls, loadMessages, roomId, useGameCalls]);
+  }, [guestKey, loadCalls, loadMessages, roomId, useGameCalls]);
 
   const timeline = useMemo(() => [
     ...messages.map((message) => ({ kind: 'message' as const, id: message.id, createdAt: message.created_at, message })),
@@ -212,7 +216,8 @@ export function ArenaRoomChat({
     setSending(true);
     setError(null);
     try {
-      await sendArenaRoomMessage(roomId, userId, body);
+      if (guestKey) await postPublicArenaComment(roomId, guestKey, body);
+      else await sendArenaRoomMessage(roomId, userId, body);
       setBody('');
       await loadMessages();
     } catch (sendError: unknown) {
@@ -369,7 +374,7 @@ export function ArenaRoomChat({
           if (item.kind === 'call') {
             return <ArenaGameCallCard key={`call-${item.id}`} gameCall={item.gameCall} userId={userId} busy={busyCallId === item.id} allowOpenCallActions={allowGameCalls} onAction={onGameCallAction ? actOnCall : undefined} />;
           }
-          const mine = item.message.sender_id === userId;
+          const mine = Boolean(userId && item.message.sender_id === userId);
           return (
             <div key={`message-${item.id}`} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
               {!mine && <UserAvatar userId={item.message.sender_id} name={item.message.sender?.display_name} avatarUrl={item.message.sender?.avatar_url} className="mt-0.5 h-6 w-6 flex-shrink-0" />}
