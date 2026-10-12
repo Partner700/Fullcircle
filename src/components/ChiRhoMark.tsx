@@ -10,13 +10,14 @@ export function ChiRhoMark({ size = 20, className = '' }: { size?: number; class
     >
       <svg
         className="fc-chi-rho-glyph block h-full w-full overflow-visible"
-        viewBox="6 4 88 90"
-        fill="none"
+        viewBox="0 0 100 100"
+        fill="currentColor"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
       >
-        <path d="M18 27L82 76M82 27L18 76" stroke="currentColor" strokeWidth="12" strokeLinecap="square" strokeLinejoin="miter" />
-        <path d="M49 91V9H60C74 9 82 16 82 29C82 42 73 49 59 49H49" stroke="currentColor" strokeWidth="10" strokeLinecap="square" strokeLinejoin="miter" />
+        <path d="M45 4h10v92H45z" />
+        <path d="M50 4h11c11 0 18 7 18 18s-7 18-18 18H50v-9h11c6 0 9-3 9-9s-3-9-9-9H50z" />
+        <path d="M15 34l7-9 63 48-7 9zM78 25l7 9-63 48-7-9z" />
       </svg>
     </span>
   );
