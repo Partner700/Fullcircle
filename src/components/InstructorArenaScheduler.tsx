@@ -9,7 +9,7 @@ type Player = RoleAssignment & { profiles: Profile };
 
 export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => Promise<void> | void }) {
   const [players, setPlayers] = useState<Player[]>([]);
-  const [roomName, setRoomName] = useState('Instructor Match');
+  const [roomName, setRoomName] = useState('');
   const [gameType, setGameType] = useState<'standard' | 'ludo'>('standard');
   const [startsAt, setStartsAt] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -30,6 +30,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const submit = async () => {
     if (busy) return;
     setMessage(null);
+    if (!roomName.trim()) { setMessage('Name this match before scheduling it.'); return; }
     if (selected.length < 2 || selected.length > capacity) {
       setMessage(`Select 2 to ${capacity} players.`); return;
     }
@@ -39,9 +40,9 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     }
     setBusy(true);
     try {
-      await scheduleInstructorArenaMatch({ roomName, gameType, playerIds: selected, startsAt: date.toISOString() });
+      await scheduleInstructorArenaMatch({ roomName: roomName.trim(), gameType, playerIds: selected, startsAt: date.toISOString() });
       setSelected([]);
-      setRoomName('Instructor Match');
+      setRoomName('');
       setStartsAt('');
       setMessage('Match scheduled. The selected players have been notified.');
       await onScheduled();
@@ -53,7 +54,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   return <section className="border-b border-border pb-5">
     <div className="mb-4 flex items-center gap-2"><CalendarClock size={18} className="text-gold" /><h2 className="font-display text-base font-bold text-ink">Schedule an Arena match</h2></div>
     <div className="grid gap-3 sm:grid-cols-2">
-      <label className="text-xs font-semibold text-stone">Match name<input className="input-field mt-1" value={roomName} maxLength={72} onChange={(event) => setRoomName(event.target.value)} /></label>
+      <label className="text-xs font-semibold text-stone">Match name<input className="input-field mt-1" value={roomName} maxLength={72} placeholder="Name your match" onChange={(event) => setRoomName(event.target.value)} /></label>
       <label className="text-xs font-semibold text-stone">Start date and time<input className="input-field mt-1" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
     </div>
     <div className="mt-3 max-w-xs"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect value={gameType} onChange={(value) => { setGameType(value as 'standard' | 'ludo'); setSelected((ids) => ids.slice(0, value === 'ludo' ? 4 : 8)); }} options={[{ value: 'standard', label: 'Standard Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} /></div>
@@ -68,7 +69,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
         </label>;
       })}
     </div>
-    <div className="mt-3 flex flex-wrap items-center gap-3"><button className="btn-primary text-xs" type="button" onClick={() => void submit()} disabled={busy || selected.length < 2}><Swords size={14} /> {busy ? <Loader2 size={14} className="animate-spin" /> : 'Schedule match'}</button><span className="text-xs text-stone">{selected.length}/{capacity} players</span></div>
+    <div className="mt-3 flex flex-wrap items-center gap-3"><button className="btn-primary text-xs" type="button" onClick={() => void submit()} disabled={busy || selected.length < 2 || !roomName.trim()}><Swords size={14} /> {busy ? <Loader2 size={14} className="animate-spin" /> : 'Schedule match'}</button><span className="text-xs text-stone">{selected.length}/{capacity} players</span></div>
     {message && <p role="status" className="mt-2 text-xs text-stone">{message}</p>}
   </section>;
 }

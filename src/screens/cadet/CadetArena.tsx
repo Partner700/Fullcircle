@@ -5,6 +5,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaMatchCountdown } from '../../components/ArenaMatchCountdown';
+import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaRecentResult } from '../../components/ArenaRecentResult';
 import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
@@ -34,6 +35,7 @@ import {
   leaveArenaRoomView,
   fetchArenaRooms,
   fetchArenaRoom,
+  fetchArenaMatchups,
   fetchRhudeBoard,
   fetchArenaInvitees,
   prepareArenaQuestionDeck,
@@ -51,8 +53,9 @@ import { safeJsonStorageGet, safeStorageGet, safeStorageRemove, safeStorageSet }
 import { UserAvatar } from '../../components/UserAvatar';
 import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from '../../lib/types';
 import type { ArenaChatGameCall, ArenaLiveTriviaState, ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
+import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
 import {
-  Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
+  Swords, Coins, Loader2, Zap, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
   ArrowLeft, ChevronDown, Eye, Radio, Share2,
 } from 'lucide-react';
 
@@ -95,6 +98,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const previousSoundPhase = useRef<ArenaPhase | null>(null);
   const followingRestartRef = useRef<string | null>(null);
   const lastScheduledStartAttempt = useRef(0);
+  const hasLiveRooms = rooms.some((room) => room.status === 'playing');
+  const liveRoomIds = rooms.filter((room) => room.status === 'playing').map((room) => room.id).join(',');
 
   useEffect(() => {
     void setScenarioSound(phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
@@ -172,7 +177,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     if (!profile) return false;
     setError(null);
     try {
-      await watchArenaRoom(roomId);
+      if (!await watchArenaRoom(roomId)) throw new Error('This Arena match has ended and cannot be witnessed.');
       const freshRoom = await refreshRoom(roomId);
       if (freshRoom && !isWitnessableArenaRoom(freshRoom)) {
         await leaveArenaRoomView(roomId).catch(() => undefined);
@@ -306,11 +311,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     const channel = supabase
       .channel(`arena_lobby_${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_viewers' }, scheduleRefresh)
       .subscribe();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshRooms();
-    }, 30_000);
+    }, hasLiveRooms ? 15_000 : 30_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void refreshRooms(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -319,7 +323,24 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       document.removeEventListener('visibilitychange', onVisible);
       void supabase.removeChannel(channel);
     };
-  }, [phase, profile, refreshRooms]);
+  }, [phase, profile, refreshRooms, hasLiveRooms]);
+
+  useEffect(() => {
+    if (phase !== 'lobby' || !liveRoomIds) return;
+    let active = true;
+    const refreshScores = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const scores = await fetchArenaMatchups(liveRoomIds.split(','));
+        if (active) setRooms((current) => current.map((room) => {
+          const players = scores.get(room.id);
+          return players ? { ...room, arena_matchup_players: players } : room;
+        }));
+      } catch { /* The regular Arena refresh will retry. */ }
+    };
+    const interval = window.setInterval(() => { void refreshScores(); }, 5_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [phase, liveRoomIds]);
 
   // Realtime subscription for room updates
   useEffect(() => {
@@ -384,8 +405,17 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             setError(null);
             return;
           }
-          setError('That Arena match is no longer live.');
-          clearActiveRoom(false);
+          if (freshRoom && isWitnessableArenaRoom(freshRoom)) {
+            const rejoined = await watchArenaRoom(activeRoomId).catch(() => false);
+            if (rejoined) {
+              setError(null);
+              return;
+            }
+          }
+          if (freshRoom && !isWitnessableArenaRoom(freshRoom)) {
+            setError('That Arena match has ended.');
+            clearActiveRoom(false);
+          }
           return;
         }
         await refreshRoom(activeRoomId);
@@ -492,7 +522,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       }
     };
     void refreshActiveRoom();
-    const interval = window.setInterval(() => { void refreshActiveRoom(); }, 2500);
+    const interval = window.setInterval(() => { void refreshActiveRoom(); }, isSpectating ? 8_000 : 2500);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -732,9 +762,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     const machineMatch = room?.play_mode === 'machine';
     const scheduleReady = !room?.scheduled_start_at || Date.now() >= Date.parse(room.scheduled_start_at);
     const canStart = scheduleReady && (machineMatch || participants.length >= 2);
-    const pot = (room?.stake_amount || 0) * participants.length * 10;
-    const expiresAt = room?.expires_at ? new Date(room.expires_at).getTime() : null;
-    const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
     const availableInvitees = allInvitees.filter((player) => !participants.some((p: any) => p.user_id === player.user_id));
 
     return (
@@ -752,33 +779,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
           <PanelImageBackdrop image={arenaImage} opacityFallback={24} veilClassName="arena-panel-veil" />
           <div className="relative z-10">
-          <h3 className="font-display text-lg font-semibold text-ink mb-1">{room?.room_name || 'Arena Room'}</h3>
+          <h3 className="mb-3 text-center font-display text-lg font-semibold text-ink">{cleanArenaRoomName(room?.room_name || 'Arena Room')}</h3>
+          <div className="mb-3"><ArenaMatchup players={arenaMatchupPlayers(room)} /></div>
           {room?.scheduled_start_at && <ArenaMatchCountdown startsAt={room.scheduled_start_at} />}
-          <div className="flex items-center gap-3 text-sm text-stone mb-4">
-            <span className="flex items-center gap-1"><Coins size={14} className="text-gold" /> {formatDenarii(room?.stake_amount || 0)} Ð stake</span>
-            <span className="flex items-center gap-1"><Users size={14} /> {participants.length}/{room?.max_players || 4}</span>
-            <span className="flex items-center gap-1"><Trophy size={14} className="text-gold" /> {formatDenarii(pot)} Ð pot</span>
-            {minutesUntilExpiry !== null && (
-              <span className="flex items-center gap-1"><Clock size={14} /> closes in {minutesUntilExpiry}m</span>
-            )}
-          </div>
-          <p className="text-xs text-stone mb-4">
-            {room?.scheduled ? 'Only selected players can play. Everyone may witness. The match starts at the scheduled time once two players have entered.' : machineMatch ? `Machine target: ${room?.machine_score || 10} figs. Win to receive ten times your 50 denarii stake.` : 'The stake stays locked in this room. Empty rooms close after 15 minutes; once another player joins, the host has 10 minutes to launch before it closes.'}
-          </p>
-
-          <div className="space-y-2 mb-4">
-            {participants.map((p: any) => (
-              <div key={p.user_id} className="flex items-center gap-2 p-2 rounded-lg bg-surface-2">
-                <span className="relative flex h-8 w-8 items-center justify-center font-display text-sm font-bold text-gold">
-                  <UserAvatar userId={p.user_id} name={p.profiles?.display_name} avatarUrl={p.profiles?.avatar_url} className="h-full w-full" />
-
-                </span>
-                <span className="text-sm text-ink">{p.profiles?.display_name || 'Unknown'}</span>
-                {p.user_id === room?.creator_id && <span className="badge badge-brass text-[9px]">Host</span>}
-                {p.stake_paid && <CheckCircle2 size={14} className="text-sage" />}
-              </div>
-            ))}
-          </div>
 
           {!machineMatch && (
             <ArenaRoomChat
@@ -864,7 +867,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
           {isSpectating ? (
             <div className="space-y-3">
-              <p className="text-center text-xs text-stone">You are witnessing this room fill. When the host starts, the board will open here.</p>
               <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room?.arena_guest_witness_count) || 0} />
             </div>
           ) : isCreator || room?.scheduled ? (
@@ -1050,7 +1052,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                     <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-coral/35 bg-coral-soft text-coral"><Swords size={20} /></span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
-                      <p className="mt-0.5 truncate text-xs text-stone">{participants.map((participant: any) => participant.profiles?.display_name || 'Player').join(' vs ')}</p>
+                      <ArenaMatchup players={arenaMatchupPlayers(room)} playing />
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-stone">
                         <span>{parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</span>
                         <span aria-hidden="true">·</span>
@@ -1101,41 +1103,19 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             const participants = room.arena_participants || [];
             const witnesses = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((p: any) => p.user_id === profile?.id);
-            const host = participants.find((p: any) => p.user_id === room.creator_id)?.profiles;
             const invited = Array.isArray(room.tagged_user_ids) && profile?.id ? room.tagged_user_ids.includes(profile.id) : false;
             const directChallengeUserId = room.direct_challenge_user_id as string | null | undefined;
             const isDirectChallenge = Boolean(directChallengeUserId);
             const isChallengeTarget = directChallengeUserId === profile?.id;
             const directChallengeStatus = room.direct_challenge_status as string | null | undefined;
             const challengeSourceRoomId = room.direct_challenge_source_room_id as string | null | undefined;
-            const expiresAt = room.expires_at ? new Date(room.expires_at).getTime() : null;
-            const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
-            const pot = room.stake_amount * participants.length * 10;
             return (
               <div data-artwork-theme={(arenaImage)?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={18} veilClassName="arena-panel-veil" />
-                <div className="relative z-10 grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold-soft">
-                    <Swords size={20} className="text-gold" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <p className="max-w-full truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
-                      {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
-                      {isDirectChallenge && <span className="badge badge-gold text-[9px]">Challenge</span>}
-                      {room.scheduled && <span className="badge badge-gold text-[9px]">Scheduled</span>}
-                      {invited && !isParticipant && !isDirectChallenge && <span className="badge badge-gold text-[9px]">Invited</span>}
-                    </div>
-                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone">
-                      <span className="flex items-center gap-0.5"><Coins size={11} /> {formatDenarii(room.stake_amount)} Ð</span>
-                      <span className="flex items-center gap-0.5"><Trophy size={11} /> {formatDenarii(pot)} Ð pot</span>
-                      <span className="flex items-center gap-0.5"><Users size={11} /> {participants.length}/{room.max_players}</span>
-                      {host?.display_name && <span className="max-w-full truncate">Host: {host.display_name}</span>}
-                      {room.scheduled_start_at && <span>{new Date(room.scheduled_start_at).toLocaleString()}</span>}
-                      {!room.scheduled && minutesUntilExpiry !== null && <span>{minutesUntilExpiry}m left</span>}
-                    </div>
-                  </div>
-                  <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
+                <div className="relative z-10 min-w-0 space-y-3">
+                  <p className="truncate text-center text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
+                  <ArenaMatchup players={arenaMatchupPlayers(room)} />
+                  <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
                     <button type="button" className="btn-ghost h-9 w-9 shrink-0 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
                     {isParticipant ? (
                       <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary text-xs">
@@ -1209,6 +1189,19 @@ function parseArenaGameType(roomName: string) {
 
 function cleanArenaRoomName(roomName: string) {
   return roomName.replace(/\s*\[.*?\]/g, '').trim() || 'Arena Match';
+}
+
+function arenaMatchupPlayers(room: any): ArenaMatchupPlayer[] {
+  if (Array.isArray(room?.arena_matchup_players) && room.arena_matchup_players.length > 0) {
+    return room.arena_matchup_players as ArenaMatchupPlayer[];
+  }
+  return (room?.arena_participants || []).map((participant: any) => ({
+    user_id: participant.user_id,
+    display_name: participant.profiles?.display_name || 'Player',
+    avatar_url: participant.profiles?.avatar_url || null,
+    tent_house_id: null,
+    correct_count: Number(participant.correct_count) || 0,
+  }));
 }
 
 function isLiveArenaRoom(room: any) {
