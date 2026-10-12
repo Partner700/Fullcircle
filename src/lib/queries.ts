@@ -3278,19 +3278,107 @@ export async function leaveArenaRoomView(roomId: string) {
 }
 
 export async function fetchArenaRoomMessages(roomId: string) {
-  const { data, error } = await supabase
-    .from('arena_room_messages')
-    .select('id,room_id,sender_id,body,created_at')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: true })
-    .limit(100);
+  const { data, error } = await supabase.rpc('get_public_arena_chat', { p_room_id: roomId });
   if (error) throw error;
-  const senderIds = Array.from(new Set((data || []).map((message: any) => message.sender_id)));
-  const { data: profiles } = senderIds.length
-    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds)
-    : { data: [] as any[] };
-  const byId = new Map((profiles || []).map((item: any) => [item.id, item]));
-  return (data || []).map((message: any) => ({ ...message, sender: byId.get(message.sender_id) || null }));
+  return (data || []) as Array<{
+    id: string; room_id: string; sender_id: string | null; body: string; created_at: string;
+    sender: { id: string | null; display_name: string; avatar_url: string | null };
+  }>;
+}
+
+export type PublicArenaRoom = {
+  id: string;
+  room_name: string;
+  status: 'waiting' | 'playing';
+  game_type: 'standard' | 'ludo';
+  play_mode: 'machine' | 'versus' | null;
+  max_players: number;
+  started_at: string | null;
+  created_at: string;
+  starts_at: string | null;
+  scheduled: boolean;
+  witness_count: number;
+  participants: Array<{ user_id: string; display_name: string; avatar_url: string | null; score: number; joined_at: string }>;
+  selected_players: Array<{ user_id: string; display_name: string; avatar_url: string | null }>;
+};
+
+export async function fetchPublicArenaRoom(roomId: string): Promise<PublicArenaRoom | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_room', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? data as PublicArenaRoom : null;
+}
+
+export type ArenaFinalScorecard = {
+  id: string;
+  room_name: string;
+  game_type: 'standard' | 'ludo';
+  completed_at: string | null;
+  players: Array<{
+    user_id: string;
+    display_name: string;
+    avatar_url: string | null;
+    tent_id: string | null;
+    tent_house_id: string | null;
+    tent_name: string | null;
+    correct_count: number;
+  }>;
+};
+
+export async function fetchArenaFinalScorecard(roomId: string): Promise<ArenaFinalScorecard | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_final_scorecard', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? data as ArenaFinalScorecard : null;
+}
+
+export async function registerPublicArenaWitness(roomId: string, guestKey: string) {
+  const { data, error } = await supabase.rpc('watch_public_arena_room', { p_room_id: roomId, p_guest_key: guestKey });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function postPublicArenaComment(roomId: string, guestKey: string, body: string) {
+  const { error } = await supabase.rpc('post_public_arena_comment', {
+    p_room_id: roomId, p_guest_key: guestKey, p_body: body,
+  });
+  if (error) throw error;
+}
+
+export async function scheduleInstructorArenaMatch(payload: {
+  roomName: string; gameType: 'standard' | 'ludo'; playerIds: string[]; startsAt: string;
+}) {
+  const { data, error } = await supabase.rpc('schedule_instructor_arena_match', {
+    p_room_name: payload.roomName, p_game_type: payload.gameType,
+    p_player_ids: payload.playerIds, p_starts_at: payload.startsAt,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export async function joinInstructorArenaMatch(roomId: string) {
+  const { error } = await supabase.rpc('join_instructor_arena_match', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function startScheduledArenaMatch(roomId: string) {
+  const { error } = await supabase.rpc('start_scheduled_arena_match', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function cancelInstructorArenaMatch(roomId: string) {
+  const { error } = await supabase.rpc('cancel_instructor_arena_match', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function fetchPublicArenaTriviaFeed(roomId: string): Promise<ArenaTriviaFeedItem[]> {
+  const { data, error } = await supabase.rpc('get_public_arena_trivia_feed', { p_room_id: roomId });
+  if (error) throw error;
+  return (data || []) as ArenaTriviaFeedItem[];
+}
+
+export async function fetchPublicArenaLiveState(roomId: string): Promise<ArenaLiveTriviaState | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_live_state', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? data as ArenaLiveTriviaState : null;
 }
 
 export async function sendArenaRoomMessage(roomId: string, senderId: string, body: string) {
@@ -3486,7 +3574,16 @@ export function fetchRoadHomeState(roomId: string) {
   return callRoadHomeServer({ roomId, action: 'GET' });
 }
 
-export async function fetchRoadHomeSpectatorState(roomId: string): Promise<RoadHomeResponse> {
+export async function fetchRoadHomeSpectatorState(roomId: string, publicAccess = false): Promise<RoadHomeResponse> {
+  if (publicAccess) {
+    const { data, error } = await supabase.rpc('get_public_arena_ludo_state', { p_room_id: roomId });
+    if (error) throw error;
+    return {
+      state: data?.public_state || null,
+      version: data?.version == null ? undefined : Number(data.version),
+      needsInitialization: !data,
+    } as RoadHomeResponse;
+  }
   const { data, error } = await supabase
     .from('arena_ludo_public_states')
     .select('version,public_state')
@@ -3524,7 +3621,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
 
   const roomIds = rooms.map((room) => room.id);
   const activeViewerCutoff = new Date(Date.now() - 2 * 60_000).toISOString();
-  const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }] = await Promise.all([
+  const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }, { data: schedules, error: scheduleError }, { data: guestCounts }] = await Promise.all([
     supabase
       .from('arena_participants')
       .select('id,room_id,user_id,stake_paid,score,correct_count,finished_at,joined_at,last_active_at,forfeited_at,forfeit_reason')
@@ -3536,9 +3633,17 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
       .in('room_id', roomIds)
       .gte('last_seen_at', activeViewerCutoff)
       .order('joined_at', { ascending: true }),
+    supabase
+      .from('arena_scheduled_matches')
+      .select('room_id,starts_at,player_ids,scheduled_by')
+      .in('room_id', roomIds),
+    supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
   ]);
   if (participantError) throw participantError;
   if (viewerError && viewerError.code !== '42P01' && viewerError.code !== 'PGRST205') throw viewerError;
+  if (scheduleError && scheduleError.code !== '42P01' && scheduleError.code !== 'PGRST205') throw scheduleError;
+  const scheduleMap = new Map((schedules || []).map((schedule) => [schedule.room_id, schedule]));
+  const guestCountMap = new Map((guestCounts || []).map((entry: { room_id: string; guest_count: number }) => [entry.room_id, Number(entry.guest_count) || 0]));
 
   const userIds = Array.from(new Set([
     ...(participants || []).map((participant: any) => participant.user_id),
@@ -3555,6 +3660,11 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
 
   return rooms.map((room) => ({
     ...room,
+    scheduled: scheduleMap.has(room.id),
+    scheduled_start_at: scheduleMap.get(room.id)?.starts_at || null,
+    scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
+    scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
+    arena_guest_witness_count: guestCountMap.get(room.id) || 0,
     arena_participants: (participants || [])
       .filter((participant: any) => participant.room_id === room.id)
       .map((participant: any) => ({

@@ -4,6 +4,9 @@ import { SectionHeader, EmptyState } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
+import { ArenaMatchCountdown } from '../../components/ArenaMatchCountdown';
+import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
+import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
 import { RoadHomeGame } from './RoadHomeGame';
@@ -22,6 +25,8 @@ import {
   submitArenaTriviaAnswer,
   fetchArenaTriviaFeed,
   fetchArenaLiveTriviaState,
+  fetchPublicArenaTriviaFeed,
+  fetchPublicArenaLiveState,
   publishArenaTriviaState,
   watchArenaRoom,
   heartbeatArenaViewer,
@@ -33,6 +38,9 @@ import {
   prepareArenaQuestionDeck,
   fetchPanelImageSetting,
   respondArenaChatChallenge,
+  joinInstructorArenaMatch,
+  startScheduledArenaMatch,
+  cancelInstructorArenaMatch,
 } from '../../lib/queries';
 import { playSoundEffect, setScenarioSound } from '../../lib/soundscape';
 import { cn, formatDenarii } from '../../lib/utils';
@@ -44,7 +52,7 @@ import type { QuestionPayload, Profile, RoleAssignment, PanelImageSetting } from
 import type { ArenaChatGameCall, ArenaLiveTriviaState, ArenaTriviaFeedItem, ArenaViewer } from '../../lib/queries';
 import {
   Swords, Users, Coins, Loader2, Zap, Trophy, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
-  Shield, ArrowLeft, ChevronDown, Eye, Radio,
+  ArrowLeft, ChevronDown, Eye, Radio, Share2,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -55,9 +63,10 @@ interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
   onBackToDailyGames?: () => void;
   witnessOnly?: boolean;
+  instructorSchedule?: boolean;
 }
 
-export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false }: CadetArenaProps) {
+export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [rooms, setRooms] = useState<any[]>([]);
@@ -82,9 +91,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set());
   const [playerSearch, setPlayerSearch] = useState('');
   const [arenaImage, setArenaImage] = useState<PanelImageSetting | null>(null);
-  const [finishSummary, setFinishSummary] = useState<{ room: any | null; rhudes: number | null } | null>(null);
   const previousSoundPhase = useRef<ArenaPhase | null>(null);
   const followingRestartRef = useRef<string | null>(null);
+  const lastScheduledStartAttempt = useRef(0);
 
   useEffect(() => {
     void setScenarioSound(phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
@@ -128,7 +137,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setActiveRoomId(null);
     setIsSpectating(false);
     setPhase('lobby');
-    setFinishSummary(null);
   }, [activeRoomId, isSpectating, profile]);
 
   const activateRoom = useCallback((roomId: string, nextPhase: ArenaPhase = 'waiting') => {
@@ -142,7 +150,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setIsSpectating(false);
     setActiveRoomId(roomId);
     setPhase(nextPhase);
-    setFinishSummary(null);
   }, [profile]);
 
   const refreshRooms = useCallback(async () => {
@@ -172,7 +179,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       }
       setIsSpectating(true);
       setActiveRoomId(roomId);
-      setFinishSummary(null);
       setPhase((freshRoom?.status || roomStatus) === 'waiting' ? 'waiting' : 'playing');
       return true;
     } catch (watchError: any) {
@@ -201,6 +207,18 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       setLoading(false);
     }
   }, [profile, witnessOnly]);
+
+  const shareRoom = useCallback(async (roomId: string) => {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('share', 'arena');
+    url.searchParams.set('id', roomId);
+    try {
+      if (navigator.share) await navigator.share({ title: 'Witness a Full Circle Arena match', url: url.toString() });
+      else await navigator.clipboard.writeText(url.toString());
+    } catch (shareError) {
+      if ((shareError as Error)?.name !== 'AbortError') setError('The Arena link could not be shared.');
+    }
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -361,7 +379,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         if (!active && !cancelled) {
           const freshRoom = await refreshRoom(activeRoomId);
           if (freshRoom?.status === 'completed') {
-            setFinishSummary({ room: freshRoom, rhudes: null });
             setPhase('finished');
             setError(null);
             return;
@@ -432,22 +449,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     if (room.status === 'completed') {
       if (isSpectating) {
         if (phase !== 'finished') {
-          setFinishSummary({ room, rhudes: null });
           setPhase('finished');
         }
       } else if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
       } else if (phase !== 'finished') {
-        if (profile && !isSpectating) {
-          void fetchRhudeBoard()
-            .then((rows) => {
-              const mine = rows.find((row) => row.user_id === profile.id);
-              setFinishSummary({ room, rhudes: mine ? Number(mine.rhudes) || 0 : 0 });
-            })
-            .catch(() => setFinishSummary({ room, rhudes: null }));
-        } else {
-          setFinishSummary({ room, rhudes: null });
-        }
         setPhase('finished');
         if (profile && !isSpectating) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
       }
@@ -471,6 +477,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         setRooms((prev) => [freshRoom, ...prev.filter((item) => item.id !== freshRoom.id)]);
         if (freshRoom.status === 'playing') setPhase('playing');
         if (['cancelled', 'expired'].includes(freshRoom.status)) clearActiveRoom(false);
+        if (freshRoom.status === 'waiting' && freshRoom.scheduled && !isSpectating && profile
+          && Date.now() >= Date.parse(freshRoom.scheduled_start_at)
+          && (freshRoom.arena_participants || []).filter((participant: any) => !participant.forfeited_at).length >= 2
+          && (freshRoom.arena_participants || []).some((participant: any) => participant.user_id === profile.id && !participant.forfeited_at)
+          && Date.now() - lastScheduledStartAttempt.current > 8000) {
+          lastScheduledStartAttempt.current = Date.now();
+          await startScheduledArenaMatch(activeRoomId);
+          if (!cancelled) setPhase('playing');
+        }
       } catch {
         // Realtime/polling will try again; keep the waiting room mounted.
       }
@@ -481,7 +496,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [activeRoomId, clearActiveRoom, phase]);
+  }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile]);
 
   const forfeitStandardMatch = async () => {
     if (!profile || !activeRoomId || forfeiting) return;
@@ -533,11 +548,22 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const joinRoom = async (roomId: string) => {
     if (!profile) return;
     try {
-      await joinArenaRoom(roomId, profile.id);
+      const selectedRoom = rooms.find((room) => room.id === roomId);
+      if (selectedRoom?.scheduled) await joinInstructorArenaMatch(roomId);
+      else await joinArenaRoom(roomId, profile.id);
       activateRoom(roomId, 'waiting');
       await load();
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to join room'); }
+  };
+
+  const cancelScheduledRoom = async (roomId: string) => {
+    try {
+      await cancelInstructorArenaMatch(roomId);
+      await refreshRooms();
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'The match could not be cancelled.');
+    }
   };
 
   const startGame = async () => {
@@ -545,7 +571,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setStarting(true);
     setError(null);
     try {
-      await startArenaRoom(activeRoomId, profile.id);
+      const selectedRoom = rooms.find((room) => room.id === activeRoomId);
+      if (selectedRoom?.scheduled) await startScheduledArenaMatch(activeRoomId);
+      else await startArenaRoom(activeRoomId, profile.id);
       setPhase('playing');
       await load();
     } catch (e: any) {
@@ -606,6 +634,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     if (parseArenaGameType(activeRoomName) === 'ludo') {
       return (
         <div className="space-y-4">
+          <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
           <RoadHomeGame
             roomId={activeRoomId}
             roomName={activeRoomName}
@@ -626,7 +655,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
               await onBalanceChanged?.();
             }}
           />
-          <ArenaWitnessStrip witnesses={witnesses} />
+          <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />
           {!isSpectating && (
             <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
           )}
@@ -636,6 +665,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     if (isSpectating) {
       return (
         <div className="space-y-4">
+          <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
           <ArenaStandardSpectator
             room={activeRoom}
             userId={profile!.id}
@@ -644,12 +674,13 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
           />
-          <ArenaWitnessStrip witnesses={witnesses} />
+          <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />
         </div>
       );
     }
     return (
       <div className="space-y-4">
+        <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
         <ArenaGamePlay
           roomName={activeRoom?.room_name || roomName}
           roomId={activeRoomId}
@@ -661,16 +692,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             } catch (finishError) {
               console.error('Arena finish settlement failed', finishError);
             }
-            const [freshRoomResult, rhudeResult] = await Promise.allSettled([
-              fetchArenaRoom(activeRoomId),
-              fetchRhudeBoard(),
-            ]);
-            const finishedRoom = freshRoomResult.status === 'fulfilled' ? freshRoomResult.value : null;
-            const rhudes = rhudeResult.status === 'fulfilled'
-              ? Number(rhudeResult.value.find((row) => row.user_id === profile!.id)?.rhudes) || 0
-              : null;
+            const finishedRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
             if (finishedRoom) setRooms((prev) => [finishedRoom, ...prev.filter((item) => item.id !== finishedRoom.id)]);
-            setFinishSummary({ room: finishedRoom, rhudes });
             setPhase('finished');
             await onBalanceChanged?.();
           }}
@@ -679,45 +702,14 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           onExit={() => clearActiveRoom(true)}
           onGameCallAction={handleGameCallAction}
         />
-        <ArenaWitnessStrip witnesses={witnesses} />
+        <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />
         <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
       </div>
     );
   }
 
   if (phase === 'finished' && activeRoomId) {
-    const room = finishSummary?.room || rooms.find((r) => r.id === activeRoomId);
-    const winner = room?.winner_id === profile?.id;
-    const participantCount = Math.max(1, room?.arena_participants?.length || (room?.play_mode === 'machine' ? 1 : 0));
-    const prize = (room?.stake_amount || 0) * participantCount * 10;
-    return (
-      <div className="max-w-md mx-auto animate-scale-in">
-        <div className={cn('card p-8 text-center', winner ? 'border-sage' : 'border-border')}>
-          <div className={cn('w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
-            winner ? 'bg-gold-soft' : 'bg-surface-2')}>
-            {winner ? <Trophy size={32} className="text-gold" /> : <Users size={32} className="text-stone" />}
-          </div>
-          <h2 className="font-display text-2xl font-semibold text-ink mb-2">
-            {winner ? 'You Won!' : isSpectating ? 'Match Finished' : 'Game Over'}
-          </h2>
-          <p className="text-stone text-sm mb-4">
-            {winner ? `You won ${formatDenarii(prize)} Ð and earned 1 Rhude for this Arena victory.` : room?.completion_reason === 'forfeit' ? 'The match ended by forfeiture.' : isSpectating ? 'The live Arena match has ended.' : 'Better luck next time!'}
-          </p>
-          {winner && (
-            <div className="mb-5 rounded-xl border border-royal/25 bg-royal-soft px-4 py-3">
-              <p className="eyebrow mb-1 flex items-center justify-center gap-1.5 text-royal"><Shield size={13} /> Valley Count</p>
-              <p className="font-display text-2xl font-bold text-ink">
-                {finishSummary?.rhudes == null ? 'Updated' : finishSummary.rhudes}
-                {finishSummary?.rhudes != null && <span className="ml-1 text-sm font-semibold text-stone">Rhudes</span>}
-              </p>
-            </div>
-          )}
-          <button onClick={() => clearActiveRoom(true)} className="btn-primary w-full">
-            Back to Arena
-          </button>
-        </div>
-      </div>
-    );
+    return <ArenaFinalScorecard roomId={activeRoomId} onExit={() => clearActiveRoom(true)} />;
   }
 
   if (phase === 'waiting' && activeRoomId) {
@@ -737,7 +729,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     const witnesses = (room?.arena_viewers || []) as ArenaViewer[];
     const isCreator = room?.creator_id === profile?.id;
     const machineMatch = room?.play_mode === 'machine';
-    const canStart = machineMatch || participants.length >= 2;
+    const scheduleReady = !room?.scheduled_start_at || Date.now() >= Date.parse(room.scheduled_start_at);
+    const canStart = scheduleReady && (machineMatch || participants.length >= 2);
     const pot = (room?.stake_amount || 0) * participants.length * 10;
     const expiresAt = room?.expires_at ? new Date(room.expires_at).getTime() : null;
     const minutesUntilExpiry = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000)) : null;
@@ -747,7 +740,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
         <div className="flex items-center justify-between">
           <button onClick={() => clearActiveRoom(true)} className="btn-ghost text-sm">← Back</button>
-          <span className="badge badge-gold"><Clock size={12} /> Waiting Room</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-ghost h-8 w-8 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
+            <span className="badge badge-gold"><Clock size={12} /> Waiting Room</span>
+          </div>
         </div>
 
         {error && <div className="p-3 rounded-lg bg-coral-soft text-coral text-sm">{error}</div>}
@@ -756,6 +752,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           <PanelImageBackdrop image={arenaImage} opacityFallback={24} veilClassName="arena-panel-veil" />
           <div className="relative z-10">
           <h3 className="font-display text-lg font-semibold text-ink mb-1">{room?.room_name || 'Arena Room'}</h3>
+          {room?.scheduled_start_at && <ArenaMatchCountdown startsAt={room.scheduled_start_at} />}
           <div className="flex items-center gap-3 text-sm text-stone mb-4">
             <span className="flex items-center gap-1"><Coins size={14} className="text-gold" /> {formatDenarii(room?.stake_amount || 0)} Ð stake</span>
             <span className="flex items-center gap-1"><Users size={14} /> {participants.length}/{room?.max_players || 4}</span>
@@ -765,7 +762,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             )}
           </div>
           <p className="text-xs text-stone mb-4">
-            {machineMatch ? `Machine target: ${room?.machine_score || 10} figs. Win to receive ten times your 50 denarii stake.` : 'The stake stays locked in this room. Empty rooms close after 15 minutes; once another player joins, the host has 10 minutes to launch before it closes.'}
+            {room?.scheduled ? 'Only selected players can play. Everyone may witness. The match starts at the scheduled time once two players have entered.' : machineMatch ? `Machine target: ${room?.machine_score || 10} figs. Win to receive ten times your 50 denarii stake.` : 'The stake stays locked in this room. Empty rooms close after 15 minutes; once another player joins, the host has 10 minutes to launch before it closes.'}
           </p>
 
           <div className="space-y-2 mb-4">
@@ -790,7 +787,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             />
           )}
 
-          {isCreator && !machineMatch && (
+          {isCreator && !machineMatch && !room?.scheduled && (
             <div className="p-3 rounded-lg border border-border bg-surface-2 mb-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h4 className="text-xs font-display font-semibold text-ink">Invite Players</h4>
@@ -867,21 +864,21 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           {isSpectating ? (
             <div className="space-y-3">
               <p className="text-center text-xs text-stone">You are witnessing this room fill. When the host starts, the board will open here.</p>
-              <ArenaWitnessStrip witnesses={witnesses} />
+              <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room?.arena_guest_witness_count) || 0} />
             </div>
-          ) : isCreator ? (
+          ) : isCreator || room?.scheduled ? (
             <div className="grid sm:grid-cols-2 gap-2">
               <button onClick={startGame} disabled={!canStart || starting} className="btn-primary w-full disabled:opacity-50">
                 {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                {canStart ? 'Start Game' : 'Waiting for players...'}
+                {canStart ? 'Start Game' : !scheduleReady ? 'Countdown running' : 'Waiting for players...'}
               </button>
-              <button onClick={closeRoom} disabled={closing} className="btn-secondary w-full text-coral disabled:opacity-50">
+              {!room?.scheduled && <button onClick={closeRoom} disabled={closing} className="btn-secondary w-full text-coral disabled:opacity-50">
                 {closing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
                 Close Room
-              </button>
+              </button>}
             </div>
           ) : (
-            <p className="text-xs text-stone text-center">Waiting for the host to start the game...</p>
+            <p className="text-xs text-stone text-center">{room?.scheduled ? 'The match will start after the countdown when two players are here.' : 'Waiting for the host to start the game...'}</p>
           )}
           </div>
         </div>
@@ -918,6 +915,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           </div>
         </div>
       </div>}
+
+      {instructorSchedule && <InstructorArenaScheduler onScheduled={refreshRooms} />}
 
       {!witnessOnly && <div className="card p-4 sm:p-5">
         <p className="eyebrow text-stone">Arena Match</p>
@@ -1059,7 +1058,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-3 sm:justify-end">
-                    <ArenaWitnessStrip witnesses={witnesses} compact />
+                    <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
+                    <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena match" aria-label="Share Arena match" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
                     <button
                       type="button"
                       onClick={() => !witnessOnly && isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
@@ -1079,6 +1079,16 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       {witnessOnly && !rooms.some((room) => isLiveArenaRoom(room)) && (
         <EmptyState icon={(props) => <Eye {...props} />} title="No live matches" message="Active Arena games will appear here the moment they begin." />
       )}
+
+      {instructorSchedule && rooms.some((room) => room.scheduled && room.status === 'waiting') && <section className="space-y-2">
+        <h3 className="font-display text-sm font-semibold text-ink">Scheduled matches</h3>
+        {rooms.filter((room) => room.scheduled && room.status === 'waiting').map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{new Date(room.scheduled_start_at).toLocaleString()} · {(room.scheduled_player_ids || []).length} selected players</p></div>
+          <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
+          <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>
+          <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
+        </div>)}
+      </section>}
 
       {!witnessOnly && <>
       <div className="space-y-2">
@@ -1111,6 +1121,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                     <p className="text-sm font-semibold text-ink truncate">{cleanArenaRoomName(room.room_name)}</p>
                     {room.creator_id === profile?.id && <span className="badge badge-brass text-[9px]">Host</span>}
                     {isDirectChallenge && <span className="badge badge-gold text-[9px]">Challenge</span>}
+                    {room.scheduled && <span className="badge badge-gold text-[9px]">Scheduled</span>}
                     {invited && !isParticipant && !isDirectChallenge && <span className="badge badge-gold text-[9px]">Invited</span>}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-stone">
@@ -1118,9 +1129,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                     <span className="flex items-center gap-0.5"><Trophy size={11} /> {formatDenarii(pot)} Ð pot</span>
                     <span className="flex items-center gap-0.5"><Users size={11} /> {participants.length}/{room.max_players}</span>
                     {host?.display_name && <span className="truncate">Host: {host.display_name}</span>}
-                    {minutesUntilExpiry !== null && <span>{minutesUntilExpiry}m left</span>}
+                    {room.scheduled_start_at && <span>{new Date(room.scheduled_start_at).toLocaleString()}</span>}
+                    {!room.scheduled && minutesUntilExpiry !== null && <span>{minutesUntilExpiry}m left</span>}
                   </div>
                 </div>
+                <button type="button" className="btn-ghost relative z-10 h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
                 {isParticipant ? (
                   <button onClick={() => activateRoom(room.id, 'waiting')} className="btn-secondary relative z-10 text-xs">
                     Enter Room
@@ -1141,14 +1154,21 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                   </button>
                 ) : isDirectChallenge && !isChallengeTarget ? (
                   <div className="relative z-10 flex items-center gap-2">
-                    <ArenaWitnessStrip witnesses={witnesses} compact />
+                    <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
                     <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
                       <Eye size={14} /> Witness
                     </button>
                   </div>
+                ) : room.scheduled ? (
+                  <div className="relative z-10 flex flex-wrap items-center gap-2">
+                    <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>
+                    {room.scheduled_player_ids?.includes(profile?.id) && participants.length < room.max_players && (
+                      <button onClick={() => void joinRoom(room.id)} className="btn-primary text-xs"><Play size={14} /> Enter Match</button>
+                    )}
+                  </div>
                 ) : participants.length >= room.max_players ? (
                   <div className="relative z-10 flex items-center gap-2">
-                    <ArenaWitnessStrip witnesses={witnesses} compact />
+                    <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
                     <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs">
                       <Eye size={14} /> Witness
                     </button>
@@ -1156,7 +1176,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                 ) : (
                   <button onClick={() => joinRoom(room.id)} disabled={denarii < room.stake_amount || participants.length >= room.max_players}
                     className="btn-primary relative z-10 text-xs disabled:opacity-40">
-                    {invited ? 'Join Invite' : `Join (${formatDenarii(room.stake_amount)} Ð)`}
+                    {room.scheduled ? 'Enter Match' : invited ? 'Join Invite' : `Join (${formatDenarii(room.stake_amount)} Ð)`}
                   </button>
                 )}
               </div>
@@ -1245,24 +1265,26 @@ function parseArenaDifficulty(roomName: string): 'easy' | 'medium' | 'hard' {
   return (match?.[1]?.toLowerCase() as 'easy' | 'medium' | 'hard') || 'medium';
 }
 
-function ArenaWitnessStrip({ witnesses, compact = false }: { witnesses: ArenaViewer[]; compact?: boolean }) {
+function ArenaWitnessStrip({ witnesses, guestCount = 0, compact = false }: { witnesses: ArenaViewer[]; guestCount?: number; compact?: boolean }) {
   const visible = witnesses.slice(0, compact ? 4 : 8);
-  const remaining = Math.max(0, witnesses.length - visible.length);
+  const guestVisible = Math.min(guestCount, Math.max(0, (compact ? 4 : 8) - visible.length));
+  const remaining = Math.max(0, witnesses.length + guestCount - visible.length - guestVisible);
   return (
     <div className={cn(
       'flex min-w-0 items-center',
       compact ? 'gap-2' : 'mx-auto w-full max-w-3xl justify-between gap-3 rounded-lg border border-border bg-surface/85 px-3 py-2.5',
-    )} aria-label={`${witnesses.length} witnessing this Arena match`}>
+    )} aria-label={`${witnesses.length + guestCount} witnessing this Arena match`}>
       <span className={cn('flex items-center gap-1.5 font-semibold text-stone', compact ? 'text-[10px]' : 'text-xs')}>
-        <Eye size={compact ? 13 : 15} className="text-royal" /> {witnesses.length} witnessing
+        <Eye size={compact ? 13 : 15} className="text-royal" /> {witnesses.length + guestCount} witnessing
       </span>
-      {visible.length > 0 && (
+      {visible.length + guestVisible > 0 && (
         <span className="flex -space-x-2">
           {visible.map((witness) => (
             <span key={witness.user_id} className={cn('relative inline-flex flex-shrink-0 rounded-full border-2 border-surface bg-surface shadow-sm', compact ? 'h-7 w-7' : 'h-8 w-8')} title={witness.profiles?.display_name || 'Arena witness'}>
               <UserAvatar userId={witness.user_id} name={witness.profiles?.display_name} avatarUrl={witness.profiles?.avatar_url} className="h-full w-full" />
             </span>
           ))}
+          {Array.from({ length: guestVisible }, (_, index) => <span key={`guest-${index}`} className={cn('relative inline-flex flex-shrink-0 rounded-full border-2 border-surface bg-surface shadow-sm', compact ? 'h-7 w-7' : 'h-8 w-8')} title="Guest witness"><UserAvatar name="Guest witness" className="h-full w-full" showAwardBadge={false} /></span>)}
           {remaining > 0 && <span className={cn('relative inline-flex flex-shrink-0 items-center justify-center rounded-full border-2 border-surface bg-royal font-bold text-white shadow-sm', compact ? 'h-7 w-7 text-[8px]' : 'h-8 w-8 text-[9px]')}>+{remaining}</span>}
         </span>
       )}
@@ -1270,13 +1292,15 @@ function ArenaWitnessStrip({ witnesses, compact = false }: { witnesses: ArenaVie
   );
 }
 
-function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameCallCreated, onGameCallAction }: {
+export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameCallCreated, onGameCallAction, publicAccess = false, guestKey }: {
   room: any;
   userId: string;
   onExit: () => void;
   allowChallenges: boolean;
   onGameCallCreated: (gameCall: ArenaChatGameCall) => Promise<void> | void;
   onGameCallAction: (gameCall: ArenaChatGameCall) => Promise<void> | void;
+  publicAccess?: boolean;
+  guestKey?: string;
 }) {
   const [feed, setFeed] = useState<ArenaTriviaFeedItem[]>([]);
   const [liveQuestion, setLiveQuestion] = useState<ArenaLiveTriviaState | null>(null);
@@ -1288,12 +1312,12 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
 
   const refreshFeed = useCallback(async () => {
     try {
-      setFeed(await fetchArenaTriviaFeed(room.id));
+      setFeed(await (publicAccess ? fetchPublicArenaTriviaFeed(room.id) : fetchArenaTriviaFeed(room.id)));
       setFeedError(null);
     } catch (error: any) {
       setFeedError(error?.message || 'The live score could not be refreshed.');
     }
-  }, [room.id]);
+  }, [publicAccess, room.id]);
 
   useEffect(() => {
     void refreshFeed();
@@ -1332,12 +1356,12 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
 
   const refreshLiveQuestion = useCallback(async () => {
     try {
-      setLiveQuestion(await fetchArenaLiveTriviaState(room.id));
+      setLiveQuestion(await (publicAccess ? fetchPublicArenaLiveState(room.id) : fetchArenaLiveTriviaState(room.id)));
       setPlaybackError(null);
     } catch (error) {
       setPlaybackError(error instanceof Error ? error.message : 'The live question is reconnecting.');
     }
-  }, [room.id]);
+  }, [publicAccess, room.id]);
 
   useEffect(() => {
     void refreshLiveQuestion();
@@ -1426,6 +1450,7 @@ function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, onGameC
         <ArenaRoomChat
           roomId={room.id}
           userId={userId}
+          guestKey={guestKey}
           compact
           allowGameCalls={allowChallenges}
           challengeTargets={allowChallenges ? participants.map((participant: any) => ({
