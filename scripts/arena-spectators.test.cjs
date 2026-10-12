@@ -22,6 +22,7 @@ const arenaRoomChat = read('src/components/ArenaRoomChat.tsx');
 const arenaChallengeGate = read('src/components/ArenaChallengeGate.tsx');
 const arenaQuestionGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 const scorecard = read('src/components/ArenaFinalScorecard.tsx');
+const recentResult = read('src/components/ArenaRecentResult.tsx');
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.arena_viewers/);
 assert.match(migration, /ALTER TABLE public\.arena_viewers ENABLE ROW LEVEL SECURITY/);
@@ -162,6 +163,14 @@ assert.match(arena, /if \(phase === 'finished' && activeRoomId\)[\s\S]*?<ArenaFi
 assert.match(roadHome, /state\.phase === 'GAME_OVER'[\s\S]*?<ArenaFinalScorecard/);
 assert.match(scorecard, /groupArenaScoreTeams/);
 assert.match(scorecard, /TentHouseSymbol/);
+assert.match(arena, /grid min-w-0 grid-cols-\[2\.5rem_minmax\(0,1fr\)\]/);
+assert.match(arena, /col-span-2 flex min-w-0 flex-wrap items-center justify-end/);
+assert.match(arena, /<ArenaRecentResult key=\{room\.id\} roomId=\{room\.id\} \/>/);
+assert.match(recentResult, /fetchArenaFinalScorecard\(roomId\)/);
+assert.match(recentResult, /<PlayerSymbol player=\{players\[0\]\}/);
+assert.match(recentResult, /<PlayerSymbol player=\{players\[1\]\}/);
+assert.match(recentResult, /Number\(players\[0\]\.correct_count\)/);
+assert.match(recentResult, /Number\(players\[1\]\.correct_count\)/);
 
 assert.match(viewerChatMigration, /CREATE TABLE IF NOT EXISTS public\.arena_chat_game_calls/);
 assert.match(viewerChatMigration, /ALTER TABLE public\.arena_chat_game_calls ENABLE ROW LEVEL SECURITY/);
