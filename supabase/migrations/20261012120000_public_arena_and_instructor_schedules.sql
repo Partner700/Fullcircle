@@ -1,6 +1,6 @@
 -- Public Arena witnessing and instructor-reserved matches. No private deck or
 -- ledger data is returned by the anonymous endpoints.
-CREATE TABLE public.arena_scheduled_matches (
+CREATE TABLE IF NOT EXISTS public.arena_scheduled_matches (
   room_id uuid PRIMARY KEY REFERENCES public.arena_rooms(id) ON DELETE CASCADE,
   scheduled_by uuid NOT NULL REFERENCES public.profiles(id),
   starts_at timestamptz NOT NULL,
@@ -8,9 +8,10 @@ CREATE TABLE public.arena_scheduled_matches (
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (array_length(player_ids, 1) BETWEEN 2 AND 8)
 );
-CREATE INDEX arena_scheduled_matches_starts_idx ON public.arena_scheduled_matches(starts_at);
+CREATE INDEX IF NOT EXISTS arena_scheduled_matches_starts_idx ON public.arena_scheduled_matches(starts_at);
 ALTER TABLE public.arena_scheduled_matches ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.arena_scheduled_matches FROM PUBLIC, anon, authenticated;
+DROP POLICY IF EXISTS "members see upcoming arena schedules" ON public.arena_scheduled_matches;
 CREATE POLICY "members see upcoming arena schedules" ON public.arena_scheduled_matches
 FOR SELECT TO authenticated USING (EXISTS (
   SELECT 1 FROM public.arena_rooms room WHERE room.id = arena_scheduled_matches.room_id
@@ -26,6 +27,7 @@ DECLARE
   v_room_id uuid;
   v_player_id uuid;
   v_name text;
+  v_capacity integer;
 BEGIN
   IF auth.uid() IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.role_assignments
@@ -38,9 +40,10 @@ BEGIN
   SELECT array_agg(id ORDER BY ordinal) INTO v_ids
   FROM (SELECT DISTINCT ON (id) id, ordinal FROM unnest(p_player_ids) WITH ORDINALITY AS chosen(id, ordinal)
         WHERE id IS NOT NULL ORDER BY id, ordinal) distinct_ids;
+  IF p_game_type = 'ludo' THEN v_capacity := 4; ELSE v_capacity := 8; END IF;
   IF coalesce(array_length(v_ids, 1), 0) < 2
-     OR array_length(v_ids, 1) > CASE WHEN p_game_type = 'ludo' THEN 4 ELSE 8 END THEN
-    RAISE EXCEPTION 'Choose 2 to % distinct players.', CASE WHEN p_game_type = 'ludo' THEN 4 ELSE 8 END;
+     OR array_length(v_ids, 1) > v_capacity THEN
+    RAISE EXCEPTION 'Choose 2 to % distinct players.', v_capacity;
   END IF;
   IF EXISTS (
     SELECT 1 FROM unnest(v_ids) chosen(id) WHERE NOT (
@@ -140,6 +143,7 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION public.enforce_instructor_arena_reservation() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS enforce_instructor_arena_reservation_before_join ON public.arena_participants;
 CREATE TRIGGER enforce_instructor_arena_reservation_before_join
 BEFORE INSERT OR UPDATE OF user_id, room_id ON public.arena_participants
 FOR EACH ROW EXECUTE FUNCTION public.enforce_instructor_arena_reservation();
@@ -163,6 +167,7 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION public.enforce_instructor_arena_start() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS enforce_instructor_arena_start_before_update ON public.arena_rooms;
 CREATE TRIGGER enforce_instructor_arena_start_before_update
 BEFORE UPDATE ON public.arena_rooms FOR EACH ROW
 EXECUTE FUNCTION public.enforce_instructor_arena_start();
@@ -182,25 +187,25 @@ $$;
 REVOKE ALL ON FUNCTION public.cancel_instructor_arena_match(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.cancel_instructor_arena_match(uuid) TO authenticated;
 
-CREATE TABLE public.arena_guest_witnesses (
+CREATE TABLE IF NOT EXISTS public.arena_guest_witnesses (
   room_id uuid NOT NULL REFERENCES public.arena_rooms(id) ON DELETE CASCADE,
   guest_key_hash text NOT NULL,
   last_seen_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (room_id, guest_key_hash)
 );
-CREATE INDEX arena_guest_witnesses_presence_idx ON public.arena_guest_witnesses(room_id, last_seen_at);
+CREATE INDEX IF NOT EXISTS arena_guest_witnesses_presence_idx ON public.arena_guest_witnesses(room_id, last_seen_at);
 ALTER TABLE public.arena_guest_witnesses ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.arena_guest_witnesses FROM PUBLIC, anon, authenticated;
 
-CREATE TABLE public.arena_guest_messages (
+CREATE TABLE IF NOT EXISTS public.arena_guest_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id uuid NOT NULL REFERENCES public.arena_rooms(id) ON DELETE CASCADE,
   guest_key_hash text NOT NULL,
   body text NOT NULL CHECK (char_length(btrim(body)) BETWEEN 1 AND 500),
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX arena_guest_messages_room_idx ON public.arena_guest_messages(room_id, created_at DESC);
-CREATE INDEX arena_guest_messages_rate_idx ON public.arena_guest_messages(room_id, guest_key_hash, created_at DESC);
+CREATE INDEX IF NOT EXISTS arena_guest_messages_room_idx ON public.arena_guest_messages(room_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS arena_guest_messages_rate_idx ON public.arena_guest_messages(room_id, guest_key_hash, created_at DESC);
 ALTER TABLE public.arena_guest_messages ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.arena_guest_messages FROM PUBLIC, anon, authenticated;
 
