@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Dices, RotateCw, Swords } from 'lucide-react';
 import { fetchArenaFinalScorecard, type ArenaFinalScorecard } from '../lib/queries';
+import { shortestArenaName } from '../lib/arenaScorecard';
 import { TentHouseSymbol } from './TentHouseSymbol';
 
 const scoreCache = new Map<string, ArenaFinalScorecard>();
@@ -39,10 +40,11 @@ export function ArenaRecentResult({ roomId }: { roomId: string }) {
   }, [roomId, retry]);
 
   const players = score?.players || [];
+  const columns = players.length >= 4 ? 'grid-cols-4' : players.length === 3 ? 'grid-cols-3' : 'grid-cols-2';
   return <div className="card min-w-0 bg-surface/70 p-3" aria-label="Recent Arena result">
     {players.length === 2 ? <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
       <div className="flex min-w-0 items-center justify-end gap-1.5">
-        <span className="min-w-0 truncate text-right text-xs font-semibold text-ink" title={players[0].display_name}>{players[0].display_name}</span>
+        <span className="min-w-0 truncate text-right text-xs font-semibold text-ink" title={players[0].display_name}>{shortestArenaName(players[0].display_name)}</span>
         <PlayerSymbol player={players[0]} />
       </div>
       <span className="whitespace-nowrap font-display text-base font-bold tabular-nums text-ink" aria-label={`${players[0].correct_count} to ${players[1].correct_count}`}>
@@ -50,13 +52,13 @@ export function ArenaRecentResult({ roomId }: { roomId: string }) {
       </span>
       <div className="flex min-w-0 items-center gap-1.5">
         <PlayerSymbol player={players[1]} />
-        <span className="min-w-0 truncate text-xs font-semibold text-ink" title={players[1].display_name}>{players[1].display_name}</span>
+        <span className="min-w-0 truncate text-xs font-semibold text-ink" title={players[1].display_name}>{shortestArenaName(players[1].display_name)}</span>
       </div>
-    </div> : players.length > 0 ? <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-      {players.map((player) => <div key={player.user_id} className="flex min-w-0 max-w-full items-center gap-1.5 text-xs font-semibold text-ink">
-        <span className="truncate" title={player.display_name}>{player.display_name}</span>
-        <PlayerSymbol player={player} />
-        <span className="font-display font-bold tabular-nums">{Math.max(0, Number(player.correct_count) || 0)}</span>
+    </div> : players.length > 0 ? <div className={`grid min-w-0 ${columns} gap-x-1 gap-y-3`}>
+      {players.map((player) => <div key={player.user_id} className="flex min-w-0 flex-col items-center text-center text-ink" title={player.display_name}>
+        <span className="flex h-6 items-center justify-center"><PlayerSymbol player={player} /></span>
+        <span className="font-display text-base font-bold tabular-nums">{Math.max(0, Number(player.correct_count) || 0)}</span>
+        <span className="block w-full truncate text-[10px] font-semibold leading-tight">{shortestArenaName(player.display_name)}</span>
       </div>)}
     </div> : failed ? <div className="flex items-center justify-center gap-2 text-xs text-stone">
       <span>Score unavailable</span>

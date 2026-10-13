@@ -7,7 +7,7 @@ import {
   fetchArenaTournaments, rescheduleArenaTournamentGame, scheduleInstructorArenaMatch,
   type ArenaTournament,
 } from '../lib/queries';
-import { arenaTournamentSlots, validateArenaTournamentTimes } from '../lib/arenaTournament';
+import { arenaTournamentEntrants, arenaTournamentSlots, validateArenaTournamentTimes, type ArenaTournamentStart } from '../lib/arenaTournament';
 import { shortestArenaName } from '../lib/arenaScorecard';
 import type { Profile, RoleAssignment } from '../lib/types';
 
@@ -20,9 +20,10 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const [roomName, setRoomName] = useState('');
   const [gameType, setGameType] = useState<'standard' | 'ludo'>('standard');
   const [mode, setMode] = useState<Mode>('match');
-  const [entrantCount, setEntrantCount] = useState<4 | 8>(4);
+  const [startRound, setStartRound] = useState<ArenaTournamentStart>('quarterfinal');
+  const [groupEntrants, setGroupEntrants] = useState<8 | 16 | 32>(8);
   const [startsAt, setStartsAt] = useState('');
-  const [gameTimes, setGameTimes] = useState<string[]>(Array(3).fill(''));
+  const [gameTimes, setGameTimes] = useState<string[]>(Array(7).fill(''));
   const [replayTimes, setReplayTimes] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -30,8 +31,10 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const [message, setMessage] = useState<string | null>(null);
   const visible = useMemo(() => players.filter((player) =>
     player.profiles?.display_name?.toLowerCase().includes(search.trim().toLowerCase())), [players, search]);
+  const entrantCount = arenaTournamentEntrants(startRound, groupEntrants);
+  const hasGroups = startRound === 'groups';
   const capacity = mode === 'tournament' ? entrantCount : gameType === 'ludo' ? 4 : 8;
-  const slots = arenaTournamentSlots(entrantCount);
+  const slots = arenaTournamentSlots(entrantCount, hasGroups);
 
   const refreshTournaments = useCallback(async () => {
     setTournaments(await fetchArenaTournaments());
@@ -71,7 +74,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       setMessage('Choose a future date and time.'); return;
     }
     if (mode === 'tournament') {
-      const issue = validateArenaTournamentTimes(entrantCount, gameTimes);
+      const issue = validateArenaTournamentTimes(entrantCount, gameTimes, Date.now(), hasGroups);
       if (issue) { setMessage(issue); return; }
     }
     setBusy(true);
@@ -79,6 +82,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       if (mode === 'tournament') {
         await createInstructorArenaTournament({
           title: roomName.trim(), gameType, playerIds: selected,
+          hasGroups,
           gameTimes: gameTimes.map((value) => new Date(value).toISOString()),
         });
       } else {
@@ -136,7 +140,8 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     </div>
     <div className="mt-3 flex flex-wrap gap-3">
       <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect value={gameType} onChange={(value) => { setGameType(value as 'standard' | 'ludo'); if (mode === 'match') setSelected((ids) => ids.slice(0, value === 'ludo' ? 4 : 8)); }} options={[{ value: 'standard', label: 'Standard Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} /></div>
-      {mode === 'tournament' && <div className="w-36"><p className="mb-1 text-xs font-semibold text-stone">Entrants</p><AppSelect value={String(entrantCount)} onChange={(value) => { const count = Number(value) as 4 | 8; setEntrantCount(count); setSelected((ids) => ids.slice(0, count)); setGameTimes(Array(count - 1).fill('')); }} options={[{ value: '4', label: '4 players' }, { value: '8', label: '8 players' }]} /></div>}
+      {mode === 'tournament' && <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Start at</p><AppSelect value={startRound} onChange={(value) => { const next = value as ArenaTournamentStart; const count = arenaTournamentEntrants(next, groupEntrants); setStartRound(next); setSelected((ids) => ids.slice(0, count)); setGameTimes(Array(arenaTournamentSlots(count, next === 'groups').length).fill('')); }} options={[{ value: 'groups', label: 'Group stage' }, { value: 'round_of_16', label: 'Round of 16' }, { value: 'quarterfinal', label: 'Quarterfinals' }, { value: 'semifinal', label: 'Semifinals' }, { value: 'final', label: 'Final' }]} /></div>}
+      {mode === 'tournament' && hasGroups && <div className="w-36"><p className="mb-1 text-xs font-semibold text-stone">Entrants</p><AppSelect value={String(groupEntrants)} onChange={(value) => { const count = Number(value) as 8 | 16 | 32; setGroupEntrants(count); setSelected((ids) => ids.slice(0, count)); setGameTimes(Array(arenaTournamentSlots(count, true).length).fill('')); }} options={[{ value: '8', label: '8 players' }, { value: '16', label: '16 players' }, { value: '32', label: '32 players' }]} /></div>}
     </div>
     <div className="relative mt-4"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone" /><input className="input-field pl-9" placeholder="Search players" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
     <div className="mt-2 grid max-h-56 gap-1 overflow-y-auto sm:grid-cols-2">
@@ -151,12 +156,12 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     </div>
     {mode === 'tournament' && <>
       {selected.length > 0 && <div className="mt-4">
-        <p className="text-xs font-semibold text-stone">First-round pairings</p>
+        <p className="text-xs font-semibold text-stone">{hasGroups ? 'Group placement' : 'First-round pairings'}</p>
         <div className="mt-1 grid gap-x-3 gap-y-1 sm:grid-cols-2">
           {selected.map((id, index) => {
             const player = players.find((item) => item.user_id === id);
             return <div key={id} className="flex min-w-0 items-center gap-1 border-b border-border py-1 text-xs">
-              <span className="w-4 shrink-0 text-stone">{index + 1}</span>
+              <span className="w-7 shrink-0 text-stone">{hasGroups ? `${String.fromCharCode(65 + Math.floor(index / 4))}${index % 4 + 1}` : index + 1}</span>
               <span className="min-w-0 flex-1 truncate text-ink">{player?.profiles?.display_name || 'Player'}</span>
               <button type="button" className="btn-ghost h-7 w-7 p-0" title="Move up" aria-label={`Move ${player?.profiles?.display_name || 'player'} up`} disabled={index === 0} onClick={() => moveSelected(index, -1)}><ArrowUp size={13} /></button>
               <button type="button" className="btn-ghost h-7 w-7 p-0" title="Move down" aria-label={`Move ${player?.profiles?.display_name || 'player'} down`} disabled={index === selected.length - 1} onClick={() => moveSelected(index, 1)}><ArrowDown size={13} /></button>
@@ -183,7 +188,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
           <div className="mt-2 divide-y divide-border">
             {tournament.games.map((game) => {
               const endedWithoutWinner = !game.winner_id && game.left_player_id && game.right_player_id && ['completed', 'cancelled', 'expired'].includes(game.room_status || '');
-              const label = arenaTournamentSlots(tournament.players.length as 4 | 8).find((slot) => slot.round === game.round_number && slot.match === game.match_number)?.label || `Round ${game.round_number}`;
+              const label = arenaTournamentSlots(tournament.players.length, tournament.has_group_stage).find((slot) => slot.round === game.round_number && slot.match === game.match_number)?.label || `Round ${game.round_number}`;
               return <div key={game.id} className="py-2 text-[11px]">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"><span className="font-semibold text-ink">{label}: {playerName(game.left_player_id)} vs {playerName(game.right_player_id)}</span><span className="text-stone">{new Date(game.starts_at || game.planned_at).toLocaleString()}</span></div>
                 {game.winner_id && <p className="text-gold">Winner: {playerName(game.winner_id)}</p>}

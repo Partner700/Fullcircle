@@ -3363,6 +3363,7 @@ export type ArenaTournament = {
   id: string;
   title: string;
   game_type: 'standard' | 'ludo';
+  has_group_stage: boolean;
   status: 'scheduled' | 'playing' | 'completed' | 'cancelled';
   created_by: string;
   champion_id: string | null;
@@ -3388,13 +3389,14 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 }
 
 export async function createInstructorArenaTournament(payload: {
-  title: string; gameType: 'standard' | 'ludo'; playerIds: string[]; gameTimes: string[];
+  title: string; gameType: 'standard' | 'ludo'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
 }) {
   const { data, error } = await supabase.rpc('create_instructor_arena_tournament', {
     p_title: payload.title,
     p_game_type: payload.gameType,
     p_player_ids: payload.playerIds,
     p_game_times: payload.gameTimes,
+    p_has_group_stage: payload.hasGroups,
   });
   if (error) throw error;
   return String(data);

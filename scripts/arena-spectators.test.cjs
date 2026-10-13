@@ -201,6 +201,9 @@ assert.match(recentResult, /<PlayerSymbol player=\{players\[0\]\}/);
 assert.match(recentResult, /<PlayerSymbol player=\{players\[1\]\}/);
 assert.match(recentResult, /Number\(players\[0\]\.correct_count\)/);
 assert.match(recentResult, /Number\(players\[1\]\.correct_count\)/);
+assert.match(recentResult, /shortestArenaName\(players\[0\]\.display_name\)/);
+assert.match(recentResult, /players\.map\(\(player\)/);
+assert.match(recentResult, /flex-col items-center text-center/);
 
 assert.match(viewerChatMigration, /CREATE TABLE IF NOT EXISTS public\.arena_chat_game_calls/);
 assert.match(viewerChatMigration, /ALTER TABLE public\.arena_chat_game_calls ENABLE ROW LEVEL SECURITY/);
