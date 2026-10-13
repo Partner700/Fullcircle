@@ -10,6 +10,7 @@ import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaRecentResult } from '../../components/ArenaRecentResult';
 import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
 import { RoadHomeGame } from './RoadHomeGame';
 import { supabase } from '../../lib/supabase';
@@ -56,7 +57,7 @@ import type { ArenaChatGameCall, ArenaLiveTriviaState, ArenaTriviaFeedItem, Aren
 import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
 import {
   Swords, Coins, Loader2, Zap, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
-  ArrowLeft, ChevronDown, Eye, Radio, Share2,
+  ArrowLeft, ChevronDown, Eye, Radio, Share2, X,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
@@ -102,7 +103,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const liveRoomIds = rooms.filter((room) => room.status === 'playing').map((room) => room.id).join(',');
 
   useEffect(() => {
-    void setScenarioSound(phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
+    void setScenarioSound(phase === 'playing' ? 'sound_game_level_1' : phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
     if (phase === 'playing' && previousSoundPhase.current !== 'playing') {
       void playSoundEffect('sound_arena_start', 0.68);
     }
@@ -1295,6 +1296,8 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
   const [playbackNow, setPlaybackNow] = useState(() => Date.now());
   const [feedError, setFeedError] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [dismissedQuestionKey, setDismissedQuestionKey] = useState<string | null>(null);
   const participants = useMemo(() => room.arena_participants || [], [room.arena_participants]);
   const machineMatch = room.play_mode === 'machine';
 
@@ -1402,6 +1405,14 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
     });
   }
   const currentRound = getArenaRoundForIndex(currentQuestion);
+  const activeWitnessQuestion = liveQuestion && (
+    liveQuestion.phase === 'question'
+    || (liveQuestion.answered_at != null && playbackNow - Date.parse(liveQuestion.answered_at) < 5000)
+  ) ? liveQuestion : null;
+  const activeQuestionKey = activeWitnessQuestion
+    ? `${room.id}:${activeWitnessQuestion.question_index}:${activeWitnessQuestion.actor_kind}:${activeWitnessQuestion.player_id || ''}:${activeWitnessQuestion.opened_at}`
+    : null;
+  const showWitnessQuestion = Boolean(activeWitnessQuestion && activeQuestionKey !== dismissedQuestionKey && !chatOpen);
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
@@ -1430,49 +1441,56 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
         waitingName={machineMatch ? 'The match is live' : activeParticipant?.profiles?.display_name}
         onRoll={() => undefined}
       />
-      <details className="group overflow-hidden rounded-lg border border-border bg-surface/80">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-ink">
-          <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Match chat</span>
-          <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
-        </summary>
-        <ArenaRoomChat
-          roomId={room.id}
-          userId={userId}
-          guestKey={guestKey}
-          compact
-          allowGameCalls={allowChallenges}
-          challengeTargets={allowChallenges ? participants.map((participant: any) => ({
-            userId: participant.user_id,
-            name: participant.profiles?.display_name || 'Arena player',
-            avatarUrl: participant.profiles?.avatar_url || null,
-          })) : []}
-          onGameCallCreated={allowChallenges ? onGameCallCreated : undefined}
-          onGameCallAction={allowChallenges ? onGameCallAction : undefined}
+      <ArenaWitnessChatDrawer
+        roomId={room.id}
+        userId={userId}
+        guestKey={guestKey}
+        open={chatOpen}
+        showLauncher={!showWitnessQuestion}
+        onOpenChange={setChatOpen}
+        allowGameCalls={allowChallenges}
+        challengeTargets={allowChallenges ? participants.map((participant: any) => ({
+          userId: participant.user_id,
+          name: participant.profiles?.display_name || 'Arena player',
+          avatarUrl: participant.profiles?.avatar_url || null,
+        })) : []}
+        onGameCallCreated={allowChallenges ? onGameCallCreated : undefined}
+        onGameCallAction={allowChallenges ? onGameCallAction : undefined}
+      />
+      {showWitnessQuestion && activeWitnessQuestion && (
+        <ArenaWitnessQuestionOverlay
+          state={activeWitnessQuestion}
+          onClose={() => setDismissedQuestionKey(activeQuestionKey)}
+          onOpenChat={() => setChatOpen(true)}
         />
-      </details>
-      {liveQuestion && (
-        liveQuestion.phase === 'question'
-        || (liveQuestion.answered_at != null && playbackNow - Date.parse(liveQuestion.answered_at) < 5000)
-      ) && <ArenaWitnessQuestionOverlay state={liveQuestion} />}
+      )}
     </div>
   );
 }
 
-function ArenaWitnessQuestionOverlay({ state }: { state: ArenaLiveTriviaState }) {
+function ArenaWitnessQuestionOverlay({ state, onClose, onOpenChat }: {
+  state: ArenaLiveTriviaState;
+  onClose: () => void;
+  onOpenChat: () => void;
+}) {
   const question = state.question || ({} as QuestionPayload);
   const selected = state.selected_answer || '';
   const verdictVisible = state.phase === 'verdict';
   const options = question.type === 'true_false' ? ['True', 'False'] : question.options || [];
   return (
-    <div className="pointer-events-none fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm">
-      <div className="pointer-events-auto relative z-[2147483001] max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-label="Live Arena question">
-        <div className="mb-4 flex items-center gap-3">
+    <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-label="Live Arena question">
+        <div className="sticky top-0 z-10 mb-4 flex items-center gap-3 bg-bg pb-2">
           <span className="relative flex h-10 w-10 flex-shrink-0">
             <UserAvatar userId={state.player_id || 'arena-machine'} name={state.actor_name} avatarUrl={state.actor_avatar_url} className="h-full w-full border-2 border-gold" />
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-ink">{state.actor_name}</p>
             <p className="eyebrow mt-0.5">Question {state.question_index + 1} · Witness view</p>
+          </div>
+          <div className="ml-auto flex flex-shrink-0 items-center gap-1">
+            <button type="button" onClick={onOpenChat} className="icon-btn h-8 w-8" title="Open match chat" aria-label="Open match chat"><MessageCircle size={16} /></button>
+            <button type="button" onClick={onClose} className="icon-btn h-8 w-8" title="Close question" aria-label="Close question"><X size={17} /></button>
           </div>
         </div>
         <h3 className="mb-5 font-display text-lg font-semibold leading-snug text-ink sm:text-xl">{question.question || 'The next question is opening...'}</h3>

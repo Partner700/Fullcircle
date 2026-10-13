@@ -6,6 +6,7 @@ import { ArenaRoomChat } from '../components/ArenaRoomChat';
 import { Dove } from '../components/Dove';
 import { UserAvatar } from '../components/UserAvatar';
 import { fetchArenaFinalScorecard, fetchPublicArenaRoom, registerPublicArenaWitness, type PublicArenaRoom } from '../lib/queries';
+import { setScenarioSound } from '../lib/soundscape';
 import { ArenaStandardSpectator } from './cadet/CadetArena';
 import { RoadHomeGame } from './cadet/RoadHomeGame';
 
@@ -69,6 +70,11 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
     }, 30_000);
     return () => window.clearInterval(interval);
   }, [ended, guestKey, room?.id, roomId]);
+
+  useEffect(() => {
+    void setScenarioSound(ended ? null : room?.status === 'playing' ? 'sound_game_level_1' : room?.status === 'waiting' ? 'sound_arena_lobby' : null);
+    return () => { void setScenarioSound(null); };
+  }, [ended, room?.status]);
 
   const participants = room?.participants || [];
   const players = room?.selected_players.length ? room.selected_players : participants;
