@@ -7,6 +7,7 @@ import { Dove } from '../../components/Dove';
 import { UserAvatar } from '../../components/UserAvatar';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
@@ -142,14 +143,16 @@ export function RoadHomeGame({
   const pawnAnimationTimers = useRef<number[]>([]);
   const [homeCelebration, setHomeCelebration] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [dismissedQuestionId, setDismissedQuestionId] = useState<string | null>(null);
   const [witnessVerdict, setWitnessVerdict] = useState<{
     question: RoadHomeQuestion;
     player: RoadHomePlayer;
+    questionKey: string;
     selectedAnswer: string;
     correct: boolean;
   } | null>(null);
   const previousHomeCountsRef = useRef<Record<string, number>>({});
-  const witnessQuestionRef = useRef<{ question: RoadHomeQuestion; player: RoadHomePlayer } | null>(null);
+  const witnessQuestionRef = useRef<{ question: RoadHomeQuestion; player: RoadHomePlayer; questionKey: string } | null>(null);
   const witnessAnswerEventRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -362,7 +365,11 @@ export function RoadHomeGame({
     if (!spectator || !state) return;
     const turnPlayer = state.players[state.activePlayerIndex];
     if (state.phase === 'QUESTION' && state.currentQuestion && turnPlayer) {
-      witnessQuestionRef.current = { question: state.currentQuestion, player: turnPlayer };
+      witnessQuestionRef.current = {
+        question: state.currentQuestion,
+        player: turnPlayer,
+        questionKey: `${roomId}:${state.currentQuestion.id}:${state.questionDeadline || state.turnNumber}`,
+      };
       setWitnessVerdict(null);
     }
 
@@ -384,7 +391,7 @@ export function RoadHomeGame({
     });
     const timer = window.setTimeout(() => setWitnessVerdict(null), 2800);
     return () => window.clearTimeout(timer);
-  }, [spectator, state]);
+  }, [roomId, spectator, state]);
 
   useEffect(() => {
     if (!rollReveal) return;
@@ -422,6 +429,13 @@ export function RoadHomeGame({
   if (state.phase === 'GAME_OVER') {
     return <ArenaFinalScorecard roomId={roomId} onExit={onExit} />;
   }
+
+  const witnessQuestionId = spectator
+    ? state.phase === 'QUESTION' && state.currentQuestion
+      ? `${roomId}:${state.currentQuestion.id}:${state.questionDeadline || state.turnNumber}`
+      : witnessVerdict?.questionKey ?? null
+    : null;
+  const showWitnessQuestion = Boolean(witnessQuestionId && dismissedQuestionId !== witnessQuestionId && !chatOpen);
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
@@ -492,20 +506,13 @@ export function RoadHomeGame({
               <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-stone">Turn {state.turnNumber}</p><p className="truncate text-sm font-bold text-ink">{formatPhase(state, myTurn)}</p></div>
             </div>
           </div>
-          <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
+          {!spectator && <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
             <MessageCircle size={15} /> Match Chat
-          </button>
-          {chatOpen && (
+          </button>}
+          {!spectator && chatOpen && (
             <ArenaRoomChat
               roomId={roomId}
               userId={userId}
-              guestKey={guestKey}
-              allowGameCalls={spectator && spectatorCanChallenge}
-              challengeTargets={spectator && spectatorCanChallenge ? state.players
-                .filter((player) => !player.isBot)
-                .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
-              onGameCallCreated={spectator && spectatorCanChallenge ? onGameCallCreated : undefined}
-              onGameCallAction={spectator && spectatorCanChallenge ? onGameCallAction : undefined}
             />
           )}
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
@@ -529,44 +536,70 @@ export function RoadHomeGame({
           </div>
         </div>
       )}
-      {spectator && state.phase === 'QUESTION' && state.currentQuestion && activePlayer && (
+      {spectator && (
+        <ArenaWitnessChatDrawer
+          roomId={roomId}
+          userId={userId}
+          guestKey={guestKey}
+          open={chatOpen}
+          showLauncher={!showWitnessQuestion}
+          onOpenChange={setChatOpen}
+          allowGameCalls={spectatorCanChallenge}
+          challengeTargets={spectatorCanChallenge ? state.players
+            .filter((player) => !player.isBot)
+            .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
+          onGameCallCreated={spectatorCanChallenge ? onGameCallCreated : undefined}
+          onGameCallAction={spectatorCanChallenge ? onGameCallAction : undefined}
+        />
+      )}
+      {showWitnessQuestion && spectator && state.phase === 'QUESTION' && state.currentQuestion && activePlayer && (
         <RoadHomeWitnessQuestion
           question={state.currentQuestion}
           player={activePlayer}
           secondsLeft={secondsLeft}
+          onClose={() => setDismissedQuestionId(witnessQuestionId)}
+          onOpenChat={() => setChatOpen(true)}
         />
       )}
-      {spectator && witnessVerdict && state.phase !== 'QUESTION' && (
+      {showWitnessQuestion && spectator && witnessVerdict && state.phase !== 'QUESTION' && (
         <RoadHomeWitnessQuestion
           question={witnessVerdict.question}
           player={witnessVerdict.player}
           secondsLeft={0}
           selectedAnswer={witnessVerdict.selectedAnswer}
           correct={witnessVerdict.correct}
+          onClose={() => setDismissedQuestionId(witnessVerdict.questionKey)}
+          onOpenChat={() => setChatOpen(true)}
         />
       )}
     </div>
   );
 }
 
-function RoadHomeWitnessQuestion({ question, player, secondsLeft, selectedAnswer, correct }: {
+function RoadHomeWitnessQuestion({ question, player, secondsLeft, selectedAnswer, correct, onClose, onOpenChat }: {
   question: RoadHomeQuestion;
   player: RoadHomePlayer;
   secondsLeft: number;
   selectedAnswer?: string;
   correct?: boolean;
+  onClose: () => void;
+  onOpenChat: () => void;
 }) {
   const verdictVisible = typeof correct === 'boolean';
   const options = question.type === 'true_false' ? ['True', 'False'] : question.options || [];
   return (
-    <div className="pointer-events-none fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Live Ludo Trivia question">
-      <div className="pointer-events-auto w-full max-w-lg rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl animate-scale-in">
-        <div className="flex items-start justify-between gap-3">
+    <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl animate-scale-in" role="dialog" aria-modal="true" aria-label="Live Ludo Trivia question">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 bg-bg pb-2">
           <div className="flex min-w-0 items-center gap-3">
             <PlayerAvatar player={player} size="lg" />
             <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="eyebrow mt-0.5">Ludo Trivia · Witness view</p></div>
           </div>
-          {!verdictVisible && <span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span>}
+          <div className="flex flex-shrink-0 items-center gap-1">
+            {!verdictVisible && <span className={cn('mr-1 flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span>}
+            <button type="button" onClick={onOpenChat} className="icon-btn h-8 w-8" title="Open match chat" aria-label="Open match chat"><MessageCircle size={16} /></button>
+            <button type="button" onClick={onClose} className="icon-btn h-8 w-8" title="Close question" aria-label="Close question"><X size={17} /></button>
+          </div>
         </div>
         <h3 className="mt-4 text-base font-bold leading-snug text-ink">{question.prompt}</h3>
         {verdictVisible && (

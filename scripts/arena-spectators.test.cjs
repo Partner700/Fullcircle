@@ -20,6 +20,7 @@ const roadHome = read('src/screens/cadet/RoadHomeGame.tsx');
 const instructor = read('src/screens/instructor/InstructorApp.tsx');
 const roadHomeFunction = read('supabase/functions/road-home-game/index.ts');
 const arenaRoomChat = read('src/components/ArenaRoomChat.tsx');
+const witnessChatDrawer = read('src/components/ArenaWitnessChatDrawer.tsx');
 const arenaChallengeGate = read('src/components/ArenaChallengeGate.tsx');
 const arenaQuestionGenerator = read('supabase/functions/generate-arena-questions/index.ts');
 const scorecard = read('src/components/ArenaFinalScorecard.tsx');
@@ -92,7 +93,7 @@ assert.match(arena, /participants\.length >= room\.max_players[\s\S]*?watchRoom\
 
 assert.match(roadHome, /spectator\s*\? await fetchRoadHomeSpectatorState\(roomId, publicAccess\)/);
 assert.match(roadHome, /if \(spectator \|\| !state \|\| sending\) return false/);
-assert.match(roadHome, /<ArenaRoomChat[\s\S]*?allowGameCalls=\{spectator && spectatorCanChallenge\}/);
+assert.match(roadHome, /<ArenaWitnessChatDrawer[\s\S]*?allowGameCalls=\{spectatorCanChallenge\}/);
 assert.doesNotMatch(roadHome, /Viewer chat is read-only/);
 assert.match(roadHome, /Witnessing Live/);
 
@@ -140,6 +141,19 @@ assert.match(arena, /await publishArenaTriviaState\(roomId, machineQuestionIndex
 assert.doesNotMatch(arena, /publishArenaTriviaState[^;]+\.catch\(\(\) => null\)/);
 assert.match(arena, /playbackNow - Date\.parse\(liveQuestion\.answered_at\) < 5000/);
 assert.match(arena, /allowGameCalls=\{allowChallenges\}/);
+assert.match(arena, /setDismissedQuestionKey\(activeQuestionKey\)/);
+assert.match(arena, /activeWitnessQuestion\.opened_at/);
+assert.match(arena, /showLauncher=\{!showWitnessQuestion\}/);
+assert.match(arena, /onOpenChat=\{\(\) => setChatOpen\(true\)\}/);
+assert.match(arena, /phase === 'playing' \? 'sound_game_level_1'/);
+assert.match(roadHome, /setDismissedQuestionId\(witnessQuestionId\)/);
+assert.match(roadHome, /questionKey: `\$\{roomId\}:\$\{state\.currentQuestion\.id\}:\$\{state\.questionDeadline \|\| state\.turnNumber\}`/);
+assert.match(roadHome, /showLauncher=\{!showWitnessQuestion\}/);
+assert.match(roadHome, /onOpenChat=\{\(\) => setChatOpen\(true\)\}/);
+assert.match(witnessChatDrawer, /className="btn-primary fixed right-4 z-\[2147483010\]/);
+assert.match(witnessChatDrawer, /className="fixed inset-0 z-\[2147483020\]/);
+assert.match(witnessChatDrawer, /<ArenaRoomChat[\s\S]*?guestKey=\{guestKey\}/);
+assert.match(publicArena, /room\?\.status === 'playing' \? 'sound_game_level_1'/);
 assert.match(roadHome, /function RoadHomeWitnessQuestion/);
 assert.match(roadHome, /QUESTION_CORRECT' \|\| event\.type === 'QUESTION_INCORRECT/);
 assert.match(roadHome, /spectatorCanChallenge= true|spectatorCanChallenge = true/);
