@@ -30,7 +30,7 @@ import {
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
-import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
+import { computeStreak, getDateDaysAgoISO, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience, AwardWithRecipient, WeeklyQuizRanking } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
@@ -43,6 +43,7 @@ import { openProfileCv } from '../../lib/profileCv';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import { readContinuedTab } from '../../lib/appContinuity';
 import { signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
+import { mergeTentDailyRecords } from '../../lib/tentRecordRefresh';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
@@ -226,16 +227,20 @@ export function SentryApp() {
         return;
       }
 
+      const needsHistory = memberIds.some((id) => !Object.prototype.hasOwnProperty.call(recordsRef.current, id));
+      let recordsQuery = supabase.from('daily_records')
+        .select('user_id, record_date, day_type, attendance_status, attendance_marked_at, attendance_late, meditation_submitted, streak_valid, quiz_attempt_id')
+        .in('user_id', memberIds);
+      if (!needsHistory) recordsQuery = recordsQuery.gte('record_date', getDateDaysAgoISO(2));
       const [recordsResult, streakResult] = await Promise.allSettled([
-        supabase.from('daily_records').select('*').in('user_id', memberIds).order('record_date', { ascending: true }),
+        recordsQuery.order('record_date', { ascending: true }),
         fetchPublicStreakDetails(memberIds),
       ]);
       let recordsMap: Record<string, DailyRecord[]> = Object.fromEntries(
         memberIds.map((id) => [id, recordsRef.current[id] || []]),
       );
       if (recordsResult.status === 'fulfilled' && !recordsResult.value.error) {
-        recordsMap = Object.fromEntries(memberIds.map((id) => [id, []]));
-        for (const record of (recordsResult.value.data || []) as DailyRecord[]) recordsMap[record.user_id]?.push(record);
+        recordsMap = mergeTentDailyRecords(recordsMap, memberIds, (recordsResult.value.data || []) as unknown as DailyRecord[], needsHistory);
         recordsRef.current = recordsMap;
         setAllRecords(recordsMap);
       }
@@ -817,9 +822,9 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
 
   useEffect(() => {
     let cancelled = false;
-    void fetchAwards()
+    void fetchAwards(undefined, today.slice(0, 7))
       .then((awards) => {
-        if (!cancelled) setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === today.slice(0, 7)).slice(0, 10));
+        if (!cancelled) setMonthlyHonors(awards.slice(0, 10));
       })
       .catch(() => { if (!cancelled) setMonthlyHonors([]); });
     return () => { cancelled = true; };

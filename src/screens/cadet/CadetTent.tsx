@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
 import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
-import { fetchAwards, fetchDefaultTentJoinDirection, fetchPanelImageSetting, fetchTentJoinDirections } from '../../lib/queries';
+import { fetchAwards, fetchDefaultTentJoinDirection, fetchPanelImageSetting, fetchPublicStreakDetails, fetchTentJoinDirections } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { VallumText } from '../../components/ChiRhoMark';
@@ -62,8 +62,8 @@ export function CadetTent() {
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
-  const [denariiMap, setDenariiMap] = useState<Record<string, number>>({});
-  const [streakMap, setStreakMap] = useState<Record<string, number>>({});
+  const [denariiMap, setDenariiMap] = useState<Record<string, number | null>>({});
+  const [streakMap, setStreakMap] = useState<Record<string, number | null>>({});
   const [unreadBySender, setUnreadBySender] = useState<Record<string, number>>({});
   const [tentAwards, setTentAwards] = useState<AwardWithRecipient[]>([]);
   const [awardsImage, setAwardsImage] = useState<PanelImageSetting | null>(null);
@@ -117,39 +117,56 @@ export function CadetTent() {
 
       setDirectedTentId(null);
 
-      const [tentResult, membersResult, reactionsResult, unreadResult, awardsResult, awardsImageResult] = await Promise.all([
+      const [tentResult, membersResult, reactionsResult, unreadResult] = await Promise.all([
         supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
         supabase.from('tent_members').select('*, profiles(id,display_name,avatar_url,created_at)').eq('tent_id', member.tent_id).order('joined_at'),
         supabase.from('tent_reactions').select('*').eq('tent_id', member.tent_id).order('created_at', { ascending: false }).limit(50),
         supabase.from('user_notifications').select('actor_id').eq('recipient_id', profile.id).is('read_at', null).eq('action_key', 'tent'),
-        fetchAwards(),
-        fetchPanelImageSetting('recent_awards'),
       ]);
       setTent(tentResult.data as any);
       setMembers((membersResult.data || []) as any);
       setReactions((reactionsResult.data || []) as any);
       const tentMemberIds = new Set((membersResult.data || []).map((m: any) => m.user_id));
       if (tentResult.data?.sentry_id) tentMemberIds.add(tentResult.data.sentry_id);
-      setTentAwards(awardsResult.filter((award) => (
-        award.award_target_type === 'tent'
-          ? award.award_target_id === member.tent_id
-          : tentMemberIds.has(award.user_id) || (!!award.award_target_id && tentMemberIds.has(award.award_target_id))
-      )));
-      setAwardsImage(awardsImageResult);
-
       const memberIds = (membersResult.data || []).map((m: any) => m.user_id);
-      const [denariiResults, streakResults] = await Promise.all([
-        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('get_user_denarii_total', { p_user_id: uid })).data }))),
-        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('compute_strict_streak', { p_user_id: uid })).data }))),
-      ]);
-      setDenariiMap(Object.fromEntries(denariiResults.map(({ uid, data }) => [uid, Number(data) || 0])));
-      setStreakMap(Object.fromEntries(streakResults.flatMap(({ uid, data }: any) => data?.[0] ? [[uid, data[0].current_streak]] : [])));
-
       const unreadMap: Record<string, number> = {};
       (unreadResult.data || []).forEach((n: any) => {
         if (n.actor_id) unreadMap[n.actor_id] = (unreadMap[n.actor_id] || 0) + 1;
       });
       setUnreadBySender(unreadMap);
+      hasLoadedRef.current = true;
+      setLoading(false);
+
+      void fetchAwards(undefined, undefined, [...tentMemberIds, member.tent_id]).then((awards) => {
+        setTentAwards(awards.filter((award) => (
+          award.award_target_type === 'tent'
+            ? award.award_target_id === member.tent_id
+            : tentMemberIds.has(award.user_id) || (!!award.award_target_id && tentMemberIds.has(award.award_target_id))
+        )));
+      }).catch(() => undefined);
+      void fetchPanelImageSetting('recent_awards').then(setAwardsImage).catch(() => undefined);
+      void fetchPublicStreakDetails(memberIds).then((streaks) => {
+        setStreakMap(Object.fromEntries(memberIds.map((uid: string) => [uid, streaks[uid]?.current_streak ?? null])));
+      }).catch(() => setStreakMap((current) => Object.fromEntries(memberIds.map((uid: string) => [uid, current[uid] ?? null]))));
+      void (async () => {
+        for (let index = 0; index < memberIds.length; index += 3) {
+          const batchIds = memberIds.slice(index, index + 3) as string[];
+          const batch = await Promise.allSettled(batchIds.map(async (uid: string) => {
+            const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: uid });
+            if (error) throw error;
+            return Number(data) || 0;
+          }));
+          setDenariiMap((current) => {
+            const next = { ...current };
+            batch.forEach((result, offset) => {
+              const uid = batchIds[offset];
+              if (result.status === 'fulfilled') next[uid] = result.value;
+              else if (next[uid] === undefined) next[uid] = null;
+            });
+            return next;
+          });
+        }
+      })();
     } catch (error) {
       console.error('Tent load error:', error);
       setTent(null);
@@ -170,12 +187,12 @@ export function CadetTent() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_directions', filter: `user_id=eq.${profile.id}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_guidance_settings' }, refresh)
       .subscribe();
-    const interval = window.setInterval(refresh, 20_000);
+    const interval = window.setInterval(refresh, tent?.id ? 120_000 : 20_000);
     return () => {
       window.clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [load, profile]);
+  }, [load, profile, tent?.id]);
 
   const requestTent = async (tentId: string) => {
     const selectedTent = availableTents.find((item) => item.id === tentId);
@@ -414,8 +431,8 @@ export function CadetTent() {
         {visibleMembers.map((m) => {
           const isMe = m.user_id === profile?.id;
           const isSentry = m.role === 'sentry';
-          const den = denariiMap[m.user_id] || 0;
-          const streak = streakMap[m.user_id] || 0;
+          const den = denariiMap[m.user_id];
+          const streak = streakMap[m.user_id];
           const myReactions = reactions.filter((r) => r.target_user_id === m.user_id);
 
           return (
@@ -440,10 +457,10 @@ export function CadetTent() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-stone">
                     <span className="flex items-center gap-1">
-                      <Coins size={12} className="text-gold" /> {formatDenarii(den)}
+                      <Coins size={12} className="text-gold" /> {den === undefined ? '...' : den === null ? '-' : formatDenarii(den)}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Flame size={12} className="text-roman" /> {streak} day streak
+                      <Flame size={12} className="text-roman" /> {streak === undefined ? '...' : streak === null ? '-' : `${streak} day streak`}
                     </span>
                   </div>
                 </div>

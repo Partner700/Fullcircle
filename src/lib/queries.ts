@@ -1351,12 +1351,17 @@ export async function fetchLeaderboardSnapshots() {
   return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
-export async function fetchAwards(createdSince?: string): Promise<AwardWithRecipient[]> {
+export async function fetchAwards(createdSince?: string, monthPrefix?: string, recipientIds?: string[]): Promise<AwardWithRecipient[]> {
   let query = supabase
     .from('awards')
     .select('*, profiles(display_name, avatar_url)')
     .order('created_at', { ascending: false });
   if (createdSince) query = query.gte('created_at', createdSince);
+  if (monthPrefix) query = query.like('award_month', `${monthPrefix}%`);
+  if (recipientIds?.length) {
+    const ids = Array.from(new Set(recipientIds)).join(',');
+    query = query.or(`user_id.in.(${ids}),award_target_id.in.(${ids})`);
+  }
   const { data, error } = await query;
   if (error) throw error;
   const awards = data as AwardWithRecipient[];
