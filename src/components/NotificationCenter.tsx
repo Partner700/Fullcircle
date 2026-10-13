@@ -20,7 +20,7 @@ type Props = { onNavigate?: (actionKey: string, metadata?: Record<string, unknow
 function notificationTone(notification: UserNotification) {
   const status = String(notification.metadata?.status || '').toLowerCase();
   if (notification.notification_type === 'payment' && ['rejected', 'failed', 'cancelled'].includes(status)) return 'warning';
-  if (['payment', 'purchase', 'relic', 'economy', 'award', 'resource_grant'].includes(notification.notification_type)) return 'success';
+  if (['payment', 'purchase', 'relic', 'economy', 'award', 'resource_grant', 'arena_scheduled_result'].includes(notification.notification_type)) return 'success';
   return 'info';
 }
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { groupArenaScoreTeams } from '../src/lib/arenaScorecard.ts';
+import { groupArenaScoreTeams, shortestArenaName } from '../src/lib/arenaScorecard.ts';
 import type { ArenaFinalScorecard } from '../src/lib/queries.ts';
 
 const players: ArenaFinalScorecard['players'] = [
@@ -19,5 +19,8 @@ const untented = groupArenaScoreTeams([
   { ...players[1], tent_id: null, tent_house_id: null, tent_name: null },
 ]);
 assert.equal(untented.length, 2, 'Unassigned players must not be merged into one team.');
+assert.equal(shortestArenaName('Sentinel Vedette'), 'Vedette');
+assert.equal(shortestArenaName('Billy-Westey'), 'Billy');
+assert.equal(shortestArenaName('PH'), 'PH');
 
 console.log('Arena final-score tent grouping and individual correct counts passed.');

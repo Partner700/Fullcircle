@@ -2,6 +2,12 @@ import type { ArenaFinalScorecard } from './queries';
 
 type Player = ArenaFinalScorecard['players'][number];
 
+export function shortestArenaName(displayName: string): string {
+  const names = displayName.trim().split(/[\s-]+/).filter(Boolean);
+  if (names.length === 0) return 'Player';
+  return names.reduce((shortest, name) => name.length < shortest.length ? name : shortest);
+}
+
 export type ArenaScoreTeam = {
   key: string;
   name: string;
