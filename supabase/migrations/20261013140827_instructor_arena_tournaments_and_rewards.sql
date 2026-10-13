@@ -311,7 +311,7 @@ BEGIN
 
   IF v_game.id IS NOT NULL THEN
     UPDATE public.arena_tournament_games SET winner_id = NEW.winner_id WHERE id = v_game.id;
-    IF v_game.round_number = CASE WHEN cardinality(v_tournament.player_ids) = 4 THEN 2 ELSE 3 END THEN
+    IF v_game.round_number = (CASE WHEN cardinality(v_tournament.player_ids) = 4 THEN 2 ELSE 3 END) THEN
       INSERT INTO public.denarii_ledger_entries(user_id, amount, source_type, source_reference, description)
       VALUES (NEW.winner_id, 25000, 'arena_reward', 'scheduled:champion:' || v_tournament.id::text,
         'Arena tournament champion: ' || v_tournament.title)

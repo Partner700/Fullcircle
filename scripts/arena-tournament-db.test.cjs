@@ -19,6 +19,7 @@ assert.match(sql, /IF NEW\.status <> 'completed' OR OLD\.status <> 'playing' THE
 assert.match(sql, /NEW\.winner_id = ANY\(v_schedule\.player_ids\)/);
 assert.match(sql, /5000, 'arena_reward', 'scheduled:win:'/);
 assert.match(sql, /25000, 'arena_reward', 'scheduled:champion:'/);
+assert.match(sql, /v_game\.round_number = \(CASE WHEN cardinality\(v_tournament\.player_ids\) = 4 THEN 2 ELSE 3 END\) THEN/);
 assert.match(sql, /SET status = 'completed', champion_id = NEW\.winner_id/);
 assert.match(sql, /public\.create_arena_tournament_room\(v_next\.id\)/);
 assert.match(sql, /'arena_scheduled_result'/);
