@@ -142,10 +142,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchAnnouncements().then(setAnnouncements),
         fetchActiveFcxExperience().then(setFcxExperience),
         fetchLatestWeeklyQuizRankings(undefined, 'cadet').then(setQuizPodium),
-        fetchAwards().then((awards) => {
-          const currentMonth = today.slice(0, 7);
-          setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === currentMonth).slice(0, 10));
-        }),
+        fetchAwards(undefined, today.slice(0, 7)).then((awards) => setMonthlyHonors(awards.slice(0, 10))),
       ]);
       hasLoadedRef.current = true;
     })().catch((error) => {
