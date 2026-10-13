@@ -3359,6 +3359,59 @@ export async function scheduleInstructorArenaMatch(payload: {
   return String(data);
 }
 
+export type ArenaTournament = {
+  id: string;
+  title: string;
+  game_type: 'standard' | 'ludo';
+  status: 'scheduled' | 'playing' | 'completed' | 'cancelled';
+  created_by: string;
+  champion_id: string | null;
+  players: Array<{ id: string; display_name: string; avatar_url: string | null }>;
+  games: Array<{
+    id: string;
+    round_number: number;
+    match_number: number;
+    planned_at: string;
+    starts_at: string | null;
+    room_id: string | null;
+    room_status: string | null;
+    left_player_id: string | null;
+    right_player_id: string | null;
+    winner_id: string | null;
+  }>;
+};
+
+export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
+  const { data, error } = await supabase.rpc('get_arena_tournaments');
+  if (error) throw error;
+  return (data || []) as ArenaTournament[];
+}
+
+export async function createInstructorArenaTournament(payload: {
+  title: string; gameType: 'standard' | 'ludo'; playerIds: string[]; gameTimes: string[];
+}) {
+  const { data, error } = await supabase.rpc('create_instructor_arena_tournament', {
+    p_title: payload.title,
+    p_game_type: payload.gameType,
+    p_player_ids: payload.playerIds,
+    p_game_times: payload.gameTimes,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export async function cancelInstructorArenaTournament(tournamentId: string) {
+  const { error } = await supabase.rpc('cancel_instructor_arena_tournament', { p_tournament_id: tournamentId });
+  if (error) throw error;
+}
+
+export async function rescheduleArenaTournamentGame(gameId: string, startsAt: string) {
+  const { error } = await supabase.rpc('reschedule_arena_tournament_game', {
+    p_game_id: gameId, p_starts_at: startsAt,
+  });
+  if (error) throw error;
+}
+
 export async function joinInstructorArenaMatch(roomId: string) {
   const { error } = await supabase.rpc('join_instructor_arena_match', { p_room_id: roomId });
   if (error) throw error;
