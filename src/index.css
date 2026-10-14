@@ -2371,6 +2371,10 @@
   background: rgba(7, 20, 43, 0.78);
 }
 
+.arena-scorecard-veil {
+  background: rgba(7, 20, 43, 0.72);
+}
+
 :is([data-theme="day"], [data-artwork-theme="day"]) .daily-trivia-panel-veil:not(:where([data-artwork-theme="night"], [data-artwork-theme="night"] *)) {
   background: rgba(255, 255, 255, 0.79);
 }

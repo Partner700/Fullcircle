@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Dices, Loader2, RotateCw, Swords } from 'lucide-react';
 import { TentHouseSymbol } from './TentHouseSymbol';
-import { fetchArenaFinalScorecard, type ArenaFinalScorecard as ScorecardData } from '../lib/queries';
+import { fetchArenaFinalScorecard, fetchPanelImageSetting, type ArenaFinalScorecard as ScorecardData } from '../lib/queries';
+import type { PanelImageSetting } from '../lib/types';
 import { shortestArenaName } from '../lib/arenaScorecard';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
 
-export function ArenaFinalScorecard({ roomId, onExit }: { roomId: string; onExit?: () => void }) {
+export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaImage }: { roomId: string; onExit?: () => void; arenaImage?: PanelImageSetting | null }) {
   const [result, setResult] = useState<ScorecardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [fetchedArenaImage, setFetchedArenaImage] = useState<PanelImageSetting | null>(null);
+  const arenaImage = suppliedArenaImage === undefined ? fetchedArenaImage : suppliedArenaImage;
+
+  useEffect(() => {
+    if (suppliedArenaImage !== undefined) return;
+    let active = true;
+    void fetchPanelImageSetting('arena').then((image) => {
+      if (active) setFetchedArenaImage(image);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [suppliedArenaImage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +49,9 @@ export function ArenaFinalScorecard({ roomId, onExit }: { roomId: string; onExit
   const columns = players.length >= 4 ? 'grid-cols-4' : players.length === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return <section className="mx-auto w-full max-w-3xl" aria-label="Final Arena score">
-    <div className="overflow-hidden rounded-md border border-brass/45 bg-navy-2 px-4 py-5 text-white shadow-xl sm:px-7 sm:py-7">
+    <div data-artwork-theme={arenaImage?.url ? 'night' : undefined} className="relative overflow-hidden rounded-md border border-brass/45 bg-navy-2 px-4 py-5 text-white shadow-xl sm:px-7 sm:py-7">
+      <PanelImageBackdrop image={arenaImage} opacityOverride={80} veilClassName="arena-scorecard-veil" simple />
+      <div className="relative z-10">
       <div className="text-center">
         <p className="text-[10px] font-bold uppercase text-gold">Full Circle Arena</p>
         <h2 className="mt-1 font-display text-lg font-bold text-white sm:text-xl">{result?.room_name.replace(/\s*\[.*?\]/g, '') || 'Final score'}</h2>
@@ -60,6 +75,7 @@ export function ArenaFinalScorecard({ roomId, onExit }: { roomId: string; onExit
         {error ? <><p>{error}</p><button type="button" className="btn-secondary text-xs" onClick={() => { setError(null); setRetryKey((value) => value + 1); }}><RotateCw size={14} /> Try again</button></>
           : <><Loader2 size={18} className="animate-spin text-gold" /><p>Waiting for the match result...</p></>}
       </div>}
+      </div>
     </div>
     {onExit && <button type="button" onClick={onExit} className="btn-primary mt-4 w-full"><ArrowLeft size={16} /> Back to Arena</button>}
   </section>;

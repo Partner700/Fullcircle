@@ -741,7 +741,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   }
 
   if (phase === 'finished' && activeRoomId) {
-    return <ArenaFinalScorecard roomId={activeRoomId} onExit={() => clearActiveRoom(true)} />;
+    return <ArenaFinalScorecard roomId={activeRoomId} arenaImage={arenaImage} onExit={() => clearActiveRoom(true)} />;
   }
 
   if (phase === 'waiting' && activeRoomId) {
@@ -1175,7 +1175,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         <div className="space-y-2">
           <h4 className="font-display font-semibold text-ink text-sm">Recent Games</h4>
           {rooms.filter((r) => r.status === 'completed').slice(0, 5).map((room) => (
-            <ArenaRecentResult key={room.id} roomId={room.id} />
+            <ArenaRecentResult key={room.id} roomId={room.id} arenaImage={arenaImage} />
           ))}
         </div>
       )}

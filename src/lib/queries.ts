@@ -34,6 +34,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 let lastReminderBootstrapAt = 0;
+let lastArenaMaintenanceAt = 0;
 
 function shareReadRequest<T>(key: string, factory: () => Promise<T>): Promise<T> {
   const existing = sharedReadRequests.get(key) as Promise<T> | undefined;
@@ -55,6 +56,20 @@ function bootstrapDailyRemindersInBackground() {
     if (error) throw error;
   }).catch(() => {
     // Scheduled reminders remain server-driven; this is only a client fallback.
+  });
+}
+
+function maintainArenaRoomsInBackground() {
+  const now = Date.now();
+  if (now - lastArenaMaintenanceAt < 60_000) return;
+  lastArenaMaintenanceAt = now;
+  void shareReadRequest('arena-room-maintenance', async () => {
+    const { error: expiryError } = await supabase.rpc('expire_stale_arena_rooms');
+    if (expiryError) throw expiryError;
+    const { error: repairError } = await supabase.rpc('repair_orphaned_arena_matches');
+    if (repairError) throw repairError;
+  }).catch(() => {
+    // Room reads must remain available when optional cleanup is slow.
   });
 }
 
@@ -3748,26 +3763,18 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
 }
 
 export async function fetchArenaRooms() {
-  try {
-    await supabase.rpc('expire_stale_arena_rooms');
-    await supabase.rpc('repair_orphaned_arena_matches');
-  } catch {}
-
   const { data, error } = await supabase
     .from('arena_rooms')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw error;
-  return mergeArenaRoomsWithParticipants(data || []);
+  const rooms = await mergeArenaRoomsWithParticipants(data || []);
+  maintainArenaRoomsInBackground();
+  return rooms;
 }
 
 export async function fetchArenaRoom(roomId: string) {
-  try {
-    await supabase.rpc('expire_stale_arena_rooms');
-    await supabase.rpc('repair_orphaned_arena_matches');
-  } catch {}
-
   const { data, error } = await supabase
     .from('arena_rooms')
     .select('*')
@@ -3775,6 +3782,7 @@ export async function fetchArenaRoom(roomId: string) {
     .maybeSingle();
   if (error) throw error;
   const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
+  maintainArenaRoomsInBackground();
   return room || null;
 }
 

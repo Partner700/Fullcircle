@@ -22,5 +22,6 @@ assert.equal(untented.length, 2, 'Unassigned players must not be merged into one
 assert.equal(shortestArenaName('Sentinel Vedette'), 'Vedette');
 assert.equal(shortestArenaName('Billy-Westey'), 'Billy');
 assert.equal(shortestArenaName('PH'), 'PH');
+assert.equal(shortestArenaName('The Scribe'), 'The Scribe');
 
 console.log('Arena final-score tent grouping and individual correct counts passed.');
