@@ -3762,10 +3762,12 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
   }));
 }
 
+const ARENA_ROOM_SUMMARY_COLUMNS = 'id,creator_id,room_name,stake_amount,max_players,status,narrative_date,game_type,tagged_user_ids,started_at,completed_at,winner_id,created_at,game_call_fee,expires_at,closed_at,closed_by,question_generated_at,play_mode,machine_score,completion_reason,question_generation_claimed_at,question_generation_claimed_by,direct_challenge_user_id,direct_challenge_source_room_id,direct_challenge_status,restarted_as_room_id';
+
 export async function fetchArenaRooms() {
   const { data, error } = await supabase
     .from('arena_rooms')
-    .select('*')
+    .select(ARENA_ROOM_SUMMARY_COLUMNS)
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw error;
@@ -3774,10 +3776,10 @@ export async function fetchArenaRooms() {
   return rooms;
 }
 
-export async function fetchArenaRoom(roomId: string) {
+export async function fetchArenaRoom(roomId: string, includeQuestions = false) {
   const { data, error } = await supabase
     .from('arena_rooms')
-    .select('*')
+    .select(includeQuestions ? '*' : ARENA_ROOM_SUMMARY_COLUMNS)
     .eq('id', roomId)
     .maybeSingle();
   if (error) throw error;

@@ -64,24 +64,40 @@ async function roomContext(roomId: string) {
   if (!/\[arena:ludo\]/i.test(room.room_name || "")) throw new Error("This room is not a Road Home match.");
   const participantRows = await rest(`arena_participants?room_id=eq.${roomId}&select=user_id,joined_at,forfeited_at&order=joined_at.asc`);
   const ids = (participantRows || []).map((item: { user_id: string }) => item.user_id);
+  return {
+    room,
+    participantIds: ids,
+    activeParticipantIds: (participantRows || []).filter((item: any) => !item.forfeited_at).map((item: any) => item.user_id),
+    forfeitedIds: (participantRows || []).filter((item: any) => item.forfeited_at).map((item: any) => item.user_id),
+  };
+}
+
+async function questionDeck(roomId: string) {
+  const deckRows = await rest(`arena_question_decks?room_id=eq.${roomId}&select=questions`);
+  return Array.isArray(deckRows?.[0]?.questions) ? deckRows[0].questions : [];
+}
+
+async function gameSetup(context: Awaited<ReturnType<typeof roomContext>>) {
+  const ids = context.activeParticipantIds;
   const profiles = ids.length
     ? await rest(`profiles?id=in.(${ids.join(",")})&select=id,display_name,avatar_url`)
     : [];
   const byId = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
-  const participants: RoadHomeParticipant[] = (participantRows || []).filter((item: any) => !item.forfeited_at).map((item: any) => ({
-    id: item.user_id,
-    name: byId.get(item.user_id)?.display_name || "Cadet",
-    avatarUrl: byId.get(item.user_id)?.avatar_url || null,
+  const participants: RoadHomeParticipant[] = ids.map((id: string) => ({
+    id,
+    name: byId.get(id)?.display_name || "Cadet",
+    avatarUrl: byId.get(id)?.avatar_url || null,
   }));
-  if (room.play_mode === "machine") participants.push({ id: "machine", name: "The Scribe", isBot: true });
-  const deckRows = await rest(`arena_question_decks?room_id=eq.${roomId}&select=questions`);
+  if (context.room.play_mode === "machine") participants.push({ id: "machine", name: "The Scribe", isBot: true });
   return {
-    room,
     participants,
-    participantIds: ids,
-    forfeitedIds: (participantRows || []).filter((item: any) => item.forfeited_at).map((item: any) => item.user_id),
-    questions: Array.isArray(deckRows?.[0]?.questions) ? deckRows[0].questions : [],
+    questions: await questionDeck(context.room.id),
   };
+}
+
+async function publicGame(roomId: string) {
+  const rows = await rest(`arena_ludo_public_states?room_id=eq.${roomId}&select=version,public_state`);
+  return rows?.[0] || null;
 }
 
 async function privateGame(roomId: string) {
@@ -165,7 +181,7 @@ async function createGame(roomId: string, state: RoadHomeState) {
 }
 
 async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/arena_ludo_games?room_id=eq.${roomId}&version=eq.${previous.version}`, {
+  const response = await fetch(`${supabaseUrl}/rest/v1/arena_ludo_games?room_id=eq.${roomId}&version=eq.${previous.version}&select=version`, {
     method: "PATCH",
     headers: serviceHeaders("return=representation"),
     body: JSON.stringify({ version: next.version, private_state: next, updated_at: new Date().toISOString() }),
@@ -258,6 +274,14 @@ Deno.serve(async (request) => {
     if (!context.participantIds.includes(actorId)) return json({ error: "You are not a participant in this room." }, 403);
 
     if (action === "GET") {
+      const snapshot = await publicGame(roomId);
+      if (snapshot?.public_state) {
+        const publicState = snapshot.public_state as RoadHomeState;
+        const pendingForfeit = context.forfeitedIds.some((id: string) =>
+          publicState.players?.some((player) => player.id === id && !player.forfeited));
+        if (!pendingForfeit) return json({ state: publicState, version: snapshot.version });
+      }
+      // Only a missing snapshot or newly forfeited player needs the private game state.
       const existingPrivate = await privateGame(roomId);
       if (!existingPrivate) return json({ state: null, needsInitialization: context.room.status === "playing" });
       const state = await synchronizeForfeits(context, existingPrivate);
@@ -271,8 +295,9 @@ Deno.serve(async (request) => {
         const normalized = normalizeRoadHomeEconomyState(existing.private_state as RoadHomeState);
         return json({ state: publicRoadHomeState(normalized), version: normalized.version });
       }
-      let state = createRoadHomeGame(roomId, context.participants, context.questions, secureRandom);
-      state = runRoadHomeBots(state, context.questions, secureRandom, machineDifficulty(String(context.room.room_name || '')));
+      const setup = await gameSetup(context);
+      let state = createRoadHomeGame(roomId, setup.participants, setup.questions, secureRandom);
+      state = runRoadHomeBots(state, setup.questions, secureRandom, machineDifficulty(String(context.room.room_name || '')));
       const publicState = await createGame(roomId, state);
       return json({ state: publicState, version: state.version });
     }
@@ -305,7 +330,7 @@ Deno.serve(async (request) => {
     if (action === "ROLL") {
       try { commandState = await replenishQuestionPool(commandState, String(context.room.room_name || "Bible Arena")); } catch { /* Keep the verified current deck if expansion is temporarily unavailable. */ }
     }
-    const questionPool = commandState.questionPool?.length ? commandState.questionPool : context.questions;
+    const questionPool = commandState.questionPool?.length ? commandState.questionPool : await questionDeck(roomId);
     let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom);
     next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')));
     const publicState = await saveGame(roomId, previous, next, commandId, actorId);

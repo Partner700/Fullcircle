@@ -66,6 +66,19 @@ assert.match(witnessIntegrityMigration, /CREATE TRIGGER normalize_arena_witness_
 assert.match(witnessIntegrityMigration, /'Arena viewer', 'Arena witness'/);
 
 assert.match(queries, /export async function watchArenaRoom/);
+const arenaRoomSummary = queries.match(/const ARENA_ROOM_SUMMARY_COLUMNS = '([^']*)'/)?.[1] || '';
+assert.ok(arenaRoomSummary.includes('room_name') && arenaRoomSummary.includes('status'));
+assert.ok(!arenaRoomSummary.includes('question_set'));
+assert.match(queries, /export async function fetchArenaRooms\(\) \{[\s\S]*?\.select\(ARENA_ROOM_SUMMARY_COLUMNS\)/);
+assert.match(queries, /export async function fetchArenaRoom\(roomId: string, includeQuestions = false\)/);
+assert.match(arena, /preserveDetailedArenaRooms\(current, latest, activeRoomIdRef\.current\)/);
+assert.match(arena, /fetchArenaRoom\(roomId, true\)/);
+assert.match(arena, /table: 'arena_trivia_responses', filter: `room_id=eq\.\$\{roomId\}`/);
+assert.match(roadHome, /\}, 15_000\)/);
+assert.match(roadHomeFunction, /async function publicGame\(roomId: string\)/);
+assert.match(roadHomeFunction, /const snapshot = await publicGame\(roomId\)/);
+assert.match(roadHomeFunction, /const setup = await gameSetup\(context\)/);
+assert.match(roadHomeFunction, /version=eq\.\$\{previous\.version\}&select=version/);
 assert.match(queries, /export async function heartbeatArenaViewer/);
 assert.match(queries, /export async function leaveArenaRoomView/);
 assert.match(queries, /fetchRoadHomeSpectatorState[\s\S]*?\.from\('arena_ludo_public_states'\)/);

@@ -57,12 +57,35 @@ import type { ArenaChatGameCall, ArenaLiveTriviaState, ArenaTriviaFeedItem, Aren
 import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
 import {
   Swords, Coins, Loader2, Zap, Play, Plus, Clock, CheckCircle2, XCircle, UserPlus, Search, MessageCircle, Flag,
-  ArrowLeft, ChevronDown, Eye, Radio, Share2, X,
+  ArrowLeft, ChevronDown, Eye, Radio, RotateCw, Share2, X,
 } from 'lucide-react';
 
 type ArenaPhase = 'lobby' | 'waiting' | 'playing' | 'finished';
 type InvitePlayer = RoleAssignment & { profiles: Profile };
 const dismissedArenaRoomsKey = (userId: string) => `full-circle-dismissed-arena-rooms-${userId}`;
+
+function preserveDetailedArenaRooms(current: any[], latest: any[], activeRoomId: string | null) {
+  const previous = new Map(current.map((room) => [room.id, room]));
+  const merged = latest.map((room) => {
+    const prior = previous.get(room.id);
+    return prior && Object.prototype.hasOwnProperty.call(prior, 'question_set')
+      ? { ...room, question_set: prior.question_set }
+      : room;
+  });
+  if (activeRoomId && !merged.some((room) => room.id === activeRoomId) && previous.has(activeRoomId)) {
+    merged.unshift(previous.get(activeRoomId));
+  }
+  return merged;
+}
+
+function upsertArenaRoom(current: any[], freshRoom: any) {
+  const prior = current.find((room) => room.id === freshRoom.id);
+  const room = prior && Object.prototype.hasOwnProperty.call(prior, 'question_set')
+    && !Object.prototype.hasOwnProperty.call(freshRoom, 'question_set')
+    ? { ...freshRoom, question_set: prior.question_set }
+    : freshRoom;
+  return [room, ...current.filter((item) => item.id !== freshRoom.id)];
+}
 
 interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
@@ -99,6 +122,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const previousSoundPhase = useRef<ArenaPhase | null>(null);
   const followingRestartRef = useRef<string | null>(null);
   const lastScheduledStartAttempt = useRef(0);
+  const activeRoomIdRef = useRef(activeRoomId);
+  const hydratingRoomRef = useRef<string | null>(null);
+  activeRoomIdRef.current = activeRoomId;
   const hasLiveRooms = rooms.some((room) => room.status === 'playing');
   const liveRoomIds = rooms.filter((room) => room.status === 'playing').map((room) => room.id).join(',');
 
@@ -160,14 +186,17 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   }, [profile]);
 
   const refreshRooms = useCallback(async () => {
-    try { setRooms(await fetchArenaRooms()); } catch (refreshError) { console.error('Arena room refresh failed:', refreshError); }
+    try {
+      const latest = await fetchArenaRooms();
+      setRooms((current) => preserveDetailedArenaRooms(current, latest, activeRoomIdRef.current));
+    } catch (refreshError) { console.error('Arena room refresh failed:', refreshError); }
   }, []);
 
   const refreshRoom = useCallback(async (roomId: string) => {
     try {
       const freshRoom = await fetchArenaRoom(roomId);
       if (!freshRoom) return null;
-      setRooms((current) => [freshRoom, ...current.filter((room) => room.id !== roomId)]);
+      setRooms((current) => upsertArenaRoom(current, freshRoom));
       return freshRoom;
     } catch {
       return null;
@@ -204,7 +233,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         witnessOnly ? Promise.resolve([] as InvitePlayer[]) : fetchArenaInvitees(),
         fetchPanelImageSetting('arena'),
       ]);
-      setRooms(roomsData.status === 'fulfilled' ? roomsData.value : []);
+      if (roomsData.status === 'fulfilled') {
+        setRooms((current) => preserveDetailedArenaRooms(current, roomsData.value, activeRoomIdRef.current));
+      }
       setDenarii(balance.status === 'fulfilled' ? balance.value : 0);
       setAllInvitees((invitees.status === 'fulfilled' ? invitees.value : []).filter((c) => c.user_id !== profile.id));
       setArenaImage(panelImage.status === 'fulfilled' ? panelImage.value : null);
@@ -214,6 +245,31 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       setLoading(false);
     }
   }, [profile, witnessOnly]);
+
+  const hydrateActiveRoom = useCallback(async (roomId: string) => {
+    if (hydratingRoomRef.current === roomId) return;
+    hydratingRoomRef.current = roomId;
+    try {
+      const detailedRoom = await fetchArenaRoom(roomId, true);
+      if (!detailedRoom) throw new Error('That Arena match could not be found.');
+      if (activeRoomIdRef.current === roomId) {
+        setRooms((current) => upsertArenaRoom(current, detailedRoom));
+        setError(null);
+      }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'The Arena questions could not load.');
+    } finally {
+      hydratingRoomRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeRoomId || phase !== 'playing' || isSpectating) return;
+    const room = rooms.find((item) => item.id === activeRoomId);
+    if (room && parseArenaGameType(room.room_name) === 'ludo') return;
+    if (room && Object.prototype.hasOwnProperty.call(room, 'question_set')) return;
+    void hydrateActiveRoom(activeRoomId);
+  }, [activeRoomId, hydrateActiveRoom, isSpectating, phase, rooms]);
 
   const shareRoom = useCallback(async (roomId: string) => {
     const url = new URL(window.location.pathname, window.location.origin);
@@ -368,7 +424,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         if (!active && !cancelled) {
           const freshRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
           if (freshRoom?.status === 'completed') {
-            setRooms((prev) => [freshRoom, ...prev.filter((item) => item.id !== freshRoom.id)]);
+            setRooms((prev) => upsertArenaRoom(prev, freshRoom));
             setPhase('finished');
             setError(null);
             return;
@@ -463,7 +519,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         void fetchArenaRoom(restartedRoomId)
           .then(async (restartedRoom) => {
             if (!restartedRoom || !profile) return;
-            setRooms((current) => [restartedRoom, ...current.filter((candidate) => candidate.id !== restartedRoomId)]);
+            setRooms((current) => upsertArenaRoom(current, restartedRoom));
             const isRestartedPlayer = (restartedRoom.arena_participants || []).some((participant: any) => (
               participant.user_id === profile.id && !participant.forfeited_at
             ));
@@ -506,7 +562,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       try {
         const freshRoom = await fetchArenaRoom(activeRoomId);
         if (cancelled || !freshRoom) return;
-        setRooms((prev) => [freshRoom, ...prev.filter((item) => item.id !== freshRoom.id)]);
+        setRooms((prev) => upsertArenaRoom(prev, freshRoom));
         if (freshRoom.status === 'playing') setPhase('playing');
         if (['cancelled', 'expired'].includes(freshRoom.status)) clearActiveRoom(false);
         if (freshRoom.status === 'waiting' && freshRoom.scheduled && !isSpectating && profile
@@ -660,6 +716,13 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
     const activeRoomName = activeRoom?.room_name || roomName;
     const witnesses = (activeRoom?.arena_viewers || []) as ArenaViewer[];
+    if (!isSpectating && (!activeRoom || (parseArenaGameType(activeRoomName) !== 'ludo'
+      && !Object.prototype.hasOwnProperty.call(activeRoom, 'question_set')))) {
+      return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3 text-center">
+        {error ? <><p className="text-sm text-coral">{error}</p><button type="button" className="btn-secondary text-xs" onClick={() => void hydrateActiveRoom(activeRoomId)}><RotateCw size={14} /> Try again</button></>
+          : <><Loader2 size={24} className="animate-spin text-brass" /><p className="text-sm text-stone">Opening the match...</p></>}
+      </div>;
+    }
     if (isSpectating && !activeRoom) {
       return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3"><Loader2 size={24} className="animate-spin text-brass" /><p className="text-sm text-stone">Opening the live Arena...</p></div>;
     }
@@ -725,7 +788,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
               console.error('Arena finish settlement failed', finishError);
             }
             const finishedRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
-            if (finishedRoom) setRooms((prev) => [finishedRoom, ...prev.filter((item) => item.id !== finishedRoom.id)]);
+            if (finishedRoom) setRooms((prev) => upsertArenaRoom(prev, finishedRoom));
             setPhase('finished');
             await onBalanceChanged?.();
           }}
@@ -1366,7 +1429,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
       .subscribe();
     const refreshInterval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshLiveQuestion();
-    }, 2000);
+    }, 5000);
     const clockInterval = window.setInterval(() => setPlaybackNow(Date.now()), 250);
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void refreshLiveQuestion();
@@ -1697,9 +1760,22 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
 
   useEffect(() => {
     void refreshAnswerFeed();
-    const interval = window.setInterval(() => { void refreshAnswerFeed(); }, 1200);
-    return () => window.clearInterval(interval);
-  }, [refreshAnswerFeed]);
+    const channel = supabase
+      .channel(`arena-player-feed-${roomId}-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_trivia_responses', filter: `room_id=eq.${roomId}` },
+        () => { void refreshAnswerFeed(); })
+      .subscribe();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshAnswerFeed();
+    }, 8000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshAnswerFeed(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [refreshAnswerFeed, roomId, userId]);
 
   useEffect(() => {
     if (machineMatch) return;

@@ -197,8 +197,14 @@ export function RoadHomeGame({
     ).subscribe();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void load();
-    }, 5000);
-    return () => { window.clearInterval(interval); void supabase.removeChannel(channel); };
+    }, 15_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      void supabase.removeChannel(channel);
+    };
   }, [load, roomId]);
 
   const send = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
