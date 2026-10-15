@@ -191,7 +191,7 @@ assert.match(publicArenaMigration, /REVOKE ALL ON public\.arena_guest_messages F
 assert.doesNotMatch(publicArenaMigration, /GRANT SELECT ON public\.arena_question_decks TO anon/);
 assert.match(publicArena, /room\.game_type === 'ludo'[\s\S]*?<RoadHomeGame/);
 assert.match(publicArena, /<ArenaStandardSpectator[\s\S]*?publicAccess/);
-assert.match(publicArena, /ended && <ArenaFinalScorecard roomId=\{roomId\}/);
+assert.match(publicArena, /ended && <ArenaFinalScorecard roomId=\{currentRoomId\}/);
 assert.match(arena, /room\.scheduled \? \([\s\S]*?Witness[\s\S]*?Enter Match/);
 assert.match(arena, /if \(phase === 'finished' && activeRoomId\)[\s\S]*?<ArenaFinalScorecard/);
 assert.match(roadHome, /state\.phase === 'GAME_OVER'[\s\S]*?<ArenaFinalScorecard/);

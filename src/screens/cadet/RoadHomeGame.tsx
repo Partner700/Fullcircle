@@ -9,7 +9,7 @@ import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
-import { fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
+import { fetchArenaFinalScorecard, fetchPublicArenaSuccessor, fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 import type { ArenaChatGameCall } from '../../lib/queries';
@@ -23,6 +23,7 @@ type Props = {
   spectator?: boolean;
   spectatorCanChallenge?: boolean;
   publicAccess?: boolean;
+  awaitSeriesResult?: boolean;
   guestKey?: string;
   prepareQuestions?: () => Promise<void>;
   onExit: () => void;
@@ -117,6 +118,7 @@ export function RoadHomeGame({
   spectator = false,
   spectatorCanChallenge = true,
   publicAccess = false,
+  awaitSeriesResult = false,
   guestKey,
   prepareQuestions,
   onExit,
@@ -125,6 +127,7 @@ export function RoadHomeGame({
   onGameCallAction,
 }: Props) {
   const [state, setState] = useState<RoadHomeState | null>(null);
+  const [seriesResolution, setSeriesResolution] = useState<'checking' | 'next' | 'final'>('checking');
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
   const [sending, setSending] = useState(false);
@@ -419,6 +422,32 @@ export function RoadHomeGame({
     }
   }, [onStateChanged, state?.phase]);
 
+  useEffect(() => {
+    if (!awaitSeriesResult || state?.phase !== 'GAME_OVER') return;
+    let active = true;
+    let timer: number | undefined;
+    setSeriesResolution('checking');
+    const check = async () => {
+      try {
+        const successor = await fetchPublicArenaSuccessor(roomId);
+        if (!active) return;
+        if (successor) {
+          setSeriesResolution('next');
+          return;
+        }
+        if (await fetchArenaFinalScorecard(roomId)) {
+          if (active) setSeriesResolution('final');
+          return;
+        }
+      } catch {
+        // Settlement or connectivity can still be in flight; keep checking.
+      }
+      if (active) timer = window.setTimeout(() => void check(), 1500);
+    };
+    void check();
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
+  }, [awaitSeriesResult, roomId, state?.phase]);
+
   if (loading || initializing) {
     return (
       <div className="flex min-h-[28rem] flex-col items-center justify-center gap-4 text-center">
@@ -433,6 +462,12 @@ export function RoadHomeGame({
   }
 
   if (state.phase === 'GAME_OVER') {
+    if (awaitSeriesResult && seriesResolution !== 'final') {
+      return <div className="flex min-h-[18rem] flex-col items-center justify-center gap-3 text-center">
+        <Loader2 size={22} className="animate-spin text-gold" />
+        <p className="font-display text-base font-bold text-ink">{seriesResolution === 'next' ? 'Opening the next round...' : 'Confirming the match result...'}</p>
+      </div>;
+    }
     return <ArenaFinalScorecard roomId={roomId} onExit={onExit} />;
   }
 

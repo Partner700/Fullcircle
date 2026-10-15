@@ -54,23 +54,25 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
       <div className="relative z-10">
       <div className="text-center">
         <p className="text-[10px] font-bold uppercase text-gold">Full Circle Arena</p>
-        <h2 className="mt-1 font-display text-lg font-bold text-white sm:text-xl">{result?.room_name.replace(/\s*\[.*?\]/g, '') || 'Final score'}</h2>
+        <h2 className="mt-1 font-display text-lg font-bold text-white sm:text-xl">{result?.room_name.replace(/\s*\[.*?\]/g, '').replace(/\s*\((?:Round \d+ of \d+|Rematch \d+)\)/gi, '') || 'Final score'}</h2>
         <p className="mt-1 text-xs font-bold uppercase text-white/65">Final / Correct answers</p>
       </div>
       {result ? <div className={`mt-6 grid ${columns} items-start gap-x-2 gap-y-6 sm:gap-x-5`}>
-        {players.map((player) => <div key={player.user_id} className="min-w-0 text-center" title={player.display_name}>
+        {players.map((player) => {
+          const isWinner = compact && result.winner_id === player.user_id;
+          return <div key={player.user_id} className="min-w-0 text-center" title={player.display_name}>
           <div className="flex h-10 items-center justify-center" aria-label={player.tent_name || 'Independent'}>
-            {player.tent_house_id ? <TentHouseSymbol houseId={player.tent_house_id} size={compact ? 29 : 38} />
+            {player.tent_house_id ? <TentHouseSymbol houseId={player.tent_house_id} size={compact ? (isWinner ? 33 : 29) : 38} />
               : player.display_name === 'The Scribe' ? <Dices size={compact ? 24 : 27} className="text-gold" />
                 : <Swords size={compact ? 24 : 27} className="text-peri" />}
           </div>
-          <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? 'text-3xl sm:text-4xl' : 'text-5xl sm:text-6xl'}`} aria-label={`${player.correct_count} correct answers`}>
+          <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? (isWinner ? 'text-4xl sm:text-5xl' : 'text-3xl sm:text-4xl') : 'text-5xl sm:text-6xl'}`} aria-label={`${player.correct_count} correct answers`}>
             {Math.max(0, Number(player.correct_count) || 0)}
           </p>
-          <p className={`mt-1 min-w-0 break-words font-bold leading-tight text-white/90 ${compact ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
+          <p className={`mt-1 min-w-0 break-words font-bold leading-tight text-white/90 ${compact ? (isWinner ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs') : 'text-xs sm:text-sm'}`}>
             {shortestArenaName(player.display_name)}
           </p>
-        </div>)}
+        </div>})}
       </div> : <div className="flex min-h-32 flex-col items-center justify-center gap-3 text-center text-sm text-white/75">
         {error ? <><p>{error}</p><button type="button" className="btn-secondary text-xs" onClick={() => { setError(null); setRetryKey((value) => value + 1); }}><RotateCw size={14} /> Try again</button></>
           : <><Loader2 size={18} className="animate-spin text-gold" /><p>Waiting for the match result...</p></>}

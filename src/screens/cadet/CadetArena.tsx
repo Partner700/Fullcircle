@@ -425,7 +425,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           const freshRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
           if (freshRoom?.status === 'completed') {
             setRooms((prev) => upsertArenaRoom(prev, freshRoom));
-            setPhase('finished');
+            if (!freshRoom.restarted_as_room_id) setPhase('finished');
             setError(null);
             return;
           }
@@ -458,7 +458,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         if (!active && !cancelled) {
           const freshRoom = await refreshRoom(activeRoomId);
           if (freshRoom?.status === 'completed') {
-            setPhase('finished');
+            if (!freshRoom.restarted_as_room_id) setPhase('finished');
             setError(null);
             return;
           }
@@ -731,10 +731,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         <div className="space-y-4">
           <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
           <RoadHomeGame
+            key={activeRoomId}
             roomId={activeRoomId}
             roomName={activeRoomName}
             userId={profile!.id}
             spectator={isSpectating}
+            awaitSeriesResult={Boolean(activeRoom?.scheduled && activeRoom.play_mode !== 'machine' && activeRoom.max_players <= 4)}
             spectatorCanChallenge={!witnessOnly}
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
@@ -782,15 +784,17 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           userId={profile!.id}
           roomQuestionSet={activeRoom?.question_set}
           onComplete={async (score, correctCount) => {
+            let finishedRoom = null;
             try {
               await finishArenaGame(activeRoomId, profile!.id, score, correctCount);
             } catch (finishError) {
-              console.error('Arena finish settlement failed', finishError);
+              finishedRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
+              if (finishedRoom?.status !== 'completed') throw finishError;
             }
-            const finishedRoom = await fetchArenaRoom(activeRoomId).catch(() => null);
+            finishedRoom ||= await fetchArenaRoom(activeRoomId).catch(() => null);
             if (finishedRoom) setRooms((prev) => upsertArenaRoom(prev, finishedRoom));
-            setPhase('finished');
-            await onBalanceChanged?.();
+            if (finishedRoom?.status === 'completed' && !finishedRoom.restarted_as_room_id) setPhase('finished');
+            try { await onBalanceChanged?.(); } catch { /* The match result is already settled. */ }
           }}
           onForfeit={forfeitStandardMatch}
           forfeiting={forfeiting}
@@ -1713,7 +1717,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   roomId: string;
   userId: string;
   roomQuestionSet?: QuestionPayload[] | null;
-  onComplete: (score: number, correctCount: number) => void;
+  onComplete: (score: number, correctCount: number) => Promise<void>;
   onForfeit: () => void;
   forfeiting: boolean;
   onExit: () => void;
@@ -1741,6 +1745,8 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const [revealingRoll, setRevealingRoll] = useState(false);
   const [dieValue, setDieValue] = useState(1);
   const [questionRetry, setQuestionRetry] = useState(0);
+  const [settling, setSettling] = useState(false);
+  const [settlementError, setSettlementError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rollRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scoreRef = useRef(0);
@@ -1804,7 +1810,12 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     completedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
     void heartbeatArenaParticipant(roomId, userId).catch(() => null);
-    onComplete(finalScore, finalCorrectCount);
+    setSettlementError(null);
+    setSettling(true);
+    void onComplete(finalScore, finalCorrectCount).catch((error) => {
+      setSettling(false);
+      setSettlementError(error instanceof Error ? error.message : 'The Arena result could not be saved.');
+    });
   }, [onComplete, roomId, userId]);
 
   useEffect(() => {
@@ -2008,6 +2019,14 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   }, []);
 
   if (!ready) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
+
+  if (settling || settlementError) return <div className="flex min-h-60 flex-col items-center justify-center gap-3 text-center">
+    {settlementError ? <><p className="text-sm text-coral">{settlementError}</p><button type="button" className="btn-secondary text-xs" onClick={() => {
+      completedRef.current = false;
+      completeGame();
+    }}><RotateCw size={14} /> Try again</button></>
+      : <><Loader2 size={20} className="animate-spin text-brass" /><p className="text-sm text-stone">Waiting for the match result...</p></>}
+  </div>;
 
   if (questions.length === 0) {
     return (

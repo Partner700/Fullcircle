@@ -3353,11 +3353,18 @@ export async function fetchPublicArenaRoom(roomId: string): Promise<PublicArenaR
   return data ? data as PublicArenaRoom : null;
 }
 
+export async function fetchPublicArenaSuccessor(roomId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_successor', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? String(data) : null;
+}
+
 export type ArenaFinalScorecard = {
   id: string;
   room_name: string;
   game_type: 'standard' | 'ludo';
   completed_at: string | null;
+  winner_id: string | null;
   players: Array<{
     user_id: string;
     display_name: string;

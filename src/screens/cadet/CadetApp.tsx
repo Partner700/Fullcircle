@@ -27,6 +27,7 @@ import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
   fetchReliableToolbarStats,
+  fetchStrictStreak,
   fetchOwnTentContext,
   fetchUserNotifications,
   markNotificationRead,
@@ -774,6 +775,19 @@ export function CadetApp() {
     }, 900);
   }, [refreshWallet, loadNotifications, loadToolbarStats]);
 
+  const refreshAfterMeditation = useCallback(async () => {
+    if (profile) {
+      try {
+        const streak = await fetchStrictStreak(profile.id);
+        window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
+          detail: { userId: profile.id, streak: streak.current_streak },
+        }));
+        setCadetRefreshKey((key) => key + 1);
+      } catch { /* The normal dashboard refresh will retry. */ }
+    }
+    void refreshCadetState();
+  }, [profile, refreshCadetState]);
+
   const loadSubStatus = useCallback(async () => {
     if (!profile) return;
     try {
@@ -1169,7 +1183,7 @@ export function CadetApp() {
       }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
+        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshAfterMeditation} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
           <DailyGamesHub

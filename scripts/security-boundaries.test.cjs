@@ -502,7 +502,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '196', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '197', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -984,7 +984,8 @@ assert.match(scriptureInsightReactions, /REVOKE ALL ON TABLE public\.scripture_i
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.ok(!cadetApp.includes('fetchLedgerTotal'), 'Cadet toolbar refresh must not duplicate the reliable balance request.');
-assert.ok(!cadetApp.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
+const cadetToolbarRefresh = cadetApp.slice(cadetApp.indexOf('const loadToolbarStats ='), cadetApp.indexOf('const refreshWallet ='));
+assert.ok(!cadetToolbarRefresh.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
 assert.match(cadetApp, /toolbarRequestRef/);
 assert.match(cadetApp, /notificationRefreshQueuedRef/);
 assert.match(cadetDashboard, /fetchNarrative\(today\)\.then\(\(narrative\) =>/);

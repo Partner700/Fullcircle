@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { hasCompleteTopbarStats, mergeConfirmedTopbarStats, parseLiveStats } from '../src/lib/liveStats.ts';
 
 const confirmed = {
@@ -30,4 +31,9 @@ for (const partial of [null, {}, { streak: 29 }, { ...previous, marks: undefined
   assert.equal(hasCompleteTopbarStats(partial), false, 'A partial event must not expose or cache unconfirmed zero marks.');
 }
 
-console.log('Live stats validation, partial refresh preservation, and confirmed zero tests passed.');
+const cadetApp = readFileSync(new URL('../src/screens/cadet/CadetApp.tsx', import.meta.url), 'utf8');
+assert.match(cadetApp, /const streak = await fetchStrictStreak\(profile\.id\)/);
+assert.match(cadetApp, /onMeditationSaved=\{refreshAfterMeditation\}/);
+assert.match(cadetApp, /detail: \{ userId: profile\.id, streak: streak\.current_streak \}/);
+
+console.log('Live stats validation, direct meditation streak refresh, and partial update checks passed.');
