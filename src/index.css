@@ -826,13 +826,6 @@
   mask-image: linear-gradient(to bottom, transparent 0, #000 1.35rem, #000 calc(100% - 5rem), rgba(0, 0, 0, 0.72) calc(100% - 3.25rem), rgba(0, 0, 0, 0.22) calc(100% - 1.25rem), transparent 100%);
 }
 
-/* Quote comments always soften into the lower paper edge. Bottom padding lets
-   the final comment scroll fully above the mask instead of remaining hidden. */
-.quote-comments-boundary-fade {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 6rem), rgba(0, 0, 0, 0.7) calc(100% - 4rem), rgba(0, 0, 0, 0.18) calc(100% - 1.5rem), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 6rem), rgba(0, 0, 0, 0.7) calc(100% - 4rem), rgba(0, 0, 0, 0.18) calc(100% - 1.5rem), transparent 100%);
-}
-
 .newcomer-guide-target {
   position: relative;
   z-index: 2147481999 !important;

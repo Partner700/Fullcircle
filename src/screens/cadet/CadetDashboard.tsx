@@ -537,7 +537,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
     touchStartRef.current = null;
     onHoldChange(false);
     const touch = event.changedTouches[0];
-    if (!start || !touch || count <= 1) return;
+    if (!start || !touch || count <= 1 || conversationOpen) return;
 
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
@@ -744,6 +744,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         currentUserId={currentUserId || undefined}
                         fetchComments={fetchVerseCommentsForWelcome}
                         loadCommentPreview={isDisplayedSlide}
+                        scrollableCommentPreview
                         onComment={async (body) => {
                           if (!currentUserId) throw new Error('Sign in to comment.');
                           await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
@@ -833,6 +834,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           currentUserId={currentUserId || undefined}
                           fetchComments={fetchDailyQuoteComments}
                           loadCommentPreview={isDisplayedSlide}
+                          scrollableCommentPreview
                           onComment={(body) => currentUserId
                             ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
                             : Promise.reject(new Error('Sign in to comment.'))}
@@ -867,7 +869,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
 
       <div className="absolute left-5 right-5 bottom-4 flex items-center justify-between gap-3">
         <ScrollEdge position="bottom" className="text-brass flex-1" />
-        {count > 1 && (
+        {count > 1 && !conversationOpen && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={() => { onPrev(); announceNewcomerGuidanceAction('welcome_swiped'); }} className="btn-ghost text-xs px-2 py-1">Prev</button>
             <span className="text-[10px] text-stone">{counterIndex + 1}/{count}</span>

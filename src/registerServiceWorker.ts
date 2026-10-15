@@ -26,7 +26,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=197`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=198`, { updateViaCache: 'none' })
       .then((registration) => {
         // Activate updates without interrupting an open screen or draft.
         void registration.update().catch(() => undefined);

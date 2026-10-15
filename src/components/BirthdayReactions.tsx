@@ -123,6 +123,7 @@ export function BirthdayReactions({ announcement, active, onOpenChange, onMessag
       commentPlaceholder="Send a birthday wish..."
       emptyCommentsText="No birthday wishes yet."
       previewLimit={1}
+      scrollableCommentPreview
     />
     <div className="mt-2 flex items-center justify-end gap-2">
       {shareNotice && <span className="text-[10px] font-semibold text-stone">{shareNotice}</span>}

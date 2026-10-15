@@ -502,7 +502,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '197', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '198', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -1053,7 +1053,7 @@ assert.match(directMessageNotifications, /AFTER INSERT ON public\.direct_message
 assert.match(directMessageNotifications, /'direct_message'/);
 assert.match(quoteQueries, /\.from\('daily_quote_comments'\)/);
 assert.match(quoteReactions, /previewLimit = 2/);
-assert.match(quoteReactions, /previewComments = comments\.slice\(0, Math\.max\(0, previewLimit\)\)/);
+assert.match(quoteReactions, /previewComments = scrollableCommentPreview \? comments : comments\.slice\(0, Math\.max\(0, previewLimit\)\)/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
@@ -1738,7 +1738,7 @@ assert.match(cadetSettings, /rhudes: live\.rhudes, marks: live\.marks/);
 assert.match(sentryApp, /sentryMarks\.toLocaleString/);
 assert.match(cadetDashboard, /max-h-\[66\.666svh\]/);
 assert.match(cadetDashboard, /previewLimit=\{1\}/);
-assert.match(quoteReactions, /line-clamp-1/);
+assert.match(quoteReactions, /line-clamp-2/);
 assert.match(relativeTime, /formatRelativeActivityTime/);
 assert.match(quoteReactions, /<RelativeTime value=\{comment\.created_at\}/);
 assert.match(cadetNarrative, /<RelativeTime value=\{comment\.created_at\}/);
@@ -1944,8 +1944,9 @@ for (const required of [
   assert.ok(accurateAlarmsAndStreakReconciliation.includes(required), `Missing reliable alarm/streak safeguard: ${required}`);
 }
 assert.doesNotMatch(accurateAlarmsAndStreakReconciliation, /UPDATE public\.daily_records/);
-assert.match(quoteReactions, /quote-comments-boundary-fade[\s\S]*?data-no-scroll-fade/);
-assert.match(indexCss, /\.quote-comments-boundary-fade[\s\S]*?mask-image/);
+assert.match(quoteReactions, /max-h-24 overflow-y-auto overscroll-contain/);
+assert.match(quoteReactions, /max-h-\[min\(42svh,22rem\)\]/);
+assert.doesNotMatch(quoteReactions, /quote-comments-boundary-fade/);
 assert.doesNotMatch(cadetTent, /disabled=\{reactingTo === m\.user_id \|\| reacted\}/);
 assert.match(cadetTent, /disabled=\{reactingTo === m\.user_id\}/);
 
@@ -2086,14 +2087,15 @@ assert.doesNotMatch(contextualAllMentions, /TG_TABLE_NAME IN \('direct_messages'
 assert.match(tentMessenger, /<RelativeTime value=\{m\.created_at\}/);
 assert.match(tentMessenger, /<RelativeTime value=\{message\.created_at\}/);
 assert.match(quoteReactions, /Mention everyone in Full Circle/);
-assert.match(quoteReactions, /comments\.length > 0 && 'quote-comments-boundary-fade max-h-72 pb-24'/);
+assert.match(quoteReactions, /commentInputRef/);
+assert.match(cadetDashboard, /scrollableCommentPreview/);
 assert.match(cadetDashboard, /min\(70svh, calc\(100dvh - 7rem\)\)/);
 assert.match(cadetDashboard, /height: conversationOpen \? panelMaxHeight : undefined/);
 assert.match(cadetDashboard, /quote-glass-panel-conversation/);
 assert.match(cadetDashboard, /!conversationOpen && \(/);
 assert.doesNotMatch(cadetDashboard, /conversationOpen && 'min-h-full'/);
 assert.match(quoteReactions, /commentsPanelRef/);
-assert.match(quoteReactions, /scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/);
+assert.match(quoteReactions, /scrollIntoView\(\{ block: 'start', inline: 'nearest' \}\)/);
 assert.match(quoteReactions, /aria-expanded=\{showComments\}/);
 assert.match(indexCss, /\.quote-glass-artwork[\s\S]*?z-index: 0/);
 assert.match(indexCss, /\.quote-glass-content[\s\S]*?z-index: 2[\s\S]*?translateZ\(1px\)/);
@@ -2121,7 +2123,6 @@ assert.match(cadetNarrative, /data-guide="daily-quote"/);
 assert.match(notificationArrival, /isTentJoinRequestArrival/);
 assert.match(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
 assert.match(doveNotificationArrivalComponent, /\} Accept/);
-assert.match(indexCss, /quote-comments-boundary-fade[\s\S]*?100% - 6rem/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.streak_forward_baselines',
