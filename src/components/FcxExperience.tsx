@@ -3,6 +3,7 @@ import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loa
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
+  addFcxExternalAttendee,
   addFcxRegistration,
   fetchActiveFcxExperience,
   fetchAwards,
@@ -10,6 +11,7 @@ import {
   fetchPreviousMuralis,
   removeFcxRegistration,
   saveFcxExperience,
+  setFcxExternalAttendeePhoto,
   uploadFcxGuestAvatar,
 } from '../lib/queries';
 import { cn, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, getAppDateTimeMs, getTodayISODate, whatsappUrl } from '../lib/utils';
@@ -292,27 +294,36 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
   const [guestPhoto, setGuestPhoto] = useState<File | null>(null);
   const [guestPhotoPreview, setGuestPhotoPreview] = useState('');
   const [guestCropFile, setGuestCropFile] = useState<File | null>(null);
-  const [guestPhotoTarget, setGuestPhotoTarget] = useState<{ kind: 'new' } | { kind: 'existing'; guestName: string } | null>(null);
+  const [guestPhotoTarget, setGuestPhotoTarget] = useState<{ kind: 'new' } | { kind: 'existing'; registrationId: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [active, allProfiles] = await Promise.all([
-        fetchActiveFcxExperience(),
-        fetchAllProfiles(),
-      ]);
+    setLoadError(null);
+    const [eventResult, profilesResult] = await Promise.allSettled([
+      fetchActiveFcxExperience(),
+      fetchAllProfiles(),
+    ]);
+    if (eventResult.status === 'fulfilled') {
+      const active = eventResult.value;
       setExperience(active);
-      setProfiles(allProfiles);
       if (active) {
         setTitle(active.title);
         setEventMonth(active.event_month.slice(0, 7));
         setEventDate(active.event_date || '');
         setTicketPrice(active.ticket_price_xaf == null ? '' : String(active.ticket_price_xaf));
       }
-    } catch (error) {
-      console.error('FCX manager load error:', error);
+    } else {
+      console.error('FCX event load error:', eventResult.reason);
+      setLoadError('FCX details could not load. Try again before adding attendees.');
+    }
+    if (profilesResult.status === 'fulfilled') {
+      setProfiles(profilesResult.value);
+    } else {
+      console.error('FCX member directory load error:', profilesResult.reason);
+      setLoadError((current) => current || 'The member directory could not load. External attendees can still be added.');
     }
     setLoading(false);
   }, []);
@@ -381,25 +392,27 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
     if (!experience || !guestName.trim()) return;
     setSaving(true);
     try {
-      const guestAvatarUrl = guestPhoto
-        ? await uploadFcxGuestAvatar(experience.id, guestPhoto)
-        : null;
-      await addFcxRegistration({
-        eventId: experience.id,
-        guestName: guestName.trim(),
-        guestAvatarUrl,
-        paymentSource: 'external',
-      });
+      const registrationId = await addFcxExternalAttendee(experience.id, guestName);
+      let photoError: unknown = null;
+      if (guestPhoto) {
+        try {
+          const guestAvatarUrl = await uploadFcxGuestAvatar(experience.id, guestPhoto);
+          await setFcxExternalAttendeePhoto(registrationId, guestAvatarUrl);
+        } catch (error) {
+          photoError = error;
+        }
+      }
       setGuestName('');
       setGuestPhoto(null);
       await load();
+      if (photoError) alert(`Attendee added, but the photo could not be saved. You can retry it from the attendee list. ${readableError(photoError, '')}`);
     } catch (error: unknown) {
       alert(readableError(error, 'Could not add this external attendee.'));
     }
     setSaving(false);
   };
 
-  const chooseGuestPhoto = (target: { kind: 'new' } | { kind: 'existing'; guestName: string }) => {
+  const chooseGuestPhoto = (target: { kind: 'new' } | { kind: 'existing'; registrationId: string }) => {
     setGuestPhotoTarget(target);
     guestPhotoInputRef.current?.click();
   };
@@ -416,15 +429,12 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
     setSaving(true);
     try {
       const guestAvatarUrl = await uploadFcxGuestAvatar(experience.id, file);
-      await addFcxRegistration({
-        eventId: experience.id,
-        guestName: guestPhotoTarget.guestName,
-        guestAvatarUrl,
-        paymentSource: 'external',
-      });
+      await setFcxExternalAttendeePhoto(guestPhotoTarget.registrationId, guestAvatarUrl);
       setGuestCropFile(null);
       setGuestPhotoTarget(null);
       await load();
+    } catch (error: unknown) {
+      alert(readableError(error, 'Could not save this attendee photo.'));
     } finally {
       setSaving(false);
     }
@@ -466,6 +476,12 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
         <div className="flex justify-center py-5"><Loader2 size={20} className="animate-spin text-brass" /></div>
       ) : (
         <>
+          {loadError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-coral/30 bg-coral-soft p-3 text-sm text-coral">
+              <span>{loadError}</span>
+              <button type="button" onClick={() => void load()} className="btn-secondary text-xs">Try again</button>
+            </div>
+          )}
           <div className="grid gap-3 md:grid-cols-4">
             <label className="md:col-span-2">
               <span className="mb-1 block text-xs text-stone">Event title</span>
@@ -521,7 +537,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
 
               <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
                 <div className="flex items-center gap-2"><UserPlus size={16} className="text-brass" /><p className="text-sm font-semibold text-ink">Unregistered cadet or guest</p></div>
-                <input className="input-field" value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Full name" />
+                <input className="input-field" value={guestName} maxLength={120} onChange={(event) => setGuestName(event.target.value)} placeholder="Full name" />
                 <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/40 bg-navy text-gold">
                     {guestPhotoPreview
@@ -538,7 +554,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
                   )}
                 </div>
                 <p className="text-xs text-stone">Use this for someone who paid externally but does not have an app account.</p>
-                <button type="button" onClick={addGuest} disabled={saving || !guestName.trim()} className="btn-secondary w-full">
+                <button type="button" onClick={addGuest} disabled={saving || !guestName.trim() || occupied >= experience.capacity} className="btn-secondary w-full">
                   <UserPlus size={15} /> Add External Attendee
                 </button>
               </div>
@@ -557,7 +573,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
                   ) : (
                     <button
                       type="button"
-                      onClick={() => chooseGuestPhoto({ kind: 'existing', guestName: registration.display_name })}
+                      onClick={() => chooseGuestPhoto({ kind: 'existing', registrationId: registration.id })}
                       disabled={saving}
                       className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold"
                       title="Add or adjust participant photo"

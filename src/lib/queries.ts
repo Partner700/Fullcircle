@@ -1689,6 +1689,31 @@ export async function addFcxRegistration(input: {
   return data as string;
 }
 
+export async function addFcxExternalAttendee(eventId: string, guestName: string) {
+  const { data, error } = await supabase.rpc('add_fcx_external_attendee', {
+    p_event_id: eventId,
+    p_guest_name: guestName.trim(),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function setFcxExternalAttendeePhoto(registrationId: string, avatarUrl: string) {
+  const { error } = await supabase.rpc('set_fcx_external_attendee_photo', {
+    p_registration_id: registrationId,
+    p_avatar_url: avatarUrl,
+  });
+  if (error) throw error;
+}
+
+export async function purchaseFcxTicket(eventId: string) {
+  const { data, error } = await supabase.rpc('purchase_fcx_ticket', {
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  return data as { registration_id: string; already_registered: boolean; cost: number };
+}
+
 export async function removeFcxRegistration(registrationId: string) {
   const { error } = await supabase.rpc('remove_fcx_registration', {
     p_registration_id: registrationId,

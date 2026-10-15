@@ -6,13 +6,13 @@ import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
-import { cn, formatDenarii, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, visibleStreakFreezersForCurrentWeek, whatsappUrl } from '../../lib/utils';
+import { cn, formatDenarii, formatFullDenarii, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, visibleStreakFreezersForCurrentWeek, whatsappUrl } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
-import type { PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
+import type { FcxExperience, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
   ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
   Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield, Ticket,
@@ -61,6 +61,7 @@ const PAYMENT_METHODS: { id: StorePaymentMethod; label: string; icon: typeof Sma
 ];
 
 const FALLBACK_XAF_PER_USD = 575;
+const FCX_TICKET_DENARII_COST = 600_000;
 const PAYMENT_SUCCESS_STATUSES = new Set(['confirmed', 'successful', 'success', 'completed']);
 
 function isPaymentSuccessful(status: unknown) {
@@ -115,6 +116,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
+  const [fcxExperience, setFcxExperience] = useState<FcxExperience | null>(null);
+  const [fcxLoadError, setFcxLoadError] = useState(false);
+  const [fcxConfirmOpen, setFcxConfirmOpen] = useState(false);
+  const [fcxPurchasing, setFcxPurchasing] = useState(false);
+  const [fcxPurchaseError, setFcxPurchaseError] = useState<string | null>(null);
+  const [fcxPurchaseNotice, setFcxPurchaseNotice] = useState<string | null>(null);
   const latestInventoryRef = useRef<Record<string, number>>({});
 
   const paymentConfirmed = isPaymentSuccessful(paymentResult?.status);
@@ -137,6 +144,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     if (!profile) return;
     setLoading(true);
     setLoadError(null);
+    setFcxLoadError(false);
     try {
       const [relicData, invData, balance, frz, marketPanelImage] = await Promise.all([
         supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
@@ -177,6 +185,20 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   }, [profile]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!profile) {
+      setFcxExperience(null);
+      return;
+    }
+    let cancelled = false;
+    setFcxExperience(null);
+    setFcxLoadError(false);
+    void fetchActiveFcxExperience()
+      .then((event) => { if (!cancelled) setFcxExperience(event); })
+      .catch(() => { if (!cancelled) setFcxLoadError(true); });
+    return () => { cancelled = true; };
+  }, [profile]);
 
   useEffect(() => {
     if (!profile || refreshKey <= 0) return;
@@ -475,6 +497,37 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setBuyingWeeklyFreezer(false);
   };
 
+  const buyFcxTicket = async () => {
+    if (!profile || !fcxExperience || fcxPurchasing) return;
+    setFcxPurchasing(true);
+    setFcxPurchaseError(null);
+    try {
+      const result = await purchaseFcxTicket(fcxExperience.id);
+      setFcxConfirmOpen(false);
+      setFcxPurchaseNotice(result.already_registered
+        ? 'Your place is already on the paid FCX list. No Denarii were charged again.'
+        : 'Your FCX place is confirmed on the FCX panel.');
+      if (!result.already_registered) void playSoundEffect('sound_purchase_success', 0.68);
+      await Promise.allSettled([
+        fetchActiveFcxExperience().then(setFcxExperience),
+        refreshPurchaseState(),
+      ]);
+    } catch (error: unknown) {
+      const latestExperience = await fetchActiveFcxExperience().catch(() => null);
+      if (latestExperience?.registrations.some((registration) => registration.user_id === profile.id)) {
+        setFcxExperience(latestExperience);
+        setFcxConfirmOpen(false);
+        setFcxPurchaseNotice('Your FCX place is confirmed. No second purchase is needed.');
+        await refreshPurchaseState().catch(() => undefined);
+      } else {
+        setFcxPurchaseError(error instanceof Error ? error.message : 'Could not complete the FCX purchase.');
+        await refreshMutableStoreState().catch(() => undefined);
+      }
+    } finally {
+      setFcxPurchasing(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>;
 
   const selectedPaymentLabel = PAYMENT_METHODS.find((method) => method.id === paymentMethod)?.label || 'Payment';
@@ -488,6 +541,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const fcxWhatsappLink = fcxWhatsappBase
     ? `${fcxWhatsappBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
     : null;
+  const alreadyOnFcxList = Boolean(fcxExperience?.registrations.some((registration) => registration.user_id === profile?.id));
+  const fcxSpacesRemaining = fcxExperience
+    ? Math.max(0, fcxExperience.capacity - fcxExperience.registrations.length)
+    : 0;
 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
@@ -531,20 +588,49 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
 
       <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
-        <div className="relative z-10 flex items-center gap-3">
+        <div className="relative z-10 flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold"><Ticket size={21} /></span>
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-sm font-bold text-ink">Full Circle Experience Ticket</h3>
-            <p className="mt-1 text-xs leading-relaxed text-stone">Message Sentry Vedette to arrange payment and reserve your FCX place.</p>
+            <p className="mt-1 text-xs text-stone">{formatFullDenarii(FCX_TICKET_DENARII_COST)} Ð</p>
+            {fcxExperience && <p className="mt-1 text-xs text-stone">{fcxSpacesRemaining} of {fcxExperience.capacity} places left</p>}
           </div>
-          {fcxWhatsappLink ? (
-            <a href={fcxWhatsappLink} target="_blank" rel="noopener noreferrer" className="btn-primary shrink-0 text-xs">
-              <MessageSquare size={14} /> Pay
-            </a>
+        </div>
+        <div className="relative z-10 mt-4 flex flex-wrap gap-2">
+          {alreadyOnFcxList ? (
+            <span className="badge badge-sage gap-1 text-xs"><CheckCircle2 size={13} /> Place confirmed</span>
           ) : (
-            <span className="text-[10px] font-semibold text-stone">Contact unavailable</span>
+            <button
+              type="button"
+              onClick={() => { setFcxPurchaseError(null); setFcxConfirmOpen(true); }}
+              disabled={!fcxExperience || fcxSpacesRemaining === 0 || denarii < FCX_TICKET_DENARII_COST}
+              className="btn-primary text-xs disabled:opacity-50"
+            >
+              <Coins size={14} /> Buy with Denarii
+            </button>
+          )}
+          {fcxWhatsappLink && fcxExperience && fcxSpacesRemaining > 0 && !alreadyOnFcxList && (
+            <a href={fcxWhatsappLink} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
+              <MessageSquare size={14} /> Pay externally
+            </a>
           )}
         </div>
+        {!alreadyOnFcxList && !fcxExperience && (
+          <div className="relative z-10 mt-2 flex flex-wrap items-center gap-2 text-xs text-stone">
+            <span>{fcxLoadError ? 'FCX details could not load.' : 'No FCX event is open for Denarii purchase.'}</span>
+            {fcxLoadError && (
+              <button type="button" className="btn-secondary text-xs" onClick={() => {
+                void fetchActiveFcxExperience()
+                  .then((event) => { setFcxExperience(event); setFcxLoadError(false); })
+                  .catch(() => setFcxLoadError(true));
+              }}>Try again</button>
+            )}
+          </div>
+        )}
+        {!alreadyOnFcxList && fcxExperience && denarii < FCX_TICKET_DENARII_COST && (
+          <p className="relative z-10 mt-2 text-xs text-stone">You need {formatFullDenarii(FCX_TICKET_DENARII_COST - denarii)} more Ð.</p>
+        )}
+        {fcxPurchaseNotice && <p role="status" className="relative z-10 mt-3 text-xs font-semibold text-sage">{fcxPurchaseNotice}</p>}
       </div>
 
       <HiddenItemsMarket
@@ -714,6 +800,22 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           })}
         </div>
       </div>
+
+      {fcxConfirmOpen && fcxExperience && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4" onClick={() => { if (!fcxPurchasing) setFcxConfirmOpen(false); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="fcx-purchase-title" className="card w-full max-w-sm p-5" onClick={(event) => event.stopPropagation()}>
+            <h3 id="fcx-purchase-title" className="font-display text-lg font-semibold text-ink">Confirm FCX ticket</h3>
+            <p className="mt-2 text-sm text-stone">{formatFullDenarii(FCX_TICKET_DENARII_COST)} Ð will be deducted for your place in {fcxExperience.title}.</p>
+            {fcxPurchaseError && <p role="alert" className="mt-3 text-sm text-coral">{fcxPurchaseError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className="btn-secondary text-sm" disabled={fcxPurchasing} onClick={() => setFcxConfirmOpen(false)}>Cancel</button>
+              <button type="button" className="btn-primary text-sm" disabled={fcxPurchasing} onClick={() => void buyFcxTicket()}>
+                {fcxPurchasing ? <Loader2 size={14} className="animate-spin" /> : <Ticket size={14} />} Confirm purchase
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Payment Method Modal ── */}
       {paymentModalRelic && (

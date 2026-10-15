@@ -129,7 +129,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         }),
         fetchPanelImageSettings([
           'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
-          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release',
         ]).then(setPanelImages),
       ]);
 
@@ -612,7 +612,9 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
             : slide.kind === 'custom'
               ? slide.image
             : slide.kind === 'announcement'
-              ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
+              ? slide.announcement.announcement_type === 'birthday'
+                ? panelImages.announcement
+                : panelImages[slide.announcement.announcement_type] || panelImages.announcement
               : slide.kind === 'quiz_podium'
                 ? panelImages.quiz || panelImages.weekly_quiz_reminder
               : panelImages[slide.kind];
