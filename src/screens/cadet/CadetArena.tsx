@@ -9,10 +9,12 @@ import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaRecentResult } from '../../components/ArenaRecentResult';
 import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
+import { InstructorJourneyReview } from '../../components/InstructorJourneyReview';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
 import { RoadHomeGame } from './RoadHomeGame';
+import { JourneyGamePlay } from './JourneyGamePlay';
 import { supabase } from '../../lib/supabase';
 import {
   fetchLedgerTotal,
@@ -105,7 +107,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const [stake, setStake] = useState(50);
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
-  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo'>('standard');
+  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo' | 'journey'>('standard');
+  const [journeyCharacters, setJourneyCharacters] = useState<Array<{ slug: string; displayName: string }>>([]);
+  const [journeyCharacterSlug, setJourneyCharacterSlug] = useState('');
   const [arenaDifficulty, setArenaDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [isSpectating, setIsSpectating] = useState(false);
@@ -266,7 +270,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   useEffect(() => {
     if (!activeRoomId || phase !== 'playing' || isSpectating) return;
     const room = rooms.find((item) => item.id === activeRoomId);
-    if (room && parseArenaGameType(room.room_name) === 'ludo') return;
+    if (room && parseArenaGameType(room.room_name) !== 'standard') return;
     if (room && Object.prototype.hasOwnProperty.call(room, 'question_set')) return;
     void hydrateActiveRoom(activeRoomId);
   }, [activeRoomId, hydrateActiveRoom, isSpectating, phase, rooms]);
@@ -284,6 +288,18 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!profile || !showCreate) return;
+    let active = true;
+    void supabase.rpc('list_ready_arena_journey_characters').then(({ data, error: catalogError }) => {
+      if (!active || catalogError) return;
+      const catalog = (data || []) as Array<{ slug: string; displayName: string }>;
+      setJourneyCharacters(catalog);
+      setJourneyCharacterSlug((current) => catalog.some((item) => item.slug === current) ? current : catalog[0]?.slug || '');
+    });
+    return () => { active = false; };
+  }, [profile, showCreate]);
 
   const handleGameCallCreated = useCallback(async (gameCall: ArenaChatGameCall) => {
     if (!gameCall.challenged_user_id) activateRoom(gameCall.target_room_id, 'waiting');
@@ -618,11 +634,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setCreating(true);
     setError(null);
     try {
+      if (arenaGameType === 'journey' && (arenaOpponent === 'machine' || !journeyCharacters.some((item) => item.slug === journeyCharacterSlug))) {
+        throw new Error('Choose a ready Biblical Journey character and other players.');
+      }
       const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
-      const fullRoomName = `${roomName} [arena:${arenaGameType}]${difficultySuffix}`;
+      const characterSuffix = arenaGameType === 'journey' ? ` [character:${journeyCharacterSlug}]` : '';
+      const fullRoomName = `${roomName} [arena:${arenaGameType}]${characterSuffix}${difficultySuffix}`;
       const roomId = arenaOpponent === 'machine'
         ? await createMachineArenaRoom(profile.id, fullRoomName)
-        : await createArenaRoom(profile.id, fullRoomName, stake, maxPlayers, undefined, Array.from(taggedIds));
+        : await createArenaRoom(profile.id, fullRoomName, stake, arenaGameType === 'journey' ? Math.min(maxPlayers, 4) : maxPlayers, undefined, Array.from(taggedIds));
       activateRoom(roomId, 'waiting');
       setShowCreate(false);
       setTaggedIds(new Set());
@@ -716,7 +736,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     const activeRoom = rooms.find((r) => r.id === activeRoomId);
     const activeRoomName = activeRoom?.room_name || roomName;
     const witnesses = (activeRoom?.arena_viewers || []) as ArenaViewer[];
-    if (!isSpectating && (!activeRoom || (parseArenaGameType(activeRoomName) !== 'ludo'
+    if (!isSpectating && (!activeRoom || (parseArenaGameType(activeRoomName) === 'standard'
       && !Object.prototype.hasOwnProperty.call(activeRoom, 'question_set')))) {
       return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3 text-center">
         {error ? <><p className="text-sm text-coral">{error}</p><button type="button" className="btn-secondary text-xs" onClick={() => void hydrateActiveRoom(activeRoomId)}><RotateCw size={14} /> Try again</button></>
@@ -725,6 +745,17 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     }
     if (isSpectating && !activeRoom) {
       return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3"><Loader2 size={24} className="animate-spin text-brass" /><p className="text-sm text-stone">Opening the live Arena...</p></div>;
+    }
+    if (parseArenaGameType(activeRoomName) === 'journey') {
+      return <div className="space-y-4">
+        <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
+        <JourneyGamePlay key={activeRoomId} roomId={activeRoomId} roomName={activeRoomName}
+          userId={profile!.id} players={arenaMatchupPlayers(activeRoom)} spectator={isSpectating}
+          onExit={() => clearActiveRoom(!isSpectating)}
+          onStateChanged={async () => { await load(); await onBalanceChanged?.(); }} />
+        <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />
+        {!isSpectating && <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />}
+      </div>;
     }
     if (parseArenaGameType(activeRoomName) === 'ludo') {
       return (
@@ -987,7 +1018,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         </div>
       </div>}
 
-      {instructorSchedule && <InstructorArenaScheduler onScheduled={refreshRooms} />}
+      {instructorSchedule && <>
+        <InstructorArenaScheduler onScheduled={refreshRooms} />
+        <InstructorJourneyReview />
+      </>}
 
       {!witnessOnly && <div className="card p-4 sm:p-5">
         <p className="eyebrow text-stone">Arena Match</p>
@@ -1006,13 +1040,24 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-stone block mb-1">Opponent</label>
-              <AppSelect value={arenaOpponent} onChange={(value) => setArenaOpponent(value as 'players' | 'machine')} options={[{ value: 'players', label: 'Other players' }, { value: 'machine', label: 'Machine' }]} />
+              <AppSelect value={arenaOpponent} onChange={(value) => {
+                setArenaOpponent(value as 'players' | 'machine');
+                if (value === 'machine' && arenaGameType === 'journey') setArenaGameType('standard');
+              }} options={[{ value: 'players', label: 'Other players' }, { value: 'machine', label: 'Machine' }]} />
             </div>
             <div>
               <label className="text-xs text-stone block mb-1">Game Play</label>
-              <AppSelect value={arenaGameType} onChange={(value) => setArenaGameType(value as 'standard' | 'ludo')} options={[{ value: 'standard', label: 'Standard Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} />
+              <AppSelect value={arenaGameType} onChange={(value) => {
+                setArenaGameType(value as 'standard' | 'ludo' | 'journey');
+                if (value !== 'standard') setMaxPlayers((current) => Math.min(current, 4));
+              }} options={[{ value: 'standard', label: 'Standard Trivia' }, { value: 'ludo', label: 'Ludo Trivia' },
+                ...(arenaOpponent === 'players' && journeyCharacters.length ? [{ value: 'journey', label: 'The Biblical Journey' }] : [])]} />
             </div>
           </div>
+          {arenaGameType === 'journey' && <div>
+            <label className="text-xs text-stone block mb-1">Biblical character</label>
+            <AppSelect value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} options={journeyCharacters.map((item) => ({ value: item.slug, label: item.displayName }))} />
+          </div>}
           {arenaOpponent === 'machine' && <div>
             <label className="text-xs text-stone block mb-1">Machine Difficulty</label>
             <AppSelect value={arenaDifficulty} onChange={(value) => setArenaDifficulty(value as 'easy' | 'medium' | 'hard')} options={[
@@ -1022,7 +1067,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             ]} />
           </div>}
           <p className="rounded-lg border border-brass/25 bg-brass-soft p-3 text-xs text-stone">
-            {arenaGameType === 'standard' ? 'Standard Trivia: answer questions from previous Weekly and Fortune quizzes; the highest figs win.' : 'Ludo Trivia: previous Weekly and Fortune quiz questions move tokens around the board, with surprise spaces and relic effects.'}
+            {arenaGameType === 'standard' ? 'Standard Trivia: answer questions from previous Weekly and Fortune quizzes; the highest figs win.'
+              : arenaGameType === 'journey' ? 'The Biblical Journey: answer character questions to travel the 51-space board.'
+                : 'Ludo Trivia: previous Weekly and Fortune quiz questions move tokens around the board, with surprise spaces and relic effects.'}
             {arenaOpponent === 'machine' && ' Machine matches cost a fixed 50 Ð.'}
           </p>
           <div>
@@ -1036,8 +1083,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             </div>
             {arenaOpponent === 'players' && <div>
               <label className="text-xs text-stone block mb-1">Other Players <span className="text-stone/60">(you are already included)</span></label>
-              <input type="number" className="input-field" value={maxPlayers - 1} min={1} max={arenaGameType === 'ludo' ? 3 : 7} onChange={(e) => {
-                const opponents = Math.max(1, Math.min(arenaGameType === 'ludo' ? 3 : 7, parseInt(e.target.value) || 1));
+              <input type="number" className="input-field" value={maxPlayers - 1} min={1} max={arenaGameType === 'standard' ? 7 : 3} onChange={(e) => {
+                const opponents = Math.max(1, Math.min(arenaGameType === 'standard' ? 7 : 3, parseInt(e.target.value) || 1));
                 setMaxPlayers(opponents + 1);
                 setTaggedIds((current) => new Set(Array.from(current).slice(0, opponents)));
               }} />
@@ -1122,7 +1169,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                       <p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
                       <ArenaMatchup players={arenaMatchupPlayers(room)} playing />
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-stone">
-                        <span>{parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</span>
+                        <span>{parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : parseArenaGameType(room.room_name) === 'journey' ? 'The Biblical Journey' : 'Standard Trivia'}</span>
                         <span aria-hidden="true">·</span>
                         <ArenaElapsedTimer startedAt={room.started_at} />
                       </div>
@@ -1252,7 +1299,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 }
 
 function parseArenaGameType(roomName: string) {
-  return /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
+  return /\[arena:journey\]/i.test(roomName) ? 'journey' : /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
 
 function cleanArenaRoomName(roomName: string) {

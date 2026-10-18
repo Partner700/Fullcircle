@@ -9,3 +9,6 @@ verify_jwt = false
 # Function verifies that secret before reading or sending any notification.
 [functions.send-push-notification]
 verify_jwt = false
+
+[functions.biblical-journey]
+verify_jwt = false

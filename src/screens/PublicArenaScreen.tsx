@@ -9,6 +9,7 @@ import { fetchArenaFinalScorecard, fetchPublicArenaRoom, fetchPublicArenaSuccess
 import { setScenarioSound } from '../lib/soundscape';
 import { ArenaStandardSpectator } from './cadet/CadetArena';
 import { RoadHomeGame } from './cadet/RoadHomeGame';
+import { JourneyGamePlay } from './cadet/JourneyGamePlay';
 
 function arenaGuestKey(roomId: string) {
   const storageKey = `full-circle-arena-guest:${roomId}`;
@@ -98,6 +99,7 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
 
   const participants = room?.participants || [];
   const players = room?.selected_players.length ? room.selected_players : participants;
+  const isJourney = Boolean(room && /\[arena:journey\]/i.test(room.room_name));
   const arenaRoom = room ? {
     ...room,
     arena_participants: participants.map((player) => ({
@@ -118,7 +120,7 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
         {error && !room && !ended && <section className="card p-6 text-center"><Swords size={30} className="mx-auto text-gold" /><h1 className="mt-3 font-display text-xl font-bold">Arena room unavailable</h1><p className="mt-2 text-sm text-stone">{error}</p><a href={signupHref} className="btn-primary mt-4">Join Full Circle</a></section>}
         {room && <>
           <section className="border-b border-border pb-4">
-            <p className="eyebrow text-brass">Arena · {room.game_type === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</p>
+            <p className="eyebrow text-brass">Arena · {isJourney ? 'The Biblical Journey' : room.game_type === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</p>
             <h1 className="mt-1 font-display text-2xl font-bold text-ink">{room.room_name.replace(/\s*\[[^]]+\]/g, '')}</h1>
             <p className="mt-2 flex items-center gap-2 text-xs text-stone"><Eye size={14} /> {room.witness_count} witnessing <span aria-hidden="true">·</span> <Users size={14} /> {participants.length}/{room.max_players} players</p>
           </section>
@@ -128,7 +130,12 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
                 {players.map((player) => <div key={player.user_id} className="flex items-center gap-2 text-xs text-ink"><UserAvatar userId={player.user_id} name={player.display_name} avatarUrl={player.avatar_url} className="h-9 w-9" /><span>{player.display_name}</span></div>)}
               </div>
               <ArenaRoomChat roomId={currentRoomId} userId="" guestKey={guestKey} />
-            </section> : room.game_type === 'ludo' ? <RoadHomeGame key={currentRoomId} roomId={currentRoomId} roomName={room.room_name} userId="" spectator publicAccess awaitSeriesResult={room.scheduled && room.play_mode !== 'machine' && room.max_players <= 4} guestKey={guestKey} spectatorCanChallenge={false} onExit={() => window.location.assign(window.location.pathname)} />
+            </section> : isJourney ? <JourneyGamePlay key={currentRoomId} roomId={currentRoomId} roomName={room.room_name} userId=""
+              spectator guestKey={guestKey} players={players.map((player) => ({
+                user_id: player.user_id, display_name: player.display_name, avatar_url: player.avatar_url,
+                tent_house_id: null, correct_count: participants.find((item) => item.user_id === player.user_id)?.score || 0,
+              }))} onExit={() => window.location.assign(window.location.pathname)} />
+              : room.game_type === 'ludo' ? <RoadHomeGame key={currentRoomId} roomId={currentRoomId} roomName={room.room_name} userId="" spectator publicAccess awaitSeriesResult={room.scheduled && room.play_mode !== 'machine' && room.max_players <= 4} guestKey={guestKey} spectatorCanChallenge={false} onExit={() => window.location.assign(window.location.pathname)} />
               : arenaRoom && <ArenaStandardSpectator room={arenaRoom} userId="" publicAccess guestKey={guestKey} allowChallenges={false} onExit={() => window.location.assign(window.location.pathname)} onGameCallCreated={async () => undefined} onGameCallAction={async () => undefined} />)}
           <div className="flex justify-center border-t border-border pt-4"><a href={signupHref} className="btn-secondary text-xs"><UserPlus size={14} /> Join Full Circle to play or challenge</a></div>
         </>}
