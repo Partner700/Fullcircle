@@ -120,7 +120,7 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
         {error && !room && !ended && <section className="card p-6 text-center"><Swords size={30} className="mx-auto text-gold" /><h1 className="mt-3 font-display text-xl font-bold">Arena room unavailable</h1><p className="mt-2 text-sm text-stone">{error}</p><a href={signupHref} className="btn-primary mt-4">Join Full Circle</a></section>}
         {room && <>
           <section className="border-b border-border pb-4">
-            <p className="eyebrow text-brass">Arena · {isJourney ? 'The Biblical Journey' : room.game_type === 'ludo' ? 'Ludo Trivia' : 'Standard Trivia'}</p>
+            <p className="eyebrow text-brass">Arena · {isJourney ? 'Standard Trivia: Biblical Journey' : room.game_type === 'ludo' ? 'Ludo Trivia' : 'Classic Trivia'}</p>
             <h1 className="mt-1 font-display text-2xl font-bold text-ink">{room.room_name.replace(/\s*\[[^]]+\]/g, '')}</h1>
             <p className="mt-2 flex items-center gap-2 text-xs text-stone"><Eye size={14} /> {room.witness_count} witnessing <span aria-hidden="true">·</span> <Users size={14} /> {participants.length}/{room.max_players} players</p>
           </section>
