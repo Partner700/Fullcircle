@@ -39,8 +39,8 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'The question review could not be updated.';
 }
 
-export function InstructorJourneyReview() {
-  const [open, setOpen] = useState(false);
+export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [characters, setCharacters] = useState<ReviewCharacter[]>([]);
   const [slug, setSlug] = useState('');
   const [stage, setStage] = useState<number | null>(null);
@@ -153,8 +153,8 @@ export function InstructorJourneyReview() {
   const allVisibleSelected = visiblePending.length > 0 && visiblePending.every((question) => selected.includes(question.id));
 
   return <section className="border-t border-border py-4">
-    <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 text-left font-display text-sm font-semibold text-ink">
-      <span>Biblical Journey questions</span>{open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+    <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 text-left font-display text-sm font-semibold text-ink">
+      <span>Biblical Journey Questions</span>{open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
     </button>
     {open && <div className="mt-4 space-y-4">
       {characters.length > 0 && <div className="flex flex-wrap items-end gap-3">

@@ -21,6 +21,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { QuestionImportPanel } from '../../components/QuestionImportPanel';
+import { InstructorJourneyReview } from '../../components/InstructorJourneyReview';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
@@ -80,7 +81,7 @@ import {
   fetchMarksBoard, fetchWeeklyAwardMetrics,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'arena' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'journey_questions' | 'arena' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -200,6 +201,7 @@ const NAV_ITEMS = [
   { key: 'dove_questions', label: 'Dove Questions', icon: MessageCircle },
   { key: 'quiz', label: 'Quiz Builder', icon: FileQuestion },
   { key: 'game_questions', label: 'Game Questions', icon: Gamepad2 },
+  { key: 'journey_questions', label: 'Journey Questions', icon: BookOpen },
   { key: 'arena', label: 'Arena Witness', icon: Swords },
   { key: 'tents', label: 'Tents', icon: TentIcon },
   { key: 'cadets', label: 'Cadets', icon: Users },
@@ -307,7 +309,7 @@ export function InstructorApp() {
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
-    game_questions: 'Game Questions', arena: 'Arena Witness', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
+    game_questions: 'Game Questions', journey_questions: 'Journey Questions', arena: 'Arena Witness', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
     challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', subscribe: 'Subscription', settings: 'Settings',
     unassigned: 'Unassigned Users',
@@ -360,7 +362,8 @@ export function InstructorApp() {
       {tab === 'matricules' && <MatriculesManagement />}
       {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}
       {tab === 'quiz' && <QuizBuilder />}
-      {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} />}
+      {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} onOpenJourney={() => navigateFromAction('journey_questions')} />}
+      {tab === 'journey_questions' && <InstructorJourneyReview defaultOpen />}
       {tab === 'arena' && <CadetArena witnessOnly instructorSchedule />}
       {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
       {tab === 'mobile_money' && <MobileMoneyManager />}
@@ -4682,7 +4685,7 @@ function CustomQuestionsEditor({ sessionId }: { sessionId: string }) {
 }
 
 // ── Game Questions Editor ──
-function GameQuestionsEditor({ profile }: { profile: Profile }) {
+function GameQuestionsEditor({ profile, onOpenJourney }: { profile: Profile; onOpenJourney: () => void }) {
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [selectedRound, setSelectedRound] = useState<number | 'all'>(1);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
@@ -5095,6 +5098,10 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Game Questions" subtitle="Generate editable questions from each narrative's Game Content Packet, then add, edit, delete, or tag them for quiz." />
+
+      <button type="button" className="btn-secondary w-full justify-center text-sm sm:w-auto" onClick={onOpenJourney}>
+        <BookOpen size={16} className="shrink-0" /> Biblical Journey Questions
+      </button>
 
       <div className="card p-4 grid md:grid-cols-3 gap-3">
         <div>
