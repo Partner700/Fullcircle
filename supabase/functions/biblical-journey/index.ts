@@ -1,13 +1,16 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import {
+  advanceMachineJourney,
   answerJourneyQuestion,
   chooseJourneyPenalty,
   createJourneyRuntime,
   publicJourneyRuntime,
   serveJourneySentence,
+  machineJourneyMayAct,
   type JourneyQuestion,
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
+import { JOURNEY_MACHINE_ID } from '../_shared/biblicalJourney.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')?.trim() || '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim() || '';
@@ -15,7 +18,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '199',
+  'X-Full-Circle-Journey-Release': '201',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -60,6 +63,12 @@ async function authenticatedUserId(request: Request): Promise<string> {
 function characterFromName(roomName: string): string {
   const matches = [...roomName.matchAll(/\[character:([a-z0-9-]{2,40})\]/gi)];
   return matches[matches.length - 1]?.[1]?.toLowerCase() || '';
+}
+
+function machineAccuracy(roomName: string): number {
+  if (/\[difficulty:easy\]/i.test(roomName)) return 0.55;
+  if (/\[difficulty:hard\]/i.test(roomName)) return 0.9;
+  return 0.72;
 }
 
 async function roomContext(roomId: string) {
@@ -128,18 +137,22 @@ Deno.serve(async (request) => {
     const roomId = String(body?.roomId || '');
     const action = String(body?.action || 'GET').toUpperCase();
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['GET', 'INIT', 'ANSWER', 'CHOOSE', 'SERVE'].includes(action)) {
+    if (!['GET', 'INIT', 'ANSWER', 'CHOOSE', 'SERVE', 'BOT'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
     const context = await roomContext(roomId);
     if (action === 'GET') {
-      if (context.room.status !== 'playing') return json({ error: 'That match is no longer live.' }, 410);
+      if (!['playing', 'completed'].includes(context.room.status)) return json({ error: 'That match is no longer live.' }, 410);
       const versionRow = await gameRow(roomId, 'version');
-      if (!versionRow) return json({ state: null, needsInitialization: true });
+      if (!versionRow) return context.room.status === 'playing'
+        ? json({ state: null, needsInitialization: true }) : json({ error: 'That match is no longer live.' }, 410);
       if (body.knownVersion != null && Number(body.knownVersion) === Number(versionRow.version)) {
         return json({ unchanged: true, version: versionRow.version });
       }
       const snapshot = await gameRow(roomId);
+      if (context.room.status === 'completed' && snapshot.state?.game?.status !== 'finished') {
+        return json({ error: 'That match is no longer live.' }, 410);
+      }
       return json({ state: publicJourneyRuntime(snapshot.state as JourneyRuntime), version: snapshot.version });
     }
 
@@ -153,12 +166,13 @@ Deno.serve(async (request) => {
       if (context.room.status !== 'playing') return json({ error: 'That match is no longer live.' }, 410);
       const existing = await gameRow(roomId);
       if (existing) return json({ state: publicJourneyRuntime(existing.state as JourneyRuntime), version: existing.version });
-      if (context.room.play_mode === 'machine' || activePlayers.length < 2 || activePlayers.length > 4) {
-        return json({ error: 'Biblical Journey requires two to four real players.' }, 409);
+      const machine = context.room.play_mode === 'machine';
+      if (machine ? activePlayers.length !== 1 : activePlayers.length < 2 || activePlayers.length > 4) {
+        return json({ error: 'This Journey room has the wrong number of players.' }, 409);
       }
       const prepared = await initialRuntime(roomId, context.characterSlug,
-        activePlayers.map((player) => player.user_id));
-      const state = await rest('rpc/initialize_arena_journey_game', {
+        [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])]);
+      const state = await rest(machine ? 'rpc/initialize_machine_arena_journey_game' : 'rpc/initialize_arena_journey_game', {
         method: 'POST', body: JSON.stringify({
           p_room_id: roomId, p_character_slug: context.characterSlug, p_state: prepared,
         }),
@@ -179,13 +193,19 @@ Deno.serve(async (request) => {
       return json({ error: 'The board changed on another device.',
         state: publicJourneyRuntime(current.state as JourneyRuntime), version: current.version }, 409);
     }
-    if (await pendingViewerChallenge(roomId, actorId)) {
+    if (action !== 'BOT' && await pendingViewerChallenge(roomId, actorId)) {
       return json({ error: 'Respond to the Arena challenge before playing your next move.' }, 409);
     }
 
     const previous = current.state as JourneyRuntime;
     let next: JourneyRuntime;
-    if (action === 'ANSWER') {
+    if (action === 'BOT') {
+      if (context.room.play_mode !== 'machine' || !machineJourneyMayAct(previous)) {
+        return json({ error: 'It is not The Scribe\'s turn.' }, 409);
+      }
+      next = await advanceMachineJourney(previous, approvedQuestion, secureRandom,
+        machineAccuracy(String(context.room.room_name)));
+    } else if (action === 'ANSWER') {
       const answer = String(body.answer || '').slice(0, 2000);
       if (!answer.trim()) return json({ error: 'Enter an answer before submitting.' }, 400);
       next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom);
@@ -195,7 +215,8 @@ Deno.serve(async (request) => {
     } else {
       next = await serveJourneySentence(previous, actorId, approvedQuestion, secureRandom);
     }
-    const result = await rest('rpc/commit_arena_journey_command', {
+    const result = await rest(context.room.play_mode === 'machine'
+      ? 'rpc/commit_machine_arena_journey_command' : 'rpc/commit_arena_journey_command', {
       method: 'POST', body: JSON.stringify({
         p_room_id: roomId, p_expected_version: current.version,
         p_next_state: next, p_command_id: commandId, p_actor_id: actorId,
@@ -205,7 +226,7 @@ Deno.serve(async (request) => {
       duplicate: result.duplicate });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Journey server could not complete that action.';
-    const known = /not open for you|not this player's turn|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found/i.test(message);
+    const known = /not open for you|not this player's turn|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn/i.test(message);
     if (!known) console.error('Biblical Journey action failed:', error);
     return json({ error: known ? message : 'The Journey could not advance. Try again.' }, known ? 409 : 500);
   }

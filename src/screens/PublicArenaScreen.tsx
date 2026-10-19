@@ -10,6 +10,7 @@ import { setScenarioSound } from '../lib/soundscape';
 import { ArenaStandardSpectator } from './cadet/CadetArena';
 import { RoadHomeGame } from './cadet/RoadHomeGame';
 import { JourneyGamePlay } from './cadet/JourneyGamePlay';
+import { JOURNEY_MACHINE_ID } from '../../supabase/functions/_shared/biblicalJourney';
 
 function arenaGuestKey(roomId: string) {
   const storageKey = `full-circle-arena-guest:${roomId}`;
@@ -100,6 +101,9 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
   const participants = room?.participants || [];
   const players = room?.selected_players.length ? room.selected_players : participants;
   const isJourney = Boolean(room && /\[arena:journey\]/i.test(room.room_name));
+  const journeyPlayers = isJourney && room?.play_mode === 'machine'
+    ? [...players, { user_id: JOURNEY_MACHINE_ID, display_name: 'The Scribe', avatar_url: null }]
+    : players;
   const arenaRoom = room ? {
     ...room,
     arena_participants: participants.map((player) => ({
@@ -122,16 +126,16 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
           <section className="border-b border-border pb-4">
             <p className="eyebrow text-brass">Arena · {isJourney ? 'Standard Trivia: Biblical Journey' : room.game_type === 'ludo' ? 'Ludo Trivia' : 'Classic Trivia'}</p>
             <h1 className="mt-1 font-display text-2xl font-bold text-ink">{room.room_name.replace(/\s*\[[^]]+\]/g, '')}</h1>
-            <p className="mt-2 flex items-center gap-2 text-xs text-stone"><Eye size={14} /> {room.witness_count} witnessing <span aria-hidden="true">·</span> <Users size={14} /> {participants.length}/{room.max_players} players</p>
+            <p className="mt-2 flex items-center gap-2 text-xs text-stone"><Eye size={14} /> {room.witness_count} witnessing <span aria-hidden="true">·</span> <Users size={14} /> {room.play_mode === 'machine' ? 'Player vs The Scribe' : `${participants.length}/${room.max_players} players`}</p>
           </section>
           {!ended && (room.status === 'waiting' ? <section className="space-y-4">
               {room.starts_at && <ArenaMatchCountdown startsAt={room.starts_at} />}
               <div className="flex flex-wrap justify-center gap-3">
-                {players.map((player) => <div key={player.user_id} className="flex items-center gap-2 text-xs text-ink"><UserAvatar userId={player.user_id} name={player.display_name} avatarUrl={player.avatar_url} className="h-9 w-9" /><span>{player.display_name}</span></div>)}
+                {journeyPlayers.map((player) => <div key={player.user_id} className="flex items-center gap-2 text-xs text-ink"><UserAvatar userId={player.user_id} name={player.display_name} avatarUrl={player.avatar_url} className="h-9 w-9" /><span>{player.display_name}</span></div>)}
               </div>
               <ArenaRoomChat roomId={currentRoomId} userId="" guestKey={guestKey} />
             </section> : isJourney ? <JourneyGamePlay key={currentRoomId} roomId={currentRoomId} roomName={room.room_name} userId=""
-              spectator guestKey={guestKey} players={players.map((player) => ({
+              spectator machine={room.play_mode === 'machine'} guestKey={guestKey} players={journeyPlayers.map((player) => ({
                 user_id: player.user_id, display_name: player.display_name, avatar_url: player.avatar_url,
                 tent_house_id: null, correct_count: participants.find((item) => item.user_id === player.user_id)?.score || 0,
               }))} onExit={() => window.location.assign(window.location.pathname)} />

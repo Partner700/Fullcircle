@@ -76,6 +76,8 @@ export type JourneyGame = {
   version: number;
 };
 
+export const JOURNEY_MACHINE_ID = '00000000-0000-0000-0000-000000000000';
+
 const main = (space: number): JourneyLocation => ({ route: 'main', space });
 const loop = (space: number): JourneyLocation => ({ route: 'loop', space });
 const prison = (name: 'holding' | 'deep'): JourneyLocation => ({ route: 'prison', prison: name });

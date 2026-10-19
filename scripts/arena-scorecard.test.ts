@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { groupArenaScoreTeams, shortestArenaName } from '../src/lib/arenaScorecard.ts';
+import { shortArenaName } from '../src/lib/arenaMatchup.ts';
 import type { ArenaFinalScorecard } from '../src/lib/queries.ts';
 
 const players: ArenaFinalScorecard['players'] = [
@@ -23,5 +24,6 @@ assert.equal(shortestArenaName('Sentinel Vedette'), 'Vedette');
 assert.equal(shortestArenaName('Billy-Westey'), 'Billy');
 assert.equal(shortestArenaName('PH'), 'PH');
 assert.equal(shortestArenaName('The Scribe'), 'The Scribe');
+assert.equal(shortArenaName('The Scribe'), 'The Scribe');
 
 console.log('Arena final-score tent grouping and individual correct counts passed.');

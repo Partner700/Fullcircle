@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {
-  answerJourneyQuestion, createJourneyRuntime, journeyAnswerIsCorrect,
+  advanceMachineJourney, answerJourneyQuestion, createJourneyRuntime, journeyAnswerIsCorrect,
+  machineJourneyMayAct,
   publicJourneyRuntime, serveJourneySentence, type JourneyQuestion,
 } from '../supabase/functions/_shared/biblicalJourneyRuntime.ts';
+import { JOURNEY_MACHINE_ID } from '../supabase/functions/_shared/biblicalJourney.ts';
 
 const catalog: JourneyQuestion[] = Array.from({ length: 5 }, (_, stageIndex) =>
   Array.from({ length: 10 }, (_, index): JourneyQuestion => ({
@@ -91,9 +93,49 @@ const served = await serveJourneySentence(prisoner, 'alpha', lookup, first);
 assert.equal(served.game.players[0].prisonTurnsRemaining, 1);
 assert.equal(served.currentQuestionPlayerId, 'beta');
 
+const machineStart = await createJourneyRuntime('elisha', ['alpha', JOURNEY_MACHINE_ID], catalog, lookup, first);
+assert.equal(machineJourneyMayAct(machineStart), false);
+const humanMoved = await answerJourneyQuestion(machineStart, 'alpha', 'Correct', lookup, first);
+assert.equal(machineJourneyMayAct(humanMoved), true);
+const botMoved = await advanceMachineJourney(humanMoved, lookup, first, 1);
+assert.equal(botMoved.game.players[1].correctAnswers, 1);
+assert.deepEqual(botMoved.game.players[1].location, { route: 'main', space: 2 });
+assert.equal(botMoved.game.turnIndex, 0);
+assert.equal(botMoved.lastVerdict?.playerId, JOURNEY_MACHINE_ID);
+assert.equal(botMoved.lastVerdict?.correct, true);
+assert.equal(machineJourneyMayAct(botMoved), false);
+
+const botMissed = await advanceMachineJourney(humanMoved, lookup, first, 0);
+assert.equal(botMissed.game.players[1].correctAnswers, 0);
+assert.equal(botMissed.lastVerdict?.selectedAnswer, 'No answer');
+assert.equal(botMissed.lastVerdict?.correct, false);
+await assert.rejects(() => advanceMachineJourney(machineStart, lookup, first, 1), /Scribe's turn/);
+
+const botPrison = structuredClone(humanMoved);
+botPrison.game.players[1].location = { route: 'prison', prison: 'holding' };
+botPrison.game.players[1].status = 'IN_HOLDING_PRISON';
+botPrison.game.players[1].savedLocation = { route: 'main', space: 1 };
+botPrison.game.players[1].prisonTurnsRemaining = 2;
+botPrison.currentQuestion = null;
+botPrison.currentQuestionPlayerId = null;
+const botServed = await advanceMachineJourney(botPrison, lookup, first, 1);
+assert.equal(botServed.game.players[1].prisonTurnsRemaining, 1);
+assert.equal(botServed.game.turnIndex, 0);
+
+const botChoice = structuredClone(humanMoved);
+botChoice.game.pendingAction = { playerId: 'alpha', kind: 'choice', source: 'test',
+  choices: [{ kind: 'move', by: -7 }, { kind: 'prison', prison: 'deep' }] };
+botChoice.currentQuestion = null;
+botChoice.currentQuestionPlayerId = null;
+assert.equal(machineJourneyMayAct(botChoice), true);
+const choiceResolved = await advanceMachineJourney(botChoice, lookup, first, 1);
+assert.equal(choiceResolved.game.pendingAction, null);
+botChoice.game.pendingAction.playerId = JOURNEY_MACHINE_ID;
+assert.equal(machineJourneyMayAct(botChoice), false);
+
 await assert.rejects(
   () => createJourneyRuntime('elisha', ['alpha'], catalog.filter((question) => question.stage !== 5), lookup, first),
   /Stage 5 needs ten approved questions/,
 );
 
-console.log('Biblical Journey question secrecy, answer validation, turn flow, and trial tests passed.');
+console.log('Biblical Journey question secrecy, human and machine turns, trials, and prison tests passed.');

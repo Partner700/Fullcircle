@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Loader2, MessageCircle, RotateCw, Send, X } from 'lucide-react';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
+import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { JourneyBoard } from '../../components/JourneyBoard';
 import { supabase } from '../../lib/supabase';
 import { fetchJourneyState, initializeJourney, sendJourneyCommand, type JourneyServerResponse } from '../../lib/journeyClient';
 import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
-import type { JourneyPublicState } from '../../../supabase/functions/_shared/biblicalJourneyRuntime';
-import { DEFAULT_JOURNEY_CONFIG } from '../../../supabase/functions/_shared/biblicalJourney';
+import { machineJourneyMayAct, type JourneyPublicState } from '../../../supabase/functions/_shared/biblicalJourneyRuntime';
+import { DEFAULT_JOURNEY_CONFIG, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
 
 type Props = {
   roomId: string;
@@ -15,6 +16,7 @@ type Props = {
   userId: string;
   players: ArenaMatchupPlayer[];
   spectator: boolean;
+  machine?: boolean;
   guestKey?: string;
   onExit: () => void;
   onStateChanged?: () => Promise<void> | void;
@@ -33,10 +35,11 @@ function answerFromOrder(question: NonNullable<JourneyPublicState['currentQuesti
   }).join(' ');
 }
 
-export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, guestKey, onExit, onStateChanged }: Props) {
+export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, machine = false, guestKey, onExit, onStateChanged }: Props) {
   const [state, setState] = useState<JourneyPublicState | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [botFailures, setBotFailures] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState('');
   const [order, setOrder] = useState<number[]>([]);
@@ -123,7 +126,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = async (action: 'ANSWER' | 'CHOOSE' | 'SERVE', payload: Record<string, unknown> = {}) => {
+  const send = useCallback(async (action: 'ANSWER' | 'CHOOSE' | 'SERVE' | 'BOT', payload: Record<string, unknown> = {}) => {
     if (!state || spectator || sending) return;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
@@ -134,6 +137,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       const response = await sendJourneyCommand(roomId, action, version, commandRef.current.id, payload);
       applyResponse(response);
       commandRef.current = null;
+      if (action === 'BOT') setBotFailures(0);
     } catch (sendError) {
       const conflict = sendError as Error & { state?: JourneyPublicState | null; version?: number };
       if (conflict.state) {
@@ -141,10 +145,26 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
         commandRef.current = null;
       }
       setError(message(sendError));
+      if (action === 'BOT') setBotFailures((count) => Math.min(count + 1, 5));
     } finally {
       setSending(false);
     }
-  };
+  }, [applyResponse, roomId, sending, spectator, state]);
+
+  const botMayAct = machine && !spectator && state ? machineJourneyMayAct(state) : false;
+  useEffect(() => {
+    if (!botMayAct || sending) return;
+    let timer: number | undefined;
+    const schedule = () => {
+      if (timer) window.clearTimeout(timer);
+      if (document.visibilityState === 'visible') {
+        timer = window.setTimeout(() => void send('BOT'), Math.min(1500 * 2 ** botFailures, 15_000));
+      }
+    };
+    document.addEventListener('visibilitychange', schedule);
+    schedule();
+    return () => { if (timer) window.clearTimeout(timer); document.removeEventListener('visibilitychange', schedule); };
+  }, [botFailures, botMayAct, send, sending, state?.game.version]);
 
   const activePlayer = state?.game.players[state.game.turnIndex];
   const myTurn = !spectator && state?.game.status === 'playing'
@@ -158,7 +178,12 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const readyAnswer = openQuestion?.type === 'order_sequence'
     ? order.length === openQuestion.options.length
     : answer.trim().length > 0;
-  const roster = publicPlayers?.length ? publicPlayers : players;
+  const roster = useMemo(() => {
+    const known = publicPlayers?.length ? publicPlayers : players;
+    return machine && !known.some((player) => player.user_id === JOURNEY_MACHINE_ID)
+      ? [...known, { user_id: JOURNEY_MACHINE_ID, display_name: 'The Scribe', avatar_url: null, tent_house_id: null, correct_count: 0 }]
+      : known;
+  }, [machine, players, publicPlayers]);
   const visiblePlayers = useMemo(() => roster.map((player) => ({
     ...player,
     correct_count: state?.game.players.find((candidate) => candidate.id === player.user_id)?.correctAnswers ?? player.correct_count,
@@ -179,6 +204,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <button type="button" className="btn-secondary text-xs" onClick={() => void load()}><RotateCw size={15} /> Try again</button>
     <button type="button" className="btn-ghost text-xs" onClick={onExit}>Back to Arena</button>
   </div>;
+  if (state.game.status === 'finished') return <ArenaFinalScorecard roomId={roomId} onExit={onExit} />;
 
   return <div className="space-y-4">
     <div className="border-b border-border pb-3">
@@ -193,11 +219,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} config={boardConfig}
       dieValue={state.lastVerdict?.die || 0} rolling={sending && state.currentQuestionPlayerId === userId}
       onServePrisonTurn={myTurn && activePlayer?.location.route === 'prison' ? () => void send('SERVE') : undefined} />
-
-    {state.game.status === 'finished' && <div className="border-t border-gold/40 py-5 text-center" role="status">
-      <p className="eyebrow text-brass">Journey complete</p>
-      <p className="mt-2 font-display text-xl font-bold text-ink">{profiles[state.game.winnerId || '']?.name || 'A player'} wins</p>
-    </div>}
 
     {state.lastVerdict && <div className="border-t border-border pt-3 text-xs text-stone" aria-live="polite">
       <p className="font-semibold text-ink">{profiles[state.lastVerdict.playerId]?.name || 'Player'} answered {state.lastVerdict.correct ? 'correctly' : 'incorrectly'}
@@ -218,13 +239,13 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={15} /> Match chat</button>
     <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher={spectator}
       onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}
-      challengeTargets={spectator && !guestKey ? players.map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
+      challengeTargets={spectator && !guestKey ? players.filter((player) => player.user_id !== JOURNEY_MACHINE_ID).map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
 
     {openQuestion && asking && state.game.status === 'playing' && <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/65 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal={waitingForMyAnswer} aria-label="Biblical Journey question">
       <div className="w-full max-w-lg max-h-[85dvh] overflow-y-auto rounded-md border border-gold/40 bg-bg p-4 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s question</h3></div>
-          {spectator && <button type="button" title="Close question" aria-label="Close question" className="icon-btn h-8 w-8" onClick={() => setQuestionHidden(true)}><X size={17} /></button>}
+          {!waitingForMyAnswer && <button type="button" title="Close question" aria-label="Close question" className="icon-btn h-8 w-8" onClick={() => setQuestionHidden(true)}><X size={17} /></button>}
         </div>
         <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-ink">{openQuestion.question}</p>
         {state.lastVerdict && <div className="mt-3 border-l-2 border-brass pl-3 text-xs text-stone" aria-live="polite">
@@ -249,9 +270,9 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
           })}>{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit answer</button>
         </div>}
         {!waitingForMyAnswer && <p className="mt-4 text-xs text-stone">Waiting for the answer.</p>}
-        {spectator && <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>}
+        {!waitingForMyAnswer && <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>}
       </div>
     </div>}
-    {spectator && openQuestion && questionHidden && <button type="button" className="btn-secondary fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] right-4 z-[139] text-xs shadow-lg" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Question</button>}
+    {openQuestion && questionHidden && <button type="button" className="btn-secondary fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] right-4 z-[139] text-xs shadow-lg" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Question</button>}
   </div>;
 }

@@ -1,6 +1,7 @@
 import {
   createJourneyGame,
   DEFAULT_JOURNEY_CONFIG,
+  JOURNEY_MACHINE_ID,
   journeyQuestionStage,
   resolveJourneyAction,
   resolveJourneyMiss,
@@ -167,6 +168,37 @@ export async function serveJourneySentence(original: JourneyRuntime, actorId: st
   next.game = serveJourneyPrisonTurn(next.game, actorId);
   next.lastVerdict = null;
   await openNextQuestion(next, lookup, random);
+  return next;
+}
+
+export function machineJourneyMayAct(runtime: Pick<JourneyRuntime, 'game' | 'currentQuestionPlayerId'>): boolean {
+  if (runtime.game.status !== 'playing') return false;
+  const pending = runtime.game.pendingAction;
+  if (pending?.kind === 'choice') return pending.playerId !== JOURNEY_MACHINE_ID;
+  if (pending?.kind === 'trial') return runtime.currentQuestionPlayerId === JOURNEY_MACHINE_ID;
+  return runtime.game.players[runtime.game.turnIndex]?.id === JOURNEY_MACHINE_ID;
+}
+
+export async function advanceMachineJourney(original: JourneyRuntime, lookup: JourneyQuestionLookup,
+  random: () => number, accuracy: number): Promise<JourneyRuntime> {
+  if (!machineJourneyMayAct(original) || !original.game.players.some((player) => player.id === JOURNEY_MACHINE_ID)) {
+    throw new Error('It is not The Scribe\'s turn.');
+  }
+  if (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1) throw new Error('Invalid machine accuracy.');
+  if (original.game.pendingAction?.kind === 'choice') {
+    return chooseJourneyPenalty(original, JOURNEY_MACHINE_ID, random() < 0.5 ? 0 : 1, lookup, random);
+  }
+  if (!original.game.pendingAction && original.game.players[original.game.turnIndex].location.route === 'prison') {
+    return serveJourneySentence(original, JOURNEY_MACHINE_ID, lookup, random);
+  }
+  const question = original.currentQuestion;
+  if (!question || original.currentQuestionPlayerId !== JOURNEY_MACHINE_ID) {
+    throw new Error('The Scribe has no open question.');
+  }
+  const correct = random() < accuracy;
+  const next = await answerJourneyQuestion(original, JOURNEY_MACHINE_ID,
+    correct ? question.correctAnswer : '#', lookup, random);
+  if (!correct && next.lastVerdict) next.lastVerdict.selectedAnswer = 'No answer';
   return next;
 }
 

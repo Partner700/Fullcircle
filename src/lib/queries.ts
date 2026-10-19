@@ -22,6 +22,7 @@ import { parseLiveStats, type UserLiveStats } from './liveStats';
 import { createReadCache } from './readCache';
 import { MESSAGE_PAGE_SIZE, messageCursorFilter, type ChatMessage, type MessagePage, type MessagePageOptions } from './messagePages';
 import { expandQuoteReactionSummary, type CompactQuoteReactionSummary } from './quoteReactionSummary';
+import { JOURNEY_MACHINE_ID } from '../../supabase/functions/_shared/biblicalJourney';
 
 const sharedReadRequests = new Map<string, Promise<unknown>>();
 const panelImageReads = createReadCache<Record<string, PanelImageSetting>>(60_000);
@@ -3756,7 +3757,9 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
   if (matchupError && matchupError.code !== '42883' && matchupError.code !== 'PGRST202') console.warn('Arena matchup refresh failed:', matchupError);
   const scheduleMap = new Map((schedules || []).map((schedule) => [schedule.room_id, schedule]));
   const guestCountMap = new Map((guestCounts || []).map((entry: { room_id: string; guest_count: number }) => [entry.room_id, Number(entry.guest_count) || 0]));
-  const matchupMap = new Map((matchups || []).map((entry: { room_id: string; players: import('./arenaMatchup').ArenaMatchupPlayer[] }) => [entry.room_id, entry.players]));
+  const matchupMap = new Map<string, import('./arenaMatchup').ArenaMatchupPlayer[]>((matchups || []).map(
+    (entry: { room_id: string; players: import('./arenaMatchup').ArenaMatchupPlayer[] }) => [entry.room_id, entry.players],
+  ));
 
   const userIds = Array.from(new Set([
     ...(participants || []).map((participant: any) => participant.user_id),
@@ -3778,7 +3781,12 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
     scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
     scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
     arena_guest_witness_count: guestCountMap.get(room.id) || 0,
-    arena_matchup_players: matchupMap.get(room.id) || [],
+    arena_matchup_players: (matchupMap.get(room.id) || []).map((player) => (
+      room.play_mode === 'machine' && /\[arena:journey\]/i.test(room.room_name || '')
+        && player.user_id === JOURNEY_MACHINE_ID
+        ? { ...player, correct_count: room.status === 'playing' ? Number(room.machine_score) || 0 : 0 }
+        : player
+    )),
     arena_participants: (participants || [])
       .filter((participant: any) => participant.room_id === room.id)
       .map((participant: any) => ({

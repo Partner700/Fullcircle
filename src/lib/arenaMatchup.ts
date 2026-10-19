@@ -7,6 +7,7 @@ export type ArenaMatchupPlayer = {
 };
 
 export function shortArenaName(name: string) {
+  if (name.trim().toLowerCase() === 'the scribe') return 'The Scribe';
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return 'Player';
   const candidates = words.filter((word) => !/^(the|a|an)$/i.test(word));

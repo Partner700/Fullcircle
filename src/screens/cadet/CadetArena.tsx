@@ -293,7 +293,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (!profile || !showCreate || arenaOpponent === 'machine') return;
+    if (!profile || !showCreate) return;
     let active = true;
     setJourneyCatalogState('loading');
     void supabase.rpc('list_ready_arena_journey_characters').then(({ data, error: catalogError }) => {
@@ -643,15 +643,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
   const createRoom = async () => {
     if (!profile) return;
-    if (arenaOpponent === 'players' && journeyCatalogState !== 'ready') {
+    if (journeyCatalogState !== 'ready') {
       setError('The match list is still loading. Try again once it is ready.');
       return;
     }
     setCreating(true);
     setError(null);
     try {
-      if (arenaGameType === 'journey' && (arenaOpponent === 'machine' || !journeyCharacters.some((item) => item.slug === journeyCharacterSlug))) {
-        throw new Error('Choose a ready Biblical Journey character and other players.');
+      if (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug)) {
+        throw new Error('Choose a ready Biblical Journey character.');
       }
       const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
       const characterSuffix = arenaGameType === 'journey' ? ` [character:${journeyCharacterSlug}]` : '';
@@ -767,6 +767,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
         <JourneyGamePlay key={activeRoomId} roomId={activeRoomId} roomName={activeRoomName}
           userId={profile!.id} players={arenaMatchupPlayers(activeRoom)} spectator={isSpectating}
+          machine={activeRoom?.play_mode === 'machine'}
           onExit={() => clearActiveRoom(!isSpectating)}
           onStateChanged={async () => { await load(); await onBalanceChanged?.(); }} />
         <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />
@@ -1070,10 +1071,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
               }} options={arenaGameOptions(arenaOpponent, journeyCharacters.length)} />
             </div>
           </div>
-          {arenaOpponent === 'players' && journeyCatalogState === 'loading' && (
+          {journeyCatalogState === 'loading' && (
             <p className="text-xs text-stone" role="status">Checking available games...</p>
           )}
-          {arenaOpponent === 'players' && journeyCatalogState === 'error' && (
+          {journeyCatalogState === 'error' && (
             <div className="flex items-center gap-2 text-xs text-coral" role="alert">
               <span>The game list could not load.</span>
               <button type="button" className="underline" onClick={() => setJourneyCatalogRetry((current) => current + 1)}>Try Again</button>
@@ -1164,7 +1165,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             </div>
           </div>
           </>}
-          <button onClick={createRoom} disabled={creating || (arenaOpponent === 'players' && journeyCatalogState !== 'ready') || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
+          <button onClick={createRoom} disabled={creating || journeyCatalogState !== 'ready' || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} {arenaOpponent === 'machine' ? 'Create Machine Match · 50 Ð' : `Create & Stake ${formatDenarii(stake)} Ð`}
           </button>
           {arenaOpponent === 'machine' ? <p className="text-xs text-stone">Machine matches charge only the fixed 50 Ð stake.</p> : <>
