@@ -17,7 +17,7 @@ export async function initializeJourney(roomId: string): Promise<JourneyServerRe
   return callJourneyServer({ roomId, action: 'INIT' }, true);
 }
 
-export async function sendJourneyCommand(roomId: string, action: 'ANSWER' | 'CHOOSE' | 'SERVE' | 'BOT',
+export async function sendJourneyCommand(roomId: string, action: 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT',
   expectedVersion: number, commandId: string, payload: Record<string, unknown> = {}): Promise<JourneyServerResponse> {
   return callJourneyServer({ roomId, action, expectedVersion, commandId, ...payload }, true);
 }

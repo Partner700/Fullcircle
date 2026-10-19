@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Loader2, MessageCircle, RotateCw, Send, X } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ChevronDown, Clock3, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
@@ -45,6 +45,9 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const [order, setOrder] = useState<number[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [questionHidden, setQuestionHidden] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [timeoutRetry, setTimeoutRetry] = useState(0);
+  const [verdictVisible, setVerdictVisible] = useState(false);
   const [character, setCharacter] = useState<Character | null>(null);
   const [publicPlayers, setPublicPlayers] = useState<ArenaMatchupPlayer[] | null>(null);
   const versionRef = useRef<number | null>(null);
@@ -52,6 +55,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const initializationRef = useRef(false);
   const commandRef = useRef<{ signature: string; id: string } | null>(null);
   const completedRef = useRef(false);
+  const verdictRef = useRef<string | null>(null);
+  const timedOutRef = useRef<string | null>(null);
   const onStateChangedRef = useRef(onStateChanged);
   onStateChangedRef.current = onStateChanged;
 
@@ -109,6 +114,24 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   }, [state?.currentQuestion?.id]);
 
   useEffect(() => {
+    if (!state?.questionDeadline || !state.currentQuestion) { setSecondsLeft(0); return; }
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((Date.parse(state.questionDeadline!) - Date.now()) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [state?.questionDeadline, state?.currentQuestion?.id]);
+
+  useLayoutEffect(() => {
+    const verdictKey = state?.lastVerdict ? `${state.lastVerdict.questionId}:${state.game.version}` : null;
+    if (!verdictKey) { setVerdictVisible(false); return; }
+    if (verdictRef.current === verdictKey) return;
+    verdictRef.current = verdictKey;
+    setVerdictVisible(true);
+    const timer = window.setTimeout(() => setVerdictVisible(false), 3200);
+    return () => window.clearTimeout(timer);
+  }, [state?.lastVerdict, state?.game.version]);
+
+  useEffect(() => {
     if (!state?.characterSlug) return;
     let active = true;
     void supabase.rpc('list_ready_arena_journey_characters').then(({ data }) => {
@@ -126,7 +149,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = useCallback(async (action: 'ANSWER' | 'CHOOSE' | 'SERVE' | 'BOT', payload: Record<string, unknown> = {}) => {
+  const send = useCallback(async (action: 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT', payload: Record<string, unknown> = {}) => {
     if (!state || spectator || sending) return;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
@@ -143,15 +166,20 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       if (conflict.state) {
         applyResponse({ state: conflict.state, version: conflict.version });
         commandRef.current = null;
+        return;
       }
       setError(message(sendError));
       if (action === 'BOT') setBotFailures((count) => Math.min(count + 1, 5));
+      if (action === 'EXPIRE') window.setTimeout(() => {
+        timedOutRef.current = null;
+        setTimeoutRetry((count) => count + 1);
+      }, 2500);
     } finally {
       setSending(false);
     }
   }, [applyResponse, roomId, sending, spectator, state]);
 
-  const botMayAct = machine && !spectator && state ? machineJourneyMayAct(state) : false;
+  const botMayAct = machine && !spectator && !verdictVisible && state ? machineJourneyMayAct(state) : false;
   useEffect(() => {
     if (!botMayAct || sending) return;
     let timer: number | undefined;
@@ -171,10 +199,19 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     && (state.currentQuestionPlayerId === userId || (activePlayer?.id === userId && activePlayer.location.route === 'prison'));
   const openQuestion = state?.currentQuestion;
   const waitingForMyAnswer = myTurn && state?.currentQuestionPlayerId === userId;
+  useEffect(() => {
+    if (!state?.currentQuestion || !state.questionDeadline || spectator || sending
+      || Date.now() < Date.parse(state.questionDeadline)
+      || machine && state.currentQuestionPlayerId === JOURNEY_MACHINE_ID) return;
+    const key = `${state.currentQuestion.id}:${state.game.version}`;
+    if (timedOutRef.current === key) return;
+    timedOutRef.current = key;
+    void send('EXPIRE');
+  }, [machine, secondsLeft, send, sending, spectator, state, timeoutRetry]);
   const mayChoose = !spectator && state?.game.pendingAction?.kind === 'choice'
     && state.game.pendingAction.playerId !== userId
     && state.game.players.some((player) => player.id === userId);
-  const asking = Boolean(openQuestion && !questionHidden);
+  const asking = Boolean(openQuestion && !questionHidden && !verdictVisible);
   const readyAnswer = openQuestion?.type === 'order_sequence'
     ? order.length === openQuestion.options.length
     : answer.trim().length > 0;
@@ -211,21 +248,67 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       <p className="eyebrow text-brass">{character?.displayName || 'Biblical Journey'}</p>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-base font-semibold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2>
-        <button type="button" className="btn-ghost text-xs" onClick={onExit}>Back to Arena</button>
+        <div className="flex items-center gap-1">
+          <button type="button" className="btn-ghost text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={15} /> Chat</button>
+          <button type="button" className="btn-ghost text-xs" onClick={onExit}>Back to Arena</button>
+        </div>
       </div>
     </div>
     <ArenaMatchup players={visiblePlayers} playing={state.game.status === 'playing'} />
     {error && <p className="rounded-md border border-coral/40 bg-coral-soft p-3 text-xs text-coral" role="alert">{error}</p>}
-    <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} config={boardConfig}
-      dieValue={state.lastVerdict?.die || 0} rolling={sending && state.currentQuestionPlayerId === userId}
-      onServePrisonTurn={myTurn && activePlayer?.location.route === 'prison' ? () => void send('SERVE') : undefined} />
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,23rem)] xl:items-start">
+      <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} config={boardConfig}
+        dieValue={state.lastVerdict?.die || 0} rolling={sending && state.currentQuestionPlayerId === userId}
+        onServePrisonTurn={myTurn && activePlayer?.location.route === 'prison' ? () => void send('SERVE') : undefined} />
+      <div className="min-w-0 space-y-3">
+        {verdictVisible && state.lastVerdict ? <div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
+          <div className="flex items-center gap-2">
+            {state.lastVerdict.correct ? <CheckCircle2 size={24} className="text-sage" /> : <XCircle size={24} className="text-coral" />}
+            <h3 className="font-display text-lg font-bold text-ink">{state.lastVerdict.correct ? 'Correct answer' : state.lastVerdict.selectedAnswer === 'Time expired' ? 'Time is up' : 'Not quite'}</h3>
+            {state.lastVerdict.die && <span className="ml-auto flex items-center gap-1 font-display text-xl font-bold text-brass"><Dices size={20} /> {state.lastVerdict.die}</span>}
+          </div>
+          <p className="mt-2 text-xs text-stone">{profiles[state.lastVerdict.playerId]?.name || 'Player'} · {state.lastVerdict.question}</p>
+          <p className="mt-3 text-sm text-ink">Selected: <strong>{state.lastVerdict.selectedAnswer}</strong></p>
+          <p className="mt-1 text-sm text-ink">Answer: <strong>{state.lastVerdict.correctAnswer}</strong></p>
+          {state.lastVerdict.explanation && <p className="mt-2 text-xs text-stone">{state.lastVerdict.explanation}</p>}
+          {state.lastVerdict.reference && <p className="mt-1 text-xs text-brass">{state.lastVerdict.reference}</p>}
+        </div> : null}
 
-    {state.lastVerdict && <div className="border-t border-border pt-3 text-xs text-stone" aria-live="polite">
-      <p className="font-semibold text-ink">{profiles[state.lastVerdict.playerId]?.name || 'Player'} answered {state.lastVerdict.correct ? 'correctly' : 'incorrectly'}
-        {state.lastVerdict.die ? ` · Dice ${state.lastVerdict.die}` : ''}</p>
-      <p className="mt-1">Selected: {state.lastVerdict.selectedAnswer} · Answer: {state.lastVerdict.correctAnswer}</p>
-      {state.lastVerdict.reference && <p className="mt-1">{state.lastVerdict.reference}</p>}
-    </div>}
+        {openQuestion && asking && state.game.status === 'playing' && <section className="min-w-0 rounded-md border border-brass/45 bg-surface p-4" aria-label="Biblical Journey question">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0"><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s turn</h3></div>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className={`flex items-center gap-1 font-display text-sm font-bold tabular-nums ${secondsLeft <= 5 ? 'text-coral' : 'text-brass'}`} aria-live="off"><Clock3 size={15} /> {secondsLeft}s</span>
+              {!waitingForMyAnswer && <button type="button" title="Hide question" aria-label="Hide question" className="icon-btn h-8 w-8" onClick={() => setQuestionHidden(true)}><X size={17} /></button>}
+            </div>
+          </div>
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={secondsLeft} aria-valuemin={0} aria-valuemax={30} aria-label="Question time remaining">
+            <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / 30 * 100)}%` }} />
+          </div>
+          <p className="mt-4 whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">{openQuestion.question}</p>
+          {waitingForMyAnswer && <div className="mt-4 max-h-[48dvh] space-y-2 overflow-y-auto pr-1">
+            {openQuestion.type === 'true_false' && <div className="grid grid-cols-2 gap-2">
+              {['true', 'false'].map((value) => <button type="button" key={value} className={answer === value ? 'btn-primary justify-center' : 'btn-secondary justify-center'} onClick={() => setAnswer(value)}>{value === 'true' ? 'True' : 'False'}</button>)}
+            </div>}
+            {(openQuestion.type === 'multiple_choice' || openQuestion.type === 'odd_one') && openQuestion.options.map((option, index) =>
+              <button type="button" key={`${index}-${option}`} className={answer === option ? 'btn-primary w-full justify-start text-left' : 'btn-secondary w-full justify-start text-left'} onClick={() => setAnswer(option)}><span className="mr-2 font-display font-bold">{String.fromCharCode(65 + index)}.</span>{option}</button>)}
+            {openQuestion.type === 'fill_blank' && <input className="input-field" value={answer} onChange={(event) => setAnswer(event.target.value)} autoComplete="off" placeholder="Your answer" aria-label="Your answer" />}
+            {openQuestion.type === 'order_sequence' && <>
+              <p className="text-xs text-stone">Tap events in their order.</p>
+              {order.length > 0 && <div className="flex flex-wrap gap-1">{order.map((index, position) => <button type="button" key={index} className="btn-secondary text-xs" onClick={() => setOrder((current) => current.filter((value) => value !== index))}>{position + 1}. {openQuestion.options[index]} <X size={12} /></button>)}</div>}
+              {openQuestion.options.map((option, index) => <button type="button" key={index} className="btn-secondary w-full justify-start text-left text-xs" disabled={order.includes(index)} onClick={() => setOrder((current) => [...current, index])}>{option}</button>)}
+            </>}
+            <button type="button" className="btn-primary mt-3 w-full justify-center" disabled={!readyAnswer || sending || secondsLeft === 0} onClick={() => void send('ANSWER', {
+              answer: openQuestion.type === 'order_sequence' ? answerFromOrder(openQuestion, order) : answer.trim(),
+            })}>{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit answer</button>
+          </div>}
+          {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
+          <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>
+        </section>}
+        {openQuestion && questionHidden && !verdictVisible && <div className="flex gap-2"><button type="button" className="btn-secondary flex-1 justify-center text-xs" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Show question</button><button type="button" className="btn-secondary justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Chat</button></div>}
+        {!openQuestion && !verdictVisible && <p className="border-t border-border pt-3 text-sm text-stone">Waiting for the next move.</p>}
+      </div>
+    </div>
 
     {mayChoose && <div className="border-t border-border pt-3">
       <p className="mb-2 text-sm font-semibold text-ink">Choose your rival's penalty</p>
@@ -236,43 +319,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       </div>
     </div>}
 
-    <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={15} /> Match chat</button>
     <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher={spectator}
       onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}
       challengeTargets={spectator && !guestKey ? players.filter((player) => player.user_id !== JOURNEY_MACHINE_ID).map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
-
-    {openQuestion && asking && state.game.status === 'playing' && <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/65 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal={waitingForMyAnswer} aria-label="Biblical Journey question">
-      <div className="w-full max-w-lg max-h-[85dvh] overflow-y-auto rounded-md border border-gold/40 bg-bg p-4 shadow-2xl">
-        <div className="flex items-start justify-between gap-3">
-          <div><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s question</h3></div>
-          {!waitingForMyAnswer && <button type="button" title="Close question" aria-label="Close question" className="icon-btn h-8 w-8" onClick={() => setQuestionHidden(true)}><X size={17} /></button>}
-        </div>
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-ink">{openQuestion.question}</p>
-        {state.lastVerdict && <div className="mt-3 border-l-2 border-brass pl-3 text-xs text-stone" aria-live="polite">
-          <p className="font-semibold text-ink">Previous answer: {profiles[state.lastVerdict.playerId]?.name || 'Player'} was {state.lastVerdict.correct ? 'correct' : 'incorrect'}.</p>
-          <p>{state.lastVerdict.selectedAnswer} · Answer: {state.lastVerdict.correctAnswer}
-            {state.lastVerdict.die ? ` · Dice ${state.lastVerdict.die}` : ''}</p>
-        </div>}
-        {waitingForMyAnswer && <div className="mt-4 space-y-2">
-          {openQuestion.type === 'true_false' && <div className="grid grid-cols-2 gap-2">
-            {['true', 'false'].map((value) => <button type="button" key={value} className={answer === value ? 'btn-primary justify-center' : 'btn-secondary justify-center'} onClick={() => setAnswer(value)}>{value === 'true' ? 'True' : 'False'}</button>)}
-          </div>}
-          {(openQuestion.type === 'multiple_choice' || openQuestion.type === 'odd_one') && openQuestion.options.map((option) =>
-            <button type="button" key={option} className={answer === option ? 'btn-primary w-full justify-start text-left' : 'btn-secondary w-full justify-start text-left'} onClick={() => setAnswer(option)}>{option}</button>)}
-          {openQuestion.type === 'fill_blank' && <input className="input-field" value={answer} onChange={(event) => setAnswer(event.target.value)} autoComplete="off" placeholder="Your answer" aria-label="Your answer" />}
-          {openQuestion.type === 'order_sequence' && <>
-            <p className="text-xs text-stone">Tap events in their order.</p>
-            {order.length > 0 && <div className="flex flex-wrap gap-1">{order.map((index, position) => <button type="button" key={index} className="btn-secondary text-xs" onClick={() => setOrder((current) => current.filter((value) => value !== index))}>{position + 1}. {openQuestion.options[index]} <X size={12} /></button>)}</div>}
-            {openQuestion.options.map((option, index) => <button type="button" key={index} className="btn-secondary w-full justify-start text-left text-xs" disabled={order.includes(index)} onClick={() => setOrder((current) => [...current, index])}>{option}</button>)}
-          </>}
-          <button type="button" className="btn-primary mt-3 w-full justify-center" disabled={!readyAnswer || sending} onClick={() => void send('ANSWER', {
-            answer: openQuestion.type === 'order_sequence' ? answerFromOrder(openQuestion, order) : answer.trim(),
-          })}>{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit answer</button>
-        </div>}
-        {!waitingForMyAnswer && <p className="mt-4 text-xs text-stone">Waiting for the answer.</p>}
-        {!waitingForMyAnswer && <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>}
-      </div>
-    </div>}
-    {openQuestion && questionHidden && <button type="button" className="btn-secondary fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] right-4 z-[139] text-xs shadow-lg" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Question</button>}
   </div>;
 }

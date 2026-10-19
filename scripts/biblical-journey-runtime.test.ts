@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  advanceMachineJourney, answerJourneyQuestion, createJourneyRuntime, journeyAnswerIsCorrect,
+  advanceMachineJourney, answerJourneyQuestion, createJourneyRuntime, expireJourneyQuestion, journeyAnswerIsCorrect,
   machineJourneyMayAct,
   publicJourneyRuntime, serveJourneySentence, type JourneyQuestion,
 } from '../supabase/functions/_shared/biblicalJourneyRuntime.ts';
@@ -32,12 +32,14 @@ assert.equal(journeyAnswerIsCorrect(truth, ''), false);
 const start = await createJourneyRuntime('elisha', ['alpha', 'beta'], catalog, lookup, first);
 assert.equal(start.currentQuestion?.id, 'stage-1-question-1');
 assert.equal(start.currentQuestionPlayerId, 'alpha');
+assert.ok(start.questionDeadline && Date.parse(start.questionDeadline) > Date.now());
 assert.deepEqual(start.usedQuestionIds, ['stage-1-question-1']);
 const publicStart = publicJourneyRuntime(start);
 assert.equal(publicStart.currentQuestion?.question, catalog[0].question);
 assert.equal('correctAnswer' in (publicStart.currentQuestion || {}), false);
 assert.equal('questionIdsByStage' in publicStart, false);
 assert.equal('usedQuestionIds' in publicStart, false);
+assert.equal(publicStart.questionDeadline, start.questionDeadline);
 assert.equal(JSON.stringify(publicStart).includes('The reviewed answer is Correct.'), false);
 
 const correct = await answerJourneyQuestion(start, 'alpha', 'Correct', lookup, first);
@@ -45,6 +47,7 @@ assert.equal(correct.game.players[0].correctAnswers, 1);
 assert.deepEqual(correct.game.players[0].location, { route: 'main', space: 2 });
 assert.equal(correct.game.turnIndex, 1);
 assert.equal(correct.lastVerdict?.die, 1);
+assert.equal(correct.lastVerdict?.question, catalog[0].question);
 assert.equal(correct.currentQuestionPlayerId, 'beta');
 assert.equal(correct.currentQuestion?.id, 'stage-1-question-2');
 assert.deepEqual(start.game.players[0].location, { route: 'main', space: 1 });
@@ -56,6 +59,16 @@ assert.deepEqual(missed.game.players[1].location, { route: 'main', space: 1 });
 assert.equal(missed.game.turnIndex, 0);
 assert.equal(missed.lastVerdict?.correct, false);
 assert.equal(missed.currentQuestion?.id, 'stage-1-question-3');
+
+const expired = structuredClone(start);
+expired.questionDeadline = new Date(Date.now() - 1000).toISOString();
+const expiredMove = await expireJourneyQuestion(expired, lookup, first);
+assert.equal(expiredMove.lastVerdict?.correct, false);
+assert.equal(expiredMove.lastVerdict?.selectedAnswer, 'Time expired');
+assert.equal(expiredMove.game.players[0].correctAnswers, 0);
+const lateAnswer = await answerJourneyQuestion(expired, 'alpha', 'Correct', lookup, first);
+assert.equal(lateAnswer.lastVerdict?.correct, false);
+await assert.rejects(() => expireJourneyQuestion(start, lookup, first), /not timed out/);
 
 const loopStart = await createJourneyRuntime('elisha', ['alpha', 'beta'], catalog, lookup, first);
 loopStart.game.players[0].location = { route: 'loop', space: 1 };

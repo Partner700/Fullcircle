@@ -25,6 +25,7 @@ export type JourneyQuestion = {
 export type JourneyVerdict = {
   playerId: string;
   questionId: string;
+  question: string;
   selectedAnswer: string;
   correctAnswer: string;
   correct: boolean;
@@ -40,8 +41,12 @@ export type JourneyRuntime = {
   usedQuestionIds: string[];
   currentQuestion: JourneyQuestion | null;
   currentQuestionPlayerId: string | null;
+  questionDeadline: string | null;
   lastVerdict: JourneyVerdict | null;
 };
+
+export const JOURNEY_QUESTION_SECONDS = 30;
+export const JOURNEY_VERDICT_MS = 3200;
 
 export type JourneyPublicState = Omit<JourneyRuntime, 'questionIdsByStage' | 'usedQuestionIds' | 'currentQuestion'> & {
   currentQuestion: Pick<JourneyQuestion, 'id' | 'stage' | 'type' | 'question' | 'options'> | null;
@@ -72,9 +77,11 @@ function randomIndex(length: number, random: () => number): number {
   return Math.floor(value * length);
 }
 
-async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestionLookup, random: () => number) {
+async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestionLookup,
+  random: () => number, handoffMs = 0) {
   runtime.currentQuestion = null;
   runtime.currentQuestionPlayerId = null;
+  runtime.questionDeadline = null;
   if (runtime.game.status !== 'playing') return;
   const pending = runtime.game.pendingAction;
   if (pending?.kind === 'choice') return;
@@ -97,6 +104,7 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
     if (!question || question.stage !== stage) continue;
     runtime.currentQuestion = question;
     runtime.currentQuestionPlayerId = player.id;
+    runtime.questionDeadline = new Date(Date.now() + handoffMs + JOURNEY_QUESTION_SECONDS * 1000).toISOString();
     runtime.usedQuestionIds.push(id);
     return;
   }
@@ -119,7 +127,8 @@ export async function createJourneyRuntime(characterSlug: string, playerIds: str
   }
   const runtime: JourneyRuntime = {
     characterSlug, game: createJourneyGame(playerIds), questionIdsByStage,
-    usedQuestionIds: [], currentQuestion: null, currentQuestionPlayerId: null, lastVerdict: null,
+    usedQuestionIds: [], currentQuestion: null, currentQuestionPlayerId: null,
+    questionDeadline: null, lastVerdict: null,
   };
   await openNextQuestion(runtime, lookup, random);
   return runtime;
@@ -131,7 +140,10 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
   if (!question || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
     throw new Error('This question is not open for you.');
   }
-  const correct = journeyAnswerIsCorrect(question, answer);
+  const expired = Boolean(original.questionDeadline && Date.now() >= Date.parse(original.questionDeadline));
+  if (!expired && !answer.trim()) throw new Error('Enter an answer before time runs out.');
+  const submittedAnswer = expired ? 'Time expired' : answer;
+  const correct = !expired && journeyAnswerIsCorrect(question, answer);
   const pending = original.game.pendingAction;
   const next = structuredClone(original);
   let die: number | null = null;
@@ -144,12 +156,22 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
     next.game = resolveJourneyMiss(next.game, actorId);
   }
   next.lastVerdict = {
-    playerId: actorId, questionId: question.id, selectedAnswer: answer,
+    playerId: actorId, questionId: question.id, question: question.question,
+    selectedAnswer: submittedAnswer,
     correctAnswer: question.correctAnswer, correct, reference: question.reference,
     explanation: question.explanation, die,
   };
-  await openNextQuestion(next, lookup, random);
+  await openNextQuestion(next, lookup, random, JOURNEY_VERDICT_MS);
   return next;
+}
+
+export async function expireJourneyQuestion(original: JourneyRuntime,
+  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  if (!original.currentQuestionPlayerId || !original.questionDeadline
+    || Date.now() < Date.parse(original.questionDeadline)) {
+    throw new Error('This question has not timed out.');
+  }
+  return answerJourneyQuestion(original, original.currentQuestionPlayerId, '', lookup, random);
 }
 
 export async function chooseJourneyPenalty(original: JourneyRuntime, actorId: string, choice: 0 | 1,
@@ -210,6 +232,7 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
     characterSlug: runtime.characterSlug,
     game,
     currentQuestionPlayerId: runtime.currentQuestionPlayerId,
+    questionDeadline: runtime.questionDeadline || null,
     lastVerdict: runtime.lastVerdict,
     currentQuestion: currentQuestion ? {
       id: currentQuestion.id, stage: currentQuestion.stage, type: currentQuestion.type,

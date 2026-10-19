@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Loader2, RotateCw, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { InstructorJourneyImport } from './InstructorJourneyImport';
 
 type ReviewCharacter = { slug: string; displayName: string; ready: boolean };
-type StageCount = { stage: number; pending: number; approved: number; rejected: number };
+type StageCount = { stage: number; pending: number; approved: number; rejected: number; discontinued: number };
 type ReviewQuestion = {
   id: string;
   question_stage: number;
@@ -21,9 +22,12 @@ type ReviewQuestion = {
   source_answer_page: number | null;
   review_status: 'pending' | 'approved' | 'rejected';
   review_note: string | null;
+  question_set_name: string;
+  retired_at: string | null;
 };
 type ReviewPage = {
   character: ReviewCharacter & { narrativeBeats: string[] };
+  sets: { name: string; total: number }[];
   counts: StageCount[];
   total: number;
   questions: ReviewQuestion[];
@@ -40,7 +44,8 @@ export function InstructorJourneyReview() {
   const [characters, setCharacters] = useState<ReviewCharacter[]>([]);
   const [slug, setSlug] = useState('');
   const [stage, setStage] = useState<number | null>(null);
-  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected' | 'discontinued' | 'all'>('pending');
+  const [setName, setSetName] = useState('');
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<ReviewPage | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -61,8 +66,9 @@ export function InstructorJourneyReview() {
     if (!slug) return;
     setLoading(true);
     try {
-      const { data, error: queryError } = await supabase.rpc('get_arena_journey_review_page', {
-        p_slug: slug, p_stage: stage, p_status: status, p_offset: offset, p_limit: PAGE_SIZE,
+      const { data, error: queryError } = await supabase.rpc('get_arena_journey_bank_page', {
+        p_slug: slug, p_stage: stage, p_status: status, p_set_name: setName || null,
+        p_offset: offset, p_limit: PAGE_SIZE,
       });
       if (queryError) throw queryError;
       setPage(data as ReviewPage);
@@ -73,7 +79,7 @@ export function InstructorJourneyReview() {
     } finally {
       setLoading(false);
     }
-  }, [slug, stage, status, offset]);
+  }, [slug, stage, status, setName, offset]);
 
   useEffect(() => {
     if (!open) return;
@@ -125,6 +131,22 @@ export function InstructorJourneyReview() {
     }
   };
 
+  const setRetired = async (question: ReviewQuestion, retired: boolean) => {
+    if (retired && page?.character.ready && (page.counts.find((count) => count.stage === question.question_stage)?.approved || 0) <= 10
+      && !window.confirm('This stage would fall below ten active questions, so new matches for this volume will pause. Discontinue anyway?')) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const { error: updateError } = await supabase.rpc('set_arena_journey_question_retired', {
+        p_question_id: question.id, p_retired: retired,
+      });
+      if (updateError) throw updateError;
+      setNotice(retired ? 'Question discontinued for new matches.' : 'Question restored to the playable bank.');
+      await loadPage();
+      await loadCharacters();
+    } catch (updateError) { setError(errorMessage(updateError)); }
+    finally { setBusy(false); }
+  };
+
   const totalApproved = page?.counts.reduce((sum, count) => sum + count.approved, 0) || 0;
   const canActivate = Boolean(page?.counts.length === 5 && page.counts.every((count) => count.approved >= 10));
   const visiblePending = page?.questions.filter((question) => question.review_status === 'pending') || [];
@@ -137,8 +159,13 @@ export function InstructorJourneyReview() {
     {open && <div className="mt-4 space-y-4">
       {characters.length > 0 && <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-[10rem] flex-1 text-xs text-stone">Character
-          <select className="input-field mt-1" value={slug} onChange={(event) => { setSlug(event.target.value); setOffset(0); }}>
+          <select className="input-field mt-1" value={slug} onChange={(event) => { setSlug(event.target.value); setSetName(''); setOffset(0); }}>
             {characters.map((character) => <option key={character.slug} value={character.slug}>{character.displayName}</option>)}
+          </select>
+        </label>
+        <label className="min-w-[8rem] flex-1 text-xs text-stone">Set
+          <select className="input-field mt-1" value={setName} onChange={(event) => { setSetName(event.target.value); setOffset(0); }}>
+            <option value="">All sets</option>{page?.sets.map((set) => <option key={set.name} value={set.name}>{set.name} ({set.total})</option>)}
           </select>
         </label>
         <label className="min-w-[8rem] flex-1 text-xs text-stone">Stage
@@ -150,15 +177,17 @@ export function InstructorJourneyReview() {
         <label className="min-w-[8rem] flex-1 text-xs text-stone">Review
           <select className="input-field mt-1" value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setOffset(0); }}>
             <option value="pending">Pending</option><option value="approved">Approved</option>
-            <option value="rejected">Rejected</option><option value="all">All</option>
+            <option value="rejected">Rejected</option><option value="discontinued">Discontinued</option><option value="all">All</option>
           </select>
         </label>
         <button type="button" title="Refresh questions" aria-label="Refresh questions" className="btn-secondary h-10 w-10 p-0" onClick={() => void loadPage()} disabled={loading}><RotateCw size={16} /></button>
       </div>}
 
+      {slug && <InstructorJourneyImport key={slug} slug={slug} onImported={async () => { setStatus('pending'); setSetName(''); setOffset(0); await loadPage(); }} />}
+
       {page && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-stone">
         {page.counts.map((count) => <span key={count.stage} className={count.approved >= 10 ? 'text-sage' : ''}>
-          Stage {count.stage}: {count.approved} approved · {count.pending} pending
+          Stage {count.stage}: {count.approved} active · {count.pending} pending{count.discontinued ? ` · ${count.discontinued} discontinued` : ''}
         </span>)}
       </div>}
       {page && <div className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-xs text-stone">
@@ -184,7 +213,7 @@ export function InstructorJourneyReview() {
           {question.review_status === 'pending' && <input type="checkbox" className="mt-1" aria-label={`Select question ${question.source_number ?? question.id}`}
             checked={selected.includes(question.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, question.id] : current.filter((id) => id !== question.id))} />}
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-stone">Stage {question.question_stage} · {question.question_type.replace(/_/g, ' ')} · #{question.source_number ?? 'new'} · {question.review_status}</p>
+            <p className="text-xs text-stone">{question.question_set_name} · Stage {question.question_stage} · {question.question_type.replace(/_/g, ' ')} · #{question.source_number ?? 'new'} · {question.retired_at ? 'discontinued' : question.review_status}</p>
             <p className="mt-1 whitespace-pre-wrap font-medium">{question.question_text}</p>
             {question.options.length > 0 && <ol className="mt-2 list-inside list-decimal space-y-1 text-xs text-stone">
               {question.options.map((option, index) => <li key={`${index}-${option}`}>{option}</li>)}
@@ -202,6 +231,11 @@ export function InstructorJourneyReview() {
         {question.review_status === 'pending' && <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => void decide([question.id], 'rejected')}><X size={14} /> Reject</button>
           <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void decide([question.id], 'approved')}><Check size={14} /> Approve</button>
+        </div>}
+        {question.review_status === 'approved' && <div className="flex justify-end">
+          <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => void setRetired(question, !question.retired_at)}>
+            {question.retired_at ? 'Restore question' : 'Discontinue question'}
+          </button>
         </div>}
       </article>)}
       {!loading && page?.questions.length === 0 && <p className="py-4 text-sm text-stone">No questions in this view.</p>}

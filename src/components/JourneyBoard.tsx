@@ -75,8 +75,9 @@ export function JourneyBoard({ game, profiles, viewerId, config = DEFAULT_JOURNE
     if (!scrollRef.current || !currentPlayer) return;
     const point = pointFor(currentPlayer.location);
     const container = scrollRef.current;
-    const left = Math.max(0, point.x * zoom - container.clientWidth / 2);
-    const top = Math.max(0, point.y * zoom - container.clientHeight / 2);
+    const scale = container.clientWidth * zoom / BOARD_WIDTH;
+    const left = Math.max(0, point.x * scale - container.clientWidth / 2);
+    const top = Math.max(0, point.y * scale - container.clientHeight / 2);
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     container.scrollTo({ left, top, behavior: reduceMotion ? 'instant' : 'smooth' });
   }, [currentPlayer, zoom]);
@@ -111,17 +112,22 @@ export function JourneyBoard({ game, profiles, viewerId, config = DEFAULT_JOURNE
         <p className="font-display text-sm font-bold text-ink">The Biblical Journey</p>
         <p className="truncate text-xs text-stone" aria-live="polite">{currentPlayer ? profiles[currentPlayer.id]?.name || 'Player' : 'Player'} · {currentLabel}</p>
       </div>
-      <div className="flex items-center gap-1" aria-label="Board zoom controls">
-        <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.4, +(value - 0.2).toFixed(1)))} className="btn-ghost h-9 w-9 p-0"><Minus size={16} /></button>
-        <input type="range" min="0.4" max="1.8" step="0.1" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="Board zoom" className="w-20 accent-gold" />
-        <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(1.8, +(value + 0.2).toFixed(1)))} className="btn-ghost h-9 w-9 p-0"><Plus size={16} /></button>
-        <button type="button" title="Full board overview" aria-label="Full board overview" onClick={() => { setZoom(0.4); scrollRef.current?.scrollTo({ left: 0, top: 0 }); }} className="btn-ghost h-9 w-9 p-0"><Maximize2 size={16} /></button>
+      <div className="flex items-center gap-1" aria-label="Board controls">
+        {isMyTurn && currentPlayer.location.route === 'prison' && onServePrisonTurn ?
+          <button type="button" onClick={onServePrisonTurn} className="btn-primary h-9 justify-center px-2 text-xs" title="Serve prison turn"><RotateCcw size={16} /> Serve turn</button> :
+          <div className="flex h-9 min-w-12 items-center justify-center gap-1 rounded-md border border-gold/50 bg-navy-2 px-2 font-display font-bold tabular-nums text-brass" aria-label={rolling ? 'Rolling the die' : dieValue ? `Last die: ${dieValue}` : 'Die ready'}>
+            <Dices size={20} className={rolling ? 'animate-spin' : ''} aria-hidden="true" /><span>{rolling ? '-' : dieValue || '-'}</span>
+          </div>}
+        <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(1, +(value - 0.25).toFixed(2)))} className="btn-ghost h-9 w-9 p-0"><Minus size={16} /></button>
+        <input type="range" min="1" max="2.5" step="0.25" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} aria-label="Board zoom" className="hidden w-16 accent-gold sm:block" />
+        <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(2.5, +(value + 0.25).toFixed(2)))} className="btn-ghost h-9 w-9 p-0"><Plus size={16} /></button>
+        <button type="button" title="Full board overview" aria-label="Full board overview" onClick={() => { setZoom(1); scrollRef.current?.scrollTo({ left: 0, top: 0 }); }} className="btn-ghost h-9 w-9 p-0"><Maximize2 size={16} /></button>
       </div>
     </div>
 
-    <div ref={scrollRef} className="relative h-[min(68dvh,42rem)] overflow-auto rounded-md border border-brass/45 bg-navy-2 overscroll-contain" style={{ touchAction: 'pan-x pan-y' }}>
-      <div className="relative" style={{ width: BOARD_WIDTH * zoom, height: BOARD_HEIGHT * zoom }}>
-        <svg viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} width={BOARD_WIDTH * zoom} height={BOARD_HEIGHT * zoom} role="img" aria-label="Fifty-one-space serpentine journey board with a ten-space central loop and two prisons">
+    <div ref={scrollRef} className="relative aspect-[1030/780] w-full overflow-auto rounded-md border border-brass/45 bg-navy-2 overscroll-contain" style={{ touchAction: 'pan-x pan-y' }}>
+      <div className="relative" style={{ width: `${zoom * 100}%`, aspectRatio: `${BOARD_WIDTH} / ${BOARD_HEIGHT}` }}>
+        <svg viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} width="100%" height="100%" role="img" aria-label="Fifty-one-space serpentine journey board with a ten-space central loop and two prisons">
           <defs>
             <pattern id="journey-dot-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#b8c8df" opacity="0.13" /></pattern>
             <marker id="journey-arrow" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M1 1L6 3.5 1 6" fill="none" stroke="#e5bd61" strokeWidth="1.5" /></marker>
@@ -188,14 +194,6 @@ export function JourneyBoard({ game, profiles, viewerId, config = DEFAULT_JOURNE
             </g>;
           })}
         </svg>
-        <div className="absolute left-[45.5%] top-[58%] flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-md border border-gold/60 bg-navy-2/90" style={{ scale: Math.max(0.5, zoom) }}>
-          {isMyTurn && currentPlayer.location.route === 'prison' && onServePrisonTurn ?
-            <button type="button" onClick={onServePrisonTurn} className="btn-primary h-14 w-14 justify-center p-0" title="Serve prison turn" aria-label="Serve prison turn"><RotateCcw size={20} /></button> :
-            <div className="flex flex-col items-center text-brass" aria-label={rolling ? 'Rolling the die' : dieValue ? `Last die: ${dieValue}` : 'Die ready'}>
-              <Dices size={27} className={rolling ? 'animate-spin' : ''} aria-hidden="true" />
-              <span className="font-display text-sm font-bold tabular-nums">{rolling ? '-' : dieValue || '-'}</span>
-            </div>}
-        </div>
       </div>
     </div>
 
