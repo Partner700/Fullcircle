@@ -1,3 +1,4 @@
+import { readableFetch } from "./connectionErrors";
 import { supabase, supabaseAnonKey, supabaseUrl } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
@@ -2775,7 +2776,7 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new Error('You must be signed in to start checkout.');
 
-  const res = await fetch(fnUrl, {
+  const res = await readableFetch(fnUrl, {
     method: 'POST',
     headers: {
       apikey: supabaseAnonKey,
@@ -2834,7 +2835,7 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
   const userId = sessionData.session?.user.id;
   if (!accessToken || !userId) throw new Error('You must be signed in to view subscription checkout.');
 
-  const response = await fetch(fnUrl, {
+  const response = await readableFetch(fnUrl, {
     method: 'POST',
     headers: {
       apikey: supabaseAnonKey,
@@ -2894,7 +2895,7 @@ export async function verifyCampayPayment(reference: string) {
   const fnUrl = `${supabaseUrl}/functions/v1/campay-webhook`;
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
-  const res = await fetch(fnUrl, {
+  const res = await readableFetch(fnUrl, {
     method: 'POST',
     headers: {
       apikey: supabaseAnonKey,
@@ -3594,7 +3595,7 @@ export async function prepareArenaQuestionDeck(payload: {
   const token = sessionData.session?.access_token;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before preparing the Arena.');
 
-  const res = await fetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
+  const res = await readableFetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -3624,7 +3625,7 @@ export async function generateInstructorQuestionsWithAI(payload: {
   const token = sessionData.session?.access_token;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before generating questions.');
   try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
+    const response = await readableFetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -3656,7 +3657,7 @@ async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHo
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again to continue The Road Home.');
-  const response = await fetch(`${supabaseUrl}/functions/v1/road-home-game`, {
+  const response = await readableFetch(`${supabaseUrl}/functions/v1/road-home-game`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

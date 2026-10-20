@@ -8,6 +8,7 @@ import {
   publicJourneyRuntime,
   serveJourneySentence,
   machineJourneyMayAct,
+  rollJourneyDie,
   type JourneyQuestion,
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
@@ -19,7 +20,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '202',
+  'X-Full-Circle-Journey-Release': '204',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -141,7 +142,7 @@ Deno.serve(async (request) => {
     const roomId = String(body?.roomId || '');
     const action = String(body?.action || 'GET').toUpperCase();
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['GET', 'INIT', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT'].includes(action)) {
+    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
     const context = await roomContext(roomId);
@@ -209,6 +210,8 @@ Deno.serve(async (request) => {
       }
       next = await advanceMachineJourney(previous, approvedQuestion, secureRandom,
         machineAccuracy(String(context.room.room_name)));
+    } else if (action === 'ROLL') {
+      next = rollJourneyDie(previous, actorId, secureRandom);
     } else if (action === 'ANSWER') {
       const answer = String(body.answer || '').slice(0, 2000);
       next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom);
@@ -231,7 +234,7 @@ Deno.serve(async (request) => {
       duplicate: result.duplicate });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Journey server could not complete that action.';
-    const known = /not open for you|not this player's turn|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
+    const known = /not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
     if (!known) console.error('Biblical Journey action failed:', error);
     return json({ error: known ? message : 'The Journey could not advance. Try again.' }, known ? 409 : 500);
   }

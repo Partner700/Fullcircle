@@ -43,10 +43,14 @@ export type JourneyRuntime = {
   currentQuestionPlayerId: string | null;
   questionDeadline: string | null;
   lastVerdict: JourneyVerdict | null;
+  awaitingRoll?: boolean;
+  pendingDie?: number | null;
+  questionOpensAt?: string | null;
 };
 
 export const JOURNEY_QUESTION_SECONDS = 30;
 export const JOURNEY_VERDICT_MS = 3200;
+export const JOURNEY_ROLL_REVEAL_MS = 1800;
 
 export type JourneyPublicState = Omit<JourneyRuntime, 'questionIdsByStage' | 'usedQuestionIds' | 'currentQuestion'> & {
   currentQuestion: Pick<JourneyQuestion, 'id' | 'stage' | 'type' | 'question' | 'options'> | null;
@@ -82,6 +86,9 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
   runtime.currentQuestion = null;
   runtime.currentQuestionPlayerId = null;
   runtime.questionDeadline = null;
+  runtime.questionOpensAt = null;
+  runtime.awaitingRoll = false;
+  runtime.pendingDie = null;
   if (runtime.game.status !== 'playing') return;
   const pending = runtime.game.pendingAction;
   if (pending?.kind === 'choice') return;
@@ -104,7 +111,11 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
     if (!question || question.stage !== stage) continue;
     runtime.currentQuestion = question;
     runtime.currentQuestionPlayerId = player.id;
-    runtime.questionDeadline = new Date(Date.now() + handoffMs + JOURNEY_QUESTION_SECONDS * 1000).toISOString();
+    runtime.awaitingRoll = !pending;
+    if (pending) {
+      runtime.questionOpensAt = new Date(Date.now() + handoffMs).toISOString();
+      runtime.questionDeadline = new Date(Date.now() + handoffMs + JOURNEY_QUESTION_SECONDS * 1000).toISOString();
+    }
     runtime.usedQuestionIds.push(id);
     return;
   }
@@ -134,23 +145,41 @@ export async function createJourneyRuntime(characterSlug: string, playerIds: str
   return runtime;
 }
 
+export function rollJourneyDie(original: JourneyRuntime, actorId: string, random: () => number): JourneyRuntime {
+  if (!original.awaitingRoll || original.game.status !== 'playing' || original.game.pendingAction
+    || original.game.players[original.game.turnIndex]?.id !== actorId || original.currentQuestionPlayerId !== actorId
+    || original.game.players[original.game.turnIndex].location.route === 'prison') {
+    throw new Error('It is not your turn to roll.');
+  }
+  const next = structuredClone(original);
+  next.pendingDie = randomIndex(6, random) + 1;
+  next.awaitingRoll = false;
+  next.lastVerdict = null;
+  next.questionOpensAt = new Date(Date.now() + JOURNEY_ROLL_REVEAL_MS).toISOString();
+  next.questionDeadline = new Date(Date.parse(next.questionOpensAt) + JOURNEY_QUESTION_SECONDS * 1000).toISOString();
+  next.game.version += 1;
+  return next;
+}
+
 export async function answerJourneyQuestion(original: JourneyRuntime, actorId: string, answer: string,
   lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
-  if (!question || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
+  if (!question || original.awaitingRoll || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
     throw new Error('This question is not open for you.');
   }
+  if (original.questionOpensAt && Date.now() < Date.parse(original.questionOpensAt)) throw new Error('Wait for the question to open.');
   const expired = Boolean(original.questionDeadline && Date.now() >= Date.parse(original.questionDeadline));
   if (!expired && !answer.trim()) throw new Error('Enter an answer before time runs out.');
   const submittedAnswer = expired ? 'Time expired' : answer;
   const correct = !expired && journeyAnswerIsCorrect(question, answer);
   const pending = original.game.pendingAction;
   const next = structuredClone(original);
-  let die: number | null = null;
+  let die: number | null = original.pendingDie || null;
   if (pending?.kind === 'trial') {
     next.game = resolveJourneyAction(next.game, actorId, correct ? 0 : 1);
   } else if (correct) {
-    die = randomIndex(6, random) + 1;
+    // Existing matches without the new roll phase can finish their current question.
+    die = original.pendingDie || randomIndex(6, random) + 1;
     next.game = resolveJourneyRoll(next.game, actorId, die);
   } else {
     next.game = resolveJourneyMiss(next.game, actorId);
@@ -207,6 +236,7 @@ export async function advanceMachineJourney(original: JourneyRuntime, lookup: Jo
     throw new Error('It is not The Scribe\'s turn.');
   }
   if (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1) throw new Error('Invalid machine accuracy.');
+  if (original.awaitingRoll) return rollJourneyDie(original, JOURNEY_MACHINE_ID, random);
   if (original.game.pendingAction?.kind === 'choice') {
     return chooseJourneyPenalty(original, JOURNEY_MACHINE_ID, random() < 0.5 ? 0 : 1, lookup, random);
   }
@@ -234,7 +264,10 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
     currentQuestionPlayerId: runtime.currentQuestionPlayerId,
     questionDeadline: runtime.questionDeadline || null,
     lastVerdict: runtime.lastVerdict,
-    currentQuestion: currentQuestion ? {
+    awaitingRoll: runtime.awaitingRoll || false,
+    pendingDie: runtime.pendingDie || null,
+    questionOpensAt: runtime.questionOpensAt || null,
+    currentQuestion: currentQuestion && !runtime.awaitingRoll ? {
       id: currentQuestion.id, stage: currentQuestion.stage, type: currentQuestion.type,
       question: currentQuestion.question, options: currentQuestion.options,
     } : null,

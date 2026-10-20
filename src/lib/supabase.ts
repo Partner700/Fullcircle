@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createEgressDiagnostics } from './egressDiagnostics';
+import { connectionError, readableFetch } from './connectionErrors';
 
 const diagnostics = import.meta.env.DEV ? createEgressDiagnostics() : null;
 if (diagnostics && typeof window !== 'undefined') {
@@ -61,7 +62,7 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
       const requestInput = typeof Request !== 'undefined' && input instanceof Request
         ? input.clone()
         : input;
-      const response = await fetch(requestInput, { ...init, signal: controller.signal });
+      const response = await readableFetch(requestInput, { ...init, signal: controller.signal });
       await waitForApiBody(response, method);
       void diagnostics?.record(input, method, response, Date.now() - startedAt).catch(() => undefined);
       if (canRetry && attempt === 0 && RETRYABLE_RESPONSE_STATUSES.has(response.status)) {
@@ -72,7 +73,9 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
     } catch (error) {
       void diagnostics?.record(input, method, null, Date.now() - startedAt).catch(() => undefined);
       lastError = error;
-      if (!canRetry || attempt === attempts - 1 || upstreamSignal?.aborted) throw error;
+      if (!canRetry || attempt === attempts - 1 || upstreamSignal?.aborted) {
+        throw connectionError(error, { timedOut: controller.signal.aborted && !upstreamSignal?.aborted });
+      }
       await pause(350);
     } finally {
       window.clearTimeout(timeout);

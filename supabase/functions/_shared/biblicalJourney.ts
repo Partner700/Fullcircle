@@ -22,6 +22,7 @@ export type JourneyEffect =
 export type JourneyTrap = { id: string; name: string; effect: JourneyEffect };
 export type JourneyConfig = {
   finishSpace: 51;
+  winningLaps: number;
   finalChallengeSpace: 50;
   loopLength: number;
   loopEntrances: [number, number];
@@ -45,6 +46,7 @@ export type JourneyPlayer = {
   savedLocation: JourneyLocation | null;
   pendingEffects: JourneyEffect[];
   correctAnswers: number;
+  completedLaps?: number;
 };
 
 export type JourneyEvent = {
@@ -118,6 +120,7 @@ export const JOURNEY_TRAP_LIBRARY: Record<string, JourneyTrap> = {
 
 export const DEFAULT_JOURNEY_CONFIG: JourneyConfig = {
   finishSpace: 51,
+  winningLaps: 3,
   finalChallengeSpace: 50,
   loopLength: 10,
   loopEntrances: [23, 30],
@@ -150,7 +153,7 @@ export function createJourneyGame(playerIds: string[]): JourneyGame {
     players: playerIds.map((id) => ({
       id, location: main(1), status: 'ACTIVE', loopEntryMainSpace: null,
       completedLoopCircuits: 0, loopEscapes: 0, prisonTurnsRemaining: 0,
-      savedLocation: null, pendingEffects: [], correctAnswers: 0,
+      savedLocation: null, pendingEffects: [], correctAnswers: 0, completedLaps: 0,
     })),
     turnIndex: 0, status: 'playing', winnerId: null, pendingAction: null, events: [], version: 0,
   };
@@ -252,7 +255,8 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
       case 'swap': {
         if (player.location.route !== 'main') break;
         const candidates = game.players.filter((other) => other.id !== player.id && other.location.route === 'main' && other.status !== 'FINISHED');
-        candidates.sort((a, b) => (a.location as { space: number }).space - (b.location as { space: number }).space);
+        candidates.sort((a, b) => ((a.completedLaps || 0) - (b.completedLaps || 0)) * config.finishSpace
+          + (a.location as { space: number }).space - (b.location as { space: number }).space);
         const opponent = effect.opponent === 'last' ? candidates[0] : candidates[candidates.length - 1];
         if (!opponent) break;
         const opponentPrevious = structuredClone(opponent.location);
@@ -334,29 +338,30 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
         promoted ? 'reveal' : 'forward');
     }
   } else {
-    const target = player.location.space + die;
-    if (target > config.finishSpace) {
-      record(game, player, 'die', 'overshoot', previous, 'none');
-    } else {
-      player.location = main(target);
-      record(game, player, 'die', 'main-move', previous, 'forward');
-      if (target !== config.finishSpace) {
-        const effect = landingEffect(config, player);
-        if (effect) resolveEffects(game, config, [effect]);
-      }
+    const progress = player.location.space - 1 + die;
+    const crossedStart = Math.floor(progress / config.finishSpace);
+    player.completedLaps = (player.completedLaps || 0) + crossedStart;
+    const won = player.completedLaps >= config.winningLaps;
+    player.location = main(won ? 1 : progress % config.finishSpace + 1);
+    record(game, player, 'die', 'main-move', previous, 'forward');
+    if (crossedStart) record(game, player, 'lap-complete', 'lap', previous, 'reveal');
+    // The race ends as the third earned lap crosses Start, before any further square.
+    if (won) {
+      player.status = 'FINISHED';
+      game.status = 'finished';
+      game.winnerId = player.id;
+      record(game, player, 'qualifying-finish', 'victory', player.location, 'reveal');
+      game.version += 1;
+      return game;
     }
+    const effect = landingEffect(config, player);
+    if (effect) resolveEffects(game, config, [effect]);
   }
   if (game.pendingAction) {
     player.pendingEffects.unshift(...dueEffects);
   } else {
     if (dueEffects.length && player.location.route !== 'prison') {
       resolveEffects(game, config, dueEffects.map((effect, index) => ({ playerId, source: 'delayed-penalty', effect, key: `delayed:${index}` })));
-    }
-    if (!game.pendingAction && player.location.route === 'main' && player.location.space === config.finishSpace) {
-      player.status = 'FINISHED';
-      game.status = 'finished';
-      game.winnerId = player.id;
-      record(game, player, 'qualifying-finish', 'victory', player.location, 'reveal');
     }
     if (!game.pendingAction) nextTurn(game);
   }

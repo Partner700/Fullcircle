@@ -1,0 +1,80 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const output = process.env.JOURNEY_SCREENSHOTS || '/tmp/full-circle-journey-204';
+const origin = process.env.JOURNEY_TEST_URL || 'http://127.0.0.1:5177';
+
+(async () => {
+  await fs.mkdir(output, { recursive: true });
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_EXECUTABLE });
+  try {
+    for (const [width, height] of [[320, 568], [390, 844], [1280, 900], [844, 390]]) {
+      const page = await browser.newPage({ viewport: { width, height } });
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.route('**/*', (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+      await page.goto(`${origin}/scripts/fixtures/journey.html`);
+      await page.getByRole('button', { name: 'Roll the Arena die' }).waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      assert.equal(await page.locator('.journey-square').count(), 63);
+      const bounds = await page.locator('.journey-board').boundingBox();
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, 'Full board fits horizontally');
+      assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= height, `Full board fits vertically ${width}x${height}`);
+      const overlaps = await page.locator('.journey-square').evaluateAll((tiles) => {
+        const boxes = tiles.map((tile) => tile.getBoundingClientRect());
+        return boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1));
+      });
+      assert.equal(overlaps.length, 0, 'No overlapping squares');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      await page.screenshot({ path: path.join(output, `board-${width}.png`), fullPage: true });
+      await page.getByRole('button', { name: 'Roll the Arena die' }).click();
+      await page.getByRole('button', { name: 'You played 1' }).waitFor();
+      assert.equal(await page.getByRole('dialog', { name: 'Biblical Journey question', exact: true }).count(), 0, 'Die result precedes question');
+      await page.getByRole('dialog', { name: 'Biblical Journey question', exact: true }).waitFor();
+      await page.waitForFunction(() => Number(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')) > 0);
+      const seconds = Number(await page.getByRole('progressbar').getAttribute('aria-valuenow'));
+      assert.ok(seconds > 0 && seconds <= 30);
+      await page.screenshot({ path: path.join(output, `question-${width}.png`), fullPage: true });
+      await page.getByRole('button', { name: 'Open match chat', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Arena match chat' }).waitFor();
+      await page.getByRole('button', { name: 'Close match chat' }).click();
+      await page.getByRole('button', { name: 'A. A double portion of his spirit', exact: true }).click();
+      await page.getByRole('button', { name: 'Submit answer' }).click();
+      await page.getByRole('dialog', { name: 'Answer result' }).waitFor();
+      assert.ok(await page.getByRole('heading', { name: 'Correct answer' }).isVisible());
+      await page.screenshot({ path: path.join(output, `verdict-${width}.png`), fullPage: true });
+      assert.deepEqual(errors, []);
+      await page.close();
+      console.log(`Board, dice reveal, question, chat and verdict passed at ${width}x${height}`);
+    }
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.route('**/*', (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+    await page.goto(`${origin}/scripts/fixtures/journey.html?witness`);
+    await page.getByRole('button', { name: 'Hide question', exact: true }).click();
+    assert.equal(await page.getByRole('dialog', { name: 'Biblical Journey question', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Open match chat', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Arena match chat' }).waitFor();
+    await page.getByRole('button', { name: 'Close match chat' }).click();
+    await page.getByRole('button', { name: 'Show question', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Biblical Journey question', exact: true }).waitFor();
+    await page.goto(`${origin}/scripts/fixtures/journey.html?trap`);
+    await page.getByRole('button', { name: 'Roll the Arena die' }).click();
+    await page.getByRole('button', { name: 'A. A double portion of his spirit', exact: true }).click();
+    await page.getByRole('button', { name: 'Submit answer' }).click();
+    await page.getByRole('dialog', { name: 'Answer result' }).getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('dialog', { name: 'Ten Steps Forward' }).waitFor();
+    await page.screenshot({ path: path.join(output, 'special-square.png'), fullPage: true });
+    await page.goto(`${origin}/scripts/fixtures/journey.html?machine`);
+    await page.getByRole('button', { name: 'Roll the Arena die' }).click();
+    await page.getByRole('button', { name: 'A. A double portion of his spirit', exact: true }).click();
+    await page.getByRole('button', { name: 'Submit answer' }).click();
+    await page.getByRole('dialog', { name: 'Answer result' }).getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('heading', { name: "The Scribe's turn" }).waitFor();
+    await page.getByRole('dialog', { name: 'Answer result' }).waitFor();
+    await page.getByRole('dialog', { name: 'Answer result' }).getByRole('button', { name: 'Continue' }).click();
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Roll the Arena die"]')?.disabled);
+    await page.close();
+    console.log('Witness dismissal, special-square explanation and full machine turn passed.');
+  } finally { await browser.close(); }
+})().catch((error) => { console.error(error); process.exitCode = 1; });

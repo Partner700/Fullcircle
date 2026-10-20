@@ -766,6 +766,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       return <div className="space-y-4">
         <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
         <JourneyGamePlay key={activeRoomId} roomId={activeRoomId} roomName={activeRoomName}
+          arenaImage={arenaImage}
           userId={profile!.id} players={arenaMatchupPlayers(activeRoom)} spectator={isSpectating}
           machine={activeRoom?.play_mode === 'machine'}
           onExit={() => clearActiveRoom(!isSpectating)}

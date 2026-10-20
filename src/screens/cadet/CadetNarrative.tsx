@@ -1,3 +1,4 @@
+import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
@@ -620,7 +621,7 @@ export function CadetNarrative({
     let cancelled = false;
     const fetchFullPassage = async () => {
       try {
-        const response = await fetch(`https://bible-api.com/${encodeURIComponent(narrative.scripture_reference)}?translation=${narrative.translation || 'web'}`);
+        const response = await readableFetch(`https://bible-api.com/${encodeURIComponent(narrative.scripture_reference)}?translation=${narrative.translation || 'web'}`);
         const data = await response.json();
         if (!response.ok || !Array.isArray(data.verses) || data.verses.length === 0) throw new Error('No verses');
         const notesByReference = new Map(savedVerses.map((verse) => [verse.reference, verse.meditation]));

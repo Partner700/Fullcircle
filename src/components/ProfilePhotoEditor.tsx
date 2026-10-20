@@ -1,3 +1,4 @@
+import { readableFetch } from "../lib/connectionErrors";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Check, Crop, Loader2, RotateCcw, X, ZoomIn } from 'lucide-react';
@@ -359,7 +360,7 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
 
     setLoadingCurrent(true);
     try {
-      const response = await fetch(avatarUrl, { cache: 'no-store' });
+      const response = await readableFetch(avatarUrl, { cache: 'no-store' });
       if (!response.ok) throw new Error('The current profile photo could not be opened.');
       const blob = await response.blob();
       const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';

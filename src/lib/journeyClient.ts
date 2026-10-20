@@ -1,5 +1,6 @@
 import { supabase, supabaseAnonKey, supabaseUrl } from './supabase';
 import type { JourneyPublicState } from '../../supabase/functions/_shared/biblicalJourneyRuntime';
+import { connectionError, readableFetch, userFacingError } from './connectionErrors';
 
 export type JourneyServerResponse = {
   state: JourneyPublicState | null;
@@ -17,7 +18,7 @@ export async function initializeJourney(roomId: string): Promise<JourneyServerRe
   return callJourneyServer({ roomId, action: 'INIT' }, true);
 }
 
-export async function sendJourneyCommand(roomId: string, action: 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT',
+export async function sendJourneyCommand(roomId: string, action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT',
   expectedVersion: number, commandId: string, payload: Record<string, unknown> = {}): Promise<JourneyServerResponse> {
   return callJourneyServer({ roomId, action, expectedVersion, commandId, ...payload }, true);
 }
@@ -28,7 +29,7 @@ async function callJourneyServer(body: Record<string, unknown>, requiresSignIn: 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 18_000);
   try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/biblical-journey`, {
+    const response = await readableFetch(`${supabaseUrl}/functions/v1/biblical-journey`, {
       method: 'POST',
       headers: {
         apikey: supabaseAnonKey,
@@ -41,14 +42,17 @@ async function callJourneyServer(body: Record<string, unknown>, requiresSignIn: 
     const raw = await response.text();
     let payload: JourneyServerResponse & { error?: string };
     try { payload = raw ? JSON.parse(raw) : { state: null }; }
-    catch { throw new Error('The Journey server returned an invalid response.'); }
+    catch { throw new Error('Full Circle could not open the match response. Please try again shortly.'); }
     if (!response.ok) {
-      const error = new Error(payload.error || 'The Journey could not advance.') as Error & { state?: JourneyPublicState | null; version?: number };
+      const error = new Error(userFacingError(payload.error, 'The Journey could not advance. Please try again.')) as Error & { state?: JourneyPublicState | null; version?: number };
       error.state = payload.state;
       error.version = payload.version;
       throw error;
     }
     return payload;
+  } catch (error) {
+    if (controller.signal.aborted) throw connectionError(error, { timedOut: true });
+    throw error;
   } finally {
     window.clearTimeout(timeout);
   }
