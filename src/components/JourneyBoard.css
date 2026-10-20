@@ -1,7 +1,8 @@
 .journey-board-wrap { width: 100%; min-width: 0; }
 .journey-board { position: relative; width: min(100%, 40rem, calc(100svh - 11rem)); aspect-ratio: 1; margin: auto; overflow: hidden; border: 2px solid #b49754; border-radius: 8px; background: #14253d; box-shadow: inset 0 0 0 5px #20334b; color: #edf0fb; }
 .journey-connectors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.journey-square { position: absolute; transform: translate(-50%, -50%); width: 6.45%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border: 1px solid #65758d; border-top-width: 2px; border-radius: 2px; background: #273d59; color: #d2dcef; padding: 0; transition: box-shadow 180ms; }
+.journey-square { position: absolute; transform: translate(-50%, -50%); width: 7.3%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border: 1px solid #65758d; border-top-width: 2px; border-radius: 2px; background: #273d59; color: #d2dcef; padding: 0; transition: box-shadow 180ms; }
+.journey-board-legacy .journey-square { width: 6.45%; }
 .journey-square:focus-visible { outline: 2px solid white; outline-offset: 2px; z-index: 4; }
 .journey-square > svg { width: 44%; height: 44%; margin-top: 13%; }
 .journey-square-number { position: absolute; top: 0; left: 2px; font-size: 8px; line-height: 1.2; font-weight: 800; }
@@ -10,7 +11,6 @@
 .journey-green { background: #284b48; border-color: #87c5a6; color: #c0f0d5; }
 .journey-red { background: #55393f; border-color: #e39086; color: #ffc3b6; }
 .journey-grey { background: #535a66; border-color: #b8bdc7; color: #f0f1f4; }
-.journey-trials-square { width: 9.6%; }
 .journey-prison-square { width: 9%; aspect-ratio: 0.8; }
 .journey-occupied { box-shadow: 0 0 0 2px #f5d372; z-index: 2; }
 .journey-tokens { position: absolute; bottom: -2px; right: -2px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; z-index: 3; }
@@ -20,14 +20,14 @@
 .journey-board-title { position: absolute; top: 14%; left: 16%; right: 16%; text-align: center; display: grid; gap: 2px; line-height: 1.25; }
 .journey-board-title > span { font-size: 7px; color: #e8b958; font-weight: 700; }
 .journey-board-title > strong { font-family: var(--font-display); font-size: 14px; }
-.journey-trials-title { position: absolute; top: 32.2%; left: 28%; right: 28%; text-align: center; font-size: 9px; font-weight: 800; color: #d7dae1; }
-.journey-die-holder { position: absolute; left: 42%; top: 48.5%; width: 16%; height: 14%; }
+.journey-trials-title { position: absolute; top: 29.5%; left: 28%; right: 28%; text-align: center; font-size: 9px; font-weight: 800; color: #d7dae1; }
+.journey-die-holder { position: absolute; left: 38%; top: 45.2%; width: 24%; height: 22%; }
 .journey-die-holder .journey-die { width: 100%; height: 100%; border-radius: 6px; padding: 2px; box-shadow: none; }
 .journey-die > svg { width: 38%; height: 38%; }
 .journey-die > span:first-of-type { font-size: 18px; line-height: 1; margin: 0; }
 .journey-die > span:last-child { font-size: 7px; line-height: 1.2; }
 .journey-serve { width: 100%; height: 100%; display: grid; justify-items: center; align-content: center; gap: 3px; border: 1px solid #e8b958; border-radius: 4px; color: #f8d27b; background: #26334a; font-size: 8px; }
-.journey-turn-name { position: absolute; top: 75%; left: 14%; right: 14%; text-align: center; overflow-wrap: anywhere; font-weight: 700; font-size: 10px; }
+.journey-turn-name { position: absolute; top: 79.5%; left: 14%; right: 14%; text-align: center; overflow-wrap: anywhere; font-weight: 700; font-size: 10px; }
 .journey-square-detail { display: flex; align-items: flex-start; gap: 10px; max-width: 40rem; margin: 10px auto 0; border-bottom: 1px solid var(--color-border); padding: 8px 0; }
 .journey-square-detail > svg { flex-shrink: 0; color: #cba75c; }
 .journey-square-detail h3 { font-size: 14px; font-weight: 700; }

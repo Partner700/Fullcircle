@@ -20,7 +20,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '204',
+  'X-Full-Circle-Journey-Release': '205',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -141,6 +141,13 @@ Deno.serve(async (request) => {
     const body = await request.json();
     const roomId = String(body?.roomId || '');
     const action = String(body?.action || 'GET').toUpperCase();
+    if (action === 'CATALOG') {
+      // Public narrative metadata only. Pending questions and answer keys stay private.
+      const rows = await rest('arena_journey_characters?select=slug,display_name,ready&order=display_name.asc');
+      return json({ characters: (rows || []).map((row: { slug: string; display_name: string; ready: boolean }) => ({
+        slug: row.slug, displayName: row.display_name, ready: row.ready === true,
+      })) });
+    }
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
     if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
@@ -177,6 +184,8 @@ Deno.serve(async (request) => {
       }
       const prepared = await initialRuntime(roomId, context.characterSlug,
         [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])]);
+      // Older cached clients still draw 51 squares until they receive the new app.
+      if (body.boardSpaces !== 45) prepared.game.boardSpaces = 51;
       const state = await rest(machine ? 'rpc/initialize_machine_arena_journey_game' : 'rpc/initialize_arena_journey_game', {
         method: 'POST', body: JSON.stringify({
           p_room_id: roomId, p_character_slug: context.characterSlug, p_state: prepared,

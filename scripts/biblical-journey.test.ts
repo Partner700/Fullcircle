@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict';
 import {
-  createJourneyGame, DEFAULT_JOURNEY_CONFIG, JOURNEY_TRAP_LIBRARY,
+  createJourneyGame, LEGACY_JOURNEY_CONFIG as DEFAULT_JOURNEY_CONFIG, DEFAULT_JOURNEY_CONFIG as SMALL_BOARD_CONFIG, JOURNEY_TRAP_LIBRARY,
   journeyQuestionStage, resolveJourneyAction, resolveJourneyMiss, resolveJourneyRoll, serveJourneyPrisonTurn,
   type JourneyConfig, type JourneyGame, type JourneyLocation,
 } from '../supabase/functions/_shared/biblicalJourney.ts';
-import { JOURNEY_MAIN_POINTS, JOURNEY_LOOP_POINTS } from '../src/lib/journeyBoardLayout.ts';
+import { LEGACY_JOURNEY_MAIN_POINTS as JOURNEY_MAIN_POINTS, JOURNEY_MAIN_POINTS as SMALL_BOARD_POINTS, JOURNEY_LOOP_POINTS } from '../src/lib/journeyBoardLayout.ts';
+import { journeyEventSquare } from '../src/lib/journeyPresentation.ts';
 
 const plain = (): JourneyConfig => ({ ...DEFAULT_JOURNEY_CONFIG, traps: {} });
 const located = (location: JourneyLocation, playerIds = ['alpha']): JourneyGame => {
   const game = createJourneyGame(playerIds);
+  delete game.boardSpaces;
   game.players[0].location = location;
   game.players[0].status = location.route === 'loop' ? 'TRAPPED_IN_LOOP' : location.route === 'prison' ? 'IN_HOLDING_PRISON' : 'ACTIVE';
   return game;
@@ -19,7 +21,7 @@ assert.equal(JOURNEY_MAIN_POINTS.length, 51);
 assert.equal(JOURNEY_LOOP_POINTS.length, 10);
 assert.equal(new Set(JOURNEY_MAIN_POINTS.map(({ x, y }) => `${x}:${y}`)).size, 51);
 assert.ok(JOURNEY_MAIN_POINTS.every(({ x, y }) => x === 32 || x === 688 || y === 32 || y === 688));
-assert.ok(JOURNEY_LOOP_POINTS.every(({ x, y }) => x === 240 || x === 480 || y === 310 || y === 490));
+assert.ok(JOURNEY_LOOP_POINTS.every(({ x, y }) => x === 200 || x === 520 || y === 285 || y === 525));
 assert.equal(DEFAULT_JOURNEY_CONFIG.winningLaps, 3);
 assert.equal(new Set(DEFAULT_JOURNEY_CONFIG.loopEntrances).size, 2);
 assert.notEqual(DEFAULT_JOURNEY_CONFIG.ordinaryExit, DEFAULT_JOURNEY_CONFIG.surpriseExit);
@@ -194,3 +196,47 @@ assert.ok(longMatch.events[0].sequence > 1);
 assert.equal(longMatch.events.at(-1)?.sequence, longMatch.events[0].sequence + 99);
 
 console.log('Biblical Journey rules, routes, traps, prisons, chains, and finish tests passed.');
+
+assert.equal(SMALL_BOARD_CONFIG.finishSpace, 45);
+assert.equal(SMALL_BOARD_POINTS.length, 45);
+assert.equal(new Set(SMALL_BOARD_POINTS.map(({ x, y }) => `${x}:${y}`)).size, 45);
+const smaller = (location: JourneyLocation) => {
+  const game = located(location);
+  game.boardSpaces = 45;
+  return game;
+};
+const lap45 = resolveJourneyRoll(smaller({ route: 'main', space: 45 }), 'alpha', 1);
+assert.equal(lap45.players[0].completedLaps, 1);
+assert.deepEqual(space(lap45), { route: 'main', space: 1 });
+const thirdLap45 = smaller({ route: 'main', space: 45 });
+thirdLap45.players[0].completedLaps = 2;
+assert.equal(resolveJourneyRoll(thirdLap45, 'alpha', 4).winnerId, 'alpha');
+for (const [start, die] of [[1, 1], [1, 5], [8, 2]]) {
+  const trials = smaller({ route: 'loop', space: start });
+  trials.players[0].correctAnswers = 7;
+  trials.players[0].loopEntryMainSpace = 26;
+  const answered = resolveJourneyRoll(trials, 'alpha', die);
+  assert.equal(answered.players[0].correctAnswers, 7, 'Trials moves and both exits award no points');
+  assert.equal(resolveJourneyMiss(trials, 'alpha').players[0].correctAnswers, 7);
+}
+const enter45 = resolveJourneyRoll(smaller({ route: 'main', space: 19 }), 'alpha', 1);
+assert.deepEqual(space(enter45), { route: 'loop', space: 1 });
+assert.equal(enter45.players[0].correctAnswers, 1, 'Entering from the main path still earns a point');
+assert.equal(journeyEventSquare(enter45.events.at(-1)!, SMALL_BOARD_CONFIG)?.tone, 'red');
+const bonus45 = resolveJourneyRoll(smaller({ route: 'main', space: 4 }), 'alpha', 1);
+assert.deepEqual(space(bonus45), { route: 'main', space: 15 });
+assert.equal(journeyEventSquare(bonus45.events.at(-1)!, SMALL_BOARD_CONFIG)?.tone, 'gold');
+const final45 = resolveJourneyRoll(smaller({ route: 'main', space: 43 }), 'alpha', 1);
+const pass45 = resolveJourneyAction(final45, 'alpha', 0);
+const fail45 = resolveJourneyAction(final45, 'alpha', 1);
+assert.equal(journeyEventSquare(pass45.events.at(-1)!, SMALL_BOARD_CONFIG)?.tone, 'gold');
+assert.equal(journeyEventSquare(fail45.events.at(-1)!, SMALL_BOARD_CONFIG)?.tone, 'red');
+assert.deepEqual(space(pass45), { route: 'main', space: 44 });
+const chain45 = resolveJourneyRoll(smaller({ route: 'main', space: 20 }), 'alpha', 1);
+assert.deepEqual(space(chain45), { route: 'prison', prison: 'deep' });
+const elevation45 = resolveJourneyRoll(smaller({ route: 'main', space: 35 }), 'alpha', 1);
+assert.deepEqual(space(elevation45), { route: 'main', space: 37 });
+const trialLoop = smaller({ route: 'loop', space: 2 });
+trialLoop.pendingAction = { playerId: 'alpha', kind: 'trial', source: 'main:44', choices: [{ kind: 'no_op' }, { kind: 'no_op' }] };
+assert.equal(resolveJourneyAction(trialLoop, 'alpha', 0).players[0].correctAnswers, 0);
+console.log('45-space board, legacy compatibility, Trials scoring and outcome colors passed.');

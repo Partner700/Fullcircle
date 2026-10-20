@@ -8,14 +8,24 @@ export type JourneyServerResponse = {
   unchanged?: boolean;
   needsInitialization?: boolean;
   duplicate?: boolean;
+  characters?: JourneyCharacter[];
 };
+
+export type JourneyCharacter = { slug: string; displayName: string; ready: boolean };
+
+export async function fetchJourneyCatalog(): Promise<JourneyCharacter[]> {
+  const response = await callJourneyServer({ action: 'CATALOG' }, false);
+  if (!Array.isArray(response.characters)) throw new Error('The narrative list could not load. Please try again.');
+  return response.characters.filter((item) => typeof item.slug === 'string' && typeof item.displayName === 'string')
+    .map((item) => ({ slug: item.slug, displayName: item.displayName, ready: item.ready === true }));
+}
 
 export async function fetchJourneyState(roomId: string, knownVersion?: number): Promise<JourneyServerResponse> {
   return callJourneyServer({ roomId, action: 'GET', knownVersion }, false);
 }
 
 export async function initializeJourney(roomId: string): Promise<JourneyServerResponse> {
-  return callJourneyServer({ roomId, action: 'INIT' }, true);
+  return callJourneyServer({ roomId, action: 'INIT', boardSpaces: 45 }, true);
 }
 
 export async function sendJourneyCommand(roomId: string, action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT',

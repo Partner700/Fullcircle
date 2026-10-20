@@ -26,7 +26,7 @@ export function journeySquare(location: JourneyLocation, config: JourneyConfig =
   if (location.route === 'loop') {
     if (location.space === config.surpriseExit) return { title: 'Surprise Card', description: 'Land exactly here to reveal your card.', icon: 'card', tone: 'gold', special: true };
     if (location.space === config.ordinaryExit) return { title: 'Escape', description: 'Leave the Trials. Return one square ahead of the entrance you used.', icon: 'escape', tone: 'green', special: true };
-    return { title: `Trials ${location.space}`, description: 'Follow the grey path. Passing an exit does not let you escape; you must land on it.', icon: 'trials', tone: 'grey', special: false };
+    return { title: `Trials ${location.space}`, description: 'Correct answers move you but earn no points in the Trials. Land exactly on an exit to escape.', icon: 'trials', tone: 'grey', special: false };
   }
   const space = location.space;
   if (space === 1) return { title: 'Start', description: `Cross Start with an earned roll to complete a lap. The first to complete ${config.winningLaps} laps wins. Transfers never add laps.`, icon: 'start', tone: 'green', special: true };
@@ -50,8 +50,20 @@ export function journeyEventSquare(event: JourneyEvent, config: JourneyConfig): 
   if (event.resolution === 'skipped') return null;
   if (event.source === 'lap-complete') return { title: 'Lap Complete', description: 'You crossed Start with an earned roll. Another lap is complete!', icon: 'start', tone: 'green', special: true };
   if (event.source === 'surprise-card') return { title: 'Surprise Promotion', description: `You escape the Trials and advance ${config.promotionBonus} extra main-path squares!`, icon: 'card', tone: 'gold', special: true };
-  if (event.source === 'ordinary-escape') return journeySquare({ route: 'loop', space: config.ordinaryExit }, config);
-  if (/^main:\d+$/.test(event.source)) return journeySquare({ route: 'main', space: Number(event.source.split(':')[1]) }, config);
+  if (event.source === 'ordinary-escape') return { ...journeySquare({ route: 'loop', space: config.ordinaryExit }, config), tone: 'gold' };
+  if (event.source === 'prison-release') return { title: 'Released', description: 'Your sentence is complete. You return to the board.', icon: 'escape', tone: 'gold', special: true };
+  if (/^main:\d+$/.test(event.source)) {
+    const square = journeySquare({ route: 'main', space: Number(event.source.split(':')[1]) }, config);
+    const bad = event.newLocation.route === 'prison' || event.newLocation.route === 'loop'
+      || event.animation === 'backward' || event.resolution === 'pending'
+      || (event.previousLocation.route === 'main' && event.newLocation.route === 'main' && event.newLocation.space < event.previousLocation.space);
+    const resolvedChallenge = square.icon === 'challenge' && event.resolution === 'applied';
+    return { ...square, tone: bad ? 'red' : 'gold',
+      ...(resolvedChallenge ? { title: bad ? 'Challenge Missed' : 'Challenge Passed',
+        description: event.newLocation.route === 'prison' ? journeyEffectDescription({ kind: 'prison', prison: event.newLocation.prison })
+          : event.newLocation.route === 'main' ? `You stay in the race on square ${event.newLocation.space}.` : square.description } : {}),
+    };
+  }
   if (event.source === 'die' && event.effectType === 'main-move' && event.newLocation.route === 'main'
     && (event.newLocation.space === config.finishSpace || config.milestones.some((item) => item.space === (event.newLocation as { space: number }).space))
     && !config.loopEntrances.includes(event.newLocation.space)) return journeySquare(event.newLocation, config);

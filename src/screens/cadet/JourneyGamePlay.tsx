@@ -13,7 +13,7 @@ import type { PanelImageSetting } from '../../lib/types';
 import { fetchJourneyState, initializeJourney, sendJourneyCommand, type JourneyServerResponse } from '../../lib/journeyClient';
 import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
 import { machineJourneyMayAct, type JourneyPublicState } from '../../../supabase/functions/_shared/biblicalJourneyRuntime';
-import { DEFAULT_JOURNEY_CONFIG, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
+import { DEFAULT_JOURNEY_CONFIG, journeyConfigForGame, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
 
 type Props = {
   roomId: string;
@@ -258,12 +258,13 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const profiles = useMemo(() => Object.fromEntries(roster.map((player) => [player.user_id, {
     name: player.display_name, avatarUrl: player.avatar_url,
   }])), [roster]);
+  const baseConfig = state ? journeyConfigForGame(state.game) : DEFAULT_JOURNEY_CONFIG;
   const boardConfig = useMemo(() => character?.narrativeBeats?.length === 7 ? {
-    ...DEFAULT_JOURNEY_CONFIG,
-    milestones: DEFAULT_JOURNEY_CONFIG.milestones.map((milestone, index) => ({
+    ...baseConfig,
+    milestones: baseConfig.milestones.map((milestone, index) => ({
       ...milestone, title: character.narrativeBeats[index],
     })),
-  } : DEFAULT_JOURNEY_CONFIG, [character]);
+  } : baseConfig, [character, baseConfig]);
 
   useEffect(() => {
     if (!state) return;
@@ -368,10 +369,10 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       </div>
     </div>}
 
-    {squareNotice && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} onClose={() => setSquareNotices((current) => current.slice(1))}>
-      <div className="flex items-center gap-3 text-brass"><JourneySquareIcon square={squareNotice.square} size={32} /><div><p className="text-xs text-stone">{squareNotice.name}</p><h3 className="font-display text-xl font-bold">{squareNotice.square.title}</h3></div></div>
+    {squareNotice && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
+      <div className={`flex items-center gap-3 ${squareNotice.square.tone === 'red' ? 'text-coral' : 'text-brass'}`}><JourneySquareIcon square={squareNotice.square} size={32} /><div><p className="text-xs text-stone">{squareNotice.name}</p><h3 className="font-display text-xl font-bold">{squareNotice.square.title}</h3></div></div>
       <p className="mt-4 text-sm leading-relaxed text-ink">{squareNotice.square.description}</p>
-      <button type="button" className="btn-primary mt-4 w-full justify-center" onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>
+      <button type="button" className={`mt-4 flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-bold ${squareNotice.square.tone === 'red' ? 'border border-coral bg-coral-soft text-coral' : 'btn-primary'}`} onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>
     </JourneyDialog>}
     <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher
       onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}

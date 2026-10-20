@@ -15,6 +15,7 @@ import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer'
 import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
 import { RoadHomeGame } from './RoadHomeGame';
 import { JourneyGamePlay } from './JourneyGamePlay';
+import { fetchJourneyCatalog, type JourneyCharacter } from '../../lib/journeyClient';
 import { arenaGameOptions, preferredArenaGameType } from '../../lib/arenaJourneyRollout';
 import { supabase } from '../../lib/supabase';
 import {
@@ -109,7 +110,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
   const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo' | 'journey'>('standard');
-  const [journeyCharacters, setJourneyCharacters] = useState<Array<{ slug: string; displayName: string }>>([]);
+  const [journeyCharacters, setJourneyCharacters] = useState<JourneyCharacter[]>([]);
   const [journeyCharacterSlug, setJourneyCharacterSlug] = useState('');
   const [journeyCatalogState, setJourneyCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [journeyCatalogRetry, setJourneyCatalogRetry] = useState(0);
@@ -296,15 +297,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     if (!profile || !showCreate) return;
     let active = true;
     setJourneyCatalogState('loading');
-    void supabase.rpc('list_ready_arena_journey_characters').then(({ data, error: catalogError }) => {
+    void fetchJourneyCatalog().then((catalog) => {
       if (!active) return;
-      if (catalogError) {
-        setJourneyCatalogState('error');
-        return;
-      }
-      const catalog = (data || []) as Array<{ slug: string; displayName: string }>;
       setJourneyCharacters(catalog);
-      setJourneyCharacterSlug((current) => catalog.some((item) => item.slug === current) ? current : catalog[0]?.slug || '');
+      setJourneyCharacterSlug((current) => catalog.some((item) => item.slug === current) ? current : catalog.find((item) => item.ready)?.slug || catalog[0]?.slug || '');
       setArenaGameType((current) => preferredArenaGameType(current, arenaOpponent, catalog.length));
       setJourneyCatalogState('ready');
     }, () => {
@@ -650,8 +646,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setCreating(true);
     setError(null);
     try {
-      if (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug)) {
-        throw new Error('Choose a ready Biblical Journey character.');
+      if (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) {
+        throw new Error('This narrative is awaiting instructor approval. Choose an approved narrative to play.');
       }
       const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
       const characterSuffix = arenaGameType === 'journey' ? ` [character:${journeyCharacterSlug}]` : '';
@@ -1083,7 +1079,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           )}
           {arenaGameType === 'journey' && <div>
             <label className="text-xs text-stone block mb-1">Biblical character</label>
-            <AppSelect value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} options={journeyCharacters.map((item) => ({ value: item.slug, label: item.displayName }))} />
+            <AppSelect value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} options={journeyCharacters.map((item) => ({ value: item.slug, label: item.displayName, description: item.ready ? 'Ready to play' : 'Awaiting instructor approval' }))} />
+            {journeyCharacters.some((item) => item.slug === journeyCharacterSlug && !item.ready) && <p className="mt-2 text-xs text-brass" role="status">Awaiting instructor approval</p>}
           </div>}
           {arenaOpponent === 'machine' && <div>
             <label className="text-xs text-stone block mb-1">Machine Difficulty</label>
@@ -1166,7 +1163,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             </div>
           </div>
           </>}
-          <button onClick={createRoom} disabled={creating || journeyCatalogState !== 'ready' || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
+          <button onClick={createRoom} disabled={creating || journeyCatalogState !== 'ready' || (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} {arenaOpponent === 'machine' ? 'Create Machine Match · 50 Ð' : `Create & Stake ${formatDenarii(stake)} Ð`}
           </button>
           {arenaOpponent === 'machine' ? <p className="text-xs text-stone">Machine matches charge only the fixed 50 Ð stake.</p> : <>

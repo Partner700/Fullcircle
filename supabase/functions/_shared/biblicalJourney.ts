@@ -21,9 +21,9 @@ export type JourneyEffect =
 
 export type JourneyTrap = { id: string; name: string; effect: JourneyEffect };
 export type JourneyConfig = {
-  finishSpace: 51;
+  finishSpace: number;
   winningLaps: number;
-  finalChallengeSpace: 50;
+  finalChallengeSpace: number;
   loopLength: number;
   loopEntrances: [number, number];
   ordinaryExit: number;
@@ -69,6 +69,7 @@ export type JourneyPendingAction = {
 } | null;
 
 export type JourneyGame = {
+  boardSpaces?: 45 | 51;
   players: JourneyPlayer[];
   turnIndex: number;
   status: 'playing' | 'finished';
@@ -118,7 +119,7 @@ export const JOURNEY_TRAP_LIBRARY: Record<string, JourneyTrap> = {
   great_collapse: { id: 'great_collapse', name: 'The Great Collapse', effect: { kind: 'sequence', effects: [{ kind: 'move', to: 1 }, { kind: 'prison', prison: 'deep' }] } },
 };
 
-export const DEFAULT_JOURNEY_CONFIG: JourneyConfig = {
+export const LEGACY_JOURNEY_CONFIG: JourneyConfig = {
   finishSpace: 51,
   winningLaps: 3,
   finalChallengeSpace: 50,
@@ -147,9 +148,35 @@ export const DEFAULT_JOURNEY_CONFIG: JourneyConfig = {
   ].map(([space, id]) => [Number(space), JOURNEY_TRAP_LIBRARY[String(id)]])),
 };
 
+export const DEFAULT_JOURNEY_CONFIG: JourneyConfig = {
+  ...LEGACY_JOURNEY_CONFIG,
+  finishSpace: 45,
+  finalChallengeSpace: 44,
+  loopEntrances: [20, 26],
+  milestones: LEGACY_JOURNEY_CONFIG.milestones.map((milestone, index) => ({
+    ...milestone, space: [1, 8, 14, 20, 27, 35, 42][index],
+  })),
+  traps: {
+    ...Object.fromEntries([
+      [5, 'ten_forward'], [10, 'captured'], [16, 'seven_behind'],
+      [23, 'great_exchange'], [28, 'dangerous_gift'], [31, 'great_fall'],
+      [33, 'condemned'], [34, 'collective_fall'], [39, 'almost_there'],
+      [40, 'trial'], [44, 'final_trial'],
+    ].map(([space, id]) => [Number(space), JOURNEY_TRAP_LIBRARY[String(id)]])),
+    21: { ...JOURNEY_TRAP_LIBRARY.chain, effect: { kind: 'move', to: 33, activateLanding: true } },
+    36: { ...JOURNEY_TRAP_LIBRARY.elevation, effect: { kind: 'move', to: 37 } },
+  },
+};
+
+// Matches saved before the smaller board keep their original route and traps.
+export function journeyConfigForGame(game: JourneyGame): JourneyConfig {
+  return game.boardSpaces === 45 ? DEFAULT_JOURNEY_CONFIG : LEGACY_JOURNEY_CONFIG;
+}
+
 export function createJourneyGame(playerIds: string[]): JourneyGame {
   if (playerIds.length < 1 || new Set(playerIds).size !== playerIds.length) throw new Error('Journey players must be unique.');
   return {
+    boardSpaces: 45,
     players: playerIds.map((id) => ({
       id, location: main(1), status: 'ACTIVE', loopEntryMainSpace: null,
       completedLoopCircuits: 0, loopEscapes: 0, prisonTurnsRemaining: 0,
@@ -307,7 +334,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
 }
 
 export function resolveJourneyRoll(original: JourneyGame, playerId: string, die: number,
-  config: JourneyConfig = DEFAULT_JOURNEY_CONFIG): JourneyGame {
+  config: JourneyConfig = journeyConfigForGame(original)): JourneyGame {
   if (!Number.isInteger(die) || die < 1 || die > 6) throw new Error('A die result must be between 1 and 6.');
   if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
@@ -316,7 +343,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
   const player = game.players[game.turnIndex];
   const previous = structuredClone(player.location);
   if (player.location.route === 'prison') throw new Error('A prisoner must serve a turn, not roll a die.');
-  player.correctAnswers += 1;
+  if (player.location.route === 'main') player.correctAnswers += 1;
   const dueEffects = player.pendingEffects.splice(0);
   if (player.location.route === 'loop') {
     const startIndex = player.location.space - 1;
@@ -383,7 +410,7 @@ export function resolveJourneyMiss(original: JourneyGame, playerId: string): Jou
 }
 
 export function serveJourneyPrisonTurn(original: JourneyGame, playerId: string,
-  config: JourneyConfig = DEFAULT_JOURNEY_CONFIG): JourneyGame {
+  config: JourneyConfig = journeyConfigForGame(original)): JourneyGame {
   if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
   }
@@ -413,7 +440,7 @@ export function serveJourneyPrisonTurn(original: JourneyGame, playerId: string,
 }
 
 export function resolveJourneyAction(original: JourneyGame, actorId: string, choice: 0 | 1,
-  config: JourneyConfig = DEFAULT_JOURNEY_CONFIG): JourneyGame {
+  config: JourneyConfig = journeyConfigForGame(original)): JourneyGame {
   const pending = original.pendingAction;
   if (!pending) throw new Error('There is no journey decision to resolve.');
   if (choice !== 0 && choice !== 1) throw new Error('Choose one of the two outcomes.');
@@ -425,7 +452,7 @@ export function resolveJourneyAction(original: JourneyGame, actorId: string, cho
   game.pendingAction = null;
   if (pending.kind === 'trial' && choice === 0) {
     const player = game.players.find((candidate) => candidate.id === pending.playerId);
-    if (player) player.correctAnswers += 1;
+    if (player?.location.route === 'main') player.correctAnswers += 1;
   }
   resolveEffects(game, config, [{ playerId: pending.playerId, source: pending.source, effect: pending.choices[choice], key: `${pending.kind}:${choice}` }]);
   if (!game.pendingAction) nextTurn(game);

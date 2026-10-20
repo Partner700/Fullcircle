@@ -89,14 +89,15 @@ await assert.rejects(() => expireJourneyQuestion(start, lookup, first), /not tim
 const loopStart = await createJourneyRuntime('elisha', ['alpha', 'beta'], catalog, lookup, first);
 loopStart.game.players[0].location = { route: 'loop', space: 1 };
 loopStart.game.players[0].status = 'TRAPPED_IN_LOOP';
-loopStart.game.players[0].loopEntryMainSpace = 30;
+loopStart.game.players[0].loopEntryMainSpace = 26;
 const loopMove = await answerJourneyQuestion(ready(loopStart), 'alpha', 'Correct', lookup, first);
+assert.equal(loopMove.game.players[0].correctAnswers, 0);
 const betaMove = await answerJourneyQuestion(ready(loopMove), 'beta', 'Incorrect', lookup, first);
 assert.equal(betaMove.currentQuestionPlayerId, 'alpha');
 assert.equal(betaMove.currentQuestion?.stage, 3);
 
 const trialStart = await createJourneyRuntime('elisha', ['alpha', 'beta'], catalog, lookup, first);
-trialStart.game.players[0].location = { route: 'main', space: 49 };
+trialStart.game.players[0].location = { route: 'main', space: 43 };
 const trial = await answerJourneyQuestion(ready(trialStart), 'alpha', 'Correct', lookup, first);
 assert.equal(trial.game.pendingAction?.kind, 'trial');
 assert.equal(trial.currentQuestion?.stage, 5);

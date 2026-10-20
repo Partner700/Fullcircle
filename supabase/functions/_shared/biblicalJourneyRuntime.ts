@@ -1,6 +1,6 @@
 import {
   createJourneyGame,
-  DEFAULT_JOURNEY_CONFIG,
+  journeyConfigForGame,
   JOURNEY_MACHINE_ID,
   journeyQuestionStage,
   resolveJourneyAction,
@@ -99,8 +99,8 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
 
   const stage = pending?.kind === 'trial'
     ? 5
-    : journeyQuestionStage(DEFAULT_JOURNEY_CONFIG, player.location.route === 'loop'
-      ? { route: 'main', space: player.loopEntryMainSpace || DEFAULT_JOURNEY_CONFIG.loopEntrances[0] }
+    : journeyQuestionStage(journeyConfigForGame(runtime.game), player.location.route === 'loop'
+      ? { route: 'main', space: player.loopEntryMainSpace || journeyConfigForGame(runtime.game).loopEntrances[0] }
       : player.location);
   const pool = runtime.questionIdsByStage[stage] || [];
   const unused = pool.filter((id) => !runtime.usedQuestionIds.includes(id));

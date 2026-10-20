@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-export function JourneyDialog({ label, children, onClose }: { label: string; children: ReactNode; onClose?: () => void }) {
+export function JourneyDialog({ label, children, onClose, tone }: { label: string; children: ReactNode; onClose?: () => void; tone?: 'good' | 'bad' }) {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -22,6 +22,6 @@ export function JourneyDialog({ label, children, onClose }: { label: string; chi
     return () => { element?.removeEventListener('keydown', onKey); if (previous?.isConnected) previous.focus(); };
   }, []);
   return createPortal(<div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-    <div ref={panel} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-lg border border-brass/60 bg-surface p-4 shadow-2xl outline-none">{children}</div>
+    <div ref={panel} role="dialog" aria-modal="true" aria-label={label} data-outcome={tone} tabIndex={-1} className={`max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-lg border bg-surface p-4 shadow-2xl outline-none ${tone === 'bad' ? 'border-coral shadow-coral/20' : 'border-brass/60'}`}>{children}</div>
   </div>, document.body);
 }

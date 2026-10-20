@@ -18,6 +18,11 @@ const machine = params.has('machine');
 const ids = machine ? ['alpha', JOURNEY_MACHINE_ID] : ['alpha', 'beta', 'gamma', 'delta'];
 let runtime = await createJourneyRuntime('elisha', ids, questions, lookup, () => 0);
 if (params.has('trap')) runtime.game.players[0].location = { route: 'main', space: 4 };
+if (params.has('bad')) runtime.game.players[0].location = { route: 'main', space: 19 };
+if (params.has('legacy')) {
+  delete runtime.game.boardSpaces;
+  runtime.game.players[0].location = { route: 'main', space: 51 };
+}
 if (params.has('witness')) runtime = rollJourneyDie(runtime, 'alpha', () => 0);
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {

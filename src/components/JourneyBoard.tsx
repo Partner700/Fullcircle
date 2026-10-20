@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { ArrowDown, ArrowLeftRight, ArrowUp, BookOpen, Crown, DoorOpen, Flag, Gift, Link2, LockKeyhole, Route, ShieldAlert, Swords, X } from 'lucide-react';
-import { DEFAULT_JOURNEY_CONFIG, type JourneyConfig, type JourneyGame, type JourneyLocation } from '../../supabase/functions/_shared/biblicalJourney';
-import { JOURNEY_BOARD_SIZE, JOURNEY_LOOP_POINTS, JOURNEY_MAIN_POINTS, JOURNEY_PRISON_POINTS, type JourneyPoint } from '../lib/journeyBoardLayout';
+import { journeyConfigForGame, type JourneyConfig, type JourneyGame, type JourneyLocation } from '../../supabase/functions/_shared/biblicalJourney';
+import { JOURNEY_BOARD_SIZE, JOURNEY_LOOP_POINTS, journeyMainPoints, JOURNEY_PRISON_POINTS, type JourneyPoint } from '../lib/journeyBoardLayout';
 import { journeySquare, type JourneySquare } from '../lib/journeyPresentation';
 import { ArenaDieButton } from './ArenaDieButton';
 import { UserAvatar } from './UserAvatar';
@@ -30,10 +30,11 @@ type Props = {
 const position = (point: JourneyPoint): CSSProperties => ({ left: `${point.x / JOURNEY_BOARD_SIZE * 100}%`, top: `${point.y / JOURNEY_BOARD_SIZE * 100}%` });
 const keyFor = (location: JourneyLocation) => location.route === 'prison' ? `prison:${location.prison}` : `${location.route}:${location.space}`;
 
-export function JourneyBoard({ game, profiles, viewerId, arenaImage, config = DEFAULT_JOURNEY_CONFIG,
+export function JourneyBoard({ game, profiles, viewerId, arenaImage, config = journeyConfigForGame(game),
   dieValue = 0, rolling = false, revealing = false, onRoll, onServePrisonTurn }: Props) {
   const [selected, setSelected] = useState<JourneySquare | null>(null);
   const active = game.players[game.turnIndex];
+  const mainPoints = journeyMainPoints(config.finishSpace);
   const occupants = new Map<string, typeof game.players>();
   for (const player of game.players) occupants.set(keyFor(player.location), [...(occupants.get(keyFor(player.location)) || []), player]);
   const tile = (location: JourneyLocation, point: JourneyPoint) => {
@@ -50,18 +51,18 @@ export function JourneyBoard({ game, profiles, viewerId, arenaImage, config = DE
     </button>;
   };
   return <div className="journey-board-wrap">
-    <section className="journey-board" aria-label="Biblical Journey: all 51 squares, Trials and prisons">
+    <section className={`journey-board ${config.finishSpace === 51 ? 'journey-board-legacy' : ''}`} aria-label={`Biblical Journey: all ${config.finishSpace} squares, Trials and prisons`}>
       <PanelImageBackdrop image={arenaImage} opacityOverride={55} modeFilter={false} veilClassName="bg-[#14253d]/70" simple />
       <svg viewBox="0 0 720 720" className="journey-connectors" aria-hidden="true">
-        <polyline points={[...JOURNEY_MAIN_POINTS, JOURNEY_MAIN_POINTS[0]].map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#d1b365" strokeWidth="4" />
-        <path d="M240 310H480V490H240Z" fill="none" stroke="#7b818c" strokeWidth="58" />
-        <path d="M240 310H480V490H240Z" fill="none" stroke="#c6c8cd" strokeWidth="2" strokeDasharray="4 6" />
-        {[23, 30].map((space, index) => {
-          const point = JOURNEY_MAIN_POINTS[space - 1];
-          return <path key={space} d={index ? `M${point.x} ${point.y}V610H240V530` : `M${point.x} ${point.y}H560V585H480V530`} fill="none" stroke="#c6c8cd" strokeWidth="2" strokeDasharray="7 6" />;
+        <polyline points={[...mainPoints, mainPoints[0]].map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#d1b365" strokeWidth="4" />
+        <path d="M200 285H520V525H200Z" fill="none" stroke="#7b818c" strokeWidth="38" />
+        <path d="M200 285H520V525H200Z" fill="none" stroke="#c6c8cd" strokeWidth="2" strokeDasharray="4 6" />
+        {config.loopEntrances.map((space, index) => {
+          const point = mainPoints[space - 1];
+          return <path key={space} d={index ? `M${point.x} ${point.y}V610H200V550` : `M${point.x} ${point.y}H565V580H520V550`} fill="none" stroke="#c6c8cd" strokeWidth="2" strokeDasharray="7 6" />;
         })}
       </svg>
-      {JOURNEY_MAIN_POINTS.map((point, index) => tile({ route: 'main', space: index + 1 }, point))}
+      {mainPoints.map((point, index) => tile({ route: 'main', space: index + 1 }, point))}
       {JOURNEY_LOOP_POINTS.map((point, index) => tile({ route: 'loop', space: index + 1 }, point))}
       {(['holding', 'deep'] as const).map((prison) => tile({ route: 'prison', prison }, JOURNEY_PRISON_POINTS[prison]))}
       <div className="journey-board-title"><span>FULL CIRCLE ARENA</span><strong>The Biblical Journey</strong><span>THREE LAPS TO VICTORY</span></div>
