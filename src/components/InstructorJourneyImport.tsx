@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronUp, Clipboard, FileUp, Loader2, ScanSearch } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { parseJourneyQuestionSet, type JourneyImportQuestion } from '../lib/journeyQuestionImport';
+import { validateJourneyQuestionSet, type JourneyImportQuestion, type JourneyRejectedQuestion } from '../lib/journeyQuestionImport';
 
 type Props = { slug: string; onImported: () => Promise<void> };
 
@@ -16,14 +16,20 @@ export function InstructorJourneyImport({ slug, onImported }: Props) {
   const [name, setName] = useState('');
   const [source, setSource] = useState('');
   const [preview, setPreview] = useState<JourneyImportQuestion[] | null>(null);
+  const [rejected, setRejected] = useState<JourneyRejectedQuestion[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const validate = () => {
-    setError(null); setNotice(null); setPreview(null);
-    try { setPreview(parseJourneyQuestionSet(source)); }
+    setError(null); setNotice(null); setPreview(null); setRejected([]);
+    try {
+      const result = validateJourneyQuestionSet(source);
+      setPreview(result.questions);
+      setRejected(result.rejected);
+      if (!result.questions.length) setError('No usable questions were found. Check the issues below and try again.');
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not validate this set.'); }
   };
   const importSet = async () => {
@@ -36,8 +42,9 @@ export function InstructorJourneyImport({ slug, onImported }: Props) {
       });
       if (updateError) throw updateError;
       const result = data as { imported: number; skipped: number };
-      setNotice(`${result.imported} questions added as pending; ${result.skipped} already in this volume.`);
-      setSource(''); setPreview(null);
+      setNotice(`${result.imported} questions added as pending; ${result.skipped} already in this volume.${rejected.length ? ` ${rejected.length} invalid questions were left out. Correct them in the JSON and validate again.` : ''}`);
+      if (!rejected.length) setSource('');
+      setPreview(null);
       await onImported();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The question set could not be imported.');
@@ -46,7 +53,7 @@ export function InstructorJourneyImport({ slug, onImported }: Props) {
   const readFile = async (file?: File) => {
     if (!file) return;
     if (file.size > 2_000_000) { setError('Choose a JSON file smaller than 2 MB.'); return; }
-    try { setSource(await file.text()); setPreview(null); setError(null); setNotice(file.name); }
+    try { setSource(await file.text()); setPreview(null); setRejected([]); setError(null); setNotice(file.name); }
     catch { setError('The file could not be read.'); }
   };
 
@@ -61,12 +68,16 @@ export function InstructorJourneyImport({ slug, onImported }: Props) {
         <button type="button" className="btn-secondary text-xs" onClick={() => fileRef.current?.click()}><FileUp size={14} /> Open JSON</button>
         <input ref={fileRef} type="file" accept=".json,.txt,application/json,text/plain" className="hidden" onChange={(event) => { void readFile(event.target.files?.[0]); event.target.value = ''; }} />
       </div>
-      <textarea className="input-field min-h-40 resize-y font-mono text-xs" value={source} onChange={(event) => { setSource(event.target.value); setPreview(null); setError(null); }} spellCheck={false} placeholder="Paste a JSON question set" />
+      <textarea className="input-field min-h-40 resize-y font-mono text-xs" value={source} onChange={(event) => { setSource(event.target.value); setPreview(null); setRejected([]); setError(null); setNotice(null); }} spellCheck={false} placeholder="Paste a JSON question set" />
       <button type="button" className="btn-secondary text-xs" disabled={!source.trim()} onClick={validate}><ScanSearch size={14} /> Validate set</button>
-      {preview && <div className="space-y-2 border-t border-border pt-3">
+      {preview && preview.length > 0 && <div className="space-y-2 border-t border-border pt-3">
         <div className="flex flex-wrap gap-2 text-xs text-stone"><strong className="text-ink">{preview.length} valid questions</strong>{[1, 2, 3, 4, 5].map((stage) => <span key={stage}>Stage {stage}: {preview.filter((item) => item.stage === stage).length}</span>)}</div>
         <div className="max-h-48 overflow-y-auto border-y border-border text-xs text-ink">{preview.map((item, index) => <p key={`${index}-${item.question}`} className="border-b border-border py-2"><span className="text-brass">{index + 1}. Stage {item.stage}</span> · {item.question}</p>)}</div>
-        <button type="button" className="btn-primary text-xs" disabled={busy || name.trim().length < 2} onClick={() => void importSet()}>{busy ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Add {preview.length} pending questions</button>
+        <button type="button" className="btn-primary text-xs" disabled={busy || name.trim().length < 2} onClick={() => void importSet()}>{busy ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Add {preview.length} pending questions{rejected.length ? `; skip ${rejected.length}` : ''}</button>
+      </div>}
+      {rejected.length > 0 && <div className="border-t border-border pt-3 text-xs" role="status">
+        <p className="font-semibold text-coral">{rejected.length} questions skipped. The original JSON remains above so you can correct them.</p>
+        <div className="mt-1 max-h-40 overflow-y-auto text-stone">{rejected.map((item) => <p key={item.number} className="border-b border-border py-1">{item.reason}</p>)}</div>
       </div>}
       {notice && <p className="text-xs text-sage" role="status">{notice}</p>}
       {error && <p className="text-xs text-coral" role="alert">{error}</p>}

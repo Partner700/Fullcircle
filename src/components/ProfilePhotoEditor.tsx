@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { createPortal } from 'react-dom';
 import { Camera, Check, Crop, Loader2, RotateCcw, X, ZoomIn } from 'lucide-react';
 import { uploadAvatar } from '../lib/queries';
-import { imageFileType } from '../lib/uploads';
+import { prepareImageForCropping } from '../lib/uploads';
 import { cn } from '../lib/utils';
 import type { Profile } from '../lib/types';
 import { announceNewcomerGuidanceAction } from '../lib/newcomerGuidance';
@@ -332,15 +332,9 @@ export function ProfilePhotoEditor({ profile, onUploaded, fallback, size = 'lg' 
 
   const prepareSelectedPhoto = async (selected: File) => {
     setPreparingSelection(true);
-    setStatusMessage('Opening photo...');
+    setStatusMessage('Preparing photo...');
     try {
-      const type = imageFileType(selected);
-      if (!type.startsWith('image/')) throw new Error('Choose a photo from your phone.');
-      if (selected.size <= 0 || selected.size > 25 * 1024 * 1024) throw new Error('Choose a photo smaller than 25 MB.');
-      const selectedWithType = selected.type === type
-        ? selected
-        : new File([selected], selected.name || `profile-photo-${Date.now()}`, { type });
-      setCropFile(selectedWithType);
+      setCropFile(await prepareImageForCropping(selected));
       setStatusMessage('Adjust the photo, then tap Use photo.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The selected photo could not be opened.';

@@ -3104,29 +3104,19 @@ export async function uploadFcxGuestAvatar(eventId: string, file: File) {
   if (authError) throw authError;
   if (!authData.user) throw new Error('Sign in before adding an FCX participant photo.');
 
-  const prepared = await prepareImageUpload(file, { ...AVATAR_UPLOAD_OPTIONS, maxBytes: 8 * 1024 * 1024 });
+  const prepared = await prepareImageUpload(file, AVATAR_UPLOAD_OPTIONS);
   const version = Date.now();
   const path = `${authData.user.id}/fcx/${eventId}/guest-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
-    upsert: false,
-    contentType: prepared.file.type,
-    cacheControl: '31536000',
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  return `${data.publicUrl}?v=${version}`;
+  const url = await uploadAppFile(path, prepared.file);
+  return `${url}?v=${version}`;
 }
 
 export async function uploadTentProfileImage(userId: string, tentId: string, file: File) {
-  const prepared = await prepareImageUpload(file, { maxDimension: 1600, maxBytes: 10 * 1024 * 1024 });
+  const prepared = await prepareImageUpload(file, { maxDimension: 1600 });
   const version = Date.now();
   const path = `${userId}/tents/${tentId}/profile-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
-    upsert: true, contentType: prepared.file.type, cacheControl: '31536000',
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  const publicUrl = `${data.publicUrl}?v=${version}`;
+  const url = await uploadAppFile(path, prepared.file);
+  const publicUrl = `${url}?v=${version}`;
   const { error: updateError } = await supabase.rpc('update_tent_profile_image', {
     p_tent_id: tentId,
     p_sentry_id: userId,

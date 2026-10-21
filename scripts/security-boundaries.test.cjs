@@ -416,10 +416,8 @@ assert.match(profilePhotoEditor, /readableFetch\(avatarUrl, \{ cache: 'no-store'
 assert.match(profilePhotoEditor, /accept="image\/\*,\.heic,\.heif"/);
 assert.match(profilePhotoEditor, /setSavedAvatarUrl\(uploadedUrl\)/);
 assert.match(profilePhotoEditor, /Crop and adjust current profile photo/);
-assert.match(profilePhotoEditor, /imageFileType\(selected\)/);
-assert.match(profilePhotoEditor, /selected\.size > 25 \* 1024 \* 1024/);
-assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
-assert.doesNotMatch(profilePhotoEditor, /prepareImageUpload\(selected/);
+assert.match(profilePhotoEditor, /setCropFile\(await prepareImageForCropping\(selected\)\)/);
+assert.doesNotMatch(profilePhotoEditor, /setCropFile\(selected\)/);
 assert.match(profilePhotoEditor, /event\.currentTarget\.value = ''/);
 assert.match(profilePhotoEditor, /z-\[2147483645\]/);
 assert.doesNotMatch(profilePhotoEditor, /12 \* 1024 \* 1024/);
@@ -502,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '206', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '207', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -2745,7 +2743,7 @@ assert.doesNotMatch(sentryApp, /onActivated=\{async \(status\) => \{[\s\S]{0,180
 assert.match(instructorApp, /extendQuizSession\(selectedSession\.id, extensionMinutes\)/);
 assert.match(instructorApp, /Extend or reopen this quiz/);
 assert.match(profilePhotoEditor, /lastUploadedUrlRef/);
-assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
+assert.match(profilePhotoEditor, /setCropFile\(await prepareImageForCropping\(selected\)\)/);
 assert.match(storageUploads, /attempt < 3/);
 assert.match(storageUploads, /cacheControl: '31536000'/);
 assert.match(quoteQueries, /export async function fetchDailyQuoteFeed\(limit = 100\)/);

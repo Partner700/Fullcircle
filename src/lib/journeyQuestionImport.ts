@@ -13,7 +13,9 @@ export type JourneyImportQuestion = {
 const types = new Set(['true_false', 'multiple_choice', 'odd_one', 'fill_blank', 'order_sequence']);
 const difficulties = new Set(['easy', 'moderate', 'hard']);
 
-export function parseJourneyQuestionSet(source: string): JourneyImportQuestion[] {
+export type JourneyRejectedQuestion = { number: number; reason: string };
+
+function readQuestionArray(source: string): unknown[] {
   let document: unknown;
   try { document = JSON.parse(source); }
   catch { throw new Error('The question set must be valid JSON.'); }
@@ -23,10 +25,19 @@ export function parseJourneyQuestionSet(source: string): JourneyImportQuestion[]
   if (!Array.isArray(items) || items.length < 1 || items.length > 300) {
     throw new Error('Use an array of 1 to 300 questions, or an object containing that questions array.');
   }
-  const seen = new Set<string>();
-  return items.map((raw, index) => {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`Question ${index + 1} must be an object.`);
-    const item = raw as Record<string, unknown>;
+  return items;
+}
+
+function parseQuestion(raw: unknown, index: number, seen: Set<string>): JourneyImportQuestion {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`Question ${index + 1} must be an object.`);
+  const item = raw as Record<string, unknown>;
+  if (typeof item.question !== 'string' || typeof item.correct_answer !== 'string'
+    || typeof item.reference !== 'string' || typeof item.type !== 'string'
+    || (item.options !== undefined && !Array.isArray(item.options))
+    || (item.accepted_answers !== undefined && !Array.isArray(item.accepted_answers))
+    || (item.explanation != null && typeof item.explanation !== 'string')) {
+    throw new Error(`Question ${index + 1} needs a text prompt, answer, type, and Scripture reference.`);
+  }
     const stage = Number(item.stage);
     const type = String(item.type || '');
     const question = String(item.question || '').trim();
@@ -66,5 +77,27 @@ export function parseJourneyQuestionSet(source: string): JourneyImportQuestion[]
       explanation: item.explanation ? String(item.explanation).trim() : null,
       difficulty_tag: difficulty as JourneyImportQuestion['difficulty_tag'],
     };
+}
+
+export function validateJourneyQuestionSet(source: string): {
+  questions: JourneyImportQuestion[];
+  rejected: JourneyRejectedQuestion[];
+} {
+  const items = readQuestionArray(source);
+  const seen = new Set<string>();
+  const questions: JourneyImportQuestion[] = [];
+  const rejected: JourneyRejectedQuestion[] = [];
+  items.forEach((raw, index) => {
+    try { questions.push(parseQuestion(raw, index, seen)); }
+    catch (error) {
+      rejected.push({ number: index + 1, reason: error instanceof Error ? error.message : `Question ${index + 1} could not be checked.` });
+    }
   });
+  return { questions, rejected };
+}
+
+export function parseJourneyQuestionSet(source: string): JourneyImportQuestion[] {
+  const { questions, rejected } = validateJourneyQuestionSet(source);
+  if (rejected.length) throw new Error(rejected[0].reason);
+  return questions;
 }

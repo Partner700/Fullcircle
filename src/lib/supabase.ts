@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createEgressDiagnostics } from './egressDiagnostics';
 import { connectionError, readableFetch } from './connectionErrors';
+import { networkAttemptTimeout } from './networkRequestTimeout';
 
 const diagnostics = import.meta.env.DEV ? createEgressDiagnostics() : null;
 if (diagnostics && typeof window !== 'undefined') {
@@ -14,7 +15,6 @@ export const supabaseUrl = 'https://nffqohxdelaglrmuzjwb.supabase.co';
 export const supabaseAnonKey = 'sb_publishable_sRypQ222Tr1j9ocjRYqw5g_deLrtax-';
 export const supabaseConfigError: string | null = null;
 
-const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
 
 function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
@@ -57,7 +57,7 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
     if (upstreamSignal?.aborted) relayAbort();
     else upstreamSignal?.addEventListener('abort', relayAbort, { once: true });
 
-    const timeout = window.setTimeout(() => controller.abort(), NETWORK_ATTEMPT_TIMEOUT_MS);
+    const timeout = window.setTimeout(() => controller.abort(), networkAttemptTimeout(input, method));
     try {
       const requestInput = typeof Request !== 'undefined' && input instanceof Request
         ? input.clone()

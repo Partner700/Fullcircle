@@ -19,6 +19,7 @@ import { publicAsset } from '../lib/publicAsset';
 import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { UserAvatar } from './UserAvatar';
+import { prepareImageForCropping } from '../lib/uploads';
 
 const FCX_START_HOUR = 12;
 
@@ -601,17 +602,15 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
       <input
         ref={guestPhotoInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/avif"
+        accept="image/*,.heic,.heif"
         className="hidden"
         onChange={(event) => {
           const selected = event.target.files?.[0];
           event.target.value = '';
           if (!selected) return;
-          if (selected.size > 12 * 1024 * 1024) {
-            alert('Choose a participant photo smaller than 12 MB.');
-            return;
-          }
-          setGuestCropFile(selected);
+          void prepareImageForCropping(selected).then(setGuestCropFile).catch((error: unknown) => {
+            alert(readableError(error, 'The participant photo could not be opened.'));
+          });
         }}
       />
       {guestCropFile && (
