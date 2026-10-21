@@ -72,9 +72,10 @@ async function testMirror(browser) {
 
 const mockAuth = `
 export const supabaseConfigError = null;
+export const supabaseUrl = 'https://test-project.supabase.co';
 let listener;
 const session = { user: { id: 'test-user' }, access_token: 'test-only', refresh_token: 'test-only' };
-window.authTest = { calls: 0, bootstraps: 0, role: 'cadet', emit: (event, value) => listener?.(event, value) };
+window.authTest = { calls: 0, bootstraps: 0, role: 'cadet', resendError: false, emit: (event, value) => listener?.(event, value) };
 export const supabase = {
   auth: {
     getSession: () => new Promise(resolve => {
@@ -82,15 +83,30 @@ export const supabase = {
       if (!location.search.includes('late')) window.authTest.finishInit();
     }),
     onAuthStateChange: (fn) => { listener = fn; return {data: {subscription: {unsubscribe() {}}}}; },
-    signInWithPassword: async ({password}) => {
+    signInWithPassword: async ({email, password}) => {
       window.authTest.calls++;
       await new Promise(r => setTimeout(r, 80));
+      if (email === 'pending@example.invalid') return {data:{}, error:{message:'Email not confirmed'}};
       if (password === 'wrongpass') return {data:{}, error:{message:'Invalid login credentials'}};
       if (password === 'networkfail') throw new Error('Sign-in timed out');
       listener('SIGNED_IN', session);
       return {data:{session, user:session.user}, error:null};
     },
-    signUp: async () => ({data: {session, user: session.user}, error: null}),
+    signUp: async ({email, options}) => {
+      window.authTest.signupRedirect = options.emailRedirectTo;
+      if (email === 'pending@example.invalid') return {data: {session: null, user: session.user}, error: null};
+      return {data: {session, user: session.user}, error: null};
+    },
+    resend: async ({options}) => {
+      window.authTest.resendRedirect = options.emailRedirectTo;
+      return {error: window.authTest.resendError ? {message:'Email provider rejected this request'} : null};
+    },
+    verifyOtp: async ({token_hash}) => {
+      window.authTest.verifiedToken = token_hash;
+      if (token_hash === 'expired') return {data:{session:null},error:{message:'Token expired'}};
+      listener?.('SIGNED_IN', session);
+      return {data:{session},error:null};
+    },
     signOut: async () => { listener('SIGNED_OUT', null); return {error:null}; },
   },
   rpc(name) {
@@ -116,7 +132,7 @@ function Screen() {
   const [crashed, crash] = useState(false);
   if (crashed || window.authTest.alwaysCrash) throw new Error('Test dashboard failure');
   if (auth.loading) return <p>Restoring session</p>;
-  if (!auth.session) return <AuthScreen/>;
+  if (!auth.session) return <AuthScreen initialNotice={auth.confirmationFeedback?.kind === 'success' ? auth.confirmationFeedback.message : undefined} initialError={auth.confirmationFeedback?.kind === 'error' ? auth.confirmationFeedback.message : undefined}/>;
   if (!auth.profile) return <p>Restoring account</p>;
   return <main><h1>{auth.role} dashboard</h1><button onClick={() => crash(true)}>Crash once</button><button onClick={() => {window.authTest.alwaysCrash = true; crash(true)}}>Crash repeatedly</button><button onClick={auth.signOut}>Sign out</button></main>;
 }
@@ -201,6 +217,46 @@ async function testAuth(browser) {
     await signup.getByRole('heading', {name:'cadet dashboard'}).waitFor();
     console.log('New account setup reaches the authenticated dashboard');
     await signupContext.close();
+
+    const pendingContext = await browser.newContext();
+    const pending = await pendingContext.newPage();
+    await pending.goto(url);
+    await pending.getByRole('button', {name:'Sign Up', exact:true}).click();
+    await pending.locator('input[autocomplete=name]').fill('Pending resident');
+    await pending.locator('input[type=email]').fill('pending@example.invalid');
+    await pending.locator('input[type=password]').nth(0).fill('testpassword');
+    await pending.locator('input[type=password]').nth(1).fill('testpassword');
+    await pending.locator('button[type=submit]').click();
+    await pending.getByRole('status').filter({hasText:'Check your email'}).waitFor();
+    assert.equal(await pending.evaluate(() => window.authTest.signupRedirect), url);
+    await pending.evaluate(() => {window.authTest.resendError = true;});
+    await pending.getByRole('button', {name:'Resend Confirmation'}).click();
+    await pending.getByRole('alert').filter({hasText:'could not send a new confirmation link'}).waitFor();
+    await pending.evaluate(() => {window.authTest.resendError = false;});
+    await pending.getByRole('button', {name:'Resend Confirmation'}).click();
+    await pending.getByRole('status').filter({hasText:'A new confirmation link was sent'}).waitFor();
+    assert.equal(await pending.evaluate(() => window.authTest.resendRedirect), url);
+    await pending.locator('input[type=password]').fill('testpassword');
+    await pending.locator('button[type=submit]').click();
+    await pending.getByRole('alert').filter({hasText:'email is not confirmed yet'}).waitFor();
+    await pendingContext.close();
+
+    const confirmationContext = await browser.newContext();
+    const confirmation = await confirmationContext.newPage();
+    await confirmation.goto(url + '?token_hash=valid&type=email');
+    await confirmation.getByRole('heading', {name:'cadet dashboard'}).waitFor();
+    assert.equal(await confirmation.evaluate(() => window.authTest.verifiedToken), 'valid');
+    assert.equal(await confirmation.evaluate(() => location.search), '');
+    await confirmationContext.close();
+
+    const expiredContext = await browser.newContext();
+    const expired = await expiredContext.newPage();
+    await expired.goto(url + '?token_hash=expired&type=signup');
+    await expired.getByRole('alert').filter({hasText:'link could not be used'}).waitFor();
+    await expired.getByRole('button', {name:'Resend Confirmation'}).waitFor();
+    assert.equal(await expired.evaluate(() => location.search), '');
+    await expiredContext.close();
+    console.log('Confirmation redirect, resend failure, direct token and expired token flows passed');
   } finally { await vite.close(); }
 }
 

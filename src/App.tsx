@@ -50,7 +50,7 @@ function isPasswordRecoveryUrl() {
 
 export default function App() {
   useScrollBoundaryFades();
-  const { session, profile, role, configError, loading, refreshProfile, signOut } = useAuth();
+  const { session, profile, role, configError, loading, confirmationFeedback, refreshProfile, signOut } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
   const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);
   const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
@@ -207,12 +207,14 @@ export default function App() {
         {signupRequested ? (
           <AuthScreen
             initialMode="signup"
-            initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+            initialNotice={confirmationFeedback?.kind === 'success' ? confirmationFeedback.message : (passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined)}
+            initialError={confirmationFeedback?.kind === 'error' ? confirmationFeedback.message : undefined}
           />
         ) : (
           <AuthScreen
             initialMode="signin"
-            initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+            initialNotice={confirmationFeedback?.kind === 'success' ? confirmationFeedback.message : (passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined)}
+            initialError={confirmationFeedback?.kind === 'error' ? confirmationFeedback.message : undefined}
           />
         )}
       </>

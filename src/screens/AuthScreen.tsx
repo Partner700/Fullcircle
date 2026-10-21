@@ -16,27 +16,32 @@ const VERSE_FRAGMENTS = [
 export function AuthScreen({
   initialMode = 'signin',
   initialNotice,
+  initialError,
 }: {
   initialMode?: 'signin' | 'signup';
   initialNotice?: string;
+  initialError?: string;
 }) {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resendConfirmation } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError || null);
   const [notice, setNotice] = useState<string | null>(initialNotice || null);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [showResend, setShowResend] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     setMode(initialMode);
     setNotice(initialNotice || null);
-  }, [initialMode, initialNotice]);
+    setError(initialError || null);
+  }, [initialMode, initialNotice, initialError]);
 
   useEffect(() => {
     if (!loading) return;
@@ -93,7 +98,10 @@ export function AuthScreen({
     try {
       if (mode === 'signin') {
         const { error } = await signIn(normalizedEmail, password);
-        if (error) setError(error);
+        if (error) {
+          setError(error);
+          if (/not confirmed/i.test(error)) setShowResend(true);
+        }
       } else {
         // New accounts are always created as cadet. Instructors promote cadets to sentry,
         // and the current instructor can hand over to a sentry.
@@ -101,6 +109,7 @@ export function AuthScreen({
         if (error) setError(error);
         else if (signupNotice) {
           setNotice(signupNotice);
+          setShowResend(true);
           setMode('signin');
           setPassword('');
           setConfirmPassword('');
@@ -112,6 +121,16 @@ export function AuthScreen({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResendConfirmation = async () => {
+    setError(null);
+    setNotice(null);
+    setResendLoading(true);
+    const result = await resendConfirmation(email);
+    setResendLoading(false);
+    if (result.error) setError(result.error);
+    else setNotice('A new confirmation link was sent. Open the newest email, then return here to sign in.');
   };
 
   const handlePasswordReset = async () => {
@@ -263,16 +282,24 @@ export function AuthScreen({
               </div>
             )}
 
-            {mode === 'signin' && (
+            {mode === 'signin' && <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
               <button
                 type="button"
                 onClick={handlePasswordReset}
-                disabled={resetLoading || loading}
+                disabled={resetLoading || loading || resendLoading}
                 className="text-xs font-bold text-peri-dim hover:text-peri transition-colors disabled:opacity-60"
               >
                 {resetLoading ? 'Sending reset link...' : 'Reset Password'}
               </button>
-            )}
+              {(showResend || /confirm/i.test(`${initialNotice || ''} ${initialError || ''}`)) && <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resendLoading || loading || resetLoading}
+                className="text-xs font-bold text-peri hover:text-ink transition-colors disabled:opacity-60"
+              >
+                {resendLoading ? 'Sending link...' : 'Resend Confirmation'}
+              </button>}
+            </div>}
 
             {error && <div role="alert" aria-live="assertive" className="text-sm text-coral bg-coral-soft rounded-lg p-3">{error}</div>}
             {notice && <div role="status" aria-live="polite" className="text-sm text-sage bg-sage/10 rounded-lg p-3">{notice}</div>}

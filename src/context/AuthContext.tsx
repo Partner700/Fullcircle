@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { PostgrestSingleResponse, Session } from '@supabase/supabase-js';
+import { clearEmailConfirmationLink, emailConfirmationRedirectUrl, initialEmailConfirmationError, readEmailConfirmationLink } from '../lib/emailConfirmation';
 import { supabase, supabaseConfigError, supabaseUrl } from '../lib/supabase';
 import { fetchOwnProfile } from '../lib/profileAccess';
 import type { Profile, Role, RoleAssignment } from '../lib/types';
@@ -11,8 +12,10 @@ interface AuthContextValue {
   roleAssignment: RoleAssignment | null;
   configError: string | null;
   loading: boolean;
+  confirmationFeedback: { kind: 'error' | 'success'; message: string } | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, displayName: string, role: Role, matricule?: string) => Promise<{ error: string | null; notice?: string | null }>;
+  resendConfirmation: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -135,6 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roleAssignment, setRoleAssignment] = useState<RoleAssignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmationFeedback, setConfirmationFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(
+    initialEmailConfirmationError ? { kind: 'error', message: initialEmailConfirmationError } : null,
+  );
   const authOperationRef = useRef(false);
   const authRevisionRef = useRef(0);
   const sessionRef = useRef<Session | null>(null);
@@ -283,8 +289,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initialRevision = authRevisionRef.current;
     let listenerSession: Session | null | undefined;
     let recoveredSession: Session | null = null;
+    const confirmationLink = readEmailConfirmationLink();
     const initialise = async () => {
       try {
+        if (confirmationLink) {
+          try {
+            const { error } = await waitFor(supabase.auth.verifyOtp(confirmationLink), 20_000, 'Email confirmation');
+            setConfirmationFeedback(error
+              ? { kind: 'error', message: 'This confirmation link could not be used. It may have expired. Enter your email and request a new link.' }
+              : { kind: 'success', message: 'Your email is confirmed. You can sign in now.' });
+          } catch (error) {
+            console.warn('Email confirmation could not finish:', error);
+            setConfirmationFeedback({ kind: 'error', message: 'The connection interrupted email confirmation. Enter your email and request a new link.' });
+          } finally {
+            clearEmailConfirmationLink();
+          }
+        }
         const { data } = await waitFor(supabase.auth.getSession(), 8_000, 'Session check');
         if (!active || authOperationRef.current || initialRevision !== authRevisionRef.current) return;
         recoveredSession = data.session;
@@ -325,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'INITIAL_SESSION') {
         if (!active || authOperationRef.current || initialRevision !== authRevisionRef.current) return;
         if (!sess) {
+          if (confirmationLink) return;
           setSession(null);
           setProfile(null);
           setRoleAssignment(null);
@@ -401,7 +422,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         20_000,
         'Sign-in',
       );
-      if (error) return { error: error.message };
+      if (error) return { error: /email not confirmed|confirm your email/i.test(error.message)
+        ? 'Your email is not confirmed yet. Open the newest confirmation link or request a new one below.'
+        : error.message };
 
       const signedInSession = data.session;
       if (!signedInSession) {
@@ -435,6 +458,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, [applyIdentity, loadProfile, setSession]);
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    if (supabaseConfigError) return { error: supabaseConfigError };
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return { error: 'Enter a valid email address to receive a new confirmation link.' };
+    }
+    try {
+      const { error } = await waitFor(supabase.auth.resend({
+        type: 'signup',
+        email: normalizedEmail,
+        options: { emailRedirectTo: emailConfirmationRedirectUrl() },
+      }), 15_000, 'Confirmation email');
+      if (error) {
+        return { error: /rate.limit|too many/i.test(`${error.code || ''} ${error.message}`)
+          ? 'Please wait a moment before requesting another confirmation link.'
+          : 'We could not send a new confirmation link right now. Please try again.' };
+      }
+      return { error: null };
+    } catch (error) {
+      console.warn('Confirmation email could not be sent:', error);
+      return { error: 'The connection interrupted the confirmation email. Please try again.' };
+    }
+  }, []);
 
   const signUp = useCallback(
     async (email: string, password: string, displayName: string, role: Role, matricule?: string) => {
@@ -487,18 +534,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         if (signInError) {
           if (/email not confirmed|confirm your email/i.test(signInError.message)) {
-            try {
-              await waitFor(
-                supabase.auth.resend({ type: 'signup', email: normalizedEmail }),
-                15_000,
-                'Confirmation email',
-              );
-            } catch (resendError) {
-              console.warn('Confirmation email could not be resent automatically:', resendError);
-            }
+            const resend = await resendConfirmation(normalizedEmail);
             return {
               error: null,
-              notice: 'Your account exists and is waiting for email confirmation. We sent a new confirmation link; open it, then sign in.',
+              notice: resend.error
+                ? 'Your account still needs email confirmation. The new link could not be sent; enter your email and tap Resend Confirmation.'
+                : 'Your account still needs email confirmation. We sent a new link; open the newest email, then sign in.',
             };
           }
           return {
@@ -522,7 +563,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           supabase.auth.signUp({
             email: normalizedEmail,
             password,
-            options: { data: { display_name: trimmedDisplayName } },
+            options: {
+              data: { display_name: trimmedDisplayName },
+              emailRedirectTo: emailConfirmationRedirectUrl(),
+            },
           }),
           20_000,
           'Account creation',
@@ -568,7 +612,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authOperationRef.current = false;
       }
     },
-    [loadProfile, setSession],
+    [loadProfile, resendConfirmation, setSession],
   );
 
   const signOut = useCallback(async () => {
@@ -607,7 +651,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, role, roleAssignment, configError: supabaseConfigError, loading, signIn, signUp, signOut, refreshProfile }}
+      value={{ session, profile, role, roleAssignment, configError: supabaseConfigError, loading, confirmationFeedback, signIn, signUp, resendConfirmation, signOut, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>
