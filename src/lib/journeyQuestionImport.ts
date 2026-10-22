@@ -12,6 +12,24 @@ export type JourneyImportQuestion = {
 
 const types = new Set(['true_false', 'multiple_choice', 'odd_one', 'fill_blank', 'order_sequence']);
 const difficulties = new Set(['easy', 'moderate', 'hard']);
+export const JOURNEY_MINIMUM_QUESTIONS = 200;
+
+// Match the database's five balanced bands, with easier questions first.
+export function assignJourneyStages(questions: JourneyImportQuestion[]): JourneyImportQuestion[] {
+  const rank = { easy: 0, moderate: 1, hard: 2 };
+  const sorted = questions.map((question, index) => ({ question, index }))
+    .sort((a, b) => rank[a.question.difficulty_tag] - rank[b.question.difficulty_tag] || a.index - b.index);
+  const stages = new Map<number, number>();
+  const base = Math.floor(sorted.length / 5);
+  const extra = sorted.length % 5;
+  let offset = 0;
+  for (let stage = 1; stage <= 5; stage += 1) {
+    for (let count = 0; count < base + (stage <= extra ? 1 : 0); count += 1) {
+      stages.set(sorted[offset++].index, stage);
+    }
+  }
+  return questions.map((question, index) => ({ ...question, stage: stages.get(index)! }));
+}
 
 export type JourneyRejectedQuestion = { number: number; reason: string };
 
@@ -38,7 +56,6 @@ function parseQuestion(raw: unknown, index: number, seen: Set<string>): JourneyI
     || (item.explanation != null && typeof item.explanation !== 'string')) {
     throw new Error(`Question ${index + 1} needs a text prompt, answer, type, and Scripture reference.`);
   }
-    const stage = Number(item.stage);
     const type = String(item.type || '');
     const question = String(item.question || '').trim();
     const answer = String(item.correct_answer || '').trim();
@@ -48,11 +65,11 @@ function parseQuestion(raw: unknown, index: number, seen: Set<string>): JourneyI
       typeof option === 'string' ? option.trim()
         : option && typeof option === 'object' && 'text' in option ? String(option.text).trim() : '') : [];
     const accepted = Array.isArray(item.accepted_answers) ? item.accepted_answers : [];
-    if (!Number.isInteger(stage) || stage < 1 || stage > 5 || !types.has(type)
+    if (!types.has(type)
       || question.length < 5 || question.length > 4000 || answer.length < 1 || answer.length > 2000
       || reference.length < 3 || options.length > 8 || options.some((option) => !option || option.length > 500)
       || accepted.some((value) => typeof value !== 'string') || !difficulties.has(difficulty)) {
-      throw new Error(`Question ${index + 1} needs a valid stage (1-5), type, prompt, answer, options, and Scripture reference.`);
+      throw new Error(`Question ${index + 1} needs a valid type, prompt, answer, options, and Scripture reference.`);
     }
     if (['multiple_choice', 'odd_one'].includes(type) &&
       (options.length < 3 || options.length > 6 || !options.some((option) => option.toLowerCase() === answer.toLowerCase()))) {
@@ -72,7 +89,7 @@ function parseQuestion(raw: unknown, index: number, seen: Set<string>): JourneyI
     if (seen.has(key)) throw new Error(`Question ${index + 1} repeats a prompt in this upload.`);
     seen.add(key);
     return {
-      stage, type: type as JourneyImportQuestion['type'], question, options,
+      stage: 1, type: type as JourneyImportQuestion['type'], question, options,
       correct_answer: answer, accepted_answers: accepted as string[], reference,
       explanation: item.explanation ? String(item.explanation).trim() : null,
       difficulty_tag: difficulty as JourneyImportQuestion['difficulty_tag'],
@@ -93,7 +110,7 @@ export function validateJourneyQuestionSet(source: string): {
       rejected.push({ number: index + 1, reason: error instanceof Error ? error.message : `Question ${index + 1} could not be checked.` });
     }
   });
-  return { questions, rejected };
+  return { questions: assignJourneyStages(questions), rejected };
 }
 
 export function parseJourneyQuestionSet(source: string): JourneyImportQuestion[] {

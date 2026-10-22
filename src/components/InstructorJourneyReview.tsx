@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Loader2, RotateCw, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { InstructorJourneyImport } from './InstructorJourneyImport';
+import { JOURNEY_MINIMUM_QUESTIONS } from '../lib/journeyQuestionImport';
+import { userFacingError } from '../lib/connectionErrors';
 
 type ReviewCharacter = { slug: string; displayName: string; ready: boolean };
 type StageCount = { stage: number; pending: number; approved: number; rejected: number; discontinued: number };
@@ -36,7 +38,7 @@ type ReviewPage = {
 const PAGE_SIZE = 20;
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'The question review could not be updated.';
+  return userFacingError(error, 'The question review could not be updated.');
 }
 
 export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?: boolean }) {
@@ -44,7 +46,7 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
   const [characters, setCharacters] = useState<ReviewCharacter[]>([]);
   const [slug, setSlug] = useState('');
   const [stage, setStage] = useState<number | null>(null);
-  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected' | 'discontinued' | 'all'>('pending');
+  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected' | 'discontinued' | 'all'>('approved');
   const [setName, setSetName] = useState('');
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<ReviewPage | null>(null);
@@ -53,6 +55,8 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const pageRequest = useRef(0);
 
   const loadCharacters = useCallback(async () => {
     const { data, error: queryError } = await supabase.rpc('list_arena_journey_review_characters');
@@ -64,6 +68,7 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
 
   const loadPage = useCallback(async () => {
     if (!slug) return;
+    const request = ++pageRequest.current;
     setLoading(true);
     try {
       const { data, error: queryError } = await supabase.rpc('get_arena_journey_bank_page', {
@@ -71,16 +76,17 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
         p_offset: offset, p_limit: PAGE_SIZE,
       });
       if (queryError) throw queryError;
+      if (request !== pageRequest.current) return null;
       const next = data as ReviewPage;
       setPage(next);
       setSelected([]);
       setError(null);
       return next;
     } catch (loadError) {
-      setError(errorMessage(loadError));
+      if (request === pageRequest.current) setError(errorMessage(loadError));
       return null;
     } finally {
-      setLoading(false);
+      if (request === pageRequest.current) setLoading(false);
     }
   }, [slug, stage, status, setName, offset]);
 
@@ -91,7 +97,8 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
 
   useEffect(() => {
     if (open && slug) void loadPage();
-  }, [open, slug, loadPage]);
+    return () => { pageRequest.current += 1; };
+  }, [open, slug, loadPage, refresh]);
 
   const decide = async (ids: string[], decision: 'approved' | 'rejected') => {
     if (!ids.length) return;
@@ -117,12 +124,8 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
   const setCharacterReady = async (ready: boolean) => {
     if (!slug || page?.character.slug !== slug) return;
     if (ready && !canActivate) {
-      const missing = page.counts.filter((count) => count.approved < 10);
-      setNotice(`${page.character.displayName} needs ${missing.map((count) => `Stage ${count.stage}: ${10 - count.approved} more approved`).join(', ')}. Review those questions before making this journey playable.`);
+      setNotice(`${page.character.displayName} needs ${JOURNEY_MINIMUM_QUESTIONS - totalApproved} more active questions.`);
       setError(null);
-      setStage(missing[0]?.stage || 1);
-      setStatus('pending');
-      setOffset(0);
       return;
     }
     setBusy(true);
@@ -145,8 +148,8 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
   };
 
   const setRetired = async (question: ReviewQuestion, retired: boolean) => {
-    if (retired && page?.character.ready && (page.counts.find((count) => count.stage === question.question_stage)?.approved || 0) <= 10
-      && !window.confirm('This stage would fall below ten active questions, so new matches for this volume will pause. Discontinue anyway?')) return;
+    if (retired && page?.character.ready && totalApproved <= JOURNEY_MINIMUM_QUESTIONS
+      && !window.confirm('This volume would fall below 200 active questions, so new matches will pause. Discontinue anyway?')) return;
     setBusy(true); setError(null); setNotice(null);
     try {
       const { error: updateError } = await supabase.rpc('set_arena_journey_question_retired', {
@@ -161,7 +164,7 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
   };
 
   const totalApproved = page?.counts.reduce((sum, count) => sum + count.approved, 0) || 0;
-  const canActivate = Boolean(page?.counts.length === 5 && page.counts.every((count) => count.approved >= 10));
+  const canActivate = totalApproved >= JOURNEY_MINIMUM_QUESTIONS;
   const visiblePending = page?.questions.filter((question) => question.review_status === 'pending') || [];
   const allVisibleSelected = visiblePending.length > 0 && visiblePending.every((question) => selected.includes(question.id));
 
@@ -196,16 +199,18 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
         <button type="button" title="Refresh questions" aria-label="Refresh questions" className="btn-secondary h-10 w-10 p-0" onClick={() => void loadPage()} disabled={loading}><RotateCw size={16} /></button>
       </div>}
 
-      {slug && <InstructorJourneyImport key={slug} slug={slug} onImported={async () => { setStatus('pending'); setSetName(''); setOffset(0); await loadPage(); }} />}
+      {notice && <p className="text-xs text-sage" role="status">{notice}</p>}
+      {error && <p className="text-xs text-coral" role="alert">{error}</p>}
+      {slug && <InstructorJourneyImport key={slug} slug={slug} onImported={async () => { setStatus('approved'); setStage(null); setSetName(''); setOffset(0); setRefresh((value) => value + 1); await loadCharacters(); }} />}
 
       {page && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-stone">
-        {page.counts.map((count) => <span key={count.stage} className={count.approved >= 10 ? 'text-sage' : ''}>
+        {page.counts.map((count) => <span key={count.stage}>
           Stage {count.stage}: {count.approved} active · {count.pending} pending{count.discontinued ? ` · ${count.discontinued} discontinued` : ''}
         </span>)}
       </div>}
       {page && <div className="flex flex-wrap items-center gap-2 border-y border-border py-3 text-xs text-stone">
         <strong className="text-ink">{page.character.displayName}</strong>
-        <span>{totalApproved} approved</span>
+        <span>{totalApproved}/{JOURNEY_MINIMUM_QUESTIONS} active questions</span>
         <span>{page.character.ready ? 'Ready for matches' : 'Not yet playable'}</span>
         <button type="button" className="btn-secondary ml-auto text-xs" disabled={busy || page.character.slug !== slug}
           onClick={() => void setCharacterReady(!page.character.ready)}>
@@ -257,8 +262,6 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
         <span>{offset + 1}-{Math.min(offset + PAGE_SIZE, page.total)} of {page.total}</span>
         <button type="button" className="btn-secondary text-xs" disabled={loading || offset + PAGE_SIZE >= page.total} onClick={() => setOffset(offset + PAGE_SIZE)}>Next</button>
       </div>}
-      {notice && <p className="text-xs text-sage" role="status">{notice}</p>}
-      {error && <p className="text-xs text-coral" role="alert">{error}</p>}
     </div>}
   </section>;
 }

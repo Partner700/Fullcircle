@@ -647,7 +647,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setError(null);
     try {
       if (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) {
-        throw new Error('This narrative is awaiting instructor approval. Choose an approved narrative to play.');
+        throw new Error('This narrative is not open for matches yet. Choose another narrative.');
       }
       const difficultySuffix = arenaOpponent === 'machine' ? ` [difficulty:${arenaDifficulty}]` : '';
       const characterSuffix = arenaGameType === 'journey' ? ` [character:${journeyCharacterSlug}]` : '';
@@ -1079,8 +1079,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           )}
           {arenaGameType === 'journey' && <div>
             <label className="text-xs text-stone block mb-1">Biblical character</label>
-            <AppSelect value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} options={journeyCharacters.map((item) => ({ value: item.slug, label: item.displayName, description: item.ready ? 'Ready to play' : 'Awaiting instructor approval' }))} />
-            {journeyCharacters.some((item) => item.slug === journeyCharacterSlug && !item.ready) && <p className="mt-2 text-xs text-brass" role="status">Awaiting instructor approval</p>}
+            <AppSelect value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} options={journeyCharacters.map((item) => ({ value: item.slug, label: item.displayName, description: item.ready ? 'Ready to play' : 'Not yet playable' }))} />
+            {journeyCharacters.some((item) => item.slug === journeyCharacterSlug && !item.ready) && <p className="mt-2 text-xs text-brass" role="status">Not yet playable</p>}
           </div>}
           {arenaOpponent === 'machine' && <div>
             <label className="text-xs text-stone block mb-1">Machine Difficulty</label>

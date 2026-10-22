@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '208', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '209', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');

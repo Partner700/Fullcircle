@@ -108,8 +108,9 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
   while (candidates.length) {
     const [id] = candidates.splice(randomIndex(candidates.length, random), 1);
     const question = await lookup(id);
-    if (!question || question.stage !== stage) continue;
-    runtime.currentQuestion = question;
+    if (!question) continue;
+    // Stage assignments can change as the bank grows. This match keeps its original pool.
+    runtime.currentQuestion = { ...question, stage };
     runtime.currentQuestionPlayerId = player.id;
     runtime.awaitingRoll = !pending;
     if (pending) {
@@ -132,9 +133,12 @@ export async function createJourneyRuntime(characterSlug: string, playerIds: str
     if (!questionIdsByStage[question.stage].includes(question.id)) questionIdsByStage[question.stage].push(question.id);
   }
   for (let stage = 1; stage <= 5; stage += 1) {
-    if ((questionIdsByStage[stage] || []).length < 10) {
-      throw new Error(`Stage ${stage} needs ten approved questions before a match can start.`);
+    if (!(questionIdsByStage[stage] || []).length) {
+      throw new Error(`Stage ${stage} needs questions before a match can start.`);
     }
+  }
+  if (new Set(Object.values(questionIdsByStage).flat()).size < 200) {
+    throw new Error('This character needs at least 200 active questions before a match can start.');
   }
   const runtime: JourneyRuntime = {
     characterSlug, game: createJourneyGame(playerIds), questionIdsByStage,

@@ -7,7 +7,7 @@ import {
 import { JOURNEY_MACHINE_ID } from '../supabase/functions/_shared/biblicalJourney.ts';
 
 const catalog: JourneyQuestion[] = Array.from({ length: 5 }, (_, stageIndex) =>
-  Array.from({ length: 10 }, (_, index): JourneyQuestion => ({
+  Array.from({ length: 40 }, (_, index): JourneyQuestion => ({
     id: `stage-${stageIndex + 1}-question-${index + 1}`,
     stage: stageIndex + 1,
     type: 'multiple_choice',
@@ -173,7 +173,15 @@ assert.equal(machineJourneyMayAct(botChoice), false);
 
 await assert.rejects(
   () => createJourneyRuntime('elisha', ['alpha'], catalog.filter((question) => question.stage !== 5), lookup, first),
-  /Stage 5 needs ten approved questions/,
+  /Stage 5 needs questions/,
 );
+
+await assert.rejects(() => createJourneyRuntime('elisha', ['alpha'], catalog.slice(0, 199), lookup, first), /at least 200/);
+const reassignedLookup = async (id: string) => {
+  const question = byId.get(id);
+  return question ? { ...question, stage: 5 } : null;
+};
+const afterBankGrowth = await answerJourneyQuestion(ready(start), 'alpha', 'Correct', reassignedLookup, first);
+assert.equal(afterBankGrowth.currentQuestion?.stage, 1, 'existing games retain their original stage pools');
 
 console.log('Biblical Journey question secrecy, human and machine turns, trials, and prison tests passed.');
