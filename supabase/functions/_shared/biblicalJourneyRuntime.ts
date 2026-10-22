@@ -95,7 +95,7 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
   const player = pending
     ? runtime.game.players.find((candidate) => candidate.id === pending.playerId)
     : runtime.game.players[runtime.game.turnIndex];
-  if (!player || (!pending && player.location.route === 'prison')) return;
+  if (!player || (!pending && player.prisonTurnsRemaining > 0)) return;
 
   const stage = pending?.kind === 'trial'
     ? 5
@@ -148,7 +148,7 @@ export async function createJourneyRuntime(characterSlug: string, playerIds: str
 export function rollJourneyDie(original: JourneyRuntime, actorId: string, random: () => number): JourneyRuntime {
   if (!original.awaitingRoll || original.game.status !== 'playing' || original.game.pendingAction
     || original.game.players[original.game.turnIndex]?.id !== actorId || original.currentQuestionPlayerId !== actorId
-    || original.game.players[original.game.turnIndex].location.route === 'prison') {
+    || original.game.players[original.game.turnIndex].prisonTurnsRemaining > 0) {
     throw new Error('It is not your turn to roll.');
   }
   const next = structuredClone(original);
@@ -240,7 +240,7 @@ export async function advanceMachineJourney(original: JourneyRuntime, lookup: Jo
   if (original.game.pendingAction?.kind === 'choice') {
     return chooseJourneyPenalty(original, JOURNEY_MACHINE_ID, random() < 0.5 ? 0 : 1, lookup, random);
   }
-  if (!original.game.pendingAction && original.game.players[original.game.turnIndex].location.route === 'prison') {
+  if (!original.game.pendingAction && original.game.players[original.game.turnIndex].prisonTurnsRemaining > 0) {
     return serveJourneySentence(original, JOURNEY_MACHINE_ID, lookup, random);
   }
   const question = original.currentQuestion;

@@ -6,6 +6,7 @@ import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer'
 import { JourneyBoard, JourneySquareIcon } from '../../components/JourneyBoard';
 import { JourneyDialog } from '../../components/JourneyDialog';
 import { journeyEffectDescription, journeyEventSquare, type JourneySquare } from '../../lib/journeyPresentation';
+import { journeyMovementPath } from '../../lib/journeyBoardLayout';
 import { userFacingError } from '../../lib/connectionErrors';
 import { supabase } from '../../lib/supabase';
 import { fetchPanelImageSetting } from '../../lib/queries';
@@ -62,6 +63,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [timeoutRetry, setTimeoutRetry] = useState(0);
   const [verdictVisible, setVerdictVisible] = useState(false);
+  const [movementPending, setMovementPending] = useState(false);
   const [revealingRoll, setRevealingRoll] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [squareNotices, setSquareNotices] = useState<Array<{ id: number; name: string; square: JourneySquare }>>([]);
@@ -83,6 +85,12 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     const incomingVersion = response.version ?? response.state.game.version;
     if (versionRef.current !== null && incomingVersion < versionRef.current) return;
     versionRef.current = incomingVersion;
+    const previousSequence = eventsCursor.current;
+    if (previousSequence !== null) {
+      const config = journeyConfigForGame(response.state.game);
+      setMovementPending(response.state.game.events.some((event) => event.sequence > previousSequence
+        && journeyMovementPath(event, config.finishSpace, config.loopLength).length > 0));
+    }
     setState(response.state);
     setError(null);
     if (response.state.game.status === 'finished' && !completedRef.current) {
@@ -152,11 +160,13 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     const verdictKey = state?.lastVerdict ? `${state.lastVerdict.questionId}:${state.game.version}` : null;
     if (!verdictKey) { setVerdictVisible(false); return; }
     if (verdictRef.current === verdictKey) return;
+    if (movementPending) return;
     verdictRef.current = verdictKey;
     setVerdictVisible(true);
-    const timer = window.setTimeout(() => setVerdictVisible(false), 3200);
+    const remaining = state?.questionOpensAt ? Date.parse(state.questionOpensAt) - Date.now() : 3200;
+    const timer = window.setTimeout(() => setVerdictVisible(false), Math.max(900, remaining));
     return () => window.clearTimeout(timer);
-  }, [state?.lastVerdict, state?.game.version]);
+  }, [movementPending, state?.lastVerdict, state?.game.version, state?.questionOpensAt]);
 
   useEffect(() => {
     if (!state?.characterSlug) return;
@@ -208,7 +218,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     }
   }, [applyResponse, roomId, sending, spectator, state]);
 
-  const botMayAct = machine && !spectator && !verdictVisible && !revealingRoll && (squareNotices.length === 0 || Boolean(state?.currentQuestion)) && state ? machineJourneyMayAct(state) : false;
+  const botMayAct = machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && (squareNotices.length === 0 || Boolean(state?.currentQuestion)) && state ? machineJourneyMayAct(state) : false;
   useEffect(() => {
     if (!botMayAct || sending) return;
     let timer: number | undefined;
@@ -225,8 +235,12 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   }, [botFailures, botMayAct, send, sending, state?.game.version, state?.questionOpensAt]);
 
   const activePlayer = state?.game.players[state.game.turnIndex];
+  useEffect(() => {
+    if (!state || spectator || sending || activePlayer?.id !== userId || activePlayer.prisonTurnsRemaining <= 0) return;
+    void send('SERVE');
+  }, [activePlayer, send, sending, spectator, state, userId]);
   const myTurn = !spectator && state?.game.status === 'playing'
-    && (state.currentQuestionPlayerId === userId || (activePlayer?.id === userId && activePlayer.location.route === 'prison'));
+    && state.currentQuestionPlayerId === userId;
   const openQuestion = state?.currentQuestion;
   const waitingForMyAnswer = myTurn && state?.currentQuestionPlayerId === userId;
   useEffect(() => {
@@ -241,7 +255,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const mayChoose = !spectator && state?.game.pendingAction?.kind === 'choice'
     && state.game.pendingAction.playerId !== userId
     && state.game.players.some((player) => player.id === userId);
-  const asking = Boolean(openQuestion && !questionHidden && !verdictVisible && !revealingRoll);
+  const asking = Boolean(openQuestion && !questionHidden && !movementPending && !verdictVisible && !revealingRoll);
   const readyAnswer = openQuestion?.type === 'order_sequence'
     ? order.length === openQuestion.options.length
     : answer.trim().length > 0;
@@ -279,7 +293,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     if (notices.length) setSquareNotices((current) => [...current, ...notices]);
   }, [state, boardConfig, profiles]);
 
-  const rollReady = Boolean(state?.awaitingRoll && activePlayer?.id === userId && !spectator && !sending && !verdictVisible && !squareNotices.length);
+  const rollReady = Boolean(state?.awaitingRoll && activePlayer?.id === userId && !spectator && !sending && !movementPending && !verdictVisible && !squareNotices.length);
+  const movementFinished = useCallback(() => setMovementPending(false), []);
   const squareNotice = squareNotices[0];
 
   if (loading && !state) return <div className="flex min-h-[20rem] items-center justify-center gap-2 text-sm text-stone"><Loader2 size={18} className="animate-spin text-brass" /> Opening the Journey...</div>;
@@ -304,10 +319,9 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <ArenaMatchup players={visiblePlayers} playing={state.game.status === 'playing'} />
     {error && <p className="rounded-md border border-coral/40 bg-coral-soft p-3 text-xs text-coral" role="alert">{error}</p>}
     <div className="space-y-3">
-      <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} config={boardConfig} arenaImage={arenaImage}
+      <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
-        onRoll={rollReady ? () => void send('ROLL') : undefined}
-        onServePrisonTurn={myTurn && activePlayer?.location.route === 'prison' ? () => void send('SERVE') : undefined} />
+        onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
       <div className="min-w-0 space-y-3">
         {verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
           <div className="flex items-center gap-2">
@@ -369,7 +383,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       </div>
     </div>}
 
-    {squareNotice && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
+    {squareNotice && !movementPending && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
       <div className={`flex items-center gap-3 ${squareNotice.square.tone === 'red' ? 'text-coral' : 'text-brass'}`}><JourneySquareIcon square={squareNotice.square} size={32} /><div><p className="text-xs text-stone">{squareNotice.name}</p><h3 className="font-display text-xl font-bold">{squareNotice.square.title}</h3></div></div>
       <p className="mt-4 text-sm leading-relaxed text-ink">{squareNotice.square.description}</p>
       <button type="button" className={`mt-4 flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-bold ${squareNotice.square.tone === 'red' ? 'border border-coral bg-coral-soft text-coral' : 'btn-primary'}`} onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>

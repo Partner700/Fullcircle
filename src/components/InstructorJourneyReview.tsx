@@ -71,11 +71,14 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
         p_offset: offset, p_limit: PAGE_SIZE,
       });
       if (queryError) throw queryError;
-      setPage(data as ReviewPage);
+      const next = data as ReviewPage;
+      setPage(next);
       setSelected([]);
       setError(null);
+      return next;
     } catch (loadError) {
       setError(errorMessage(loadError));
+      return null;
     } finally {
       setLoading(false);
     }
@@ -112,7 +115,16 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
   };
 
   const setCharacterReady = async (ready: boolean) => {
-    if (!slug) return;
+    if (!slug || page?.character.slug !== slug) return;
+    if (ready && !canActivate) {
+      const missing = page.counts.filter((count) => count.approved < 10);
+      setNotice(`${page.character.displayName} needs ${missing.map((count) => `Stage ${count.stage}: ${10 - count.approved} more approved`).join(', ')}. Review those questions before making this journey playable.`);
+      setError(null);
+      setStage(missing[0]?.stage || 1);
+      setStatus('pending');
+      setOffset(0);
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -121,9 +133,10 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
         p_slug: slug, p_ready: ready,
       });
       if (updateError) throw updateError;
-      setNotice(ready ? 'This character is now available for Arena matches.' : 'New matches for this character are paused.');
-      await loadPage();
+      const refreshed = await loadPage();
+      if (!refreshed || refreshed.character.ready !== ready) throw new Error('The Journey status did not update. Please refresh and try again.');
       await loadCharacters();
+      setNotice(ready ? 'This character is now available for Arena matches.' : 'New matches for this character are paused.');
     } catch (updateError) {
       setError(errorMessage(updateError));
     } finally {
@@ -159,7 +172,7 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
     {open && <div className="mt-4 space-y-4">
       {characters.length > 0 && <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-[10rem] flex-1 text-xs text-stone">Character
-          <select className="input-field mt-1" value={slug} onChange={(event) => { setSlug(event.target.value); setSetName(''); setOffset(0); }}>
+          <select className="input-field mt-1" value={slug} onChange={(event) => { setPage(null); setSlug(event.target.value); setSetName(''); setOffset(0); setNotice(null); }}>
             {characters.map((character) => <option key={character.slug} value={character.slug}>{character.displayName}</option>)}
           </select>
         </label>
@@ -194,7 +207,7 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
         <strong className="text-ink">{page.character.displayName}</strong>
         <span>{totalApproved} approved</span>
         <span>{page.character.ready ? 'Ready for matches' : 'Not yet playable'}</span>
-        <button type="button" className="btn-secondary ml-auto text-xs" disabled={busy || (!canActivate && !page.character.ready)}
+        <button type="button" className="btn-secondary ml-auto text-xs" disabled={busy || page.character.slug !== slug}
           onClick={() => void setCharacterReady(!page.character.ready)}>
           {page.character.ready ? 'Pause character' : 'Make playable'}
         </button>

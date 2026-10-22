@@ -6,7 +6,7 @@ export function journeyEffectDescription(effect: JourneyEffect): string {
   switch (effect.kind) {
     case 'move': return effect.to !== undefined ? `Move to square ${effect.to}.` : `Move ${Math.abs(effect.by || 0)} squares ${(effect.by || 0) < 0 ? 'back' : 'forward'}.`;
     case 'milestone': return 'Return to your previous story milestone.';
-    case 'prison': return effect.prison === 'holding' ? 'Enter Holding Prison. Serve two turns, then return to your saved square.' : 'Enter Deep Prison. Serve three turns, then return seven squares behind your saved main-path position.';
+    case 'prison': return effect.prison === 'holding' ? 'Stay on this square and miss your next two turns.' : 'Stay on this square and miss your next three turns.';
     case 'loop': return 'Enter the Trials. Land exactly on Escape or the Surprise Card to leave.';
     case 'loop_shift': return `Return to Trials square ${effect.to}.`;
     case 'swap': return `Exchange places with the ${effect.opponent === 'leader' ? 'leading' : 'last'} rival.`;
@@ -30,7 +30,7 @@ export function journeySquare(location: JourneyLocation, config: JourneyConfig =
   }
   const space = location.space;
   if (space === 1) return { title: 'Start', description: `Cross Start with an earned roll to complete a lap. The first to complete ${config.winningLaps} laps wins. Transfers never add laps.`, icon: 'start', tone: 'green', special: true };
-  if (space === config.finishSpace) return { title: 'Home Stretch', description: 'One more step crosses Start and completes this lap. Keep going until you have completed three laps.', icon: 'crown', tone: 'gold', special: true };
+  if (space === config.finishSpace) return { title: 'Home Stretch', description: `One more step crosses Start and completes this lap. Complete ${config.winningLaps} laps to win.`, icon: 'crown', tone: 'gold', special: true };
   if (config.loopEntrances.includes(space)) return { title: 'Enter the Trials', description: journeyEffectDescription({ kind: 'loop', entrance: space }), icon: 'trials', tone: 'grey', special: true };
   const trap = config.traps[space];
   if (trap) {
@@ -52,15 +52,17 @@ export function journeyEventSquare(event: JourneyEvent, config: JourneyConfig): 
   if (event.source === 'surprise-card') return { title: 'Surprise Promotion', description: `You escape the Trials and advance ${config.promotionBonus} extra main-path squares!`, icon: 'card', tone: 'gold', special: true };
   if (event.source === 'ordinary-escape') return { ...journeySquare({ route: 'loop', space: config.ordinaryExit }, config), tone: 'gold' };
   if (event.source === 'prison-release') return { title: 'Released', description: 'Your sentence is complete. You return to the board.', icon: 'escape', tone: 'gold', special: true };
+  if (event.source === 'prison-sentence') return null;
   if (/^main:\d+$/.test(event.source)) {
     const square = journeySquare({ route: 'main', space: Number(event.source.split(':')[1]) }, config);
-    const bad = event.newLocation.route === 'prison' || event.newLocation.route === 'loop'
+    const bad = event.effectType === 'prison' || event.newLocation.route === 'prison' || event.newLocation.route === 'loop'
       || event.animation === 'backward' || event.resolution === 'pending'
       || (event.previousLocation.route === 'main' && event.newLocation.route === 'main' && event.newLocation.space < event.previousLocation.space);
     const resolvedChallenge = square.icon === 'challenge' && event.resolution === 'applied';
     return { ...square, tone: bad ? 'red' : 'gold',
       ...(resolvedChallenge ? { title: bad ? 'Challenge Missed' : 'Challenge Passed',
-        description: event.newLocation.route === 'prison' ? journeyEffectDescription({ kind: 'prison', prison: event.newLocation.prison })
+        description: event.effectType === 'prison' ? square.description
+          : event.newLocation.route === 'prison' ? journeyEffectDescription({ kind: 'prison', prison: event.newLocation.prison })
           : event.newLocation.route === 'main' ? `You stay in the race on square ${event.newLocation.space}.` : square.description } : {}),
     };
   }

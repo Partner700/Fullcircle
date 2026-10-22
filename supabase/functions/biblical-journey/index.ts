@@ -20,7 +20,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '205',
+  'X-Full-Circle-Journey-Release': '208',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -185,7 +185,10 @@ Deno.serve(async (request) => {
       const prepared = await initialRuntime(roomId, context.characterSlug,
         [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])]);
       // Older cached clients still draw 51 squares until they receive the new app.
-      if (body.boardSpaces !== 45) prepared.game.boardSpaces = 51;
+      if (body.boardSpaces !== 45) {
+        prepared.game.boardSpaces = 51;
+        prepared.game.winningLaps = 3;
+      }
       const state = await rest(machine ? 'rpc/initialize_machine_arena_journey_game' : 'rpc/initialize_arena_journey_game', {
         method: 'POST', body: JSON.stringify({
           p_room_id: roomId, p_character_slug: context.characterSlug, p_state: prepared,

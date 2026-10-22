@@ -109,7 +109,8 @@ assert.equal(trialPassed.game.turnIndex, 1);
 assert.equal(trialPassed.game.pendingAction, null);
 
 const trialFailed = await answerJourneyQuestion(ready(trial), 'alpha', 'Incorrect', lookup, first);
-assert.deepEqual(trialFailed.game.players[0].location, { route: 'prison', prison: 'deep' });
+assert.deepEqual(trialFailed.game.players[0].location, { route: 'main', space: 44 });
+assert.equal(trialFailed.game.players[0].prisonTurnsRemaining, 3);
 assert.equal(trialFailed.game.players[0].correctAnswers, 1);
 assert.equal(trialFailed.currentQuestionPlayerId, 'beta');
 

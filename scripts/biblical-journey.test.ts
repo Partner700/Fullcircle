@@ -5,6 +5,7 @@ import {
   type JourneyConfig, type JourneyGame, type JourneyLocation,
 } from '../supabase/functions/_shared/biblicalJourney.ts';
 import { LEGACY_JOURNEY_MAIN_POINTS as JOURNEY_MAIN_POINTS, JOURNEY_MAIN_POINTS as SMALL_BOARD_POINTS, JOURNEY_LOOP_POINTS } from '../src/lib/journeyBoardLayout.ts';
+import { journeyMovementPath } from '../src/lib/journeyBoardLayout.ts';
 import { journeyEventSquare } from '../src/lib/journeyPresentation.ts';
 
 const plain = (): JourneyConfig => ({ ...DEFAULT_JOURNEY_CONFIG, traps: {} });
@@ -21,7 +22,7 @@ assert.equal(JOURNEY_MAIN_POINTS.length, 51);
 assert.equal(JOURNEY_LOOP_POINTS.length, 10);
 assert.equal(new Set(JOURNEY_MAIN_POINTS.map(({ x, y }) => `${x}:${y}`)).size, 51);
 assert.ok(JOURNEY_MAIN_POINTS.every(({ x, y }) => x === 32 || x === 688 || y === 32 || y === 688));
-assert.ok(JOURNEY_LOOP_POINTS.every(({ x, y }) => x === 200 || x === 520 || y === 285 || y === 525));
+assert.ok(JOURNEY_LOOP_POINTS.every(({ x, y }) => x === 200 || x === 520 || y === 375 || y === 615));
 assert.equal(DEFAULT_JOURNEY_CONFIG.winningLaps, 3);
 assert.equal(new Set(DEFAULT_JOURNEY_CONFIG.loopEntrances).size, 2);
 assert.notEqual(DEFAULT_JOURNEY_CONFIG.ordinaryExit, DEFAULT_JOURNEY_CONFIG.surpriseExit);
@@ -73,25 +74,34 @@ assert.deepEqual(space(capped), { route: 'main', space: 49 });
 assert.equal(capped.status, 'playing');
 
 const holdingConfig: JourneyConfig = { ...plain(), traps: { 20: JOURNEY_TRAP_LIBRARY.captured } };
-let holding = resolveJourneyRoll(located({ route: 'main', space: 19 }), 'alpha', 1, holdingConfig);
-assert.deepEqual(space(holding), { route: 'prison', prison: 'holding' });
-assert.equal(holding.players[0].prisonTurnsRemaining, 2);
-assert.throws(() => resolveJourneyRoll(holding, 'alpha', 1, holdingConfig), /serve a turn/);
-holding = serveJourneyPrisonTurn(holding, 'alpha', holdingConfig);
-assert.equal(holding.players[0].prisonTurnsRemaining, 1);
-holding = serveJourneyPrisonTurn(holding, 'alpha', holdingConfig);
+let holding = resolveJourneyRoll(located({ route: 'main', space: 19 }, ['alpha', 'beta']), 'alpha', 1, holdingConfig);
 assert.deepEqual(space(holding), { route: 'main', space: 20 });
+assert.equal(holding.players[0].status, 'IN_HOLDING_PRISON');
+assert.equal(holding.players[0].prisonTurnsRemaining, 2);
+assert.equal(holding.turnIndex, 1);
+holding = resolveJourneyMiss(holding, 'beta');
+assert.equal(holding.players[0].prisonTurnsRemaining, 1);
+assert.equal(holding.turnIndex, 1);
+holding = resolveJourneyMiss(holding, 'beta');
+assert.deepEqual(space(holding), { route: 'main', space: 20 });
+assert.equal(holding.players[0].prisonTurnsRemaining, 0);
+assert.equal(holding.players[0].status, 'ACTIVE');
+assert.equal(holding.turnIndex, 1);
+assert.equal(holding.events.filter((event) => event.source === 'prison-sentence').length, 1);
+holding = resolveJourneyMiss(holding, 'beta');
+assert.equal(holding.turnIndex, 0);
 
 const deepConfig: JourneyConfig = { ...plain(), traps: { 20: JOURNEY_TRAP_LIBRARY.condemned } };
-let deep = resolveJourneyRoll(located({ route: 'main', space: 19 }), 'alpha', 1, deepConfig);
-for (let turn = 0; turn < 3; turn += 1) deep = serveJourneyPrisonTurn(deep, 'alpha', deepConfig);
-assert.deepEqual(space(deep), { route: 'main', space: 13 });
+let deep = resolveJourneyRoll(located({ route: 'main', space: 19 }, ['alpha', 'beta']), 'alpha', 1, deepConfig);
+for (let turn = 0; turn < 3; turn += 1) deep = resolveJourneyMiss(deep, 'beta');
+assert.deepEqual(space(deep), { route: 'main', space: 20 });
+assert.equal(deep.players[0].prisonTurnsRemaining, 0);
 const loopPrison = located({ route: 'prison', prison: 'deep' });
 loopPrison.players[0].status = 'IN_DEEP_PRISON';
 loopPrison.players[0].prisonTurnsRemaining = 1;
 loopPrison.players[0].savedLocation = { route: 'loop', space: 4 };
 loopPrison.players[0].loopEntryMainSpace = 23;
-const releasedLoop = serveJourneyPrisonTurn(loopPrison, 'alpha', plain());
+const releasedLoop = serveJourneyPrisonTurn(loopPrison, 'alpha');
 assert.deepEqual(space(releasedLoop), { route: 'loop', space: 4 });
 assert.equal(releasedLoop.players[0].loopEntryMainSpace, 23);
 
@@ -110,16 +120,18 @@ const swapped = resolveJourneyRoll(swap, 'alpha', 1);
 assert.deepEqual(space(swapped), { route: 'main', space: 40 });
 assert.deepEqual(swapped.players[1].location, { route: 'main', space: 26 });
 
-const chained = resolveJourneyRoll(located({ route: 'main', space: 23 }), 'alpha', 1);
-assert.deepEqual(space(chained), { route: 'prison', prison: 'deep' });
+const chained = resolveJourneyRoll(located({ route: 'main', space: 23 }, ['alpha', 'beta']), 'alpha', 1);
+assert.deepEqual(space(chained), { route: 'main', space: 37 });
+assert.equal(chained.players[0].status, 'IN_DEEP_PRISON');
 assert.ok(chained.events.some((event) => event.source === 'main:24'));
 assert.ok(chained.events.some((event) => event.source === 'main:37'));
 const automaticChainConfig: JourneyConfig = { ...plain(), traps: {
   12: { id: 'push-to-next-trap', name: 'Push to next trap', effect: { kind: 'move', to: 18 } },
   18: JOURNEY_TRAP_LIBRARY.captured,
 } };
-const automaticChain = resolveJourneyRoll(located({ route: 'main', space: 11 }), 'alpha', 1, automaticChainConfig);
-assert.deepEqual(space(automaticChain), { route: 'prison', prison: 'holding' });
+const automaticChain = resolveJourneyRoll(located({ route: 'main', space: 11 }, ['alpha', 'beta']), 'alpha', 1, automaticChainConfig);
+assert.deepEqual(space(automaticChain), { route: 'main', space: 18 });
+assert.equal(automaticChain.players[0].status, 'IN_HOLDING_PRISON');
 assert.ok(automaticChain.events.some((event) => event.source === 'main:18'));
 
 const loopingTrap: JourneyConfig = { ...plain(), traps: { 24: { id: 'looping-test', name: 'Looping test', effect: { kind: 'move', to: 24, activateLanding: true } } } };
@@ -200,6 +212,9 @@ console.log('Biblical Journey rules, routes, traps, prisons, chains, and finish 
 assert.equal(SMALL_BOARD_CONFIG.finishSpace, 45);
 assert.equal(SMALL_BOARD_POINTS.length, 45);
 assert.equal(new Set(SMALL_BOARD_POINTS.map(({ x, y }) => `${x}:${y}`)).size, 45);
+assert.ok(SMALL_BOARD_POINTS.every((point, index) => SMALL_BOARD_POINTS.slice(index + 1)
+  .every((other) => Math.abs(point.x - other.x) >= 57.6 || Math.abs(point.y - other.y) >= 57.6)),
+  'Enlarged 45-square tiles do not overlap around the board');
 const smaller = (location: JourneyLocation) => {
   const game = located(location);
   game.boardSpaces = 45;
@@ -208,9 +223,14 @@ const smaller = (location: JourneyLocation) => {
 const lap45 = resolveJourneyRoll(smaller({ route: 'main', space: 45 }), 'alpha', 1);
 assert.equal(lap45.players[0].completedLaps, 1);
 assert.deepEqual(space(lap45), { route: 'main', space: 1 });
-const thirdLap45 = smaller({ route: 'main', space: 45 });
-thirdLap45.players[0].completedLaps = 2;
-assert.equal(resolveJourneyRoll(thirdLap45, 'alpha', 4).winnerId, 'alpha');
+const secondLap45 = smaller({ route: 'main', space: 45 });
+secondLap45.players[0].completedLaps = 1;
+assert.equal(resolveJourneyRoll(secondLap45, 'alpha', 4).winnerId, 'alpha');
+assert.equal(createJourneyGame(['alpha']).winningLaps, 2);
+const savedMatch = smaller({ route: 'main', space: 45 });
+delete savedMatch.winningLaps;
+savedMatch.players[0].completedLaps = 1;
+assert.equal(resolveJourneyRoll(savedMatch, 'alpha', 1).status, 'playing', 'Older 45-square matches retain their three-lap target');
 for (const [start, die] of [[1, 1], [1, 5], [8, 2]]) {
   const trials = smaller({ route: 'loop', space: start });
   trials.players[0].correctAnswers = 7;
@@ -230,13 +250,19 @@ const final45 = resolveJourneyRoll(smaller({ route: 'main', space: 43 }), 'alpha
 const pass45 = resolveJourneyAction(final45, 'alpha', 0);
 const fail45 = resolveJourneyAction(final45, 'alpha', 1);
 assert.equal(journeyEventSquare(pass45.events.at(-1)!, SMALL_BOARD_CONFIG)?.tone, 'gold');
-assert.equal(journeyEventSquare(fail45.events.at(-1)!, SMALL_BOARD_CONFIG)?.tone, 'red');
+assert.equal(journeyEventSquare(fail45.events.find((event) => event.effectType === 'prison')!, SMALL_BOARD_CONFIG)?.tone, 'red');
 assert.deepEqual(space(pass45), { route: 'main', space: 44 });
-const chain45 = resolveJourneyRoll(smaller({ route: 'main', space: 20 }), 'alpha', 1);
-assert.deepEqual(space(chain45), { route: 'prison', prison: 'deep' });
+const chain45Game = smaller({ route: 'main', space: 20 });
+chain45Game.players.push({ ...createJourneyGame(['beta']).players[0] });
+const chain45 = resolveJourneyRoll(chain45Game, 'alpha', 1);
+assert.deepEqual(space(chain45), { route: 'main', space: 33 });
+assert.equal(chain45.players[0].status, 'IN_DEEP_PRISON');
 const elevation45 = resolveJourneyRoll(smaller({ route: 'main', space: 35 }), 'alpha', 1);
 assert.deepEqual(space(elevation45), { route: 'main', space: 37 });
 const trialLoop = smaller({ route: 'loop', space: 2 });
 trialLoop.pendingAction = { playerId: 'alpha', kind: 'trial', source: 'main:44', choices: [{ kind: 'no_op' }, { kind: 'no_op' }] };
 assert.equal(resolveJourneyAction(trialLoop, 'alpha', 0).players[0].correctAnswers, 0);
+assert.deepEqual(journeyMovementPath(lap45.events.find((event) => event.effectType === 'main-move')!, 45, 10), [{ route: 'main', space: 1 }]);
+const sixSteps = resolveJourneyRoll(smaller({ route: 'main', space: 3 }), 'alpha', 6, { ...SMALL_BOARD_CONFIG, traps: {} });
+assert.deepEqual(journeyMovementPath(sixSteps.events[0], 45, 10).map((location) => location.route === 'main' ? location.space : -1), [4, 5, 6, 7, 8, 9]);
 console.log('45-space board, legacy compatibility, Trials scoring and outcome colors passed.');

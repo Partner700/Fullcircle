@@ -70,6 +70,7 @@ export type JourneyPendingAction = {
 
 export type JourneyGame = {
   boardSpaces?: 45 | 51;
+  winningLaps?: number;
   players: JourneyPlayer[];
   turnIndex: number;
   status: 'playing' | 'finished';
@@ -83,7 +84,6 @@ export const JOURNEY_MACHINE_ID = '00000000-0000-0000-0000-000000000000';
 
 const main = (space: number): JourneyLocation => ({ route: 'main', space });
 const loop = (space: number): JourneyLocation => ({ route: 'loop', space });
-const prison = (name: 'holding' | 'deep'): JourneyLocation => ({ route: 'prison', prison: name });
 
 export const JOURNEY_TRAP_LIBRARY: Record<string, JourneyTrap> = {
   return_start: { id: 'return_start', name: 'Return to Start', effect: { kind: 'move', to: 1 } },
@@ -151,6 +151,7 @@ export const LEGACY_JOURNEY_CONFIG: JourneyConfig = {
 export const DEFAULT_JOURNEY_CONFIG: JourneyConfig = {
   ...LEGACY_JOURNEY_CONFIG,
   finishSpace: 45,
+  winningLaps: 2,
   finalChallengeSpace: 44,
   loopEntrances: [20, 26],
   milestones: LEGACY_JOURNEY_CONFIG.milestones.map((milestone, index) => ({
@@ -170,13 +171,16 @@ export const DEFAULT_JOURNEY_CONFIG: JourneyConfig = {
 
 // Matches saved before the smaller board keep their original route and traps.
 export function journeyConfigForGame(game: JourneyGame): JourneyConfig {
-  return game.boardSpaces === 45 ? DEFAULT_JOURNEY_CONFIG : LEGACY_JOURNEY_CONFIG;
+  return game.boardSpaces === 45
+    ? { ...DEFAULT_JOURNEY_CONFIG, winningLaps: game.winningLaps ?? 3 }
+    : LEGACY_JOURNEY_CONFIG;
 }
 
 export function createJourneyGame(playerIds: string[]): JourneyGame {
   if (playerIds.length < 1 || new Set(playerIds).size !== playerIds.length) throw new Error('Journey players must be unique.');
   return {
     boardSpaces: 45,
+    winningLaps: 2,
     players: playerIds.map((id) => ({
       id, location: main(1), status: 'ACTIVE', loopEntryMainSpace: null,
       completedLoopCircuits: 0, loopEscapes: 0, prisonTurnsRemaining: 0,
@@ -201,6 +205,11 @@ function statusFor(location: JourneyLocation): JourneyPlayer['status'] {
   return 'ACTIVE';
 }
 
+function isImprisoned(player: JourneyPlayer) {
+  return player.prisonTurnsRemaining > 0
+    && (player.status === 'IN_HOLDING_PRISON' || player.status === 'IN_DEEP_PRISON');
+}
+
 function record(game: JourneyGame, player: JourneyPlayer, source: string, effectType: string,
   previousLocation: JourneyLocation, animation: JourneyEvent['animation'],
   resolution: JourneyEvent['resolution'] = 'applied', reason?: string) {
@@ -211,13 +220,34 @@ function record(game: JourneyGame, player: JourneyPlayer, source: string, effect
 
 function nextTurn(game: JourneyGame) {
   if (game.status !== 'playing') return;
-  game.turnIndex = (game.turnIndex + 1) % game.players.length;
+  for (let skipped = 0; skipped <= game.players.length * 6; skipped += 1) {
+    game.turnIndex = (game.turnIndex + 1) % game.players.length;
+    const player = game.players[game.turnIndex];
+    if (!isImprisoned(player)) return;
+    servePrisonTurn(game, player);
+  }
+  throw new Error('The Journey could not find a player for the next turn.');
+}
+
+function servePrisonTurn(game: JourneyGame, player: JourneyPlayer) {
+  const previous = structuredClone(player.location);
+  player.prisonTurnsRemaining -= 1;
+  if (player.prisonTurnsRemaining > 0) {
+    record(game, player, 'prison-sentence', 'serve-turn', previous, 'none');
+    return;
+  }
+  // Old saved matches used a separate prison location; return those tokens to their saved square.
+  if (player.location.route === 'prison') player.location = player.savedLocation || main(1);
+  player.savedLocation = null;
+  player.prisonTurnsRemaining = 0;
+  player.status = statusFor(player.location);
+  record(game, player, 'prison-release', 'release', previous, 'reveal');
 }
 
 type QueuedEffect = { playerId: string; source: string; effect: JourneyEffect; key: string };
 
 function landingEffect(config: JourneyConfig, player: JourneyPlayer): QueuedEffect | null {
-  if (player.location.route !== 'main') return null;
+  if (player.location.route !== 'main' || isImprisoned(player)) return null;
   const space = player.location.space;
   if (space === 1 || space === config.finishSpace) return null;
   if (config.loopEntrances.includes(space)) {
@@ -249,7 +279,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
     let followLanding = false;
     switch (effect.kind) {
       case 'move': {
-        if (player.location.route !== 'main') break;
+        if (player.location.route !== 'main' || isImprisoned(player)) break;
         const target = Math.max(1, Math.min(config.finalChallengeSpace - 1, effect.to ?? player.location.space + (effect.by || 0)));
         animation = target >= player.location.space ? 'forward' : 'backward';
         player.location = main(target);
@@ -257,19 +287,19 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         break;
       }
       case 'milestone':
-        if (player.location.route !== 'main' || previous.route !== 'main') break;
+        if (player.location.route !== 'main' || previous.route !== 'main' || isImprisoned(player)) break;
         player.location = main([...config.milestones].reverse().find((milestone) => milestone.space < previous.space)?.space || 1);
         animation = 'backward';
         break;
       case 'prison':
-        if (player.location.route === 'prison') break;
-        player.savedLocation = structuredClone(player.location);
-        player.location = prison(effect.prison);
+        if (isImprisoned(player)) break;
+        player.savedLocation = null;
         player.prisonTurnsRemaining = config.prisonTurns[effect.prison];
+        player.status = effect.prison === 'holding' ? 'IN_HOLDING_PRISON' : 'IN_DEEP_PRISON';
         animation = 'prison';
         break;
       case 'loop':
-        if (player.location.route === 'prison' || (item.key === 'return_maze' && player.loopEscapes === 0)) break;
+        if (isImprisoned(player) || (item.key === 'return_maze' && player.loopEscapes === 0)) break;
         player.loopEntryMainSpace = effect.entrance;
         player.location = loop(1);
         animation = 'loop';
@@ -280,8 +310,8 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         animation = 'loop';
         break;
       case 'swap': {
-        if (player.location.route !== 'main') break;
-        const candidates = game.players.filter((other) => other.id !== player.id && other.location.route === 'main' && other.status !== 'FINISHED');
+        if (player.location.route !== 'main' || isImprisoned(player)) break;
+        const candidates = game.players.filter((other) => other.id !== player.id && other.location.route === 'main' && other.status !== 'FINISHED' && !isImprisoned(other));
         candidates.sort((a, b) => ((a.completedLaps || 0) - (b.completedLaps || 0)) * config.finishSpace
           + (a.location as { space: number }).space - (b.location as { space: number }).space);
         const opponent = effect.opponent === 'last' ? candidates[0] : candidates[candidates.length - 1];
@@ -295,7 +325,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
       }
       case 'all_move':
         for (const other of game.players) {
-          if (other.location.route !== 'main' || other.status === 'FINISHED') continue;
+          if (other.location.route !== 'main' || other.status === 'FINISHED' || isImprisoned(other)) continue;
           const from = structuredClone(other.location);
           other.location = main(Math.max(1, Math.min(config.finalChallengeSpace - 1, other.location.space + effect.by)));
           record(game, other, item.source, 'all_move', from, effect.by < 0 ? 'backward' : 'forward');
@@ -319,12 +349,12 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         record(game, player, item.source, effect.kind, previous, 'none', 'pending');
         return;
       case 'extend_prison':
-        if (player.location.route === 'prison') player.prisonTurnsRemaining = Math.min(5, player.prisonTurnsRemaining + effect.turns);
+        if (isImprisoned(player)) player.prisonTurnsRemaining = Math.min(5, player.prisonTurnsRemaining + effect.turns);
         break;
       case 'no_op':
         break;
     }
-    player.status = statusFor(player.location);
+    if (!isImprisoned(player)) player.status = statusFor(player.location);
     record(game, player, item.source, effect.kind, previous, animation);
     if (followLanding) {
       const next = landingEffect(config, player);
@@ -342,7 +372,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
   const game = copyGame(original);
   const player = game.players[game.turnIndex];
   const previous = structuredClone(player.location);
-  if (player.location.route === 'prison') throw new Error('A prisoner must serve a turn, not roll a die.');
+  if (player.location.route === 'prison' || isImprisoned(player)) throw new Error('A prisoner must miss this turn, not roll a die.');
   if (player.location.route === 'main') player.correctAnswers += 1;
   const dueEffects = player.pendingEffects.splice(0);
   if (player.location.route === 'loop') {
@@ -372,7 +402,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
     player.location = main(won ? 1 : progress % config.finishSpace + 1);
     record(game, player, 'die', 'main-move', previous, 'forward');
     if (crossedStart) record(game, player, 'lap-complete', 'lap', previous, 'reveal');
-    // The race ends as the third earned lap crosses Start, before any further square.
+    // Only an earned die roll can complete the final lap.
     if (won) {
       player.status = 'FINISHED';
       game.status = 'finished';
@@ -387,7 +417,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
   if (game.pendingAction) {
     player.pendingEffects.unshift(...dueEffects);
   } else {
-    if (dueEffects.length && player.location.route !== 'prison') {
+    if (dueEffects.length && !isImprisoned(player)) {
       resolveEffects(game, config, dueEffects.map((effect, index) => ({ playerId, source: 'delayed-penalty', effect, key: `delayed:${index}` })));
     }
     if (!game.pendingAction) nextTurn(game);
@@ -402,38 +432,21 @@ export function resolveJourneyMiss(original: JourneyGame, playerId: string): Jou
   }
   const game = copyGame(original);
   const player = game.players[game.turnIndex];
-  if (player.location.route === 'prison') throw new Error('A prisoner must serve a turn.');
+  if (isImprisoned(player)) throw new Error('A prisoner must miss this turn.');
   record(game, player, 'trivia', 'incorrect-answer', structuredClone(player.location), 'none');
   nextTurn(game);
   game.version += 1;
   return game;
 }
 
-export function serveJourneyPrisonTurn(original: JourneyGame, playerId: string,
-  config: JourneyConfig = journeyConfigForGame(original)): JourneyGame {
+export function serveJourneyPrisonTurn(original: JourneyGame, playerId: string): JourneyGame {
   if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
   }
   const game = copyGame(original);
   const player = game.players[game.turnIndex];
-  if (player.location.route !== 'prison') throw new Error('Only a prisoner may serve a prison turn.');
-  const previous = structuredClone(player.location);
-  player.prisonTurnsRemaining -= 1;
-  if (player.prisonTurnsRemaining > 0) {
-    record(game, player, 'prison-sentence', 'serve-turn', previous, 'none');
-  } else {
-    const saved = player.savedLocation;
-    player.location = previous.prison === 'deep' && saved?.route === 'main'
-      ? main(Math.max(1, saved.space - 7)) : saved || main(1);
-    player.savedLocation = null;
-    player.prisonTurnsRemaining = 0;
-    player.status = statusFor(player.location);
-    record(game, player, 'prison-release', 'release', previous, 'prison');
-    if (previous.prison === 'deep' && player.location.route === 'main') {
-      const effect = landingEffect(config, player);
-      if (effect) resolveEffects(game, config, [effect]);
-    }
-  }
+  if (!isImprisoned(player)) throw new Error('Only a prisoner may serve a prison turn.');
+  servePrisonTurn(game, player);
   if (!game.pendingAction) nextTurn(game);
   game.version += 1;
   return game;

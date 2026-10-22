@@ -21,6 +21,7 @@ if (params.has('trap')) runtime.game.players[0].location = { route: 'main', spac
 if (params.has('bad')) runtime.game.players[0].location = { route: 'main', space: 19 };
 if (params.has('legacy')) {
   delete runtime.game.boardSpaces;
+  delete runtime.game.winningLaps;
   runtime.game.players[0].location = { route: 'main', space: 51 };
 }
 if (params.has('witness')) runtime = rollJourneyDie(runtime, 'alpha', () => 0);
