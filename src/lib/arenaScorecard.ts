@@ -2,6 +2,10 @@ import type { ArenaFinalScorecard } from './queries';
 
 type Player = ArenaFinalScorecard['players'][number];
 
+export function arenaPlayerScore(player?: { score?: number; correct_count: number }): number {
+  return Number(player?.score ?? player?.correct_count) || 0;
+}
+
 export function shortestArenaName(displayName: string): string {
   if (displayName.trim().toLowerCase() === 'the scribe') return 'The Scribe';
   const names = displayName.trim().split(/[\s-]+/).filter(Boolean);
@@ -33,7 +37,7 @@ export function groupArenaScoreTeams(players: Player[]): ArenaScoreTeam[] {
       teams.set(key, team);
     }
     team.players.push(player);
-    team.total += Math.max(0, Number(player.correct_count) || 0);
+    team.total += arenaPlayerScore(player);
   }
   return Array.from(teams.values());
 }

@@ -83,6 +83,7 @@ export type RoadHomeEvent = {
 };
 
 export type RoadHomeState = {
+  questionAid?: import('../../supabase/functions/_shared/arenaRelics').ArenaQuestionAid;
   roomId: string;
   version: number;
   questionPool: RoadHomeQuestion[];

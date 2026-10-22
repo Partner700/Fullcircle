@@ -4,6 +4,7 @@ export type ArenaMatchupPlayer = {
   avatar_url: string | null;
   tent_house_id: string | null;
   correct_count: number;
+  score?: number;
 };
 
 export function shortArenaName(name: string) {

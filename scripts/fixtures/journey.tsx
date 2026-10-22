@@ -1,12 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import '../../src/index.css';
-import { createJourneyRuntime, publicJourneyRuntime, rollJourneyDie, answerJourneyQuestion, advanceMachineJourney, type JourneyQuestion } from '../../supabase/functions/_shared/biblicalJourneyRuntime';
+import { createJourneyRuntime, publicJourneyRuntime, rollJourneyDie, answerJourneyQuestion, advanceMachineJourney, applyJourneyRelic, type JourneyQuestion } from '../../supabase/functions/_shared/biblicalJourneyRuntime';
 import { JOURNEY_MACHINE_ID } from '../../supabase/functions/_shared/biblicalJourney';
 
 // This fixture never contacts the live backend. Its transport uses the actual game engine.
-const questions: JourneyQuestion[] = Array.from({ length: 50 }, (_, i) => ({
-  id: `q-${i}`, stage: Math.floor(i / 10) + 1, type: 'multiple_choice',
+const questions: JourneyQuestion[] = Array.from({ length: 200 }, (_, i) => ({
+  id: `q-${i}`, stage: Math.floor(i / 40) + 1, type: 'multiple_choice',
   question: 'What did Elisha ask to receive before Elijah was taken away?',
   options: ['A double portion of his spirit', 'A royal crown', 'A field of grain'],
   correctAnswer: 'A double portion of his spirit', acceptedAnswers: [],
@@ -15,6 +15,7 @@ const questions: JourneyQuestion[] = Array.from({ length: 50 }, (_, i) => ({
 const lookup = async (id: string) => questions.find((question) => question.id === id) || null;
 const params = new URLSearchParams(location.search);
 const machine = params.has('machine');
+const relicInventory = Object.fromEntries(['hint','eliminate','freeze-timer','skip','reveal-reference','witch-ball-endor','talking-donkey'].map(slug => [slug,2]));
 const ids = machine ? ['alpha', JOURNEY_MACHINE_ID] : ['alpha', 'beta', 'gamma', 'delta'];
 let runtime = await createJourneyRuntime('elisha', ids, questions, lookup, () => 0);
 if (params.has('trap')) runtime.game.players[0].location = { route: 'main', space: 4 };
@@ -30,12 +31,17 @@ window.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
   if (url.includes('/functions/v1/biblical-journey')) {
     const body = JSON.parse(String(init?.body || '{}'));
-    if (body.action === 'ROLL') runtime = rollJourneyDie(runtime, 'alpha', () => 0);
+    if (body.action === 'ROLL') runtime = rollJourneyDie(runtime, 'alpha', () => params.has('six') ? .99 : 0);
     if (body.action === 'ANSWER') runtime = await answerJourneyQuestion(runtime, 'alpha', body.answer, lookup, () => 0);
     if (body.action === 'BOT') runtime = await advanceMachineJourney(runtime, lookup, () => 0, 1);
+    if (body.action === 'RELIC') {
+      runtime = await applyJourneyRelic(runtime, 'alpha', body.slug, lookup, () => 0);
+      relicInventory[body.slug] -= 1;
+    }
     if (body.action === 'GET' && body.knownVersion === runtime.game.version) return Response.json({ unchanged: true, state: null });
     return Response.json({ state: publicJourneyRuntime(runtime), version: runtime.game.version });
   }
+  if (url.includes('/relic_inventory')) return Response.json(Object.entries(relicInventory).map(([slug, quantity]) => ({quantity, relic_types:{slug}})));
   if (url.includes('.supabase.co')) return Response.json([]);
   return nativeFetch(input, init);
 };

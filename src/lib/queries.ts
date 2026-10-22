@@ -3365,6 +3365,7 @@ export type ArenaFinalScorecard = {
     tent_house_id: string | null;
     tent_name: string | null;
     correct_count: number;
+    score?: number;
   }>;
 };
 
@@ -3705,13 +3706,14 @@ export function sendRoadHomeCommand(
   action: string,
   payload: Record<string, unknown>,
   expectedVersion: number,
+  commandId: string = crypto.randomUUID(),
 ) {
   return callRoadHomeServer({
     roomId,
     action,
     payload,
     expectedVersion,
-    commandId: crypto.randomUUID(),
+    commandId,
   });
 }
 

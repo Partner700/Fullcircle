@@ -46,6 +46,7 @@ export type JourneyPlayer = {
   savedLocation: JourneyLocation | null;
   pendingEffects: JourneyEffect[];
   correctAnswers: number;
+  score?: number;
   completedLaps?: number;
 };
 
@@ -78,6 +79,7 @@ export type JourneyGame = {
   pendingAction: JourneyPendingAction;
   events: JourneyEvent[];
   version: number;
+  bonusTurnPlayerId?: string | null;
 };
 
 export const JOURNEY_MACHINE_ID = '00000000-0000-0000-0000-000000000000';
@@ -220,6 +222,13 @@ function record(game: JourneyGame, player: JourneyPlayer, source: string, effect
 
 function nextTurn(game: JourneyGame) {
   if (game.status !== 'playing') return;
+  const current = game.players[game.turnIndex];
+  const bonus = game.bonusTurnPlayerId === current.id;
+  game.bonusTurnPlayerId = null;
+  if (bonus && !isImprisoned(current)) {
+    record(game, current, 'six-bonus', 'extra-turn', structuredClone(current.location), 'reveal');
+    return;
+  }
   for (let skipped = 0; skipped <= game.players.length * 6; skipped += 1) {
     game.turnIndex = (game.turnIndex + 1) % game.players.length;
     const player = game.players[game.turnIndex];
@@ -245,6 +254,23 @@ function servePrisonTurn(game: JourneyGame, player: JourneyPlayer) {
 }
 
 type QueuedEffect = { playerId: string; source: string; effect: JourneyEffect; key: string };
+
+export function journeyScore(player: JourneyPlayer): number {
+  return player.score ?? player.correctAnswers;
+}
+
+function awardAnswer(player: JourneyPlayer) {
+  player.score = journeyScore(player) + 1;
+  player.correctAnswers += 1;
+}
+
+function deductBackwardSteps(game: JourneyGame, player: JourneyPlayer, previous: JourneyLocation, source: string) {
+  if (previous.route === 'prison' || player.location.route !== previous.route) return;
+  const steps = Math.max(0, previous.space - player.location.space);
+  if (!steps) return;
+  player.score = journeyScore(player) - steps;
+  record(game, player, source, 'points-lost', player.location, 'none', 'applied', String(steps));
+}
 
 function landingEffect(config: JourneyConfig, player: JourneyPlayer): QueuedEffect | null {
   if (player.location.route !== 'main' || isImprisoned(player)) return null;
@@ -320,6 +346,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         opponent.location = previous;
         player.location = opponentPrevious;
         animation = 'swap';
+        deductBackwardSteps(game, opponent, opponentPrevious, item.source);
         record(game, opponent, item.source, 'swap', opponentPrevious, animation);
         break;
       }
@@ -328,6 +355,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
           if (other.location.route !== 'main' || other.status === 'FINISHED' || isImprisoned(other)) continue;
           const from = structuredClone(other.location);
           other.location = main(Math.max(1, Math.min(config.finalChallengeSpace - 1, other.location.space + effect.by)));
+          deductBackwardSteps(game, other, from, item.source);
           record(game, other, item.source, 'all_move', from, effect.by < 0 ? 'backward' : 'forward');
         }
         break;
@@ -355,6 +383,9 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         break;
     }
     if (!isImprisoned(player)) player.status = statusFor(player.location);
+    if (['move', 'milestone', 'loop_shift', 'swap'].includes(effect.kind)) {
+      deductBackwardSteps(game, player, previous, item.source);
+    }
     record(game, player, item.source, effect.kind, previous, animation);
     if (followLanding) {
       const next = landingEffect(config, player);
@@ -373,7 +404,8 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
   const player = game.players[game.turnIndex];
   const previous = structuredClone(player.location);
   if (player.location.route === 'prison' || isImprisoned(player)) throw new Error('A prisoner must miss this turn, not roll a die.');
-  if (player.location.route === 'main') player.correctAnswers += 1;
+  game.bonusTurnPlayerId = die === 6 ? playerId : null;
+  if (player.location.route === 'main') awardAnswer(player);
   const dueEffects = player.pendingEffects.splice(0);
   if (player.location.route === 'loop') {
     const startIndex = player.location.space - 1;
@@ -426,13 +458,14 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
   return game;
 }
 
-export function resolveJourneyMiss(original: JourneyGame, playerId: string): JourneyGame {
+export function resolveJourneyMiss(original: JourneyGame, playerId: string, die?: number | null): JourneyGame {
   if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
   }
   const game = copyGame(original);
   const player = game.players[game.turnIndex];
   if (isImprisoned(player)) throw new Error('A prisoner must miss this turn.');
+  game.bonusTurnPlayerId = die === 6 ? playerId : null;
   record(game, player, 'trivia', 'incorrect-answer', structuredClone(player.location), 'none');
   nextTurn(game);
   game.version += 1;
@@ -465,7 +498,7 @@ export function resolveJourneyAction(original: JourneyGame, actorId: string, cho
   game.pendingAction = null;
   if (pending.kind === 'trial' && choice === 0) {
     const player = game.players.find((candidate) => candidate.id === pending.playerId);
-    if (player?.location.route === 'main') player.correctAnswers += 1;
+    if (player?.location.route === 'main') awardAnswer(player);
   }
   resolveEffects(game, config, [{ playerId: pending.playerId, source: pending.source, effect: pending.choices[choice], key: `${pending.kind}:${choice}` }]);
   if (!game.pendingAction) nextTurn(game);

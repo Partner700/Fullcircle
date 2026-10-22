@@ -9,6 +9,7 @@ import {
   serveJourneyPrisonTurn,
   type JourneyGame,
 } from './biblicalJourney.ts';
+import { arenaRelicEffect, type ArenaQuestionAid } from './arenaRelics.ts';
 
 export type JourneyQuestion = {
   id: string;
@@ -46,6 +47,7 @@ export type JourneyRuntime = {
   awaitingRoll?: boolean;
   pendingDie?: number | null;
   questionOpensAt?: string | null;
+  questionAid?: ArenaQuestionAid;
 };
 
 export const JOURNEY_QUESTION_SECONDS = 30;
@@ -89,6 +91,7 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
   runtime.questionOpensAt = null;
   runtime.awaitingRoll = false;
   runtime.pendingDie = null;
+  runtime.questionAid = undefined;
   if (runtime.game.status !== 'playing') return;
   const pending = runtime.game.pendingAction;
   if (pending?.kind === 'choice') return;
@@ -166,18 +169,25 @@ export function rollJourneyDie(original: JourneyRuntime, actorId: string, random
 }
 
 export async function answerJourneyQuestion(original: JourneyRuntime, actorId: string, answer: string,
-  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, skip = false): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
   if (!question || original.awaitingRoll || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
     throw new Error('This question is not open for you.');
   }
   if (original.questionOpensAt && Date.now() < Date.parse(original.questionOpensAt)) throw new Error('Wait for the question to open.');
   const expired = Boolean(original.questionDeadline && Date.now() >= Date.parse(original.questionDeadline));
-  if (!expired && !answer.trim()) throw new Error('Enter an answer before time runs out.');
-  const submittedAnswer = expired ? 'Time expired' : answer;
-  const correct = !expired && journeyAnswerIsCorrect(question, answer);
+  if (!expired && !skip && !answer.trim()) throw new Error('Enter an answer before time runs out.');
+  const submittedAnswer = skip ? 'Skipped' : expired ? 'Time expired' : answer;
+  const correct = !skip && !expired && journeyAnswerIsCorrect(question, answer);
   const pending = original.game.pendingAction;
   const next = structuredClone(original);
+  if (!correct && !skip && !expired && next.questionAid?.donkeyActive) {
+    next.lastVerdict = null;
+    next.questionAid.donkeyActive = false;
+    next.questionAid.notice = 'That answer was stopped. Choose again before time runs out.';
+    next.game.version += 1;
+    return next;
+  }
   let die: number | null = original.pendingDie || null;
   if (pending?.kind === 'trial') {
     next.game = resolveJourneyAction(next.game, actorId, correct ? 0 : 1);
@@ -186,7 +196,7 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
     die = original.pendingDie || randomIndex(6, random) + 1;
     next.game = resolveJourneyRoll(next.game, actorId, die);
   } else {
-    next.game = resolveJourneyMiss(next.game, actorId);
+    next.game = resolveJourneyMiss(next.game, actorId, original.pendingDie);
   }
   next.lastVerdict = {
     playerId: actorId, questionId: question.id, question: question.question,
@@ -195,6 +205,26 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
     explanation: question.explanation, die,
   };
   await openNextQuestion(next, lookup, random, JOURNEY_VERDICT_MS);
+  return next;
+}
+
+export async function applyJourneyRelic(original: JourneyRuntime, actorId: string, slug: string,
+  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  const question = original.currentQuestion;
+  if (!question || original.awaitingRoll || original.game.status !== 'playing'
+    || original.currentQuestionPlayerId !== actorId || actorId === JOURNEY_MACHINE_ID
+    || !original.questionDeadline || Date.now() >= Date.parse(original.questionDeadline)
+    || original.questionOpensAt && Date.now() < Date.parse(original.questionOpensAt)) {
+    throw new Error('Relics are available only during your open question.');
+  }
+  const effect = arenaRelicEffect(slug, question, original.questionAid,
+    (answer) => journeyAnswerIsCorrect(question, answer));
+  const next = structuredClone(original);
+  next.questionAid = effect.aid;
+  next.lastVerdict = null;
+  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random, slug === 'skip');
+  if (effect.extraSeconds) next.questionDeadline = new Date(Date.parse(original.questionDeadline) + effect.extraSeconds * 1000).toISOString();
+  next.game.version += 1;
   return next;
 }
 
@@ -271,6 +301,7 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
     awaitingRoll: runtime.awaitingRoll || false,
     pendingDie: runtime.pendingDie || null,
     questionOpensAt: runtime.questionOpensAt || null,
+    questionAid: runtime.awaitingRoll ? undefined : runtime.questionAid,
     currentQuestion: currentQuestion && !runtime.awaitingRoll ? {
       id: currentQuestion.id, stage: currentQuestion.stage, type: currentQuestion.type,
       question: currentQuestion.question, options: currentQuestion.options,

@@ -17,6 +17,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, apikey",
+  "X-Full-Circle-Arena-Release": "210",
 };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim() || "";
@@ -40,7 +41,11 @@ async function rest(path: string, init: RequestInit = {}) {
     ...init,
     headers: { ...serviceHeaders(), ...(init.headers || {}) },
   });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    if (/You do not own this relic|Relics are available only|match advanced/i.test(error.message || '')) throw new Error(error.message);
+    throw new Error('The match could not be saved. Please try again shortly.');
+  }
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
@@ -180,29 +185,13 @@ async function createGame(roomId: string, state: RoadHomeState) {
   return publicState;
 }
 
-async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/arena_ludo_games?room_id=eq.${roomId}&version=eq.${previous.version}&select=version`, {
-    method: "PATCH",
-    headers: serviceHeaders("return=representation"),
-    body: JSON.stringify({ version: next.version, private_state: next, updated_at: new Date().toISOString() }),
+async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null) {
+  const result = await rest('rpc/commit_arena_ludo_turn', {
+    method: 'POST', body: JSON.stringify({ p_room_id: roomId, p_expected_version: previous.version,
+      p_next_state: next, p_public_state: publicRoadHomeState(next), p_command_id: commandId,
+      p_actor_id: actorId, p_relic_slug: relicSlug }),
   });
-  if (!response.ok) throw new Error(await response.text());
-  const rows = await response.json();
-  if (!rows.length) throw new Error("The match advanced on another device. Refreshing the board.");
-
-  const publicState = publicRoadHomeState(next);
-  await rest("arena_ludo_public_states", {
-    method: "POST",
-    headers: serviceHeaders("resolution=merge-duplicates"),
-    body: JSON.stringify({ room_id: roomId, version: next.version, public_state: publicState, updated_at: new Date().toISOString() }),
-  });
-  await rest("arena_ludo_commands", {
-    method: "POST",
-    headers: serviceHeaders("resolution=ignore-duplicates"),
-    body: JSON.stringify({ room_id: roomId, command_id: commandId, actor_id: actorId, state_version: next.version }),
-  });
-  await insertEvents(roomId, new Set(previous.eventLog.map((event) => event.id)), next.eventLog);
-  return publicState;
+  return result.state;
 }
 
 async function finishArenaRoom(room: any, state: RoadHomeState) {
@@ -306,6 +295,7 @@ Deno.serve(async (request) => {
     if (!existingPrivate) return json({ error: "The Road Home state has not been initialised.", needsInitialization: true }, 409);
     if (await commandExists(roomId, commandId)) {
       const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
+      await finishArenaRoom(context.room, normalized);
       return json({ state: publicRoadHomeState(normalized), version: normalized.version, duplicate: true });
     }
     if (action !== "FORFEIT" && await hasPendingViewerChallenge(roomId, actorId)) {
@@ -325,7 +315,7 @@ Deno.serve(async (request) => {
         body: JSON.stringify({ forfeited_at: new Date().toISOString(), forfeit_reason: "manual", finished_at: new Date().toISOString() }),
       });
     }
-    const command = { action, ...(body.payload || {}) } as RoadHomeCommand;
+    const command = { ...(body.payload || {}), action } as RoadHomeCommand;
     let commandState = structuredClone(previous) as RoadHomeState;
     if (action === "ROLL") {
       try { commandState = await replenishQuestionPool(commandState, String(context.room.room_name || "Bible Arena")); } catch { /* Keep the verified current deck if expansion is temporarily unavailable. */ }
@@ -333,7 +323,8 @@ Deno.serve(async (request) => {
     const questionPool = commandState.questionPool?.length ? commandState.questionPool : await questionDeck(roomId);
     let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom);
     next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')));
-    const publicState = await saveGame(roomId, previous, next, commandId, actorId);
+    const publicState = await saveGame(roomId, previous, next, commandId, actorId,
+      command.action === 'USE_MARKET_RELIC' ? command.slug : null);
     await finishArenaRoom(context.room, next);
     return json({ state: publicState, version: next.version });
   } catch (error) {

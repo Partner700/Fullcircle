@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { UserAvatar } from '../../components/UserAvatar';
+import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
@@ -140,6 +141,7 @@ export function RoadHomeGame({
   const [visualPawnProgress, setVisualPawnProgress] = useState<Record<string, number>>({});
   const [movingPawnIds, setMovingPawnIds] = useState<Set<string>>(new Set());
   const timedOutVersion = useRef<number | null>(null);
+  const commandRef = useRef<{ signature: string; id: string } | null>(null);
   const finishedNotified = useRef(false);
   const hasState = useRef(false);
   const visualPawnProgressRef = useRef<Record<string, number>>({});
@@ -212,6 +214,8 @@ export function RoadHomeGame({
 
   const send = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (spectator || !state || sending) return false;
+    const signature = JSON.stringify({ version: state.version, action, payload });
+    if (commandRef.current?.signature !== signature) commandRef.current = { signature, id: crypto.randomUUID() };
     const rollStartedAt = action === 'ROLL' ? performance.now() : 0;
     setSending(true);
     setError(null);
@@ -221,7 +225,8 @@ export function RoadHomeGame({
       setDiceRolling(true);
     }
     try {
-      const response = await sendRoadHomeCommand(roomId, action, payload, state.version);
+      const response = await sendRoadHomeCommand(roomId, action, payload, state.version, commandRef.current.id);
+      commandRef.current = null;
       if (action === 'ROLL') {
         const remainingSpin = Math.max(0, 900 - (performance.now() - rollStartedAt));
         if (remainingSpin > 0) {
@@ -253,7 +258,8 @@ export function RoadHomeGame({
           }
         }
       }
-      setTypedAnswer('');
+      if (action !== 'USE_MARKET_RELIC' || response.state?.phase !== 'QUESTION'
+        || response.state?.currentQuestion?.id !== state.currentQuestion?.id) setTypedAnswer('');
       return true;
     } catch (commandError: unknown) {
       const typedError = commandError as RoadHomeCommandError;
@@ -562,7 +568,8 @@ export function RoadHomeGame({
 
       {myTurn && state.phase === 'QUESTION' && me && !diceRolling && !rollReveal && (
         <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Ludo Trivia question">
-          <div className="w-full max-w-lg animate-scale-in">
+          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto animate-scale-in">
+            {error && <p className="mb-2 rounded-md bg-surface p-3 text-xs text-coral" role="alert">{error}</p>}
             <TurnControls
               state={state}
               me={me}
@@ -792,7 +799,7 @@ function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTyped
 
   if (state.phase === 'QUESTION' && state.currentQuestion) {
     const question = state.currentQuestion;
-    return <div className="rounded-lg border border-royal/45 bg-surface/95 p-4"><div className="flex items-center justify-between gap-2"><span className="badge badge-brass text-[9px]">{state.questionPurpose === 'inherited' ? 'Inherited' : state.questionPurpose === 'prison' ? 'Prison' : state.questionPurpose === 'verse' ? 'Verse Card' : state.questionPurpose === 'surprise' ? 'Surprise' : question.difficulty.replace('_', ' ')}</span><span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span></div><h3 className="mt-3 text-base font-bold leading-snug text-ink">{question.prompt}</h3>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.map((option) => <button key={option} disabled={sending} onClick={() => void send('ANSWER', { answer: option })} className="w-full rounded-lg border border-border bg-surface-2 p-3 text-left text-xs font-semibold text-ink transition-colors hover:border-gold">{option}</button>)}</div> : <form className="mt-4 space-y-2" onSubmit={(event) => { event.preventDefault(); if (typedAnswer.trim()) void send('ANSWER', { answer: typedAnswer.trim() }); }}><input className="input-field" autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} placeholder="Type your answer" /><button disabled={sending || !typedAnswer.trim()} className="btn-primary w-full text-xs">Submit Answer</button></form>}</div>;
+    return <div className="rounded-lg border border-royal/45 bg-surface/95 p-4"><div className="flex items-center justify-between gap-2"><span className="badge badge-brass text-[9px]">{state.questionPurpose === 'inherited' ? 'Inherited' : state.questionPurpose === 'prison' ? 'Prison' : state.questionPurpose === 'verse' ? 'Verse Card' : state.questionPurpose === 'surprise' ? 'Surprise' : question.difficulty.replace('_', ' ')}</span><span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span></div><h3 className="mt-3 text-base font-bold leading-snug text-ink">{question.prompt}</h3>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.filter((option) => !state.questionAid?.hiddenOptions.includes(option)).map((option) => <button key={option} disabled={sending} onClick={() => void send('ANSWER', { answer: option })} className="w-full rounded-lg border border-border bg-surface-2 p-3 text-left text-xs font-semibold text-ink transition-colors hover:border-gold">{option}</button>)}</div> : <form className="mt-4 space-y-2" onSubmit={(event) => { event.preventDefault(); if (typedAnswer.trim()) void send('ANSWER', { answer: typedAnswer.trim() }); }}><input className="input-field" autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} placeholder="Type your answer" /><button disabled={sending || !typedAnswer.trim()} className="btn-primary w-full text-xs">Submit Answer</button></form>}<ArenaMarketRelics userId={me.id} questionType={question.type} aid={state.questionAid} disabled={sending || secondsLeft === 0} onUse={(slug) => send('USE_MARKET_RELIC', { slug })} /></div>;
   }
   return null;
 }

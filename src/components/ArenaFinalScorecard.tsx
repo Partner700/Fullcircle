@@ -3,7 +3,7 @@ import { ArrowLeft, Dices, Loader2, RotateCw, Swords } from 'lucide-react';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { fetchArenaFinalScorecard, fetchPanelImageSetting, type ArenaFinalScorecard as ScorecardData } from '../lib/queries';
 import type { PanelImageSetting } from '../lib/types';
-import { shortestArenaName } from '../lib/arenaScorecard';
+import { shortestArenaName, arenaPlayerScore } from '../lib/arenaScorecard';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 
 export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaImage }: { roomId: string; onExit?: () => void; arenaImage?: PanelImageSetting | null }) {
@@ -55,7 +55,7 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
       <div className="text-center">
         <p className="text-[10px] font-bold uppercase text-gold">Full Circle Arena</p>
         <h2 className="mt-1 font-display text-lg font-bold text-white sm:text-xl">{result?.room_name.replace(/\s*\[.*?\]/g, '').replace(/\s*\((?:Round \d+ of \d+|Rematch \d+)\)/gi, '') || 'Final score'}</h2>
-        <p className="mt-1 text-xs font-bold uppercase text-white/65">Final / Correct answers</p>
+        <p className="mt-1 text-xs font-bold uppercase text-white/65">{players.some((player) => player.score !== undefined) ? 'Final / Points' : 'Final / Correct answers'}</p>
       </div>
       {result ? <div className={`mt-6 grid ${columns} items-start gap-x-2 gap-y-6 sm:gap-x-5`}>
         {players.map((player) => {
@@ -66,8 +66,8 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
               : player.display_name === 'The Scribe' ? <Dices size={compact ? 24 : 27} className="text-gold" />
                 : <Swords size={compact ? 24 : 27} className="text-peri" />}
           </div>
-          <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? (isWinner ? 'text-4xl sm:text-5xl' : 'text-3xl sm:text-4xl') : 'text-5xl sm:text-6xl'}`} aria-label={`${player.correct_count} correct answers`}>
-            {Math.max(0, Number(player.correct_count) || 0)}
+          <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? (isWinner ? 'text-4xl sm:text-5xl' : 'text-3xl sm:text-4xl') : 'text-5xl sm:text-6xl'}`} aria-label={`${arenaPlayerScore(player)} ${player.score !== undefined ? 'points' : 'correct answers'}`}>
+            {arenaPlayerScore(player)}
           </p>
           <p className={`mt-1 min-w-0 break-words font-bold leading-tight text-white/90 ${compact ? (isWinner ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs') : 'text-xs sm:text-sm'}`}>
             {shortestArenaName(player.display_name)}

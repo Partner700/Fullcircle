@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, Clock3, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
+import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { JourneyBoard, JourneySquareIcon } from '../../components/JourneyBoard';
@@ -14,7 +15,7 @@ import type { PanelImageSetting } from '../../lib/types';
 import { fetchJourneyState, initializeJourney, sendJourneyCommand, type JourneyServerResponse } from '../../lib/journeyClient';
 import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
 import { machineJourneyMayAct, type JourneyPublicState } from '../../../supabase/functions/_shared/biblicalJourneyRuntime';
-import { DEFAULT_JOURNEY_CONFIG, journeyConfigForGame, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
+import { DEFAULT_JOURNEY_CONFIG, journeyConfigForGame, journeyScore, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
 
 type Props = {
   roomId: string;
@@ -142,8 +143,12 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   }, [state?.currentQuestion?.id]);
 
   useEffect(() => {
+    if (state?.questionAid?.hiddenOptions.includes(answer)) setAnswer('');
+  }, [answer, state?.questionAid?.hiddenOptions]);
+
+  useEffect(() => {
     if (!state?.questionDeadline || !state.currentQuestion) { setSecondsLeft(0); return; }
-    const tick = () => setSecondsLeft(Math.min(30, Math.max(0, Math.ceil((Date.parse(state.questionDeadline!) - Date.now()) / 1000))));
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((Date.parse(state.questionDeadline!) - Date.now()) / 1000)));
     tick();
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
@@ -186,8 +191,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT', payload: Record<string, unknown> = {}) => {
-    if (!state || spectator || sending) return;
+  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC', payload: Record<string, unknown> = {}) => {
+    if (!state || spectator || sending) return false;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
     if (commandRef.current?.signature !== signature) commandRef.current = { signature, id: crypto.randomUUID() };
@@ -199,12 +204,13 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       applyResponse(response);
       commandRef.current = null;
       if (action === 'BOT') setBotFailures(0);
+      return true;
     } catch (sendError) {
       const conflict = sendError as Error & { state?: JourneyPublicState | null; version?: number };
       if (conflict.state) {
         applyResponse({ state: conflict.state, version: conflict.version });
         commandRef.current = null;
-        return;
+        return false;
       }
       setError(message(sendError));
       if (action === 'BOT') setBotFailures((count) => Math.min(count + 1, 5));
@@ -212,6 +218,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
         timedOutRef.current = null;
         setTimeoutRetry((count) => count + 1);
       }, 2500);
+      return false;
     } finally {
       setSending(false);
       setRolling(false);
@@ -268,6 +275,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const visiblePlayers = useMemo(() => roster.map((player) => ({
     ...player,
     correct_count: state?.game.players.find((candidate) => candidate.id === player.user_id)?.correctAnswers ?? player.correct_count,
+    score: state?.game.players.find((candidate) => candidate.id === player.user_id)
+      ? journeyScore(state.game.players.find((candidate) => candidate.id === player.user_id)!) : player.score,
   })), [roster, state?.game.players]);
   const profiles = useMemo(() => Object.fromEntries(roster.map((player) => [player.user_id, {
     name: player.display_name, avatarUrl: player.avatar_url,
@@ -346,15 +355,15 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
             </div>
           </div>
           {state.game.pendingAction?.kind === 'trial' && <p className="mt-3 border-l-2 border-gold pl-3 text-xs leading-relaxed text-brass">{journeyEffectDescription({ kind: 'trial', success: state.game.pendingAction.choices[0], failure: state.game.pendingAction.choices[1] })}</p>}
-          <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={secondsLeft} aria-valuemin={0} aria-valuemax={30} aria-label="Question time remaining">
-            <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / 30 * 100)}%` }} />
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={secondsLeft} aria-valuemin={0} aria-valuemax={state.questionAid?.used.includes('freeze-timer') ? 90 : 30} aria-label="Question time remaining">
+            <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / (state.questionAid?.used.includes('freeze-timer') ? 90 : 30) * 100)}%` }} />
           </div>
           <p className="mt-4 whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">{openQuestion.question}</p>
           {waitingForMyAnswer && <div className="mt-4 max-h-[48dvh] space-y-2 overflow-y-auto pr-1">
             {openQuestion.type === 'true_false' && <div className="grid grid-cols-2 gap-2">
               {['true', 'false'].map((value) => <button type="button" key={value} className={answer === value ? 'btn-primary justify-center' : 'btn-secondary justify-center'} onClick={() => setAnswer(value)}>{value === 'true' ? 'True' : 'False'}</button>)}
             </div>}
-            {(openQuestion.type === 'multiple_choice' || openQuestion.type === 'odd_one') && openQuestion.options.map((option, index) =>
+            {(openQuestion.type === 'multiple_choice' || openQuestion.type === 'odd_one') && openQuestion.options.map((option, index) => state.questionAid?.hiddenOptions.includes(option) ? null :
               <button type="button" key={`${index}-${option}`} className={answer === option ? 'btn-primary w-full justify-start text-left' : 'btn-secondary w-full justify-start text-left'} onClick={() => setAnswer(option)}><span className="mr-2 font-display font-bold">{String.fromCharCode(65 + index)}.</span>{option}</button>)}
             {openQuestion.type === 'fill_blank' && <input className="input-field" value={answer} onChange={(event) => setAnswer(event.target.value)} autoComplete="off" placeholder="Your answer" aria-label="Your answer" />}
             {openQuestion.type === 'order_sequence' && <>
@@ -366,6 +375,9 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
               answer: openQuestion.type === 'order_sequence' ? answerFromOrder(openQuestion, order) : answer.trim(),
             })}>{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit answer</button>
           </div>}
+          {waitingForMyAnswer && <ArenaMarketRelics userId={userId} questionType={openQuestion.type} aid={state.questionAid}
+            disabled={sending || secondsLeft === 0} onUse={(slug) => send('RELIC', { slug })} />}
+          {error && <p className="mt-2 text-xs text-coral" role="alert">{error}</p>}
           {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
           <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>
         </section></JourneyDialog>}

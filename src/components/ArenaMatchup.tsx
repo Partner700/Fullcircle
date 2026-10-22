@@ -1,3 +1,4 @@
+import { arenaPlayerScore } from '../lib/arenaScorecard';
 import { Dices, Swords } from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 import { TentHouseSymbol } from './TentHouseSymbol';
@@ -24,7 +25,7 @@ export function ArenaMatchup({ players, playing = false }: { players: ArenaMatch
       <PlayerSide player={first} />
       <span className="flex min-w-12 items-center justify-center whitespace-nowrap font-display text-base font-bold tabular-nums text-ink">
         {playing
-          ? `${Math.max(0, Number(first?.correct_count) || 0)} - ${Math.max(0, Number(second?.correct_count) || 0)}`
+          ? `${arenaPlayerScore(first)} - ${arenaPlayerScore(second)}`
           : <Swords size={19} className="text-gold" aria-label="versus" />}
       </span>
       <PlayerSide player={second} reverse />
@@ -33,7 +34,7 @@ export function ArenaMatchup({ players, playing = false }: { players: ArenaMatch
       {players.slice(2).map((player) => <span key={player.user_id} className="flex min-w-0 max-w-[8rem] items-center gap-1 text-[11px] font-semibold text-stone">
         {player.tent_house_id && <TentHouseSymbol houseId={player.tent_house_id} size={18} />}
         <span className="truncate">{shortArenaName(player.display_name)}</span>
-        {playing && <strong className="text-ink">{Math.max(0, Number(player.correct_count) || 0)}</strong>}
+        {playing && <strong className="text-ink">{arenaPlayerScore(player)}</strong>}
       </span>)}
     </div>}
   </div>;

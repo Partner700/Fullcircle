@@ -1,3 +1,5 @@
+import { arenaRelicEffect } from './arenaRelics.ts';
+
 export const ROAD_HOME_CONFIG = {
   trackLength: 52,
   homeLaneLength: 6,
@@ -130,6 +132,7 @@ type MoveContinuation = 'END_TURN' | 'BONUS_OR_END' | 'CONTINUE_OWN_TURN';
 type QuestionPurpose = 'own' | 'inherited' | 'prison' | 'surprise' | 'verse';
 
 export type RoadHomeState = {
+  questionAid?: import('./arenaRelics.ts').ArenaQuestionAid;
   roomId: string;
   version: number;
   questionPool: RoadHomeQuestion[];
@@ -173,6 +176,7 @@ export type RoadHomeCommand =
   | { action: 'PRISON_ACTION'; pawnId: string; decision: 'question' | 'pay' | 'serve' }
   | { action: 'ACK_SURPRISE' }
   | { action: 'USE_RELIC'; relic: string; pawnId?: string }
+  | { action: 'USE_MARKET_RELIC'; slug: string }
   | { action: 'FORFEIT' };
 
 type RandomFn = () => number;
@@ -404,6 +408,7 @@ function drawQuestion(state: RoadHomeState, questions: RoadHomeQuestion[], diffi
 }
 
 function setQuestion(state: RoadHomeState, question: RoadHomeQuestion, purpose: QuestionPurpose) {
+  state.questionAid = undefined;
   state.currentQuestion = question;
   state.questionPurpose = purpose;
   state.questionAttempts = 0;
@@ -820,7 +825,21 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     }
   } else if (command.action === 'ANSWER') {
     if (state.phase !== 'QUESTION') throw new Error('There is no question to answer.');
-    resolveAnswer(state, command.answer);
+    const expired = !player.isBot && state.questionDeadline && Date.now() >= Date.parse(state.questionDeadline);
+    if (!expired && state.questionAid?.donkeyActive && state.currentQuestion && !answerIsCorrect(state.currentQuestion, command.answer)) {
+      state.questionAid.donkeyActive = false;
+      state.questionAid.notice = 'That answer was stopped. Choose again before time runs out.';
+    } else resolveAnswer(state, expired ? '' : command.answer);
+  } else if (command.action === 'USE_MARKET_RELIC') {
+    const question = state.currentQuestion;
+    if (state.phase !== 'QUESTION' || !question || player.isBot || !state.questionDeadline
+      || Date.now() >= Date.parse(state.questionDeadline)) throw new Error('Relics are available only during your open question.');
+    const effect = arenaRelicEffect(command.slug, { ...question, options: question.options || [] },
+      state.questionAid, (answer) => answerIsCorrect(question, answer));
+    state.questionAid = effect.aid;
+    if (effect.extraSeconds) state.questionDeadline = new Date(Date.parse(state.questionDeadline) + effect.extraSeconds * 1000).toISOString();
+    if (effect.answer !== undefined) resolveAnswer(state, effect.answer);
+    addEvent(state, 'MARKET_RELIC_USED', `${player.name}: ${effect.aid.notice}`, player.id);
   } else if (command.action === 'MOVE') {
     if (state.phase !== 'SELECTING_PAWN') throw new Error('A pawn cannot be moved now.');
     movePawn(state, command.pawnId, random);

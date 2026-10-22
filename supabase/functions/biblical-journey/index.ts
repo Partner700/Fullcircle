@@ -9,6 +9,7 @@ import {
   serveJourneySentence,
   machineJourneyMayAct,
   rollJourneyDie,
+  applyJourneyRelic,
   type JourneyQuestion,
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
@@ -20,7 +21,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '209',
+  'X-Full-Circle-Journey-Release': '210',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -45,7 +46,11 @@ async function rest(path: string, init: RequestInit = {}) {
     ...init,
     headers: { ...serviceHeaders(), ...(init.headers || {}) },
   });
-  if (!response.ok) throw new Error(`Journey database request failed (${response.status}).`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    if (/You do not own this relic|Relics are available only|match advanced/.test(error.message || '')) throw new Error(error.message);
+    throw new Error(`Journey database request failed (${response.status}).`);
+  }
   const value = await response.text();
   return value ? JSON.parse(value) : null;
 }
@@ -149,7 +154,7 @@ Deno.serve(async (request) => {
       })) });
     }
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT'].includes(action)) {
+    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
     const context = await roomContext(roomId);
@@ -216,7 +221,9 @@ Deno.serve(async (request) => {
 
     const previous = current.state as JourneyRuntime;
     let next: JourneyRuntime;
-    if (action === 'BOT') {
+    if (action === 'RELIC') {
+      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom);
+    } else if (action === 'BOT') {
       if (context.room.play_mode !== 'machine' || !machineJourneyMayAct(previous)) {
         return json({ error: 'It is not The Scribe\'s turn.' }, 409);
       }
@@ -235,18 +242,18 @@ Deno.serve(async (request) => {
     } else {
       next = await serveJourneySentence(previous, actorId, approvedQuestion, secureRandom);
     }
-    const result = await rest(context.room.play_mode === 'machine'
-      ? 'rpc/commit_machine_arena_journey_command' : 'rpc/commit_arena_journey_command', {
+    const result = await rest('rpc/commit_arena_journey_turn', {
       method: 'POST', body: JSON.stringify({
         p_room_id: roomId, p_expected_version: current.version,
         p_next_state: next, p_command_id: commandId, p_actor_id: actorId,
+        p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null,
       }),
     }) as { duplicate: boolean; state: JourneyRuntime };
     return json({ state: publicJourneyRuntime(result.state), version: result.state.game.version,
       duplicate: result.duplicate });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Journey server could not complete that action.';
-    const known = /not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
+    const known = /relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
     if (!known) console.error('Biblical Journey action failed:', error);
     return json({ error: known ? message : 'The Journey could not advance. Try again.' }, known ? 409 : 500);
   }
