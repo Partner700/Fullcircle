@@ -45,6 +45,8 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
   }, [retryKey, roomId]);
 
   const players = result?.players || [];
+  const winner = players.find((player) => player.user_id === result?.winner_id);
+  const isJourney = result?.room_name.includes('[arena:journey]') || false;
   const compact = players.length > 2;
   const columns = players.length >= 4 ? 'grid-cols-4' : players.length === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
@@ -60,14 +62,15 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
       {result ? <div className={`mt-6 grid ${columns} items-start gap-x-2 gap-y-6 sm:gap-x-5`}>
         {players.map((player) => {
           const isWinner = compact && result.winner_id === player.user_id;
+          const score = isJourney ? Math.max(0, arenaPlayerScore(player)) : arenaPlayerScore(player);
           return <div key={player.user_id} className="min-w-0 text-center" title={player.display_name}>
           <div className="flex h-10 items-center justify-center" aria-label={player.tent_name || 'Independent'}>
             {player.tent_house_id ? <TentHouseSymbol houseId={player.tent_house_id} size={compact ? (isWinner ? 33 : 29) : 38} />
               : player.display_name === 'The Scribe' ? <Dices size={compact ? 24 : 27} className="text-gold" />
                 : <Swords size={compact ? 24 : 27} className="text-peri" />}
           </div>
-          <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? (isWinner ? 'text-4xl sm:text-5xl' : 'text-3xl sm:text-4xl') : 'text-5xl sm:text-6xl'}`} aria-label={`${arenaPlayerScore(player)} ${player.score !== undefined ? 'points' : 'correct answers'}`}>
-            {arenaPlayerScore(player)}
+          <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? (isWinner ? 'text-4xl sm:text-5xl' : 'text-3xl sm:text-4xl') : 'text-5xl sm:text-6xl'}`} aria-label={`${score} ${player.score !== undefined ? 'points' : 'correct answers'}`}>
+            {score}
           </p>
           <p className={`mt-1 min-w-0 break-words font-bold leading-tight text-white/90 ${compact ? (isWinner ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs') : 'text-xs sm:text-sm'}`}>
             {shortestArenaName(player.display_name)}
@@ -77,6 +80,9 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
         {error ? <><p>{error}</p><button type="button" className="btn-secondary text-xs" onClick={() => { setError(null); setRetryKey((value) => value + 1); }}><RotateCw size={14} /> Try again</button></>
           : <><Loader2 size={18} className="animate-spin text-gold" /><p>Waiting for the match result...</p></>}
       </div>}
+      {winner && <p className="mt-6 border-t border-white/20 pt-4 text-center font-display text-sm font-bold text-gold sm:text-base" role="status">
+        {shortestArenaName(winner.display_name)} won
+      </p>}
       </div>
     </div>
     {onExit && <button type="button" onClick={onExit} className="btn-primary mt-4 w-full"><ArrowLeft size={16} /> Back to Arena</button>}

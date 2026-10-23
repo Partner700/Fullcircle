@@ -48,12 +48,13 @@ export function InstructorJourneyImport({ slug, onImported }: Props) {
     if (name.trim() && name.trim().length < 2) { setError('Use at least two letters for the set name, or leave it blank.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
+      const uploadedSetName = name.trim() || `Upload ${new Date().toISOString().slice(0, 19).replace('T', ' ')}`;
       const { data, error: updateError } = await supabase.rpc('append_arena_journey_question_set', {
-        p_slug: slug, p_set_name: name.trim() || `Upload ${new Date().toISOString().slice(0, 10)}`, p_questions: questions,
+        p_slug: slug, p_set_name: uploadedSetName, p_questions: questions,
       });
       if (updateError) throw updateError;
       const result = data as { imported: number; skipped: number; invalid?: number; active?: number; ready?: boolean };
-      setNotice(`${result.imported} questions added. ${result.skipped} duplicates skipped. ${skipped.length + (result.invalid || 0)} invalid questions skipped. ${result.ready ? 'Ready for matches.' : `${result.active || 0}/200 active questions.`}`);
+      setNotice(`${uploadedSetName}: ${result.imported} questions added. ${result.skipped} duplicates skipped. ${skipped.length + (result.invalid || 0)} invalid questions skipped. ${result.ready ? 'Ready for matches.' : `${result.active || 0}/200 active questions.`}`);
       if (!skipped.length && !result.invalid) setSource('');
       setPreview(null);
       await onImported();

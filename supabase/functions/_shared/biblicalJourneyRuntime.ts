@@ -290,7 +290,10 @@ export async function advanceMachineJourney(original: JourneyRuntime, lookup: Jo
 
 export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicState {
   const game = structuredClone(runtime.game);
-  for (const player of game.players) player.pendingEffects = [];
+  for (const player of game.players) {
+    player.pendingEffects = [];
+    player.score = Math.max(0, player.score ?? player.correctAnswers);
+  }
   const { currentQuestion } = runtime;
   return {
     characterSlug: runtime.characterSlug,

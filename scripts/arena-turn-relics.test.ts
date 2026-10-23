@@ -41,12 +41,14 @@ assert.equal(journeyScore(back.players[0]),4);
 assert.deepEqual(back.players[0].location,{route:'main',space:9});
 const clamped = resolveJourneyRoll(createJourneyGame(['alpha','beta']),'alpha',2,
   {...plain,traps:{3:JOURNEY_TRAP_LIBRARY.great_fall}});
-assert.equal(journeyScore(clamped.players[0]),-1,'only two actual backward steps, not twenty');
+assert.equal(journeyScore(clamped.players[0]),0,'backward steps cannot make Journey points negative');
+assert.equal(clamped.events.findLast((event) => event.effectType === 'points-lost')?.reason,'1','the notice reports only the point actually lost');
 const collective = resolveJourneyRoll(createJourneyGame(['alpha','beta']),'alpha',6,
   {...plain,traps:{7:JOURNEY_TRAP_LIBRARY.collective_fall}});
-assert.equal(journeyScore(collective.players[0]),-4,'collective effect charged once');
+assert.equal(journeyScore(collective.players[0]),0,'collective effect stops at zero');
 assert.equal(journeyScore(collective.players[1]),0,'no steps at Start');
 assert.equal(arenaPlayerScore({correct_count:11,score:-4}),-4);
+assert.equal(journeyScore({...game.players[0],score:-4}),0,'an older saved Journey score displays as zero');
 game.players[0].location={route:'main',space:43};
 assert.equal(journeyScore(resolveJourneyRoll(game,'alpha',4,plain).players[0]),11,'forward lap wrap is not a penalty');
 game.players[0].completedLaps=1;
@@ -55,6 +57,10 @@ assert.equal(resolveJourneyRoll(game,'alpha',6,plain).status,'finished','win end
 const catalog: JourneyQuestion[] = Array.from({length:200},(_,index)=>({id:`q${index}`,stage:Math.floor(index/40)+1,type:'multiple_choice',question:'Who built the ark?',options:['Noah','Moses','David','Elisha'],correctAnswer:'Noah',acceptedAnswers:[],reference:'Genesis 6',explanation:'Noah built it.'}));
 const lookup=async(id:string)=>catalog.find(q=>q.id===id)||null;
 const start=await createJourneyRuntime('elisha',['alpha','beta'],catalog,lookup,()=>0);
+start.game.players[0].score=-3;
+assert.equal(publicJourneyRuntime(start).game.players[0].score,0,'older negative scores are hidden from players and witnesses');
+assert.equal(start.game.players[0].score,-3,'publishing does not mutate the stored match');
+start.game.players[0].score=0;
 const open=rollJourneyDie(start,'alpha',()=>.99);
 open.questionOpensAt=new Date(Date.now()-1).toISOString();
 await assert.rejects(()=>applyJourneyRelic(open,'beta','hint',lookup,()=>0),/only during/);

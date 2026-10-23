@@ -29,6 +29,7 @@ assert.match(migration, /v_next_room IS NOT NULL THEN RETURN/);
 assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_public_arena_successor/);
 assert.match(scorecardSql, /'winner_id', v_room\.winner_id/);
 assert.match(scorecard, /compact && result\.winner_id === player\.user_id/);
+assert.match(scorecard, /shortestArenaName\(winner\.display_name\)\} won/);
 assert.match(publicArena, /fetchPublicArenaSuccessor\(currentRoomId\)/);
 assert.match(roadHome, /awaitSeriesResult && seriesResolution !== 'final'/);
 assert.match(cadetArena, /finishedRoom\?\.status === 'completed' && !finishedRoom\.restarted_as_room_id/);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Loader2, RotateCw, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Loader2, RotateCw, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { InstructorJourneyImport } from './InstructorJourneyImport';
 import { JOURNEY_MINIMUM_QUESTIONS } from '../lib/journeyQuestionImport';
@@ -163,6 +163,24 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
     finally { setBusy(false); }
   };
 
+  const selectedSet = page?.character.slug === slug ? page.sets.find((item) => item.name === setName) : undefined;
+  const deleteSet = async () => {
+    if (!selectedSet || busy || !page) return;
+    if (!window.confirm(`Permanently delete all ${selectedSet.total} questions in "${selectedSet.name}" from ${page.character.displayName}? This cannot be undone. Uploads with the same set name are included.`)) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const { data, error: updateError } = await supabase.rpc('delete_arena_journey_question_set', {
+        p_slug: slug, p_set_name: selectedSet.name,
+      });
+      if (updateError) throw updateError;
+      const result = data as { deleted: number; active: number; ready: boolean };
+      setSetName(''); setOffset(0); setRefresh((value) => value + 1);
+      await loadCharacters();
+      setNotice(`${result.deleted} questions deleted from ${page.character.displayName}. ${result.ready ? 'Other sets remain playable.' : `${result.active}/200 active questions; new matches are paused.`}`);
+    } catch (deleteError) { setError(errorMessage(deleteError)); }
+    finally { setBusy(false); }
+  };
+
   const totalApproved = page?.counts.reduce((sum, count) => sum + count.approved, 0) || 0;
   const canActivate = totalApproved >= JOURNEY_MINIMUM_QUESTIONS;
   const visiblePending = page?.questions.filter((question) => question.review_status === 'pending') || [];
@@ -197,6 +215,12 @@ export function InstructorJourneyReview({ defaultOpen = false }: { defaultOpen?:
           </select>
         </label>
         <button type="button" title="Refresh questions" aria-label="Refresh questions" className="btn-secondary h-10 w-10 p-0" onClick={() => void loadPage()} disabled={loading}><RotateCw size={16} /></button>
+      </div>}
+      {selectedSet && <div className="flex flex-wrap items-center gap-3 border-b border-border pb-3 text-xs text-stone">
+        <span className="min-w-0 flex-1 break-words">{selectedSet.name} · {selectedSet.total} questions</span>
+        <button type="button" className="btn-secondary text-xs text-coral" disabled={busy || loading} onClick={() => void deleteSet()}>
+          <Trash2 size={14} /> Delete set
+        </button>
       </div>}
 
       {notice && <p className="text-xs text-sage" role="status">{notice}</p>}

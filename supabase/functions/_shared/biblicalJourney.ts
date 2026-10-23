@@ -256,7 +256,7 @@ function servePrisonTurn(game: JourneyGame, player: JourneyPlayer) {
 type QueuedEffect = { playerId: string; source: string; effect: JourneyEffect; key: string };
 
 export function journeyScore(player: JourneyPlayer): number {
-  return player.score ?? player.correctAnswers;
+  return Math.max(0, player.score ?? player.correctAnswers);
 }
 
 function awardAnswer(player: JourneyPlayer) {
@@ -268,8 +268,9 @@ function deductBackwardSteps(game: JourneyGame, player: JourneyPlayer, previous:
   if (previous.route === 'prison' || player.location.route !== previous.route) return;
   const steps = Math.max(0, previous.space - player.location.space);
   if (!steps) return;
-  player.score = journeyScore(player) - steps;
-  record(game, player, source, 'points-lost', player.location, 'none', 'applied', String(steps));
+  const oldScore = journeyScore(player);
+  player.score = Math.max(0, oldScore - steps);
+  record(game, player, source, 'points-lost', player.location, 'none', 'applied', String(oldScore - player.score));
 }
 
 function landingEffect(config: JourneyConfig, player: JourneyPlayer): QueuedEffect | null {

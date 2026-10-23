@@ -48,7 +48,7 @@ export function journeySquare(location: JourneyLocation, config: JourneyConfig =
 
 export function journeyEventSquare(event: JourneyEvent, config: JourneyConfig): JourneySquare | null {
   if (event.resolution === 'skipped') return null;
-  if (event.effectType === 'points-lost') return { title: `${event.reason} Points Lost`, description: 'One point lost for each square moved backward.', icon: 'backward', tone: 'red', special: true };
+  if (event.effectType === 'points-lost') return { title: event.reason === '0' ? 'Moved Backward' : `${event.reason} Points Lost`, description: 'One point is lost per step backward, until the score reaches zero.', icon: 'backward', tone: 'red', special: true };
   if (event.source === 'six-bonus') return { title: 'Roll Again', description: 'Your six earned another turn.', icon: 'card', tone: 'gold', special: true };
   if (event.source === 'lap-complete') return { title: 'Lap Complete', description: 'You crossed Start with an earned roll. Another lap is complete!', icon: 'start', tone: 'green', special: true };
   if (event.source === 'surprise-card') return { title: 'Surprise Promotion', description: `You escape the Trials and advance ${config.promotionBonus} extra main-path squares!`, icon: 'card', tone: 'gold', special: true };
