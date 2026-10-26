@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const baseSql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261013140827_instructor_arena_tournaments_and_rewards.sql'), 'utf8');
 const sql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261013170000_flexible_arena_tournament_stages.sql'), 'utf8');
+const fixtureSql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261026090000_arena_tournament_fixture_players.sql'), 'utf8');
 const arrivals = fs.readFileSync(path.join(__dirname, '../src/components/DoveNotificationArrival.tsx'), 'utf8');
 
 for (const table of ['arena_tournaments', 'arena_tournament_games']) {
@@ -43,5 +44,13 @@ assert.match(sql, /'arena_scheduled_result'/);
 assert.match(arrivals, /arenaWinnerAvatar/);
 assert.match(arrivals, /arenaWinnerTent/);
 assert.match(arrivals, /arenaWinnerAmount\.toLocaleString\(\)/);
+assert.match(fixtureSql, /CREATE OR REPLACE FUNCTION public\.set_arena_tournament_game_players/);
+assert.match(fixtureSql, /auth\.uid\(\) <> v_tournament\.created_by/);
+assert.match(fixtureSql, /v_room\.status <> 'waiting'/);
+assert.match(fixtureSql, /FROM public\.arena_participants participant/);
+assert.match(fixtureSql, /SET player_ids = ARRAY\[v_left, v_right\]/);
+assert.match(fixtureSql, /one match per knockout round/);
+assert.match(fixtureSql, /Each pair of group players can meet only once/);
+assert.match(fixtureSql, /GRANT EXECUTE ON FUNCTION public\.set_arena_tournament_game_players\(uuid, jsonb\) TO authenticated/);
 
 console.log('Scheduled Arena reward, bracket, and winner announcement checks passed.');

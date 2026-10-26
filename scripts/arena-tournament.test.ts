@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { arenaTournamentEntrants, arenaTournamentSlots, validateArenaTournamentTimes } from '../src/lib/arenaTournament.ts';
+import { arenaTournamentEntrants, arenaTournamentSlots, placeTournamentFixturePlayer, validateArenaTournamentTimes } from '../src/lib/arenaTournament.ts';
 
 assert.equal(arenaTournamentEntrants('final'), 2);
 assert.equal(arenaTournamentEntrants('semifinal'), 4);
@@ -41,5 +41,18 @@ assert.equal(validateArenaTournamentTimes(8, groupTimes, now, true), null);
 const earlyKnockout = [...groupTimes];
 earlyKnockout[12] = '2026-10-14T14:15:00Z';
 assert.match(validateArenaTournamentTimes(8, earlyKnockout, now, true) || '', /group stage/);
+
+const fixtureDraft: Record<string, [string, string]> = {
+  first: ['a', 'b'], second: ['c', 'd'],
+};
+assert.deepEqual(placeTournamentFixturePlayer(fixtureDraft, 'first', 1, 'c', true), {
+  first: ['a', 'c'], second: ['b', 'd'],
+});
+assert.deepEqual(fixtureDraft, { first: ['a', 'b'], second: ['c', 'd'] });
+assert.equal(placeTournamentFixturePlayer(fixtureDraft, 'first', 1, 'c', true, new Set(['second'])), fixtureDraft);
+assert.equal(placeTournamentFixturePlayer(fixtureDraft, 'first', 1, 'a', true), fixtureDraft);
+assert.deepEqual(placeTournamentFixturePlayer(fixtureDraft, 'first', 1, 'c', false), {
+  first: ['a', 'c'], second: ['c', 'd'],
+});
 
 console.log('Arena tournament slots and match-time validation passed.');

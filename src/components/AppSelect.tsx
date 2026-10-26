@@ -14,6 +14,7 @@ export function AppSelect({
   options,
   onChange,
   placeholder = 'Select',
+  ariaLabel,
   className,
   buttonClassName,
   disabled = false,
@@ -22,6 +23,7 @@ export function AppSelect({
   options: AppSelectOption[];
   onChange: (value: string) => void;
   placeholder?: string;
+  ariaLabel?: string;
   className?: string;
   buttonClassName?: string;
   disabled?: boolean;
@@ -108,6 +110,7 @@ export function AppSelect({
       <button
         type="button"
         disabled={disabled}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => {

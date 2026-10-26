@@ -1,11 +1,11 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v211';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v211';
+const CACHE_VERSION = 'full-circle-target-v212';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v212';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '211';
+const RECOVERY_MARKER = '212';
 const MINIMUM_SAFE_RELEASE = 177;
 const RECOVERY_QUERY_KEYS = [
   'fc-asset-recovery',

@@ -9,6 +9,20 @@ export type ArenaTournamentSlot = {
 
 export type ArenaTournamentStart = 'groups' | 'round_of_16' | 'quarterfinal' | 'semifinal' | 'final';
 
+export function placeTournamentFixturePlayer(
+  draft: Record<string, [string, string]>, gameId: string, side: 0 | 1,
+  playerId: string, knockout: boolean, lockedGameIds: ReadonlySet<string> = new Set(),
+): Record<string, [string, string]> {
+  const previous = draft[gameId]?.[side];
+  if (!previous || previous === playerId || draft[gameId][1 - side] === playerId) return draft;
+  const occupied = knockout ? Object.entries(draft).find(([id, pair]) => id !== gameId && pair.includes(playerId)) : undefined;
+  if (occupied && lockedGameIds.has(occupied[0])) return draft;
+  const updated = Object.fromEntries(Object.entries(draft).map(([id, pair]) => [id, [...pair] as [string, string]]));
+  if (occupied) updated[occupied[0]][occupied[1][0] === playerId ? 0 : 1] = previous;
+  updated[gameId][side] = playerId;
+  return updated;
+}
+
 export function arenaTournamentEntrants(start: ArenaTournamentStart, groupEntrants: 8 | 16 | 32 = 8): number {
   if (start === 'groups') return groupEntrants;
   return { round_of_16: 16, quarterfinal: 8, semifinal: 4, final: 2 }[start];

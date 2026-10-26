@@ -3454,6 +3454,17 @@ export async function rescheduleArenaTournamentGame(gameId: string, startsAt: st
   if (error) throw error;
 }
 
+export async function setArenaTournamentGamePlayers(
+  tournamentId: string,
+  changes: Array<{ game_id: string; player_ids: [string, string] }>,
+) {
+  const { error } = await supabase.rpc('set_arena_tournament_game_players', {
+    p_tournament_id: tournamentId,
+    p_changes: changes,
+  });
+  if (error) throw error;
+}
+
 export async function joinInstructorArenaMatch(roomId: string) {
   const { error } = await supabase.rpc('join_instructor_arena_match', { p_room_id: roomId });
   if (error) throw error;
