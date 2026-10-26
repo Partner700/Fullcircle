@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { arenaTournamentEntrants, arenaTournamentSlots, placeTournamentFixturePlayer, validateArenaTournamentTimes } from '../src/lib/arenaTournament.ts';
+import { arenaTournamentEntrants, arenaTournamentSlots, placeTournamentFixturePlayer, tournamentAutomaticPlayerLabel, tournamentFixtureRoster, validateTournamentFixturePlayers, validateArenaTournamentTimes, type ArenaTournamentPair } from '../src/lib/arenaTournament.ts';
 
 assert.equal(arenaTournamentEntrants('final'), 2);
 assert.equal(arenaTournamentEntrants('semifinal'), 4);
@@ -56,3 +56,23 @@ assert.deepEqual(placeTournamentFixturePlayer(fixtureDraft, 'first', 1, 'c', fal
 });
 
 console.log('Arena tournament slots and match-time validation passed.');
+
+const fourSlots = arenaTournamentSlots(4);
+const pairs: ArenaTournamentPair[] = [['a', 'c'], ['b', 'd'], ['', '']];
+assert.equal(validateTournamentFixturePlayers(fourSlots, pairs), null);
+assert.deepEqual(tournamentFixtureRoster(fourSlots, pairs), ['a', 'c', 'b', 'd']);
+assert.equal(tournamentAutomaticPlayerLabel(fourSlots, fourSlots[2], 0), 'Winner: Semi-final 1');
+assert.equal(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', 'd'], ['d', 'a']]), null);
+assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['c', 'd'], ['', '']]) || '', /one match/);
+assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', ''], ['', '']]) || '', /both players/);
+assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', 'd'], ['outsider', '']]) || '', /tournament players/);
+const groupPairs: ArenaTournamentPair[] = [
+  ['a', 'd'], ['a', 'b'], ['a', 'c'], ['b', 'c'], ['b', 'd'], ['c', 'd'],
+  ['e', 'f'], ['e', 'g'], ['e', 'h'], ['f', 'g'], ['f', 'h'], ['g', 'h'], ['', ''], ['', ''], ['', ''],
+];
+assert.equal(validateTournamentFixturePlayers(groupSlots, groupPairs), null);
+assert.equal(tournamentAutomaticPlayerLabel(groupSlots, groupSlots[12], 1), 'Group B runner-up');
+assert.equal(tournamentAutomaticPlayerLabel(groupSlots, groupSlots[13], 0), 'Group B winner');
+assert.match(validateTournamentFixturePlayers(groupSlots, [groupPairs[1], ...groupPairs.slice(1)]) || '', /meet once/);
+assert.match(validateTournamentFixturePlayers(groupSlots, groupPairs.map((pair) => pair.map((id) => id === 'h' ? 'a' : id) as ArenaTournamentPair)) || '', /one group/);
+console.log('Inline per-match selection, future automatic seats, and group membership checks passed.');

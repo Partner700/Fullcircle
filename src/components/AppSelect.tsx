@@ -18,6 +18,7 @@ export function AppSelect({
   className,
   buttonClassName,
   disabled = false,
+  searchable = false,
 }: {
   value: string;
   options: AppSelectOption[];
@@ -27,8 +28,10 @@ export function AppSelect({
   className?: string;
   buttonClassName?: string;
   disabled?: boolean;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const [menuRect, setMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -39,7 +42,7 @@ export function AppSelect({
     if (!rect) return;
     setMenuRect({
       left: Math.max(12, Math.min(rect.left, window.innerWidth - rect.width - 12)),
-      top: Math.min(rect.bottom + 7, window.innerHeight - 300),
+      top: Math.max(12, Math.min(rect.bottom + 7, window.innerHeight - 300)),
       width: rect.width,
     });
   };
@@ -70,11 +73,12 @@ export function AppSelect({
   const menu = open && menuRect ? (
     <div
       ref={menuRef}
-      role="listbox"
       style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}
       className="fixed z-[2147483646] max-h-72 overflow-y-auto rounded-2xl border border-border-bright bg-surface/95 p-1.5 shadow-2xl backdrop-blur-xl animate-scale-in"
     >
-      {options.map((option) => {
+      {searchable && <input autoFocus className="input-field mb-1 text-sm" aria-label={`Search ${ariaLabel || 'options'}`} placeholder="Search players" value={search} onChange={(event) => setSearch(event.target.value)} />}
+      <div role="listbox" aria-label={ariaLabel}>
+      {options.filter((option) => !searchable || option.label.toLowerCase().includes(search.trim().toLowerCase())).map((option) => {
         const active = option.value === value;
         return (
           <button
@@ -82,6 +86,7 @@ export function AppSelect({
             type="button"
             role="option"
             aria-selected={active}
+            title={option.label}
             onClick={() => {
               onChange(option.value);
               setOpen(false);
@@ -101,6 +106,8 @@ export function AppSelect({
           </button>
         );
       })}
+      {searchable && !options.some((option) => option.label.toLowerCase().includes(search.trim().toLowerCase())) && <p className="px-3 py-2 text-sm text-stone">No players found.</p>}
+      </div>
     </div>
   ) : null;
 
@@ -111,9 +118,11 @@ export function AppSelect({
         type="button"
         disabled={disabled}
         aria-label={ariaLabel}
+        title={selected?.label}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => {
+          setSearch('');
           updateMenuRect();
           setOpen((value) => !value);
         }}

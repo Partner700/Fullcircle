@@ -5,6 +5,8 @@ const path = require('node:path');
 const baseSql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261013140827_instructor_arena_tournaments_and_rewards.sql'), 'utf8');
 const sql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261013170000_flexible_arena_tournament_stages.sql'), 'utf8');
 const fixtureSql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261026090000_arena_tournament_fixture_players.sql'), 'utf8');
+const inlineSql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261026100000_arena_tournament_inline_choices.sql'), 'utf8');
+const scheduler = fs.readFileSync(path.join(__dirname, '../src/components/InstructorArenaScheduler.tsx'), 'utf8');
 const arrivals = fs.readFileSync(path.join(__dirname, '../src/components/DoveNotificationArrival.tsx'), 'utf8');
 
 for (const table of ['arena_tournaments', 'arena_tournament_games']) {
@@ -54,3 +56,13 @@ assert.match(fixtureSql, /Each pair of group players can meet only once/);
 assert.match(fixtureSql, /GRANT EXECUTE ON FUNCTION public\.set_arena_tournament_game_players\(uuid, jsonb\) TO authenticated/);
 
 console.log('Scheduled Arena reward, bracket, and winner announcement checks passed.');
+assert.match(inlineSql, /left_override_id uuid REFERENCES public.profiles\(id\)/);
+assert.match(inlineSql, /create_instructor_arena_tournament_with_fixtures/);
+assert.match(inlineSql, /coalesce\(v_game.left_override_id, v_game.left_player_id\)/);
+assert.match(inlineSql, /SET left_override_id = v_left, right_override_id = v_right/);
+assert.match(inlineSql, /PERFORM 1 FROM public.arena_rooms WHERE id = NEW.room_id FOR UPDATE/);
+assert.match(inlineSql, /'can_edit_players',[\s\S]*game.room_id IS NULL OR/);
+assert.match(scheduler, /slots.map\(\(slot\) =>[\s\S]*data-tournament-fixture=\{slot.label\}[\s\S]*type="datetime-local"[\s\S]*<AppSelect value=\{pair\[side\]\} searchable/);
+assert.match(scheduler, /tournament.games.map\(\(game\) =>[\s\S]*data-tournament-fixture=\{label\}[\s\S]*<AppSelect value=\{pair\[side\]\} searchable/);
+assert.doesNotMatch(scheduler, /openFixtureEditor|First-round matches|fixtureEdit/);
+console.log('Every tournament fixture renders its own inline player selectors.');

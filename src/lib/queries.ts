@@ -3418,6 +3418,11 @@ export type ArenaTournament = {
     room_status: string | null;
     left_player_id: string | null;
     right_player_id: string | null;
+    automatic_left_player_id: string | null;
+    automatic_right_player_id: string | null;
+    left_override_id: string | null;
+    right_override_id: string | null;
+    can_edit_players: boolean;
     winner_id: string | null;
   }>;
 };
@@ -3430,13 +3435,15 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 
 export async function createInstructorArenaTournament(payload: {
   title: string; gameType: 'standard' | 'ludo'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
+  gamePlayers: [string, string][];
 }) {
-  const { data, error } = await supabase.rpc('create_instructor_arena_tournament', {
+  const { data, error } = await supabase.rpc('create_instructor_arena_tournament_with_fixtures', {
     p_title: payload.title,
     p_game_type: payload.gameType,
     p_player_ids: payload.playerIds,
     p_game_times: payload.gameTimes,
     p_has_group_stage: payload.hasGroups,
+    p_game_players: payload.gamePlayers.map((pair) => pair.map((id) => id || null)),
   });
   if (error) throw error;
   return String(data);
@@ -3460,7 +3467,7 @@ export async function setArenaTournamentGamePlayers(
 ) {
   const { error } = await supabase.rpc('set_arena_tournament_game_players', {
     p_tournament_id: tournamentId,
-    p_changes: changes,
+    p_changes: changes.map((change) => ({ ...change, player_ids: change.player_ids.map((id) => id || null) })),
   });
   if (error) throw error;
 }
