@@ -8,7 +8,7 @@ import {
   setArenaTournamentGamePlayers,
   type ArenaTournament,
 } from '../lib/queries';
-import { arenaTournamentEntrants, arenaTournamentSlots, tournamentAutomaticPlayerLabel, tournamentFixtureRoster, validateTournamentFixturePlayers, validateArenaTournamentTimes, type ArenaTournamentPair, type ArenaTournamentStart } from '../lib/arenaTournament';
+import { arenaTournamentEntrants, arenaTournamentSlots, tournamentAutomaticPlayerLabel, tournamentFixtureRoster, tournamentFixtureChoices, validateTournamentFixturePlayers, validateArenaTournamentTimes, type ArenaTournamentLineup, type ArenaTournamentStart } from '../lib/arenaTournament';
 import { userFacingError } from '../lib/connectionErrors';
 import { shortestArenaName } from '../lib/arenaScorecard';
 import type { Profile, RoleAssignment } from '../lib/types';
@@ -29,21 +29,21 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const [replayTimes, setReplayTimes] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [gamePlayers, setGamePlayers] = useState<ArenaTournamentPair[]>(Array.from({ length: 7 }, () => ['', '']));
-  const [fixtureDrafts, setFixtureDrafts] = useState<Record<string, ArenaTournamentPair>>({});
+  const [gamePlayers, setGamePlayers] = useState<ArenaTournamentLineup[]>(Array.from({ length: 7 }, () => tournamentFixtureChoices([])));
+  const [fixtureDrafts, setFixtureDrafts] = useState<Record<string, ArenaTournamentLineup>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const visible = useMemo(() => players.filter((player) =>
     player.profiles?.display_name?.toLowerCase().includes(search.trim().toLowerCase())), [players, search]);
   const entrantCount = arenaTournamentEntrants(startRound, groupEntrants);
   const hasGroups = startRound === 'groups';
-  const capacity = mode === 'tournament' ? entrantCount : gameType === 'ludo' ? 4 : 8;
+  const capacity = 4;
   const slots = arenaTournamentSlots(entrantCount, hasGroups);
   const tournamentRoster = tournamentFixtureRoster(slots, gamePlayers);
   const resetFixtures = (count: number, groups: boolean) => {
     const length = arenaTournamentSlots(count, groups).length;
     setGameTimes(Array(length).fill(''));
-    setGamePlayers(Array.from({ length }, () => ['', '']));
+    setGamePlayers(Array.from({ length }, () => tournamentFixtureChoices([])));
   };
 
   const refreshTournaments = useCallback(async () => {
@@ -63,7 +63,8 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     if (busy) return;
     const changes = tournament.games.flatMap((game) => {
       const pair = fixtureDrafts[game.id];
-      return pair && (pair[0] !== (game.left_override_id || '') || pair[1] !== (game.right_override_id || ''))
+      const original = tournamentFixtureChoices([game.left_override_id, game.right_override_id, game.third_player_id, game.fourth_player_id]);
+      return pair && pair.some((id, index) => id !== original[index])
         ? [{ game_id: game.id, player_ids: pair }] : [];
     });
     if (!changes.length) return;
@@ -104,7 +105,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       if (mode === 'tournament') {
         await createInstructorArenaTournament({
           title: roomName.trim(), gameType, playerIds: tournamentRoster,
-          hasGroups, gamePlayers,
+          hasGroups, gamePlayers, bracketSize: entrantCount,
           gameTimes: gameTimes.map((value) => new Date(value).toISOString()),
         });
       } else {
@@ -131,7 +132,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     try {
       await rescheduleArenaTournamentGame(gameId, date.toISOString());
       await Promise.all([refreshTournaments(), onScheduled()]);
-      setMessage('Replay scheduled. Both players have been notified.');
+      setMessage('Replay scheduled. The selected players have been notified.');
     } catch (error) {
       setMessage(userFacingError(error, 'The replay could not be scheduled.'));
     } finally { setBusy(false); }
@@ -153,7 +154,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   return <section className="border-b border-border pb-5">
     <div className="mb-4 flex items-center gap-2"><CalendarClock size={18} className="text-gold" /><h2 className="font-display text-base font-bold text-ink">Instructor Arena schedule</h2></div>
     <div className="mb-4 inline-flex rounded-md border border-border bg-surface-2 p-0.5" role="group" aria-label="Schedule type">
-      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setSelected((ids) => ids.slice(0, gameType === 'ludo' ? 4 : 8)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
+      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
       <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'tournament' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('tournament'); setSelected((ids) => ids.slice(0, entrantCount)); }}><Trophy size={13} className="mr-1 inline" /> Tournament</button>
     </div>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -161,7 +162,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       {mode === 'match' && <label className="text-xs font-semibold text-stone">Start date and time<input className="input-field mt-1" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>}
     </div>
     <div className="mt-3 flex flex-wrap gap-3">
-      <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect value={gameType} onChange={(value) => { setGameType(value as 'standard' | 'ludo'); if (mode === 'match') setSelected((ids) => ids.slice(0, value === 'ludo' ? 4 : 8)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} /></div>
+      <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect value={gameType} onChange={(value) => { setGameType(value as 'standard' | 'ludo'); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} /></div>
       {mode === 'tournament' && <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Start at</p><AppSelect value={startRound} onChange={(value) => { const next = value as ArenaTournamentStart; const count = arenaTournamentEntrants(next, groupEntrants); setStartRound(next); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, next === 'groups'); }} options={[{ value: 'groups', label: 'Group stage' }, { value: 'round_of_16', label: 'Round of 16' }, { value: 'quarterfinal', label: 'Quarterfinals' }, { value: 'semifinal', label: 'Semifinals' }, { value: 'final', label: 'Final' }]} /></div>}
       {mode === 'tournament' && hasGroups && <div className="w-36"><p className="mb-1 text-xs font-semibold text-stone">Entrants</p><AppSelect value={String(groupEntrants)} onChange={(value) => { const count = Number(value) as 8 | 16 | 32; setGroupEntrants(count); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, true); }} options={[{ value: '8', label: '8 players' }, { value: '16', label: '16 players' }, { value: '32', label: '32 players' }]} /></div>}
     </div>
@@ -180,23 +181,23 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     {mode === 'tournament' && <>
       <div className="mt-4 divide-y divide-border">
         {slots.map((slot) => {
-          const pair = gamePlayers[slot.index] || ['', ''];
+          const pair = gamePlayers[slot.index] || tournamentFixtureChoices([]);
           const firstRound = slot.round === slots[0].round;
-          const candidates = firstRound ? players : players.filter((player) => tournamentRoster.includes(player.user_id) || pair.includes(player.user_id));
+          const candidates = firstRound || !hasGroups ? players : players.filter((player) => tournamentRoster.includes(player.user_id) || pair.includes(player.user_id));
           return <fieldset key={slot.index} className="min-w-0 py-4" data-tournament-fixture={slot.label}>
             <legend className="float-left mb-2 w-full font-display text-sm font-bold text-ink">{slot.label}</legend>
             <label className="block clear-both text-xs font-semibold text-stone">Date and time
               <input className="input-field mt-1 min-w-0" type="datetime-local" aria-label={`${slot.label} date and time`} value={gameTimes[slot.index] || ''} onChange={(event) => setGameTimes((current) => current.map((value, index) => index === slot.index ? event.target.value : value))} />
             </label>
             <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-              {([0, 1] as const).map((side) => <div key={side} className="min-w-0">
-                <p className="mb-1 text-xs font-semibold text-stone">Player {side + 1}</p>
+              {([0, 1, 2, 3] as const).map((side) => <div key={side} className="min-w-0">
+                <p className="mb-1 text-xs font-semibold text-stone">Player {side + 1}{side > 1 ? ' (optional)' : ''}</p>
                 <AppSelect value={pair[side]} searchable ariaLabel={`${slot.label} player ${side + 1}`}
                   disabled={busy} onChange={(id) => setGamePlayers((current) => current.map((value, index) => index === slot.index
-                    ? side === 0 ? [id, value[1]] : [value[0], id] : value))}
+                    ? tournamentFixtureChoices(value).map((currentId, playerIndex) => playerIndex === side ? id : currentId) : value))}
                   placeholder="Choose player"
-                  options={[{ value: '', label: firstRound ? 'Choose player' : `Automatic: ${tournamentAutomaticPlayerLabel(slots, slot, side)}` },
-                    ...candidates.filter((player) => player.user_id !== pair[1 - side])
+                  options={[{ value: '', label: side > 1 ? 'No player' : firstRound ? 'Choose player' : `Automatic: ${tournamentAutomaticPlayerLabel(slots, slot, side)}` },
+                    ...candidates.filter((player) => !pair.some((id, index) => index !== side && id === player.user_id))
                       .map((player) => ({ value: player.user_id, label: player.profiles?.display_name || 'Player' }))]} />
               </div>)}
             </div>
@@ -204,7 +205,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
         })}
       </div>
     </>}
-    <div className="mt-4 flex flex-wrap items-center gap-3"><button className="btn-primary text-xs" type="button" onClick={() => void submit()} disabled={busy || !roomName.trim() || (mode === 'match' && selected.length < 2)}><Swords size={14} /> {busy ? <Loader2 size={14} className="animate-spin" /> : mode === 'tournament' ? 'Schedule tournament' : 'Schedule match'}</button><span className="text-xs text-stone">{mode === 'tournament' ? tournamentRoster.length : selected.length}/{capacity} players</span></div>
+    <div className="mt-4 flex flex-wrap items-center gap-3"><button className="btn-primary text-xs" type="button" onClick={() => void submit()} disabled={busy || !roomName.trim() || (mode === 'match' && selected.length < 2)}><Swords size={14} /> {busy ? <Loader2 size={14} className="animate-spin" /> : mode === 'tournament' ? 'Schedule tournament' : 'Schedule match'}</button><span className="text-xs text-stone">{mode === 'tournament' ? `${tournamentRoster.length} tournament players` : `${selected.length}/${capacity} players`}</span></div>
     {message && <p role="status" className="mt-2 text-xs text-stone">{message}</p>}
 
     <div className="mt-7 border-t border-border pt-4">
@@ -217,23 +218,27 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
           <div className="mt-2 divide-y divide-border">
             {tournament.games.map((game) => {
               const endedWithoutWinner = !game.winner_id && game.left_player_id && game.right_player_id && ['completed', 'cancelled', 'expired'].includes(game.room_status || '');
-              const label = arenaTournamentSlots(tournament.players.length, tournament.has_group_stage).find((slot) => slot.round === game.round_number && slot.match === game.match_number)?.label || `Round ${game.round_number}`;
-              const tournamentSlots = arenaTournamentSlots(tournament.players.length, tournament.has_group_stage);
+              const label = arenaTournamentSlots(tournament.bracket_size || tournament.players.length, tournament.has_group_stage).find((slot) => slot.round === game.round_number && slot.match === game.match_number)?.label || `Round ${game.round_number}`;
+              const tournamentSlots = arenaTournamentSlots(tournament.bracket_size || tournament.players.length, tournament.has_group_stage);
               const slot = tournamentSlots.find((item) => item.round === game.round_number && item.match === game.match_number)!;
-              const pair = fixtureDrafts[game.id] || [game.left_override_id || '', game.right_override_id || ''];
+              const pair = fixtureDrafts[game.id] || tournamentFixtureChoices([game.left_override_id, game.right_override_id, game.third_player_id, game.fourth_player_id]);
               const group = game.round_number === 0 ? Math.floor((game.match_number - 1) / 6) : null;
-              const candidates = group === null ? tournament.players : tournament.players.slice(group * 4, group * 4 + 4);
+              const candidates = group !== null ? tournament.players.slice(group * 4, group * 4 + 4)
+                : tournament.has_group_stage ? tournament.players
+                  : [...new Map([...tournament.players, ...players.map((player) => ({
+                    id: player.user_id, display_name: player.profiles?.display_name || 'Player', avatar_url: player.profiles?.avatar_url || null,
+                  }))].map((player) => [player.id, player])).values()];
               const automatic = [game.automatic_left_player_id, game.automatic_right_player_id];
               const canEdit = game.can_edit_players && !['cancelled', 'completed'].includes(tournament.status);
               return <div key={game.id} className="py-4 text-[11px]" data-tournament-fixture={label}>
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span className="font-semibold text-ink">{label}</span><span className="text-stone">{new Date(game.starts_at || game.planned_at).toLocaleString()}</span></div>
                 <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-2">
-                  {([0, 1] as const).map((side) => <div key={side} className="min-w-0">
-                    <p className="mb-1 text-xs font-semibold text-stone">Player {side + 1}</p>
+                  {([0, 1, 2, 3] as const).map((side) => <div key={side} className="min-w-0">
+                    <p className="mb-1 text-xs font-semibold text-stone">Player {side + 1}{side > 1 ? ' (optional)' : ''}</p>
                     <AppSelect value={pair[side]} searchable ariaLabel={`${tournament.title} ${label} player ${side + 1}`}
                       disabled={!canEdit || busy}
-                      onChange={(id) => setFixtureDrafts((current) => ({ ...current, [game.id]: side === 0 ? [id, pair[1]] : [pair[0], id] }))}
-                      options={[{ value: '', label: automatic[side]
+                      onChange={(id) => setFixtureDrafts((current) => ({ ...current, [game.id]: pair.map((currentId, index) => index === side ? id : currentId) }))}
+                      options={[{ value: '', label: side > 1 ? 'No player' : automatic[side]
                         ? `Automatic: ${tournament.players.find((player) => player.id === automatic[side])?.display_name || 'Player'}`
                         : `Automatic: ${tournamentAutomaticPlayerLabel(tournamentSlots, slot, side)}` },
                         ...candidates.map((player) => ({ value: player.id, label: player.display_name }))]} />

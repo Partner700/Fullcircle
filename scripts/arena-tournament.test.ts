@@ -64,8 +64,8 @@ assert.deepEqual(tournamentFixtureRoster(fourSlots, pairs), ['a', 'c', 'b', 'd']
 assert.equal(tournamentAutomaticPlayerLabel(fourSlots, fourSlots[2], 0), 'Winner: Semi-final 1');
 assert.equal(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', 'd'], ['d', 'a']]), null);
 assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['c', 'd'], ['', '']]) || '', /one match/);
-assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', ''], ['', '']]) || '', /both players/);
-assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', 'd'], ['outsider', '']]) || '', /tournament players/);
+assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', ''], ['', '']]) || '', /both required players/);
+assert.equal(validateTournamentFixturePlayers(fourSlots, [['a', 'c'], ['b', 'd'], ['new-entrant', '']]), null);
 const groupPairs: ArenaTournamentPair[] = [
   ['a', 'd'], ['a', 'b'], ['a', 'c'], ['b', 'c'], ['b', 'd'], ['c', 'd'],
   ['e', 'f'], ['e', 'g'], ['e', 'h'], ['f', 'g'], ['f', 'h'], ['g', 'h'], ['', ''], ['', ''], ['', ''],
@@ -76,3 +76,13 @@ assert.equal(tournamentAutomaticPlayerLabel(groupSlots, groupSlots[13], 0), 'Gro
 assert.match(validateTournamentFixturePlayers(groupSlots, [groupPairs[1], ...groupPairs.slice(1)]) || '', /meet once/);
 assert.match(validateTournamentFixturePlayers(groupSlots, groupPairs.map((pair) => pair.map((id) => id === 'h' ? 'a' : id) as ArenaTournamentPair)) || '', /one group/);
 console.log('Inline per-match selection, future automatic seats, and group membership checks passed.');
+
+assert.equal(validateTournamentFixturePlayers(fourSlots, [['a', 'b', 'e'], ['c', 'd', 'f', 'g'], ['', '', '', '']]), null);
+assert.equal(validateTournamentFixturePlayers(arenaTournamentSlots(2), [['a', 'b', 'c', 'd']]), null);
+assert.match(validateTournamentFixturePlayers(arenaTournamentSlots(2), [['a']]) || '', /2 to 4/);
+assert.match(validateTournamentFixturePlayers(arenaTournamentSlots(2), [['a', 'b', 'c', 'd', 'e']]) || '', /2 to 4/);
+assert.match(validateTournamentFixturePlayers(arenaTournamentSlots(2), [['a', 'b', 'a']]) || '', /different players/);
+assert.match(validateTournamentFixturePlayers(fourSlots, [['a', 'b', 'e'], ['c', 'd', 'e'], ['', '']]) || '', /one match/);
+assert.equal(validateTournamentFixturePlayers(groupSlots, [['a','b','c','d'], ...groupPairs.slice(1)]), null);
+assert.deepEqual(tournamentFixtureRoster(fourSlots, [['a','b','e'], ['c','d','f','g'], ['', '', 'h', '']]), ['a','b','e','c','d','f','g','h']);
+console.log('Each match independently accepts 2, 3 or 4 players; bracket size is unchanged.');

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const CLIENT_RELEASE = '2026-10-26-target-v213';
+const CLIENT_RELEASE = '2026-10-26-target-v214';
 let lastSignature = '';
 let lastReportAt = 0;
 

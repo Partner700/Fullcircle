@@ -66,3 +66,15 @@ assert.match(scheduler, /slots.map\(\(slot\) =>[\s\S]*data-tournament-fixture=\{
 assert.match(scheduler, /tournament.games.map\(\(game\) =>[\s\S]*data-tournament-fixture=\{label\}[\s\S]*<AppSelect value=\{pair\[side\]\} searchable/);
 assert.doesNotMatch(scheduler, /openFixtureEditor|First-round matches|fixtureEdit/);
 console.log('Every tournament fixture renders its own inline player selectors.');
+
+const capacitySql = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261026111736_arena_match_two_to_four_players.sql'), 'utf8');
+assert.match(capacitySql, /third_player_id uuid REFERENCES public.profiles\(id\)/);
+assert.match(capacitySql, /fourth_player_id uuid REFERENCES public.profiles\(id\)/);
+assert.match(capacitySql, /jsonb_array_length\(v_choices\) NOT BETWEEN 2 AND 4/);
+assert.match(capacitySql, /max_players = cardinality\(v_players\)/);
+assert.match(capacitySql, /required_rounds = CASE WHEN cardinality\(v_players\) = 4 THEN 3 ELSE 2 END/);
+assert.match(capacitySql, /v_expected_games := p_bracket_size - 1/);
+assert.match(capacitySql, /auth\.uid\(\) <> v_tournament.created_by/);
+assert.match(capacitySql, /REVOKE ALL ON FUNCTION public\.arena_tournament_players\(public\.arena_tournament_games\) FROM PUBLIC, anon, authenticated/);
+assert.equal((scheduler.match(/\(\[0, 1, 2, 3\] as const\)\.map/g) || []).length, 2, 'Creation and saved matches both expose four player choices');
+console.log('Each match has two required and two optional seats, independently of bracket size.');

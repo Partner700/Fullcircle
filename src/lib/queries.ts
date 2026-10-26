@@ -3404,6 +3404,7 @@ export type ArenaTournament = {
   title: string;
   game_type: 'standard' | 'ludo';
   has_group_stage: boolean;
+  bracket_size: number;
   status: 'scheduled' | 'playing' | 'completed' | 'cancelled';
   created_by: string;
   champion_id: string | null;
@@ -3422,6 +3423,9 @@ export type ArenaTournament = {
     automatic_right_player_id: string | null;
     left_override_id: string | null;
     right_override_id: string | null;
+    third_player_id: string | null;
+    fourth_player_id: string | null;
+    player_ids: string[];
     can_edit_players: boolean;
     winner_id: string | null;
   }>;
@@ -3435,15 +3439,16 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 
 export async function createInstructorArenaTournament(payload: {
   title: string; gameType: 'standard' | 'ludo'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
-  gamePlayers: [string, string][];
+  gamePlayers: string[][]; bracketSize: number;
 }) {
-  const { data, error } = await supabase.rpc('create_instructor_arena_tournament_with_fixtures', {
+  const { data, error } = await supabase.rpc('create_instructor_arena_tournament_lineups', {
     p_title: payload.title,
     p_game_type: payload.gameType,
     p_player_ids: payload.playerIds,
     p_game_times: payload.gameTimes,
     p_has_group_stage: payload.hasGroups,
     p_game_players: payload.gamePlayers.map((pair) => pair.map((id) => id || null)),
+    p_bracket_size: payload.bracketSize,
   });
   if (error) throw error;
   return String(data);
@@ -3463,7 +3468,7 @@ export async function rescheduleArenaTournamentGame(gameId: string, startsAt: st
 
 export async function setArenaTournamentGamePlayers(
   tournamentId: string,
-  changes: Array<{ game_id: string; player_ids: [string, string] }>,
+  changes: Array<{ game_id: string; player_ids: string[] }>,
 ) {
   const { error } = await supabase.rpc('set_arena_tournament_game_players', {
     p_tournament_id: tournamentId,

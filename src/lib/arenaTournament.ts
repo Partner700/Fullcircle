@@ -9,8 +9,14 @@ export type ArenaTournamentSlot = {
 
 export type ArenaTournamentStart = 'groups' | 'round_of_16' | 'quarterfinal' | 'semifinal' | 'final';
 export type ArenaTournamentPair = [string, string];
+export type ArenaTournamentLineup = string[];
 
-export function tournamentAutomaticPlayerLabel(slots: ArenaTournamentSlot[], slot: ArenaTournamentSlot, side: 0 | 1): string {
+export function tournamentFixtureChoices(values: Array<string | null | undefined>): ArenaTournamentLineup {
+  return Array.from({ length: 4 }, (_, index) => values[index] || '');
+}
+
+export function tournamentAutomaticPlayerLabel(slots: ArenaTournamentSlot[], slot: ArenaTournamentSlot, side: number): string {
+  if (side > 1) return 'No player';
   if (slot.sourceIndexes) return `Winner: ${slots[slot.sourceIndexes[side]].label}`;
   if (slot.round === 1 && slots.some((item) => item.round === 0)) {
     const group = side === 0 ? slot.match : slot.match % 2 ? slot.match + 1 : slot.match - 1;
@@ -19,19 +25,21 @@ export function tournamentAutomaticPlayerLabel(slots: ArenaTournamentSlot[], slo
   return 'Choose player';
 }
 
-export function tournamentFixtureRoster(slots: ArenaTournamentSlot[], pairs: ArenaTournamentPair[]): string[] {
+export function tournamentFixtureRoster(slots: ArenaTournamentSlot[], pairs: ArenaTournamentLineup[]): string[] {
   const firstRound = slots[0].round;
-  return [...new Set(slots.filter((slot) => slot.round === firstRound)
+  return [...new Set(slots.filter((slot) => firstRound !== 0 || slot.round === firstRound)
     .flatMap((slot) => pairs[slot.index] || []).filter(Boolean))];
 }
 
-export function validateTournamentFixturePlayers(slots: ArenaTournamentSlot[], pairs: ArenaTournamentPair[]): string | null {
+export function validateTournamentFixturePlayers(slots: ArenaTournamentSlot[], pairs: ArenaTournamentLineup[]): string | null {
   const firstRound = slots[0].round;
   const roster = tournamentFixtureRoster(slots, pairs);
   for (const slot of slots) {
     const pair = pairs[slot.index] || ['', ''];
-    if (slot.round === firstRound && pair.some((id) => !id)) return `Choose both players for ${slot.label}.`;
-    if (pair[0] && pair[0] === pair[1]) return `Choose two different players for ${slot.label}.`;
+    if (pair.length < 2 || pair.length > 4) return `Choose 2 to 4 players for ${slot.label}.`;
+    if (slot.round === firstRound && (!pair[0] || !pair[1])) return `Choose both required players for ${slot.label}.`;
+    const chosen = pair.filter(Boolean);
+    if (new Set(chosen).size !== chosen.length) return `Choose different players for ${slot.label}.`;
     if (pair.some((id) => id && !roster.includes(id))) return `Choose tournament players for ${slot.label}.`;
     if (slot.round > 0 && pair.some((id) => id && slots.some((other) => other.index !== slot.index
       && other.round === slot.round && pairs[other.index]?.includes(id)))) {
@@ -43,10 +51,10 @@ export function validateTournamentFixturePlayers(slots: ArenaTournamentSlot[], p
     const groupPlayers: string[][] = [];
     for (const group of groups) {
       const games = slots.filter((slot) => slot.group === group);
-      const members = [...new Set(games.flatMap((slot) => pairs[slot.index]))];
+      const members = [...new Set(games.flatMap((slot) => pairs[slot.index]).filter(Boolean))];
       if (members.length !== 4) return `Choose four different players across Group ${String.fromCharCode(64 + group)}.`;
-      if (new Set(games.map((slot) => [...pairs[slot.index]].sort().join('|'))).size !== 6) {
-        return `Each pair in Group ${String.fromCharCode(64 + group)} must meet once.`;
+      if (new Set(games.map((slot) => pairs[slot.index].filter(Boolean).sort().join('|'))).size !== 6) {
+        return `Each lineup in Group ${String.fromCharCode(64 + group)} can meet once.`;
       }
       groupPlayers.push(members);
     }
