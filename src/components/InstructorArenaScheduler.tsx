@@ -11,6 +11,8 @@ import {
 import { arenaTournamentEntrants, arenaTournamentSlots, tournamentAutomaticPlayerLabel, tournamentFixtureRoster, tournamentFixtureChoices, validateTournamentFixturePlayers, validateArenaTournamentTimes, type ArenaTournamentLineup, type ArenaTournamentStart } from '../lib/arenaTournament';
 import { userFacingError } from '../lib/connectionErrors';
 import { shortestArenaName } from '../lib/arenaScorecard';
+import { fetchJourneyCatalog, type JourneyCharacter } from '../lib/journeyClient';
+import type { ArenaGameType } from '../lib/arenaJourneyRollout';
 import type { Profile, RoleAssignment } from '../lib/types';
 
 type Player = RoleAssignment & { profiles: Profile };
@@ -20,7 +22,12 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const [players, setPlayers] = useState<Player[]>([]);
   const [tournaments, setTournaments] = useState<ArenaTournament[]>([]);
   const [roomName, setRoomName] = useState('');
-  const [gameType, setGameType] = useState<'standard' | 'ludo'>('standard');
+  const [gameType, setGameType] = useState<ArenaGameType>('standard');
+  const [journeyCharacters, setJourneyCharacters] = useState<JourneyCharacter[]>([]);
+  const [journeyCharacterSlug, setJourneyCharacterSlug] = useState('');
+  const [journeyLoading, setJourneyLoading] = useState(false);
+  const [journeyError, setJourneyError] = useState<string | null>(null);
+  const [journeyRetry, setJourneyRetry] = useState(0);
   const [mode, setMode] = useState<Mode>('match');
   const [startRound, setStartRound] = useState<ArenaTournamentStart>('quarterfinal');
   const [groupEntrants, setGroupEntrants] = useState<8 | 16 | 32>(8);
@@ -40,6 +47,8 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const capacity = 4;
   const slots = arenaTournamentSlots(entrantCount, hasGroups);
   const tournamentRoster = tournamentFixtureRoster(slots, gamePlayers);
+  const isJourney = mode === 'tournament' && gameType === 'journey';
+  const journeyReady = journeyCharacters.some((character) => character.slug === journeyCharacterSlug && character.ready);
   const resetFixtures = (count: number, groups: boolean) => {
     const length = arenaTournamentSlots(count, groups).length;
     setGameTimes(Array(length).fill(''));
@@ -49,6 +58,22 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   const refreshTournaments = useCallback(async () => {
     setTournaments(await fetchArenaTournaments());
   }, []);
+
+  useEffect(() => {
+    if (!isJourney) return;
+    let active = true;
+    setJourneyLoading(true);
+    setJourneyError(null);
+    void fetchJourneyCatalog().then((items) => {
+      if (!active) return;
+      const ready = items.filter((character) => character.ready);
+      setJourneyCharacters(ready);
+      setJourneyCharacterSlug((current) => ready.some((character) => character.slug === current) ? current : ready[0]?.slug || '');
+    }).catch((error) => {
+      if (active) setJourneyError(userFacingError(error, 'The narrative list could not load. Please try again.'));
+    }).finally(() => { if (active) setJourneyLoading(false); });
+    return () => { active = false; };
+  }, [isJourney, journeyRetry]);
 
   useEffect(() => {
     let active = true;
@@ -85,6 +110,9 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     if (busy) return;
     setMessage(null);
     if (!roomName.trim()) { setMessage('Name the match or tournament first.'); return; }
+    if (isJourney && (journeyLoading || journeyError || !journeyReady)) {
+      setMessage('Choose a playable Journey narrative.'); return;
+    }
     if (mode === 'tournament') {
       const issue = validateTournamentFixturePlayers(slots, gamePlayers);
       if (issue) { setMessage(issue); return; }
@@ -106,9 +134,11 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
         await createInstructorArenaTournament({
           title: roomName.trim(), gameType, playerIds: tournamentRoster,
           hasGroups, gamePlayers, bracketSize: entrantCount,
+          journeyCharacterSlug: isJourney ? journeyCharacterSlug : null,
           gameTimes: gameTimes.map((value) => new Date(value).toISOString()),
         });
       } else {
+        if (gameType === 'journey') throw new Error('Choose Journey Trivia in a tournament.');
         await scheduleInstructorArenaMatch({ roomName: roomName.trim(), gameType, playerIds: selected, startsAt: date.toISOString() });
       }
       setSelected([]);
@@ -154,7 +184,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   return <section className="border-b border-border pb-5">
     <div className="mb-4 flex items-center gap-2"><CalendarClock size={18} className="text-gold" /><h2 className="font-display text-base font-bold text-ink">Instructor Arena schedule</h2></div>
     <div className="mb-4 inline-flex rounded-md border border-border bg-surface-2 p-0.5" role="group" aria-label="Schedule type">
-      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
+      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setGameType((current) => current === 'journey' ? 'standard' : current); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
       <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'tournament' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('tournament'); setSelected((ids) => ids.slice(0, entrantCount)); }}><Trophy size={13} className="mr-1 inline" /> Tournament</button>
     </div>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -162,10 +192,12 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       {mode === 'match' && <label className="text-xs font-semibold text-stone">Start date and time<input className="input-field mt-1" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>}
     </div>
     <div className="mt-3 flex flex-wrap gap-3">
-      <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect value={gameType} onChange={(value) => { setGameType(value as 'standard' | 'ludo'); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }]} /></div>
+      <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect ariaLabel="Arena game category" value={gameType} onChange={(value) => { setGameType(value as ArenaGameType); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }, ...(mode === 'tournament' ? [{ value: 'journey', label: 'Journey Trivia' }] : [])]} /></div>
+      {isJourney && <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Narrative</p><AppSelect ariaLabel="Tournament Journey narrative" value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} disabled={journeyLoading || Boolean(journeyError) || journeyCharacters.length === 0} placeholder={journeyLoading ? 'Loading narratives...' : 'No playable narratives'} options={journeyCharacters.map((character) => ({ value: character.slug, label: character.displayName }))} /></div>}
       {mode === 'tournament' && <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Start at</p><AppSelect value={startRound} onChange={(value) => { const next = value as ArenaTournamentStart; const count = arenaTournamentEntrants(next, groupEntrants); setStartRound(next); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, next === 'groups'); }} options={[{ value: 'groups', label: 'Group stage' }, { value: 'round_of_16', label: 'Round of 16' }, { value: 'quarterfinal', label: 'Quarterfinals' }, { value: 'semifinal', label: 'Semifinals' }, { value: 'final', label: 'Final' }]} /></div>}
       {mode === 'tournament' && hasGroups && <div className="w-36"><p className="mb-1 text-xs font-semibold text-stone">Entrants</p><AppSelect value={String(groupEntrants)} onChange={(value) => { const count = Number(value) as 8 | 16 | 32; setGroupEntrants(count); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, true); }} options={[{ value: '8', label: '8 players' }, { value: '16', label: '16 players' }, { value: '32', label: '32 players' }]} /></div>}
     </div>
+    {isJourney && journeyError && <div className="mt-2 flex flex-wrap items-center gap-2"><p role="alert" className="text-xs text-coral">{journeyError}</p><button type="button" className="btn-ghost text-xs" disabled={journeyLoading} onClick={() => setJourneyRetry((value) => value + 1)}><RotateCw size={14} /> Retry</button></div>}
     {mode === 'match' && <><div className="relative mt-4"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone" /><input className="input-field pl-9" placeholder="Search players" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
     <div className="mt-2 grid max-h-56 gap-1 overflow-y-auto sm:grid-cols-2">
       {visible.map((player) => {
@@ -205,7 +237,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
         })}
       </div>
     </>}
-    <div className="mt-4 flex flex-wrap items-center gap-3"><button className="btn-primary text-xs" type="button" onClick={() => void submit()} disabled={busy || !roomName.trim() || (mode === 'match' && selected.length < 2)}><Swords size={14} /> {busy ? <Loader2 size={14} className="animate-spin" /> : mode === 'tournament' ? 'Schedule tournament' : 'Schedule match'}</button><span className="text-xs text-stone">{mode === 'tournament' ? `${tournamentRoster.length} tournament players` : `${selected.length}/${capacity} players`}</span></div>
+    <div className="mt-4 flex flex-wrap items-center gap-3"><button className="btn-primary text-xs" type="button" onClick={() => void submit()} disabled={busy || !roomName.trim() || (mode === 'match' && selected.length < 2) || (isJourney && (journeyLoading || Boolean(journeyError) || !journeyReady))}><Swords size={14} /> {busy ? <Loader2 size={14} className="animate-spin" /> : mode === 'tournament' ? 'Schedule tournament' : 'Schedule match'}</button><span className="text-xs text-stone">{mode === 'tournament' ? `${tournamentRoster.length} tournament players` : `${selected.length}/${capacity} players`}</span></div>
     {message && <p role="status" className="mt-2 text-xs text-stone">{message}</p>}
 
     <div className="mt-7 border-t border-border pt-4">
@@ -214,6 +246,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       {tournaments.map((tournament) => {
         const playerName = (id: string | null) => id ? shortestArenaName(tournament.players.find((player) => player.id === id)?.display_name || 'Player') : 'TBD';
         return <div key={tournament.id} className="border-b border-border py-4">
+          {tournament.game_type === 'journey' && <p className="mb-1 text-xs text-gold">Journey Trivia{tournament.journey_character_name ? `: ${tournament.journey_character_name}` : ''}</p>}
           <div className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><p className="truncate font-display text-sm font-bold text-ink">{tournament.title}</p><p className="text-[11px] capitalize text-stone">{tournament.status}{tournament.champion_id ? ` · Champion: ${playerName(tournament.champion_id)}` : ''}</p></div>{tournament.status === 'scheduled' && <button type="button" className="btn-ghost text-xs text-coral" disabled={busy} onClick={() => void cancelTournament(tournament.id)}>Cancel</button>}</div>
           <div className="mt-2 divide-y divide-border">
             {tournament.games.map((game) => {

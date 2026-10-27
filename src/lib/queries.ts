@@ -3354,7 +3354,7 @@ export async function fetchPublicArenaSuccessor(roomId: string): Promise<string 
 export type ArenaFinalScorecard = {
   id: string;
   room_name: string;
-  game_type: 'standard' | 'ludo';
+  game_type: 'standard' | 'ludo' | 'journey';
   completed_at: string | null;
   winner_id: string | null;
   players: Array<{
@@ -3402,7 +3402,9 @@ export async function scheduleInstructorArenaMatch(payload: {
 export type ArenaTournament = {
   id: string;
   title: string;
-  game_type: 'standard' | 'ludo';
+  game_type: 'standard' | 'ludo' | 'journey';
+  journey_character_slug?: string | null;
+  journey_character_name?: string | null;
   has_group_stage: boolean;
   bracket_size: number;
   status: 'scheduled' | 'playing' | 'completed' | 'cancelled';
@@ -3438,7 +3440,8 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 }
 
 export async function createInstructorArenaTournament(payload: {
-  title: string; gameType: 'standard' | 'ludo'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
+  title: string; gameType: 'standard' | 'ludo' | 'journey'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
+  journeyCharacterSlug?: string | null;
   gamePlayers: string[][]; bracketSize: number;
 }) {
   const { data, error } = await supabase.rpc('create_instructor_arena_tournament_lineups', {
@@ -3449,6 +3452,7 @@ export async function createInstructorArenaTournament(payload: {
     p_has_group_stage: payload.hasGroups,
     p_game_players: payload.gamePlayers.map((pair) => pair.map((id) => id || null)),
     p_bracket_size: payload.bracketSize,
+    ...(payload.gameType === 'journey' ? { p_journey_character_slug: payload.journeyCharacterSlug || null } : {}),
   });
   if (error) throw error;
   return String(data);
