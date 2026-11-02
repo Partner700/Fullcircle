@@ -31,7 +31,11 @@ const valid = [
 ];
 assert.equal(validateArenaTournamentTimes(4, valid, now), null);
 assert.match(validateArenaTournamentTimes(4, [...valid.slice(0, 2), '2026-10-14T14:15:00Z'], now) || '', /20 minutes/);
-assert.match(validateArenaTournamentTimes(4, ['', ...valid.slice(1)], now) || '', /every game/);
+assert.equal(validateArenaTournamentTimes(4, ['', ...valid.slice(1)], now), null);
+assert.equal(validateArenaTournamentTimes(4, [valid[0], '', ''], now), null);
+assert.match(validateArenaTournamentTimes(4, ['', '', ''], now) || '', /at least one/);
+assert.match(validateArenaTournamentTimes(4, ['invalid', '', ''], now) || '', /two minutes/);
+assert.match(validateArenaTournamentTimes(8, [valid[0], '', '', '', '', '', '2026-10-14T14:15:00Z'], now) || '', /20 minutes/);
 
 const groupSlots = arenaTournamentSlots(8, true);
 const groupTimes = groupSlots.map((slot) => slot.round === 0

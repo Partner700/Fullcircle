@@ -16,8 +16,11 @@ try {
     CREATE TRIGGER settle AFTER UPDATE ON arena_rooms FOR EACH ROW EXECUTE FUNCTION settle_instructor_arena_match_awards();
     CREATE TRIGGER reservation BEFORE INSERT ON arena_participants FOR EACH ROW EXECUTE FUNCTION enforce_instructor_arena_reservation();`);
   await db.exec(migration('20261027191312_arena_journey_tournaments'));
+  await db.exec(migration('20261102065040_arena_optional_game_times'));
   await db.exec('CREATE TRIGGER journey_scores BEFORE UPDATE OF score ON arena_participants FOR EACH ROW EXECUTE FUNCTION journey_private.sync_journey_points();');
   await db.exec(file('./arena-journey-tournaments.test.sql'));
+  await db.exec(file('./arena-optional-game-times.test.sql'));
+  console.log('Optional game dates passed: partial schedules, later scheduling, deferred finals, date ordering, and instructor permissions.');
   console.log('Journey tournament integration passed: narrative permissions, 2-4 players, rounds, rematches, advancement, witnesses, cumulative scorecards, rewards, legacy and machine behavior.');
 } catch (error) {
   console.error(error.message, error.where || '');

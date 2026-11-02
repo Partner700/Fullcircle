@@ -124,22 +124,25 @@ export function arenaTournamentSlots(playerCount: number, hasGroups = false): Ar
 
 export function validateArenaTournamentTimes(playerCount: number, values: string[], now = Date.now(), hasGroups = false): string | null {
   const slots = arenaTournamentSlots(playerCount, hasGroups);
-  if (values.length !== slots.length || values.some((value) => !value)) return 'Choose a date and time for every game.';
-  const timestamps = values.map((value) => new Date(value).getTime());
-  if (timestamps.some((time) => !Number.isFinite(time) || time < now + 2 * 60_000 || time > now + 90 * 86_400_000)) {
-    return 'Schedule every game between two minutes and 90 days from now.';
+  if (values.length !== slots.length) return 'The tournament schedule does not match its games.';
+  if (!values.some(Boolean)) return 'Choose a date and time for at least one selected game.';
+  const timestamps = values.map((value) => value ? new Date(value).getTime() : null);
+  if (timestamps.some((time) => time !== null && (!Number.isFinite(time) || time < now + 2 * 60_000 || time > now + 90 * 86_400_000))) {
+    return 'Schedule selected games between two minutes and 90 days from now.';
   }
+  // Include indirect dependencies so leaving a round undated cannot reverse the bracket.
+  const dependencies = (slot: ArenaTournamentSlot): number[] => slot.sourceIndexes
+    || (hasGroups && slot.round === 1 ? slots.filter((item) => item.round === 0).map((item) => item.index) : []);
+  const ancestors = (slot: ArenaTournamentSlot): number[] => dependencies(slot)
+    .flatMap((index) => [index, ...ancestors(slots[index])]);
   for (const slot of slots) {
-    if (hasGroups && slot.round === 1) {
-      const groupEnd = Math.max(...timestamps.slice(0, playerCount * 6 / 4));
-      if (timestamps[slot.index] < groupEnd + 20 * 60_000) {
-        return `${slot.label} must start at least 20 minutes after the group stage.`;
-      }
-    }
-    if (!slot.sourceIndexes) continue;
-    const [left, right] = slot.sourceIndexes;
-    if (timestamps[slot.index] < Math.max(timestamps[left], timestamps[right]) + 20 * 60_000) {
-      return `${slot.label} must start at least 20 minutes after both preceding games.`;
+    const time = timestamps[slot.index];
+    if (time === null) continue;
+    const precedingTimes = ancestors(slot).map((index) => timestamps[index]).filter((value): value is number => value !== null);
+    if (precedingTimes.length && time < Math.max(...precedingTimes) + 20 * 60_000) {
+      return hasGroups && slot.round === 1
+        ? `${slot.label} must start at least 20 minutes after the group stage.`
+        : `${slot.label} must start at least 20 minutes after its preceding scheduled games.`;
     }
   }
   return null;

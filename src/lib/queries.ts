@@ -3415,7 +3415,7 @@ export type ArenaTournament = {
     id: string;
     round_number: number;
     match_number: number;
-    planned_at: string;
+    planned_at: string | null;
     starts_at: string | null;
     room_id: string | null;
     room_status: string | null;
@@ -3440,7 +3440,7 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 }
 
 export async function createInstructorArenaTournament(payload: {
-  title: string; gameType: 'standard' | 'ludo' | 'journey'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
+  title: string; gameType: 'standard' | 'ludo' | 'journey'; playerIds: string[]; gameTimes: Array<string | null>; hasGroups: boolean;
   journeyCharacterSlug?: string | null;
   gamePlayers: string[][]; bracketSize: number;
 }) {
