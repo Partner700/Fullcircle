@@ -3395,7 +3395,7 @@ function QuizBuilder() {
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(getTodayISODate());
   const [newStartTime, setNewStartTime] = useState('09:00');
-  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune'>('saturday');
+  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune' | 'valediction'>('saturday');
   const [quizDuration, setQuizDuration] = useState(30);
   const [selectedSession, setSelectedSession] = useState<QuizSession | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
@@ -3405,7 +3405,7 @@ function QuizBuilder() {
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(getTodayISODate());
   const [sessionStartTime, setSessionStartTime] = useState('09:00');
-  const [sessionType, setSessionType] = useState<'saturday' | 'fortune'>('saturday');
+  const [sessionType, setSessionType] = useState<'saturday' | 'fortune' | 'valediction'>('saturday');
   const [savingSessionDetails, setSavingSessionDetails] = useState(false);
   const [launchingSessionId, setLaunchingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -3440,8 +3440,8 @@ function QuizBuilder() {
         live_closes_at: schedule.liveCloses,
         status: 'scheduled',
         quiz_type: newQuizType,
-        reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
-        reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
+        reward_perfect: newQuizType === 'valediction' ? 0 : 6000,
+        reward_partial: newQuizType === 'valediction' ? 0 : 1000,
       } as any);
     } catch (e: any) {
       alert(e.message || 'Failed to create quiz session');
@@ -3833,9 +3833,10 @@ function QuizBuilder() {
               </div>
               <div>
                 <label className="text-xs text-stone block mb-1">Quiz Type</label>
-                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune')} options={[
+                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune' | 'valediction')} options={[
                   { value: 'saturday', label: 'Saturday Quiz' },
                   { value: 'fortune', label: 'Fortune Quiz' },
+                  { value: 'valediction', label: 'Valediction Quiz (90% to pass)' },
                 ]} />
               </div>
               <div>
@@ -3906,9 +3907,10 @@ function QuizBuilder() {
         <div className="card p-4 space-y-3 bg-surface-2">
           <div>
             <label className="text-xs text-stone block mb-1">Quiz Type</label>
-            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune')} options={[
+            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune' | 'valediction')} options={[
               { value: 'saturday', label: 'Saturday Quiz', description: 'Scheduled, streak-critical' },
               { value: 'fortune', label: 'Fortune Quiz', description: 'Random bonus rewards' },
+              { value: 'valediction', label: 'Valediction Quiz', description: 'Qualifying cadets only; 90% required to become a Sentry' },
             ]} />
           </div>
           <div>
@@ -3955,7 +3957,7 @@ function QuizBuilder() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{s.title}</p>
                 <p className="text-xs text-stone">
-                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
+                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'valediction' ? 'Valediction' : s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">

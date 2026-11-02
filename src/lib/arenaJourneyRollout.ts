@@ -9,8 +9,7 @@ export function preferredArenaGameType(current: ArenaGameType, _opponent: ArenaO
 
 export function arenaGameOptions(_opponent: ArenaOpponent, readyCharacterCount: number) {
   return [
-    ...(readyCharacterCount > 0
-      ? [{ value: 'journey', label: 'Standard Trivia: Biblical Journey' }] : []),
+    { value: 'journey', label: 'Journey Trivia' },
     { value: 'standard', label: 'Classic Trivia' },
     { value: 'ludo', label: 'Ludo Trivia' },
   ];

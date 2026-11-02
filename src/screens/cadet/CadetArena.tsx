@@ -639,7 +639,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
   const createRoom = async () => {
     if (!profile) return;
-    if (journeyCatalogState !== 'ready') {
+    if (arenaGameType === 'journey' && journeyCatalogState !== 'ready') {
       setError('The match list is still loading. Try again once it is ready.');
       return;
     }
@@ -1163,7 +1163,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             </div>
           </div>
           </>}
-          <button onClick={createRoom} disabled={creating || journeyCatalogState !== 'ready' || (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
+          <button onClick={createRoom} disabled={creating || (arenaGameType === 'journey' && journeyCatalogState !== 'ready') || (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} {arenaOpponent === 'machine' ? 'Create Machine Match · 50 Ð' : `Create & Stake ${formatDenarii(stake)} Ð`}
           </button>
           {arenaOpponent === 'machine' ? <p className="text-xs text-stone">Machine matches charge only the fixed 50 Ð stake.</p> : <>

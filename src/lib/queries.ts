@@ -540,14 +540,15 @@ export async function fetchQuizSessions() {
   return data as QuizSession[];
 }
 
-export async function fetchLatestQuizSession() {
-  const rpcResult = await supabase.rpc('get_current_quiz_session');
+export async function fetchLatestQuizSession(quizType: 'saturday' | 'fortune' | 'valediction' = 'saturday') {
+  const rpcResult = await supabase.rpc('get_current_quiz_session_for_type', { p_quiz_type: quizType });
   if (!rpcResult.error) return rpcResult.data as QuizSession | null;
 
   // Keep older deployments usable while the lifecycle migration rolls out.
   const { data, error } = await supabase
     .from('quiz_sessions')
     .select('*')
+    .eq('quiz_type', quizType)
     .order('session_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1).maybeSingle();

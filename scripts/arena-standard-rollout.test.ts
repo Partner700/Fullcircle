@@ -11,5 +11,5 @@ assert.deepEqual(arenaGameOptions('players', 1).map((option) => option.value),
 assert.deepEqual(arenaGameOptions('machine', 1).map((option) => option.value),
   ['journey', 'standard', 'ludo']);
 assert.deepEqual(arenaGameOptions('players', 0).map((option) => option.value),
-  ['standard', 'ludo']);
+  ['journey', 'standard', 'ludo']);
 console.log('Standard Trivia rollout selects ready Journey for human and machine matches.');

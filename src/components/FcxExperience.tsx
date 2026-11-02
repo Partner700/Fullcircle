@@ -71,9 +71,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     [countdownDate, countdownNow],
   );
   const paymentBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
-  const paymentHref = paymentBase
-    ? `${paymentBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
-    : null;
+  const paymentHref = 'https://fcx.nkap.store/';
   const askHref = paymentBase
     ? `${paymentBase}?text=${encodeURIComponent('Hello, I have a question about the Full Circle Experience (FCX).')}`
     : null;

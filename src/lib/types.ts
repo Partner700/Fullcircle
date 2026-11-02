@@ -551,7 +551,7 @@ export interface QuizSession {
   live_opens_at: string;
   live_closes_at: string;
   status: QuizSessionStatus;
-  quiz_type: 'saturday' | 'fortune';
+  quiz_type: 'saturday' | 'fortune' | 'valediction';
   reward_perfect: number;
   reward_partial: number;
   relaunch_of_id?: string | null;
