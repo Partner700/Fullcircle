@@ -1819,7 +1819,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const [settling, setSettling] = useState(false);
   const [settlementError, setSettlementError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rollRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rollRevealTimerRef = useRef<number | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);
