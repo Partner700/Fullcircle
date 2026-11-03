@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '218', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '219', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -2309,7 +2309,7 @@ assert.doesNotMatch(schemaSafeRoleHelpers, /FROM role_assignments|FROM tent_memb
 assert.match(instructorBoardsGrantCelebrationsAndVallum, /GRANT EXECUTE ON FUNCTION public\.get_current_avatar_awards\(\) TO anon, authenticated, service_role/);
 assert.match(calendarUtilities, /FULL_CIRCLE_WHATSAPP_CONTACT = '\+237683081463'/);
 assert.match(fcxExperience, /whatsappUrl\(FULL_CIRCLE_WHATSAPP_CONTACT\)/);
-assert.match(cadetStore, /whatsappUrl\(FULL_CIRCLE_WHATSAPP_CONTACT\)/);
+assert.match(cadetStore, /href=\{FCX_PAYMENT_URL\}/);
 assert.doesNotMatch(fcxExperience, /fetchFcxTicketContact/);
 assert.doesNotMatch(cadetStore, /fetchFcxTicketContact/);
 
@@ -2558,7 +2558,7 @@ assert.match(birthdayReactions, /searchParams\.set\('share', 'birthday'\)/);
 assert.match(birthdayApi, /get_public_birthday_announcement/);
 assert.match(publicShareScreen, /kind === 'birthday'/);
 assert.match(cadetStore, /Full Circle Experience Ticket/);
-assert.match(cadetStore, /I want to pay for the Full Circle Experience \(FCX\)/);
+assert.match(cadetStore, /Pay online/);
 assert.match(cadetStore, /refreshMutableStoreState/);
 assert.match(cadetStore, /Purchase complete\. Your relic has been added to your inventory\./);
 assert.doesNotMatch(cadetStore, /Payment was not confirmed within 35 seconds\. No relic was added/);

@@ -1,3 +1,4 @@
+import { FCX_PAYMENT_URL } from '../../lib/fcxPayments';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
@@ -8,7 +9,7 @@ import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
-import { cn, formatDenarii, formatFullDenarii, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, visibleStreakFreezersForCurrentWeek, whatsappUrl } from '../../lib/utils';
+import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
@@ -537,10 +538,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const lazarusMarketDescription = 'Take or retake the Saturday quiz late and submit before 2:45 PM. Denarii only.';
   const readyDailyFreezers = freezers.filter((f) => f.freezer_type === 'daily' && !f.used_at && !f.applied_to_date).length;
   const readyWeeklyFreezers = freezers.filter((f) => f.freezer_type === 'weekly' && !f.used_at && !f.applied_to_date).length;
-  const fcxWhatsappBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
-  const fcxWhatsappLink = fcxWhatsappBase
-    ? `${fcxWhatsappBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
-    : null;
   const alreadyOnFcxList = Boolean(fcxExperience?.registrations.some((registration) => registration.user_id === profile?.id));
   const fcxSpacesRemaining = fcxExperience
     ? Math.max(0, fcxExperience.capacity - fcxExperience.registrations.length)
@@ -591,7 +588,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         <div className="relative z-10 flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold"><Ticket size={21} /></span>
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-sm font-bold text-ink">Full Circle Experience Ticket</h3>
+            <h3 className="font-display text-sm font-bold text-ink"><a href={FCX_PAYMENT_URL} target="_blank" rel="noopener noreferrer">Full Circle Experience Ticket</a></h3>
             <p className="mt-1 text-xs text-stone">{formatFullDenarii(FCX_TICKET_DENARII_COST)} Ð</p>
             {fcxExperience && <p className="mt-1 text-xs text-stone">{fcxSpacesRemaining} of {fcxExperience.capacity} places left</p>}
           </div>
@@ -609,9 +606,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <Coins size={14} /> Buy with Denarii
             </button>
           )}
-          {fcxWhatsappLink && fcxExperience && fcxSpacesRemaining > 0 && !alreadyOnFcxList && (
-            <a href={fcxWhatsappLink} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
-              <MessageSquare size={14} /> Pay externally
+          {!alreadyOnFcxList && (
+            <a href={FCX_PAYMENT_URL} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
+              <Ticket size={14} /> Pay online
             </a>
           )}
         </div>

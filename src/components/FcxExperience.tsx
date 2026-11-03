@@ -1,3 +1,4 @@
+import { FCX_PAYMENT_URL } from '../lib/fcxPayments';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
@@ -71,7 +72,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     [countdownDate, countdownNow],
   );
   const paymentBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
-  const paymentHref = 'https://fcx.nkap.store/';
+  const paymentHref = FCX_PAYMENT_URL;
   const askHref = paymentBase
     ? `${paymentBase}?text=${encodeURIComponent('Hello, I have a question about the Full Circle Experience (FCX).')}`
     : null;
