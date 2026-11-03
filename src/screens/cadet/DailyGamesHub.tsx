@@ -24,11 +24,13 @@ import {
   Swords,
 } from 'lucide-react';
 
+const PreludeTrivia = lazy(() => import('./PreludeTrivia'));
 const PuzzleTrivia = lazy(() => import('./PuzzleTrivia'));
 
 interface DailyGamesHubProps {
   onOpenTrivia: () => void;
   onOpenArena: () => void;
+  onProgress?: () => void;
 }
 
 type HubState = {
@@ -47,10 +49,11 @@ const EMPTY_STATE: HubState = {
   storyImage: null,
 };
 
-export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps) {
+export function DailyGamesHub({ onOpenTrivia, onOpenArena, onProgress }: DailyGamesHubProps) {
   const { profile } = useAuth();
   const [state, setState] = useState<HubState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
+  const [preludeOpen,setPreludeOpen] = useState(false);
   const [puzzleOpen, setPuzzleOpen] = useState(false);
   const today = getTodayISODate();
   const saturday = getDayType(today) === 'saturday';
@@ -116,7 +119,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps)
       ? 'Practice Daily Trivia'
       : 'Play Daily Trivia';
 
-  if (puzzleOpen) return <Suspense fallback={<p role="status">Opening Puzzle Trivia...</p>}><PuzzleTrivia arenaImage={state.arenaImage} onBack={() => setPuzzleOpen(false)} /></Suspense>;
+  if (preludeOpen) return <Suspense fallback={<p role="status">Opening The Prelude...</p>}><PreludeTrivia arenaImage={state.arenaImage} onBack={() => {setPreludeOpen(false);onProgress?.();}} onBalanceChanged={onProgress}/></Suspense>;
+  if (puzzleOpen) return <Suspense fallback={<p role="status">Opening Puzzle Trivia...</p>}><PuzzleTrivia arenaImage={state.arenaImage} onBack={() => {setPuzzleOpen(false);onProgress?.();}} /></Suspense>;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 animate-fade-in">
@@ -138,6 +142,10 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps)
         <div className="relative z-10"><p className="eyebrow text-gold">Words of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">Puzzle Trivia</h3><p className="mt-2 text-sm text-stone">Connect letters to uncover Bible people, places and objects in an interlocking crossword. Three difficulties, timed rounds and Scripture clues.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia <ArrowRight size={14}/></button><GameActivityProfiles activity="puzzle_trivia" players={gameActivity.players} loading={gameActivity.loading} /></div>
       </article>
 
+      <article className="card relative overflow-hidden p-5">
+        <PanelImageBackdrop image={state.arenaImage} opacityFallback={26} veilClassName="arena-panel-veil" />
+        <div className="relative z-10"><p className="eyebrow text-gold">Numbers of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">The Prelude</h3><p className="mt-2 text-sm text-stone">104 cards, four jokers, and a board waiting to be captured. Match a number or tent symbol, then answer the Scripture question. Play with up to 10 people or against the Machine.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPreludeOpen(true)}>Play The Prelude <ArrowRight size={14}/></button></div>
+      </article>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <article className="card relative flex min-h-[23rem] flex-col overflow-hidden p-5">
           <PanelImageBackdrop image={state.gameImage} opacityFallback={26} veilClassName="daily-trivia-panel-veil" />

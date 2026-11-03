@@ -1,4 +1,4 @@
-export type ArenaGameType = 'standard' | 'ludo' | 'journey';
+export type ArenaGameType = 'standard' | 'ludo' | 'journey' | 'prelude';
 export type ArenaOpponent = 'players' | 'machine';
 
 export function preferredArenaGameType(current: ArenaGameType, _opponent: ArenaOpponent,

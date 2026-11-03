@@ -655,6 +655,7 @@ export function SentryApp() {
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
         <DailyGamesHub
+            onProgress={load}
           onOpenTrivia={() => handleNavigate('game')}
           onOpenArena={() => handleNavigate('arena')}
         />

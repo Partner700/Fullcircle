@@ -138,7 +138,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
           gameTimes: gameTimes.map((value) => value ? new Date(value).toISOString() : null),
         });
       } else {
-        if (gameType === 'journey') throw new Error('Choose Journey Trivia in a tournament.');
+        if (gameType === 'journey' || gameType === 'prelude') throw new Error('Choose Journey Trivia in a tournament.');
         await scheduleInstructorArenaMatch({ roomName: roomName.trim(), gameType, playerIds: selected, startsAt: date.toISOString() });
       }
       setSelected([]);
@@ -184,7 +184,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   return <section className="border-b border-border pb-5">
     <div className="mb-4 flex items-center gap-2"><CalendarClock size={18} className="text-gold" /><h2 className="font-display text-base font-bold text-ink">Instructor Arena schedule</h2></div>
     <div className="mb-4 inline-flex rounded-md border border-border bg-surface-2 p-0.5" role="group" aria-label="Schedule type">
-      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setGameType((current) => current === 'journey' ? 'standard' : current); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
+      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setGameType((current) => (current === 'journey' || current === 'prelude') ? 'standard' : current); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
       <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'tournament' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('tournament'); setSelected((ids) => ids.slice(0, entrantCount)); }}><Trophy size={13} className="mr-1 inline" /> Tournament</button>
     </div>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -192,7 +192,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       {mode === 'match' && <label className="text-xs font-semibold text-stone">Start date and time<input className="input-field mt-1" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>}
     </div>
     <div className="mt-3 flex flex-wrap gap-3">
-      <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect ariaLabel="Arena game category" value={gameType} onChange={(value) => { setGameType(value as ArenaGameType); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }, ...(mode === 'tournament' ? [{ value: 'journey', label: 'Journey Trivia' }] : [])]} /></div>
+      <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect ariaLabel="Arena game category" value={gameType} onChange={(value) => { setGameType(value as ArenaGameType); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }, ...(mode === 'tournament' ? [{ value: 'journey', label: 'Journey Trivia' }, { value: 'prelude', label: 'The Prelude' }] : [])]} /></div>
       {isJourney && <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Narrative</p><AppSelect ariaLabel="Tournament Journey narrative" value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} disabled={journeyLoading || Boolean(journeyError) || journeyCharacters.length === 0} placeholder={journeyLoading ? 'Loading narratives...' : 'No playable narratives'} options={journeyCharacters.map((character) => ({ value: character.slug, label: character.displayName }))} /></div>}
       {mode === 'tournament' && <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Start at</p><AppSelect value={startRound} onChange={(value) => { const next = value as ArenaTournamentStart; const count = arenaTournamentEntrants(next, groupEntrants); setStartRound(next); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, next === 'groups'); }} options={[{ value: 'groups', label: 'Group stage' }, { value: 'round_of_16', label: 'Round of 16' }, { value: 'quarterfinal', label: 'Quarterfinals' }, { value: 'semifinal', label: 'Semifinals' }, { value: 'final', label: 'Final' }]} /></div>}
       {mode === 'tournament' && hasGroups && <div className="w-36"><p className="mb-1 text-xs font-semibold text-stone">Entrants</p><AppSelect value={String(groupEntrants)} onChange={(value) => { const count = Number(value) as 8 | 16 | 32; setGroupEntrants(count); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, true); }} options={[{ value: '8', label: '8 players' }, { value: '16', label: '16 players' }, { value: '32', label: '32 players' }]} /></div>}

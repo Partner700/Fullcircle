@@ -1,0 +1,94 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const {PGlite}=await import(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+const db=new PGlite();
+const migration=readFileSync(new URL('../supabase/migrations/20261103152901_puzzle_rewards_and_prelude.sql',import.meta.url),'utf8');
+const uid='00000000-0000-4000-8000-000000000001', other='00000000-0000-4000-8000-000000000002';
+const query=async(sql,args=[])=> (await db.query(sql,args)).rows;
+const puzzle=async(action,args={})=>(await query(`select public.puzzle_trivia_command($1,$2,$3,$4,$5,$6,$7) s`,[action,args.id||null,args.difficulty||'easy',args.level||0,args.word||null,args.target||0,args.relic||null]))[0].s;
+const prelude=async(action,args={})=>(await query(`select public.prelude_command($1,$2,$3,$4,$5,$6,$7,$8) s`,[action,args.id||null,args.slot??null,args.answers||[],args.version??null,args.difficulty||'easy',args.machine||false,'Test Prelude']))[0].s;
+try{
+ await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA auth;
+ CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('app.uid',true),'')::uuid$$;
+ CREATE TABLE profiles(id uuid PRIMARY KEY,display_name text,avatar_url text);
+ CREATE TABLE relic_types(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),slug text);
+ CREATE TABLE relic_inventory(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid,relic_type_id uuid,quantity int);
+ CREATE TABLE relic_usage_log(user_id uuid,relic_type_id uuid,effect_applied text);
+ CREATE TABLE denarii_ledger_entries(user_id uuid,amount int,source_type text,source_reference text,description text);
+ CREATE TABLE puzzle_trivia_activity(user_id uuid PRIMARY KEY);
+ CREATE TABLE arena_rooms(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),creator_id uuid,room_name text,stake_amount int,max_players int,status text,game_call_fee int,play_mode text,expires_at timestamptz,created_at timestamptz DEFAULT now(),started_at timestamptz,completed_at timestamptz,winner_id uuid,machine_score int);
+ CREATE TABLE arena_participants(room_id uuid,user_id uuid,stake_paid boolean,score int,correct_count int,finished_at timestamptz,joined_at timestamptz DEFAULT now(),forfeited_at timestamptz,PRIMARY KEY(room_id,user_id));
+ CREATE TABLE arena_scheduled_matches(room_id uuid PRIMARY KEY,player_ids uuid[],starts_at timestamptz);
+ INSERT INTO profiles VALUES('${uid}','First',NULL),('${other}','Second',NULL);`);
+ await db.exec(migration.split('ALTER TABLE public.arena_tournaments DROP CONSTRAINT')[0]);
+ await query("select set_config('app.uid',$1,false)",[uid]);
+ let r=await puzzle('start');assert.equal(r.board.words.length,3);assert.ok(r.board.words.every(w=>!w.word&&!w.reference));
+ const words=(await query("select payload->'board'->'words' words from scripture_games.puzzle_catalog where level=0 and difficulty='easy'"))[0].words;
+ let invalid=await puzzle('answer',{id:r.id,word:'NOTAWORD'});assert.equal(invalid.figs,0);
+ r=await puzzle('answer',{id:r.id,word:words[0].word});assert.equal(r.figs,1);
+ r=await puzzle('answer',{id:r.id,word:words[0].word});assert.equal(r.figs,1);
+ await db.exec(`INSERT INTO relic_types(slug) VALUES('reveal-reference'),('skip'),('freeze-timer');INSERT INTO relic_inventory(user_id,relic_type_id,quantity) SELECT '${uid}',id,2 FROM relic_types;`);
+ r=await puzzle('relic',{id:r.id,relic:'reveal-reference',target:0});assert.ok(r.board.words[0].reference);assert.equal(r.board.words[1].reference,null);
+ await puzzle('relic',{id:r.id,relic:'reveal-reference',target:0});assert.equal((await query("select quantity from relic_inventory join relic_types on relic_type_id=relic_types.id where slug='reveal-reference'"))[0].quantity,1);
+ r=await puzzle('relic',{id:r.id,relic:'skip',target:1});assert.equal(r.figs,1);
+ r=await puzzle('answer',{id:r.id,word:words[2].word});assert.equal(r.completed,true);assert.equal(r.figs,2);
+ await puzzle('answer',{id:r.id,word:words[2].word});assert.equal((await query('select sum(amount) n from denarii_ledger_entries'))[0].n,500);
+ await query("select set_config('app.uid',$1,false)",[other]);await assert.rejects(puzzle('answer',{id:r.id,word:words[0].word}),/not found/);
+ await query("select set_config('app.uid',$1,false)",[uid]);
+ let g=await prelude('create');await query("select set_config('app.uid',$1,false)",[other]);await prelude('join',{id:g.id});await query("select set_config('app.uid',$1,false)",[uid]);g=await prelude('start',{id:g.id});assert.equal(g.cards.length,103);assert.equal(g.board.length,1);assert.ok(g.cards.every(c=>Object.keys(c).length===1));
+ const privateState=(await query('select state from scripture_games.prelude_games where room_id=$1',[g.id]))[0].state;
+ assert.equal(privateState.deck.length,104);assert.equal(privateState.deck.filter(c=>c.joker).length,4);
+ let match=privateState.deck.find(c=>!c.drawn&&!c.joker&&(c.number===g.board[0].number||c.symbol===g.board[0].symbol));
+ g=await prelude('flip',{id:g.id,slot:match.slot,version:g.version});assert.equal(g.phase,'question');assert.ok(!('correct' in g.pending));
+ let correct=(await query("select state->'pending'->'correct' answer from scripture_games.prelude_games where room_id=$1",[g.id]))[0].answer;
+ let stale=await prelude('answer',{id:g.id,answers:correct,version:g.version-1});assert.equal(stale.phase,'question');
+ g=await prelude('answer',{id:g.id,answers:correct,version:g.version});assert.equal(g.players[0].cards,2);assert.equal(g.board.length,1);
+ await assert.rejects(prelude('flip',{id:g.id,slot:g.cards[0].slot,version:g.version}),/Wait/);
+ await query("select set_config('app.uid',$1,false)",[other]);
+ let deck=(await query('select state from scripture_games.prelude_games where room_id=$1',[g.id]))[0].state.deck;
+ let miss=deck.find(c=>!c.drawn&&!c.joker&&c.number!==g.board[0].number&&c.symbol!==g.board[0].symbol);
+ g=await prelude('flip',{id:g.id,slot:miss.slot,version:g.version});assert.equal(g.board.at(-1).slot,miss.slot);assert.equal(g.turn,0);
+ await query("select set_config('app.uid',$1,false)",[uid]);
+ let joker=deck.find(c=>!c.drawn&&c.joker);g=await prelude('flip',{id:g.id,slot:joker.slot,version:g.version});assert.equal(g.players[0].cards,5);
+ // Force only one face-down card to exercise real settlement without 104 manual turns.
+ let state=(await query('select state from scripture_games.prelude_games where room_id=$1',[g.id]))[0].state;
+ state.turn=0;state.deck=state.deck.map(c=>({...c,drawn:true}));let last=state.deck.find(c=>c.joker);last.drawn=false;
+ await query('update scripture_games.prelude_games set state=$2 where room_id=$1',[g.id,JSON.stringify(state)]);
+ g=await prelude('flip',{id:g.id,slot:last.slot,version:g.version});assert.equal(g.phase,'completed');assert.equal(g.winnerId,uid);
+ await prelude('state',{id:g.id});assert.equal((await query("select sum(amount) n from denarii_ledger_entries where source_reference like 'prelude:%'"))[0].n,1000);
+ // Expiry, no inventory, and freeze are checked by the server.
+ let timed=await puzzle('start',{difficulty:'hard'});
+ await assert.rejects(puzzle('relic',{id:timed.id,relic:'hint'}),/do not own/);
+ let oldDeadline=new Date(timed.deadline).getTime();
+ timed=await puzzle('relic',{id:timed.id,relic:'freeze-timer'});assert.equal(new Date(timed.deadline).getTime()-oldDeadline,60000);
+ await query("update scripture_games.puzzle_runs set deadline=now()-interval '1 second' where id=$1",[timed.id]);
+ await assert.rejects(puzzle('answer',{id:timed.id,word:'ABRAHAM'}),/Time is up/);
+ // Hard mode validates the entire answer set, rather than accepting one true option.
+ let hard=await prelude('create',{difficulty:'hard'});
+ await query("select set_config('app.uid',$1,false)",[other]);await prelude('join',{id:hard.id});
+ await query("select set_config('app.uid',$1,false)",[uid]);hard=await prelude('start',{id:hard.id});
+ let hs=(await query('select state from scripture_games.prelude_games where room_id=$1',[hard.id]))[0].state;
+ let hc=hs.deck.find(c=>!c.drawn&&!c.joker&&c.number!==153&&(c.number===hard.board[0].number||c.symbol===hard.board[0].symbol));
+ hard=await prelude('flip',{id:hard.id,slot:hc.slot,version:hard.version});assert.equal(hard.pending.multiple,true);
+ let ha=(await query("select state->'pending'->'correct' a from scripture_games.prelude_games where room_id=$1",[hard.id]))[0].a;
+ assert.equal(ha.length,2);hard=await prelude('answer',{id:hard.id,answers:[ha[0]],version:hard.version});assert.equal(hard.players[0].cards,0);assert.equal(hard.board.at(-1).slot,hc.slot);
+ // A full ten-player lobby accepts ten members and rejects an eleventh.
+ let crowded=await prelude('create');
+ for(let i=2;i<=11;i++){
+  const id=`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`;
+  await query('insert into profiles(id,display_name) values($1,$2) on conflict do nothing',[id,`Player ${i}`]);
+  await query("select set_config('app.uid',$1,false)",[id]);
+  if(i<=10)crowded=await prelude('join',{id:crowded.id});else await assert.rejects(prelude('join',{id:crowded.id}),/accepting/);
+ }
+ assert.equal(crowded.players.length,10);
+ await query("select set_config('app.uid',$1,false)",[other]);
+ let machine=await prelude('create',{machine:true});machine=await prelude('start',{id:machine.id});
+ let ms=(await query('select state from scripture_games.prelude_games where room_id=$1',[machine.id]))[0].state;
+ let mc=ms.deck.find(c=>!c.drawn&&!c.joker&&c.number!==machine.board[0].number&&c.symbol!==machine.board[0].symbol);
+ machine=await prelude('flip',{id:machine.id,slot:mc.slot,version:machine.version});assert.equal(machine.turn,0);assert.equal(machine.players[1].id,'machine');assert.ok(machine.cards.length<=101);
+ await db.exec('SET ROLE anon');
+ await assert.rejects(query("select public.prelude_command('list')"),/permission denied/);
+ await assert.rejects(query('select * from scripture_games.puzzle_catalog'),/permission denied/);
+ await db.exec('RESET ROLE');
+ console.log('Scripture games passed: hidden answers/references/deck, word FIGS, 500 once, relic consumption, ownership, 104 cards/four jokers, matching/capture/target changes, stale turns, actor checks, 1000 once.');
+}catch(error){console.error(error.message,error.where||'');process.exitCode=1;}finally{await db.close();}

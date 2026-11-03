@@ -1,4 +1,5 @@
 import PuzzleTrivia from './PuzzleTrivia';
+import PreludeTrivia from './PreludeTrivia';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -102,6 +103,7 @@ interface CadetArenaProps {
 export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
+  const [preludeOpen,setPreludeOpen] = useState(false);
   const [puzzleOpen, setPuzzleOpen] = useState(false);
   const [rooms, setRooms] = useState<any[]>([]);
   const [denarii, setDenarii] = useState(0);
@@ -111,7 +113,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const [stake, setStake] = useState(50);
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
-  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo' | 'journey'>('standard');
+  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo' | 'journey' | 'prelude'>('standard');
   const [journeyCharacters, setJourneyCharacters] = useState<JourneyCharacter[]>([]);
   const [journeyCharacterSlug, setJourneyCharacterSlug] = useState('');
   const [journeyCatalogState, setJourneyCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -565,7 +567,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         if (phase !== 'finished') {
           setPhase('finished');
         }
-      } else if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
+      } else if (['ludo','prelude'].includes(parseArenaGameType(room.room_name || '')) && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
       } else if (phase !== 'finished') {
         setPhase('finished');
@@ -735,7 +737,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setInviting(false);
   };
 
-  if (puzzleOpen) return <PuzzleTrivia arenaImage={arenaImage} onBack={() => setPuzzleOpen(false)} />;
+  const preludeRoom=rooms.find(room=>room.id===activeRoomId && parseArenaGameType(room.room_name || '')==='prelude');
+  if(preludeOpen || preludeRoom) return <PreludeTrivia arenaImage={arenaImage} initialRoomId={preludeRoom?.id} onBack={()=>{setPreludeOpen(false);if(preludeRoom)clearActiveRoom(false);void onBalanceChanged?.();}} onBalanceChanged={()=>void onBalanceChanged?.()}/>;
+  if (puzzleOpen) return <PuzzleTrivia arenaImage={arenaImage} onBack={() => {setPuzzleOpen(false);void onBalanceChanged?.();}} />;
 
   if (loading && phase === 'lobby') return (
     <div className="space-y-4 animate-fade-in">
@@ -1038,6 +1042,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
       {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">Puzzle Trivia</h3><p className="mt-1 text-xs text-stone">Solo Bible word puzzles · three difficulties · no entry fee.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia</button></div>}
 
+      {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">The Prelude</h3><p className="mt-1 text-xs text-stone">Scripture card matches · up to 10 players or the Machine · 1,000 Denarii for the winner.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={()=>setPreludeOpen(true)}>Play The Prelude</button></div>}
+
       {instructorSchedule && <>
         <InstructorArenaScheduler onScheduled={refreshRooms} />
         <InstructorJourneyReview />
@@ -1069,7 +1075,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             <div>
               <label className="text-xs text-stone block mb-1">Game Play</label>
               <AppSelect value={arenaGameType} onChange={(value) => {
-                setArenaGameType(value as 'standard' | 'ludo' | 'journey');
+                setArenaGameType(value as 'standard' | 'ludo' | 'journey' | 'prelude');
                 if (value !== 'standard') setMaxPlayers((current) => Math.min(current, 4));
               }} options={arenaGameOptions(arenaOpponent, journeyCharacters.length)} />
             </div>
@@ -1199,7 +1205,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                       <p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
                       <ArenaMatchup players={arenaMatchupPlayers(room)} playing />
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-stone">
-                        <span>{parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : parseArenaGameType(room.room_name) === 'journey' ? 'Standard Trivia: Biblical Journey' : 'Classic Trivia'}</span>
+                        <span>{parseArenaGameType(room.room_name) === 'prelude' ? 'The Prelude' : parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : parseArenaGameType(room.room_name) === 'journey' ? 'Standard Trivia: Biblical Journey' : 'Classic Trivia'}</span>
                         <span aria-hidden="true">·</span>
                         <ArenaElapsedTimer startedAt={room.started_at} />
                       </div>
@@ -1329,7 +1335,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 }
 
 function parseArenaGameType(roomName: string) {
-  return /\[arena:journey\]/i.test(roomName) ? 'journey' : /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
+  return /\[arena:prelude\]/i.test(roomName) ? 'prelude' : /\[arena:journey\]/i.test(roomName) ? 'journey' : /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
 
 function cleanArenaRoomName(roomName: string) {

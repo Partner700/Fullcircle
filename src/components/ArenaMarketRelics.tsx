@@ -14,9 +14,10 @@ const relics = [
   { slug: 'skip', name: 'Skip', Icon: SkipForward },
 ] as const;
 
-export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse }: {
+export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, allowedSlugs }: {
   userId: string; questionType: string; aid?: ArenaQuestionAid; disabled: boolean;
   onUse: (slug: ArenaRelicSlug) => Promise<boolean>;
+  allowedSlugs?: readonly string[];
 }) {
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [using, setUsing] = useState<string | null>(null);
@@ -52,7 +53,7 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse }
     } finally { busy.current = false; setUsing(null); }
   };
   return <div className="mt-3 border-t border-border pt-3" aria-label="Owned Arena relics">
-    <div className="flex flex-wrap gap-2">{relics.filter(({ slug }) => inventory[slug] > 0).map(({ slug, name, Icon }) =>
+    <div className="flex flex-wrap gap-2">{relics.filter(({ slug }) => inventory[slug] > 0 && (!allowedSlugs || allowedSlugs.includes(slug))).map(({ slug, name, Icon }) =>
       <button key={slug} type="button" title={`${name} (${inventory[slug]})`} aria-label={`Use ${name} (${inventory[slug]} owned)`}
         disabled={disabled || !!using || aid?.used.includes(slug) || slug === 'eliminate' && !['multiple_choice', 'odd_one'].includes(questionType)}
         onClick={() => void use(slug)} className="icon-btn relative h-10 w-10 shrink-0 disabled:opacity-40">

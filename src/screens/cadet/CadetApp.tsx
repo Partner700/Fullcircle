@@ -1187,6 +1187,7 @@ export function CadetApp() {
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
           <DailyGamesHub
+            onProgress={refreshCadetState}
             onOpenTrivia={() => handleNavigate('game')}
             onOpenArena={() => handleNavigate('arena')}
           />

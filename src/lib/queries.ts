@@ -3362,7 +3362,7 @@ export async function fetchPublicArenaSuccessor(roomId: string): Promise<string 
 export type ArenaFinalScorecard = {
   id: string;
   room_name: string;
-  game_type: 'standard' | 'ludo' | 'journey';
+  game_type: 'standard' | 'ludo' | 'journey' | 'prelude';
   completed_at: string | null;
   winner_id: string | null;
   players: Array<{
@@ -3410,7 +3410,7 @@ export async function scheduleInstructorArenaMatch(payload: {
 export type ArenaTournament = {
   id: string;
   title: string;
-  game_type: 'standard' | 'ludo' | 'journey';
+  game_type: 'standard' | 'ludo' | 'journey' | 'prelude';
   journey_character_slug?: string | null;
   journey_character_name?: string | null;
   has_group_stage: boolean;
@@ -3448,7 +3448,7 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 }
 
 export async function createInstructorArenaTournament(payload: {
-  title: string; gameType: 'standard' | 'ludo' | 'journey'; playerIds: string[]; gameTimes: Array<string | null>; hasGroups: boolean;
+  title: string; gameType: 'standard' | 'ludo' | 'journey' | 'prelude'; playerIds: string[]; gameTimes: Array<string | null>; hasGroups: boolean;
   journeyCharacterSlug?: string | null;
   gamePlayers: string[][]; bracketSize: number;
 }) {
