@@ -1,3 +1,4 @@
+import PuzzleTrivia from './PuzzleTrivia';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -101,6 +102,7 @@ interface CadetArenaProps {
 export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
+  const [puzzleOpen, setPuzzleOpen] = useState(false);
   const [rooms, setRooms] = useState<any[]>([]);
   const [denarii, setDenarii] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -733,6 +735,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setInviting(false);
   };
 
+  if (puzzleOpen) return <PuzzleTrivia arenaImage={arenaImage} onBack={() => setPuzzleOpen(false)} />;
+
   if (loading && phase === 'lobby') return (
     <div className="space-y-4 animate-fade-in">
       {onBackToDailyGames && (
@@ -1031,6 +1035,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
           </div>
         </div>
       </div>}
+
+      {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">Puzzle Trivia</h3><p className="mt-1 text-xs text-stone">Solo Bible word puzzles · three difficulties · no entry fee.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia</button></div>}
 
       {instructorSchedule && <>
         <InstructorArenaScheduler onScheduled={refreshRooms} />
