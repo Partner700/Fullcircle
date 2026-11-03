@@ -21,6 +21,7 @@ try{
  CREATE TABLE arena_scheduled_matches(room_id uuid PRIMARY KEY,player_ids uuid[],starts_at timestamptz);
  INSERT INTO profiles VALUES('${uid}','First',NULL),('${other}','Second',NULL);`);
  await db.exec(migration.split('ALTER TABLE public.arena_tournaments DROP CONSTRAINT')[0]);
+ await db.exec(readFileSync(new URL('../supabase/migrations/20261103192202_prelude_ten_second_stacked_table.sql',import.meta.url),'utf8'));
  await query("select set_config('app.uid',$1,false)",[uid]);
  let r=await puzzle('start');assert.equal(r.board.words.length,3);assert.ok(r.board.words.every(w=>!w.word&&!w.reference));
  const words=(await query("select payload->'board'->'words' words from scripture_games.puzzle_catalog where level=0 and difficulty='easy'"))[0].words;
@@ -40,16 +41,21 @@ try{
  assert.equal(privateState.deck.length,104);assert.equal(privateState.deck.filter(c=>c.joker).length,4);
  let match=privateState.deck.find(c=>!c.drawn&&!c.joker&&(c.number===g.board[0].number||c.symbol===g.board[0].symbol));
  g=await prelude('flip',{id:g.id,slot:match.slot,version:g.version});assert.equal(g.phase,'question');assert.ok(!('correct' in g.pending));
+ assert.ok(new Date(g.deadline).getTime()-Date.now()<=10000 && new Date(g.deadline).getTime()-Date.now()>9000);
+ assert.equal(g.moves.at(-1).card.slot,match.slot);
+ assert.ok(!g.cards.some(card=>card.slot===match.slot));
  let correct=(await query("select state->'pending'->'correct' answer from scripture_games.prelude_games where room_id=$1",[g.id]))[0].answer;
  let stale=await prelude('answer',{id:g.id,answers:correct,version:g.version-1});assert.equal(stale.phase,'question');
- g=await prelude('answer',{id:g.id,answers:correct,version:g.version});assert.equal(g.players[0].cards,2);assert.equal(g.board.length,1);
+ g=await prelude('answer',{id:g.id,answers:correct,version:g.version});assert.equal(g.players[0].cards,2);assert.equal(g.players[0].collected.length,2);assert.equal(g.board.length,1);
  await assert.rejects(prelude('flip',{id:g.id,slot:g.cards[0].slot,version:g.version}),/Wait/);
  await query("select set_config('app.uid',$1,false)",[other]);
  let deck=(await query('select state from scripture_games.prelude_games where room_id=$1',[g.id]))[0].state.deck;
  let miss=deck.find(c=>!c.drawn&&!c.joker&&c.number!==g.board[0].number&&c.symbol!==g.board[0].symbol);
  g=await prelude('flip',{id:g.id,slot:miss.slot,version:g.version});assert.equal(g.board.at(-1).slot,miss.slot);assert.equal(g.turn,0);
  await query("select set_config('app.uid',$1,false)",[uid]);
- let joker=deck.find(c=>!c.drawn&&c.joker);g=await prelude('flip',{id:g.id,slot:joker.slot,version:g.version});assert.equal(g.players[0].cards,5);
+ let joker=deck.find(c=>!c.drawn&&c.joker);g=await prelude('flip',{id:g.id,slot:joker.slot,version:g.version});assert.equal(g.players[0].cards,5);assert.equal(g.players[0].collected.length,5);
+ assert.equal(new Set(g.players[0].collected.map(card=>card.slot)).size,5);
+ await assert.rejects(query("select scripture_games.prelude_finish($1,state) from scripture_games.prelude_games where room_id=$1",[g.id]),/Use every closed card/);
  // Force only one face-down card to exercise real settlement without 104 manual turns.
  let state=(await query('select state from scripture_games.prelude_games where room_id=$1',[g.id]))[0].state;
  state.turn=0;state.deck=state.deck.map(c=>({...c,drawn:true}));let last=state.deck.find(c=>c.joker);last.drawn=false;
@@ -86,6 +92,31 @@ try{
  let ms=(await query('select state from scripture_games.prelude_games where room_id=$1',[machine.id]))[0].state;
  let mc=ms.deck.find(c=>!c.drawn&&!c.joker&&c.number!==machine.board[0].number&&c.symbol!==machine.board[0].symbol);
  machine=await prelude('flip',{id:machine.id,slot:mc.slot,version:machine.version});assert.equal(machine.turn,0);assert.equal(machine.players[1].id,'machine');assert.ok(machine.cards.length<=101);
+ // Exhaust a complete, unmodified 104-card round and prove conservation after each turn.
+ await query("select set_config('app.uid',$1,false)",[other]);
+ let full=await prelude('create');
+ await query("select set_config('app.uid',$1,false)",[uid]);await prelude('join',{id:full.id});
+ await query("select set_config('app.uid',$1,false)",[other]);full=await prelude('start',{id:full.id});
+ let used=new Set(full.board.map(card=>card.slot));let turns=0;
+ const conserve=state=>{
+  const slots=[...state.cards,...state.board,...state.players.flatMap(player=>player.collected||[])].map(card=>card.slot);
+  assert.equal(slots.length,104);assert.equal(new Set(slots).size,104);
+  assert.ok(state.cards.every(card=>!used.has(card.slot)));
+  for(const card of [...state.board,...state.players.flatMap(player=>player.collected||[])])used.add(card.slot);
+ };
+ conserve(full);
+ while(full.phase!=='completed' && turns++<105){
+  assert.ok(full.cards.length>0 || full.phase==='question');
+  await query("select set_config('app.uid',$1,false)",[full.players[full.turn].id]);
+  if(full.phase==='playing')full=await prelude('flip',{id:full.id,slot:full.cards[0].slot,version:full.version});
+  if(full.phase==='question'){
+   const answers=(await query("select state->'pending'->'correct' a from scripture_games.prelude_games where room_id=$1",[full.id]))[0].a;
+   full=await prelude('answer',{id:full.id,answers,version:full.version});
+  }
+  conserve(full);if(full.cards.length)assert.notEqual(full.phase,'completed');
+ }
+ assert.equal(full.phase,'completed');assert.equal(full.cards.length,0);assert.ok(turns<=103);
+ console.log('Prelude 223 passed: ten-second questions, captured faces, no card reuse, all 104 cards conserved, no early completion, complete deck exhaustion.');
  await db.exec('SET ROLE anon');
  await assert.rejects(query("select public.prelude_command('list')"),/permission denied/);
  await assert.rejects(query('select * from scripture_games.puzzle_catalog'),/permission denied/);

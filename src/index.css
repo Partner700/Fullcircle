@@ -2565,3 +2565,45 @@ select {
   opacity: 1 !important;
   overflow: visible !important;
 }
+
+/* Prelude uses one ring of eight stacks around a single open target. */
+.prelude-table { position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:12px;width:100%;max-width:430px;aspect-ratio:1;margin-inline:auto;padding:14px;border:1px solid rgb(255 255 255/.16);border-radius:24px;background:radial-gradient(ellipse at center,rgb(27 72 59/.8),rgb(5 19 28/.88));isolation:isolate; }
+.prelude-ring-slot { display:flex;align-items:center;justify-content:center;min-width:0;min-height:0; }
+.prelude-draw-pile { position:relative;width:58px;height:80px;transition:filter .15s,transform .15s; }
+.prelude-draw-pile:hover:not(:disabled) { transform:translateY(-3px);filter:brightness(1.15); }
+.prelude-draw-pile:focus-visible { outline:3px solid #f4c542;outline-offset:6px;border-radius:8px; }
+.prelude-draw-pile:disabled { cursor:default; }
+.prelude-pile-sheet { position:absolute;inset:0;border:1px solid #d2b46a;border-radius:8px;background:#112c3f;box-shadow:0 2px 4px rgb(0 0 0/.3); }
+.prelude-pile-sheet-second { transform:translate(3px,-3px) rotate(3deg); }
+.prelude-pile-sheet-third { transform:translate(6px,-6px) rotate(6deg); }
+.prelude-pile-top,.prelude-player-pile-top { position:absolute;inset:0; }
+.prelude-card-back { display:flex;width:100%;height:100%;align-items:center;justify-content:center;border:1px solid #d2b46a;border-radius:8px;background:linear-gradient(135deg,#17445a,#071928);box-shadow:0 3px 8px rgb(0 0 0/.35); }
+.prelude-pile-count { position:absolute;right:-8px;bottom:-6px;z-index:2;min-width:23px;padding:3px 5px;border-radius:99px;background:#f4c542;color:#102236;font-size:11px;font-weight:900;line-height:1.2;text-align:center;border:1px solid #fff1c2; }
+.prelude-center { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;z-index:1; }
+.prelude-center-card { width:68px;height:96px;max-width:100%; }
+.prelude-card-face { position:relative;display:flex;width:100%;height:100%;align-items:center;justify-content:center;overflow:hidden;border-radius:8px;border:2px solid #d9bf7c;background:#faf6e9;color:#14283b;box-shadow:0 3px 8px rgb(0 0 0/.25); }
+.prelude-card-corner { position:absolute;left:3px;top:1px;font-size:14px;font-weight:900;line-height:1.2; }
+.prelude-card-corner-bottom { left:auto;top:auto;right:3px;bottom:1px;transform:rotate(180deg); }
+.prelude-player-pile { position:relative;display:block;width:32px;height:45px;flex-shrink:0; }
+.prelude-player-pile .prelude-card-corner { font-size:8px;left:1px;top:0; }
+.prelude-player-pile .prelude-card-corner-bottom { right:1px;bottom:0;left:auto;top:auto; }
+.prelude-player-pile .prelude-card-face img { width:18px;height:18px; }
+.prelude-player-pile .prelude-pile-count { font-size:9px;min-width:18px;padding:2px 3px; }
+.prelude-moving-card { position:absolute;left:50%;top:50%;width:68px;height:96px;z-index:5;pointer-events:none;animation:prelude-card-travel .65s ease-in-out both;perspective:600px; }
+.prelude-flipping-card { position:relative;width:100%;height:100%;transform-style:preserve-3d;animation:prelude-card-turnover .65s ease-in-out both; }
+.prelude-flip-front,.prelude-flip-back { position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden; }
+.prelude-flip-back { transform:rotateY(180deg); }
+.prelude-pile-selected { animation:prelude-card-ready .45s ease-in-out infinite alternate; }
+@keyframes prelude-card-travel { from { left:var(--prelude-left);top:var(--prelude-top);transform:translate(-50%,-50%) scale(.85); } to { left:50%;top:50%;transform:translate(-50%,-50%) scale(1.04); } }
+@keyframes prelude-card-turnover { 0%,25% { transform:rotateY(180deg); } 100% { transform:rotateY(0deg); } }
+@keyframes prelude-card-ready { to { transform:translateY(-6px);filter:brightness(1.2); } }
+@media (min-width:640px) { .prelude-draw-pile { width:66px;height:94px; }.prelude-center-card { width:78px;height:110px; } }
+@media (prefers-reduced-motion:reduce) { .prelude-moving-card { animation:none;transform:translate(-50%,-50%); }.prelude-flipping-card { animation:none; }.prelude-pile-selected { animation:none; }.prelude-draw-pile { transition:none; } }
+
+.prelude-question-card { animation:prelude-question-flip .45s ease-out both; }
+@keyframes prelude-question-flip { from { transform:rotateY(90deg) scale(.8); } to { transform:rotateY(0) scale(1); } }
+@media (prefers-reduced-motion:reduce) { .prelude-question-card { animation:none; } }
+.prelude-center { position:relative;height:100%;gap:0; }
+.prelude-center > p:first-child { position:absolute;top:-12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
+.prelude-center > p:last-child { position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
+.prelude-center-card { max-height:100%; }

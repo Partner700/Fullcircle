@@ -15,7 +15,7 @@ type FullCircleBootWindow = Window & {
   __showFullCircleRecovery?: () => void;
 };
 
-const RELEASE_STYLE_MARKER = '222';
+const RELEASE_STYLE_MARKER = '223';
 const bootWindow = window as FullCircleBootWindow;
 const appRoot = document.getElementById('root')!;
 let appMounted = false;
