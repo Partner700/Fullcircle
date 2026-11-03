@@ -1165,6 +1165,13 @@ export async function fetchGameAttemptsForDate(userId: string, date: string) {
   return fetchGameAttempts(userId, date);
 }
 
+// One server-dated activity row per member/day; this never changes scores or rewards.
+export async function recordPuzzleTriviaPlay(userId: string) {
+  const { error } = await supabase.from('puzzle_trivia_activity').insert({ user_id: userId });
+  if (error && error.code !== '23505') throw error;
+  window.dispatchEvent(new Event('full-circle:game-activity'));
+}
+
 export async function fetchGameActivityPlayers(activityDate: string) {
   return shareReadRequest(`game-activity:${activityDate}`, async () => {
     const { data, error } = await supabase.rpc('get_game_activity_players', {

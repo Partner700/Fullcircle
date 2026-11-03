@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Clock3, Lightbulb, RotateCcw, Shuffle, X } from 'luci
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { useAuth } from '../../context/AuthContext';
 import type { PanelImageSetting } from '../../lib/types';
+import { recordPuzzleTriviaPlay } from '../../lib/queries';
 import { safeJsonStorageGet, safeStorageSet } from '../../lib/safeStorage';
 import { PUZZLE_DIFFICULTIES, PUZZLE_PACKS, puzzleForLevel, type PuzzleDifficulty } from '../../lib/puzzleTrivia';
 
@@ -60,6 +61,7 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
   if(!board.words.some(entry=>entry.word===word)){setNotice('That word is not one of this puzzle’s Bible answers. Try the clues.');return;}
   setRound(previous=>({...previous,found:[...new Set([...previous.found,word])]}));
   setNotice(`${word} — found!`);
+  if(profile?.id)void recordPuzzleTriviaPlay(profile.id).catch(error=>console.warn('Puzzle activity could not be recorded:',error));
  };
  const start=()=>{setPath([]);setNotice('');setNow(Date.now());setRound(previous=>({...previous,found:[],clues:[],deadline:Date.now()+config.seconds*1000}));};
  const next=()=>{setPath([]);setNotice('');setLetterOrder(null);setRound(previous=>({level:previous.level+1,found:[],deadline:null}));};
