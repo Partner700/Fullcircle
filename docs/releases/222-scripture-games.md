@@ -20,6 +20,6 @@ node scripts/scripture-games.integration.mjs
 node scripts/prelude-tournament.integration.mjs
 ```
 
-## Production gate
+## Production status
 
-Automatic approval review rejected applying `20261103152901_puzzle_rewards_and_prelude.sql` because it creates game/reward storage and updates shared lifetime-FIGS, tournament reward, series and maintenance functions. Explicit authorization for that production migration is pending. The new frontend must be deployed only after the migration succeeds. The unrelated pending Redemption Coin migration is excluded.
+The user explicitly authorized the Release 222 production migration and publication on 3 November 2026. The migration was applied to the New TNS Full Circle Supabase project. Live transaction tests verified Puzzle Trivia word validation, FIGS totals, the 500-Denarii first-clear reward, duplicate protection, reference locks, anonymous access denial, and Prelude machine-room/deck startup. Test data and rewards were rolled back. The unrelated pending Redemption Coin migration is excluded.
