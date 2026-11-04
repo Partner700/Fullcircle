@@ -22,6 +22,7 @@ try{
  INSERT INTO profiles VALUES('${uid}','First',NULL),('${other}','Second',NULL);`);
  await db.exec(migration.split('ALTER TABLE public.arena_tournaments DROP CONSTRAINT')[0]);
  await db.exec(readFileSync(new URL('../supabase/migrations/20261103192202_prelude_ten_second_stacked_table.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../supabase/migrations/20261104060919_prelude_scribe_turns.sql',import.meta.url),'utf8'));
  await query("select set_config('app.uid',$1,false)",[uid]);
  let r=await puzzle('start');assert.equal(r.board.words.length,3);assert.ok(r.board.words.every(w=>!w.word&&!w.reference));
  const words=(await query("select payload->'board'->'words' words from scripture_games.puzzle_catalog where level=0 and difficulty='easy'"))[0].words;
@@ -91,7 +92,28 @@ try{
  let machine=await prelude('create',{machine:true});machine=await prelude('start',{id:machine.id});
  let ms=(await query('select state from scripture_games.prelude_games where room_id=$1',[machine.id]))[0].state;
  let mc=ms.deck.find(c=>!c.drawn&&!c.joker&&c.number!==machine.board[0].number&&c.symbol!==machine.board[0].symbol);
- machine=await prelude('flip',{id:machine.id,slot:mc.slot,version:machine.version});assert.equal(machine.turn,0);assert.equal(machine.players[1].id,'machine');assert.ok(machine.cards.length<=101);
+ const scribeCard=ms.deck.find(card=>!card.drawn && !card.joker && card.slot!==mc.slot
+  && (card.number===mc.number || card.symbol===mc.symbol));
+ ms.deck=ms.deck.map(card=>({...card,drawn:card.slot!==mc.slot && card.slot!==scribeCard.slot}));
+ await query('update scripture_games.prelude_games set state=$2 where room_id=$1',[machine.id,JSON.stringify(ms)]);
+ machine=await prelude('flip',{id:machine.id,slot:mc.slot,version:machine.version});
+ assert.equal(machine.phase,'question');
+ assert.equal(machine.players[machine.turn].id,'machine');
+ assert.equal(machine.cards.length,0);
+ assert.equal(machine.pending.scribeSelection,null);
+ assert.ok(!('correct' in machine.pending));
+ assert.equal((await prelude('state',{id:machine.id})).version,machine.version);
+ await query("update scripture_games.prelude_games set state=jsonb_set(state,'{pending,scribeAnswerAt}',to_jsonb(clock_timestamp()-interval '1 second')) where room_id=$1",[machine.id]);
+ machine=await prelude('state',{id:machine.id});
+ assert.equal(machine.phase,'question');
+ assert.ok(machine.pending.scribeSelection.length);
+ assert.ok(machine.pending.scribeSelection.every(id=>machine.pending.options.some(option=>option.id===id)));
+ assert.equal(typeof machine.pending.scribeCorrect,'boolean');
+ assert.equal((await prelude('state',{id:machine.id})).version,machine.version);
+ await query("update scripture_games.prelude_games set state=jsonb_set(state,'{pending,scribeRevealUntil}',to_jsonb(clock_timestamp()-interval '1 second')) where room_id=$1",[machine.id]);
+ machine=await prelude('state',{id:machine.id});
+ assert.equal(machine.phase,'completed');
+ console.log('Scribe turn passed: visible question, hidden answer key, visible selection and result before settlement.');
  // Exhaust a complete, unmodified 104-card round and prove conservation after each turn.
  await query("select set_config('app.uid',$1,false)",[other]);
  let full=await prelude('create');

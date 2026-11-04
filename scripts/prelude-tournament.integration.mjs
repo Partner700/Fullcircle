@@ -32,6 +32,7 @@ try {
     CREATE FUNCTION quiz_answer_is_correct(text,jsonb) RETURNS boolean LANGUAGE sql AS $$SELECT false$$;`);
   await db.exec(migration('20261103152901_puzzle_rewards_and_prelude'));
   await db.exec(migration('20261103192202_prelude_ten_second_stacked_table'));
+  await db.exec(migration('20261104060919_prelude_scribe_turns'));
   await db.exec(file('./prelude-tournament.test.sql'));
   console.log('Prelude tournament passed: selectable category, 104-card single round, exactly 1000 reward, bracket advancement and lifetime FIGS.');
   await db.exec(file('./arena-journey-tournaments.test.sql'));
