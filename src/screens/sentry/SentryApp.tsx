@@ -1,3 +1,5 @@
+import { TentPositionBadges, TentPositionControls } from '../../components/TentPositions';
+import { useTentPositions } from '../../lib/tentPositions';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
@@ -663,7 +665,8 @@ export function SentryApp() {
       {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />)}
       {tab === 'arena' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
-          <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')} />
+          <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')}
+            sentrySchedule={tent ? { tentId: tent.id, members } : undefined} />
         )
       )}
       {tab === 'story' && <StoryModeUnderDevelopment onBackToDailyGames={() => handleNavigate('games')} />}
@@ -1213,6 +1216,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   tentId: string;
   onChanged: () => void;
 }) {
+  const positions = useTentPositions(tentId, members.length);
   const [showAdd, setShowAdd] = useState(false);
   const [unassigned, setUnassigned] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
   const [selectedCadet, setSelectedCadet] = useState('');
@@ -1353,7 +1357,8 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
           </div>
         </div>
       )}
-      {members.map((m) => {
+      {members.length > 0 && <TentPositionControls {...positions} />}
+      {[...members].sort(positions.compare).map((m) => {
         const streak = streakForMember(m.user_id, allRecords, strictStreaks);
         const stateColor = streak.removal_state === 'active' ? '#6B8E5A' : streak.removal_state === 'at_risk' ? '#C9A227' : '#B8553E';
         const StateIcon = streak.removal_state === 'active' ? Shield : AlertTriangle;
@@ -1367,6 +1372,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
                   <SealBullet className="text-stone flex-shrink-0" />
                   {m.profiles.display_name}
                 </h4>
+                <TentPositionBadges position={positions.byId.get(m.user_id)} />
               </div>
               <span className={cn('badge text-xs', streak.removal_state === 'flagged' ? 'badge-roman' : streak.removal_state === 'at_risk' ? 'badge-brass' : 'badge-moss')}>
                 <StateIcon size={12} /> {streak.removal_state.replace('_', ' ')}

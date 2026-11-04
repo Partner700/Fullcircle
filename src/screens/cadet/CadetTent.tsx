@@ -1,3 +1,5 @@
+import { TentPositionBadges, TentPositionControls } from '../../components/TentPositions';
+import { useTentPositions } from '../../lib/tentPositions';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -75,6 +77,7 @@ export function CadetTent() {
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
   const [awardView, setAwardView] = useState('week');
   const [showTentChat, setShowTentChat] = useState(false);
+  const positions = useTentPositions(tent?.id, members.length);
   const hasLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -302,7 +305,7 @@ export function CadetTent() {
   }
 
   const sentry = members.find((m) => m.role === 'sentry');
-  const cadets = members.filter((m) => m.role === 'cadet');
+  const cadets = members.filter((m) => m.role === 'cadet').sort(positions.compare);
   const visibleMembers = [...(sentry ? [sentry] : []), ...cadets];
   const memberById = new Map(visibleMembers.map((m) => [m.user_id, m]));
   const visibleTentAwards = awardView === 'week' ? weeklyPublishedAwards(tentAwards) : tentAwards;
@@ -425,7 +428,8 @@ export function CadetTent() {
       </section>
 
       {/* Tent members */}
-      <SectionHeader title="Your Tent" subtitle="React to your sentry and tent mates" />
+      <SectionHeader title="Your Tent" subtitle="See your tent mates’ positions" />
+      {cadets.length > 0 && <TentPositionControls {...positions} />}
 
       <div className="space-y-3">
         {visibleMembers.map((m) => {
@@ -455,6 +459,7 @@ export function CadetTent() {
                     {isSentry && <span className="badge badge-royal text-[9px]">Sentry</span>}
                     {tent.tent_houses && <TentHouseSymbol houseId={tent.tent_houses.id} size={16} />}
                   </div>
+                  {!isSentry && <TentPositionBadges position={positions.byId.get(m.user_id)} />}
                   <div className="flex items-center gap-3 text-xs text-stone">
                     <span className="flex items-center gap-1">
                       <Coins size={12} className="text-gold" /> {den === undefined ? '...' : den === null ? '-' : formatDenarii(den)}

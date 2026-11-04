@@ -3772,7 +3772,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
       .order('joined_at', { ascending: true }),
     supabase
       .from('arena_scheduled_matches')
-      .select('room_id,starts_at,player_ids,scheduled_by')
+      .select('room_id,starts_at,player_ids,scheduled_by,is_sentry_match')
       .in('room_id', roomIds),
     supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
     activeRoomIds.length
@@ -3808,6 +3808,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
     scheduled_start_at: scheduleMap.get(room.id)?.starts_at || null,
     scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
     scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
+    is_sentry_match: scheduleMap.get(room.id)?.is_sentry_match ?? false,
     arena_guest_witness_count: guestCountMap.get(room.id) || 0,
     arena_matchup_players: (matchupMap.get(room.id) || []).map((player) => (
       room.play_mode === 'machine' && /\[arena:journey\]/i.test(room.room_name || '')

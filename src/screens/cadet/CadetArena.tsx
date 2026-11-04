@@ -1,3 +1,4 @@
+import { SentryArenaScheduler, type SentryScheduleRoster } from '../../components/SentryArenaScheduler';
 import PuzzleTrivia from './PuzzleTrivia';
 import PreludeTrivia from './PreludeTrivia';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -98,9 +99,10 @@ interface CadetArenaProps {
   onBackToDailyGames?: () => void;
   witnessOnly?: boolean;
   instructorSchedule?: boolean;
+  sentrySchedule?: SentryScheduleRoster;
 }
 
-export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false }: CadetArenaProps) {
+export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false, sentrySchedule }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [preludeOpen,setPreludeOpen] = useState(false);
@@ -789,7 +791,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             roomName={activeRoomName}
             userId={profile!.id}
             spectator={isSpectating}
-            awaitSeriesResult={Boolean(activeRoom?.scheduled && activeRoom.play_mode !== 'machine' && activeRoom.max_players <= 4)}
+            awaitSeriesResult={Boolean(activeRoom?.scheduled && !activeRoom.is_sentry_match && activeRoom.play_mode !== 'machine' && activeRoom.max_players <= 4)}
             spectatorCanChallenge={!witnessOnly}
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
@@ -1044,6 +1046,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
       {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">The Prelude</h3><p className="mt-1 text-xs text-stone">Scripture card matches · up to 10 players or the Machine · 1,000 Denarii for the winner.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={()=>setPreludeOpen(true)}>Play The Prelude</button></div>}
 
+      {sentrySchedule && <SentryArenaScheduler key={sentrySchedule.tentId} {...sentrySchedule} onScheduled={refreshRooms} />}
+
       {instructorSchedule && <>
         <InstructorArenaScheduler onScheduled={refreshRooms} />
         <InstructorJourneyReview />
@@ -1296,6 +1300,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                     ) : room.scheduled ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>
+                        {sentrySchedule && room.is_sentry_match && room.scheduled_by === profile?.id && (
+                          <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
+                        )}
                         {room.scheduled_player_ids?.includes(profile?.id) && participants.length < room.max_players && (
                           <button onClick={() => void joinRoom(room.id)} className="btn-primary text-xs"><Play size={14} /> Enter Match</button>
                         )}
