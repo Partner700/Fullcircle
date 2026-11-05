@@ -23,6 +23,8 @@ try{
  await db.exec(migration.split('ALTER TABLE public.arena_tournaments DROP CONSTRAINT')[0]);
  await db.exec(readFileSync(new URL('../supabase/migrations/20261103192202_prelude_ten_second_stacked_table.sql',import.meta.url),'utf8'));
  await db.exec(readFileSync(new URL('../supabase/migrations/20261104060919_prelude_scribe_turns.sql',import.meta.url),'utf8'));
+ await db.exec('ALTER TABLE public.arena_rooms ADD COLUMN completion_reason text; ALTER TABLE public.arena_participants ADD COLUMN forfeit_reason text;');
+ await db.exec(readFileSync(new URL('../supabase/migrations/20261105184650_prelude_forfeit.sql',import.meta.url),'utf8'));
  await query("select set_config('app.uid',$1,false)",[uid]);
  let r=await puzzle('start');assert.equal(r.board.words.length,3);assert.ok(r.board.words.every(w=>!w.word&&!w.reference));
  const words=(await query("select payload->'board'->'words' words from scripture_games.puzzle_catalog where level=0 and difficulty='easy'"))[0].words;
@@ -139,6 +141,37 @@ try{
  }
  assert.equal(full.phase,'completed');assert.equal(full.cards.length,0);assert.ok(turns<=103);
  console.log('Prelude 223 passed: ten-second questions, captured faces, no card reuse, all 104 cards conserved, no early completion, complete deck exhaustion.');
+
+ // Forfeiting is authenticated, atomic and idempotent, including on another player's turn.
+ await query("select set_config('app.uid',$1,false)",[uid]);
+ const forfeit=async(id)=>query('select public.forfeit_prelude_game($1)',[id]);
+ let quit=await prelude('create',{machine:true});quit=await prelude('start',{id:quit.id});
+ await query("select set_config('app.uid',$1,false)",[other]);
+ await assert.rejects(forfeit(quit.id),/own place/);
+ await query("select set_config('app.uid',$1,false)",[uid]);
+ await forfeit(quit.id);await forfeit(quit.id);
+ quit=await prelude('state',{id:quit.id});
+ assert.equal(quit.phase,'completed');assert.equal(quit.winnerId,'machine');assert.equal(quit.reward,0);
+ assert.equal((await query('select forfeit_reason from arena_participants where room_id=$1 and user_id=$2',[quit.id,uid]))[0].forfeit_reason,'manual');
+ assert.equal((await query("select count(*)::int n from denarii_ledger_entries where source_reference=$1",['prelude:'+quit.id]))[0].n,0);
+ // Remove the current player from a pending question without skipping the next player.
+ let trio=await prelude('create');
+ const third='00000000-0000-4000-8000-000000000003';
+ for(const id of [other,third]){await query("select set_config('app.uid',$1,false)",[id]);await prelude('join',{id:trio.id});}
+ await query("select set_config('app.uid',$1,false)",[uid]);trio=await prelude('start',{id:trio.id});
+ let ts=(await query('select state from scripture_games.prelude_games where room_id=$1',[trio.id]))[0].state;
+ let matching=ts.deck.find(c=>!c.drawn&&!c.joker&&(c.number===trio.board[0].number||c.symbol===trio.board[0].symbol));
+ trio=await prelude('flip',{id:trio.id,slot:matching.slot,version:trio.version});assert.equal(trio.phase,'question');
+ await forfeit(trio.id);trio=await prelude('state',{id:trio.id});
+ assert.equal(trio.phase,'playing');assert.equal(trio.pending,null);assert.equal(trio.players[trio.turn].id,other);
+ assert.equal(trio.players.length,2);
+ await assert.rejects(prelude('join',{id:trio.id}),/accepting/);
+ await assert.rejects(prelude('flip',{id:trio.id,slot:trio.cards[0].slot,version:trio.version}),/Join/);
+ await query("select set_config('app.uid',$1,false)",[third]);await forfeit(trio.id);
+ trio=await prelude('state',{id:trio.id});assert.equal(trio.phase,'completed');assert.equal(trio.winnerId,other);
+ assert.equal((await query('select winner_id,completion_reason from arena_rooms where id=$1',[trio.id]))[0].completion_reason,'forfeit');
+ await query("select set_config('app.uid',$1,false)",['']);await assert.rejects(forfeit(trio.id),/Sign in/);
+ console.log('Prelude forfeit passed: actor checks, Scribe and multiplayer settlement, turn removal, no rejoin, no reward farming, repeated calls.');
  await db.exec('SET ROLE anon');
  await assert.rejects(query("select public.prelude_command('list')"),/permission denied/);
  await assert.rejects(query('select * from scripture_games.puzzle_catalog'),/permission denied/);

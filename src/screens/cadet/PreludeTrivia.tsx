@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Clock3, Loader2, RefreshCw, Trophy, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
-import { preludeCommand, type PreludeState } from '../../lib/scriptureGames';
+import { forfeitPrelude, preludeCommand, type PreludeState } from '../../lib/scriptureGames';
 import { userFacingError } from '../../lib/connectionErrors';
 import { safeStorageGet, safeStorageSet, safeStorageRemove } from '../../lib/safeStorage';
 import { PreludeTable, PreludePlayerStacks, PreludeCardFace } from '../../components/PreludeTable';
@@ -19,6 +19,8 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
  const [name,setName]=useState('The Prelude');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
+ const [confirmForfeit,setConfirmForfeit]=useState(false);
+ const viewGeneration=useRef(0);
  const [answers,setAnswers]=useState<number[]>([]);
  const [now,setNow]=useState(Date.now());
  const inFlight=useRef(false);
@@ -41,10 +43,11 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
  };
  useEffect(()=>{
   let active=true;
+  const generation=viewGeneration.current;
   const refresh=async()=>{
    if(document.visibilityState!=='visible' || inFlight.current)return;
    if(!roomId){void refreshList();return;}
-   try{const next=await preludeCommand('state',{p_room_id:roomId}) as PreludeState;if(active)accept(next);}
+   try{const next=await preludeCommand('state',{p_room_id:roomId}) as PreludeState;if(active && generation===viewGeneration.current)accept(next);}
    catch(failure){if(active)setError(userFacingError(failure,'The room could not refresh.'));}
   };
   void refresh();const interval=window.setInterval(()=>void refresh(),roomId?1250:15000);
@@ -52,7 +55,16 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
  },[roomId,accept,refreshList]);
  useEffect(()=>{setAnswers([]);},[version]);
  useEffect(()=>{const interval=window.setInterval(()=>setNow(Date.now()),500);return()=>window.clearInterval(interval);},[]);
- const leaveView=()=>{setRoomId(null);setGame(null);seenVersion.current=-1;safeStorageRemove('local',savedKey);setError('');void refreshList();};
+ const leaveView=()=>{viewGeneration.current+=1;setConfirmForfeit(false);setRoomId(null);setGame(null);seenVersion.current=-1;safeStorageRemove('local',savedKey);setError('');void refreshList();};
+ const forfeit=async()=>{
+  if(!roomId || inFlight.current)return;
+  inFlight.current=true;setBusy(true);setError('');
+  try{
+   await forfeitPrelude(roomId);
+   leaveView();onBalanceChanged?.();onBack();
+  }catch(failure){setError(userFacingError(failure,'The round could not be forfeited. Please try again.'));}
+  finally{inFlight.current=false;setBusy(false);}
+ };
  const current=game?.players[game.turn];
  const myTurn=current?.id===profile?.id;
  const scribeTurn=current?.id==='machine';
@@ -73,6 +85,9 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
    </>}
    {roomId && !game && !error && <p role="status" className="text-center text-sm"><Loader2 className="mx-auto mb-2 animate-spin"/>Opening your table...</p>}
    {game && <>
+    {(game.phase==='playing'||game.phase==='question') && game.players.some(player=>player.id===profile?.id) && <div className="rounded-xl border border-white/20 bg-black/50 p-3">
+     {confirmForfeit?<div role="alert" className="space-y-3"><p className="text-sm">Forfeit this round? You will leave the match and cannot rejoin it.</p><div className="flex gap-2"><button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>setConfirmForfeit(false)}>Keep playing</button><button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>void forfeit()}>{busy?'Forfeiting…':'Confirm forfeit'}</button></div></div>:<button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>setConfirmForfeit(true)}>Forfeit round</button>}
+    </div>}
     <PreludePlayerStacks players={game.players} currentPlayerId={game.phase==='playing'||game.phase==='question'?current?.id:undefined} userId={profile?.id}/>
     {game.phase==='waiting' && <div className="rounded-xl border border-gold/30 bg-black/45 p-5 text-center"><h3 className="font-display text-xl text-gold">Waiting at the table</h3><p className="mt-2 text-sm">{game.players.length}/{game.maxPlayers} players · {game.difficulty==='hard'?'Select all correct answers':'Multiple choice'}</p>{waitingTime>0 && <p className="mt-2 text-xs">Scheduled start in {Math.floor(waitingTime/60)}m {waitingTime%60}s</p>}{(game.creatorId===profile?.id||(game.startsAt&&game.players.some(player=>player.id===profile?.id))) && <button type="button" disabled={busy||game.players.length<2||waitingTime>0} onClick={()=>void command('start')} className="btn-primary mt-4">Start round</button>}<p className="mt-3 text-xs text-white/65">104 cards · 100 numbered cards + four jokers · No entry fee</p></div>}
     {(game.phase==='playing'||game.phase==='question') && <>

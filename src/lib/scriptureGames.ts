@@ -21,3 +21,9 @@ export async function preludeCommand(action:string,args:Record<string,unknown>={
  if(error)throw error;
  return data;
 }
+
+export async function forfeitPrelude(roomId: string) {
+ const { error } = await supabase.rpc('forfeit_prelude_game', { p_room_id: roomId });
+ if (error) throw error;
+ window.dispatchEvent(new Event('full-circle:game-activity'));
+}

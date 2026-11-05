@@ -1,5 +1,3 @@
-import { GameActivityProfiles } from '../../components/GameActivityProfiles';
-import { useGameActivityPlayers } from '../../hooks/useGameActivityPlayers';
 import { SentryArenaScheduler, type SentryScheduleRoster } from '../../components/SentryArenaScheduler';
 import PuzzleTrivia from './PuzzleTrivia';
 import PreludeTrivia from './PreludeTrivia';
@@ -108,7 +106,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [preludeOpen,setPreludeOpen] = useState(false);
-  const gameActivity = useGameActivityPlayers();
   const [puzzleOpen, setPuzzleOpen] = useState(false);
   const [rooms, setRooms] = useState<any[]>([]);
   const [denarii, setDenarii] = useState(0);
@@ -1047,7 +1044,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
       {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">Puzzle Trivia</h3><p className="mt-1 text-xs text-stone">Solo Bible word puzzles · three difficulties · no entry fee.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia</button></div>}
 
-      {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">The Prelude</h3><p className="mt-1 text-xs text-stone">Scripture card matches · up to 10 players or the Machine · 1,000 Denarii for the winner.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={()=>setPreludeOpen(true)}>Play The Prelude</button><GameActivityProfiles activity="prelude" players={gameActivity.players} loading={gameActivity.loading} /></div>}
 
       {sentrySchedule && <SentryArenaScheduler key={sentrySchedule.tentId} {...sentrySchedule} onScheduled={refreshRooms} />}
 
