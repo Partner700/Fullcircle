@@ -5,8 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import type { PanelImageSetting } from '../../lib/types';
 import { puzzleCommand, type PuzzleServerState } from '../../lib/scriptureGames';
 import { userFacingError } from '../../lib/connectionErrors';
-import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
-import type { ArenaRelicSlug } from '../../../supabase/functions/_shared/arenaRelics';
+import { PuzzleRelics, type PuzzleRelicSlug } from '../../components/PuzzleRelics';
 import { PUZZLE_DIFFICULTIES, type PuzzleDifficulty } from '../../lib/puzzleTriviaSettings';
 
 export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: PanelImageSetting | null; onBack: () => void }) {
@@ -37,13 +36,13 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
  const aid=board.words[target]?.aid;
  const apply=async(action:string,args:Record<string,unknown>={})=>{
   setBusy(true);setError('');
-  try {const next=await puzzleCommand(action,args);setRound(next);setNow(Date.now());setNotice(next.notice || '');return true;}
+  try {const next=await puzzleCommand(action,args);setRound(next);setTarget(previous=>next.board?.words[previous]?.word?Math.max(0,next.board.words.findIndex(word=>!word.word)):previous);setNow(Date.now());setNotice(next.notice || '');return true;}
   catch(failure){setError(userFacingError(failure,'Puzzle Trivia could not update. Try again.'));return false;}
   finally{setBusy(false);}
  };
  useEffect(()=>{
   let active=true;setBusy(true);setError('');
-  void puzzleCommand('load',{p_difficulty:difficulty}).then(next=>{if(active){setRound(next);setNow(Date.now());}})
+  void puzzleCommand('load',{p_difficulty:difficulty}).then(next=>{if(active){setRound(next);setTarget(Math.max(0,next.board?.words.findIndex(word=>!word.word)??0));setNow(Date.now());}})
    .catch(failure=>{if(active)setError(userFacingError(failure,'Your puzzle could not load.'));}).finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
  },[difficulty]);
@@ -72,10 +71,10 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
   if(value===difficulty)return;
   setDifficulty(value);setRound({level:0,difficulty:value,ready:true});setPath([]);setLetterOrder(null);setNotice('');setTarget(0);
  };
- const useRelic=async(slug:ArenaRelicSlug)=>{
+ const useRelic=async(slug:PuzzleRelicSlug)=>{
   if(!round.id || busy)return false;
-  const success=await apply('relic',{p_run_id:round.id,p_target:target,p_relic:slug});
-  setPath([]);return success;
+  const success=await apply('relic',{p_run_id:round.id,p_target:target,p_relic:slug,p_word:currentWord});
+  if(slug!=='talking-donkey')setPath([]);return success;
  };
  const cells=new Map(board.cells.map(cell=>[`${cell.row},${cell.col}`,cell]));
  const starts=new Map(board.words.map((word,index)=>[`${word.row},${word.col}`,index+1]));
@@ -138,7 +137,8 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
    {error && <div role="alert" className="rounded-lg bg-black/60 p-3 text-sm text-coral">{error}<button type="button" className="btn-secondary ml-2 text-xs" onClick={()=>void apply('load',{p_difficulty:difficulty})}>Refresh puzzle</button></div>}
    {busy && <p role="status" className="text-center text-xs text-white/80">Updating puzzle...</p>}
    {round.id && <div className="rounded-xl bg-white/90 p-3 text-ink"><label className="text-xs font-bold">Relic target<select className="input mt-1 w-full" value={target} onChange={event=>setTarget(Number(event.target.value))}>{board.words.map((entry,index)=><option key={index} value={index}>Word {index+1} · {entry.length} letters{entry.word?` · ${entry.word}`:''}</option>)}</select></label>
-    {profile && <ArenaMarketRelics userId={profile.id} questionType="multiple_choice" aid={{hiddenOptions:[],used:(aid?.used || []) as ArenaRelicSlug[],notice:aid?.answer?`Revealed answer: ${aid.answer}`:aid?.firstLetter?`First letter: ${aid.firstLetter}`:''}} disabled={busy} allowedSlugs={!playing?['reveal-reference']:['hint','eliminate','freeze-timer','skip','reveal-reference','witch-ball-endor']} onUse={useRelic}/>}
+    {profile && <PuzzleRelics userId={profile.id} playing={playing} busy={busy} used={aid?.used||[]} roundUsed={board.words.flatMap(word=>word.aid?.used||[])} hasSelection={Boolean(currentWord)} onUse={useRelic}/>}
+    {(aid?.answer||aid?.firstLetter)&&<p role="status" className="mt-2 text-xs text-brass">{aid.answer?`Revealed answer: ${aid.answer}`:`First letter: ${aid.firstLetter}`}</p>}
     <p className="mt-2 text-[10px] text-stone">Relics assist the selected word. Assisted words earn no FIGS. Freeze Timer adds 60 seconds once per round. Reveal Reference unlocks one word’s Scripture reference.</p>
    </div>}
    <div className="space-y-2 rounded-xl border border-white/15 bg-black/45 p-3"><h3 className="text-xs font-bold uppercase tracking-wider text-gold">Scripture clues</h3>

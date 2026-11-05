@@ -25,6 +25,7 @@ try{
  await db.exec(readFileSync(new URL('../supabase/migrations/20261104060919_prelude_scribe_turns.sql',import.meta.url),'utf8'));
  await db.exec('ALTER TABLE public.arena_rooms ADD COLUMN completion_reason text; ALTER TABLE public.arena_participants ADD COLUMN forfeit_reason text;');
  await db.exec(readFileSync(new URL('../supabase/migrations/20261105184650_prelude_forfeit.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../supabase/migrations/20261105201641_puzzle_owned_relics.sql',import.meta.url),'utf8'));
  await query("select set_config('app.uid',$1,false)",[uid]);
  let r=await puzzle('start');assert.equal(r.board.words.length,3);assert.ok(r.board.words.every(w=>!w.word&&!w.reference));
  const words=(await query("select payload->'board'->'words' words from scripture_games.puzzle_catalog where level=0 and difficulty='easy'"))[0].words;
@@ -142,6 +143,23 @@ try{
  assert.equal(full.phase,'completed');assert.equal(full.cards.length,0);assert.ok(turns<=103);
  console.log('Prelude 223 passed: ten-second questions, captured faces, no card reuse, all 104 cards conserved, no early completion, complete deck exhaustion.');
 
+
+ // Real owned relics are accepted; the Sword clears a level without adding assisted FIGS.
+ await query("select set_config('app.uid',$1,false)",[uid]);
+ await db.exec("INSERT INTO relic_types(slug) VALUES('sword-goliath'),('talking-donkey'),('witch-ball-endor'); INSERT INTO relic_inventory(user_id,relic_type_id,quantity) SELECT '00000000-0000-4000-8000-000000000001',id,3 FROM relic_types WHERE slug IN ('sword-goliath','talking-donkey','witch-ball-endor');");
+ let assisted=await puzzle('start',{difficulty:'medium'});
+ await assert.rejects(puzzle('relic',{id:assisted.id,relic:'talking-donkey',word:''}),/Connect letters/);
+ const beforeDonkey=(await query("select quantity from relic_inventory i join relic_types t on t.id=i.relic_type_id where i.user_id=$1 and t.slug='talking-donkey'",[uid]))[0].quantity;
+ assisted=await puzzle('relic',{id:assisted.id,relic:'talking-donkey',word:'WRONG'});
+ assert.match(assisted.notice,/warns/);assert.equal(assisted.board.words[0].aid.answer,undefined);
+ assert.equal((await query("select quantity from relic_inventory i join relic_types t on t.id=i.relic_type_id where i.user_id=$1 and t.slug='talking-donkey'",[uid]))[0].quantity,beforeDonkey-1);
+ assisted=await puzzle('relic',{id:assisted.id,relic:'witch-ball-endor',target:1});assert.ok(assisted.board.words[1].aid.answer);
+ assisted=await puzzle('relic',{id:assisted.id,relic:'skip',target:0});
+ assisted=await puzzle('relic',{id:assisted.id,relic:'freeze-timer',target:0});assert.match(assisted.notice,/60 seconds/);
+ assisted=await puzzle('relic',{id:assisted.id,relic:'sword-goliath',target:0});assert.equal(assisted.completed,true);assert.equal(assisted.found.length,assisted.board.words.length);assert.equal(assisted.figs,0);assert.equal(assisted.reward,500);
+ await puzzle('relic',{id:assisted.id,relic:'sword-goliath',target:0});
+ assert.equal((await query("select count(*)::int n from denarii_ledger_entries where user_id=$1 and source_reference='puzzle:medium:0'",[uid]))[0].n,1);
+ console.log('Puzzle owned relics passed: Sword, Donkey warning, Crystal Ball reveal, timer on found target, no extra FIGS or repeated reward.');
  // Forfeiting is authenticated, atomic and idempotent, including on another player's turn.
  await query("select set_config('app.uid',$1,false)",[uid]);
  const forfeit=async(id)=>query('select public.forfeit_prelude_game($1)',[id]);
