@@ -144,7 +144,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onProgress }: DailyGa
 
       <article className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={state.arenaImage} opacityFallback={26} veilClassName="arena-panel-veil" />
-        <div className="relative z-10"><p className="eyebrow text-gold">Numbers of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">The Prelude</h3><p className="mt-2 text-sm text-stone">104 cards, four jokers, and a board waiting to be captured. Match a number or tent symbol, then answer the Scripture question. Play with up to 10 people or against the Machine.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPreludeOpen(true)}>Play The Prelude <ArrowRight size={14}/></button></div>
+        <div className="relative z-10"><p className="eyebrow text-gold">Numbers of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">The Prelude</h3><p className="mt-2 text-sm text-stone">104 cards, four jokers, and a board waiting to be captured. Match a number or tent symbol, then answer the Scripture question. Play with up to 10 people or against the Machine.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPreludeOpen(true)}>Play The Prelude <ArrowRight size={14}/></button><GameActivityProfiles activity="prelude" players={gameActivity.players} loading={gameActivity.loading} /></div>
       </article>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <article className="card relative flex min-h-[23rem] flex-col overflow-hidden p-5">

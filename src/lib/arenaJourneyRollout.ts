@@ -12,5 +12,6 @@ export function arenaGameOptions(_opponent: ArenaOpponent, readyCharacterCount: 
     { value: 'journey', label: 'Journey Trivia' },
     { value: 'standard', label: 'Classic Trivia' },
     { value: 'ludo', label: 'Ludo Trivia' },
+    { value: 'prelude', label: 'The Prelude' },
   ];
 }

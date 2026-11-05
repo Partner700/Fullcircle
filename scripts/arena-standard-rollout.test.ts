@@ -7,9 +7,9 @@ assert.equal(preferredArenaGameType('standard', 'machine', 1), 'journey');
 assert.equal(preferredArenaGameType('journey', 'machine', 1), 'journey');
 assert.equal(preferredArenaGameType('ludo', 'players', 1), 'ludo');
 assert.deepEqual(arenaGameOptions('players', 1).map((option) => option.value),
-  ['journey', 'standard', 'ludo']);
+  ['journey', 'standard', 'ludo', 'prelude']);
 assert.deepEqual(arenaGameOptions('machine', 1).map((option) => option.value),
-  ['journey', 'standard', 'ludo']);
+  ['journey', 'standard', 'ludo', 'prelude']);
 assert.deepEqual(arenaGameOptions('players', 0).map((option) => option.value),
-  ['journey', 'standard', 'ludo']);
+  ['journey', 'standard', 'ludo', 'prelude']);
 console.log('Standard Trivia rollout selects ready Journey for human and machine matches.');

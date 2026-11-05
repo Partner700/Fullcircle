@@ -725,7 +725,7 @@ export interface GameAttempt {
 }
 
 export interface GameActivityPlayer {
-  activity: 'daily_game' | 'arena' | 'puzzle_trivia';
+  activity: 'daily_game' | 'arena' | 'puzzle_trivia' | 'prelude';
   user_id: string;
   display_name: string;
   avatar_url: string | null;

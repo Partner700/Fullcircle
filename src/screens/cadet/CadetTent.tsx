@@ -306,7 +306,7 @@ export function CadetTent() {
 
   const sentry = members.find((m) => m.role === 'sentry');
   const cadets = members.filter((m) => m.role === 'cadet').sort(positions.compare);
-  const visibleMembers = [...(sentry ? [sentry] : []), ...cadets];
+  const visibleMembers = [...cadets, ...(sentry ? [sentry] : [])];
   const memberById = new Map(visibleMembers.map((m) => [m.user_id, m]));
   const visibleTentAwards = awardView === 'week' ? weeklyPublishedAwards(tentAwards) : tentAwards;
 
