@@ -26,7 +26,7 @@ export function PuzzleRelics({ userId, playing, busy, used, roundUsed, hasSelect
  const inFlight=useRef(false);
  useEffect(()=>{
   let active=true;setLoading(true);
-  void supabase.from('relic_inventory').select('quantity,relic_types!inner(slug)').eq('user_id',userId)
+  void supabase.from('relic_inventory').select('quantity,relic_types!inner(slug)').eq('relic_types.is_active',true).eq('user_id',userId)
    .gt('quantity',0).in('relic_types.slug',RELICS.map(relic=>relic.slug)).then(({data,error:failure})=>{
     if(!active)return;
     if(failure)setError(userFacingError(failure,'Your relics could not load.'));

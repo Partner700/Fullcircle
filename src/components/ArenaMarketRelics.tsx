@@ -26,7 +26,7 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
   const busy = useRef(false);
   useEffect(() => {
     let active = true;
-    void supabase.from('relic_inventory').select('quantity,relic_types!inner(slug)')
+    void supabase.from('relic_inventory').select('quantity,relic_types!inner(slug)').eq('relic_types.is_active',true)
       .eq('user_id', userId).gt('quantity', 0).in('relic_types.slug', [...ARENA_RELICS])
       .then(({ data, error: failure }) => {
         if (!active) return;

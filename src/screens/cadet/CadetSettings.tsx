@@ -74,7 +74,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
           setStats((previous) => ({ ...previous, [key]: count ?? 0 }));
         }),
         (async () => {
-          const { data, error } = await supabase.from('relic_inventory').select('quantity').eq('user_id', profile.id);
+          const { data, error } = await supabase.from('relic_inventory').select('quantity,relic_types!inner(is_active)').eq('relic_types.is_active',true).eq('user_id', profile.id);
           if (error) throw error;
           setStats((previous) => ({ ...previous, relicsOwned: (data || []).reduce((sum, row) => sum + row.quantity, 0) }));
         })(),

@@ -975,7 +975,8 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
     let cancelled = false;
     supabase
       .from('relic_inventory')
-      .select('quantity, relic_types(slug)')
+      .select('quantity, relic_types!inner(slug)')
+      .eq('relic_types.is_active', true)
       .eq('user_id', userId)
       .then(({ data }) => {
         if (cancelled || !data) return;

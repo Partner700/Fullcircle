@@ -15,11 +15,12 @@ import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult } from '../../lib/queries';
 import type { FcxExperience, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
-  ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
+  Clock3, ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
   Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield, Ticket,
 } from 'lucide-react';
 
 const RELIC_ICONS: Record<string, any> = {
+  'hezekiahs-sundial': Clock3,
   'witch-ball-endor': Sparkles,
   'sword-goliath': Swords,
   'talking-donkey': MessageSquare,
@@ -46,6 +47,7 @@ const RELIC_COLORS: Record<string, string> = {
 };
 
 const STORE_USABLE_RELICS = new Set<string>([
+  'hezekiahs-sundial',
   RELIC_SLUGS.MASTERS_REWARD,
   RELIC_SLUGS.THIEVES_REQUEST,
   RELIC_SLUGS.SIMONS_PURSE,
@@ -148,7 +150,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setFcxLoadError(false);
     try {
       const [relicData, invData, balance, frz, marketPanelImage] = await Promise.all([
-        supabase.from('relic_types').select('*').order('denarii_cost', { ascending: true }),
+        supabase.from('relic_types').select('*').eq('is_active', true).order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
         fetchLedgerTotal(profile.id),
         fetchStreakFreezers(profile.id),

@@ -1,3 +1,4 @@
+import { MeditationExtension } from '../../components/MeditationExtension';
 import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -308,6 +309,9 @@ export function CadetNarrative({
   const [bestVerse, setBestVerse] = useState('');
   const [dailyQuote, setDailyQuote] = useState('');
   const [savedMeditation, setSavedMeditation] = useState(false);
+  const [meditationExtensionActive,setMeditationExtensionActive]=useState(false);
+  const [,refreshMeditationClock]=useState(0);
+  useEffect(()=>{const timer=window.setInterval(()=>refreshMeditationClock(value=>value+1),15000);return()=>window.clearInterval(timer);},[]);
   const [meditationPublic, setMeditationPublic] = useState(false);
   const [challenge, setChallenge] = useState<ChallengeSubmission | null>(null);
   const [challengeText, setChallengeText] = useState('');
@@ -757,7 +761,7 @@ export function CadetNarrative({
   const canSubmitMeditation =
     hasAccess &&
     !isHistoricalReading &&
-    !afterMeditationCutoff &&
+    (!afterMeditationCutoff || meditationExtensionActive) &&
     bestVerse.trim().length > 0 &&
     meditationWordCount >= 50 &&
     quoteWordCount > 0 &&
@@ -1382,10 +1386,8 @@ export function CadetNarrative({
               <FlameIcon size={10} className="mr-1" /> Streak {streakCount}
             </span>
           </div>
-          {afterMeditationCutoff && !savedMeditation && (
-            <div className="mt-3 mb-3 p-3 rounded-lg bg-roman/10 border border-roman/25 text-xs text-roman">
-              Streak submissions close at 9:00 PM. You can read and draft, but today can no longer be registered for the streak.
-            </div>
+          {afterMeditationCutoff && !savedMeditation && !isHistoricalReading && profile && (
+            <MeditationExtension userId={profile.id} date={activeDate} onWindowChange={setMeditationExtensionActive}/>
           )}
           <div className="flex items-center gap-2 mt-3 mb-3">
             <ScrollText size={18} className="text-brass" strokeWidth={1.5} />

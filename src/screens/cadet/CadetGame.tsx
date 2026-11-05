@@ -420,7 +420,8 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
     // Fetch relic inventory
     supabase
       .from('relic_inventory')
-      .select('quantity, relic_types(slug)')
+      .select('quantity, relic_types!inner(slug)')
+      .eq('relic_types.is_active', true)
       .eq('user_id', userId)
       .then(({ data }) => {
         if (cancelled || !data) return;

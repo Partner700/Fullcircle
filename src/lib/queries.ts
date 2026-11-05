@@ -1237,7 +1237,7 @@ export async function fetchWeeklyVerseHighlights() {
 }
 
 export async function fetchRelicTypes() {
-  const { data, error } = await supabase.from('relic_types').select('*');
+  const { data, error } = await supabase.from('relic_types').select('*').eq('is_active', true);
   if (error) throw error;
   return data as RelicType[];
 }
@@ -1245,7 +1245,8 @@ export async function fetchRelicTypes() {
 export async function fetchRelicInventory(userId: string) {
   const { data, error } = await supabase
     .from('relic_inventory')
-    .select('*, relic_types(*)')
+    .select('*, relic_types!inner(*)')
+    .eq('relic_types.is_active', true)
     .eq('user_id', userId);
   if (error) throw error;
   return data as (RelicInventory & { relic_types: RelicType })[];
@@ -2259,7 +2260,9 @@ export async function purchaseDailyFreezerForCadet(sentryId: string, cadetId: st
 }
 
 export async function useRelic(userId: string, slug: string) {
-  const { data, error } = slug === 'simons-coin'
+  const { data, error } = slug === 'hezekiahs-sundial'
+    ? await supabase.rpc('use_meditation_extension')
+    : slug === 'simons-coin'
     ? await supabase.rpc('use_simons_coin', { p_user_id: userId })
     : await supabase.rpc('use_relic', { p_user_id: userId, p_relic_slug: slug });
   if (error) throw error;

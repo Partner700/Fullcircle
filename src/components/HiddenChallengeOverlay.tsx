@@ -571,7 +571,7 @@ export function HiddenChallengeOverlay() {
               {!treasure && relics.length > 0 && (
                 <div className="rounded-md border border-border bg-surface-2 p-2.5">
                   <div className="flex flex-wrap gap-1.5">
-                    {relics.map((relic) => {
+                    {relics.filter(relic=>!['hint','eliminate','talking-donkey','simons-coin'].includes(relic.slug||'')).map((relic) => {
                       const Icon = relic.slug === 'shield-of-faith' ? Shield
                         : relic.slug === 'hint' ? Lightbulb
                           : relic.slug === 'eliminate' ? ListFilter
