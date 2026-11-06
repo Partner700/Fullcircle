@@ -218,8 +218,8 @@ function cleanQuizOptions(options: unknown, correctAnswer: unknown) {
 type QuizType = 'saturday' | 'fortune' | 'valediction';
 type ValedictionStatus = { eligible: boolean; streak: number; figs: number; is_sentry: boolean };
 
-export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) {
-  const [quizType, setQuizType] = useState<QuizType>('saturday');
+export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted: () => void; sharedSession?: QuizSession }) {
+  const [quizType, setQuizType] = useState<QuizType>(sharedSession?.quiz_type as QuizType || 'saturday');
   const [eligibility, setEligibility] = useState<ValedictionStatus | null>(null);
   const [eligibilityError, setEligibilityError] = useState<string | null>(null);
   const [eligibilityRetry, setEligibilityRetry] = useState(0);
@@ -253,7 +253,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       {!eligibility && !eligibilityError && <p role="status" className="mt-2 text-stone">Checking eligibility...</p>}
       {eligibility && !eligibility.eligible && !eligibility.is_sentry && <p className="mt-2 text-stone">Keep building your streak and figs to unlock this quiz.</p>}
     </div>}
-    {(quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} onQuizSubmitted={refresh} />}
+    {(quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} sharedSession={sharedSession?.quiz_type === quizType ? sharedSession : undefined} onQuizSubmitted={refresh} />}
   </div>;
 }
 
@@ -277,7 +277,7 @@ function ValedictionResult({ attempt }: { attempt: QuizAttempt }) {
   </div>;
 }
 
-function QuizSessionView({ onQuizSubmitted, quizType }: { onQuizSubmitted: () => void; quizType: QuizType }) {
+function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizSubmitted: () => void; quizType: QuizType; sharedSession?: QuizSession }) {
   const { profile } = useAuth();
   const [session, setSession] = useState<QuizSession | null>(null);
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
@@ -325,7 +325,7 @@ function QuizSessionView({ onQuizSubmitted, quizType }: { onQuizSubmitted: () =>
     setLoadError(null);
     let shellReady = false;
     try {
-      const sess = await withQuizNetworkRetry(() => fetchLatestQuizSession(quizType));
+      const sess = sharedSession || await withQuizNetworkRetry(() => fetchLatestQuizSession(quizType));
       setSession(sess);
       if (sess) {
         const [qs, runtime] = await Promise.allSettled([
@@ -402,7 +402,7 @@ function QuizSessionView({ onQuizSubmitted, quizType }: { onQuizSubmitted: () =>
     } finally {
       if (!shellReady) setLoading(false);
     }
-  }, [applyRuntimeState, profile, quizType]);
+  }, [applyRuntimeState, profile, quizType, sharedSession]);
 
   const syncRuntimeState = useCallback(async () => {
     if (!session?.id) return null;

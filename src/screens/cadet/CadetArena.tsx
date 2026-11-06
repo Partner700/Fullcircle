@@ -98,11 +98,12 @@ interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
   onBackToDailyGames?: () => void;
   witnessOnly?: boolean;
+  initialRoomId?: string;
   instructorSchedule?: boolean;
   sentrySchedule?: SentryScheduleRoster;
 }
 
-export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false, sentrySchedule }: CadetArenaProps) {
+export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId, witnessOnly = false, instructorSchedule = false, sentrySchedule }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [preludeOpen,setPreludeOpen] = useState(false);
@@ -156,11 +157,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
   useEffect(() => {
     if (!profile) return;
+    if (initialRoomId) return;
     const savedRoomId = safeStorageGet('local', activeArenaRoomStorageKey(profile.id));
     const dismissed = new Set(safeJsonStorageGet<string[]>('local', dismissedArenaRoomsKey(profile.id), []));
     if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
     if (savedRoomId && dismissed.has(savedRoomId)) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
-  }, [profile]);
+  }, [profile, initialRoomId]);
 
   useEffect(() => {
     if (!profile || !activeRoomId || isSpectating) return;
@@ -236,6 +238,23 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       return false;
     }
   }, [profile, refreshRoom]);
+
+  const openedShareRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialRoomId || !profile || openedShareRef.current === initialRoomId) return;
+    openedShareRef.current = initialRoomId;
+    void (async () => {
+      const room = await refreshRoom(initialRoomId);
+      if (room?.status === 'completed') {
+        setIsSpectating(true); setActiveRoomId(initialRoomId); setPhase('finished');
+      } else if (room?.arena_participants?.some((person: { user_id: string; forfeited_at?: string | null }) => person.user_id === profile.id && !person.forfeited_at)) {
+        activateRoom(initialRoomId, room.status === 'completed' ? 'finished' : room.status === 'waiting' ? 'waiting' : 'playing');
+      } else {
+        await watchRoom(initialRoomId);
+      }
+    })();
+  }, [activateRoom, initialRoomId, profile, refreshRoom, watchRoom]);
+
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }

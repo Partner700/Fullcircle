@@ -71,9 +71,10 @@ type RoundTimeout = {
   nextIndex: number | null;
 };
 
-export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
+export function CadetGame({ onRewardEarned, onBackToDailyGames, initialDate }: {
   onRewardEarned: () => void;
   onBackToDailyGames?: () => void;
+  initialDate?: string;
 }) {
   const { profile } = useAuth();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
@@ -87,8 +88,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const today = getTodayISODate();
   const isQuizDay = getDayType(today) === 'saturday';
   const isSunday = getDayType(today) === 'sunday';
-  const isWeeklyNarrativeDay = isQuizDay || isSunday;
-  const [gameDate, setGameDate] = useState(today);
+  const isWeeklyNarrativeDay = !initialDate && (isQuizDay || isSunday);
+  const [gameDate, setGameDate] = useState(initialDate || today);
   const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
 
   useEffect(() => {
@@ -110,8 +111,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
       ? playable[0]?.narrative_date || gameDate
       : gameDate;
     const [narr, atts, balance, image] = await Promise.all([
-      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(today),
-      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : today),
+      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(initialDate || today),
+      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : initialDate || today),
       fetchLedgerTotal(profile.id),
       fetchPanelImageSetting('game').catch(() => null),
     ]);
@@ -124,7 +125,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     setDenariiBalance(balance);
     setGameImage(image);
     setLoading(false);
-  }, [gameDate, isSunday, isWeeklyNarrativeDay, profile, today]);
+  }, [gameDate, initialDate, isSunday, isWeeklyNarrativeDay, profile, today]);
 
   useEffect(() => { load(); }, [load]);
 

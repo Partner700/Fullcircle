@@ -297,9 +297,11 @@ function ReadingArchiveBrowser({
 export function CadetNarrative({
   onMeditationSaved,
   streakCount = 0,
+  initialDate,
 }: {
   onMeditationSaved?: () => Promise<void> | void;
   streakCount?: number;
+  initialDate?: string;
 }) {
   const { profile } = useAuth();
   const { hasAccess, requireSubscription } = useSubscriptionAccess();
@@ -349,7 +351,7 @@ export function CadetNarrative({
   const historyPending = useRef(false);
   const historyOwner = useRef(profile?.id);
   historyOwner.current = profile?.id;
-  const [archiveDate, setArchiveDate] = useState<string | null>(null);
+  const [archiveDate, setArchiveDate] = useState<string | null>(initialDate || null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
   const draftHydratedKeyRef = useRef<string | null>(null);
