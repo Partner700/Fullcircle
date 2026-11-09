@@ -2773,6 +2773,12 @@ export type CampayPaymentResult = {
   message?: string;
 };
 
+export type CheckoutProvider = 'campay' | 'fapshi' | 'fapshi_direct';
+
+function normalizeCheckoutProvider(value: unknown): CheckoutProvider {
+  return value === 'fapshi' || value === 'fapshi_direct' ? value : 'campay';
+}
+
 export type SubscriptionPlan = {
   id: string;
   name: string;
@@ -2780,7 +2786,7 @@ export type SubscriptionPlan = {
   duration_days: number;
   is_active: boolean;
   checkout_mode: 'demo' | 'live';
-  payment_provider: 'fapshi' | 'campay';
+  payment_provider: CheckoutProvider;
 };
 
 async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
@@ -2815,12 +2821,12 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   } as CampayPaymentResult;
 }
 
-export async function fetchCheckoutProvider(userId: string): Promise<'campay' | 'fapshi'> {
+export async function fetchCheckoutProvider(userId: string): Promise<CheckoutProvider> {
   const { data, error } = await supabase.functions.invoke('create-checkout-session', {
     body: { user_id: userId, provider_only: true },
   });
   if (error) throw error;
-  return data?.payment_provider === 'fapshi' ? 'fapshi' : 'campay';
+  return normalizeCheckoutProvider(data?.payment_provider);
 }
 
 export async function startCampayCheckout(
@@ -2887,7 +2893,7 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
     duration_days: Number(data.duration_days),
     is_active: true,
     checkout_mode: data.checkout_mode === 'demo' ? 'demo' : 'live',
-    payment_provider: data.payment_provider === 'fapshi' ? 'fapshi' : 'campay',
+    payment_provider: normalizeCheckoutProvider(data.payment_provider),
   };
 }
 

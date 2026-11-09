@@ -12,7 +12,7 @@ import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/
 import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
 import { phoneNumberForCountry } from '../../lib/profileOptions';
-import type { CampayPaymentResult } from '../../lib/queries';
+import type { CampayPaymentResult, CheckoutProvider } from '../../lib/queries';
 import type { FcxExperience, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
   Clock3, ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
@@ -104,7 +104,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [usingRelic, setUsingRelic] = useState<string | null>(null);
   const [buyingFreezer, setBuyingFreezer] = useState(false);
   const [buyingWeeklyFreezer, setBuyingWeeklyFreezer] = useState(false);
-  const [checkoutProvider, setCheckoutProvider] = useState<'loading' | 'campay' | 'fapshi' | 'error'>('loading');
+  const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | 'loading' | 'error'>('loading');
   const [paymentModalRelic, setPaymentModalRelic] = useState<RelicType | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<StorePaymentMethod>('mtn_momo');
   const [payPhone, setPayPhone] = useState('');
@@ -868,7 +868,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     )}
                     <div className="space-y-1">
                       <p className="font-display font-semibold text-ink">
-                        {paymentConfirmed ? 'Purchase Complete' : paymentRejected ? 'Payment Not Confirmed' : 'Awaiting Payment Confirmation'}
+                        {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment Not Confirmed' : 'Awaiting Payment Confirmation'}
                       </p>
                       <p className="text-sm text-stone">
                         {paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
@@ -916,14 +916,14 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   {paySubmitting ? 'Preparing checkout…' : 'Continue to Fapshi'}
                 </button>
               </div>
-            ) : checkoutProvider !== 'campay' ? (
+            ) : checkoutProvider === 'loading' || checkoutProvider === 'error' ? (
               <p className="text-sm text-stone">{checkoutProvider === 'loading' ? 'Checking payment options…' : 'Checkout is unavailable. Reopen it to try again.'}</p>
             ) : (
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-stone block mb-2">Payment method</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {PAYMENT_METHODS.map((method) => {
+                    {PAYMENT_METHODS.filter(method => checkoutProvider !== 'fapshi_direct' || method.id !== 'other').map((method) => {
                       const MethodIcon = method.icon;
                       return (
                         <button

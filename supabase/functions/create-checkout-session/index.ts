@@ -67,6 +67,7 @@ type MobileMoneySettings = {
 
 type SupabaseAuthUserResponse = {
   id?: string;
+  email?: string;
 };
 
 function optionalEnv(name: string): string | undefined {
@@ -95,6 +96,9 @@ const campayAccessToken = optionalEnv("CAMPAY_ACCESS_TOKEN");
 const campayAppUsername = optionalEnv("CAMPAY_APP_USERNAME") || optionalEnv("CAMPAY_APP_ID");
 const campayAppPassword = optionalEnv("CAMPAY_APP_PASSWORD") || optionalEnv("CAMPAY_APP_SECRET");
 const useFapshi = optionalEnv("PAYMENT_PROVIDER")?.toLowerCase() === "fapshi";
+// Enable only after Fapshi authorizes Direct Pay for the live service.
+const useFapshiDirect = useFapshi && optionalEnv("FAPSHI_CHECKOUT_MODE")?.toLowerCase() === "direct";
+const paymentProvider = useFapshiDirect ? "fapshi_direct" : useFapshi ? "fapshi" : "campay";
 const checkoutCurrency = "XAF";
 const defaultXafPerUsd = 575;
 const configuredXafPerUsd = Number(optionalEnv("XAF_PER_USD") || defaultXafPerUsd);
@@ -121,7 +125,7 @@ async function getCampayToken(): Promise<string> {
   throw new Error("Missing CamPay credentials. Set CAMPAY_APP_USERNAME/CAMPAY_APP_PASSWORD or CAMPAY_ACCESS_TOKEN.");
 }
 
-async function getAuthenticatedUserId(req: Request): Promise<string> {
+async function getAuthenticatedUser(req: Request): Promise<SupabaseAuthUserResponse & { id: string }> {
   const authorization = req.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) {
     throw new Error("Missing authenticated user token.");
@@ -139,7 +143,7 @@ async function getAuthenticatedUserId(req: Request): Promise<string> {
 
   const user: SupabaseAuthUserResponse = await res.json();
   if (!user.id) throw new Error("Authenticated user not found.");
-  return user.id;
+  return { ...user, id: user.id };
 }
 
 function providerFor(method?: string, otherProvider?: string): string {
@@ -481,8 +485,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const authenticatedUserId = await getAuthenticatedUserId(req);
-    if (authenticatedUserId !== user_id) {
+    const authenticatedUser = await getAuthenticatedUser(req);
+    if (authenticatedUser.id !== user_id) {
       return new Response(JSON.stringify({ error: "Checkout user mismatch" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -490,7 +494,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (provider_only === true) {
-      return Response.json({ payment_provider: useFapshi ? "fapshi" : "campay" }, { headers: corsHeaders });
+      return Response.json({ payment_provider: paymentProvider }, { headers: corsHeaders });
     }
 
     const product = purchaseKind === "subscription"
@@ -515,7 +519,7 @@ Deno.serve(async (req: Request) => {
         amount_display: formatXaf(amountXaf),
         duration_days: product.durationDays,
         checkout_mode: product.checkoutMode,
-        payment_provider: useFapshi ? "fapshi" : "campay",
+        payment_provider: paymentProvider,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -551,9 +555,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (useFapshi) {
-      if (payment_method !== "fapshi_hosted") {
-        return Response.json({ error: "Refresh Full Circle to open the new Fapshi checkout." }, {
+      const directMethod = payment_method === "mtn_momo" || payment_method === "orange_money";
+      if (useFapshiDirect ? !directMethod : payment_method !== "fapshi_hosted") {
+        return Response.json({ error: "Payment options changed. Refresh Full Circle and choose a payment method." }, {
           status: 409, headers: corsHeaders,
+        });
+      }
+      const phone = useFapshiDirect ? normalizeCampayPhone(customer_phone) : null;
+      if (useFapshiDirect && !phone) {
+        return Response.json({ error: "Enter a valid Cameroon mobile money number." }, {
+          status: 400, headers: corsHeaders,
         });
       }
       if (!Number.isInteger(amountXaf) || amountXaf < 300 || displayedAmountXaf !== amountXaf) {
@@ -562,8 +573,22 @@ Deno.serve(async (req: Request) => {
         });
       }
       assertFapshiConfigured();
+      let payerName: string | undefined;
+      if (phone) {
+        const profile = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(authenticatedUser.id)}&select=display_name&limit=1`,
+          {
+            headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` },
+            signal: AbortSignal.timeout(4_000),
+          },
+        ).catch(() => null);
+        if (profile?.ok) {
+          const rows: { display_name?: string }[] = await profile.json().catch(() => []);
+          payerName = rows[0]?.display_name?.trim() || undefined;
+        }
+      }
       const reference = `fp_${crypto.randomUUID()}`;
-      const paymentResponse = (id: string, ref: string, amount: number, checkoutUrl: string | null | undefined) =>
+      const paymentResponse = (id: string, ref: string, amount: number, checkoutUrl: string | null | undefined, prompted = false) =>
         Response.json({
           status: "pending",
           reference: ref,
@@ -576,7 +601,9 @@ Deno.serve(async (req: Request) => {
           checkout_url: checkoutUrl,
           message: checkoutUrl
             ? "Open Fapshi to pay with MTN MoMo or Orange Money."
-            : "A checkout is pending. Check its status before trying again.",
+            : prompted
+              ? "Approve the mobile money prompt on your phone with your PIN. Full Circle will confirm the payment here."
+              : "A checkout is pending. Check its status before trying again.",
         }, { headers: corsHeaders });
       let paymentId: string;
       try {
@@ -590,7 +617,7 @@ Deno.serve(async (req: Request) => {
           amount_local: amountXaf,
           currency_code: checkoutCurrency,
           provider: "Fapshi",
-          sender_phone: "",
+          sender_phone: phone ?? "",
           status: "pending",
           reference,
           external_reference: reference,
@@ -602,7 +629,17 @@ Deno.serve(async (req: Request) => {
         return paymentResponse(existing.id, existing.reference, Number(existing.amount_local),
           fapshiCheckoutUrl(existing.fapshi_checkout_url));
       }
-      const result = await startFapshiPayment({ amount: amountXaf, reference, name: product.name });
+      const result = await startFapshiPayment({
+        amount: amountXaf,
+        reference,
+        name: product.name,
+        mobileMoney: phone ? {
+          phone: phone.slice(3),
+          medium: payment_method === "orange_money" ? "orange money" : "mobile money",
+          payerName,
+          email: authenticatedUser.email,
+        } : undefined,
+      });
       if (result.declined) {
         await rejectPayment(paymentId, null, "Fapshi could not start this payment.", {});
         return Response.json({ error: "Fapshi could not start this payment. Try again later." }, {
@@ -615,7 +652,7 @@ Deno.serve(async (req: Request) => {
           fapshi_checkout_url: result.checkoutUrl,
         }).catch(() => {});
       }
-      return paymentResponse(paymentId, reference, amountXaf, result.checkoutUrl);
+      return paymentResponse(paymentId, reference, amountXaf, result.checkoutUrl, Boolean(phone && result.transId));
     }
 
     const token = await getCampayToken();
