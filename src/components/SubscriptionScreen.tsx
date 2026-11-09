@@ -165,7 +165,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           ? 'Payment confirmed. Your Full Circle subscription is active.'
           : stored.status === 'rejected'
             ? stored.rejection_reason || 'The payment was not confirmed.'
-            : 'Approve the mobile money request on your phone.',
+            : current.checkout_url ? 'Complete your payment on Fapshi, then check its status here.'
+              : 'Payment confirmation is pending.',
       } : current);
       if (stored.status === 'confirmed') {
         await finishActivation();
@@ -207,6 +208,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           provider: recentSubscription.provider,
           operator: recentSubscription.operator,
           ussd_code: recentSubscription.ussd_code,
+          checkout_url: recentSubscription.fapshi_checkout_url,
           message: recentSubscription.status === 'confirmed'
             ? 'Payment confirmed. Restoring your subscription access.'
             : 'Checking your recent mobile money approval.',
@@ -253,9 +255,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
   }, [checkPayment, profile]);
 
   const startCheckout = async () => {
-    if (!profile || !plan) return;
+    if (!profile || !plan || submitting || (paymentRef.current?.reference.startsWith('fp_') && paymentRef.current.status === 'pending')) return;
     const normalizedPhone = phoneNumberForCountry(phone, profile.country_code);
-    if (normalizedPhone.replace(/\D/g, '').length < 9) {
+    if (plan.payment_provider !== 'fapshi' && normalizedPhone.replace(/\D/g, '').length < 9) {
       setError('Enter the mobile money phone number that will approve the payment.');
       return;
     }
@@ -269,8 +271,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
       const result = await startSubscriptionCheckout(
         plan.id,
         profile.id,
-        method,
-        normalizedPhone,
+        plan.payment_provider === 'fapshi' ? 'fapshi_hosted' : method,
+        plan.payment_provider === 'fapshi' ? '' : normalizedPhone,
         plan.amount_xaf,
         profile.email || undefined,
         profile.display_name || undefined,
@@ -327,6 +329,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
       <section className="card p-5 sm:p-6">
         <h3 className="font-display font-semibold text-ink">Pay with Mobile Money</h3>
+        {plan?.payment_provider === 'fapshi' ? (
+          <p className="mt-3 text-sm text-stone">Pay with MTN MoMo or Orange Money on Fapshi.</p>
+        ) : <>
         <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-surface-2 p-1.5">
           {([
             ['mtn_momo', 'MTN MoMo'],
@@ -351,6 +356,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           onChange={setPhone}
           className="mt-1.5 w-full"
         />
+        </>}
 
         {error && <div className="mt-4 rounded-lg border border-coral/30 bg-coral-soft px-3 py-2.5 text-sm text-coral">{error}</div>}
         {payment && (
@@ -358,7 +364,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
             <div className="flex items-start gap-2">
               {confirmed ? <CheckCircle2 size={17} className="mt-0.5 shrink-0" /> : <Smartphone size={17} className="mt-0.5 shrink-0" />}
               <div className="min-w-0">
-                <p className="font-semibold">{confirmed ? 'Subscription active' : 'Payment request sent'}</p>
+                <p className="font-semibold">{confirmed ? 'Subscription active' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
                 <p className="mt-0.5 text-xs opacity-80">{payment.message || 'Approve the prompt on your phone.'}</p>
                 <p className="mt-1 truncate text-[10px] opacity-60">Reference: {payment.reference}</p>
               </div>
@@ -366,10 +372,15 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           </div>
         )}
 
+        {payment?.checkout_url && !confirmed && payment.status === 'pending' && (
+          <a className="btn-primary mt-4 w-full justify-center" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">
+            <CreditCard size={16} /> Open Fapshi Checkout
+          </a>
+        )}
         <button
           type="button"
           onClick={startCheckout}
-          disabled={loadingPlan || submitting || !plan}
+          disabled={loadingPlan || submitting || !plan || (payment?.reference.startsWith('fp_') && payment.status === 'pending')}
           className="btn-primary mt-4 w-full justify-center disabled:opacity-50"
         >
           {loadingPlan || submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}

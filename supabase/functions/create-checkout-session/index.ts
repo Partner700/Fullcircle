@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { normalizeCampayPhone } from "../_shared/campay.ts";
+import { assertFapshiConfigured, fapshiCheckoutUrl, findPendingFapshiPayment, startFapshiPayment } from "../_shared/fapshi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,6 +94,7 @@ const campayBaseUrl =
 const campayAccessToken = optionalEnv("CAMPAY_ACCESS_TOKEN");
 const campayAppUsername = optionalEnv("CAMPAY_APP_USERNAME") || optionalEnv("CAMPAY_APP_ID");
 const campayAppPassword = optionalEnv("CAMPAY_APP_PASSWORD") || optionalEnv("CAMPAY_APP_SECRET");
+const useFapshi = optionalEnv("PAYMENT_PROVIDER")?.toLowerCase() === "fapshi";
 const checkoutCurrency = "XAF";
 const defaultXafPerUsd = 575;
 const configuredXafPerUsd = Number(optionalEnv("XAF_PER_USD") || defaultXafPerUsd);
@@ -396,7 +398,7 @@ function legacyUsdForRecord(relic: Relic, amountXaf: number): number {
 
 async function fetchRelicProduct(relicSlug: string): Promise<CheckoutProduct> {
   const relicRes = await fetch(
-    `${supabaseUrl}/rest/v1/relic_types?slug=eq.${encodeURIComponent(relicSlug)}&select=id,slug,name,description,money_price_xaf,money_price_usd`,
+    `${supabaseUrl}/rest/v1/relic_types?slug=eq.${encodeURIComponent(relicSlug)}&is_active=eq.true&select=id,slug,name,description,money_price_xaf,money_price_usd`,
     {
       headers: {
         apikey: supabaseServiceKey,
@@ -436,7 +438,7 @@ async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct
   const plans: SubscriptionPlan[] = await planRes.json();
   const plan = plans[0];
   if (!plan) throw new Error("The subscription plan is not available.");
-  const checkoutMode = campayEnvironment === "DEV" ? "demo" : "live";
+  const checkoutMode = !useFapshi && campayEnvironment === "DEV" ? "demo" : "live";
   const amountXaf = Math.round(Number(
     checkoutMode === "demo" ? plan.demo_amount_xaf : plan.amount_xaf,
   ));
@@ -465,14 +467,14 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
       ? "subscription"
       : "relic";
 
-    if (!user_id || (purchaseKind === "relic" && !relic_slug)) {
+    if (!user_id || (purchaseKind === "relic" && !relic_slug && provider_only !== true)) {
       return new Response(JSON.stringify({ error: "A product and user_id are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -485,6 +487,10 @@ Deno.serve(async (req: Request) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (provider_only === true) {
+      return Response.json({ payment_provider: useFapshi ? "fapshi" : "campay" }, { headers: corsHeaders });
     }
 
     const product = purchaseKind === "subscription"
@@ -509,6 +515,7 @@ Deno.serve(async (req: Request) => {
         amount_display: formatXaf(amountXaf),
         duration_days: product.durationDays,
         checkout_mode: product.checkoutMode,
+        payment_provider: useFapshi ? "fapshi" : "campay",
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -534,13 +541,81 @@ Deno.serve(async (req: Request) => {
     const provider = providerFor(payment_method, other_provider);
     const localAmount = amountXaf.toString();
 
-    if (payment_method === "other") {
+    if (!useFapshi && payment_method === "other") {
       return new Response(JSON.stringify({
         error: "This payment provider is not connected for automatic verification yet. Choose MTN MoMo or Orange Money.",
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (useFapshi) {
+      if (payment_method !== "fapshi_hosted") {
+        return Response.json({ error: "Refresh Full Circle to open the new Fapshi checkout." }, {
+          status: 409, headers: corsHeaders,
+        });
+      }
+      if (!Number.isInteger(amountXaf) || amountXaf < 300 || displayedAmountXaf !== amountXaf) {
+        return Response.json({ error: `Reopen checkout to confirm the price of ${formatXaf(amountXaf)}.` }, {
+          status: 409, headers: corsHeaders,
+        });
+      }
+      assertFapshiConfigured();
+      const reference = `fp_${crypto.randomUUID()}`;
+      const paymentResponse = (id: string, ref: string, amount: number, checkoutUrl: string | null | undefined) =>
+        Response.json({
+          status: "pending",
+          reference: ref,
+          payment_id: id,
+          payment_method,
+          provider: "Fapshi",
+          amount_local: amount,
+          currency_code: checkoutCurrency,
+          amount_display: formatXaf(amount),
+          checkout_url: checkoutUrl,
+          message: checkoutUrl
+            ? "Open Fapshi to pay with MTN MoMo or Orange Money."
+            : "A checkout is pending. Check its status before trying again.",
+        }, { headers: corsHeaders });
+      let paymentId: string;
+      try {
+        paymentId = await createPaymentRecord({
+          user_id,
+          relic_slug: product.slug,
+          relic_name: product.name,
+          purchase_kind: product.purchaseKind,
+          purchase_metadata: product.metadata,
+          amount_usd: amountUsd,
+          amount_local: amountXaf,
+          currency_code: checkoutCurrency,
+          provider: "Fapshi",
+          sender_phone: "",
+          status: "pending",
+          reference,
+          external_reference: reference,
+          payment_method,
+        });
+      } catch (error) {
+        const existing = await findPendingFapshiPayment(user_id, product.slug);
+        if (!existing) throw error;
+        return paymentResponse(existing.id, existing.reference, Number(existing.amount_local),
+          fapshiCheckoutUrl(existing.fapshi_checkout_url));
+      }
+      const result = await startFapshiPayment({ amount: amountXaf, reference, name: product.name });
+      if (result.declined) {
+        await rejectPayment(paymentId, null, "Fapshi could not start this payment.", {});
+        return Response.json({ error: "Fapshi could not start this payment. Try again later." }, {
+          status: 502, headers: corsHeaders,
+        });
+      }
+      if (result.transId) {
+        await updatePaymentRecord(paymentId, {
+          provider_reference: result.transId,
+          fapshi_checkout_url: result.checkoutUrl,
+        }).catch(() => {});
+      }
+      return paymentResponse(paymentId, reference, amountXaf, result.checkoutUrl);
     }
 
     const token = await getCampayToken();

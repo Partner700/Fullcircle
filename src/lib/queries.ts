@@ -2758,6 +2758,7 @@ export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(
 }
 
 export type CampayPaymentResult = {
+  checkout_url?: string | null;
   status: string;
   reference: string;
   payment_id?: string;
@@ -2779,6 +2780,7 @@ export type SubscriptionPlan = {
   duration_days: number;
   is_active: boolean;
   checkout_mode: 'demo' | 'live';
+  payment_provider: 'fapshi' | 'campay';
 };
 
 async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
@@ -2811,6 +2813,14 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
     ...data,
     reference: data.reference || data.tx_ref,
   } as CampayPaymentResult;
+}
+
+export async function fetchCheckoutProvider(userId: string): Promise<'campay' | 'fapshi'> {
+  const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+    body: { user_id: userId, provider_only: true },
+  });
+  if (error) throw error;
+  return data?.payment_provider === 'fapshi' ? 'fapshi' : 'campay';
 }
 
 export async function startCampayCheckout(
@@ -2877,13 +2887,14 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
     duration_days: Number(data.duration_days),
     is_active: true,
     checkout_mode: data.checkout_mode === 'demo' ? 'demo' : 'live',
+    payment_provider: data.payment_provider === 'fapshi' ? 'fapshi' : 'campay',
   };
 }
 
 export async function startSubscriptionCheckout(
   planId: string,
   userId: string,
-  paymentMethod: 'mtn_momo' | 'orange_money',
+  paymentMethod: 'mtn_momo' | 'orange_money' | 'fapshi_hosted',
   customerPhone: string,
   displayedAmountXaf: number,
   customerEmail?: string,

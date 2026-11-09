@@ -4,6 +4,8 @@ import {
   verifyCampayCallbackSignature,
 } from "../_shared/campay.ts";
 
+import { findFapshiPayment, isFapshiReference, verifyFapshiPayment } from "../_shared/fapshi.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -170,7 +172,7 @@ async function fetchPaymentByReference(reference: string): Promise<StoredPayment
 
   for (const column of columns) {
     const payRes = await fetch(
-      `${supabaseUrl}/rest/v1/mobile_money_payments?${column}=eq.${encodeURIComponent(reference)}&select=id,user_id,relic_slug,relic_name,purchase_kind,status,amount_local,currency_code,created_at`,
+      `${supabaseUrl}/rest/v1/mobile_money_payments?${column}=eq.${encodeURIComponent(reference)}&or=(reference.is.null,reference.not.like.fp_*)&select=id,user_id,relic_slug,relic_name,purchase_kind,status,amount_local,currency_code,created_at`,
       {
         headers: {
           apikey: supabaseServiceKey,
@@ -359,6 +361,15 @@ Deno.serve(async (req: Request) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (isFapshiReference(reference)) {
+      const payment = authenticatedUserId ? await findFapshiPayment(reference) : null;
+      if (!payment || payment.user_id !== authenticatedUserId) {
+        return Response.json({ error: "Payment not found for this account." }, { status: 404, headers: corsHeaders });
+      }
+      const result = await verifyFapshiPayment(payment);
+      return Response.json({ received: true, reference, status: result }, { headers: corsHeaders });
     }
 
     // Browser polling is deliberately limited to the signed-in user's own

@@ -1054,6 +1054,7 @@ export interface CurrencyInfo {
 }
 
 export interface MobileMoneyPayment {
+  fapshi_checkout_url?: string | null;
   id: string;
   user_id: string;
   relic_slug: string;

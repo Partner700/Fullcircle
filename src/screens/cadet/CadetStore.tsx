@@ -7,7 +7,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
@@ -104,6 +104,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [usingRelic, setUsingRelic] = useState<string | null>(null);
   const [buyingFreezer, setBuyingFreezer] = useState(false);
   const [buyingWeeklyFreezer, setBuyingWeeklyFreezer] = useState(false);
+  const [checkoutProvider, setCheckoutProvider] = useState<'loading' | 'campay' | 'fapshi' | 'error'>('loading');
   const [paymentModalRelic, setPaymentModalRelic] = useState<RelicType | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<StorePaymentMethod>('mtn_momo');
   const [payPhone, setPayPhone] = useState('');
@@ -242,7 +243,17 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setUsingRelic(null);
   };
 
+  useEffect(() => {
+    if (!profile || !paymentModalRelic) return;
+    let cancelled = false;
+    fetchCheckoutProvider(profile.id)
+      .then(provider => { if (!cancelled) setCheckoutProvider(provider); })
+      .catch(() => { if (!cancelled) setCheckoutProvider('error'); });
+    return () => { cancelled = true; };
+  }, [profile, paymentModalRelic]);
+
   const openPaymentModal = (relic: RelicType) => {
+    setCheckoutProvider('loading');
     setPaymentModalRelic(relic);
     setPaymentStartingQuantity(latestInventoryRef.current[relic.id] || 0);
     setPaymentMethod('mtn_momo');
@@ -279,10 +290,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       const result = await startCampayCheckout(
         slug,
         profile.id,
-        paymentMethod,
+        checkoutProvider === 'fapshi' ? 'fapshi_hosted' : paymentMethod,
         profile.email || undefined,
         profile.display_name || undefined,
-        phoneNumberForCountry(payPhone, profile.country_code) || undefined,
+        checkoutProvider === 'fapshi' ? undefined : phoneNumberForCountry(payPhone, profile.country_code) || undefined,
         otherProvider || undefined,
         verificationNote || undefined,
         displayedAmountXaf,
@@ -318,9 +329,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       const payment = payments.find((item) =>
         item.reference === paymentResult.reference ||
         item.external_reference === paymentResult.reference ||
-        item.provider_reference === paymentResult.provider_reference,
+        Boolean(paymentResult.provider_reference && item.provider_reference === paymentResult.provider_reference),
       );
-      if (delivered) {
+      if (delivered && !paymentResult.reference.startsWith('fp_')) {
         setPaymentResult((prev) => prev ? {
           ...prev,
           status: 'confirmed',
@@ -391,7 +402,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           item.external_reference === paymentReference ||
           item.provider_reference === paymentProviderReference,
         );
-        if (delivered || isPaymentSuccessful(payment?.status)) {
+        if ((delivered && !paymentReference.startsWith('fp_')) || isPaymentSuccessful(payment?.status)) {
           setPaymentResult((current) => current ? {
             ...current,
             status: 'confirmed',
@@ -834,7 +845,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                 <span className="text-sm text-stone">Amount:</span>
                 <span className="text-sm font-semibold text-gold">{formatXaf(relicMoneyPriceXaf(paymentModalRelic))}</span>
               </div>
-              <p className="text-xs text-stone">This is the exact amount sent to your phone for confirmation.</p>
+              <p className="text-xs text-stone">This is the amount you will pay at checkout.</p>
             </div>
 
             {paymentResult ? (
@@ -877,6 +888,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     </div>
                   </div>
                 </div>
+                {paymentResult.checkout_url && !paymentConfirmed && !paymentRejected && (
+                  <a className="btn-primary w-full justify-center" href={paymentResult.checkout_url} target="_blank" rel="noopener noreferrer">
+                    Open Fapshi Checkout
+                  </a>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   {paymentRejected ? (
                     <button onClick={retryPayment} className="btn-secondary text-sm">
@@ -892,6 +908,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   </button>
                 </div>
               </div>
+            ) : checkoutProvider === 'fapshi' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-stone">Pay with MTN MoMo or Orange Money on Fapshi.</p>
+                <button onClick={submitPayment} disabled={paySubmitting} className="btn-primary w-full text-sm disabled:opacity-50">
+                  {paySubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  {paySubmitting ? 'Preparing checkout…' : 'Continue to Fapshi'}
+                </button>
+              </div>
+            ) : checkoutProvider !== 'campay' ? (
+              <p className="text-sm text-stone">{checkoutProvider === 'loading' ? 'Checking payment options…' : 'Checkout is unavailable. Reopen it to try again.'}</p>
             ) : (
               <div className="space-y-4">
                 <div>
