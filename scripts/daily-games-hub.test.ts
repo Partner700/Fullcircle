@@ -60,7 +60,13 @@ const cadetPremiumTabs = cadetApp.match(/const PREMIUM_TABS = new Set<Tab>\(\[([
 assert.ok(cadetPremiumTabs, 'Cadet routes must declare their premium access boundary.');
 assert.match(cadetPremiumTabs, /'arena'/);
 assert.doesNotMatch(cadetPremiumTabs, /'(?:games|game|quiz)'/, 'Resident streak activities stay available without a subscription.');
-assert.match(sentryApp, /PREMIUM_TABS = new Set<Tab>\(\['games', 'game', 'arena', 'story'/);
+const sentryPremiumTabs = sentryApp.match(/const PREMIUM_TABS = new Set<Tab>\(\[([^\]]+)\]\)/)?.[1];
+assert.ok(sentryPremiumTabs, 'Sentry routes must declare their premium access boundary.');
+assert.match(sentryPremiumTabs, /'arena'/);
+assert.doesNotMatch(sentryPremiumTabs, /'(?:games|game)'/, 'Sentry Daily Games stay available without a subscription.');
+assert.doesNotMatch(sentryApp, /tab === '(?:games|game)' && \(isExpired/, 'Daily Games must render for expired sentries.');
+const sharedDestination = read('src/screens/MemberShareDestination.tsx');
+assert.match(sharedDestination, /const protectedTarget = target.kind === 'quiz' \|\| target.kind === 'arena';/);
 
 for (const requiredActivityBoundary of [
   'get_game_activity_players',

@@ -70,7 +70,7 @@ export function ResidentWelcomeQuiz({ onReading, onGames }: { onReading: () => v
         {reading ? (
           <>
             {state?.status === 'complete' && <p className="text-sm text-ink">{state.score} of 3 correct. {rewards[state.score]}</p>}
-            <p className="text-sm text-stone">On weekdays, submit your meditation and finish all seven Daily Game levels. On Saturday, take the quiz. On Sunday, open today’s reading.</p>
+            <p className="text-sm text-stone">On weekdays, submit your meditation and pass Level 1 of Daily Trivia. On Saturday, take the quiz. On Sunday, open today’s reading.</p>
             <button type="button" className="btn-primary" onClick={() => { setClosed(true); onGames(); }}>Open Daily Games</button>
             <button type="button" className="btn-secondary ml-2" onClick={() => setClosed(true)}>Keep reading</button>
           </>

@@ -126,6 +126,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onProgress }: DailyGa
           <p className="eyebrow text-brass">Daily Games</p>
           <h2 className="mt-1 font-display text-2xl font-semibold text-ink">Choose today&apos;s challenge</h2>
           <p className="mt-1 max-w-2xl text-sm text-stone">Train in Scripture, enter the Arena, or continue your journey through the Bible.</p>
+          {!weeklyNarrativeDay && <p className="mt-1 text-sm text-stone">For your weekday streak, send your meditation and pass Level 1 of Daily Trivia.</p>}
         </div>
         {loading && (
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-stone">
