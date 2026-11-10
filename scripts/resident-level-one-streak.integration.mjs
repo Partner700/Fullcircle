@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 
 const db = new PGlite();
-const migration = readFileSync(new URL('../supabase/migrations/20261110143108_open_daily_games_and_level_one_streaks.sql', import.meta.url), 'utf8')
+const migration = readFileSync(new URL('../supabase/migrations/20261110143419_open_daily_games_and_level_one_streaks.sql', import.meta.url), 'utf8')
   .replaceAll('now()', "timestamptz '2026-11-11 18:00:00+00'");
 const residents = Array.from({ length: 7 }, (_, i) => `00000000-0000-4000-8000-00000000000${i + 1}`);
 const weekday = '2026-11-11';
