@@ -1,3 +1,4 @@
+import { MobileMoneyApprovalHelp } from '../../components/MobileMoneyApprovalHelp';
 import { FcxFapshiCheckout } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -133,6 +134,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const paymentReference = paymentResult?.reference || '';
   const paymentProviderReference = paymentResult?.provider_reference || '';
   const activePaymentMethod = paymentResult?.payment_method || '';
+  const awaitingDirectApproval = paymentReference.startsWith('fp_')
+    && (activePaymentMethod === 'mtn_momo' || activePaymentMethod === 'orange_money')
+    && !paymentResult?.checkout_url && !paymentConfirmed && !paymentRejected;
 
   useEffect(() => {
     if (!paymentResult?.status) return;
@@ -311,7 +315,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setCheckingPayment(true);
     try {
       const refs = Array.from(new Set([
-        paymentResult.provider_reference,
+        paymentResult.reference.startsWith('fp_') ? null : paymentResult.provider_reference,
         paymentResult.reference,
       ].filter(Boolean))) as string[];
       for (const ref of refs) {
@@ -382,7 +386,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       if (cancelled) return false;
       try {
         const refs = Array.from(new Set([
-          paymentProviderReference,
+          paymentReference.startsWith('fp_') ? null : paymentProviderReference,
           paymentReference,
         ].filter(Boolean))) as string[];
         for (const ref of refs) {
@@ -400,7 +404,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         const payment = payments.find((item) =>
           item.reference === paymentReference ||
           item.external_reference === paymentReference ||
-          item.provider_reference === paymentProviderReference,
+          Boolean(paymentProviderReference && item.provider_reference === paymentProviderReference),
         );
         if ((delivered && !paymentReference.startsWith('fp_')) || isPaymentSuccessful(payment?.status)) {
           setPaymentResult((current) => current ? {
@@ -441,7 +445,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       if (elapsed >= 300_000) {
         window.clearInterval(interval);
       }
-    }, 1500);
+    }, paymentReference.startsWith('fp_') ? 15_000 : 1500);
 
     return () => {
       cancelled = true;
@@ -462,7 +466,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           const matches =
             payment.reference === paymentReference ||
             payment.external_reference === paymentReference ||
-            payment.provider_reference === paymentProviderReference;
+            Boolean(paymentProviderReference && payment.provider_reference === paymentProviderReference);
           if (!matches) return;
           if (isPaymentSuccessful(payment.status)) {
             setPaymentResult((current) => current ? {
@@ -864,17 +868,21 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       <CheckCircle2 size={20} className="text-moss flex-shrink-0 mt-0.5" />
                     ) : paymentRejected ? (
                       <X size={20} className="text-roman flex-shrink-0 mt-0.5" />
+                    ) : awaitingDirectApproval ? (
+                      <Smartphone size={20} className="text-brass flex-shrink-0 mt-0.5" />
                     ) : (
                       <Loader2 size={20} className="text-brass flex-shrink-0 mt-0.5 animate-spin" />
                     )}
                     <div className="space-y-1">
                       <p className="font-display font-semibold text-ink">
-                        {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment Not Confirmed' : 'Awaiting Payment Confirmation'}
+                        {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment Not Confirmed' : awaitingDirectApproval ? 'Mobile money approval pending' : 'Awaiting Payment Confirmation'}
                       </p>
-                      <p className="text-sm text-stone">
-                        {paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
-                      </p>
-                      {!paymentConfirmed && !paymentRejected && (
+                      {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={activePaymentMethod} /> : (
+                        <p className="text-sm text-stone">
+                          {paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
+                        </p>
+                      )}
+                      {!awaitingDirectApproval && !paymentConfirmed && !paymentRejected && (
                         <p className="text-xs text-stone">Your inventory is checked automatically while confirmation is pending.</p>
                       )}
                       {(paymentResult.amount_display || paymentResult.amount_local) && (
