@@ -1,3 +1,4 @@
+import { regionalDateTime } from '../../lib/regionalPreferences';
 import { SentryArenaScheduler, type SentryScheduleRoster } from '../../components/SentryArenaScheduler';
 import PuzzleTrivia from './PuzzleTrivia';
 import PreludeTrivia from './PreludeTrivia';
@@ -1264,7 +1265,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       {instructorSchedule && rooms.some((room) => room.scheduled && room.status === 'waiting') && <section className="space-y-2">
         <h3 className="font-display text-sm font-semibold text-ink">Scheduled matches</h3>
         {rooms.filter((room) => room.scheduled && room.status === 'waiting').map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
-          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{new Date(room.scheduled_start_at).toLocaleString()} · {(room.scheduled_player_ids || []).length} selected players</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{regionalDateTime(room.scheduled_start_at, profile)} · {(room.scheduled_player_ids || []).length} selected players</p></div>
           <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
           <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>
           <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>

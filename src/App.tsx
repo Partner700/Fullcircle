@@ -1,3 +1,4 @@
+import { interfaceLanguage } from './lib/regionalPreferences';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useScrollBoundaryFades } from './lib/useScrollBoundaryFades';
@@ -64,7 +65,8 @@ export default function App() {
   const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
   const authenticatedUserId = session?.user.id || null;
   const authenticatedProfileId = profile?.id || null;
-  useFrenchUiTranslation(profile?.language_code);
+  const language = interfaceLanguage(profile?.language_code);
+  useFrenchUiTranslation(language);
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
   }, []);
@@ -92,8 +94,8 @@ export default function App() {
   }, [loading]);
 
   useEffect(() => {
-    document.documentElement.lang = profile?.language_code || 'en';
-  }, [profile?.language_code]);
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     if (!authenticatedUserId || !authenticatedProfileId) {

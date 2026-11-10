@@ -1,3 +1,5 @@
+import { useAuth } from '../context/AuthContext';
+import { regionalDateTime } from '../lib/regionalPreferences';
 import { FcxFapshiCheckout } from './FcxFapshiCheckout';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
@@ -55,6 +57,7 @@ function countdownParts(targetDate: string, nowMs: number) {
 }
 
 export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
+  const { profile } = useAuth();
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
@@ -173,7 +176,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       <div className="mt-4 min-w-0">
         <p className="eyebrow flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold text-stone">
-          <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
+          <CalendarDays size={13} /> {visibleExperience.event_date ? regionalDateTime(getAppDateTimeMs(countdownDate, FCX_START_HOUR), profile) : eventDateLabel(visibleExperience)}
           <span>· 12:00 PM</span>
           {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
         </p>

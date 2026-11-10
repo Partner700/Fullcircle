@@ -24,6 +24,33 @@ const TEXT_FR: Record<string, string> = {
   "WhatsApp Number (so your sentry and instructor can contact you)": 'Numéro WhatsApp (pour que votre sentinelle et votre instructeur puissent vous joindre)',
   'Country': 'Pays',
   'Language': 'Langue',
+  'App language': 'Langue de l’application',
+  'Time zone': 'Fuseau horaire',
+  'Use device time zone': 'Utiliser le fuseau horaire de l’appareil',
+  'Shared deadlines and events show in this time zone.': 'Les échéances et événements communs sont affichés dans ce fuseau horaire.',
+  'Bible edition': 'Version de la Bible',
+  'Loading selected Bible edition…': 'Chargement de la version biblique choisie…',
+  'Verses unavailable in this edition use the published text.': 'Les versets indisponibles dans cette version sont affichés dans la version publiée.',
+  'Featured verse in the published edition': 'Verset à retenir dans la version publiée',
+  'Verse of the Week': 'Verset de la semaine',
+  'Save profile information': 'Enregistrer le profil',
+  'Previous Reading': 'Lecture précédente',
+  'My Profile': 'Mon profil',
+  'My Streak': 'Ma série',
+  'My Tent': 'Ma tente',
+  'My Cadets': 'Mes cadets',
+  'Mark Attendance': 'Marquer les présences',
+  'Challenge Boards': 'Classements des défis',
+  'The Market': 'Le marché',
+  'Your Profile': 'Votre profil',
+  'My Stats': 'Mes statistiques',
+  'Published edition': 'Version publiée',
+  'Schedule a tent match': 'Programmer un match de tente',
+  'Start date and time (Douala)': 'Date et heure de début (Douala)',
+  'Your local time': 'Votre heure locale',
+  'My Alarms': 'Mes alarmes',
+  'Add alarm': 'Ajouter une alarme',
+  'Save alarm': 'Enregistrer l’alarme',
   'Birthday': 'Anniversaire',
   'Save': 'Enregistrer',
   'Saved successfully': 'Enregistré avec succès',
@@ -162,8 +189,6 @@ const TEXT_FR: Record<string, string> = {
   'Recent Reviews': 'Avis récents',
   'No pending challenges.': 'Aucun défi en attente.',
   'No challenge submissions': 'Aucune soumission de défi',
-  'My Tent': 'Ma tente',
-  'My Stats': 'Mes statistiques',
   'Send WhatsApp Message': 'Envoyer un message WhatsApp',
   'Send via WhatsApp': 'Envoyer via WhatsApp',
 };
@@ -234,6 +259,8 @@ function translateStaticText(value: string) {
     translated = translated.replace(pattern, replacement);
   });
   if (translated !== compact) return translated;
+  const publishedEdition = compact.match(/^Published edition (\(.+\))$/);
+  if (publishedEdition) return `Version publiée ${publishedEdition[1]}`;
   const loading = compact.match(/^Loading (.+?)(?:\.{3}|…)$/);
   if (loading) return `Chargement de ${loading[1].toLowerCase()}...`;
   const posted = compact.match(/^Posted (.+)$/);

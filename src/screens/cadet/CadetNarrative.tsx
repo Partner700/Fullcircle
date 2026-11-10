@@ -1,3 +1,4 @@
+import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
 import { MeditationExtension } from '../../components/MeditationExtension';
 import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -328,6 +329,19 @@ export function CadetNarrative({
   const [meditationImage, setMeditationImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
+  const storedEdition = useMemo(() => readScriptureEdition(profile?.id, profile?.language_code), [profile?.id, profile?.language_code]);
+  const [editionSelection, setEditionSelection] = useState<{ userId?: string; value: string } | null>(null);
+  const edition = editionSelection && editionSelection.userId === profile?.id
+    ? editionSelection.value
+    : storedEdition;
+  const selectedEdition = SCRIPTURE_EDITIONS.find((item) => item.value === edition);
+  const [editionResult, setEditionResult] = useState<{
+    edition: string; verses: ScriptureVerse[];
+    result: Awaited<ReturnType<typeof fetchEditionVerses>>;
+  } | null>(null);
+  const editionContent = editionResult?.edition === edition && editionResult.verses === readerVerses
+    ? editionResult.result : null;
+
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
   const [hiddenVerseMarkers, setHiddenVerseMarkers] = useState<HiddenVerseChallengeMarker[]>([]);
   const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
@@ -665,6 +679,23 @@ export function CadetNarrative({
   }, [narrative]);
 
   useEffect(() => {
+    if (edition === 'published' || !readerVerses.length) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9_000);
+    void fetchEditionVerses(edition, readerVerses.map((verse) => verse.reference), controller.signal)
+      .then((result) => {
+        if (!cancelled) setEditionResult({ edition, verses: readerVerses, result });
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [edition, readerVerses]);
+
+  useEffect(() => {
     if (!conversationNarrativeIds.length) return;
     let cancelled = false;
     fetchVerseInsights(conversationNarrativeIds, profile?.id).then((items) => {
@@ -988,6 +1019,14 @@ export function CadetNarrative({
   }));
   const verseChoices = displayVerses.map((verse) => ({ value: verse.reference, label: verse.reference }));
   const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
+  const comparableText = (value: string) => value.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
+  const featuredText = comparableText(narrative.verse_of_day || '');
+  const featuredVerse = featuredText ? displayVerses.find((verse) => comparableText(verse.text) === featuredText) : undefined;
+  const featuredTranslation = featuredVerse ? editionContent?.translations.get(featuredVerse.reference) : undefined;
+  const hasEditionFallback = edition !== 'published' && (
+    !readerVerses.length || (editionContent && displayVerses.some((verse) => !editionContent.translations.has(verse.reference)))
+  );
+
 
   return (
     <div
@@ -1061,8 +1100,11 @@ export function CadetNarrative({
             'font-display text-ink',
             isSundayRest ? 'max-h-[calc(60svh-7.5rem)] overflow-y-auto pr-1 text-base leading-relaxed sm:text-lg' : 'text-xl leading-snug',
           )}>
-            &ldquo;{narrative.verse_of_day}&rdquo;
+            <span data-no-translate lang={featuredTranslation ? selectedEdition?.language : undefined}>&ldquo;{featuredTranslation || narrative.verse_of_day}&rdquo;</span>
           </p>
+          {edition !== 'published' && !featuredTranslation && (
+            <p className="mt-1 text-xs text-stone">Featured verse in the published edition</p>
+          )}
           <ScrollEdge position="bottom" className={cn('text-brass', isSundayRest ? 'mt-2' : 'mt-3')} />
           </div>
         </div>
@@ -1080,6 +1122,26 @@ export function CadetNarrative({
         <div className="flex items-center gap-2 mb-3">
           <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
           <span className="eyebrow text-stone">Scripture</span>
+        </div>
+        <div className="mb-3 max-w-sm">
+          <p className="mb-1 text-xs font-semibold text-stone">Bible edition</p>
+          <AppSelect
+            ariaLabel="Bible edition"
+            value={edition}
+            onChange={(value) => {
+              saveScriptureEdition(value, profile?.id);
+              setEditionSelection({ userId: profile?.id, value });
+            }}
+            options={SCRIPTURE_EDITIONS.map((item) => ({
+              value: item.value,
+              label: item.value === 'published' ? `Published edition (${narrative.translation || 'WEB'})` : item.label,
+            }))}
+          />
+          {edition !== 'published' && readerVerses.length > 0 && !editionContent && (
+            <p className="mt-1 text-xs text-stone" role="status">Loading selected Bible edition…</p>
+          )}
+          {hasEditionFallback && <p className="mt-1 text-xs text-stone">Verses unavailable in this edition use the published text.</p>}
+          {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
         </div>
         <ScrollEdge position="top" className="text-brass mb-4" />
         <div className="space-y-4 sm:space-y-5">
@@ -1122,7 +1184,7 @@ export function CadetNarrative({
                   className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
                   aria-expanded={hasInsight ? expanded : undefined}
                 >
-                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
+                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span><span data-no-translate lang={editionContent?.translations.has(verse.reference) ? selectedEdition?.language : undefined}>{editionContent?.translations.get(verse.reference) || verse.text}</span></p>
                   <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
                     {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
                   </span>
@@ -1345,7 +1407,7 @@ export function CadetNarrative({
             );
           }) : fetchedVerses.map((verse, index) => (
             <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
-              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
+              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span><span data-no-translate>{verse.text}</span></p>
             </article>
           ))}
         </div>

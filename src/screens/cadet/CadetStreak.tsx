@@ -1,10 +1,11 @@
+import { regionalDateTime } from '../../lib/regionalPreferences';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
 import { fetchDailyRecords, fetchStrictStreak } from '../../lib/queries';
-import { getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
+import { getAppDateTimeMs, getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import type { DailyRecord, RemovalState, StreakInfo } from '../../lib/types';
 import {
   Flame, Calendar, TrendingUp, AlertTriangle, ShieldCheck, XCircle,
@@ -428,7 +429,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
             />
             <p>
               <strong className="text-ink">Sundays:</strong> Open Today&apos;s
-              Reading before 9:00 PM to receive the Sunday streak. No meditation
+              Reading before {regionalDateTime(getAppDateTimeMs(todayISO, 21), profile)} to receive the Sunday streak. No meditation
               or attendance is required.
             </p>
           </div>

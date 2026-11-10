@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { regionalDateTime } from '../lib/regionalPreferences';
+import { getAppDateTimeMs } from '../lib/utils';
 
 type Cadet = { user_id: string; profiles: { display_name: string } };
 
@@ -8,6 +11,7 @@ export type SentryScheduleRoster = { tentId: string; members: Cadet[] };
 export function SentryArenaScheduler({ tentId, members, onScheduled }: SentryScheduleRoster & {
   onScheduled: () => void;
 }) {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [game, setGame] = useState('standard');
@@ -16,12 +20,15 @@ export function SentryArenaScheduler({ tentId, members, onScheduled }: SentrySch
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const players = selected.filter(id => members.some(member => member.user_id === id));
+  const campTime = time.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/);
+  const startsAt = campTime
+    ? new Date(getAppDateTimeMs(campTime[1], Number(campTime[2]), Number(campTime[3])))
+    : null;
 
   const schedule = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy || players.length < 2 || players.length > 4) return;
-    const startsAt = new Date(time + '+01:00');
-    if (!Number.isFinite(startsAt.getTime())) {
+    if (!startsAt || !Number.isFinite(startsAt.getTime())) {
       setStatus('Choose a start date and time.');
       return;
     }
@@ -80,6 +87,7 @@ export function SentryArenaScheduler({ tentId, members, onScheduled }: SentrySch
             <input className="input mt-1 w-full" type="datetime-local" required value={time}
               onChange={event => setTime(event.target.value)} />
           </label>
+          {startsAt && <p className="text-xs text-stone"><span>Your local time</span> · {regionalDateTime(startsAt, profile)}</p>}
           <fieldset className="space-y-2" disabled={busy}>
             <legend className="text-sm font-semibold text-ink">Cadets ({players.length}/4)</legend>
             {members.map(member => {
