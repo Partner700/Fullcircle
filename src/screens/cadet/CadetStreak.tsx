@@ -406,8 +406,8 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
 	            />
 	            <p>
 	              <strong className="text-ink">Weekday Rhythm:</strong> A weekday
-	              counts only when you submit your daily meditation and finish all seven Daily Game levels.
-	              Tent members can attend the morning call in place of the seven levels.
+	              counts when you submit your meditation and pass Level 1 of Daily Trivia.
+	              If you’re in a Tent or have a subscription, a recorded morning call can count in place of Level 1.
 	            </p>
 	          </div>
 	          <div className="flex gap-3">

@@ -75,7 +75,7 @@ const SENTRY_LEADERSHIP_SCRIPTURES = [
 type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
 const SENTRY_TABS: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'games', 'game', 'arena', 'story', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
-const PREMIUM_TABS = new Set<Tab>(['games', 'game', 'arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
+const PREMIUM_TABS = new Set<Tab>(['arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
 
 type StrictStreakData = {
   current_streak: number;
@@ -655,14 +655,14 @@ export function SentryApp() {
       {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} onChanged={load} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
-      {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
+      {tab === 'games' && (
         <DailyGamesHub
-            onProgress={load}
+          onProgress={load}
           onOpenTrivia={() => handleNavigate('game')}
           onOpenArena={() => handleNavigate('arena')}
         />
-      ))}
-      {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />)}
+      )}
+      {tab === 'game' && <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />}
       {tab === 'arena' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
           <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')}

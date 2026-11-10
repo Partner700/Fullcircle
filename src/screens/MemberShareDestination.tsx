@@ -76,7 +76,7 @@ export function MemberShareDestination({ target, onHome }: { target: ShareDestin
     return () => { active = false; };
   }, [profile?.id, retry]);
   const expired = role !== 'instructor' && subscriptionIsExpired(status);
-  const protectedTarget = target.kind === 'quiz' || target.kind === 'game' || target.kind === 'arena';
+  const protectedTarget = target.kind === 'quiz' || target.kind === 'arena';
   const title = { reading: 'Bible reading', quiz: 'Quiz', game: 'Daily Trivia', arena: 'Arena', birthday: 'Birthday celebration' }[target.kind];
   const home = () => { signalActiveQuizExitIntent(); onHome(); };
   return <AppShell headerTitle={title} activeKey={subscribe ? 'subscribe' : 'shared'}
