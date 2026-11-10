@@ -2309,7 +2309,7 @@ assert.doesNotMatch(schemaSafeRoleHelpers, /FROM role_assignments|FROM tent_memb
 assert.match(instructorBoardsGrantCelebrationsAndVallum, /GRANT EXECUTE ON FUNCTION public\.get_current_avatar_awards\(\) TO anon, authenticated, service_role/);
 assert.match(calendarUtilities, /FULL_CIRCLE_WHATSAPP_CONTACT = '\+237683081463'/);
 assert.match(fcxExperience, /whatsappUrl\(FULL_CIRCLE_WHATSAPP_CONTACT\)/);
-assert.match(cadetStore, /href=\{FCX_PAYMENT_URL\}/);
+assert.match(cadetStore, /<FcxFapshiCheckout/);
 assert.doesNotMatch(fcxExperience, /fetchFcxTicketContact/);
 assert.doesNotMatch(cadetStore, /fetchFcxTicketContact/);
 
@@ -2558,7 +2558,7 @@ assert.match(birthdayReactions, /searchParams\.set\('share', 'birthday'\)/);
 assert.match(birthdayApi, /get_public_birthday_announcement/);
 assert.match(publicShareScreen, /kind === 'birthday'/);
 assert.match(cadetStore, /Full Circle Experience Ticket/);
-assert.match(cadetStore, /Pay online/);
+assert.match(cadetStore, /Pay with Fapshi/);
 assert.match(cadetStore, /refreshMutableStoreState/);
 assert.match(cadetStore, /Purchase complete\. Your relic has been added to your inventory\./);
 assert.doesNotMatch(cadetStore, /Payment was not confirmed within 35 seconds\. No relic was added/);
@@ -2721,7 +2721,7 @@ assert.match(calendarUtilities, /visibleStreakFreezersForCurrentWeek/);
 assert.match(calendarUtilities, /activityDate >= weekStart && activityDate <= today/);
 assert.match(cadetNarrative, /ReadingArchiveBrowser[\s\S]*image=\{readingImage\}/);
 assert.match(cadetNarrative, /No reading published[\s\S]*PanelImageBackdrop/);
-assert.match(fcxExperience, /aria-label="Pay for the Full Circle Experience"/);
+assert.match(read("src/components/FcxFapshiCheckout.tsx"), /aria-label="Pay for FCX with Fapshi"/);
 assert.match(fcxExperience, /CircleDollarSign size=\{16\}/);
 assert.match(fcxExperience, />Pay<\/span>/);
 assert.match(fcxExperience, /aria-label="Ask about the Full Circle Experience"/);

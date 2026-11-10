@@ -2815,6 +2815,16 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   } as CampayPaymentResult;
 }
 
+export function startFcxFapshiCheckout(eventId: string, userId: string, amount: number) {
+  return requestCampayCheckout({
+    purchase_kind: 'fcx_ticket',
+    fcx_event_id: eventId,
+    user_id: userId,
+    payment_method: 'fapshi_hosted',
+    displayed_amount_xaf: amount,
+  });
+}
+
 export async function fetchCheckoutProvider(userId: string): Promise<'campay' | 'fapshi'> {
   const { data, error } = await supabase.functions.invoke('create-checkout-session', {
     body: { user_id: userId, provider_only: true },

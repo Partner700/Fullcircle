@@ -66,6 +66,20 @@ globalThis.fetch = async (input, init = {}) => {
     return json(providerPayment);
   }
   if (url.pathname === '/transaction/' + payment?.reference) return json([providerPayment]);
+  if (url.pathname.endsWith('/rpc/reserve_fcx_fapshi_checkout')) {
+    assert.equal(body.p_user_id, 'cadet');
+    assert.equal(body.p_event_id, '11111111-1111-4111-8111-111111111111');
+    if (body.p_displayed_amount !== 3000) return json({ code: 'P0001', message: 'The FCX price has changed.' }, 400);
+    const created = payment?.purchase_kind !== 'fcx_ticket';
+    if (created) payment = {
+      id: crypto.randomUUID(), user_id: body.p_user_id, reference: body.p_reference,
+      purchase_kind: 'fcx_ticket', currency_code: 'XAF', amount_local: 3000, status: 'pending',
+    };
+    return json({
+      id: payment.id, reference: payment.reference, amount: payment.amount_local, title: 'FCX',
+      checkout_url: payment.fapshi_checkout_url, created,
+    });
+  }
   if (url.pathname.endsWith('/mobile_money_payments')) {
     if (init.method === 'POST') {
       if (payment?.status === 'pending') return json({}, 409);
@@ -133,4 +147,19 @@ providerPayment.status = 'SUCCESSFUL';
 assert.equal((await (await status(req({ reference: delayed.reference }, cadet))).json()).status, 'confirmed');
 assert.deepEqual(deliveries, ['finalize_campay_payment', 'finalize_subscription_payment']);
 assert.equal(createCount, 2);
-console.log('Fapshi checkout and payment verification passed.');
+lostResponse = false;
+const fcx = {
+  user_id: 'cadet', purchase_kind: 'fcx_ticket', fcx_event_id: '11111111-1111-4111-8111-111111111111',
+  displayed_amount_xaf: 3000, payment_method: 'fapshi_hosted',
+};
+assert.equal((await checkout(req({ ...fcx, displayed_amount_xaf: 300 }, cadet))).status, 409);
+assert.equal((await checkout(req(fcx, { Authorization: 'Bearer other' }))).status, 403);
+const ticket = await (await checkout(req(fcx, cadet))).json();
+assert.equal(ticket.checkout_url, 'https://pay.fapshi.com/test_id');
+assert.equal((await (await checkout(req(fcx, cadet))).json()).reference, ticket.reference);
+assert.equal(createCount, 3);
+providerPayment.status = 'SUCCESSFUL';
+assert.equal((await webhook(req(providerPayment, hook))).status, 200);
+assert.equal((await webhook(req(providerPayment, hook))).status, 200);
+assert.deepEqual(deliveries, ['finalize_campay_payment', 'finalize_subscription_payment', 'finalize_fcx_fapshi_payment']);
+console.log('Fapshi relic, subscription and FCX checkout verification passed.');

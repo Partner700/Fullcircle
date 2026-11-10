@@ -406,8 +406,8 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
 	            />
 	            <p>
 	              <strong className="text-ink">Weekday Rhythm:</strong> A weekday
-	              counts only when your sentry marks you present for the morning
-	              call and you submit your daily devotion.
+	              counts only when you submit your daily meditation and finish all seven Daily Game levels.
+	              Tent members can attend the morning call in place of the seven levels.
 	            </p>
 	          </div>
 	          <div className="flex gap-3">
@@ -513,9 +513,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
         <EmptyState
           icon={Award}
           title="No Records Yet"
-          message={role === 'sentry'
-            ? 'Your personal streak records will appear here once you submit meditations or complete streak-valid activities.'
-            : 'Your daily streak records will appear here once your sentry begins marking attendance.'}
+          message="Your streak records will appear here once you complete streak activities."
         />
       )}
     </div>

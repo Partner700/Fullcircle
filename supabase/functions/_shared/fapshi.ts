@@ -8,7 +8,7 @@ export type FapshiPayment = {
   user_id: string;
   reference: string;
   provider_reference: string | null;
-  purchase_kind: "relic" | "subscription";
+  purchase_kind: "relic" | "subscription" | "fcx_ticket";
   amount_local: number;
   currency_code: string;
   status: string;
@@ -205,7 +205,11 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
     },
   };
   if (verified.status === "SUCCESSFUL") {
-    const rpc = payment.purchase_kind === "subscription" ? "finalize_subscription_payment" : "finalize_campay_payment";
+    const rpc = {
+      subscription: "finalize_subscription_payment",
+      relic: "finalize_campay_payment",
+      fcx_ticket: "finalize_fcx_fapshi_payment",
+    }[payment.purchase_kind];
     await database(`rpc/${rpc}`, {
       method: "POST",
       body: JSON.stringify({ ...common, p_verified_amount: verified.amount, p_verified_currency: "XAF" }),
