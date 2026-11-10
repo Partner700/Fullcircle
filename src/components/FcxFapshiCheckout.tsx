@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
-import { startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult } from '../lib/queries';
+import { fetchCheckoutProvider, startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult, type CheckoutProvider } from '../lib/queries';
 import type { FcxExperience } from '../lib/types';
 
 export function FcxFapshiCheckout({ experience, className, children, onConfirmed }: {
@@ -13,6 +13,9 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const { session } = useAuth();
   const userId = session?.user.id;
   const [payment, setPayment] = useState<CampayPaymentResult | null>(null);
+  const [provider, setProvider] = useState<CheckoutProvider | null>(null);
+  const [method, setMethod] = useState<'mtn_momo' | 'orange_money'>('mtn_momo');
+  const [phone, setPhone] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -40,12 +43,29 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [confirmed, onConfirmed, open, payment]);
 
+  async function openCheckout() {
+    if (!userId) return;
+    setOpen(true);
+    setError('');
+    setProvider(null);
+    try {
+      setProvider(await fetchCheckoutProvider(userId));
+    } catch {
+      setError('Payment options are unavailable. Close and reopen checkout to retry.');
+    }
+  }
+
   async function prepare() {
-    if (!userId || !amount || busy) return;
+    if (!userId || !amount || busy || (provider !== 'fapshi' && provider !== 'fapshi_direct')) return;
+    const direct = provider === 'fapshi_direct';
+    if (direct && !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
+      setError('Enter a valid Cameroon mobile money number.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      setPayment(await startFcxFapshiCheckout(experience.id, userId, amount));
+      setPayment(await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Checkout could not start.');
     } finally {
@@ -56,7 +76,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   if ((!userId || registered || !amount || amount < 300) && !open) return null;
   return (
     <>
-      <button type="button" className={className} aria-label="Pay for FCX with Fapshi" onClick={() => setOpen(true)}>{children}</button>
+      <button type="button" className={className} aria-label="Pay for FCX with Fapshi" onClick={() => void openCheckout()}>{children}</button>
       {open && createPortal(
         <div className="fixed inset-0 z-[165] grid place-items-center bg-ink/60 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="fcx-fapshi-title" className="card w-full max-w-sm space-y-4 p-5">
@@ -67,14 +87,33 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
               <>
                 <p role="status" className="text-sm text-stone">Your place is held while Fapshi verifies the payment.</p>
                 {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Open Fapshi checkout</a>
-                  : <p className="text-sm text-stone">The link is being checked. Leave this open or reopen checkout later.</p>}
+                  : <p className="text-sm text-stone">If you received a payment prompt, approve it on your phone with your mobile money PIN. Full Circle will confirm the payment here.</p>}
               </>
             ) : (
               <>
                 <p className="text-sm text-stone">{amount?.toLocaleString()} FCFA via MTN MoMo or Orange Money.</p>
-                <button type="button" className="btn-primary" disabled={busy} onClick={() => void prepare()}>
-                  {busy ? 'Preparing checkout…' : 'Continue to Fapshi'}
-                </button>
+                {provider === 'fapshi_direct' && (
+                  <>
+                    <label className="block text-sm">Mobile money service
+                      <select className="input-field mt-1 w-full" value={method}
+                        onChange={event => setMethod(event.target.value === 'orange_money' ? 'orange_money' : 'mtn_momo')}>
+                        <option value="mtn_momo">MTN MoMo</option>
+                        <option value="orange_money">Orange Money</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm">Mobile money number
+                      <input className="input-field mt-1 w-full" type="tel" autoComplete="tel" value={phone}
+                        placeholder="6XX XXX XXX" onChange={event => setPhone(event.target.value)} />
+                    </label>
+                  </>
+                )}
+                {provider === 'fapshi' || provider === 'fapshi_direct' ? (
+                  <button type="button" className="btn-primary" disabled={busy} onClick={() => void prepare()}>
+                    {busy ? 'Preparing checkout…' : provider === 'fapshi_direct' ? 'Send payment prompt' : 'Continue to Fapshi'}
+                  </button>
+                ) : provider === 'campay' ? (
+                  <p className="text-sm text-stone">FCX mobile money checkout is unavailable.</p>
+                ) : !error && <p role="status" className="text-sm text-stone">Checking payment options…</p>}
               </>
             )}
             {error && <p role="alert" className="text-sm text-coral">{error}</p>}

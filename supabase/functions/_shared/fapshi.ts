@@ -14,6 +14,7 @@ export type FapshiPayment = {
   status: string;
   created_at: string;
   fapshi_checkout_url: string | null;
+  payment_method: string | null;
 };
 
 export function isFapshiReference(value: string): boolean {
@@ -64,10 +65,15 @@ export async function startFapshiPayment(input: {
   amount: number;
   reference: string;
   name: string;
+  mobileMoney?: { phone: string; medium: "mobile money" | "orange money"; payerName?: string; email?: string };
 }): Promise<{ transId?: string; checkoutUrl?: string; declined?: true }> {
   try {
-    const response = await api("/initiate-pay", {
+    const response = await api(input.mobileMoney ? "/direct-pay" : "/initiate-pay", {
       amount: input.amount,
+      phone: input.mobileMoney?.phone,
+      medium: input.mobileMoney?.medium,
+      name: input.mobileMoney?.payerName,
+      email: input.mobileMoney?.email,
       // An order-scoped lookup ID recovers a lost response without sharing the
       // member's internal user ID or creating a second checkout.
       userId: input.reference,
@@ -77,10 +83,11 @@ export async function startFapshiPayment(input: {
     if ([400, 401, 403, 404, 422].includes(response.status)) return { declined: true };
     if (!response.ok) return {};
     const data = await response.json() as Json;
+    if (input.mobileMoney) return transactionId(data.transId) ? { transId: data.transId } : {};
     const checkoutUrl = fapshiCheckoutUrl(data.link);
     return transactionId(data.transId) && checkoutUrl ? { transId: data.transId, checkoutUrl } : {};
   } catch {
-    // The link could have been created before the connection failed.
+    // The provider may have accepted the request before the connection failed.
     return {};
   }
 }
@@ -98,7 +105,7 @@ async function database(path: string, init: RequestInit = {}): Promise<Response>
   return response;
 }
 
-const paymentColumns = "id,user_id,reference,provider_reference,purchase_kind,amount_local,currency_code,status,created_at,fapshi_checkout_url";
+const paymentColumns = "id,user_id,reference,provider_reference,purchase_kind,amount_local,currency_code,status,created_at,fapshi_checkout_url,payment_method";
 
 export async function findFapshiPayment(reference: string): Promise<FapshiPayment | null> {
   if (!isFapshiReference(reference)) return null;
@@ -217,7 +224,8 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
     return "confirmed";
   }
   // Hosted checkout can be retried after a failed attempt, until the link expires.
-  if (verified.status === "EXPIRED") {
+  if (verified.status === "EXPIRED" ||
+      (verified.status === "FAILED" && ["mtn_momo", "orange_money"].includes(payment.payment_method ?? ""))) {
     const rejected = await database("rpc/reject_campay_payment", {
       method: "POST",
       body: JSON.stringify({ ...common, p_reason: "Fapshi payment was not completed." }),
