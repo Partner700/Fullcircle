@@ -54,8 +54,13 @@ for (const app of [cadetApp, sentryApp]) {
   assert.match(app, /<StoryModeUnderDevelopment onBackToDailyGames=\{\(\) => handleNavigate\('games'\)\}/);
   assert.doesNotMatch(app, /<StoryModeShell/);
   assert.match(app, /navActiveKey=\{dailyGamesNavigationKey\(tab\)\}/);
-  assert.match(app, /PREMIUM_TABS = new Set<Tab>\(\['games', 'game', 'arena', 'story'/);
 }
+
+const cadetPremiumTabs = cadetApp.match(/const PREMIUM_TABS = new Set<Tab>\(\[([^\]]+)\]\)/)?.[1];
+assert.ok(cadetPremiumTabs, 'Cadet routes must declare their premium access boundary.');
+assert.match(cadetPremiumTabs, /'arena'/);
+assert.doesNotMatch(cadetPremiumTabs, /'(?:games|game|quiz)'/, 'Resident streak activities stay available without a subscription.');
+assert.match(sentryApp, /PREMIUM_TABS = new Set<Tab>\(\['games', 'game', 'arena', 'story'/);
 
 for (const requiredActivityBoundary of [
   'get_game_activity_players',
