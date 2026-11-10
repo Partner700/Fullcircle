@@ -566,7 +566,7 @@ export function CadetNarrative({
   }, []);
 
   const recordSundayEngagement = useCallback(() => {
-    if (!profile || !hasAccess || !isSundayRest || isHistoricalReading) return;
+    if (!profile || !narrative || narrative.narrative_date !== activeDate || !isSundayRest || isHistoricalReading) return;
     const engagementKey = `${profile.id}:${activeDate}`;
     if (sundayEngagementRef.current === engagementKey) return;
     sundayEngagementRef.current = engagementKey;
@@ -576,7 +576,9 @@ export function CadetNarrative({
         sundayEngagementRef.current = null;
         console.error('Sunday reading streak credit failed:', error);
       });
-  }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
+  }, [activeDate, isHistoricalReading, isSundayRest, narrative, onMeditationSaved, profile]);
+
+  useEffect(() => { recordSundayEngagement(); }, [recordSundayEngagement]);
 
   useEffect(() => {
     setReadingHistory([]);
@@ -761,7 +763,6 @@ export function CadetNarrative({
     appClock.hour > MEDITATION_CUTOFF_HOUR ||
     (appClock.hour === MEDITATION_CUTOFF_HOUR && appClock.minute >= MEDITATION_CUTOFF_MINUTE);
   const canSubmitMeditation =
-    hasAccess &&
     !isHistoricalReading &&
     (!afterMeditationCutoff || meditationExtensionActive) &&
     bestVerse.trim().length > 0 &&
@@ -770,7 +771,6 @@ export function CadetNarrative({
     quoteWordCount <= 10;
 
   const saveMeditation = async () => {
-    if (!requireSubscription()) return;
     if (!profile || isHistoricalReading || !canSubmitMeditation) return;
     setSaving(true);
     const { error } = await supabase.rpc('submit_daily_meditation', {
@@ -1360,18 +1360,6 @@ export function CadetNarrative({
       {/* ── Meditation submission — three sections ── */}
       {!isSundayRest && !isHistoricalReading && <div data-artwork-theme={(meditationImage)?.url ? 'night' : undefined}
         className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
-        aria-disabled={!hasAccess}
-        onClickCapture={(event) => {
-          if (hasAccess || !(event.target as HTMLElement).closest('button,input,textarea,[role="button"],label')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          requireSubscription();
-        }}
-        onFocusCapture={(event) => {
-          if (hasAccess) return;
-          (event.target as HTMLElement).blur();
-          requireSubscription();
-        }}
       >
         <PanelImageBackdrop
           image={meditationImage}

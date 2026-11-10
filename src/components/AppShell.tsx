@@ -108,6 +108,8 @@ interface NavItem {
   key: string;
   label: string;
   icon: ElementType;
+  disabled?: boolean;
+  title?: string;
 }
 
 interface ShellProps {
@@ -373,10 +375,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
             <button
               key={item.key}
               data-guide-nav={item.key}
+              disabled={item.disabled}
+              title={item.title}
               onClick={() => navigate(item.key)}
               aria-current={navActiveKey === item.key ? 'page' : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 disabled:opacity-45',
                 navActiveKey === item.key
                   ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                   : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
@@ -520,10 +524,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 <button
                   key={item.key}
                   data-guide-nav={item.key}
+                  disabled={item.disabled}
+                  title={item.title}
                   onClick={() => navigate(item.key)}
                   aria-current={navActiveKey === item.key ? 'page' : undefined}
                   className={cn(
-                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all',
+                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all disabled:opacity-45',
                     navActiveKey === item.key
                       ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                       : 'text-peri-dim hover:bg-navy-3 hover:text-peri',

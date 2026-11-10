@@ -459,6 +459,44 @@ async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct
   };
 }
 
+async function startFcxCheckout(userId: string, eventId: string, amount: number): Promise<Response> {
+  if (!useFapshi) return Response.json({ error: "FCX checkout is unavailable." }, { status: 503, headers: corsHeaders });
+  if (!/^[0-9a-f-]{36}$/i.test(eventId) || !Number.isInteger(amount) || amount < 300) {
+    return Response.json({ error: "Refresh FCX details and confirm the ticket price." }, { status: 400, headers: corsHeaders });
+  }
+  assertFapshiConfigured();
+  const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fcx_fapshi_checkout`, {
+    method: "POST",
+    headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_user_id: userId, p_event_id: eventId, p_reference: `fp_${crypto.randomUUID()}`, p_displayed_amount: amount }),
+  });
+  if (!reservation.ok) {
+    const problem = await reservation.json().catch(() => ({}));
+    return Response.json({ error: problem.code === "P0001" ? problem.message : "FCX checkout is unavailable." }, {
+      status: 409, headers: corsHeaders,
+    });
+  }
+  const payment = await reservation.json() as {
+    id: string; reference: string; amount: number; title: string; checkout_url?: string; created: boolean;
+  };
+  let checkoutUrl = fapshiCheckoutUrl(payment.checkout_url);
+  if (payment.created) {
+    const result = await startFapshiPayment({ amount: payment.amount, reference: payment.reference, name: payment.title });
+    if (result.declined) {
+      await rejectPayment(payment.id, null, "Fapshi could not start this FCX payment.", {});
+      return Response.json({ error: "Fapshi could not start this payment. Try again later." }, { status: 502, headers: corsHeaders });
+    }
+    if (result.transId) await updatePaymentRecord(payment.id, {
+      provider_reference: result.transId, fapshi_checkout_url: result.checkoutUrl,
+    }).catch(() => {});
+    checkoutUrl = result.checkoutUrl ?? null;
+  }
+  return Response.json({
+    status: "pending", reference: payment.reference, payment_id: payment.id, provider: "Fapshi",
+    amount_local: payment.amount, currency_code: "XAF", checkout_url: checkoutUrl,
+  }, { headers: corsHeaders });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -467,14 +505,14 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
       ? "subscription"
       : "relic";
 
-    if (!user_id || (purchaseKind === "relic" && !relic_slug && provider_only !== true)) {
+    if (!user_id || (purchase_kind !== "fcx_ticket" && purchaseKind === "relic" && !relic_slug && provider_only !== true)) {
       return new Response(JSON.stringify({ error: "A product and user_id are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -487,6 +525,10 @@ Deno.serve(async (req: Request) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (purchase_kind === "fcx_ticket") {
+      return await startFcxCheckout(user_id, String(fcx_event_id ?? ""), Number(displayed_amount_xaf));
     }
 
     if (provider_only === true) {

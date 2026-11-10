@@ -955,7 +955,7 @@ export interface StreakFreezer {
   id: string;
   user_id: string;
   freezer_type: FreezerType;
-  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'simons_coin' | 'thiefs_request' | 'game_reward' | 'arena_reward' | 'founders_gift' | 'treasure_reward';
+  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'simons_coin' | 'thiefs_request' | 'game_reward' | 'arena_reward' | 'founders_gift' | 'treasure_reward' | 'welcome_quiz';
   purchased_at: string;
   used_at: string | null;
   applied_to_date: string | null;
@@ -1059,7 +1059,7 @@ export interface MobileMoneyPayment {
   user_id: string;
   relic_slug: string;
   relic_name: string;
-  purchase_kind?: 'relic' | 'subscription';
+  purchase_kind?: 'relic' | 'subscription' | 'fcx_ticket';
   purchase_metadata?: Record<string, unknown>;
   amount_usd: number;
   amount_local: number;

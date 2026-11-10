@@ -1,4 +1,4 @@
-import { FCX_PAYMENT_URL } from '../../lib/fcxPayments';
+import { FcxFapshiCheckout } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
@@ -601,7 +601,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         <div className="relative z-10 flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold-soft text-gold"><Ticket size={21} /></span>
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-sm font-bold text-ink"><a href={FCX_PAYMENT_URL} target="_blank" rel="noopener noreferrer">Full Circle Experience Ticket</a></h3>
+            <h3 className="font-display text-sm font-bold text-ink">Full Circle Experience Ticket</h3>
             <p className="mt-1 text-xs text-stone">{formatFullDenarii(FCX_TICKET_DENARII_COST)} Ð</p>
             {fcxExperience && <p className="mt-1 text-xs text-stone">{fcxSpacesRemaining} of {fcxExperience.capacity} places left</p>}
           </div>
@@ -619,10 +619,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <Coins size={14} /> Buy with Denarii
             </button>
           )}
-          {!alreadyOnFcxList && (
-            <a href={FCX_PAYMENT_URL} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
-              <Ticket size={14} /> Pay online
-            </a>
+          {!alreadyOnFcxList && fcxExperience && (
+            <FcxFapshiCheckout key={fcxExperience.id} experience={fcxExperience} className="btn-secondary text-xs"
+              onConfirmed={() => { void fetchActiveFcxExperience().then(setFcxExperience).catch(() => undefined); }}>
+              <Ticket size={14} /> Pay with Fapshi
+            </FcxFapshiCheckout>
           )}
         </div>
         {!alreadyOnFcxList && !fcxExperience && (

@@ -1,4 +1,4 @@
-import { FCX_PAYMENT_URL } from '../lib/fcxPayments';
+import { FcxFapshiCheckout } from './FcxFapshiCheckout';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
@@ -72,7 +72,11 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     [countdownDate, countdownNow],
   );
   const paymentBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
-  const paymentHref = FCX_PAYMENT_URL;
+  const refreshRegistrations = useCallback(() => {
+    void fetchActiveFcxExperience().then((updated) => {
+      if (updated?.id === experience.id) setVisibleExperience(updated);
+    }).catch(() => undefined);
+  }, [experience.id]);
   const askHref = paymentBase
     ? `${paymentBase}?text=${encodeURIComponent('Hello, I have a question about the Full Circle Experience (FCX).')}`
     : null;
@@ -206,19 +210,11 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             <span className="text-[8px] font-black uppercase leading-none">Ask</span>
           </a>
         )}
-        {paymentHref && (
-          <a
-            href={paymentHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] active:shadow-[0_0_16px_rgba(255,216,77,0.72)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd84d]/80"
-            aria-label="Pay for the Full Circle Experience"
-            title="Pay for FCX"
-          >
-            <CircleDollarSign size={16} strokeWidth={2.4} />
-            <span className="text-[8px] font-black uppercase leading-none">Pay</span>
-          </a>
-        )}
+        <FcxFapshiCheckout key={visibleExperience.id} experience={visibleExperience} onConfirmed={refreshRegistrations}
+          className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffe477]/80">
+          <CircleDollarSign size={16} strokeWidth={2.4} />
+          <span className="text-[8px] font-black uppercase leading-none">Pay</span>
+        </FcxFapshiCheckout>
       </div>
 
       <div
