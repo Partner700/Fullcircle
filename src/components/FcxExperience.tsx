@@ -287,6 +287,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
   const [title, setTitle] = useState('Full Circle Experience (FCX)');
   const [eventMonth, setEventMonth] = useState(defaultMonth);
   const [eventDate, setEventDate] = useState('');
+  const [creatingEdition, setCreatingEdition] = useState(false);
   const [ticketPrice, setTicketPrice] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [paymentSource, setPaymentSource] = useState<'app' | 'external'>('app');
@@ -309,6 +310,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
     if (eventResult.status === 'fulfilled') {
       const active = eventResult.value;
       setExperience(active);
+      setCreatingEdition(false);
       if (active) {
         setTitle(active.title);
         setEventMonth(active.event_month.slice(0, 7));
@@ -352,16 +354,30 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
       .map((profile) => ({ value: profile.id, label: profile.display_name })),
   ], [profiles, registeredUserIds]);
 
+  const changeEventMonth = (month: string) => {
+    setEventMonth(month);
+    setCreatingEdition(month !== experience?.event_month.slice(0, 7));
+    if (eventDate && eventDate.slice(0, 7) !== month) setEventDate('');
+  };
+
+  const changeEventDate = (date: string) => {
+    setEventDate(date);
+    if (date) setEventMonth(date.slice(0, 7));
+  };
+
   const saveEvent = async () => {
     if (!eventMonth) return;
+    const existingEdition = experience && (!creatingEdition || experience.event_month.slice(0, 7) === eventMonth)
+      ? experience
+      : null;
     setSaving(true);
     try {
       await saveFcxExperience({
-        eventId: experience?.event_month.slice(0, 7) === eventMonth ? experience.id : null,
+        eventId: existingEdition?.id ?? null,
         eventMonth: `${eventMonth}-01`,
         eventDate: eventDate || null,
         title: title.trim() || 'Full Circle Experience (FCX)',
-        capacity: 30,
+        capacity: existingEdition?.capacity ?? 30,
         ticketPriceXaf: ticketPrice.trim() ? Number(ticketPrice) : null,
       });
       await load();
@@ -489,11 +505,11 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
             </label>
             <label>
               <span className="mb-1 block text-xs text-stone">Event month</span>
-              <input type="month" className="input-field" value={eventMonth} onChange={(event) => setEventMonth(event.target.value)} />
+              <input type="month" className="input-field" value={eventMonth} onChange={(event) => changeEventMonth(event.target.value)} />
             </label>
             <label>
               <span className="mb-1 block text-xs text-stone">Event date · starts at 12:00 PM</span>
-              <input type="date" className="input-field" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
+              <input type="date" className="input-field" value={eventDate} onChange={(event) => changeEventDate(event.target.value)} />
             </label>
             <label className="md:col-span-2">
               <span className="mb-1 block text-xs text-stone">Ticket price (XAF)</span>
@@ -505,6 +521,11 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
               </button>
             </div>
           </div>
+          {experience && (
+            <p className="text-xs text-stone">
+              Change the date to reschedule this edition. To start a new edition, change the month first.
+            </p>
+          )}
 
           <div>
             <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-stone">
