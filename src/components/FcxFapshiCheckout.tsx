@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchCheckoutProvider, startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult, type CheckoutProvider } from '../lib/queries';
@@ -19,29 +20,45 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const amount = experience.ticket_price_xaf;
   const registered = experience.registrations.some((entry) => entry.user_id === userId);
 
+  const reference = payment?.reference;
+  const checkStatus = useCallback(async (reference: string, showError = false) => {
+    try {
+      const result = await verifyCampayPayment(reference);
+      if (result.status === 'confirmed') {
+        setConfirmed(true);
+        onConfirmed();
+      } else if (result.status === 'rejected') {
+        setPayment(null);
+        setError('The payment was not completed. You can start a new one.');
+      }
+    } catch {
+      if (showError) setError('Could not check payment status. Try checking again.');
+    }
+  }, [onConfirmed]);
+
   useEffect(() => {
-    if (!payment || confirmed || !open) return;
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const result = await verifyCampayPayment(payment.reference);
-        if (cancelled) return;
-        if (result.status === 'confirmed') {
-          setConfirmed(true);
-          onConfirmed();
-        } else if (result.status === 'rejected') {
-          setPayment(null);
-          setError('This checkout expired or was rejected. You can start a new one.');
-        }
-      } catch { /* Verification can be retried while the payment is pending. */ }
-    };
-    const timer = window.setInterval(() => void check(), 15_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [confirmed, onConfirmed, open, payment]);
+    if (!reference || confirmed || !open) return;
+    void checkStatus(reference);
+    const timer = window.setInterval(() => void checkStatus(reference), 15_000);
+    const stop = window.setTimeout(() => window.clearInterval(timer), 300_000);
+    return () => { window.clearInterval(timer); window.clearTimeout(stop); };
+  }, [checkStatus, confirmed, open, reference]);
+
+  async function checkManually() {
+    if (!reference || checking) return;
+    setError('');
+    setChecking(true);
+    try {
+      await checkStatus(reference, true);
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function openCheckout() {
     if (!userId) return;
@@ -87,7 +104,11 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
               <>
                 <p role="status" className="text-sm text-stone">Your place is held while Fapshi verifies the payment.</p>
                 {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Open Fapshi checkout</a>
-                  : <p className="text-sm text-stone">If you received a payment prompt, approve it on your phone with your mobile money PIN. Full Circle will confirm the payment here.</p>}
+                  : provider === 'fapshi_direct' ? <MobileMoneyApprovalHelp />
+                    : <p className="text-sm text-stone">Check the status of your existing payment.</p>}
+                <button type="button" className="btn-secondary" disabled={checking} onClick={() => void checkManually()}>
+                  {checking ? 'Checking…' : 'Check payment status'}
+                </button>
               </>
             ) : (
               <>

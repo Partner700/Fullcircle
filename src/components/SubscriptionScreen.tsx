@@ -1,3 +1,4 @@
+import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -135,7 +136,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     setChecking(true);
     try {
       const references = Array.from(new Set([
-        activePayment.provider_reference,
+        activePayment.reference.startsWith('fp_') ? null : activePayment.provider_reference,
         activePayment.reference,
       ].filter(Boolean))) as string[];
       for (const reference of references) {
@@ -229,7 +230,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
   useEffect(() => {
     const activePayment = paymentRef.current;
-    if (!profile || !activePayment || CONFIRMED_STATUSES.has(String(activePayment.status).toLowerCase())) return;
+    if (!profile || !activePayment || activePayment.status === 'rejected' || CONFIRMED_STATUSES.has(String(activePayment.status).toLowerCase())) return;
     if (!pollingStartedAtRef.current) pollingStartedAtRef.current = Date.now();
     const interval = window.setInterval(() => {
       if (Date.now() - pollingStartedAtRef.current > 15 * 60_000) {
@@ -237,7 +238,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         return;
       }
       void checkPayment(false);
-    }, 4500);
+    }, activePayment.reference.startsWith('fp_') ? 15_000 : 4500);
     return () => window.clearInterval(interval);
   }, [checkPayment, payment?.reference, payment?.status, profile]);
 
@@ -248,7 +249,13 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${profile.id}` },
-        () => void checkPayment(false),
+        (payload) => {
+          const updated = payload.new as { reference?: string; status?: string };
+          const active = paymentRef.current;
+          if (active?.reference.startsWith('fp_') &&
+              (updated.reference !== active.reference || !['confirmed', 'rejected'].includes(updated.status ?? ''))) return;
+          void checkPayment(false);
+        },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -297,6 +304,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     || (effectiveStatus?.status === 'trial' && (!effectiveStatus.trial_ends_at || new Date(effectiveStatus.trial_ends_at).getTime() > Date.now()))
     || (effectiveStatus?.status === 'active' && (!effectiveStatus.current_period_end || new Date(effectiveStatus.current_period_end).getTime() > Date.now()));
   const confirmed = payment && CONFIRMED_STATUSES.has(String(payment.status).toLowerCase());
+  const awaitingDirectApproval = payment?.status === 'pending' && payment.reference.startsWith('fp_')
+    && (payment.payment_method === 'mtn_momo' || payment.payment_method === 'orange_money') && !payment.checkout_url;
   const trialEnd = effectiveStatus?.trial_ends_at ? new Date(effectiveStatus.trial_ends_at) : null;
   const periodEnd = effectiveStatus?.current_period_end ? new Date(effectiveStatus.current_period_end) : null;
 
@@ -364,8 +373,10 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
             <div className="flex items-start gap-2">
               {confirmed ? <CheckCircle2 size={17} className="mt-0.5 shrink-0" /> : <Smartphone size={17} className="mt-0.5 shrink-0" />}
               <div className="min-w-0">
-                <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
-                <p className="mt-0.5 text-xs opacity-80">{payment.message || 'Approve the prompt on your phone.'}</p>
+                <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.status === 'rejected' ? 'Payment not confirmed' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
+                {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={payment.payment_method} /> : (
+                  <p className="mt-0.5 text-xs opacity-80">{payment.message || 'Approve the prompt on your phone.'}</p>
+                )}
                 <p className="mt-1 truncate text-[10px] opacity-60">Reference: {payment.reference}</p>
               </div>
             </div>
