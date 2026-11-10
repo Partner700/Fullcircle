@@ -8,7 +8,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, fetchUserMobileMoneyPayments, fetchLatestFapshiRelicPayment, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
@@ -107,6 +107,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [buyingWeeklyFreezer, setBuyingWeeklyFreezer] = useState(false);
   const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | 'loading' | 'error'>('loading');
   const [paymentModalRelic, setPaymentModalRelic] = useState<RelicType | null>(null);
+  const paymentModalVersion = useRef(0);
   const [paymentMethod, setPaymentMethod] = useState<StorePaymentMethod>('mtn_momo');
   const [payPhone, setPayPhone] = useState('');
   const [otherProvider, setOtherProvider] = useState('');
@@ -136,7 +137,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const activePaymentMethod = paymentResult?.payment_method || '';
   const awaitingDirectApproval = paymentReference.startsWith('fp_')
     && (activePaymentMethod === 'mtn_momo' || activePaymentMethod === 'orange_money')
-    && !paymentResult?.checkout_url && !paymentConfirmed && !paymentRejected;
+    && !paymentConfirmed && !paymentRejected;
 
   useEffect(() => {
     if (!paymentResult?.status) return;
@@ -247,16 +248,39 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setUsingRelic(null);
   };
 
+  const paymentUserId = profile?.id;
   useEffect(() => {
-    if (!profile || !paymentModalRelic) return;
+    if (!paymentUserId || !paymentModalRelic) return;
     let cancelled = false;
-    fetchCheckoutProvider(profile.id)
-      .then(provider => { if (!cancelled) setCheckoutProvider(provider); })
-      .catch(() => { if (!cancelled) setCheckoutProvider('error'); });
+    const slug = paymentModalRelic.slug || paymentModalRelic.id;
+    void Promise.allSettled([
+      fetchCheckoutProvider(paymentUserId),
+      fetchLatestFapshiRelicPayment(paymentUserId, slug),
+    ]).then(([provider, latest]) => {
+      if (cancelled) return;
+      const payment = latest.status === 'fulfilled' ? latest.value : null;
+      const recentFailure = payment?.status === 'rejected'
+        && Date.now() - Date.parse(payment.created_at) < 24 * 60 * 60 * 1000;
+      if (payment?.reference?.startsWith('fp_') && (payment.status === 'pending' || recentFailure)) {
+        setPaymentResult({
+          status: payment.status,
+          reference: payment.reference,
+          payment_id: payment.id,
+          provider_reference: payment.provider_reference,
+          payment_method: payment.payment_method ?? undefined,
+          amount_local: payment.amount_local,
+          currency_code: payment.currency_code,
+          provider: payment.provider,
+          message: payment.rejection_reason || 'Checking your existing payment request.',
+        });
+      }
+      setCheckoutProvider(provider.status === 'fulfilled' && latest.status === 'fulfilled' ? provider.value : 'error');
+    });
     return () => { cancelled = true; };
-  }, [profile, paymentModalRelic]);
+  }, [paymentUserId, paymentModalRelic]);
 
   const openPaymentModal = (relic: RelicType) => {
+    paymentModalVersion.current++;
     setCheckoutProvider('loading');
     setPaymentModalRelic(relic);
     setPaymentStartingQuantity(latestInventoryRef.current[relic.id] || 0);
@@ -268,6 +292,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setOtherTransactionReference('');
     setPaymentNote('');
     setPaymentResult(null);
+    setPaySubmitting(false);
+    setCheckingPayment(false);
   };
 
   const retryPayment = () => {
@@ -277,7 +303,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   };
 
   const submitPayment = async () => {
-    if (!profile || !paymentModalRelic) return;
+    if (!profile || !paymentModalRelic || paySubmitting) return;
+    const modalVersion = paymentModalVersion.current;
     setPaySubmitting(true);
     try {
       const slug = paymentModalRelic.slug || paymentModalRelic.id;
@@ -294,24 +321,28 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       const result = await startCampayCheckout(
         slug,
         profile.id,
-        checkoutProvider === 'fapshi' ? 'fapshi_hosted' : paymentMethod,
+        paymentMethod,
         profile.email || undefined,
         profile.display_name || undefined,
-        checkoutProvider === 'fapshi' ? undefined : phoneNumberForCountry(payPhone, profile.country_code) || undefined,
+        phoneNumberForCountry(payPhone, profile.country_code) || undefined,
         otherProvider || undefined,
         verificationNote || undefined,
         displayedAmountXaf,
       );
-      setPaymentResult(result);
+      if (modalVersion === paymentModalVersion.current) setPaymentResult(result);
       if (isPaymentSuccessful(result.status)) {
         await refreshPurchaseState();
       }
-    } catch (e: any) { alert(e.message || 'Failed to start payment.'); }
-    setPaySubmitting(false);
+    } catch (e: any) {
+      if (modalVersion === paymentModalVersion.current) alert(e.message || 'Failed to start payment.');
+    } finally {
+      if (modalVersion === paymentModalVersion.current) setPaySubmitting(false);
+    }
   };
 
   const checkPaymentStatus = async () => {
     if (!profile || !paymentResult) return;
+    const modalVersion = paymentModalVersion.current;
     setCheckingPayment(true);
     try {
       const refs = Array.from(new Set([
@@ -325,6 +356,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         fetchUserMobileMoneyPayments(profile.id),
         refreshMutableStoreState(),
       ]);
+      if (modalVersion !== paymentModalVersion.current) return;
       const delivered = Boolean(
         paymentModalRelic &&
         nextInventory &&
@@ -342,7 +374,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           message: 'Purchase complete. Your relic has been added to your inventory.',
         } : prev);
         await onBalanceChanged?.();
-        setCheckingPayment(false);
         return;
       }
       if (!payment) {
@@ -351,7 +382,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           status: 'pending',
           message: 'Confirmation is still on its way. This panel will update as soon as your relic arrives.',
         } : prev);
-        setCheckingPayment(false);
         return;
       }
       const confirmed = isPaymentSuccessful(payment.status);
@@ -370,9 +400,10 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       } : prev);
       if (confirmed) await refreshPurchaseState();
     } catch (e: any) {
-      alert(e.message || 'Could not check payment status.');
+      if (modalVersion === paymentModalVersion.current) alert(e.message || 'Could not check payment status.');
+    } finally {
+      if (modalVersion === paymentModalVersion.current) setCheckingPayment(false);
     }
-    setCheckingPayment(false);
   };
 
   useEffect(() => {
@@ -396,6 +427,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           fetchUserMobileMoneyPayments(profile.id),
           refreshMutableStoreState(),
         ]);
+        if (cancelled) return false;
         const delivered = Boolean(
           paymentModalRelic &&
           nextInventory &&
@@ -431,7 +463,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     };
     void poll();
     const interval = window.setInterval(async () => {
-      if (await poll()) window.clearInterval(interval);
+      if (await poll()) {
+        window.clearInterval(interval);
+        return;
+      }
+      if (cancelled) return;
 
       const elapsed = Date.now() - startedAt;
       if (elapsed >= 35_000 && !slowNoticeShown) {
@@ -439,7 +475,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         setPaymentResult((current) => current ? {
           ...current,
           status: 'pending',
-          message: 'Confirmation is taking a little longer. Keep this panel open; your relic will appear automatically when it arrives.',
+          message: 'Confirmation is taking longer. You can reopen this checkout to check the existing payment.',
         } : current);
       }
       if (elapsed >= 300_000) {
@@ -469,7 +505,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             Boolean(paymentProviderReference && payment.provider_reference === paymentProviderReference);
           if (!matches) return;
           if (isPaymentSuccessful(payment.status)) {
-            setPaymentResult((current) => current ? {
+            setPaymentResult((current) => current?.reference === paymentReference ? {
               ...current,
               status: 'confirmed',
               amount_local: payment.amount_local,
@@ -479,7 +515,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             } : current);
             await refreshPurchaseState();
           } else if (isRealPaymentRejection(payment.status, payment.rejection_reason)) {
-            setPaymentResult((current) => current ? {
+            setPaymentResult((current) => current?.reference === paymentReference ? {
               ...current,
               status: 'rejected',
               message: payment.rejection_reason || 'Payment was not confirmed. You can try again.',
@@ -877,7 +913,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       <p className="font-display font-semibold text-ink">
                         {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment Not Confirmed' : awaitingDirectApproval ? 'Mobile money approval pending' : 'Awaiting Payment Confirmation'}
                       </p>
-                      {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={activePaymentMethod} /> : (
+                      {awaitingDirectApproval ? (
+                        <MobileMoneyApprovalHelp method={activePaymentMethod} />
+                      ) : (
                         <p className="text-sm text-stone">
                           {paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
                         </p>
@@ -897,11 +935,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     </div>
                   </div>
                 </div>
-                {paymentResult.checkout_url && !paymentConfirmed && !paymentRejected && (
-                  <a className="btn-primary w-full justify-center" href={paymentResult.checkout_url} target="_blank" rel="noopener noreferrer">
-                    Open Fapshi Checkout
-                  </a>
-                )}
                 <div className="grid grid-cols-2 gap-2">
                   {paymentRejected ? (
                     <button onClick={retryPayment} className="btn-secondary text-sm">
@@ -916,14 +949,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     Done
                   </button>
                 </div>
-              </div>
-            ) : checkoutProvider === 'fapshi' ? (
-              <div className="space-y-3">
-                <p className="text-sm text-stone">Pay with MTN MoMo or Orange Money on Fapshi.</p>
-                <button onClick={submitPayment} disabled={paySubmitting} className="btn-primary w-full text-sm disabled:opacity-50">
-                  {paySubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  {paySubmitting ? 'Preparing checkout…' : 'Continue to Fapshi'}
-                </button>
               </div>
             ) : checkoutProvider === 'loading' || checkoutProvider === 'error' ? (
               <p className="text-sm text-stone">{checkoutProvider === 'loading' ? 'Checking payment options…' : 'Checkout is unavailable. Reopen it to try again.'}</p>

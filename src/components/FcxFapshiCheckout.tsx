@@ -73,16 +73,15 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   }
 
   async function prepare() {
-    if (!userId || !amount || busy || (provider !== 'fapshi' && provider !== 'fapshi_direct')) return;
-    const direct = provider === 'fapshi_direct';
-    if (direct && !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
+    if (!userId || !amount || busy || provider !== 'fapshi_direct') return;
+    if (!/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
       setError('Enter a valid Cameroon mobile money number.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      setPayment(await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined));
+      setPayment(await startFcxFapshiCheckout(experience.id, userId, amount, method, phone));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Checkout could not start.');
     } finally {
@@ -103,9 +102,9 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
             ) : payment ? (
               <>
                 <p role="status" className="text-sm text-stone">Your place is held while Fapshi verifies the payment.</p>
-                {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Open Fapshi checkout</a>
-                  : provider === 'fapshi_direct' ? <MobileMoneyApprovalHelp />
-                    : <p className="text-sm text-stone">Check the status of your existing payment.</p>}
+                {payment.payment_method === 'mtn_momo' || payment.payment_method === 'orange_money'
+                  ? <MobileMoneyApprovalHelp method={payment.payment_method} />
+                  : <p className="text-sm text-stone">Checking your existing payment request.</p>}
                 <button type="button" className="btn-secondary" disabled={checking} onClick={() => void checkManually()}>
                   {checking ? 'Checking…' : 'Check payment status'}
                 </button>
@@ -128,9 +127,9 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
                     </label>
                   </>
                 )}
-                {provider === 'fapshi' || provider === 'fapshi_direct' ? (
+                {provider === 'fapshi_direct' ? (
                   <button type="button" className="btn-primary" disabled={busy} onClick={() => void prepare()}>
-                    {busy ? 'Preparing checkout…' : provider === 'fapshi_direct' ? 'Send payment prompt' : 'Continue to Fapshi'}
+                    {busy ? 'Sending payment request…' : 'Send payment prompt'}
                   </button>
                 ) : provider === 'campay' ? (
                   <p className="text-sm text-stone">FCX mobile money checkout is unavailable.</p>

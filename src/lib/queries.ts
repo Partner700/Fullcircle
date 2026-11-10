@@ -2733,6 +2733,22 @@ export async function fetchUserMobileMoneyPayments(userId: string): Promise<Mobi
   return data as MobileMoneyPayment[];
 }
 
+export async function fetchLatestFapshiRelicPayment(userId: string, relicSlug: string) {
+  const { data, error } = await supabase
+    .from('mobile_money_payments')
+    .select('id,reference,provider_reference,status,payment_method,amount_local,currency_code,provider,rejection_reason,created_at')
+    .eq('user_id', userId)
+    .eq('purchase_kind', 'relic')
+    .eq('relic_slug', relicSlug)
+    .eq('provider', 'Fapshi')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<Pick<MobileMoneyPayment, 'id' | 'reference' | 'provider_reference' | 'status' |
+      'payment_method' | 'amount_local' | 'currency_code' | 'provider' | 'rejection_reason' | 'created_at'>>();
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchPendingMobileMoneyPayments(): Promise<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]> {
   const { data, error } = await supabase
     .from('mobile_money_payments')
@@ -2758,7 +2774,6 @@ export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(
 }
 
 export type CampayPaymentResult = {
-  checkout_url?: string | null;
   status: string;
   reference: string;
   payment_id?: string;
@@ -2773,10 +2788,10 @@ export type CampayPaymentResult = {
   message?: string;
 };
 
-export type CheckoutProvider = 'campay' | 'fapshi' | 'fapshi_direct';
+export type CheckoutProvider = 'campay' | 'fapshi_direct';
 
 function normalizeCheckoutProvider(value: unknown): CheckoutProvider {
-  return value === 'fapshi' || value === 'fapshi_direct' ? value : 'campay';
+  return value === 'fapshi' || value === 'fapshi_direct' ? 'fapshi_direct' : 'campay';
 }
 
 export type SubscriptionPlan = {
@@ -2823,8 +2838,8 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
 
 export function startFcxFapshiCheckout(
   eventId: string, userId: string, amount: number,
-  paymentMethod: 'fapshi_hosted' | 'mtn_momo' | 'orange_money',
-  customerPhone?: string,
+  paymentMethod: 'mtn_momo' | 'orange_money',
+  customerPhone: string,
 ) {
   return requestCampayCheckout({
     purchase_kind: 'fcx_ticket',
@@ -2915,7 +2930,7 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
 export async function startSubscriptionCheckout(
   planId: string,
   userId: string,
-  paymentMethod: 'mtn_momo' | 'orange_money' | 'fapshi_hosted',
+  paymentMethod: 'mtn_momo' | 'orange_money',
   customerPhone: string,
   displayedAmountXaf: number,
   customerEmail?: string,

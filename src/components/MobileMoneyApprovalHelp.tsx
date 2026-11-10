@@ -4,8 +4,9 @@ export function MobileMoneyApprovalHelp({ method }: { method?: string }) {
     : 'MTN MoMo (*126#) or Orange Money (#150#)';
   return (
     <p className="text-sm text-stone">
-      No prompt? On the SIM you entered, open {wallet} and look for a pending approval.
-      Approve only the matching payment. Check the status here before trying again.
+      Approve the carrier’s PIN prompt on the SIM you entered. If it doesn’t appear, check
+      pending approvals in {wallet}, then return here to check the payment status.
+      Enter your PIN only in the carrier prompt.
     </p>
   );
 }
