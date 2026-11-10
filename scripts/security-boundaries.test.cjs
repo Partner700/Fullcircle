@@ -918,7 +918,7 @@ assert.match(appContinuity, /fc-app-continuity-/);
 assert.match(appContinuity, /excludedTabs\.includes\(tab\)/);
 assert.match(appShell, /persistContinuedScroll/);
 assert.match(appShell, /document\.visibilityState === 'hidden'/);
-assert.match(cadetNarrative, /readReadingDraft\(profile\.id, activeDate\)/);
+assert.match(cadetNarrative, /readReadingDraft\(profileId, activeDate\)/);
 assert.match(cadetNarrative, /writeReadingDraft\(profile\.id, activeDate, draftSnapshotRef\.current\)/);
 assert.match(cadetNarrative, /document\.addEventListener\('visibilitychange', persistWhenHidden\)/);
 assert.doesNotMatch(cadetNarrative, /drafts\[item\.verse_reference\] = item\.body/);

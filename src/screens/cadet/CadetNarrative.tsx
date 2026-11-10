@@ -18,6 +18,7 @@ import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelIm
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
+import { useReadingPosition } from '../../lib/useReadingPosition';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import {
   fetchPendingHiddenVerseMarkers,
@@ -304,6 +305,7 @@ export function CadetNarrative({
   initialDate?: string;
 }) {
   const { profile } = useAuth();
+  const profileId = profile?.id;
   const { hasAccess, requireSubscription } = useSubscriptionAccess();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [loading, setLoading] = useState(true);
@@ -354,6 +356,8 @@ export function CadetNarrative({
   const [archiveDate, setArchiveDate] = useState<string | null>(initialDate || null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
+  const readingRootRef = useRef<HTMLDivElement>(null);
+  const readingRequestRef = useRef(0);
   const draftHydratedKeyRef = useRef<string | null>(null);
   const draftSnapshotRef = useRef<ReadingDraft>(emptyReadingDraft());
   const sundayEngagementRef = useRef<string | null>(null);
@@ -364,6 +368,9 @@ export function CadetNarrative({
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
   const draftStorageKey = profile ? readingDraftStorageKey(profile.id, activeDate) : null;
+  const cancelReadingRestore = useReadingPosition(
+    readingRootRef, profileId, activeDate, !loading && narrative?.narrative_date === activeDate, Boolean(navigationTarget),
+  );
 
   useEffect(() => {
     if (!profile || !narrative || isHistoricalReading) return;
@@ -465,9 +472,10 @@ export function CadetNarrative({
   };
 
   const load = useCallback(async () => {
-    if (!profile) { setLoading(false); return; }
-    const expectedDraftKey = readingDraftStorageKey(profile.id, activeDate);
-    const localDraft = readReadingDraft(profile.id, activeDate);
+    if (!profileId) { setLoading(false); return; }
+    const request = ++readingRequestRef.current;
+    const expectedDraftKey = readingDraftStorageKey(profileId, activeDate);
+    const localDraft = readReadingDraft(profileId, activeDate);
     draftHydratedKeyRef.current = null;
     setLoading(true);
     setReaderVerses([]);
@@ -492,13 +500,14 @@ export function CadetNarrative({
     try {
       const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
         fetchNarrative(activeDate),
-        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profile.id, activeDate),
+        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profileId, activeDate),
         fetchPanelImageSetting('reading').catch(() => null),
         fetchPanelImageSetting('scripture').catch(() => null),
         fetchPanelImageSetting('verse_day_tr').catch(() => null),
         fetchPanelImageSetting('challenge').catch(() => null),
         fetchPanelImageSetting('meditation').catch(() => null),
       ]);
+      if (request !== readingRequestRef.current) return;
       setNarrative(narr);
       setChallenge(chal);
       setReadingImage(panelImage);
@@ -513,21 +522,24 @@ export function CadetNarrative({
       const { data: record } = await supabase
         .from('daily_records')
         .select('meditation_text, meditation_submitted, meditation_public, best_verse, daily_quote')
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('record_date', activeDate)
         .maybeSingle();
+      if (request !== readingRequestRef.current) return;
       if (record?.meditation_text) setMeditation(record.meditation_text);
       if (record?.best_verse) setBestVerse(record.best_verse);
       if (record?.daily_quote) setDailyQuote(record.daily_quote);
       setMeditationPublic(Boolean(record?.meditation_public));
       setSavedMeditation(Boolean(record?.meditation_submitted));
     } catch (e) { console.error('Narrative load error:', e); }
+    if (request !== readingRequestRef.current) return;
     draftHydratedKeyRef.current = expectedDraftKey;
     setLoading(false);
-  }, [activeDate, isHistoricalReading, profile]);
+  }, [activeDate, isHistoricalReading, profileId]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => { readingRequestRef.current++; };
   }, [load]);
 
   useEffect(() => {
@@ -746,6 +758,7 @@ export function CadetNarrative({
     if (!reference) return;
     const index = readerVerses.findIndex((verse) => verse.reference.toLowerCase() === reference.toLowerCase());
     if (index < 0) return;
+    cancelReadingRestore.current?.();
     const targetSourceNarrativeId = readerVerses[index].sourceNarrativeId || narrative.id;
     setOpenVerse(index);
     setOpenUserInsights(reference);
@@ -754,7 +767,7 @@ export function CadetNarrative({
     window.setTimeout(() => verseRefs.current[reference]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
     clearScriptureTarget();
     setNavigationTarget(null);
-  }, [navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
+  }, [cancelReadingRestore, navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
 
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
@@ -959,7 +972,7 @@ export function CadetNarrative({
           onLoadMore={() => void loadHistory()}
           image={readingImage}
           onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
-          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
         />
       </div>
     );
@@ -978,6 +991,7 @@ export function CadetNarrative({
 
   return (
     <div
+      ref={readingRootRef}
       className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto"
       onPointerDownCapture={recordSundayEngagement}
       onScrollCapture={recordSundayEngagement}
@@ -991,7 +1005,7 @@ export function CadetNarrative({
               {new Date(`${activeDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
-          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => { setArchiveDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => setArchiveDate(null)}>
             <ArrowLeft size={14} /> Today
           </button>
         </div>
@@ -1482,7 +1496,7 @@ export function CadetNarrative({
         onLoadMore={() => void loadHistory()}
         image={readingImage}
         onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
-        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
       />
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}

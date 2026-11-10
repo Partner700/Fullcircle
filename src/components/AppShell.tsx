@@ -21,6 +21,7 @@ import { signalActiveQuizExitIntent } from '../lib/quizIntegrity';
 
 type Theme = 'night' | 'day';
 const CONTINUITY_EXCLUDED_TABS = ['quiz'] as const;
+const SCROLL_CONTINUITY_EXCLUDED_TABS: readonly string[] = ['quiz', 'narrative', 'reading'];
 
 function tabUrl(tab: string) {
   const url = new URL(window.location.href);
@@ -154,7 +155,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, [activeKey, profile?.id, role]);
 
   useEffect(() => {
-    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    if (!profile?.id || !role || SCROLL_CONTINUITY_EXCLUDED_TABS.includes(activeKey)) return;
     const target = readContinuedScroll(profile.id, role, activeKey);
     if (target === null) return;
 
@@ -183,7 +184,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, [activeKey, profile?.id, role]);
 
   useEffect(() => {
-    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    if (!profile?.id || !role || SCROLL_CONTINUITY_EXCLUDED_TABS.includes(activeKey)) return;
     let animationFrame = 0;
     const save = () => persistContinuedScroll(
       profile.id,
