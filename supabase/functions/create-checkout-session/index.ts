@@ -505,7 +505,6 @@ async function startFcxCheckout(
   if (useFapshiDirect && !payment.created) {
     const existing = await findFapshiPayment(payment.reference);
     if (existing?.user_id === user.id) {
-      approvalStartedAt = existing.created_at;
       paymentMethod = existing.payment_method;
       status = await verifyFapshiPayment(existing).catch(() => "pending");
       if (status === "rejected" && retryRejected) {
@@ -522,7 +521,6 @@ async function startFcxCheckout(
         throw error;
       }
     }
-    if (mobileMoney) approvalStartedAt = new Date().toISOString();
     const result = await startFapshiPayment({
       amount: payment.amount, reference: payment.reference, name: payment.title, mobileMoney,
     });
@@ -530,9 +528,12 @@ async function startFcxCheckout(
       await rejectPayment(payment.id, null, "Fapshi could not start this FCX payment.", {});
       return Response.json({ error: "Fapshi could not start this payment. Try again later." }, { status: 502, headers: corsHeaders });
     }
-    if (result.transId) await updatePaymentRecord(payment.id, {
-      provider_reference: result.transId, fapshi_checkout_url: result.checkoutUrl,
-    }).catch(() => {});
+    if (result.transId) {
+      if (mobileMoney) approvalStartedAt = new Date().toISOString();
+      await updatePaymentRecord(payment.id, {
+        provider_reference: result.transId, fapshi_checkout_url: result.checkoutUrl,
+      }).catch(() => {});
+    }
     checkoutUrl = result.checkoutUrl ?? null;
   }
   return Response.json({
@@ -709,16 +710,15 @@ Deno.serve(async (req: Request) => {
             const concurrent = await findPendingFapshiPayment(user_id, product.slug);
             if (!concurrent) throw retryError;
             return paymentResponse(concurrent.id, concurrent.reference, Number(concurrent.amount_local),
-              fapshiCheckoutUrl(concurrent.fapshi_checkout_url), concurrent.created_at,
+              fapshiCheckoutUrl(concurrent.fapshi_checkout_url), undefined,
               concurrent.status, concurrent.payment_method ?? payment_method);
           }
         } else {
           return paymentResponse(existing.id, existing.reference, Number(existing.amount_local),
-            fapshiCheckoutUrl(existing.fapshi_checkout_url), useFapshiDirect ? existing.created_at : undefined,
+            fapshiCheckoutUrl(existing.fapshi_checkout_url), undefined,
             status, existing.payment_method ?? payment_method);
         }
       }
-      const approvalStartedAt = mobileMoney ? new Date().toISOString() : undefined;
       const result = await startFapshiPayment({
         amount: amountXaf,
         reference,
@@ -731,6 +731,7 @@ Deno.serve(async (req: Request) => {
           status: 502, headers: corsHeaders,
         });
       }
+      const approvalStartedAt = mobileMoney && result.transId ? new Date().toISOString() : undefined;
       if (result.transId) {
         await updatePaymentRecord(paymentId, {
           provider_reference: result.transId,

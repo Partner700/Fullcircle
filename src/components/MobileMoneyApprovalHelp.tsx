@@ -7,8 +7,8 @@ export function MobileMoneyApprovalHelp({ method, startedAt, onTimeout }: {
 }) {
   const [openedAt] = useState(Date.now);
   const parsedStart = Date.parse(startedAt ?? '');
-  const deadline = (Number.isFinite(parsedStart) ? Math.min(parsedStart, openedAt) : openedAt) + 20_000;
-  const [ended, setEnded] = useState(false);
+  const deadline = Number.isFinite(parsedStart) ? Math.min(parsedStart, openedAt) + 20_000 : null;
+  const [ended, setEnded] = useState(() => deadline !== null && deadline <= Date.now());
   const checkStatus = useRef(onTimeout);
   checkStatus.current = onTimeout;
 
@@ -16,15 +16,17 @@ export function MobileMoneyApprovalHelp({ method, startedAt, onTimeout }: {
     const timer = window.setTimeout(() => {
       setEnded(true);
       checkStatus.current();
-    }, Math.max(0, deadline - Date.now()));
+    }, deadline === null ? 0 : Math.max(0, deadline - Date.now()));
     return () => window.clearTimeout(timer);
   }, [deadline]);
 
-  if (ended) {
+  if (deadline === null || ended) {
     return (
-      <p role="status" className="text-sm text-coral">
-        The 20-second approval window has ended. If you didn’t enter your PIN, the prompt may have expired.
-        Full Circle is checking the payment status.
+      <p role="status" className="text-sm text-stone">
+        {deadline === null
+          ? 'Full Circle is checking the existing payment request.'
+          : 'The approval window has ended. If you didn’t enter your PIN, the phone prompt may have expired.'}
+        {' '}Full Circle will update this payment as soon as Fapshi confirms the result.
       </p>
     );
   }

@@ -158,9 +158,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         const reference = String(value || '').trim();
         return Boolean(reference) && (activeReferences.has(reference) || reference === activePayment.payment_id);
       }));
-      if (!stored) return false;
+      if (!stored || paymentRef.current?.reference !== activePayment.reference) return false;
 
-      setPayment((current) => current ? {
+      setPayment((current) => current?.reference === activePayment.reference && current.status === 'pending' ? {
         ...current,
         status: stored.status,
         provider_reference: stored.provider_reference,
@@ -202,7 +202,6 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
         const recovered: CampayPaymentResult = {
           status: recentSubscription.status,
-          approval_started_at: recentSubscription.created_at,
           payment_id: recentSubscription.id,
           reference: recentSubscription.reference || recentSubscription.external_reference || recentSubscription.id,
           provider_reference: recentSubscription.provider_reference,

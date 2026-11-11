@@ -256,12 +256,14 @@ for (const orderToRetry of [mobileOrder, { ...plan, payment_method: 'mtn_momo', 
   const prompts = createCount;
   const stillPending = await (await direct(req(orderToRetry, cadet))).json();
   assert.equal(stillPending.reference, first.reference);
+  assert.equal(stillPending.approval_started_at, undefined, 'a reused payment has no new approval window');
   assert.equal(createCount, prompts);
   delete payment.fapshi_checked_at;
   Object.assign(providerPayment, { status: 'FAILED', failureCode: 'CANCELLED' });
   const retried = await (await direct(req(orderToRetry, cadet))).json();
   assert.equal(retried.status, 'pending');
   assert.notEqual(retried.reference, first.reference);
+  assert.ok(Date.parse(retried.approval_started_at), 'a fresh prompt gets its own approval window');
   assert.equal(createCount, prompts + 1);
   providerPayment.status = 'FAILED';
   assert.equal((await (await status(req({ reference: retried.reference }, cadet))).json()).status, 'rejected');

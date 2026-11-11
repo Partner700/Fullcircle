@@ -2,7 +2,7 @@ import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
 import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
 import { supabase } from '../lib/supabase';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchCheckoutProvider, startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult, type CheckoutProvider } from '../lib/queries';
@@ -29,18 +29,22 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const registered = experience.registrations.some((entry) => entry.user_id === userId);
 
   const reference = payment?.reference;
+  const activeReference = useRef<string | null>(null);
   const checkStatus = useCallback(async (reference: string, showError = false) => {
     try {
       const result = await verifyCampayPayment(reference);
+      if (activeReference.current !== reference) return;
       if (result.status === 'confirmed') {
+        activeReference.current = null;
         setConfirmed(true);
         onConfirmed();
       } else if (result.status === 'rejected') {
+        activeReference.current = null;
         setPayment(null);
         setError(<MobileMoneyFailureMessage reason={result.rejection_reason} />);
       }
     } catch {
-      if (showError) setError('Could not check payment status. Try checking again.');
+      if (showError && activeReference.current === reference) setError('Could not check payment status. Try checking again.');
     }
   }, [onConfirmed]);
 
@@ -99,7 +103,8 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     setError('');
     try {
       const result = await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined);
-      if (direct && result.status === 'pending') rememberMobileMoneyNumber(userId, method, phone);
+      if (direct && result.status === 'pending' && result.approval_started_at) rememberMobileMoneyNumber(userId, method, phone);
+      activeReference.current = result.reference;
       if (result.status === 'confirmed') {
         setConfirmed(true);
         onConfirmed();

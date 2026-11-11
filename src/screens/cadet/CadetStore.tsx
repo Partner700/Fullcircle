@@ -341,7 +341,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         Boolean(paymentResult.provider_reference && item.provider_reference === paymentResult.provider_reference),
       );
       if (delivered && !paymentResult.reference.startsWith('fp_')) {
-        setPaymentResult((prev) => prev ? {
+        setPaymentResult((prev) => prev?.reference === paymentResult.reference && !isPaymentSuccessful(prev.status) && prev.status !== 'rejected' ? {
           ...prev,
           status: 'confirmed',
           message: 'Purchase complete. Your relic has been added to your inventory.',
@@ -351,7 +351,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         return;
       }
       if (!payment) {
-        setPaymentResult((prev) => prev ? {
+        setPaymentResult((prev) => prev?.reference === paymentResult.reference && !isPaymentSuccessful(prev.status) && prev.status !== 'rejected' ? {
           ...prev,
           status: 'pending',
           message: 'Confirmation is still on its way. This panel will update as soon as your relic arrives.',
@@ -361,7 +361,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       }
       const confirmed = isPaymentSuccessful(payment.status);
       const rejected = isRealPaymentRejection(payment.status, payment.rejection_reason);
-      setPaymentResult((prev) => prev ? {
+      setPaymentResult((prev) => prev?.reference === paymentResult.reference && !isPaymentSuccessful(prev.status) && prev.status !== 'rejected' ? {
         ...prev,
         status: confirmed ? 'confirmed' : rejected ? 'rejected' : 'pending',
         amount_local: payment.amount_local,
@@ -412,7 +412,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           Boolean(paymentProviderReference && item.provider_reference === paymentProviderReference),
         );
         if ((delivered && !paymentReference.startsWith('fp_')) || isPaymentSuccessful(payment?.status)) {
-          setPaymentResult((current) => current ? {
+          setPaymentResult((current) => current?.reference === paymentReference && !isPaymentSuccessful(current.status) && current.status !== 'rejected' ? {
             ...current,
             status: 'confirmed',
             amount_local: payment?.amount_local ?? current.amount_local,
@@ -424,7 +424,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           return true;
         }
         if (payment && isRealPaymentRejection(payment.status, payment.rejection_reason)) {
-          setPaymentResult((current) => current ? {
+          setPaymentResult((current) => current?.reference === paymentReference && !isPaymentSuccessful(current.status) && current.status !== 'rejected' ? {
             ...current,
             status: 'rejected',
             message: payment.rejection_reason || 'Payment was not confirmed. You can try again.',
@@ -441,7 +441,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       const elapsed = Date.now() - startedAt;
       if (elapsed >= 35_000 && !slowNoticeShown) {
         slowNoticeShown = true;
-        setPaymentResult((current) => current ? {
+        setPaymentResult((current) => current?.reference === paymentReference && !isPaymentSuccessful(current.status) && current.status !== 'rejected' ? {
           ...current,
           status: 'pending',
           message: 'Confirmation is taking a little longer. Keep this panel open; your relic will appear automatically when it arrives.',
@@ -474,7 +474,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             Boolean(paymentProviderReference && payment.provider_reference === paymentProviderReference);
           if (!matches) return;
           if (isPaymentSuccessful(payment.status)) {
-            setPaymentResult((current) => current ? {
+            setPaymentResult((current) => current?.reference === paymentReference && !isPaymentSuccessful(current.status) && current.status !== 'rejected' ? {
               ...current,
               status: 'confirmed',
               amount_local: payment.amount_local,
@@ -484,7 +484,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             } : current);
             await refreshPurchaseState();
           } else if (isRealPaymentRejection(payment.status, payment.rejection_reason)) {
-            setPaymentResult((current) => current ? {
+            setPaymentResult((current) => current?.reference === paymentReference && !isPaymentSuccessful(current.status) && current.status !== 'rejected' ? {
               ...current,
               status: 'rejected',
               message: payment.rejection_reason || 'Payment was not confirmed. You can try again.',
