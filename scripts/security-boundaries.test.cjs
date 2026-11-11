@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '250', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '251', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -1725,9 +1725,10 @@ assert.doesNotMatch(fastMemberStats, /get_marks_board_live/);
 assert.match(weekDayReminderLabel, /WHEN 'midday_reminder' THEN 'Week-day reminder'/);
 assert.match(cadetDashboard, /announcement_type === 'midday_reminder' \? 'Week-day reminder'/);
 assert.match(cadetDashboard, /announcement_type === 'midday_reminder' \? 'day'/);
-assert.match(hiddenChallengeStatus, /setPointerCapture/);
+const draggableShortcut = read('src/hooks/useDraggableShortcut.ts');
+assert.match(draggableShortcut, /setPointerCapture/);
 assert.match(hiddenChallengeStatus, /full-circle-hidden-item-position/);
-assert.match(hiddenChallengeStatus, /Math\.hypot\(dx, dy\) > 6/);
+assert.match(draggableShortcut, /Math\.hypot\(dx, dy\) > 6/);
 assert.match(appShell, /className="weekly-app-background fixed z-0"/);
 assert.match(indexCss, /\.weekly-app-background-image \{\s*filter: brightness\(1\.72\)/);
 assert.match(cadetApp, /<ChiRhoMark size=\{14\}/);

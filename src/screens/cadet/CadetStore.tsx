@@ -1,3 +1,4 @@
+import { useDraggableShortcut } from '../../hooks/useDraggableShortcut';
 import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
 import { DirectMobileMoneyFields } from '../../components/DirectMobileMoneyFields';
 import { rememberMobileMoneyNumber } from '../../components/SavedMobileMoneyNumber';
@@ -112,6 +113,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | 'loading' | 'error'>('loading');
   const [cart, setCart] = useState<MarketCartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const cartShortcut = useDraggableShortcut(`full-circle-cart-position:${profile?.id || ''}`, () => setCartOpen(true));
   const [cartPaymentPending, setCartPaymentPending] = useState(false);
   const cartQuantity = cart.reduce((total, item) => total + item.quantity, 0);
   const [relicPaymentQuantity, setRelicPaymentQuantity] = useState(1);
@@ -607,9 +609,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       {createPortal(
         <>
           {(cartQuantity > 0 || cartPaymentPending) && (
-            <button type="button" onClick={() => setCartOpen(true)}
+            <button type="button" {...cartShortcut} title="Cart (drag to move)"
               aria-label={cartQuantity ? `Open cart, ${cartQuantity} ${cartQuantity === 1 ? 'item' : 'items'}` : 'View cart payment'}
-              className="fixed bottom-20 right-16 z-[65] flex h-11 w-11 items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl animate-fade-in md:bottom-6 md:right-20">
+              className="fixed bottom-20 right-16 z-[65] flex h-11 w-11 items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl animate-fade-in cursor-grab select-none active:cursor-grabbing md:bottom-6 md:right-20">
               <ShoppingCart size={20} aria-hidden="true" />
               {cartQuantity > 0 && <span aria-hidden="true" className="notification-badge-ring absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-black leading-none text-white">
                 {cartQuantity > 9 ? '9+' : cartQuantity}
