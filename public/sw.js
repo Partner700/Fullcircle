@@ -1,11 +1,11 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v251';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v251';
+const CACHE_VERSION = 'full-circle-target-v252';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v252';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
-const RECOVERY_MARKER = '251';
+const RECOVERY_MARKER = '252';
 const MINIMUM_SAFE_RELEASE = 177;
 const RECOVERY_QUERY_KEYS = [
   'fc-asset-recovery',
@@ -16,13 +16,14 @@ const RECOVERY_QUERY_KEYS = [
   'fc-repair',
   'fc-worker',
 ];
-const NAVIGATION_FALLBACK_DELAY_MS = 1_200;
+const NAVIGATION_FALLBACK_DELAY_MS = 2_500;
+const NAVIGATION_MIRROR_DELAY_MS = 800;
 const MOBILE_DATA_FALLBACK_DELAY_MS = 3_000;
 const SECONDARY_MIRROR_DELAY_MS = 1_200;
 const NETWORK_ATTEMPT_TIMEOUT_MS = 18_000;
 const MOBILE_DATA_FALLBACK_BASES = [
-  'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/',
-  'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/',
+  'https://tnsorganization.github.io/Full-Circle/',
+  'https://cdn.jsdelivr.net/gh/Partner700/Fullcircle@main/dist/',
 ];
 
 const NOTIFICATION_SYMBOLS = {
@@ -131,12 +132,15 @@ function fallbackReleaseUrl(requestOrUrl, fallbackBase) {
   const relativePath = requestedUrl.pathname.startsWith(scopePath)
     ? requestedUrl.pathname.slice(scopePath.length)
     : requestedUrl.pathname.replace(/^\/+/, '');
-  return new URL(relativePath || 'index.html', fallbackBase).href;
+  const target = new URL(relativePath || 'index.html', fallbackBase);
+  target.search = requestedUrl.search;
+  return target.href;
 }
 
-async function fetchMobileDataFallback(requestOrUrl, signal) {
+async function fetchMobileDataFallback(requestOrUrl, signal, minimumDocumentRelease) {
   return new Promise((resolve, reject) => {
-    const controllers = MOBILE_DATA_FALLBACK_BASES.map(() => new AbortController());
+    const fallbackBases = MOBILE_DATA_FALLBACK_BASES.filter(base => base !== self.registration.scope);
+    const controllers = fallbackBases.map(() => new AbortController());
     let finished = false;
     let started = 0;
     let failures = 0;
@@ -155,20 +159,20 @@ async function fetchMobileDataFallback(requestOrUrl, signal) {
     };
     const fail = () => {
       failures += 1;
-      if (started < MOBILE_DATA_FALLBACK_BASES.length) start(started);
-      if (!finished && started === MOBILE_DATA_FALLBACK_BASES.length && failures === started) {
+      if (started < fallbackBases.length) start(started);
+      if (!finished && started === fallbackBases.length && failures === started) {
         finished = true;
         cleanup();
         reject(new Error('Every independent release copy is unavailable.'));
       }
     };
     const start = (index) => {
-      if (finished || index >= MOBILE_DATA_FALLBACK_BASES.length || index < started) return;
+      if (finished || index >= fallbackBases.length || index < started) return;
       started = index + 1;
-      const fallbackBase = MOBILE_DATA_FALLBACK_BASES[index];
+      const fallbackBase = fallbackBases[index];
       const fallbackUrl = fallbackReleaseUrl(requestOrUrl, fallbackBase);
-      fetchWithDeadline(fallbackUrl, { mode: 'cors', signal: controllers[index].signal }).then(async (response) => {
-        if (await validReleaseResponse(response, requestOrUrl)) succeed(index, response);
+      fetchWithDeadline(fallbackUrl, { mode: 'cors', cache: 'no-store', signal: controllers[index].signal }).then(async (response) => {
+        if (await validReleaseResponse(response, requestOrUrl, minimumDocumentRelease)) succeed(index, response);
         else fail();
       }, fail).catch(fail);
     };
@@ -181,7 +185,7 @@ async function fetchMobileDataFallback(requestOrUrl, signal) {
   });
 }
 
-async function validReleaseResponse(response, requestOrUrl) {
+async function validReleaseResponse(response, requestOrUrl, minimumDocumentRelease = MINIMUM_SAFE_RELEASE) {
   const path = new URL(typeof requestOrUrl === 'string' ? requestOrUrl : requestOrUrl.url, self.registration.scope).pathname;
   const contentType = response.headers.get('content-type') || '';
   const documentRequest = (typeof requestOrUrl !== 'string' && requestOrUrl && requestOrUrl.mode === 'navigate')
@@ -194,7 +198,7 @@ async function validReleaseResponse(response, requestOrUrl) {
     if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return false;
     try {
       const html = await response.clone().text();
-      return releaseDocumentVersion(html) >= MINIMUM_SAFE_RELEASE && /id=["']root["']/.test(html);
+      return releaseDocumentVersion(html) >= minimumDocumentRelease && /id=["']root["']/.test(html);
     } catch {
       return false;
     }
@@ -244,6 +248,7 @@ function localReleaseResponse(response, requestOrUrl) {
 }
 
 function fetchReleaseWithFallback(requestOrUrl, options = {}) {
+  const { minimumDocumentRelease, hedgeDelay = MOBILE_DATA_FALLBACK_DELAY_MS, ...fetchOptions } = options;
   return new Promise((resolve, reject) => {
     const controllers = [new AbortController(), new AbortController()];
     let finished = false;
@@ -251,7 +256,7 @@ function fetchReleaseWithFallback(requestOrUrl, options = {}) {
     let failures = 0;
     const complete = async (index, response) => {
       if (finished) return;
-      const valid = await validReleaseResponse(response, requestOrUrl);
+      const valid = await validReleaseResponse(response, requestOrUrl, minimumDocumentRelease);
       if (finished) return;
       if (!valid) {
         failed(index);
@@ -265,7 +270,7 @@ function fetchReleaseWithFallback(requestOrUrl, options = {}) {
     const startFallback = () => {
       if (finished || fallbackStarted) return;
       fallbackStarted = true;
-      fetchMobileDataFallback(requestOrUrl, controllers[1].signal).then(
+      fetchMobileDataFallback(requestOrUrl, controllers[1].signal, minimumDocumentRelease).then(
         (response) => complete(1, response).catch(() => failed(1)), () => failed(1),
       );
     };
@@ -279,8 +284,8 @@ function fetchReleaseWithFallback(requestOrUrl, options = {}) {
         reject(new Error('The primary and mobile-data release copies are unavailable.'));
       }
     };
-    const hedgeTimer = setTimeout(startFallback, MOBILE_DATA_FALLBACK_DELAY_MS);
-    fetchWithDeadline(requestOrUrl, { ...options, signal: controllers[0].signal }).then(
+    const hedgeTimer = setTimeout(startFallback, hedgeDelay);
+    fetchWithDeadline(requestOrUrl, { ...fetchOptions, signal: controllers[0].signal }).then(
       (response) => complete(0, response).catch(() => failed(0)), () => failed(0),
     );
   });
@@ -353,7 +358,7 @@ function warmAppShell() {
         const url = scopedUrl(file);
         if (await cacheRead(() => caches.match(url, { ignoreVary: true }))) continue;
         try {
-          const response = await fetchReleaseWithFallback(url);
+          const response = await fetchReleaseWithFallback(url, { minimumDocumentRelease: Number(RECOVERY_MARKER) });
           await safeCachePut(file.startsWith('assets/') ? ASSET_CACHE : SHELL_CACHE, url, response);
         } catch {
           // Normal requests can fill a partially warmed cache later.
@@ -456,17 +461,20 @@ async function networkFirstNavigation(request, event) {
   const requestedPath = new URL(request.url).pathname;
   const releaseRequest = isReleaseAssetPath(requestedPath) ? scopedUrl('index.html') : request;
   const forceNetwork = isRecoveryNavigation(request.url);
-  const cached = forceNetwork ? null : await cachedAppShell();
-  const networkRequest = fetchReleaseWithFallback(releaseRequest, { cache: 'no-store' }).then((response) => {
+  const networkRequest = fetchReleaseWithFallback(releaseRequest, {
+    cache: 'no-store',
+    minimumDocumentRelease: Number(RECOVERY_MARKER),
+    hedgeDelay: NAVIGATION_MIRROR_DELAY_MS,
+  }).then((response) => {
     keepAlive(event, safeCachePut(SHELL_CACHE, scopedUrl('index.html'), response.clone()));
     return response;
   });
   keepAlive(event, networkRequest);
-  // Returning the verified local shell immediately keeps an installed app in
-  // place when a phone resumes it. The fresh release is still fetched and
-  // cached in the background for the next launch.
-  if (cached) return cached;
-  const fallbackAfterDelay = wait(NAVIGATION_FALLBACK_DELAY_MS).then(cachedAppShell);
+  // Give the live copy a head start even if a cached shell is present. A
+  // recovery navigation waits for the network before using the offline copy.
+  const fallbackAfterDelay = forceNetwork
+    ? networkRequest
+    : wait(NAVIGATION_FALLBACK_DELAY_MS).then(cachedAppShell);
   try {
     const first = await Promise.race([networkRequest, fallbackAfterDelay]);
     return first || await networkRequest;

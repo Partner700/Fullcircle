@@ -26,15 +26,21 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=251`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=252`, { updateViaCache: 'none' })
       .then((registration) => {
-        // Activate updates without interrupting an open screen or draft.
-        void registration.update().catch(() => undefined);
-
-        // Periodically check for updates (every hour)
-        setInterval(() => {
+        let lastUpdateCheck = 0;
+        const checkForUpdate = () => {
+          lastUpdateCheck = Date.now();
           void registration.update().catch(() => undefined);
-        }, 60 * 60 * 1000);
+        };
+        checkForUpdate();
+        window.setInterval(checkForUpdate, 60 * 60 * 1000);
+        window.addEventListener('online', checkForUpdate);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && Date.now() - lastUpdateCheck >= 30_000) {
+            checkForUpdate();
+          }
+        });
 
         const warmRelease = () => {
           window.setTimeout(() => {
