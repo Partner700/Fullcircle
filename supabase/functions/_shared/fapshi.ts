@@ -77,15 +77,13 @@ export async function startFapshiPayment(input: {
   amount: number;
   reference: string;
   name: string;
-  mobileMoney?: { phone: string; medium: "mobile money" | "orange money"; payerName?: string; email?: string };
+  mobileMoney?: { phone: string };
 }): Promise<{ transId?: string; checkoutUrl?: string; declined?: true }> {
   try {
     const response = await api(input.mobileMoney ? "/direct-pay" : "/initiate-pay", {
       amount: input.amount,
+      // Let Fapshi detect the carrier from the number.
       phone: input.mobileMoney?.phone,
-      medium: input.mobileMoney?.medium,
-      name: input.mobileMoney?.payerName,
-      email: input.mobileMoney?.email,
       // An order-scoped lookup ID recovers a lost response without sharing the
       // member's internal user ID or creating a second checkout.
       userId: input.reference,
@@ -204,11 +202,21 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
   const response = await api(`/payment-status/${encodeURIComponent(id)}`);
   if (response.status === 429) return "pending";
   if (!response.ok) throw new Error("Could not check Fapshi payment.");
-  const verified = await response.json() as Json;
-  if (verified.transId !== id || verified.externalId !== payment.reference ||
-      verified.transType !== "Collection" || verified.amount !== Number(payment.amount_local) ||
-      payment.currency_code !== "XAF" || (verified.currency != null && verified.currency !== "XAF")) {
-    throw new Error("Fapshi payment does not match the order.");
+  const matchesOrder = (details: Json) => details.transId === id && details.externalId === payment.reference &&
+    details.transType === "Collection" && details.amount === Number(payment.amount_local) &&
+    payment.currency_code === "XAF" && (details.currency == null || details.currency === "XAF");
+  let verified = await response.json() as Json;
+  if (!matchesOrder(verified)) throw new Error("Fapshi payment does not match the order.");
+
+  // Retire unused legacy hosted links only after checkout has switched to Direct Pay.
+  const directMode = (Deno.env.get("FAPSHI_CHECKOUT_MODE") ?? "direct").toLowerCase() === "direct";
+  if (!callbackId && directMode && payment.payment_method === "fapshi_hosted" &&
+      (verified.status === "CREATED" || verified.status === "FAILED")) {
+    const expiredResponse = await api("/expire-pay", { transId: id });
+    if (!expiredResponse.ok) return "pending";
+    const expired = await expiredResponse.json() as Json;
+    if (!matchesOrder(expired) || expired.status !== "EXPIRED") return "pending";
+    verified = expired;
   }
 
   const common = {

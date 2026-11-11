@@ -467,19 +467,6 @@ function isDirectPaymentMethod(method: unknown): method is "mtn_momo" | "orange_
   return method === "mtn_momo" || method === "orange_money";
 }
 
-async function fapshiPayer(user: SupabaseAuthUserResponse & { id: string }, phone: string, method: string) {
-  const profile = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=display_name&limit=1`,
-    {
-      headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` },
-      signal: AbortSignal.timeout(4_000),
-    },
-  ).catch(() => null);
-  const rows: { display_name?: string }[] = profile?.ok ? await profile.json().catch(() => []) : [];
-  const medium = method === "orange_money" ? "orange money" as const : "mobile money" as const;
-  return { phone: phone.slice(3), medium, payerName: rows[0]?.display_name?.trim() || undefined, email: user.email };
-}
-
 async function startFcxCheckout(
   user: SupabaseAuthUserResponse & { id: string }, eventId: string, amount: number,
   method: unknown, customerPhone: unknown, retryRejected = true,
@@ -495,7 +482,7 @@ async function startFcxCheckout(
   if (useFapshiDirect && !phone) {
     return Response.json({ error: "Enter a valid Cameroon mobile money number." }, { status: 400, headers: corsHeaders });
   }
-  const mobileMoney = phone && isDirectPaymentMethod(method) ? await fapshiPayer(user, phone, method) : undefined;
+  const mobileMoney = phone ? { phone: phone.slice(3) } : undefined;
   assertFapshiConfigured();
   const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fcx_fapshi_checkout`, {
     method: "POST",
@@ -669,7 +656,7 @@ Deno.serve(async (req: Request) => {
         });
       }
       assertFapshiConfigured();
-      const mobileMoney = phone ? await fapshiPayer(authenticatedUser, phone, payment_method) : undefined;
+      const mobileMoney = phone ? { phone: phone.slice(3) } : undefined;
       const reference = `fp_${crypto.randomUUID()}`;
       const paymentResponse = (
         id: string, ref: string, amount: number, checkoutUrl: string | null | undefined,

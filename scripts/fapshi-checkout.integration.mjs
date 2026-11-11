@@ -62,9 +62,7 @@ globalThis.fetch = async (input, init = {}) => {
     assert.equal(body.userId, payment.reference);
     if (url.pathname === '/direct-pay') {
       assert.equal(body.phone, '675123456');
-      assert.equal(body.medium, payment.payment_method === 'mtn_momo' ? 'mobile money' : 'orange money');
-      assert.equal(body.name, 'Test Cadet');
-      assert.equal(body.email, 'buyer@example.test');
+      assert.equal(body.medium, undefined, 'Fapshi should detect the carrier from the number');
       assert.equal(body.pin, undefined);
     } else {
       assert.equal(body.phone, undefined);
