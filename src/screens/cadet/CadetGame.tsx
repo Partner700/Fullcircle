@@ -1,3 +1,4 @@
+import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -350,6 +351,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
   const [runId, setRunId] = useState<string | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
+  const [relicInventoryRevision, setRelicInventoryRevision] = useState(0);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [localDenarii, setLocalDenarii] = useState(denariiBalance);
   const [hintShown, setHintShown] = useState(false);
@@ -418,7 +420,11 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
           setQuestionsLoading(false);
         }
       });
-    // Fetch relic inventory
+    return () => { cancelled = true; };
+  }, [narrative.narrative_date, level, mode, userId]);
+
+  useEffect(() => {
+    let cancelled = false;
     supabase
       .from('relic_inventory')
       .select('quantity, relic_types!inner(slug)')
@@ -434,7 +440,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         setRelicInventory(map);
     });
     return () => { cancelled = true; };
-  }, [narrative.narrative_date, level, mode, userId]);
+  }, [userId, relicInventoryRevision]);
 
   const applyAnswerResult = useCallback((result: DailyGameAnswerResult, submittedAnswer: string | null) => {
     if (result.protected) {
@@ -813,6 +819,13 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
+      {!showFeedback && <ContextRelicShop userId={userId} timed
+        slugs={[
+          RELIC_SLUGS.HINT, RELIC_SLUGS.FREEZE_TIMER, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
+          RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
+          ...(q.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
+        ].filter(slug => !relicInventory[slug])}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
       <div key={`${q.id || currentQ}-${currentQ}`} className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>

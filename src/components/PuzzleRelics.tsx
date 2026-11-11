@@ -1,3 +1,4 @@
+import { ContextRelicShop } from './ContextRelicShop';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { userFacingError } from '../lib/connectionErrors';
@@ -57,6 +58,10 @@ export function PuzzleRelics({ userId, playing, busy, used, roundUsed, hasSelect
     onClick={()=>void use(relic.slug)} className="btn-secondary text-xs disabled:opacity-40">{using===relic.slug?'Using…':relic.name} · {inventory[relic.slug]}{alreadyUsed?' · used':''}{needsLetters?' · connect letters first':''}</button>;
   })}</div>
   {!loading&&!error&&!owned.length&&<p className="mt-2 text-xs text-stone">You do not own a relic that can be used in this puzzle. Quiz, streak and wallet relics stay in their own sections.</p>}
+  <ContextRelicShop userId={userId} timed={playing}
+    slugs={RELICS.filter(({ slug }) => !inventory[slug] && (playing || slug === 'reveal-reference') &&
+      !(['sword-goliath', 'freeze-timer'].includes(slug) ? roundUsed : used).includes(slug)).map(relic => relic.slug)}
+    onChanged={() => setRetry(value => value + 1)} />
   {error&&<div role="alert" className="mt-2 text-xs text-coral">{error}<button type="button" className="btn-secondary ml-2 text-xs" onClick={()=>setRetry(value=>value+1)}>Retry relics</button></div>}
  </div>;
 }

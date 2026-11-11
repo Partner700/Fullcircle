@@ -4,7 +4,7 @@ import { DirectMobileMoneyFields, type DirectMobileMoneyMethod } from './DirectM
 import { rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
 import { supabase } from '../lib/supabase';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchCheckoutProvider, startMarketCartCheckout, startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult, type CheckoutProvider } from '../lib/queries';
@@ -34,16 +34,18 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     quantityLimit={available} onQuantity={setQuantity}>{children}</MarketCartCheckout>;
 }
 
-export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity, onPendingChange }: {
+export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity, onPendingChange, aboveOverlay }: {
   lines: MarketCartLine[];
   className: string;
   children: ReactNode;
   onConfirmed: (purchased: MarketCartLine[]) => void;
   onPendingChange?: (pending: boolean) => void;
+  aboveOverlay?: boolean;
   quantityLimit?: number;
   onQuantity?: (quantity: number) => void;
 }) {
   const { session } = useAuth();
+  const dialogTitleId = useId();
   const userId = session?.user.id;
   const [payment, setPayment] = useState<CampayPaymentResult | null>(null);
   const [provider, setProvider] = useState<CheckoutProvider | null>(null);
@@ -182,10 +184,10 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
     <>
       <button type="button" className={className} aria-label={onQuantity ? `Buy FCX ticket for ${lines[0]?.unitPrice.toLocaleString('en-US')} francs` : "Open market cart"} onClick={() => void openCheckout()}>{children}</button>
       {open && createPortal(
-        <div className="fixed inset-0 z-[165] flex items-center justify-center bg-ink/50 p-4 animate-fade-in">
-          <section role="dialog" aria-modal="true" aria-labelledby="fcx-fapshi-title" className="card max-h-[90dvh] w-full max-w-lg space-y-4 overflow-y-auto p-6 animate-scale-in">
+        <div className={`fixed inset-0 ${aboveOverlay ? 'z-[2147483641]' : 'z-[165]'} flex items-center justify-center bg-ink/50 p-4 animate-fade-in`}>
+          <section role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} className="card max-h-[90dvh] w-full max-w-lg space-y-4 overflow-y-auto p-6 animate-scale-in">
             <div className="flex items-center justify-between">
-              <h3 id="fcx-fapshi-title" className="font-display text-lg font-semibold text-ink">Complete Purchase</h3>
+              <h3 id={dialogTitleId} className="font-display text-lg font-semibold text-ink">Complete Purchase</h3>
               <button type="button" aria-label="Close checkout" className="text-stone hover:text-ink" disabled={busy} onClick={() => setOpen(false)}><X size={20} /></button>
             </div>
             <div className="rounded-lg bg-surface-2 p-4 space-y-2">

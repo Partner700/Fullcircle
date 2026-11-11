@@ -1,3 +1,4 @@
+import { ContextRelicShop } from './ContextRelicShop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -602,6 +603,13 @@ export function HiddenChallengeOverlay() {
                   </div>
                   {relicNotice && <p className="mt-2 text-[10px] font-semibold text-sage">{relicNotice}</p>}
                 </div>
+              )}
+
+              {!treasure && secondsLeft > 0 && (
+                <ContextRelicShop userId={profile.id} timed aboveOverlay
+                  slugs={['shield-of-faith', 'skip', 'freeze-timer', 'reveal-reference', 'witch-ball-endor', 'sword-goliath']
+                    .filter(slug => !relics.some(relic => relic.slug === slug))}
+                  onChanged={() => void fetchHiddenChallengeRelics(challenge.claim_id).then(setRelics).catch(() => undefined)} />
               )}
 
               {challenge.options.length >= 2 ? (

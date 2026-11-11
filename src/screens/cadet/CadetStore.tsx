@@ -1,3 +1,4 @@
+import { relicMoneyPriceXaf } from '../../lib/relicPricing';
 import { useDraggableShortcut } from '../../hooks/useDraggableShortcut';
 import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
 import { DirectMobileMoneyFields } from '../../components/DirectMobileMoneyFields';
@@ -69,7 +70,6 @@ const PAYMENT_METHODS: { id: StorePaymentMethod; label: string; icon: typeof Sma
   { id: 'other', label: 'Other', icon: Landmark },
 ];
 
-const FALLBACK_XAF_PER_USD = 575;
 const FCX_TICKET_DENARII_COST = 600_000;
 const PAYMENT_SUCCESS_STATUSES = new Set(['confirmed', 'successful', 'success', 'completed']);
 
@@ -81,16 +81,6 @@ function isRealPaymentRejection(status: unknown, reason?: string | null) {
   const normalized = String(status || '').toLowerCase();
   if (!['rejected', 'failed', 'cancelled', 'expired'].includes(normalized)) return false;
   return !/not confirmed within 35 seconds/i.test(reason || '');
-}
-
-function relicMoneyPriceXaf(relic: RelicType): number {
-  const explicitXaf = Number(relic.money_price_xaf);
-  if (Number.isFinite(explicitXaf) && explicitXaf > 0) return Math.round(explicitXaf);
-
-  const legacyUsd = Number(relic.money_price_usd);
-  if (Number.isFinite(legacyUsd) && legacyUsd > 0) return Math.round(legacyUsd * FALLBACK_XAF_PER_USD);
-
-  return 0;
 }
 
 interface CadetStoreProps {

@@ -1,3 +1,4 @@
+import { ContextRelicShop } from './ContextRelicShop';
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Eye, Lightbulb, ListFilter, Loader2, RotateCw, SkipForward, TimerReset, Volume2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -60,6 +61,11 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
         {using === slug ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
         <span className="absolute -right-1 -top-1 rounded bg-surface-2 px-1 text-[9px] font-bold text-brass">{inventory[slug]}</span>
       </button>)}</div>
+    <ContextRelicShop userId={userId} timed
+      slugs={relics.filter(({ slug }) => !disabled && !inventory[slug] &&
+        (!allowedSlugs || allowedSlugs.includes(slug)) && !aid?.used.includes(slug) &&
+        (slug !== 'eliminate' || ['multiple_choice', 'odd_one'].includes(questionType))).map(relic => relic.slug)}
+      onChanged={() => setRetry(value => value + 1)} />
     {aid?.notice && <p className="mt-2 text-xs text-brass" role="status">{aid.notice}</p>}
     {error && <div className="mt-2 flex items-center gap-2 text-xs text-coral"><span>{error}</span><button type="button" className="icon-btn h-8 w-8 shrink-0" title="Retry relics" aria-label="Retry relics" onClick={() => setRetry((value) => value + 1)}><RotateCw size={14} /></button></div>}
   </div>;

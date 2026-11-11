@@ -1,3 +1,4 @@
+import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -634,15 +635,23 @@ function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizS
     return <ValedictionResult attempt={attempt} />;
   }
 
+  const lazarusShop = quizType !== 'valediction' && lazarusWindowOpen && !lazarusCount && profile && (
+    <ContextRelicShop userId={profile.id} slugs={[RELIC_SLUGS.LAZARUS_COIN]} label="Get Lazarus Coin"
+      onChanged={() => {
+        void fetchRelicInventory(profile.id).then(items => {
+          setLazarusCount(items.find(item => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN)?.quantity ?? 0);
+        }).catch(() => undefined);
+      }} />
+  );
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
     }
-    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
 
   // In quiz
@@ -755,7 +764,8 @@ function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizS
           <h3 className="font-display font-medium text-ink mb-1">Quiz Closed</h3>
           <p className="text-sm text-stone">This quiz session has ended. You did not attempt it.</p>
           <p className="text-xs text-roman mt-2">Missing the Saturday quiz breaks your streak.</p>
-          {lazarusWindowOpen && (
+          {lazarusShop}
+          {lazarusWindowOpen && canUseLazarus && (
             <button
               onClick={startWithLazarus}
               disabled={!canUseLazarus || usingLazarus}
@@ -921,6 +931,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
     Math.max(0, Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000)),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [relicInventoryRevision, setRelicInventoryRevision] = useState(0);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
@@ -988,7 +999,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         setRelicInventory(map);
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, relicInventoryRevision]);
 
   // Display the database-aligned countdown, then ask the database to confirm
   // expiry before submitting a timed-out attempt.
@@ -1209,6 +1220,14 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
           })}
         </div>
       )}
+
+      {allowRelics && !showFeedback && <ContextRelicShop userId={userId} timed
+        slugs={[
+          RELIC_SLUGS.HINT, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
+          RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
+          ...(payload.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
+        ].filter(slug => !relicInventory[slug])}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
 
       {/* Question card with scroll-edge motif */}
       <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
