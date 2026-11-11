@@ -2,7 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { regionalDateTime } from '../lib/regionalPreferences';
 import { FcxFapshiCheckout } from './FcxFapshiCheckout';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
@@ -214,9 +214,8 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
           </a>
         )}
         <FcxFapshiCheckout key={visibleExperience.id} experience={visibleExperience} onConfirmed={refreshRegistrations}
-          className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffe477]/80">
-          <CircleDollarSign size={16} strokeWidth={2.4} />
-          <span className="text-[8px] font-black uppercase leading-none">Pay</span>
+          className="fcx-action-button fcx-line flex h-12 shrink-0 items-center justify-center px-2 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffe477]/80">
+          <span className="text-xs font-black leading-none">{visibleExperience.ticket_price_xaf?.toLocaleString('en-US')}frs</span>
         </FcxFapshiCheckout>
       </div>
 

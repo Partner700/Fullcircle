@@ -1,5 +1,6 @@
 import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
-import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from '../../components/SavedMobileMoneyNumber';
+import { DirectMobileMoneyFields } from '../../components/DirectMobileMoneyFields';
+import { rememberMobileMoneyNumber } from '../../components/SavedMobileMoneyNumber';
 import { MobileMoneyApprovalHelp } from '../../components/MobileMoneyApprovalHelp';
 import { FcxFapshiCheckout } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -450,7 +451,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       if (elapsed >= 300_000) {
         window.clearInterval(interval);
       }
-    }, awaitingDirectApproval ? 36_000 : paymentReference.startsWith('fp_') ? 15_000 : 1500);
+    }, awaitingDirectApproval ? 16_000 : paymentReference.startsWith('fp_') ? 15_000 : 1500);
 
     return () => {
       cancelled = true;
@@ -631,7 +632,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           {!alreadyOnFcxList && fcxExperience && (
             <FcxFapshiCheckout key={fcxExperience.id} experience={fcxExperience} className="btn-secondary text-xs"
               onConfirmed={() => { void fetchActiveFcxExperience().then(setFcxExperience).catch(() => undefined); }}>
-              <Ticket size={14} /> Pay with Fapshi
+              {fcxExperience.ticket_price_xaf?.toLocaleString('en-US')}frs
             </FcxFapshiCheckout>
           )}
         </div>
@@ -934,12 +935,17 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               </div>
             ) : checkoutProvider === 'loading' || checkoutProvider === 'error' ? (
               <p className="text-sm text-stone">{checkoutProvider === 'loading' ? 'Checking payment options…' : 'Checkout is unavailable. Reopen it to try again.'}</p>
+            ) : checkoutProvider === 'fapshi_direct' ? (
+              <DirectMobileMoneyFields userId={profile?.id} countryCode={profile?.country_code}
+                method={paymentMethod === 'orange_money' ? paymentMethod : 'mtn_momo'} phone={payPhone}
+                busy={paySubmitting} disabled={!canSubmitPayment}
+                onMethod={setPaymentMethod} onPhone={setPayPhone} onSubmit={() => void submitPayment()} />
             ) : (
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-stone block mb-2">Payment method</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {PAYMENT_METHODS.filter(method => checkoutProvider !== 'fapshi_direct' || method.id !== 'other').map((method) => {
+                    {PAYMENT_METHODS.map((method) => {
                       const MethodIcon = method.icon;
                       return (
                         <button
@@ -1020,9 +1026,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       value={payPhone}
                       onChange={setPayPhone}
                     />
-                    {checkoutProvider === 'fapshi_direct' && (
-                      <SavedMobileMoneyNumber userId={profile?.id} method={paymentMethod} onSelect={setPayPhone} />
-                    )}
                   </div>
                 )}
 

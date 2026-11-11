@@ -240,7 +240,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         return;
       }
       void checkPayment(false);
-    }, activePayment.reference.startsWith('fp_') ? (activePayment.checkout_url ? 15_000 : 36_000) : 4500);
+    }, activePayment.reference.startsWith('fp_') ? (activePayment.checkout_url ? 15_000 : 16_000) : 4500);
     return () => window.clearInterval(interval);
   }, [checkPayment, payment?.reference, payment?.status, profile]);
 

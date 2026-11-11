@@ -1,5 +1,7 @@
 import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
-import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
+import { X } from 'lucide-react';
+import { DirectMobileMoneyFields, type DirectMobileMoneyMethod } from './DirectMobileMoneyFields';
+import { rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
 import { supabase } from '../lib/supabase';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,7 +20,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const userId = session?.user.id;
   const [payment, setPayment] = useState<CampayPaymentResult | null>(null);
   const [provider, setProvider] = useState<CheckoutProvider | null>(null);
-  const [method, setMethod] = useState<'mtn_momo' | 'orange_money'>('mtn_momo');
+  const [method, setMethod] = useState<DirectMobileMoneyMethod>('mtn_momo');
   const [phone, setPhone] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,7 +54,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   useEffect(() => {
     if (!reference || confirmed || !open) return;
     if (provider !== 'fapshi_direct') void checkStatus(reference);
-    const timer = window.setInterval(() => void checkStatus(reference), provider === 'fapshi_direct' ? 36_000 : 15_000);
+    const timer = window.setInterval(() => void checkStatus(reference), provider === 'fapshi_direct' ? 16_000 : 15_000);
     const stop = window.setTimeout(() => window.clearInterval(timer), 300_000);
     return () => { window.clearInterval(timer); window.clearTimeout(stop); };
   }, [checkStatus, confirmed, open, provider, reference]);
@@ -124,45 +126,45 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   if ((!userId || registered || !amount || amount < 300) && !open) return null;
   return (
     <>
-      <button type="button" className={className} aria-label="Pay for FCX with Fapshi" onClick={() => void openCheckout()}>{children}</button>
+      <button type="button" className={className} aria-label={`Buy FCX ticket for ${amount?.toLocaleString('en-US')} francs`} onClick={() => void openCheckout()}>{children}</button>
       {open && createPortal(
-        <div className="fixed inset-0 z-[165] grid place-items-center bg-ink/60 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="fcx-fapshi-title" className="card w-full max-w-sm space-y-4 p-5">
-            <h3 id="fcx-fapshi-title" className="font-display text-lg font-bold text-ink">Pay for your FCX ticket</h3>
+        <div className="fixed inset-0 z-[165] flex items-center justify-center bg-ink/50 p-4 animate-fade-in">
+          <section role="dialog" aria-modal="true" aria-labelledby="fcx-fapshi-title" className="card w-full max-w-lg space-y-4 p-6 animate-scale-in">
+            <div className="flex items-center justify-between">
+              <h3 id="fcx-fapshi-title" className="font-display text-lg font-semibold text-ink">Complete Purchase</h3>
+              <button type="button" aria-label="Close checkout" className="text-stone hover:text-ink" disabled={busy} onClick={() => setOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="rounded-lg bg-surface-2 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-stone">Ticket:</span>
+                <span className="text-sm font-semibold text-ink">FCX ticket</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-stone">Amount:</span>
+                <span className="text-sm font-semibold text-gold">{amount?.toLocaleString('en-US')}frs</span>
+              </div>
+            </div>
             {confirmed || registered ? (
               <p role="status" className="text-sm text-sage">Payment confirmed. Your place is on the FCX list.</p>
             ) : payment ? (
               <>
-                <p role="status" className="text-sm text-stone">Your place is held while Fapshi verifies the payment.</p>
-                {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Open Fapshi checkout</a>
+                <p role="status" className="text-sm text-stone">Mobile money approval pending</p>
+                {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Continue to payment</a>
                   : provider === 'fapshi_direct' ? <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method ?? method} startedAt={payment.approval_started_at} onTimeout={() => void checkStatus(payment.reference)} />
                     : <p className="text-sm text-stone">Check the status of your existing payment.</p>}
                 <button type="button" className="btn-secondary" disabled={checking} onClick={() => void checkManually()}>
-                  {checking ? 'Checking…' : 'Check payment status'}
+                  {checking ? 'Checking…' : 'Check Status'}
                 </button>
               </>
             ) : (
               <>
-                <p className="text-sm text-stone">{amount?.toLocaleString()} FCFA via MTN MoMo or Orange Money.</p>
-                {provider === 'fapshi_direct' && (
-                  <>
-                    <label className="block text-sm">Mobile money service
-                      <select className="input-field mt-1 w-full" value={method}
-                        onChange={event => setMethod(event.target.value === 'orange_money' ? 'orange_money' : 'mtn_momo')}>
-                        <option value="mtn_momo">MTN MoMo</option>
-                        <option value="orange_money">Orange Money</option>
-                      </select>
-                    </label>
-                    <label className="block text-sm">Mobile money number
-                      <input className="input-field mt-1 w-full" type="tel" autoComplete="tel" value={phone}
-                        placeholder="6XX XXX XXX" onChange={event => setPhone(event.target.value)} />
-                    </label>
-                    <SavedMobileMoneyNumber userId={userId} method={method} onSelect={setPhone} />
-                  </>
-                )}
-                {provider === 'fapshi' || provider === 'fapshi_direct' ? (
-                  <button type="button" className="btn-primary" disabled={busy} onClick={() => void prepare()}>
-                    {busy ? 'Preparing checkout…' : provider === 'fapshi_direct' ? 'Send payment prompt' : 'Continue to Fapshi'}
+                {provider === 'fapshi_direct' ? (
+                  <DirectMobileMoneyFields userId={userId} countryCode="CM" method={method} phone={phone}
+                    busy={busy} disabled={!/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
+                    onMethod={setMethod} onPhone={setPhone} onSubmit={() => void prepare()} />
+                ) : provider === 'fapshi' ? (
+                  <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void prepare()}>
+                    {busy ? 'Preparing checkout…' : 'Continue to payment'}
                   </button>
                 ) : provider === 'campay' ? (
                   <p className="text-sm text-stone">FCX mobile money checkout is unavailable.</p>
@@ -170,7 +172,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
               </>
             )}
             {error && <p role="alert" className="text-sm text-coral">{error}</p>}
-            <button type="button" className="btn-secondary ml-2" disabled={busy} onClick={() => setOpen(false)}>Close</button>
+            {(confirmed || registered || payment) && <button type="button" className="btn-primary text-sm" onClick={() => setOpen(false)}>Done</button>}
           </section>
         </div>, document.body
       )}

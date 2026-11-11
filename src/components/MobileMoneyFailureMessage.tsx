@@ -1,3 +1,5 @@
+import { MOBILE_MONEY_APPROVAL_MS, MOBILE_MONEY_APPROVAL_SECONDS } from '../lib/mobileMoneyApproval';
+
 export function MobileMoneyFailureMessage({ reason, approvalStartedAt }: {
   reason?: string | null;
   approvalStartedAt?: string;
@@ -14,7 +16,7 @@ export function MobileMoneyFailureMessage({ reason, approvalStartedAt }: {
     return 'No payment approval request was sent. Try starting the payment again.';
   }
 
-  if (insufficientFunds || approvalAge < 20_000) {
+  if (insufficientFunds || approvalAge < MOBILE_MONEY_APPROVAL_MS) {
     return (
       <>
         {insufficientFunds ? 'Your mobile money balance is too low for this purchase.' : 'The payment didn’t go through.'}{' '}
@@ -25,8 +27,8 @@ export function MobileMoneyFailureMessage({ reason, approvalStartedAt }: {
       </>
     );
   }
-  if (approvalAge >= 20_000) {
-    return 'The payment was unsuccessful. If the USSD prompt closed before you entered your PIN, try again and approve the new prompt within 20 seconds.';
+  if (approvalAge >= MOBILE_MONEY_APPROVAL_MS) {
+    return `The payment was unsuccessful. If the USSD prompt closed before you entered your PIN, try again and approve the new prompt within ${MOBILE_MONEY_APPROVAL_SECONDS} seconds.`;
   }
   return 'The payment was unsuccessful. Try again and approve the new prompt as soon as it appears.';
 }
