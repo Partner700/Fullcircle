@@ -885,7 +885,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={paymentReference} method={activePaymentMethod} startedAt={paymentResult.approval_started_at} onTimeout={() => void checkPaymentStatus()} /> : (
                         <p className="text-sm text-stone">
                           {paymentRejected && paymentResult.reference.startsWith('fp_')
-                            ? <MobileMoneyFailureMessage reason={paymentResult.message} />
+                            ? <MobileMoneyFailureMessage reason={paymentResult.message} approvalStartedAt={paymentResult.approval_started_at} />
                             : paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
                         </p>
                       )}

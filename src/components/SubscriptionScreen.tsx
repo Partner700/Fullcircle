@@ -384,7 +384,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
                 <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.status === 'rejected' ? 'Payment unsuccessful' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
                 {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method} startedAt={payment.approval_started_at} onTimeout={() => void checkPayment(false)} /> : (
                   <p className="mt-0.5 text-xs opacity-80">{payment.status === 'rejected' && payment.reference.startsWith('fp_')
-                    ? <MobileMoneyFailureMessage reason={payment.message} />
+                    ? <MobileMoneyFailureMessage reason={payment.message} approvalStartedAt={payment.approval_started_at} />
                     : payment.message || 'Approve the prompt on your phone.'}</p>
                 )}
                 <p className="mt-1 truncate text-[10px] opacity-60">Reference: {payment.reference}</p>

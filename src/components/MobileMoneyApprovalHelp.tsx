@@ -25,7 +25,7 @@ export function MobileMoneyApprovalHelp({ method, startedAt, onTimeout }: {
       <p role="status" className="text-sm text-stone">
         {deadline === null
           ? 'Full Circle is checking the existing payment request.'
-          : 'The approval window has ended. If you didn’t enter your PIN, the phone prompt may have expired.'}
+          : 'The 20-second USSD approval window has ended. If you didn’t enter your PIN, wait for the payment status before requesting a new prompt.'}
         {' '}Full Circle will update this payment as soon as Fapshi confirms the result.
       </p>
     );

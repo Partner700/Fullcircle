@@ -29,22 +29,23 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const registered = experience.registrations.some((entry) => entry.user_id === userId);
 
   const reference = payment?.reference;
-  const activeReference = useRef<string | null>(null);
+  const activePayment = useRef<CampayPaymentResult | null>(null);
   const checkStatus = useCallback(async (reference: string, showError = false) => {
     try {
       const result = await verifyCampayPayment(reference);
-      if (activeReference.current !== reference) return;
+      const attempt = activePayment.current;
+      if (attempt?.reference !== reference) return;
       if (result.status === 'confirmed') {
-        activeReference.current = null;
+        activePayment.current = null;
         setConfirmed(true);
         onConfirmed();
       } else if (result.status === 'rejected') {
-        activeReference.current = null;
+        activePayment.current = null;
         setPayment(null);
-        setError(<MobileMoneyFailureMessage reason={result.rejection_reason} />);
+        setError(<MobileMoneyFailureMessage reason={result.rejection_reason} approvalStartedAt={attempt.approval_started_at} />);
       }
     } catch {
-      if (showError && activeReference.current === reference) setError('Could not check payment status. Try checking again.');
+      if (showError && activePayment.current?.reference === reference) setError('Could not check payment status. Try checking again.');
     }
   }, [onConfirmed]);
 
@@ -104,7 +105,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     try {
       const result = await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined);
       if (direct && result.status === 'pending' && result.approval_started_at) rememberMobileMoneyNumber(userId, method, phone);
-      activeReference.current = result.reference;
+      activePayment.current = result;
       if (result.status === 'confirmed') {
         setConfirmed(true);
         onConfirmed();
