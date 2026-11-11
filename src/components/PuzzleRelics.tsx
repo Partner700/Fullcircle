@@ -50,14 +50,14 @@ export function PuzzleRelics({ userId, playing, busy, used, roundUsed, hasSelect
  const owned=RELICS.filter(relic=>inventory[relic.slug]>0);
  return <div className="mt-3 border-t border-border pt-3" aria-label="Owned Puzzle Trivia relics">
   <h4 className="text-xs font-bold">Your puzzle relics</h4>
-  {loading&&<p role="status" className="mt-2 text-xs text-stone">Loading relics…</p>}
+  {loading&&<p role="status" className="mt-2 text-xs text-white/80">Loading relics…</p>}
   <div className="mt-2 flex flex-wrap gap-2">{owned.map(relic=>{
    const alreadyUsed=['sword-goliath','freeze-timer'].includes(relic.slug)?roundUsed.includes(relic.slug):used.includes(relic.slug);
    const needsLetters=relic.slug==='talking-donkey'&&!hasSelection;
    return <button key={relic.slug} type="button" title={relic.detail} disabled={busy||!!using||loading||alreadyUsed||!playing&&relic.slug!=='reveal-reference'||needsLetters}
-    onClick={()=>void use(relic.slug)} className="btn-secondary text-xs disabled:opacity-40">{using===relic.slug?'Using…':relic.name} · {inventory[relic.slug]}{alreadyUsed?' · used':''}{needsLetters?' · connect letters first':''}</button>;
+    onClick={()=>void use(relic.slug)} className="btn-secondary text-xs disabled:cursor-not-allowed disabled:border-white/25 disabled:bg-white/5 disabled:text-white/75">{using===relic.slug?'Using…':relic.name} · {inventory[relic.slug]}{alreadyUsed?' · used':''}{needsLetters?' · connect letters first':''}</button>;
   })}</div>
-  {!loading&&!error&&!owned.length&&<p className="mt-2 text-xs text-stone">You do not own a relic that can be used in this puzzle. Quiz, streak and wallet relics stay in their own sections.</p>}
+  {!loading&&!error&&!owned.length&&<p className="mt-2 text-xs text-white/80">You do not own a relic that can be used in this puzzle. Quiz, streak and wallet relics stay in their own sections.</p>}
   <ContextRelicShop userId={userId} timed={playing}
     slugs={RELICS.filter(({ slug }) => !inventory[slug] && (playing || slug === 'reveal-reference') &&
       !(['sword-goliath', 'freeze-timer'].includes(slug) ? roundUsed : used).includes(slug)).map(relic => relic.slug)}
