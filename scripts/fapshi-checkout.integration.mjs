@@ -251,6 +251,24 @@ for (const [providerResult, expected] of [
   assert.equal(reloaded.rejection_reason, expected, 'retain the verified reason after reload');
 }
 
+for (const orderToRetry of [mobileOrder, { ...plan, payment_method: 'mtn_momo', customer_phone: mobileOrder.customer_phone }, directFcx]) {
+  const first = await (await direct(req(orderToRetry, cadet))).json();
+  assert.equal(first.status, 'pending');
+  assert.ok(Date.parse(first.approval_started_at));
+  const prompts = createCount;
+  const stillPending = await (await direct(req(orderToRetry, cadet))).json();
+  assert.equal(stillPending.reference, first.reference);
+  assert.equal(createCount, prompts);
+  delete payment.fapshi_checked_at;
+  Object.assign(providerPayment, { status: 'FAILED', failureCode: 'CANCELLED' });
+  const retried = await (await direct(req(orderToRetry, cadet))).json();
+  assert.equal(retried.status, 'pending');
+  assert.notEqual(retried.reference, first.reference);
+  assert.equal(createCount, prompts + 1);
+  providerPayment.status = 'FAILED';
+  assert.equal((await (await status(req({ reference: retried.reference }, cadet))).json()).status, 'rejected');
+}
+
 console.log('Hosted and Direct Pay checkout and payment verification passed.');
 
 await import('../supabase/functions/fapshi-service-balance/index.ts');

@@ -1,4 +1,6 @@
 import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
+import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
+import { supabase } from '../lib/supabase';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -44,11 +46,24 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
 
   useEffect(() => {
     if (!reference || confirmed || !open) return;
-    void checkStatus(reference);
-    const timer = window.setInterval(() => void checkStatus(reference), 15_000);
+    if (provider !== 'fapshi_direct') void checkStatus(reference);
+    const timer = window.setInterval(() => void checkStatus(reference), provider === 'fapshi_direct' ? 36_000 : 15_000);
     const stop = window.setTimeout(() => window.clearInterval(timer), 300_000);
     return () => { window.clearInterval(timer); window.clearTimeout(stop); };
-  }, [checkStatus, confirmed, open, reference]);
+  }, [checkStatus, confirmed, open, provider, reference]);
+
+  useEffect(() => {
+    if (!userId || !reference || !open || confirmed) return;
+    const channel = supabase.channel(`fcx-payment-${reference}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${userId}`,
+      }, ({ new: row }) => {
+        if (row.reference === reference && (row.status === 'confirmed' || row.status === 'rejected')) {
+          void checkStatus(reference);
+        }
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [checkStatus, confirmed, open, reference, userId]);
 
   async function checkManually() {
     if (!reference || checking) return;
@@ -83,7 +98,16 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     setBusy(true);
     setError('');
     try {
-      setPayment(await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined));
+      const result = await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined);
+      if (direct && result.status === 'pending') rememberMobileMoneyNumber(userId, method, phone);
+      if (result.status === 'confirmed') {
+        setConfirmed(true);
+        onConfirmed();
+      } else if (result.status === 'rejected') {
+        await checkStatus(result.reference, true);
+      } else {
+        setPayment(result);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Checkout could not start.');
     } finally {
@@ -105,7 +129,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
               <>
                 <p role="status" className="text-sm text-stone">Your place is held while Fapshi verifies the payment.</p>
                 {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Open Fapshi checkout</a>
-                  : provider === 'fapshi_direct' ? <MobileMoneyApprovalHelp />
+                  : provider === 'fapshi_direct' ? <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method ?? method} startedAt={payment.approval_started_at} onTimeout={() => void checkStatus(payment.reference)} />
                     : <p className="text-sm text-stone">Check the status of your existing payment.</p>}
                 <button type="button" className="btn-secondary" disabled={checking} onClick={() => void checkManually()}>
                   {checking ? 'Checking…' : 'Check payment status'}
@@ -127,6 +151,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
                       <input className="input-field mt-1 w-full" type="tel" autoComplete="tel" value={phone}
                         placeholder="6XX XXX XXX" onChange={event => setPhone(event.target.value)} />
                     </label>
+                    <SavedMobileMoneyNumber userId={userId} method={method} onSelect={setPhone} />
                   </>
                 )}
                 {provider === 'fapshi' || provider === 'fapshi_direct' ? (

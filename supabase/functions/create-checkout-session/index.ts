@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { normalizeCampayPhone } from "../_shared/campay.ts";
-import { assertFapshiConfigured, fapshiCheckoutUrl, findPendingFapshiPayment, startFapshiPayment } from "../_shared/fapshi.ts";
+import { assertFapshiConfigured, fapshiCheckoutUrl, findFapshiPayment, findPendingFapshiPayment, startFapshiPayment, verifyFapshiPayment } from "../_shared/fapshi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -482,7 +482,7 @@ async function fapshiPayer(user: SupabaseAuthUserResponse & { id: string }, phon
 
 async function startFcxCheckout(
   user: SupabaseAuthUserResponse & { id: string }, eventId: string, amount: number,
-  method: unknown, customerPhone: unknown,
+  method: unknown, customerPhone: unknown, retryRejected = true,
 ): Promise<Response> {
   if (!useFapshi) return Response.json({ error: "FCX checkout is unavailable." }, { status: 503, headers: corsHeaders });
   if (!/^[0-9a-f-]{36}$/i.test(eventId) || !Number.isInteger(amount) || amount < 300) {
@@ -512,6 +512,20 @@ async function startFcxCheckout(
     id: string; reference: string; amount: number; title: string; checkout_url?: string; created: boolean;
   };
   let checkoutUrl = fapshiCheckoutUrl(payment.checkout_url);
+  let approvalStartedAt: string | undefined;
+  let status = "pending";
+  let paymentMethod = method;
+  if (useFapshiDirect && !payment.created) {
+    const existing = await findFapshiPayment(payment.reference);
+    if (existing?.user_id === user.id) {
+      approvalStartedAt = existing.created_at;
+      paymentMethod = existing.payment_method;
+      status = await verifyFapshiPayment(existing).catch(() => "pending");
+      if (status === "rejected" && retryRejected) {
+        return startFcxCheckout(user, eventId, amount, method, customerPhone, false);
+      }
+    }
+  }
   if (payment.created) {
     if (mobileMoney) {
       try {
@@ -521,6 +535,7 @@ async function startFcxCheckout(
         throw error;
       }
     }
+    if (mobileMoney) approvalStartedAt = new Date().toISOString();
     const result = await startFapshiPayment({
       amount: payment.amount, reference: payment.reference, name: payment.title, mobileMoney,
     });
@@ -534,7 +549,8 @@ async function startFcxCheckout(
     checkoutUrl = result.checkoutUrl ?? null;
   }
   return Response.json({
-    status: "pending", reference: payment.reference, payment_id: payment.id, provider: "Fapshi",
+    status, reference: payment.reference, payment_id: payment.id, provider: "Fapshi",
+    approval_started_at: approvalStartedAt, payment_method: paymentMethod,
     amount_local: payment.amount, currency_code: "XAF", checkout_url: checkoutUrl,
   }, { headers: corsHeaders });
 }
@@ -655,12 +671,16 @@ Deno.serve(async (req: Request) => {
       assertFapshiConfigured();
       const mobileMoney = phone ? await fapshiPayer(authenticatedUser, phone, payment_method) : undefined;
       const reference = `fp_${crypto.randomUUID()}`;
-      const paymentResponse = (id: string, ref: string, amount: number, checkoutUrl: string | null | undefined, prompted = false) =>
+      const paymentResponse = (
+        id: string, ref: string, amount: number, checkoutUrl: string | null | undefined,
+        approvalStartedAt?: string, status = "pending", method = payment_method,
+      ) =>
         Response.json({
-          status: "pending",
+          status,
           reference: ref,
           payment_id: id,
-          payment_method,
+          payment_method: method,
+          approval_started_at: approvalStartedAt,
           provider: "Fapshi",
           amount_local: amount,
           currency_code: checkoutCurrency,
@@ -668,34 +688,50 @@ Deno.serve(async (req: Request) => {
           checkout_url: checkoutUrl,
           message: checkoutUrl
             ? "Open Fapshi to pay with MTN MoMo or Orange Money."
-            : prompted
+            : approvalStartedAt
               ? "Approve the mobile money prompt on your phone with your PIN. Full Circle will confirm the payment here."
               : "A checkout is pending. Check its status before trying again.",
         }, { headers: corsHeaders });
+      const reservePayment = () => createPaymentRecord({
+        user_id,
+        relic_slug: product.slug,
+        relic_name: product.name,
+        purchase_kind: product.purchaseKind,
+        purchase_metadata: product.metadata,
+        amount_usd: amountUsd,
+        amount_local: amountXaf,
+        currency_code: checkoutCurrency,
+        provider: "Fapshi",
+        sender_phone: phone ?? "",
+        status: "pending",
+        reference,
+        external_reference: reference,
+        payment_method,
+      });
       let paymentId: string;
       try {
-        paymentId = await createPaymentRecord({
-          user_id,
-          relic_slug: product.slug,
-          relic_name: product.name,
-          purchase_kind: product.purchaseKind,
-          purchase_metadata: product.metadata,
-          amount_usd: amountUsd,
-          amount_local: amountXaf,
-          currency_code: checkoutCurrency,
-          provider: "Fapshi",
-          sender_phone: phone ?? "",
-          status: "pending",
-          reference,
-          external_reference: reference,
-          payment_method,
-        });
+        paymentId = await reservePayment();
       } catch (error) {
         const existing = await findPendingFapshiPayment(user_id, product.slug);
         if (!existing) throw error;
-        return paymentResponse(existing.id, existing.reference, Number(existing.amount_local),
-          fapshiCheckoutUrl(existing.fapshi_checkout_url));
+        const status = useFapshiDirect ? await verifyFapshiPayment(existing).catch(() => "pending") : "pending";
+        if (status === "rejected") {
+          try {
+            paymentId = await reservePayment();
+          } catch (retryError) {
+            const concurrent = await findPendingFapshiPayment(user_id, product.slug);
+            if (!concurrent) throw retryError;
+            return paymentResponse(concurrent.id, concurrent.reference, Number(concurrent.amount_local),
+              fapshiCheckoutUrl(concurrent.fapshi_checkout_url), concurrent.created_at,
+              concurrent.status, concurrent.payment_method ?? payment_method);
+          }
+        } else {
+          return paymentResponse(existing.id, existing.reference, Number(existing.amount_local),
+            fapshiCheckoutUrl(existing.fapshi_checkout_url), useFapshiDirect ? existing.created_at : undefined,
+            status, existing.payment_method ?? payment_method);
+        }
       }
+      const approvalStartedAt = mobileMoney ? new Date().toISOString() : undefined;
       const result = await startFapshiPayment({
         amount: amountXaf,
         reference,
@@ -714,7 +750,7 @@ Deno.serve(async (req: Request) => {
           fapshi_checkout_url: result.checkoutUrl,
         }).catch(() => {});
       }
-      return paymentResponse(paymentId, reference, amountXaf, result.checkoutUrl, Boolean(phone && result.transId));
+      return paymentResponse(paymentId, reference, amountXaf, result.checkoutUrl, approvalStartedAt);
     }
 
     const token = await getCampayToken();

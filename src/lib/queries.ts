@@ -2758,6 +2758,7 @@ export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(
 }
 
 export type CampayPaymentResult = {
+  approval_started_at?: string;
   checkout_url?: string | null;
   status: string;
   reference: string;

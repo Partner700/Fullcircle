@@ -1,4 +1,5 @@
 import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
+import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from '../../components/SavedMobileMoneyNumber';
 import { MobileMoneyApprovalHelp } from '../../components/MobileMoneyApprovalHelp';
 import { FcxFapshiCheckout } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -303,6 +304,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         verificationNote || undefined,
         displayedAmountXaf,
       );
+      if (checkoutProvider === 'fapshi_direct' && result.status === 'pending') {
+        rememberMobileMoneyNumber(profile.id, paymentMethod, payPhone);
+      }
       setPaymentResult(result);
       if (isPaymentSuccessful(result.status)) {
         await refreshPurchaseState();
@@ -430,7 +434,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       } catch {}
       return false;
     };
-    void poll();
+    if (!awaitingDirectApproval) void poll();
     const interval = window.setInterval(async () => {
       if (await poll()) window.clearInterval(interval);
 
@@ -446,13 +450,13 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       if (elapsed >= 300_000) {
         window.clearInterval(interval);
       }
-    }, paymentReference.startsWith('fp_') ? 15_000 : 1500);
+    }, awaitingDirectApproval ? 36_000 : paymentReference.startsWith('fp_') ? 15_000 : 1500);
 
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [activePaymentMethod, onBalanceChanged, paymentConfirmed, paymentModalRelic, paymentProviderReference, paymentReference, paymentRejected, paymentStartingQuantity, profile, refreshMutableStoreState]);
+  }, [activePaymentMethod, awaitingDirectApproval, onBalanceChanged, paymentConfirmed, paymentModalRelic, paymentProviderReference, paymentReference, paymentRejected, paymentStartingQuantity, profile, refreshMutableStoreState]);
 
   useEffect(() => {
     if (!profile || !paymentReference || paymentConfirmed || paymentRejected) return;
@@ -878,7 +882,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       <p className="font-display font-semibold text-ink">
                         {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment unsuccessful' : awaitingDirectApproval ? 'Mobile money approval pending' : 'Awaiting Payment Confirmation'}
                       </p>
-                      {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={activePaymentMethod} /> : (
+                      {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={paymentReference} method={activePaymentMethod} startedAt={paymentResult.approval_started_at} onTimeout={() => void checkPaymentStatus()} /> : (
                         <p className="text-sm text-stone">
                           {paymentRejected && paymentResult.reference.startsWith('fp_')
                             ? <MobileMoneyFailureMessage reason={paymentResult.message} />
@@ -1016,6 +1020,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       value={payPhone}
                       onChange={setPayPhone}
                     />
+                    {checkoutProvider === 'fapshi_direct' && (
+                      <SavedMobileMoneyNumber userId={profile?.id} method={paymentMethod} onSelect={setPayPhone} />
+                    )}
                   </div>
                 )}
 

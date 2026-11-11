@@ -1,4 +1,5 @@
 import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
+import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -201,6 +202,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
         const recovered: CampayPaymentResult = {
           status: recentSubscription.status,
+          approval_started_at: recentSubscription.created_at,
           payment_id: recentSubscription.id,
           reference: recentSubscription.reference || recentSubscription.external_reference || recentSubscription.id,
           provider_reference: recentSubscription.provider_reference,
@@ -239,7 +241,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         return;
       }
       void checkPayment(false);
-    }, activePayment.reference.startsWith('fp_') ? 15_000 : 4500);
+    }, activePayment.reference.startsWith('fp_') ? (activePayment.checkout_url ? 15_000 : 36_000) : 4500);
     return () => window.clearInterval(interval);
   }, [checkPayment, payment?.reference, payment?.status, profile]);
 
@@ -285,6 +287,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         profile.email || undefined,
         profile.display_name || undefined,
       );
+      if (plan.payment_provider === 'fapshi_direct' && result.status === 'pending') {
+        rememberMobileMoneyNumber(profile.id, method, normalizedPhone);
+      }
       paymentRef.current = result;
       pollingStartedAtRef.current = Date.now();
       setPayment(result);
@@ -366,6 +371,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           onChange={setPhone}
           className="mt-1.5 w-full"
         />
+        {plan?.payment_provider === 'fapshi_direct' && (
+          <SavedMobileMoneyNumber userId={profile?.id} method={method} onSelect={setPhone} />
+        )}
         </>}
 
         {error && <div className="mt-4 rounded-lg border border-coral/30 bg-coral-soft px-3 py-2.5 text-sm text-coral">{error}</div>}
@@ -375,7 +383,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
               {confirmed ? <CheckCircle2 size={17} className="mt-0.5 shrink-0" /> : <Smartphone size={17} className="mt-0.5 shrink-0" />}
               <div className="min-w-0">
                 <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.status === 'rejected' ? 'Payment unsuccessful' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
-                {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={payment.payment_method} /> : (
+                {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method} startedAt={payment.approval_started_at} onTimeout={() => void checkPayment(false)} /> : (
                   <p className="mt-0.5 text-xs opacity-80">{payment.status === 'rejected' && payment.reference.startsWith('fp_')
                     ? <MobileMoneyFailureMessage reason={payment.message} />
                     : payment.message || 'Approve the prompt on your phone.'}</p>
