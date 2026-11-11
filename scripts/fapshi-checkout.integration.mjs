@@ -329,10 +329,20 @@ assert.equal(createCount, beforeCart, 'a stale total cannot send a payment promp
 const cart = await (await direct(req(cartOrder, cadet))).json();
 assert.equal(cart.amount_local, 6600);
 assert.equal(createCount, beforeCart + 1, 'a mixed cart sends one payment prompt');
-providerPayment.status = 'SUCCESSFUL';
-assert.equal((await webhook(req(providerPayment, hook))).status, 200);
-assert.equal((await webhook(req(providerPayment, hook))).status, 200);
+const firstCartPrompt = providerPayment;
+const cartRetry = await (await direct(req(cartOrder, cadet))).json();
+const secondCartPrompt = providerPayment;
+assert.notEqual(cartRetry.reference, cart.reference);
+assert.notEqual(secondCartPrompt.transId, firstCartPrompt.transId);
+assert.equal(firstCartPrompt.status, 'PENDING');
+assert.equal(createCount, beforeCart + 2, 'cart retry sends a fresh prompt while the first is pending');
+for (const prompt of [secondCartPrompt, firstCartPrompt]) {
+  prompt.status = 'SUCCESSFUL';
+  assert.equal((await webhook(req(prompt, hook))).status, 200);
+  assert.equal((await webhook(req(prompt, hook))).status, 200);
+}
 assert.equal(deliveries.filter(reference => reference === cart.reference).length, 1);
+assert.equal(deliveries.filter(reference => reference === cartRetry.reference).length, 1);
 
 console.log('Hosted and Direct Pay checkout and payment verification passed.');
 

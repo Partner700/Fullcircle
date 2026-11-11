@@ -55,6 +55,8 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
   const [confirmed, setConfirmed] = useState(false);
   const amount = lines.reduce((total, line) => total + line.unitPrice * line.quantity, 0);
   const purchasedLines = useRef<MarketCartLine[]>([]);
+  const pendingAttempts = useRef(new Map<string, { payment: CampayPaymentResult; lines: MarketCartLine[] }>());
+  const submitting = useRef(false);
   const displayedLines = payment || confirmed ? purchasedLines.current : lines;
   const displayedAmount = payment?.amount_local ?? displayedLines.reduce((total, line) => total + line.unitPrice * line.quantity, 0);
   const withinCapacity = quantityLimit === undefined || (lines[0]?.quantity ?? 0) <= quantityLimit;
@@ -64,17 +66,19 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
   const checkStatus = useCallback(async (reference: string, showError = false) => {
     try {
       const result = await verifyCampayPayment(reference);
-      const attempt = activePayment.current;
-      if (attempt?.reference !== reference) return;
-      if (result.status === 'confirmed') {
+      const attempt = pendingAttempts.current.get(reference);
+      if (!attempt || (result.status !== 'confirmed' && result.status !== 'rejected')) return;
+      pendingAttempts.current.delete(reference);
+      if (activePayment.current?.reference === reference) {
         activePayment.current = null;
-        setConfirmed(true);
-        onConfirmed(purchasedLines.current);
-      } else if (result.status === 'rejected') {
-        activePayment.current = null;
-        setPayment(null);
-        setError(<MobileMoneyFailureMessage reason={result.rejection_reason} approvalStartedAt={attempt.approval_started_at} />);
+        if (result.status === 'confirmed') {
+          setConfirmed(true);
+        } else {
+          setPayment(null);
+          setError(<MobileMoneyFailureMessage reason={result.rejection_reason} approvalStartedAt={attempt.payment.approval_started_at} />);
+        }
       }
+      if (result.status === 'confirmed') onConfirmed(attempt.lines);
     } catch {
       if (showError && activePayment.current?.reference === reference) setError('Could not check payment status. Try checking again.');
     }
@@ -89,17 +93,17 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
   }, [checkStatus, confirmed, open, provider, reference]);
 
   useEffect(() => {
-    if (!userId || !reference || !open || confirmed) return;
+    if (!userId || !reference) return;
     const channel = supabase.channel(`fcx-payment-${reference}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${userId}`,
       }, ({ new: row }) => {
-        if (row.reference === reference && (row.status === 'confirmed' || row.status === 'rejected')) {
-          void checkStatus(reference);
+        if (pendingAttempts.current.has(row.reference) && (row.status === 'confirmed' || row.status === 'rejected')) {
+          void checkStatus(row.reference);
         }
       }).subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [checkStatus, confirmed, open, reference, userId]);
+  }, [checkStatus, reference, userId]);
 
   async function checkManually() {
     if (!reference || checking) return;
@@ -127,24 +131,31 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
     }
   }
 
-  async function prepare() {
-    if (!userId || amount < 300 || !withinCapacity || busy || (provider !== 'fapshi_direct' && !(provider === 'fapshi' && onQuantity && lines[0]?.quantity === 1))) return;
+  async function prepare(retry = false) {
+    const order = retry ? purchasedLines.current : lines;
+    const orderAmount = retry ? displayedAmount : amount;
+    if (!userId || orderAmount < 300 || (!retry && !withinCapacity) || submitting.current ||
+        (provider !== 'fapshi_direct' && !(provider === 'fapshi' && onQuantity && order[0]?.quantity === 1))) return;
     if (provider === 'fapshi_direct' && !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
       setError('Enter a valid Cameroon mobile money number.');
       return;
     }
+    submitting.current = true;
     setBusy(true);
     setError('');
     try {
-      const ticket = lines.find(line => line.eventId);
-      const relics = lines.flatMap(line => line.relicSlug ? [{ slug: line.relicSlug, quantity: line.quantity }] : []);
+      const ticket = order.find(line => line.eventId);
+      const relics = order.flatMap(line => line.relicSlug ? [{ slug: line.relicSlug, quantity: line.quantity }] : []);
       const result = provider === 'fapshi' && ticket?.eventId
-        ? await startFcxFapshiCheckout(ticket.eventId, userId, amount, 'fapshi_hosted')
-        : await startMarketCartCheckout(userId, amount, method, phone, relics, ticket?.eventId, ticket?.quantity);
-      purchasedLines.current = lines;
+        ? await startFcxFapshiCheckout(ticket.eventId, userId, orderAmount, 'fapshi_hosted')
+        : await startMarketCartCheckout(userId, orderAmount, method, phone, relics, ticket?.eventId, ticket?.quantity);
+      purchasedLines.current = order;
+      setConfirmed(false);
+      pendingAttempts.current.set(result.reference, { payment: result, lines: order });
       if (result.status === 'pending' && result.approval_started_at) rememberMobileMoneyNumber(userId, method, phone);
       activePayment.current = result;
       if (result.status === 'confirmed') {
+        pendingAttempts.current.delete(result.reference);
         activePayment.current = null;
         setConfirmed(true);
         onConfirmed(purchasedLines.current);
@@ -156,6 +167,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Checkout could not start.');
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -201,7 +213,12 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
                 <p role="status" className="text-sm text-stone">Mobile money approval pending</p>
                 {payment.checkout_url ? (
                   <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Continue to payment</a>
-                ) : <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method ?? method} startedAt={payment.approval_started_at} onTimeout={() => void checkStatus(payment.reference)} />}
+                ) : <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method ?? method} startedAt={payment.approval_started_at} allowAnotherPurchase={provider === 'fapshi_direct'} onTimeout={() => void checkStatus(payment.reference)} />}
+                {provider === 'fapshi_direct' && (
+                  <button type="button" className="btn-primary" disabled={busy} onClick={() => void prepare(true)}>
+                    {busy ? 'Requesting payment…' : 'Request another prompt'}
+                  </button>
+                )}
                 <button type="button" className="btn-secondary" disabled={checking} onClick={() => void checkManually()}>
                   {checking ? 'Checking…' : 'Check Status'}
                 </button>
