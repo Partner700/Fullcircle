@@ -369,7 +369,13 @@ Deno.serve(async (req: Request) => {
         return Response.json({ error: "Payment not found for this account." }, { status: 404, headers: corsHeaders });
       }
       const result = await verifyFapshiPayment(payment);
-      return Response.json({ received: true, reference, status: result }, { headers: corsHeaders });
+      const rejectionReason = result === "rejected"
+        ? payment.rejection_reason ?? (await findFapshiPayment(reference))?.rejection_reason
+        : undefined;
+      return Response.json(
+        { received: true, reference, status: result, rejection_reason: rejectionReason },
+        { headers: corsHeaders },
+      );
     }
 
     // Browser polling is deliberately limited to the signed-in user's own

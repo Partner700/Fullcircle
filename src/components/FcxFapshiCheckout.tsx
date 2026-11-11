@@ -1,3 +1,4 @@
+import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -19,7 +20,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const [phone, setPhone] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ReactNode>('');
   const [checking, setChecking] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const amount = experience.ticket_price_xaf;
@@ -34,7 +35,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
         onConfirmed();
       } else if (result.status === 'rejected') {
         setPayment(null);
-        setError('The payment was not completed. You can start a new one.');
+        setError(<MobileMoneyFailureMessage reason={result.rejection_reason} />);
       }
     } catch {
       if (showError) setError('Could not check payment status. Try checking again.');

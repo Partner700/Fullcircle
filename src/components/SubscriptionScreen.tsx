@@ -1,3 +1,4 @@
+import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
 import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -373,9 +374,11 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
             <div className="flex items-start gap-2">
               {confirmed ? <CheckCircle2 size={17} className="mt-0.5 shrink-0" /> : <Smartphone size={17} className="mt-0.5 shrink-0" />}
               <div className="min-w-0">
-                <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.status === 'rejected' ? 'Payment not confirmed' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
+                <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.status === 'rejected' ? 'Payment unsuccessful' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
                 {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={payment.payment_method} /> : (
-                  <p className="mt-0.5 text-xs opacity-80">{payment.message || 'Approve the prompt on your phone.'}</p>
+                  <p className="mt-0.5 text-xs opacity-80">{payment.status === 'rejected' && payment.reference.startsWith('fp_')
+                    ? <MobileMoneyFailureMessage reason={payment.message} />
+                    : payment.message || 'Approve the prompt on your phone.'}</p>
                 )}
                 <p className="mt-1 truncate text-[10px] opacity-60">Reference: {payment.reference}</p>
               </div>

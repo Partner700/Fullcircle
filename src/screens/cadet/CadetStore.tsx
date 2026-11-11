@@ -1,3 +1,4 @@
+import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
 import { MobileMoneyApprovalHelp } from '../../components/MobileMoneyApprovalHelp';
 import { FcxFapshiCheckout } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -875,11 +876,13 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     )}
                     <div className="space-y-1">
                       <p className="font-display font-semibold text-ink">
-                        {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment Not Confirmed' : awaitingDirectApproval ? 'Mobile money approval pending' : 'Awaiting Payment Confirmation'}
+                        {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment unsuccessful' : awaitingDirectApproval ? 'Mobile money approval pending' : 'Awaiting Payment Confirmation'}
                       </p>
                       {awaitingDirectApproval ? <MobileMoneyApprovalHelp method={activePaymentMethod} /> : (
                         <p className="text-sm text-stone">
-                          {paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
+                          {paymentRejected && paymentResult.reference.startsWith('fp_')
+                            ? <MobileMoneyFailureMessage reason={paymentResult.message} />
+                            : paymentResult.message || 'Approve the prompt on your phone. The relic is added only after the payment is confirmed.'}
                         </p>
                       )}
                       {!awaitingDirectApproval && !paymentConfirmed && !paymentRejected && (

@@ -109,6 +109,7 @@ globalThis.fetch = async (input, init = {}) => {
   if (url.pathname.endsWith('/rpc/reject_campay_payment')) {
     assert.equal(body.p_payment_id, payment.id);
     payment.status = 'rejected';
+    payment.rejection_reason = body.p_reason;
     return json({ status: 'rejected' });
   }
   if (url.pathname.includes('/rpc/finalize_')) {
@@ -234,4 +235,20 @@ providerPayment.status = 'SUCCESSFUL';
 assert.equal((await webhook(req(providerPayment, hook))).status, 200);
 assert.equal((await webhook(req(providerPayment, hook))).status, 200);
 assert.equal(deliveries.filter(name => name === 'finalize_fcx_fapshi_payment').length, 2);
+for (const [providerResult, expected] of [
+  [{ status: 'EXPIRED' }, 'Payment approval expired.'],
+  [{ status: 'FAILED', failureCode: 'USSD_TIMEOUT' }, 'Payment approval expired.'],
+  [{ status: 'FAILED', failureReason: 'Insufficient funds' }, 'Insufficient funds.'],
+  [{ status: 'FAILED', message: 'Insufficient funds' }, 'Fapshi payment was not completed.'],
+]) {
+  const attempt = await (await direct(req(mobileOrder, cadet))).json();
+  assert.equal(attempt.status, 'pending');
+  Object.assign(providerPayment, providerResult);
+  const outcome = await (await status(req({ reference: attempt.reference }, cadet))).json();
+  assert.equal(outcome.status, 'rejected');
+  assert.equal(outcome.rejection_reason, expected);
+  const reloaded = await (await status(req({ reference: attempt.reference }, cadet))).json();
+  assert.equal(reloaded.rejection_reason, expected, 'retain the verified reason after reload');
+}
+
 console.log('Hosted and Direct Pay checkout and payment verification passed.');
