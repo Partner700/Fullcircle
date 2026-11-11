@@ -2,7 +2,7 @@ import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMe
 import { DirectMobileMoneyFields } from '../../components/DirectMobileMoneyFields';
 import { rememberMobileMoneyNumber } from '../../components/SavedMobileMoneyNumber';
 import { MobileMoneyApprovalHelp } from '../../components/MobileMoneyApprovalHelp';
-import { FcxFapshiCheckout } from '../../components/FcxFapshiCheckout';
+import { FcxFapshiCheckout, MarketCartCheckout, type MarketCartLine } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
@@ -11,7 +11,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
+import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, startMarketCartCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
@@ -109,6 +109,8 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [buyingFreezer, setBuyingFreezer] = useState(false);
   const [buyingWeeklyFreezer, setBuyingWeeklyFreezer] = useState(false);
   const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | 'loading' | 'error'>('loading');
+  const [cart, setCart] = useState<MarketCartLine[]>([]);
+  const [relicPaymentQuantity, setRelicPaymentQuantity] = useState(1);
   const [paymentModalRelic, setPaymentModalRelic] = useState<RelicType | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<StorePaymentMethod>('mtn_momo');
   const [payPhone, setPayPhone] = useState('');
@@ -131,6 +133,18 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [fcxPurchaseError, setFcxPurchaseError] = useState<string | null>(null);
   const [fcxPurchaseNotice, setFcxPurchaseNotice] = useState<string | null>(null);
   const latestInventoryRef = useRef<Record<string, number>>({});
+
+  function addToCart(line: MarketCartLine) {
+    setCart(current => {
+      const existing = current.find(item => item.key === line.key);
+      if (existing) {
+        return current.map(item => item.key === line.key
+          ? { ...line, quantity: Math.min(2147483647, item.quantity + 1) }
+          : item);
+      }
+      return [...current, line];
+    });
+  }
 
   const paymentConfirmed = isPaymentSuccessful(paymentResult?.status);
   const paymentRejected = isRealPaymentRejection(paymentResult?.status, paymentResult?.message);
@@ -177,6 +191,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     }
     setLoading(false);
   }, [profile]);
+
+  const confirmCart = useCallback((purchased: MarketCartLine[]) => {
+    setCart(current => current.flatMap(item => {
+      const quantity = item.quantity - (purchased.find(line => line.key === item.key)?.quantity ?? 0);
+      return quantity > 0 ? [{ ...item, quantity }] : [];
+    }));
+    void load();
+    void fetchActiveFcxExperience().then(setFcxExperience).catch(() => undefined);
+    void onBalanceChanged?.();
+  }, [load, onBalanceChanged]);
 
   const refreshMutableStoreState = useCallback(async () => {
     if (!profile) return null;
@@ -262,6 +286,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const openPaymentModal = (relic: RelicType) => {
     setCheckoutProvider('loading');
     setPaymentModalRelic(relic);
+    setRelicPaymentQuantity(1);
     setPaymentStartingQuantity(latestInventoryRef.current[relic.id] || 0);
     setPaymentMethod('mtn_momo');
     setPayPhone('');
@@ -280,7 +305,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   };
 
   const submitPayment = async () => {
-    if (!profile || !paymentModalRelic) return;
+    if (!profile || !paymentModalRelic || paySubmitting) return;
     setPaySubmitting(true);
     try {
       const slug = paymentModalRelic.slug || paymentModalRelic.id;
@@ -294,7 +319,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           paymentNote.trim() ? `Notes: ${paymentNote.trim()}` : '',
         ].filter(Boolean).join('\n')
         : paymentNote.trim();
-      const result = await startCampayCheckout(
+      const method = paymentMethod === 'orange_money' ? paymentMethod : 'mtn_momo';
+      const phone = phoneNumberForCountry(payPhone, profile.country_code);
+      const result = checkoutProvider === 'fapshi_direct' && relicPaymentQuantity > 1
+        ? await startMarketCartCheckout(profile.id, displayedAmountXaf * relicPaymentQuantity, method, phone,
+            [{ slug, quantity: relicPaymentQuantity }])
+        : await startCampayCheckout(
         slug,
         profile.id,
         checkoutProvider === 'fapshi' ? 'fapshi_hosted' : paymentMethod,
@@ -629,11 +659,17 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <Coins size={14} /> Buy with Denarii
             </button>
           )}
-          {!alreadyOnFcxList && fcxExperience && (
+          {fcxExperience && (
             <FcxFapshiCheckout key={fcxExperience.id} experience={fcxExperience} className="btn-secondary text-xs"
               onConfirmed={() => { void fetchActiveFcxExperience().then(setFcxExperience).catch(() => undefined); }}>
               {fcxExperience.ticket_price_xaf?.toLocaleString('en-US')}frs
             </FcxFapshiCheckout>
+          )}
+          {fcxExperience && Number(fcxExperience.ticket_price_xaf) >= 300 && fcxSpacesRemaining > 0 && (
+            <button type="button" className="btn-secondary text-xs" onClick={() => addToCart({
+              key: fcxExperience.id, name: 'FCX ticket', eventId: fcxExperience.id,
+              unitPrice: Number(fcxExperience.ticket_price_xaf), quantity: 1,
+            })}>Add ticket to cart</button>
           )}
         </div>
         {!alreadyOnFcxList && !fcxExperience && (
@@ -730,6 +766,32 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         </div>
         <p className="relative z-10 text-xs text-stone mb-4">Ancient artifacts with powerful effects. Wildly expensive — save your denarii or buy with real money where a cash price exists.</p>
 
+        <section className="relative z-10 mb-4 space-y-3 rounded-lg border border-border bg-surface p-4" aria-label="Market cart">
+          <h4 className="font-display text-sm font-semibold text-ink">Cart</h4>
+          {cart.map(item => (
+            <div key={item.key} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span>{item.name} · {formatXaf(item.unitPrice)} each</span>
+              <div className="flex items-center gap-2">
+                <input type="number" min={1} max={2147483647} value={item.quantity}
+                  aria-label={`Quantity for ${item.name}`} className="input-field w-20"
+                  onChange={event => {
+                    const quantity = event.target.valueAsNumber;
+                    if (!Number.isInteger(quantity)) return;
+                    setCart(current => current.map(line => line.key === item.key
+                      ? { ...line, quantity: Math.max(1, Math.min(2147483647, quantity)) }
+                      : line));
+                  }} />
+                <button type="button" aria-label={`Remove ${item.name}`} className="btn-secondary text-xs"
+                  onClick={() => setCart(current => current.filter(line => line.key !== item.key))}>Remove</button>
+              </div>
+            </div>
+          ))}
+          {!cart.length && <p className="text-xs text-stone">Your cart is empty.</p>}
+          <MarketCartCheckout lines={cart} className="btn-primary text-sm" onConfirmed={confirmCart}>
+            {cart.length ? `Checkout · ${formatXaf(cart.reduce((total, line) => total + line.unitPrice * line.quantity, 0))}` : 'View payment'}
+          </MarketCartCheckout>
+        </section>
+
         <div className="relative z-10 space-y-3">
           {relics.map((relic) => {
             const slug = relic.slug || '';
@@ -789,6 +851,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       >
                           {gifting ? 'Cash gift unavailable' : moneyPriceXaf > 0 ? moneyPrice : 'Denarii only'}
                       </button>
+                      {!gifting && moneyPriceXaf > 0 && slug && (
+                        <button type="button" className="btn-secondary text-xs" onClick={() => addToCart({
+                          key: relic.id, name: relic.name, relicSlug: slug, unitPrice: moneyPriceXaf, quantity: 1,
+                        })}>Add to cart</button>
+                      )}
                       {giftRecipientId === 'self' && canUseFromStore && (
                         <button
                           onClick={() => activateOwnedRelic(slug)}
@@ -854,7 +921,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-stone">Amount:</span>
-                <span className="text-sm font-semibold text-gold">{formatXaf(relicMoneyPriceXaf(paymentModalRelic))}</span>
+                <span className="text-sm font-semibold text-gold">{formatXaf(relicMoneyPriceXaf(paymentModalRelic) * relicPaymentQuantity)}</span>
               </div>
               <p className="text-xs text-stone">This is the amount you will pay at checkout.</p>
             </div>
@@ -883,7 +950,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       <p className="font-display font-semibold text-ink">
                         {paymentConfirmed ? 'Payment Complete' : paymentRejected ? 'Payment unsuccessful' : awaitingDirectApproval ? 'Mobile money approval pending' : 'Awaiting Payment Confirmation'}
                       </p>
-                      {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={paymentReference} method={activePaymentMethod} startedAt={paymentResult.approval_started_at} onTimeout={() => void checkPaymentStatus()} /> : (
+                      {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={paymentReference} method={activePaymentMethod} startedAt={paymentResult.approval_started_at} allowAnotherPurchase={checkoutProvider === 'fapshi_direct'} onTimeout={() => void checkPaymentStatus()} /> : (
                         <p className="text-sm text-stone">
                           {paymentRejected && paymentResult.reference.startsWith('fp_')
                             ? <MobileMoneyFailureMessage reason={paymentResult.message} approvalStartedAt={paymentResult.approval_started_at} />
@@ -909,6 +976,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   <a className="btn-primary w-full justify-center" href={paymentResult.checkout_url} target="_blank" rel="noopener noreferrer">
                     Open Fapshi Checkout
                   </a>
+                )}
+                {awaitingDirectApproval && checkoutProvider === 'fapshi_direct' && (
+                  <button type="button" onClick={() => void submitPayment()} disabled={paySubmitting}
+                    className="btn-secondary w-full text-sm">
+                    {paySubmitting ? 'Requesting payment…' : 'Request another prompt'}
+                  </button>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   {paymentRejected ? (
@@ -936,10 +1009,20 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             ) : checkoutProvider === 'loading' || checkoutProvider === 'error' ? (
               <p className="text-sm text-stone">{checkoutProvider === 'loading' ? 'Checking payment options…' : 'Checkout is unavailable. Reopen it to try again.'}</p>
             ) : checkoutProvider === 'fapshi_direct' ? (
+              <div className="space-y-4">
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  Quantity
+                  <input type="number" min={1} max={2147483647} className="input-field w-20" value={relicPaymentQuantity}
+                    disabled={paySubmitting} onChange={event => {
+                      const quantity = event.target.valueAsNumber;
+                      if (Number.isInteger(quantity)) setRelicPaymentQuantity(Math.max(1, Math.min(2147483647, quantity)));
+                    }} />
+                </label>
               <DirectMobileMoneyFields userId={profile?.id} countryCode={profile?.country_code}
                 method={paymentMethod === 'orange_money' ? paymentMethod : 'mtn_momo'} phone={payPhone}
                 busy={paySubmitting} disabled={!canSubmitPayment}
                 onMethod={setPaymentMethod} onPhone={setPayPhone} onSubmit={() => void submitPayment()} />
+              </div>
             ) : (
               <div className="space-y-4">
                 <div>

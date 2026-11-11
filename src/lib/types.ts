@@ -1059,7 +1059,7 @@ export interface MobileMoneyPayment {
   user_id: string;
   relic_slug: string;
   relic_name: string;
-  purchase_kind?: 'relic' | 'subscription' | 'fcx_ticket';
+  purchase_kind?: 'relic' | 'subscription' | 'fcx_ticket' | 'cart';
   purchase_metadata?: Record<string, unknown>;
   amount_usd: number;
   amount_local: number;

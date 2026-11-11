@@ -1,10 +1,11 @@
 import { MOBILE_MONEY_APPROVAL_MS, MOBILE_MONEY_APPROVAL_SECONDS } from '../lib/mobileMoneyApproval';
 import { useEffect, useRef, useState } from 'react';
 
-export function MobileMoneyApprovalHelp({ method, startedAt, onTimeout }: {
+export function MobileMoneyApprovalHelp({ method, startedAt, onTimeout, allowAnotherPurchase = false }: {
   method?: string;
   startedAt?: string;
   onTimeout: () => void;
+  allowAnotherPurchase?: boolean;
 }) {
   const [openedAt] = useState(Date.now);
   const parsedStart = Date.parse(startedAt ?? '');
@@ -27,7 +28,9 @@ export function MobileMoneyApprovalHelp({ method, startedAt, onTimeout }: {
         {deadline === null
           ? 'Your earlier payment is still pending.'
           : `The ${MOBILE_MONEY_APPROVAL_SECONDS}-second USSD approval window has ended.`}
-        {' '}If you cancelled or didn’t enter your PIN, you can retry once the earlier payment shows as unsuccessful.
+        {' '}{allowAnotherPurchase
+          ? 'If you cancelled or didn’t enter your PIN, you can request another prompt now. Each approved payment buys the selected quantity.'
+          : 'If you cancelled or didn’t enter your PIN, you can retry once the earlier payment shows as unsuccessful.'}
       </p>
     );
   }

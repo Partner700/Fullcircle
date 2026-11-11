@@ -34,6 +34,9 @@ let providerPayment;
 let createCount = 0;
 let statusCount = 0;
 let lostResponse = false;
+let independentRelicAttempts = false;
+const paymentRecords = new Map();
+const providerRecords = new Map();
 const deliveries = [];
 const json = (data, status = 200) => Response.json(data, { status });
 globalThis.fetch = async (input, init = {}) => {
@@ -68,15 +71,29 @@ globalThis.fetch = async (input, init = {}) => {
       assert.equal(body.phone, undefined);
     }
     createCount++;
-    providerPayment = { transId: 'test_id', transType: 'Collection', externalId: body.externalId, amount: body.amount, status: 'PENDING' };
+    providerPayment = { transId: independentRelicAttempts ? 'test_' + createCount : 'test_id', transType: 'Collection', externalId: body.externalId, amount: body.amount, status: 'PENDING' };
+    providerRecords.set(providerPayment.transId, providerPayment);
     if (lostResponse) throw new Error('Connection lost');
     return json({ transId: providerPayment.transId, link: url.pathname === '/initiate-pay' ? 'https://pay.fapshi.com/test_id' : undefined });
   }
-  if (url.pathname === '/payment-status/test_id') {
+  if (url.pathname.startsWith('/payment-status/')) {
     statusCount++;
-    return json(providerPayment);
+    return json(providerRecords.get(url.pathname.split('/').at(-1)));
   }
   if (url.pathname === '/transaction/' + payment?.reference) return json([providerPayment]);
+  if (url.pathname.endsWith('/rpc/reserve_fapshi_cart')) {
+    assert.deepEqual(body.p_relics, [{ slug: 'skip', quantity: 2 }]);
+    assert.equal(body.p_ticket_quantity, 2);
+    assert.equal(body.p_event_id, '11111111-1111-4111-8111-111111111111');
+    if (body.p_displayed_amount !== 6600) return json({ code: 'P0001', message: 'The cart total changed.' }, 400);
+    payment = {
+      id: crypto.randomUUID(), user_id: body.p_user_id, reference: body.p_reference,
+      purchase_kind: 'cart', amount_local: 6600, currency_code: 'XAF',
+      payment_method: body.p_method, status: 'pending',
+    };
+    paymentRecords.set(payment.reference, payment);
+    return json({ id: payment.id, amount: payment.amount_local });
+  }
   if (url.pathname.endsWith('/rpc/reserve_fcx_fapshi_checkout')) {
     assert.equal(body.p_user_id, 'cadet');
     assert.equal(body.p_event_id, '11111111-1111-4111-8111-111111111111');
@@ -93,14 +110,21 @@ globalThis.fetch = async (input, init = {}) => {
   }
   if (url.pathname.endsWith('/mobile_money_payments')) {
     if (init.method === 'POST') {
-      if (payment?.status === 'pending') return json({}, 409);
+      const directRelic = body.purchase_kind === 'relic' && ['mtn_momo', 'orange_money'].includes(body.payment_method);
+      if (payment?.status === 'pending' && !directRelic) return json({}, 409);
       payment = { ...body, id: crypto.randomUUID() };
+      paymentRecords.set(payment.reference, payment);
       return json([payment], 201);
     }
     if (init.method === 'PATCH') {
       if (body.fapshi_checked_at && payment.fapshi_checked_at) return json([]);
       Object.assign(payment, body);
       return json([payment]);
+    }
+    const lookup = url.searchParams.get('reference');
+    if (independentRelicAttempts && lookup?.startsWith('eq.')) {
+      const record = paymentRecords.get(lookup.slice(3));
+      return json(record ? [record] : []);
     }
     return json(payment ? [payment] : []);
   }
@@ -111,6 +135,18 @@ globalThis.fetch = async (input, init = {}) => {
     return json({ status: 'rejected' });
   }
   if (url.pathname.includes('/rpc/finalize_')) {
+    if (independentRelicAttempts) {
+      const match = paymentRecords.get(body.p_verification.externalId);
+      if (match.purchase_kind === 'cart') assert.ok(url.pathname.endsWith('/finalize_fapshi_cart'));
+      assert.equal(body.p_payment_id, match.id);
+      assert.equal(body.p_verified_amount, match.amount_local);
+      assert.equal(body.p_verified_currency, 'XAF');
+      assert.equal(body.p_provider_reference, match.provider_reference);
+      assert.equal(match.status, 'pending');
+      deliveries.push(match.reference);
+      match.status = 'confirmed';
+      return json({ status: 'confirmed' });
+    }
     assert.equal(body.p_verified_currency, 'XAF');
     assert.equal(body.p_verified_amount, payment.amount_local);
     assert.equal(body.p_payment_id, payment.id);
@@ -203,8 +239,7 @@ assert.equal(mobile.status, 'pending');
 assert.equal(mobile.checkout_url, undefined);
 assert.match(mobile.message, /prompt on your phone/);
 assert.equal(payment.sender_phone, '237675123456');
-assert.equal((await (await direct(req(mobileOrder, cadet))).json()).reference, mobile.reference);
-assert.equal(createCount, 4, 'retries must not send two prompts');
+assert.equal(createCount, 4);
 providerPayment.status = 'FAILED';
 assert.equal((await webhook(req(providerPayment, hook))).status, 200);
 assert.equal(payment.status, 'rejected', 'Direct Pay failure permits a new request');
@@ -249,7 +284,7 @@ for (const [providerResult, expected] of [
   assert.equal(reloaded.rejection_reason, expected, 'retain the verified reason after reload');
 }
 
-for (const orderToRetry of [mobileOrder, { ...plan, payment_method: 'mtn_momo', customer_phone: mobileOrder.customer_phone }, directFcx]) {
+for (const orderToRetry of [{ ...plan, payment_method: 'mtn_momo', customer_phone: mobileOrder.customer_phone }, directFcx]) {
   const first = await (await direct(req(orderToRetry, cadet))).json();
   assert.equal(first.status, 'pending');
   assert.ok(Date.parse(first.approval_started_at));
@@ -268,6 +303,36 @@ for (const orderToRetry of [mobileOrder, { ...plan, payment_method: 'mtn_momo', 
   providerPayment.status = 'FAILED';
   assert.equal((await (await status(req({ reference: retried.reference }, cadet))).json()).status, 'rejected');
 }
+
+independentRelicAttempts = true;
+const original = await (await direct(req(mobileOrder, cadet))).json();
+const originalProvider = providerPayment;
+const retry = await (await direct(req(mobileOrder, cadet))).json();
+const retryProvider = providerPayment;
+assert.notEqual(original.reference, retry.reference);
+assert.notEqual(originalProvider.transId, retryProvider.transId);
+assert.equal(originalProvider.status, 'PENDING');
+assert.ok(Date.parse(retry.approval_started_at));
+for (const confirmed of [retryProvider, originalProvider, retryProvider, originalProvider]) {
+  confirmed.status = 'SUCCESSFUL';
+  assert.equal((await webhook(req(confirmed, hook))).status, 200);
+}
+assert.deepEqual(deliveries.slice(-2), [retry.reference, original.reference]);
+
+const cartOrder = {
+  ...mobileOrder, purchase_kind: 'cart', cart_relics: [{ slug: 'skip', quantity: 2 }],
+  fcx_event_id: directFcx.fcx_event_id, ticket_quantity: 2, displayed_amount_xaf: 6600,
+};
+const beforeCart = createCount;
+assert.equal((await direct(req({ ...cartOrder, displayed_amount_xaf: 6599 }, cadet))).status, 409);
+assert.equal(createCount, beforeCart, 'a stale total cannot send a payment prompt');
+const cart = await (await direct(req(cartOrder, cadet))).json();
+assert.equal(cart.amount_local, 6600);
+assert.equal(createCount, beforeCart + 1, 'a mixed cart sends one payment prompt');
+providerPayment.status = 'SUCCESSFUL';
+assert.equal((await webhook(req(providerPayment, hook))).status, 200);
+assert.equal((await webhook(req(providerPayment, hook))).status, 200);
+assert.equal(deliveries.filter(reference => reference === cart.reference).length, 1);
 
 console.log('Hosted and Direct Pay checkout and payment verification passed.');
 

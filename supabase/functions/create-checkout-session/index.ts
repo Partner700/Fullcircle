@@ -543,6 +543,60 @@ async function startFcxCheckout(
   }, { headers: corsHeaders });
 }
 
+async function startCartCheckout(
+  userId: string, method: unknown, customerPhone: unknown, amount: unknown,
+  relics: unknown, eventId: unknown, ticketQuantity: unknown,
+): Promise<Response> {
+  const phone = normalizeCampayPhone(customerPhone);
+  if (!useFapshiDirect) {
+    return Response.json({ error: "Mobile money cart checkout is unavailable." }, { status: 503, headers: corsHeaders });
+  }
+  const quantity = ticketQuantity ?? 0;
+  if (!phone || !isDirectPaymentMethod(method) || typeof amount !== "number" ||
+      !Number.isSafeInteger(amount) || amount < 300 || typeof quantity !== "number" ||
+      !Number.isInteger(quantity) || quantity < 0 || quantity > 2147483647 ||
+      (quantity > 0 && (typeof eventId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(eventId))) ||
+      !Array.isArray(relics) || (!relics.length && !quantity) ||
+      relics.some(item => !item || typeof item.slug !== "string" ||
+        !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 2147483647)) {
+    return Response.json({ error: "Review the cart and enter a valid Cameroon mobile money number." }, {
+      status: 400, headers: corsHeaders,
+    });
+  }
+
+  assertFapshiConfigured();
+  const reference = `fp_${crypto.randomUUID()}`;
+  const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fapshi_cart`, {
+    method: "POST",
+    headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      p_user_id: userId, p_reference: reference, p_phone: phone, p_method: method,
+      p_displayed_amount: amount, p_relics: relics.map(({ slug, quantity }) => ({ slug, quantity })),
+      p_event_id: quantity ? eventId : null, p_ticket_quantity: quantity, p_xaf_per_usd: xafPerUsdForLegacy(),
+    }),
+  });
+  if (!reservation.ok) {
+    const problem = await reservation.json().catch(() => ({}));
+    return Response.json({ error: problem.code === "P0001" ? problem.message : "Cart checkout is unavailable." }, {
+      status: 409, headers: corsHeaders,
+    });
+  }
+  const payment = await reservation.json() as { id: string; amount: number };
+  const result = await startFapshiPayment({
+    amount: payment.amount, reference, name: "Market cart", mobileMoney: { phone: phone.slice(3) },
+  });
+  if (result.declined) {
+    await rejectPayment(payment.id, null, "Fapshi could not start this payment.", {});
+    return Response.json({ error: "The payment prompt could not be sent. Try again." }, { status: 502, headers: corsHeaders });
+  }
+  const approvalStartedAt = result.transId ? new Date().toISOString() : undefined;
+  if (result.transId) await updatePaymentRecord(payment.id, { provider_reference: result.transId }).catch(() => {});
+  return Response.json({
+    status: "pending", reference, payment_id: payment.id, payment_method: method, provider: "Fapshi",
+    amount_local: payment.amount, currency_code: "XAF", approval_started_at: approvalStartedAt,
+  }, { headers: corsHeaders });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -551,14 +605,14 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
       ? "subscription"
       : "relic";
 
-    if (!user_id || (purchase_kind !== "fcx_ticket" && purchaseKind === "relic" && !relic_slug && provider_only !== true)) {
+    if (!user_id || (purchase_kind !== "fcx_ticket" && purchase_kind !== "cart" && purchaseKind === "relic" && !relic_slug && provider_only !== true)) {
       return new Response(JSON.stringify({ error: "A product and user_id are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -571,6 +625,10 @@ Deno.serve(async (req: Request) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (purchase_kind === "cart") {
+      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity);
     }
 
     if (purchase_kind === "fcx_ticket") {
@@ -700,6 +758,7 @@ Deno.serve(async (req: Request) => {
       try {
         paymentId = await reservePayment();
       } catch (error) {
+        if (useFapshiDirect && product.purchaseKind === "relic") throw error;
         const existing = await findPendingFapshiPayment(user_id, product.slug);
         if (!existing) throw error;
         const status = useFapshiDirect ? await verifyFapshiPayment(existing).catch(() => "pending") : "pending";

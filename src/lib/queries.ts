@@ -2822,6 +2822,22 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   } as CampayPaymentResult;
 }
 
+export function startMarketCartCheckout(
+  userId: string, amount: number, method: 'mtn_momo' | 'orange_money', phone: string,
+  relics: { slug: string; quantity: number }[], eventId?: string, ticketQuantity = 0,
+) {
+  return requestCampayCheckout({
+    purchase_kind: 'cart',
+    user_id: userId,
+    displayed_amount_xaf: amount,
+    payment_method: method,
+    customer_phone: phone,
+    cart_relics: relics,
+    fcx_event_id: eventId,
+    ticket_quantity: ticketQuantity,
+  });
+}
+
 export function startFcxFapshiCheckout(
   eventId: string, userId: string, amount: number,
   paymentMethod: 'fapshi_hosted' | 'mtn_momo' | 'orange_money',

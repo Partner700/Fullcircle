@@ -7,14 +7,40 @@ import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
-import { fetchCheckoutProvider, startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult, type CheckoutProvider } from '../lib/queries';
+import { fetchCheckoutProvider, startMarketCartCheckout, startFcxFapshiCheckout, verifyCampayPayment, type CampayPaymentResult, type CheckoutProvider } from '../lib/queries';
 import type { FcxExperience } from '../lib/types';
+
+export type MarketCartLine = {
+  key: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  relicSlug?: string;
+  eventId?: string;
+};
 
 export function FcxFapshiCheckout({ experience, className, children, onConfirmed }: {
   experience: FcxExperience;
   className: string;
   children: ReactNode;
   onConfirmed: () => void;
+}) {
+  const [quantity, setQuantity] = useState(1);
+  const price = experience.ticket_price_xaf;
+  const available = Math.max(0, experience.capacity - experience.registrations.length);
+  if (!price || price < 300) return null;
+  const line = { key: experience.id, name: 'FCX ticket', unitPrice: price, quantity, eventId: experience.id };
+  return <MarketCartCheckout lines={[line]} className={className} onConfirmed={onConfirmed}
+    quantityLimit={available} onQuantity={setQuantity}>{children}</MarketCartCheckout>;
+}
+
+export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity }: {
+  lines: MarketCartLine[];
+  className: string;
+  children: ReactNode;
+  onConfirmed: (purchased: MarketCartLine[]) => void;
+  quantityLimit?: number;
+  onQuantity?: (quantity: number) => void;
 }) {
   const { session } = useAuth();
   const userId = session?.user.id;
@@ -27,8 +53,11 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   const [error, setError] = useState<ReactNode>('');
   const [checking, setChecking] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const amount = experience.ticket_price_xaf;
-  const registered = experience.registrations.some((entry) => entry.user_id === userId);
+  const amount = lines.reduce((total, line) => total + line.unitPrice * line.quantity, 0);
+  const purchasedLines = useRef<MarketCartLine[]>([]);
+  const displayedLines = payment || confirmed ? purchasedLines.current : lines;
+  const displayedAmount = payment?.amount_local ?? displayedLines.reduce((total, line) => total + line.unitPrice * line.quantity, 0);
+  const withinCapacity = quantityLimit === undefined || (lines[0]?.quantity ?? 0) <= quantityLimit;
 
   const reference = payment?.reference;
   const activePayment = useRef<CampayPaymentResult | null>(null);
@@ -40,7 +69,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
       if (result.status === 'confirmed') {
         activePayment.current = null;
         setConfirmed(true);
-        onConfirmed();
+        onConfirmed(purchasedLines.current);
       } else if (result.status === 'rejected') {
         activePayment.current = null;
         setPayment(null);
@@ -86,6 +115,9 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   async function openCheckout() {
     if (!userId) return;
     setOpen(true);
+    if (activePayment.current) return;
+    setConfirmed(false);
+    setPayment(null);
     setError('');
     setProvider(null);
     try {
@@ -96,21 +128,26 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
   }
 
   async function prepare() {
-    if (!userId || !amount || busy || (provider !== 'fapshi' && provider !== 'fapshi_direct')) return;
-    const direct = provider === 'fapshi_direct';
-    if (direct && !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
+    if (!userId || amount < 300 || !withinCapacity || busy || (provider !== 'fapshi_direct' && !(provider === 'fapshi' && onQuantity && lines[0]?.quantity === 1))) return;
+    if (provider === 'fapshi_direct' && !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
       setError('Enter a valid Cameroon mobile money number.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      const result = await startFcxFapshiCheckout(experience.id, userId, amount, direct ? method : 'fapshi_hosted', direct ? phone : undefined);
-      if (direct && result.status === 'pending' && result.approval_started_at) rememberMobileMoneyNumber(userId, method, phone);
+      const ticket = lines.find(line => line.eventId);
+      const relics = lines.flatMap(line => line.relicSlug ? [{ slug: line.relicSlug, quantity: line.quantity }] : []);
+      const result = provider === 'fapshi' && ticket?.eventId
+        ? await startFcxFapshiCheckout(ticket.eventId, userId, amount, 'fapshi_hosted')
+        : await startMarketCartCheckout(userId, amount, method, phone, relics, ticket?.eventId, ticket?.quantity);
+      purchasedLines.current = lines;
+      if (result.status === 'pending' && result.approval_started_at) rememberMobileMoneyNumber(userId, method, phone);
       activePayment.current = result;
       if (result.status === 'confirmed') {
+        activePayment.current = null;
         setConfirmed(true);
-        onConfirmed();
+        onConfirmed(purchasedLines.current);
       } else if (result.status === 'rejected') {
         await checkStatus(result.reference, true);
       } else {
@@ -123,35 +160,48 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     }
   }
 
-  if ((!userId || registered || !amount || amount < 300) && !open) return null;
+  if (!userId || (!lines.length && !open && !activePayment.current)) return null;
   return (
     <>
-      <button type="button" className={className} aria-label={`Buy FCX ticket for ${amount?.toLocaleString('en-US')} francs`} onClick={() => void openCheckout()}>{children}</button>
+      <button type="button" className={className} aria-label={onQuantity ? `Buy FCX ticket for ${lines[0]?.unitPrice.toLocaleString('en-US')} francs` : "Open market cart"} onClick={() => void openCheckout()}>{children}</button>
       {open && createPortal(
         <div className="fixed inset-0 z-[165] flex items-center justify-center bg-ink/50 p-4 animate-fade-in">
-          <section role="dialog" aria-modal="true" aria-labelledby="fcx-fapshi-title" className="card w-full max-w-lg space-y-4 p-6 animate-scale-in">
+          <section role="dialog" aria-modal="true" aria-labelledby="fcx-fapshi-title" className="card max-h-[90dvh] w-full max-w-lg space-y-4 overflow-y-auto p-6 animate-scale-in">
             <div className="flex items-center justify-between">
               <h3 id="fcx-fapshi-title" className="font-display text-lg font-semibold text-ink">Complete Purchase</h3>
               <button type="button" aria-label="Close checkout" className="text-stone hover:text-ink" disabled={busy} onClick={() => setOpen(false)}><X size={20} /></button>
             </div>
             <div className="rounded-lg bg-surface-2 p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-stone">Ticket:</span>
-                <span className="text-sm font-semibold text-ink">FCX ticket</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-stone">Amount:</span>
-                <span className="text-sm font-semibold text-gold">{amount?.toLocaleString('en-US')}frs</span>
-              </div>
+              {displayedLines.map(line => (
+                <div key={line.key} className="flex items-center justify-between gap-2 text-sm">
+                  <span>{line.name} × {line.quantity}</span>
+                  <span>{(line.unitPrice * line.quantity).toLocaleString('en-US')} FCFA</span>
+                </div>
+              ))}
+              {onQuantity && !payment && !confirmed && (
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  FCX spots
+                  <input type="number" min={1} max={quantityLimit} value={lines[0]?.quantity ?? 1}
+                    className="input-field w-20" disabled={busy || !quantityLimit}
+                    onChange={event => {
+                      const value = event.target.valueAsNumber;
+                      if (Number.isInteger(value)) onQuantity(Math.max(1, Math.min(quantityLimit ?? 2147483647, value)));
+                    }} />
+                </label>
+              )}
+              {!withinCapacity && !payment && !confirmed && <p className="text-xs text-stone">
+                {quantityLimit ? `Only ${quantityLimit} FCX spots are available.` : 'No FCX spots are available.'}
+              </p>}
+              <p className="text-sm font-semibold text-gold">Total {displayedAmount.toLocaleString('en-US')} FCFA</p>
             </div>
-            {confirmed || registered ? (
-              <p role="status" className="text-sm text-sage">Payment confirmed. Your place is on the FCX list.</p>
+            {confirmed ? (
+              <p role="status" className="text-sm text-sage">Payment confirmed. Your order is complete.</p>
             ) : payment ? (
               <>
                 <p role="status" className="text-sm text-stone">Mobile money approval pending</p>
-                {payment.checkout_url ? <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Continue to payment</a>
-                  : provider === 'fapshi_direct' ? <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method ?? method} startedAt={payment.approval_started_at} onTimeout={() => void checkStatus(payment.reference)} />
-                    : <p className="text-sm text-stone">Check the status of your existing payment.</p>}
+                {payment.checkout_url ? (
+                  <a className="btn-primary" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">Continue to payment</a>
+                ) : <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method ?? method} startedAt={payment.approval_started_at} onTimeout={() => void checkStatus(payment.reference)} />}
                 <button type="button" className="btn-secondary" disabled={checking} onClick={() => void checkManually()}>
                   {checking ? 'Checking…' : 'Check Status'}
                 </button>
@@ -160,19 +210,19 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
               <>
                 {provider === 'fapshi_direct' ? (
                   <DirectMobileMoneyFields userId={userId} countryCode="CM" method={method} phone={phone}
-                    busy={busy} disabled={!/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
+                    busy={busy} disabled={amount < 300 || !withinCapacity || !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
                     onMethod={setMethod} onPhone={setPhone} onSubmit={() => void prepare()} />
-                ) : provider === 'fapshi' ? (
-                  <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void prepare()}>
+                ) : provider === 'fapshi' && onQuantity && lines[0]?.quantity === 1 ? (
+                  <button type="button" className="btn-primary w-full" disabled={busy || !withinCapacity} onClick={() => void prepare()}>
                     {busy ? 'Preparing checkout…' : 'Continue to payment'}
                   </button>
-                ) : provider === 'campay' ? (
-                  <p className="text-sm text-stone">FCX mobile money checkout is unavailable.</p>
+                ) : provider ? (
+                  <p className="text-sm text-stone">Mobile money cart checkout is unavailable.</p>
                 ) : !error && <p role="status" className="text-sm text-stone">Checking payment options…</p>}
               </>
             )}
             {error && <p role="alert" className="text-sm text-coral">{error}</p>}
-            {(confirmed || registered || payment) && <button type="button" className="btn-primary text-sm" onClick={() => setOpen(false)}>Done</button>}
+            {(confirmed || payment) && <button type="button" className="btn-primary text-sm" onClick={() => setOpen(false)}>Done</button>}
           </section>
         </div>, document.body
       )}

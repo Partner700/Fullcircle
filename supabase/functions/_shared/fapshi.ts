@@ -8,7 +8,7 @@ export type FapshiPayment = {
   user_id: string;
   reference: string;
   provider_reference: string | null;
-  purchase_kind: "relic" | "subscription" | "fcx_ticket";
+  purchase_kind: "relic" | "subscription" | "fcx_ticket" | "cart";
   amount_local: number;
   currency_code: string;
   status: string;
@@ -236,6 +236,7 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
       subscription: "finalize_subscription_payment",
       relic: "finalize_campay_payment",
       fcx_ticket: "finalize_fcx_fapshi_payment",
+      cart: "finalize_fapshi_cart",
     }[payment.purchase_kind];
     await database(`rpc/${rpc}`, {
       method: "POST",
