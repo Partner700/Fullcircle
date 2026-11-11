@@ -46,6 +46,17 @@ async function api(path: string, body?: Json): Promise<Response> {
   });
 }
 
+export async function getFapshiCollectionBalance() {
+  const response = await api("/balance");
+  if (!response.ok) throw new Error("Fapshi balance unavailable.");
+  const { service, balance, currency } = await response.json();
+  if (typeof service !== "string" || !service.trim() ||
+      typeof balance !== "number" || !Number.isFinite(balance) || currency !== "XAF") {
+    throw new Error("Unexpected Fapshi balance response.");
+  }
+  return { service, balance, currency };
+}
+
 function transactionId(value: unknown): value is string {
   return typeof value === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
 }

@@ -5557,6 +5557,21 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
 function MobileMoneyManager() {
   const [payments, setPayments] = useState<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<{ service: string; balance: number } | null>(null);
+  const [balanceStatus, setBalanceStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+
+  const loadBalance = useCallback(async () => {
+    setBalanceStatus('loading');
+    try {
+      const { data, error } = await supabase.functions.invoke('fapshi-service-balance');
+      if (error || !data) throw error ?? new Error('Balance unavailable');
+      setBalance(data);
+      setBalanceStatus('ready');
+    } catch {
+      setBalance(null);
+      setBalanceStatus('unavailable');
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -5568,10 +5583,25 @@ function MobileMoneyManager() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { void loadBalance(); }, [loadBalance]);
 
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Mobile Money Payments" subtitle="Review confirmed and unsuccessful Mobile Money payments. The app checks each payment with its provider." />
+
+      <section className="card flex flex-wrap items-center justify-between gap-3 p-4" aria-label="Fapshi collection balance">
+        <div>
+          <h4 className="font-display font-semibold text-ink">Fapshi collection balance</h4>
+          <p className="mt-1 text-sm text-stone" role="status">
+            {balanceStatus === 'loading' ? 'Checking Fapshi…' : balanceStatus === 'ready' && balance
+              ? `${formatXaf(balance.balance)} · ${balance.service}`
+              : 'Balance unavailable from Fapshi.'}
+          </p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => void loadBalance()} disabled={balanceStatus === 'loading'}>
+          Refresh balance
+        </button>
+      </section>
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>

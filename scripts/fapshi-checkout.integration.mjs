@@ -252,3 +252,34 @@ for (const [providerResult, expected] of [
 }
 
 console.log('Hosted and Direct Pay checkout and payment verification passed.');
+
+await import('../supabase/functions/fapshi-service-balance/index.ts');
+const readBalance = handler;
+let balanceCalls = 0;
+let fapshiBalance = { service: 'Full Circle', balance: 0, currency: 'XAF' };
+globalThis.fetch = async (input, init = {}) => {
+  const url = new URL(input);
+  if (url.pathname === '/auth/v1/user') {
+    const auth = new Headers(init.headers).get('authorization');
+    return auth === 'Bearer instructor' || auth === 'Bearer cadet'
+      ? json({ id: auth.slice(7) }) : json({}, 401);
+  }
+  if (url.pathname === '/rest/v1/role_assignments') {
+    assert.equal(url.searchParams.get('role'), 'eq.instructor');
+    assert.equal(url.searchParams.get('status'), 'in.(active,approved)');
+    return json(url.searchParams.get('user_id') === 'eq.instructor' ? [{ id: 'role' }] : []);
+  }
+  assert.equal(url.href, 'https://live.fapshi.com/balance');
+  assert.equal(init.method, 'GET');
+  assert.equal(new Headers(init.headers).get('apikey'), 'test-key');
+  balanceCalls++;
+  return json(fapshiBalance);
+};
+assert.equal((await readBalance(req({}))).status, 401);
+assert.equal((await readBalance(req({}, cadet))).status, 403);
+assert.equal(balanceCalls, 0);
+const instructor = { Authorization: 'Bearer instructor' };
+assert.deepEqual(await (await readBalance(req({}, instructor))).json(), fapshiBalance);
+fapshiBalance = { service: 'Full Circle', balance: null, currency: 'XAF' };
+assert.equal((await readBalance(req({}, instructor))).status, 502);
+console.log('Fapshi balance checks passed for role access, genuine zero, and unavailable data.');
