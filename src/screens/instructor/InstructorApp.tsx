@@ -4294,7 +4294,7 @@ function InstructorSettings({ profile, tents, members }: {
           <h4 className="font-display font-semibold text-ink">CamPay Payments</h4>
         </div>
         <p className="text-xs text-stone">
-          Real-money relic purchases are processed through CamPay in the backend. Cadets stay in the platform
+          For relic purchases routed through CamPay, cadets stay in the platform
           while MTN MoMo and Orange Money prompts are initiated.
           Configure your CamPay credentials and webhook key in your project secrets.
         </p>
@@ -5571,12 +5571,12 @@ function MobileMoneyManager() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Mobile Money Payments" subtitle="Review payments the app has confirmed or rejected. Confirmation is automatic through CamPay." />
+      <SectionHeader title="Mobile Money Payments" subtitle="Review confirmed and unsuccessful Mobile Money payments. The app checks each payment with its provider." />
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>
       ) : payments.length === 0 ? (
-        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="When the app confirms or rejects a payment through CamPay, it will appear here." />
+        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="Payments appear here once their provider reports a final status." />
       ) : (
         <div className="space-y-3">
           {payments.map((pay) => {
