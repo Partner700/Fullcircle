@@ -4,6 +4,7 @@ import { rememberMobileMoneyNumber } from '../../components/SavedMobileMoneyNumb
 import { MobileMoneyApprovalHelp } from '../../components/MobileMoneyApprovalHelp';
 import { FcxFapshiCheckout, MarketCartCheckout, type MarketCartLine } from '../../components/FcxFapshiCheckout';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -19,7 +20,7 @@ import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult, CheckoutProvider } from '../../lib/queries';
 import type { FcxExperience, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
-  Clock3, ShoppingBag, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
+  Clock3, ShoppingBag, ShoppingCart, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
   Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield, Ticket,
 } from 'lucide-react';
 
@@ -110,6 +111,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [buyingWeeklyFreezer, setBuyingWeeklyFreezer] = useState(false);
   const [checkoutProvider, setCheckoutProvider] = useState<CheckoutProvider | 'loading' | 'error'>('loading');
   const [cart, setCart] = useState<MarketCartLine[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cartPaymentPending, setCartPaymentPending] = useState(false);
+  const cartQuantity = cart.reduce((total, item) => total + item.quantity, 0);
   const [relicPaymentQuantity, setRelicPaymentQuantity] = useState(1);
   const [paymentModalRelic, setPaymentModalRelic] = useState<RelicType | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<StorePaymentMethod>('mtn_momo');
@@ -600,6 +604,57 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       <SectionHeader title="The Market" subtitle="Buy freezers and biblical relics to protect your streak and aid your games" />
 
+      {createPortal(
+        <>
+          {(cartQuantity > 0 || cartPaymentPending) && (
+            <button type="button" onClick={() => setCartOpen(true)}
+              aria-label={cartQuantity ? `Open cart, ${cartQuantity} ${cartQuantity === 1 ? 'item' : 'items'}` : 'View cart payment'}
+              className="fixed bottom-20 right-16 z-[65] flex h-11 w-11 items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl animate-fade-in md:bottom-6 md:right-20">
+              <ShoppingCart size={20} aria-hidden="true" />
+              {cartQuantity > 0 && <span aria-hidden="true" className="notification-badge-ring absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 bg-coral px-1 text-[9px] font-black leading-none text-white">
+                {cartQuantity > 9 ? '9+' : cartQuantity}
+              </span>}
+            </button>
+          )}
+          <div className={cn('fixed inset-0 z-[150] items-end justify-center bg-navy/70 backdrop-blur-sm sm:items-center sm:p-4', cartOpen ? 'flex' : 'hidden')}
+            onClick={() => setCartOpen(false)}>
+            <section role="dialog" aria-modal={cartOpen || undefined} aria-label="Market cart"
+              className="max-h-[88dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-lg border border-border bg-bg p-4 shadow-2xl sm:rounded-lg"
+              onClick={event => event.stopPropagation()}>
+              <header className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-md bg-gold/10 text-gold"><ShoppingCart size={19} aria-hidden="true" /></span>
+                  <h2 className="font-display text-base font-bold text-ink">Your cart</h2>
+                </div>
+                <button type="button" className="icon-btn" onClick={() => setCartOpen(false)} aria-label="Close cart"><X size={17} /></button>
+              </header>
+              {cart.map(item => (
+                <div key={item.key} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>{item.name} · {formatXaf(item.unitPrice)} each</span>
+                  <div className="flex items-center gap-2">
+                    <input type="number" min={1} max={2147483647} value={item.quantity}
+                      aria-label={`Quantity for ${item.name}`} className="input-field w-20"
+                      onChange={event => {
+                        const quantity = event.target.valueAsNumber;
+                        if (!Number.isInteger(quantity)) return;
+                        setCart(current => current.map(line => line.key === item.key
+                          ? { ...line, quantity: Math.max(1, Math.min(2147483647, quantity)) }
+                          : line));
+                      }} />
+                    <button type="button" aria-label={`Remove ${item.name}`} className="btn-secondary text-xs"
+                      onClick={() => setCart(current => current.filter(line => line.key !== item.key))}>Remove</button>
+                  </div>
+                </div>
+              ))}
+              {!cart.length && <p className="text-xs text-stone">Your cart is empty.</p>}
+              <MarketCartCheckout lines={cart} className="btn-primary text-sm" onConfirmed={confirmCart} onPendingChange={setCartPaymentPending}>
+                {cart.length ? `Checkout · ${formatXaf(cart.reduce((total, line) => total + line.unitPrice * line.quantity, 0))}` : 'View payment'}
+              </MarketCartCheckout>
+            </section>
+          </div>
+        </>, document.body,
+      )}
+
       {loadError && (
         <div className="rounded-lg border border-coral/30 bg-coral-soft p-3 text-sm text-coral">
           {loadError}
@@ -765,32 +820,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           <h4 className="font-display font-semibold text-ink">Biblical Relics</h4>
         </div>
         <p className="relative z-10 text-xs text-stone mb-4">Ancient artifacts with powerful effects. Wildly expensive — save your denarii or buy with real money where a cash price exists.</p>
-
-        <section className="relative z-10 mb-4 space-y-3 rounded-lg border border-border bg-surface p-4" aria-label="Market cart">
-          <h4 className="font-display text-sm font-semibold text-ink">Cart</h4>
-          {cart.map(item => (
-            <div key={item.key} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span>{item.name} · {formatXaf(item.unitPrice)} each</span>
-              <div className="flex items-center gap-2">
-                <input type="number" min={1} max={2147483647} value={item.quantity}
-                  aria-label={`Quantity for ${item.name}`} className="input-field w-20"
-                  onChange={event => {
-                    const quantity = event.target.valueAsNumber;
-                    if (!Number.isInteger(quantity)) return;
-                    setCart(current => current.map(line => line.key === item.key
-                      ? { ...line, quantity: Math.max(1, Math.min(2147483647, quantity)) }
-                      : line));
-                  }} />
-                <button type="button" aria-label={`Remove ${item.name}`} className="btn-secondary text-xs"
-                  onClick={() => setCart(current => current.filter(line => line.key !== item.key))}>Remove</button>
-              </div>
-            </div>
-          ))}
-          {!cart.length && <p className="text-xs text-stone">Your cart is empty.</p>}
-          <MarketCartCheckout lines={cart} className="btn-primary text-sm" onConfirmed={confirmCart}>
-            {cart.length ? `Checkout · ${formatXaf(cart.reduce((total, line) => total + line.unitPrice * line.quantity, 0))}` : 'View payment'}
-          </MarketCartCheckout>
-        </section>
 
         <div className="relative z-10 space-y-3">
           {relics.map((relic) => {

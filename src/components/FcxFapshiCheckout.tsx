@@ -34,11 +34,12 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     quantityLimit={available} onQuantity={setQuantity}>{children}</MarketCartCheckout>;
 }
 
-export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity }: {
+export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity, onPendingChange }: {
   lines: MarketCartLine[];
   className: string;
   children: ReactNode;
   onConfirmed: (purchased: MarketCartLine[]) => void;
+  onPendingChange?: (pending: boolean) => void;
   quantityLimit?: number;
   onQuantity?: (quantity: number) => void;
 }) {
@@ -60,6 +61,10 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
   const displayedLines = payment || confirmed ? purchasedLines.current : lines;
   const displayedAmount = payment?.amount_local ?? displayedLines.reduce((total, line) => total + line.unitPrice * line.quantity, 0);
   const withinCapacity = quantityLimit === undefined || (lines[0]?.quantity ?? 0) <= quantityLimit;
+
+  useEffect(() => {
+    onPendingChange?.(Boolean(payment && !confirmed));
+  }, [payment, confirmed, onPendingChange]);
 
   const reference = payment?.reference;
   const activePayment = useRef<CampayPaymentResult | null>(null);
