@@ -553,12 +553,13 @@ async function startCartCheckout(
   }
   const quantity = ticketQuantity ?? 0;
   if (!phone || !isDirectPaymentMethod(method) || typeof amount !== "number" ||
-      !Number.isSafeInteger(amount) || amount < 300 || typeof quantity !== "number" ||
+      !Number.isSafeInteger(amount) || amount < 100 || typeof quantity !== "number" ||
       !Number.isInteger(quantity) || quantity < 0 || quantity > 2147483647 ||
       (quantity > 0 && (typeof eventId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(eventId))) ||
       !Array.isArray(relics) || (!relics.length && !quantity) ||
       relics.some(item => !item || typeof item.slug !== "string" ||
-        !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 2147483647)) {
+        !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 2147483647 || (item.pack_size != null &&
+        (!Number.isInteger(item.pack_size) || item.pack_size < 1 || item.pack_size > 2147483647)))) {
     return Response.json({ error: "Review the cart and enter a valid Cameroon mobile money number." }, {
       status: 400, headers: corsHeaders,
     });
@@ -571,7 +572,7 @@ async function startCartCheckout(
     headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       p_user_id: userId, p_reference: reference, p_phone: phone, p_method: method,
-      p_displayed_amount: amount, p_relics: relics.map(({ slug, quantity }) => ({ slug, quantity })),
+      p_displayed_amount: amount, p_relics: relics.map(({ slug, quantity, pack_size }) => ({ slug, quantity, pack_size })),
       p_event_id: quantity ? eventId : null, p_ticket_quantity: quantity, p_xaf_per_usd: xafPerUsdForLegacy(),
     }),
   });
@@ -709,7 +710,7 @@ Deno.serve(async (req: Request) => {
           status: 400, headers: corsHeaders,
         });
       }
-      if (!Number.isInteger(amountXaf) || amountXaf < 300 || displayedAmountXaf !== amountXaf) {
+      if (!Number.isInteger(amountXaf) || amountXaf < (useFapshiDirect && product.purchaseKind === "relic" ? 100 : 300) || displayedAmountXaf !== amountXaf) {
         return Response.json({ error: `Reopen checkout to confirm the price of ${formatXaf(amountXaf)}.` }, {
           status: 409, headers: corsHeaders,
         });

@@ -1,4 +1,4 @@
-import { relicMoneyPriceXaf } from '../../lib/relicPricing';
+import { relicCashBundles, relicMoneyPriceXaf } from '../../lib/relicPricing';
 import { useDraggableShortcut } from '../../hooks/useDraggableShortcut';
 import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
 import { DirectMobileMoneyFields } from '../../components/DirectMobileMoneyFields';
@@ -825,6 +825,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             const canUseFromStore = owned > 0 && STORE_USABLE_RELICS.has(slug);
             const moneyPriceXaf = relicMoneyPriceXaf(relic);
             const moneyPrice = formatXaf(moneyPriceXaf);
+            const cashBundles = relicCashBundles(relic);
             const gifting = giftRecipientId !== 'self';
 
             return (
@@ -865,6 +866,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                           <Lock size={10} /> Cash only
                         </span>
                       )}
+                      {!cashBundles.length && (
                       <button
                         onClick={() => openPaymentModal(relic)}
                         disabled={moneyPriceXaf <= 0 || gifting}
@@ -872,11 +874,18 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                       >
                           {gifting ? 'Cash gift unavailable' : moneyPriceXaf > 0 ? moneyPrice : 'Denarii only'}
                       </button>
+                      )}
                       {!gifting && moneyPriceXaf > 0 && slug && (
                         <button type="button" className="btn-secondary text-xs" onClick={() => addToCart({
                           key: relic.id, name: relic.name, relicSlug: slug, unitPrice: moneyPriceXaf, quantity: 1,
                         })}>Add to cart</button>
                       )}
+                      {!gifting && slug && cashBundles.map(({ size, price }) => (
+                        <button key={size} type="button" className="btn-secondary text-xs" onClick={() => addToCart({
+                          key: `${relic.id}:${size}`, name: `${relic.name} (pack of ${size})`,
+                          relicSlug: slug, packSize: size, unitPrice: price, quantity: 1,
+                        })}>Add {size} · {formatXaf(price)}</button>
+                      ))}
                       {giftRecipientId === 'self' && canUseFromStore && (
                         <button
                           onClick={() => activateOwnedRelic(slug)}

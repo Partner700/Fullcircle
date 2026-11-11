@@ -82,13 +82,17 @@ globalThis.fetch = async (input, init = {}) => {
   }
   if (url.pathname === '/transaction/' + payment?.reference) return json([providerPayment]);
   if (url.pathname.endsWith('/rpc/reserve_fapshi_cart')) {
-    assert.deepEqual(body.p_relics, [{ slug: 'skip', quantity: 2 }]);
-    assert.equal(body.p_ticket_quantity, 2);
-    assert.equal(body.p_event_id, '11111111-1111-4111-8111-111111111111');
-    if (body.p_displayed_amount !== 6600) return json({ code: 'P0001', message: 'The cart total changed.' }, 400);
+    const isBundle = body.p_ticket_quantity === 0;
+    const expectedAmount = isBundle ? 100 : 6600;
+    assert.deepEqual(body.p_relics, isBundle
+      ? [{ slug: 'witch-ball-endor', quantity: 1, pack_size: 3 }]
+      : [{ slug: 'skip', quantity: 2 }]);
+    assert.equal(body.p_ticket_quantity, isBundle ? 0 : 2);
+    assert.equal(body.p_event_id, isBundle ? null : '11111111-1111-4111-8111-111111111111');
+    if (body.p_displayed_amount !== expectedAmount) return json({ code: 'P0001', message: 'The cart total changed.' }, 400);
     payment = {
       id: crypto.randomUUID(), user_id: body.p_user_id, reference: body.p_reference,
-      purchase_kind: 'cart', amount_local: 6600, currency_code: 'XAF',
+      purchase_kind: 'cart', amount_local: expectedAmount, currency_code: 'XAF',
       payment_method: body.p_method, status: 'pending',
     };
     paymentRecords.set(payment.reference, payment);
@@ -343,6 +347,15 @@ for (const prompt of [secondCartPrompt, firstCartPrompt]) {
 }
 assert.equal(deliveries.filter(reference => reference === cart.reference).length, 1);
 assert.equal(deliveries.filter(reference => reference === cartRetry.reference).length, 1);
+
+const pack = await (await direct(req({
+  ...mobileOrder, purchase_kind: 'cart', displayed_amount_xaf: 100,
+  cart_relics: [{ slug: 'witch-ball-endor', quantity: 1, pack_size: 3 }],
+}, cadet))).json();
+assert.equal(pack.amount_local, 100);
+providerPayment.status = 'SUCCESSFUL';
+assert.equal((await webhook(req(providerPayment, hook))).status, 200);
+assert.equal(deliveries.filter(reference => reference === pack.reference).length, 1);
 
 console.log('Hosted and Direct Pay checkout and payment verification passed.');
 

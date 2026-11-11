@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { fetchRelicInventory, purchaseRelic, useRelic } from '../lib/queries';
-import { relicMoneyPriceXaf } from '../lib/relicPricing';
+import { relicCashBundles, relicMoneyPriceXaf } from '../lib/relicPricing';
 import { supabase } from '../lib/supabase';
 import { userFacingError } from '../lib/connectionErrors';
 import { formatDenarii, formatXaf } from '../lib/utils';
 import type { RelicType } from '../lib/types';
 import { MarketCartCheckout } from './FcxFapshiCheckout';
 
-type RelicOffer = Pick<RelicType, 'id' | 'slug' | 'name' | 'denarii_cost' | 'money_price_xaf' | 'money_price_usd'>;
+type RelicOffer = Pick<RelicType, 'id' | 'slug' | 'name' | 'denarii_cost' | 'money_price_xaf' | 'money_price_usd' | 'cash_bundles'>;
 
 export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwned, label = 'Get relics', afterDenariiPurchase, aboveOverlay }: {
   userId: string;
@@ -34,7 +34,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
   const refresh = useCallback(async () => {
     const version = ++request.current;
     const [{ data, error: catalogError }, wallet, inventory] = await Promise.all([
-      supabase.from('relic_types').select('id,slug,name,denarii_cost,money_price_xaf,money_price_usd')
+      supabase.from('relic_types').select('id,slug,name,denarii_cost,money_price_xaf,money_price_usd,cash_bundles')
         .eq('is_active', true).in('slug', slugKey.split(',')).order('name'),
       supabase.rpc('get_user_denarii_total', { p_user_id: userId }),
       activateOwned ? fetchRelicInventory(userId) : Promise.resolve([]),
@@ -101,6 +101,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           if (!offer.slug) return null;
           const cost = Number(offer.denarii_cost || 0);
           const cash = relicMoneyPriceXaf(offer);
+          const bundles = relicCashBundles(offer);
           const canBuyWithDenarii = balance !== null && cost > 0 && balance >= cost;
           return (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 last:border-0">
@@ -115,7 +116,13 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
                   <button type="button" className="btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void act(offer, false)}>
                     {afterDenariiPurchase ? 'Buy & use' : 'Buy'} · {formatDenarii(cost)} Ð
                   </button>
-                ) : cash >= 300 && balance !== null ? (
+                ) : bundles.length > 0 && balance !== null ? bundles.map(({ size, price }) => (
+                  <MarketCartCheckout key={size} className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
+                    lines={[{ key: `${offer.id}:${size}`, name: `${offer.name} (pack of ${size})`,
+                      unitPrice: price, quantity: 1, relicSlug: offer.slug ?? undefined, packSize: size }]}>
+                    Buy {size} · {formatXaf(price)}
+                  </MarketCartCheckout>
+                )) : cash >= 100 && balance !== null ? (
                   <MarketCartCheckout className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
                     lines={[{ key: offer.id, name: offer.name, unitPrice: cash, quantity: 1, relicSlug: offer.slug }]}>
                     Buy · {formatXaf(cash)}

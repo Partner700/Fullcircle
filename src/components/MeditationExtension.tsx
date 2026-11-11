@@ -37,7 +37,7 @@ export function MeditationExtension({userId,date,onWindowChange}:{userId:string;
  return <section className="my-3 rounded-lg border border-brass/30 bg-gold-soft p-3 text-xs text-ink" aria-label="Meditation extension">
   <h4 className="flex items-center gap-2 font-bold"><Clock3 size={16}/> Hezekiah&apos;s Sundial</h4>
   {active?<p role="status" className="mt-2 font-bold text-moss">Submission window open · {Math.floor(remaining/60)}:{String(remaining%60).padStart(2,'0')} remaining</p>:<p className="mt-2">The 9 PM deadline has passed. Activate one relic for a fresh 15-minute meditation window. Every window closes at midnight Cameroon time.</p>}
-  <p className="mt-1 text-stone">{Number(status?.owned||0)} owned · {status?.cost||6000} Denarii per use</p>
+  <p className="mt-1 text-stone">{Number(status?.owned||0)} owned · {status?.cost||5000} Denarii per use</p>
   {!active && status?.record_date === date && (Number(status.owned) > 0
     ? <button type="button" disabled={busy} className="btn-secondary mt-2 text-xs" onClick={() => void use()}>
         {busy ? 'Opening window…' : 'Use relic · open 15 minutes'}

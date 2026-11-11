@@ -16,6 +16,7 @@ export type MarketCartLine = {
   unitPrice: number;
   quantity: number;
   relicSlug?: string;
+  packSize?: number;
   eventId?: string;
 };
 
@@ -141,7 +142,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
   async function prepare(retry = false) {
     const order = retry ? purchasedLines.current : lines;
     const orderAmount = retry ? displayedAmount : amount;
-    if (!userId || orderAmount < 300 || (!retry && !withinCapacity) || submitting.current ||
+    if (!userId || orderAmount < 100 || (!retry && !withinCapacity) || submitting.current ||
         (provider !== 'fapshi_direct' && !(provider === 'fapshi' && onQuantity && order[0]?.quantity === 1))) return;
     if (provider === 'fapshi_direct' && !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))) {
       setError('Enter a valid Cameroon mobile money number.');
@@ -152,7 +153,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
     setError('');
     try {
       const ticket = order.find(line => line.eventId);
-      const relics = order.flatMap(line => line.relicSlug ? [{ slug: line.relicSlug, quantity: line.quantity }] : []);
+      const relics = order.flatMap(line => line.relicSlug ? [{ slug: line.relicSlug, quantity: line.quantity, pack_size: line.packSize }] : []);
       const result = provider === 'fapshi' && ticket?.eventId
         ? await startFcxFapshiCheckout(ticket.eventId, userId, orderAmount, 'fapshi_hosted')
         : await startMarketCartCheckout(userId, orderAmount, method, phone, relics, ticket?.eventId, ticket?.quantity);
@@ -234,7 +235,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
               <>
                 {provider === 'fapshi_direct' ? (
                   <DirectMobileMoneyFields userId={userId} countryCode="CM" method={method} phone={phone}
-                    busy={busy} disabled={amount < 300 || !withinCapacity || !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
+                    busy={busy} disabled={amount < 100 || !withinCapacity || !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
                     onMethod={setMethod} onPhone={setPhone} onSubmit={() => void prepare()} />
                 ) : provider === 'fapshi' && onQuantity && lines[0]?.quantity === 1 ? (
                   <button type="button" className="btn-primary w-full" disabled={busy || !withinCapacity} onClick={() => void prepare()}>

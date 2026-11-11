@@ -743,6 +743,7 @@ export interface RelicType {
   denarii_cost: number | null;
   money_price_usd: number | null;
   money_price_xaf: number | null;
+  cash_bundles?: Record<string, number>;
   effect_scope: string;
   icon: string;
 }
