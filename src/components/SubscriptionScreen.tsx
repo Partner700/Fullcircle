@@ -1,3 +1,6 @@
+import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
+import { SavedMobileMoneyNumber, rememberMobileMoneyNumber } from './SavedMobileMoneyNumber';
+import { MobileMoneyApprovalHelp } from './MobileMoneyApprovalHelp';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -135,7 +138,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     setChecking(true);
     try {
       const references = Array.from(new Set([
-        activePayment.provider_reference,
+        activePayment.reference.startsWith('fp_') ? null : activePayment.provider_reference,
         activePayment.reference,
       ].filter(Boolean))) as string[];
       for (const reference of references) {
@@ -155,9 +158,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         const reference = String(value || '').trim();
         return Boolean(reference) && (activeReferences.has(reference) || reference === activePayment.payment_id);
       }));
-      if (!stored) return false;
+      if (!stored || paymentRef.current?.reference !== activePayment.reference) return false;
 
-      setPayment((current) => current ? {
+      setPayment((current) => current?.reference === activePayment.reference && current.status === 'pending' ? {
         ...current,
         status: stored.status,
         provider_reference: stored.provider_reference,
@@ -165,7 +168,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           ? 'Payment confirmed. Your Full Circle subscription is active.'
           : stored.status === 'rejected'
             ? stored.rejection_reason || 'The payment was not confirmed.'
-            : 'Approve the mobile money request on your phone.',
+            : current.checkout_url ? 'Complete your payment on Fapshi, then check its status here.'
+              : 'Payment confirmation is pending.',
       } : current);
       if (stored.status === 'confirmed') {
         await finishActivation();
@@ -207,6 +211,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           provider: recentSubscription.provider,
           operator: recentSubscription.operator,
           ussd_code: recentSubscription.ussd_code,
+          checkout_url: recentSubscription.fapshi_checkout_url,
           message: recentSubscription.status === 'confirmed'
             ? 'Payment confirmed. Restoring your subscription access.'
             : 'Checking your recent mobile money approval.',
@@ -227,7 +232,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
   useEffect(() => {
     const activePayment = paymentRef.current;
-    if (!profile || !activePayment || CONFIRMED_STATUSES.has(String(activePayment.status).toLowerCase())) return;
+    if (!profile || !activePayment || activePayment.status === 'rejected' || CONFIRMED_STATUSES.has(String(activePayment.status).toLowerCase())) return;
     if (!pollingStartedAtRef.current) pollingStartedAtRef.current = Date.now();
     const interval = window.setInterval(() => {
       if (Date.now() - pollingStartedAtRef.current > 15 * 60_000) {
@@ -235,7 +240,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         return;
       }
       void checkPayment(false);
-    }, 4500);
+    }, activePayment.reference.startsWith('fp_') ? (activePayment.checkout_url ? 15_000 : 16_000) : 4500);
     return () => window.clearInterval(interval);
   }, [checkPayment, payment?.reference, payment?.status, profile]);
 
@@ -246,16 +251,22 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mobile_money_payments', filter: `user_id=eq.${profile.id}` },
-        () => void checkPayment(false),
+        (payload) => {
+          const updated = payload.new as { reference?: string; status?: string };
+          const active = paymentRef.current;
+          if (active?.reference.startsWith('fp_') &&
+              (updated.reference !== active.reference || !['confirmed', 'rejected'].includes(updated.status ?? ''))) return;
+          void checkPayment(false);
+        },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [checkPayment, profile]);
 
   const startCheckout = async () => {
-    if (!profile || !plan) return;
+    if (!profile || !plan || submitting || (paymentRef.current?.reference.startsWith('fp_') && paymentRef.current.status === 'pending')) return;
     const normalizedPhone = phoneNumberForCountry(phone, profile.country_code);
-    if (normalizedPhone.replace(/\D/g, '').length < 9) {
+    if (plan.payment_provider !== 'fapshi' && normalizedPhone.replace(/\D/g, '').length < 9) {
       setError('Enter the mobile money phone number that will approve the payment.');
       return;
     }
@@ -269,12 +280,15 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
       const result = await startSubscriptionCheckout(
         plan.id,
         profile.id,
-        method,
-        normalizedPhone,
+        plan.payment_provider === 'fapshi' ? 'fapshi_hosted' : method,
+        plan.payment_provider === 'fapshi' ? '' : normalizedPhone,
         plan.amount_xaf,
         profile.email || undefined,
         profile.display_name || undefined,
       );
+      if (plan.payment_provider === 'fapshi_direct' && result.status === 'pending') {
+        rememberMobileMoneyNumber(profile.id, method, normalizedPhone);
+      }
       paymentRef.current = result;
       pollingStartedAtRef.current = Date.now();
       setPayment(result);
@@ -295,6 +309,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
     || (effectiveStatus?.status === 'trial' && (!effectiveStatus.trial_ends_at || new Date(effectiveStatus.trial_ends_at).getTime() > Date.now()))
     || (effectiveStatus?.status === 'active' && (!effectiveStatus.current_period_end || new Date(effectiveStatus.current_period_end).getTime() > Date.now()));
   const confirmed = payment && CONFIRMED_STATUSES.has(String(payment.status).toLowerCase());
+  const awaitingDirectApproval = payment?.status === 'pending' && payment.reference.startsWith('fp_')
+    && (payment.payment_method === 'mtn_momo' || payment.payment_method === 'orange_money') && !payment.checkout_url;
   const trialEnd = effectiveStatus?.trial_ends_at ? new Date(effectiveStatus.trial_ends_at) : null;
   const periodEnd = effectiveStatus?.current_period_end ? new Date(effectiveStatus.current_period_end) : null;
 
@@ -327,6 +343,9 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
 
       <section className="card p-5 sm:p-6">
         <h3 className="font-display font-semibold text-ink">Pay with Mobile Money</h3>
+        {plan?.payment_provider === 'fapshi' ? (
+          <p className="mt-3 text-sm text-stone">Pay with MTN MoMo or Orange Money on Fapshi.</p>
+        ) : <>
         <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-surface-2 p-1.5">
           {([
             ['mtn_momo', 'MTN MoMo'],
@@ -351,6 +370,10 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
           onChange={setPhone}
           className="mt-1.5 w-full"
         />
+        {plan?.payment_provider === 'fapshi_direct' && (
+          <SavedMobileMoneyNumber userId={profile?.id} method={method} onSelect={setPhone} />
+        )}
+        </>}
 
         {error && <div className="mt-4 rounded-lg border border-coral/30 bg-coral-soft px-3 py-2.5 text-sm text-coral">{error}</div>}
         {payment && (
@@ -358,18 +381,27 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
             <div className="flex items-start gap-2">
               {confirmed ? <CheckCircle2 size={17} className="mt-0.5 shrink-0" /> : <Smartphone size={17} className="mt-0.5 shrink-0" />}
               <div className="min-w-0">
-                <p className="font-semibold">{confirmed ? 'Subscription active' : 'Payment request sent'}</p>
-                <p className="mt-0.5 text-xs opacity-80">{payment.message || 'Approve the prompt on your phone.'}</p>
+                <p className="font-semibold">{confirmed ? 'Payment complete · Subscription active' : payment.status === 'rejected' ? 'Payment unsuccessful' : payment.checkout_url ? 'Fapshi checkout ready' : 'Payment pending'}</p>
+                {awaitingDirectApproval ? <MobileMoneyApprovalHelp key={payment.reference} method={payment.payment_method} startedAt={payment.approval_started_at} onTimeout={() => void checkPayment(false)} /> : (
+                  <p className="mt-0.5 text-xs opacity-80">{payment.status === 'rejected' && payment.reference.startsWith('fp_')
+                    ? <MobileMoneyFailureMessage reason={payment.message} approvalStartedAt={payment.approval_started_at} />
+                    : payment.message || 'Approve the prompt on your phone.'}</p>
+                )}
                 <p className="mt-1 truncate text-[10px] opacity-60">Reference: {payment.reference}</p>
               </div>
             </div>
           </div>
         )}
 
+        {payment?.checkout_url && !confirmed && payment.status === 'pending' && (
+          <a className="btn-primary mt-4 w-full justify-center" href={payment.checkout_url} target="_blank" rel="noopener noreferrer">
+            <CreditCard size={16} /> Open Fapshi Checkout
+          </a>
+        )}
         <button
           type="button"
           onClick={startCheckout}
-          disabled={loadingPlan || submitting || !plan}
+          disabled={loadingPlan || submitting || !plan || (payment?.reference.startsWith('fp_') && payment.status === 'pending')}
           className="btn-primary mt-4 w-full justify-center disabled:opacity-50"
         >
           {loadingPlan || submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}

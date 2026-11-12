@@ -1,3 +1,5 @@
+import { interfaceLanguage, preferredTimeZone } from '../lib/regionalPreferences';
+import { ProfileTimeZoneSelect } from './ProfileTimeZoneSelect';
 import { useState } from 'react';
 import { Cake, Globe2, Languages, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +12,8 @@ export function ProfileOnboarding() {
   const { profile, refreshProfile, signOut } = useAuth();
   const [country, setCountry] = useState(profile?.country_code || 'CM');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
-  const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [language, setLanguage] = useState<string>(() => interfaceLanguage(undefined));
+  const [timeZone, setTimeZone] = useState(() => preferredTimeZone(undefined));
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +40,7 @@ export function ProfileOnboarding() {
         whatsappNumber: phone,
         countryCode: country,
         languageCode: language,
+        timeZone,
         birthMonth: parsedBirthday.month,
         birthDay: parsedBirthday.day,
         onboardingCompleted: true,
@@ -69,9 +73,10 @@ export function ProfileOnboarding() {
           <span className="mt-1 block text-xs text-stone">The selected country code is added automatically.</span>
         </label>
         <label className="block">
-          <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Languages size={16} /> Language</span>
+          <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Languages size={16} /> App language</span>
           <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
         </label>
+        <ProfileTimeZoneSelect value={timeZone} onChange={setTimeZone} />
         <div>
           <span className="mb-1.5 flex items-center gap-2 text-sm font-bold text-ink"><Cake size={16} /> Birthday</span>
           <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" required />

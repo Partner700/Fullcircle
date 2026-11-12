@@ -21,6 +21,7 @@ import { signalActiveQuizExitIntent } from '../lib/quizIntegrity';
 
 type Theme = 'night' | 'day';
 const CONTINUITY_EXCLUDED_TABS = ['quiz'] as const;
+const SCROLL_CONTINUITY_EXCLUDED_TABS: readonly string[] = ['quiz', 'narrative', 'reading'];
 
 function tabUrl(tab: string) {
   const url = new URL(window.location.href);
@@ -108,6 +109,8 @@ interface NavItem {
   key: string;
   label: string;
   icon: ElementType;
+  disabled?: boolean;
+  title?: string;
 }
 
 interface ShellProps {
@@ -152,7 +155,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, [activeKey, profile?.id, role]);
 
   useEffect(() => {
-    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    if (!profile?.id || !role || SCROLL_CONTINUITY_EXCLUDED_TABS.includes(activeKey)) return;
     const target = readContinuedScroll(profile.id, role, activeKey);
     if (target === null) return;
 
@@ -181,7 +184,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, [activeKey, profile?.id, role]);
 
   useEffect(() => {
-    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    if (!profile?.id || !role || SCROLL_CONTINUITY_EXCLUDED_TABS.includes(activeKey)) return;
     let animationFrame = 0;
     const save = () => persistContinuedScroll(
       profile.id,
@@ -373,10 +376,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
             <button
               key={item.key}
               data-guide-nav={item.key}
+              disabled={item.disabled}
+              title={item.title}
               onClick={() => navigate(item.key)}
               aria-current={navActiveKey === item.key ? 'page' : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 disabled:opacity-45',
                 navActiveKey === item.key
                   ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                   : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
@@ -520,10 +525,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 <button
                   key={item.key}
                   data-guide-nav={item.key}
+                  disabled={item.disabled}
+                  title={item.title}
                   onClick={() => navigate(item.key)}
                   aria-current={navActiveKey === item.key ? 'page' : undefined}
                   className={cn(
-                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all',
+                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all disabled:opacity-45',
                     navActiveKey === item.key
                       ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                       : 'text-peri-dim hover:bg-navy-3 hover:text-peri',

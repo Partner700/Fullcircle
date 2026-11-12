@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign, Clock, Crown, Dices, Gift, Loader2,
@@ -500,6 +501,9 @@ export function RoadHomeGame({
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <main className="space-y-3">
+          <GamePoints game="ludo" players={state.players.filter(player => !player.isBot).map(player => ({
+            user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl,
+          }))} />
           <PlayerStrip state={state} userId={userId} />
           <div className="relative mx-auto w-full max-w-[52rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
             {homeCelebration && <RoadHomeConfetti />}

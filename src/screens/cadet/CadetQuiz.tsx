@@ -1,3 +1,4 @@
+import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -16,7 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
 import { formatCountdown, formatDate, formatDenarii, getAppDateTimeMs, getTodayISODate, cn } from '../../lib/utils';
 import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
-import { ACTIVE_QUIZ_EXIT_INTENT_EVENT } from '../../lib/quizIntegrity';
+import { ACTIVE_QUIZ_EXIT_INTENT_EVENT, signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
 import type {
   QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative,
   PanelImageSetting, WeeklyQuizReleasedResult,
@@ -215,7 +216,69 @@ function cleanQuizOptions(options: unknown, correctAnswer: unknown) {
   return cleaned.slice(0, 4);
 }
 
-export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) {
+type QuizType = 'saturday' | 'fortune' | 'valediction';
+type ValedictionStatus = { eligible: boolean; streak: number; figs: number; is_sentry: boolean };
+
+export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted: () => void; sharedSession?: QuizSession }) {
+  const [quizType, setQuizType] = useState<QuizType>(sharedSession?.quiz_type as QuizType || 'saturday');
+  const [eligibility, setEligibility] = useState<ValedictionStatus | null>(null);
+  const [eligibilityError, setEligibilityError] = useState<string | null>(null);
+  const [eligibilityRetry, setEligibilityRetry] = useState(0);
+  useEffect(() => {
+    if (quizType !== 'valediction') return;
+    let active = true;
+    setEligibility(null);
+    setEligibilityError(null);
+    void supabase.rpc('get_my_valediction_status').then(({ data, error }) => {
+      if (!active) return;
+      if (error) setEligibilityError(error.message);
+      else setEligibility(data as ValedictionStatus);
+    }, () => { if (active) setEligibilityError('Eligibility could not load. Please retry.'); });
+    return () => { active = false; };
+  }, [quizType, eligibilityRetry]);
+  const refresh = () => { onQuizSubmitted(); setEligibilityRetry((value) => value + 1); };
+  return <div className="space-y-4">
+    <div role="group" aria-label="Quiz category" className="flex flex-wrap gap-2">
+      {(['saturday', 'fortune', 'valediction'] as const).map((type) => <button key={type} type="button"
+        className={quizType === type ? 'btn-primary text-xs' : 'btn-secondary text-xs'}
+        onClick={() => { if (quizType !== type) { signalActiveQuizExitIntent(); setQuizType(type); } }}>
+        {type === 'valediction' ? 'Valediction Quiz' : type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}
+      </button>)}
+    </div>
+    {quizType === 'valediction' && <div className="card p-4 text-sm">
+      <h2 className="font-display font-bold text-ink">Earn your Sentry status</h2>
+      <p className="mt-2 text-stone">Qualify with 100 verified streak days and more than 10,000 figs, then score at least 90% on the Valediction quiz. Relics cannot be used.</p>
+      {eligibility && <p className="mt-2 text-gold">{eligibility.streak}/100 streak days · {eligibility.figs.toLocaleString()}/10,001 figs</p>}
+      {eligibility?.is_sentry && <p className="mt-2 text-moss">You already hold Sentry status.</p>}
+      {eligibilityError && <><p role="alert" className="mt-2 text-coral">{eligibilityError}</p><button type="button" className="btn-secondary mt-2 text-xs" onClick={() => setEligibilityRetry((value) => value + 1)}>Retry</button></>}
+      {!eligibility && !eligibilityError && <p role="status" className="mt-2 text-stone">Checking eligibility...</p>}
+      {eligibility && !eligibility.eligible && !eligibility.is_sentry && <p className="mt-2 text-stone">Keep building your streak and figs to unlock this quiz.</p>}
+    </div>}
+    {(quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} sharedSession={sharedSession?.quiz_type === quizType ? sharedSession : undefined} onQuizSubmitted={refresh} />}
+  </div>;
+}
+
+function ValedictionResult({ attempt }: { attempt: QuizAttempt }) {
+  const [result, setResult] = useState<{ correct_count: number; question_count: number; passed: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void supabase.from('valediction_results').select('correct_count,question_count,passed').eq('attempt_id', attempt.id).single().then(({ data, error: failure }) => {
+      if (!active) return;
+      if (failure) setError('Your result could not load. Reopen the quiz to retry.'); else setResult(data);
+    }, () => { if (active) setError('Your result could not load. Reopen the quiz to retry.'); });
+    return () => { active = false; };
+  }, [attempt.id]);
+  if (attempt.status === 'forfeited') return <div className="card p-5"><h2 className="font-display font-bold">Valediction attempt ended</h2><p className="mt-2 text-stone">This attempt was forfeited. You remain a cadet and can try the next Valediction quiz.</p></div>;
+  return <div className="card p-5"><h2 className="font-display font-bold">Valediction result</h2>
+    {error ? <p role="alert" className="mt-2 text-coral">{error}</p> : !result ? <p role="status">Loading your verified result...</p> : <>
+      <p className="mt-2 text-gold">{result.correct_count}/{result.question_count} correct · {(result.correct_count * 100 / result.question_count).toFixed(1)}%</p>
+      <p className="mt-2 text-stone">{result.passed ? 'Passed! You have earned Sentry status. Reopen the app to enter your Sentry workspace.' : 'Not passed. You need at least 90%. You can try again in the next Valediction quiz.'}</p>
+    </>}
+  </div>;
+}
+
+function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizSubmitted: () => void; quizType: QuizType; sharedSession?: QuizSession }) {
   const { profile } = useAuth();
   const [session, setSession] = useState<QuizSession | null>(null);
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
@@ -263,7 +326,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setLoadError(null);
     let shellReady = false;
     try {
-      const sess = await withQuizNetworkRetry(fetchLatestQuizSession);
+      const sess = sharedSession || await withQuizNetworkRetry(() => fetchLatestQuizSession(quizType));
       setSession(sess);
       if (sess) {
         const [qs, runtime] = await Promise.allSettled([
@@ -340,7 +403,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     } finally {
       if (!shellReady) setLoading(false);
     }
-  }, [applyRuntimeState, profile]);
+  }, [applyRuntimeState, profile, quizType, sharedSession]);
 
   const syncRuntimeState = useCallback(async () => {
     if (!session?.id) return null;
@@ -480,7 +543,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const lazarusWindowOpen = session.quiz_type === 'saturday'
     && now >= localQuizDayStart(session.session_date)
     && now < lazarusDeadline;
-  const canUseLazarus = lazarusWindowOpen && lazarusCount > 0;
+  const canUseLazarus = quizType !== 'valediction' && lazarusWindowOpen && lazarusCount > 0;
   const attemptLazarusActive = hasUsedLazarus(attempt) && lazarusWindowOpen;
 
   let phase: Phase;
@@ -528,14 +591,14 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const rankingsAvailableAt = session.quiz_type === 'fortune'
     ? session.live_closes_at
     : new Date(resultsReleaseAt).toISOString();
-  const responderPanel = (
+  const responderPanel = session.quiz_type === 'valediction' ? null : (
     <QuizResponders
       sessionId={session.id}
       quizType={session.quiz_type}
       rankingsAvailableAt={rankingsAvailableAt}
     />
   );
-  const rankingPanel = (
+  const rankingPanel = session.quiz_type === 'valediction' ? null : (
     <WeeklyQuizRankings
       sessionId={session.id}
       quizType={session.quiz_type}
@@ -567,21 +630,35 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     }
   };
 
+  // Valediction uses its server-graded admission result, never a reward estimate.
+  if (quizType === 'valediction' && attempt && ['submitted', 'timed_out', 'forfeited'].includes(attempt.status)) {
+    return <ValedictionResult attempt={attempt} />;
+  }
+
+  const lazarusShop = quizType !== 'valediction' && lazarusWindowOpen && !lazarusCount && profile && (
+    <ContextRelicShop userId={profile.id} slugs={[RELIC_SLUGS.LAZARUS_COIN]} label="Get Lazarus Coin"
+      onChanged={() => {
+        void fetchRelicInventory(profile.id).then(items => {
+          setLazarusCount(items.find(item => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN)?.quantity ?? 0);
+        }).catch(() => undefined);
+      }} />
+  );
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
     }
-    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
 
   // In quiz
   if (inQuiz && (phase === 'live' || lazarusMode || attemptLazarusActive) && attempt?.status === 'in_progress') {
     return (
       <QuizPlay
+        allowRelics={quizType !== 'valediction'}
         questions={questions}
         initialResponses={responses}
         attempt={attempt}
@@ -604,7 +681,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       {/* Quiz card — session header */}
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
         <div className="relative text-center">
-          <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
+          <div className="eyebrow text-brass mb-3">{session.quiz_type === 'valediction' ? 'Valediction Quiz' : session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
             <FileQuestion size={28} className="text-brass" />
           </div>
@@ -612,7 +689,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <p className="text-sm text-stone mt-1">
             {formatDate(session.session_date)}
           </p>
-          <button type="button" className="btn-secondary mt-4 text-xs" onClick={() => void shareQuiz()}>
+          <button type="button" hidden={quizType === 'valediction'} className="btn-secondary mt-4 text-xs" onClick={() => void shareQuiz()}>
             <Share2 size={14} /> Share quiz
           </button>
         </div>
@@ -687,7 +764,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <h3 className="font-display font-medium text-ink mb-1">Quiz Closed</h3>
           <p className="text-sm text-stone">This quiz session has ended. You did not attempt it.</p>
           <p className="text-xs text-roman mt-2">Missing the Saturday quiz breaks your streak.</p>
-          {lazarusWindowOpen && (
+          {lazarusShop}
+          {lazarusWindowOpen && canUseLazarus && (
             <button
               onClick={startWithLazarus}
               disabled={!canUseLazarus || usingLazarus}
@@ -814,7 +892,8 @@ function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
   );
 }
 
-function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, image, verifyDeadline, onSubmit }: {
+function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, image, verifyDeadline, onSubmit }: {
+  allowRelics?: boolean;
   questions: GeneratedQuestion[];
   initialResponses: QuestionResponse[];
   attempt: QuizAttempt;
@@ -852,6 +931,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
     Math.max(0, Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000)),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [relicInventoryRevision, setRelicInventoryRevision] = useState(0);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
@@ -906,7 +986,8 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
     let cancelled = false;
     supabase
       .from('relic_inventory')
-      .select('quantity, relic_types(slug)')
+      .select('quantity, relic_types!inner(slug)')
+      .eq('relic_types.is_active', true)
       .eq('user_id', userId)
       .then(({ data }) => {
         if (cancelled || !data) return;
@@ -918,7 +999,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         setRelicInventory(map);
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, relicInventoryRevision]);
 
   // Display the database-aligned countdown, then ask the database to confirm
   // expiry before submitting a timed-out attempt.
@@ -1082,7 +1163,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
           <span className="text-sm text-stone">Q {currentIdx + 1}/{questions.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          {goliathCount > 0 && (
+          {allowRelics && goliathCount > 0 && (
             <button
               onClick={useGoliathSword}
               disabled={submitting || usingGoliath}
@@ -1110,7 +1191,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         />
       </div>
 
-      {!showFeedback && (
+      {allowRelics && !showFeedback && (
         <div className="flex flex-wrap gap-1.5">
           {( [
             [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
@@ -1139,6 +1220,14 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
           })}
         </div>
       )}
+
+      {allowRelics && !showFeedback && <ContextRelicShop userId={userId} timed
+        slugs={[
+          RELIC_SLUGS.HINT, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
+          RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
+          ...(payload.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
+        ].filter(slug => !relicInventory[slug])}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
 
       {/* Question card with scroll-edge motif */}
       <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
@@ -1491,6 +1580,7 @@ function ResultsView({ attempt, result, weekly, questions, responses, canUseLaza
   attempt: QuizAttempt;
   result: WeeklyQuizReleasedResult | null;
   weekly: boolean;
+  allowRelics?: boolean;
   questions: GeneratedQuestion[];
   responses: QuestionResponse[];
   canUseLazarus: boolean;

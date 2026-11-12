@@ -61,6 +61,7 @@ export function isWeekdayValid(record: DailyRecord): boolean | null {
     return !!record.quiz_attempt_id || record.streak_valid === true;
   }
   if (record.day_type === 'weekday') {
+    if (record.record_date >= '2026-11-10') return record.streak_valid === true;
     return record.attendance_status === 'present' && record.meditation_submitted === true;
   }
   return null;

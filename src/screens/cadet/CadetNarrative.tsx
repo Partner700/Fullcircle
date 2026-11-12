@@ -1,3 +1,5 @@
+import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
+import { MeditationExtension } from '../../components/MeditationExtension';
 import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +19,7 @@ import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelIm
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
+import { useReadingPosition } from '../../lib/useReadingPosition';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import {
   fetchPendingHiddenVerseMarkers,
@@ -296,11 +299,14 @@ function ReadingArchiveBrowser({
 export function CadetNarrative({
   onMeditationSaved,
   streakCount = 0,
+  initialDate,
 }: {
   onMeditationSaved?: () => Promise<void> | void;
   streakCount?: number;
+  initialDate?: string;
 }) {
   const { profile } = useAuth();
+  const profileId = profile?.id;
   const { hasAccess, requireSubscription } = useSubscriptionAccess();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [loading, setLoading] = useState(true);
@@ -308,6 +314,9 @@ export function CadetNarrative({
   const [bestVerse, setBestVerse] = useState('');
   const [dailyQuote, setDailyQuote] = useState('');
   const [savedMeditation, setSavedMeditation] = useState(false);
+  const [meditationExtensionActive,setMeditationExtensionActive]=useState(false);
+  const [,refreshMeditationClock]=useState(0);
+  useEffect(()=>{const timer=window.setInterval(()=>refreshMeditationClock(value=>value+1),15000);return()=>window.clearInterval(timer);},[]);
   const [meditationPublic, setMeditationPublic] = useState(false);
   const [challenge, setChallenge] = useState<ChallengeSubmission | null>(null);
   const [challengeText, setChallengeText] = useState('');
@@ -320,6 +329,19 @@ export function CadetNarrative({
   const [meditationImage, setMeditationImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
+  const storedEdition = useMemo(() => readScriptureEdition(profile?.id, profile?.language_code), [profile?.id, profile?.language_code]);
+  const [editionSelection, setEditionSelection] = useState<{ userId?: string; value: string } | null>(null);
+  const edition = editionSelection && editionSelection.userId === profile?.id
+    ? editionSelection.value
+    : storedEdition;
+  const selectedEdition = SCRIPTURE_EDITIONS.find((item) => item.value === edition);
+  const [editionResult, setEditionResult] = useState<{
+    edition: string; verses: ScriptureVerse[];
+    result: Awaited<ReturnType<typeof fetchEditionVerses>>;
+  } | null>(null);
+  const editionContent = editionResult?.edition === edition && editionResult.verses === readerVerses
+    ? editionResult.result : null;
+
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
   const [hiddenVerseMarkers, setHiddenVerseMarkers] = useState<HiddenVerseChallengeMarker[]>([]);
   const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
@@ -345,9 +367,11 @@ export function CadetNarrative({
   const historyPending = useRef(false);
   const historyOwner = useRef(profile?.id);
   historyOwner.current = profile?.id;
-  const [archiveDate, setArchiveDate] = useState<string | null>(null);
+  const [archiveDate, setArchiveDate] = useState<string | null>(initialDate || null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
+  const readingRootRef = useRef<HTMLDivElement>(null);
+  const readingRequestRef = useRef(0);
   const draftHydratedKeyRef = useRef<string | null>(null);
   const draftSnapshotRef = useRef<ReadingDraft>(emptyReadingDraft());
   const sundayEngagementRef = useRef<string | null>(null);
@@ -358,6 +382,9 @@ export function CadetNarrative({
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
   const draftStorageKey = profile ? readingDraftStorageKey(profile.id, activeDate) : null;
+  const cancelReadingRestore = useReadingPosition(
+    readingRootRef, profileId, activeDate, !loading && narrative?.narrative_date === activeDate, Boolean(navigationTarget),
+  );
 
   useEffect(() => {
     if (!profile || !narrative || isHistoricalReading) return;
@@ -459,9 +486,10 @@ export function CadetNarrative({
   };
 
   const load = useCallback(async () => {
-    if (!profile) { setLoading(false); return; }
-    const expectedDraftKey = readingDraftStorageKey(profile.id, activeDate);
-    const localDraft = readReadingDraft(profile.id, activeDate);
+    if (!profileId) { setLoading(false); return; }
+    const request = ++readingRequestRef.current;
+    const expectedDraftKey = readingDraftStorageKey(profileId, activeDate);
+    const localDraft = readReadingDraft(profileId, activeDate);
     draftHydratedKeyRef.current = null;
     setLoading(true);
     setReaderVerses([]);
@@ -486,13 +514,14 @@ export function CadetNarrative({
     try {
       const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
         fetchNarrative(activeDate),
-        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profile.id, activeDate),
+        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profileId, activeDate),
         fetchPanelImageSetting('reading').catch(() => null),
         fetchPanelImageSetting('scripture').catch(() => null),
         fetchPanelImageSetting('verse_day_tr').catch(() => null),
         fetchPanelImageSetting('challenge').catch(() => null),
         fetchPanelImageSetting('meditation').catch(() => null),
       ]);
+      if (request !== readingRequestRef.current) return;
       setNarrative(narr);
       setChallenge(chal);
       setReadingImage(panelImage);
@@ -507,21 +536,24 @@ export function CadetNarrative({
       const { data: record } = await supabase
         .from('daily_records')
         .select('meditation_text, meditation_submitted, meditation_public, best_verse, daily_quote')
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('record_date', activeDate)
         .maybeSingle();
+      if (request !== readingRequestRef.current) return;
       if (record?.meditation_text) setMeditation(record.meditation_text);
       if (record?.best_verse) setBestVerse(record.best_verse);
       if (record?.daily_quote) setDailyQuote(record.daily_quote);
       setMeditationPublic(Boolean(record?.meditation_public));
       setSavedMeditation(Boolean(record?.meditation_submitted));
     } catch (e) { console.error('Narrative load error:', e); }
+    if (request !== readingRequestRef.current) return;
     draftHydratedKeyRef.current = expectedDraftKey;
     setLoading(false);
-  }, [activeDate, isHistoricalReading, profile]);
+  }, [activeDate, isHistoricalReading, profileId]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => { readingRequestRef.current++; };
   }, [load]);
 
   useEffect(() => {
@@ -560,7 +592,7 @@ export function CadetNarrative({
   }, []);
 
   const recordSundayEngagement = useCallback(() => {
-    if (!profile || !hasAccess || !isSundayRest || isHistoricalReading) return;
+    if (!profile || !narrative || narrative.narrative_date !== activeDate || !isSundayRest || isHistoricalReading) return;
     const engagementKey = `${profile.id}:${activeDate}`;
     if (sundayEngagementRef.current === engagementKey) return;
     sundayEngagementRef.current = engagementKey;
@@ -570,7 +602,9 @@ export function CadetNarrative({
         sundayEngagementRef.current = null;
         console.error('Sunday reading streak credit failed:', error);
       });
-  }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
+  }, [activeDate, isHistoricalReading, isSundayRest, narrative, onMeditationSaved, profile]);
+
+  useEffect(() => { recordSundayEngagement(); }, [recordSundayEngagement]);
 
   useEffect(() => {
     setReadingHistory([]);
@@ -643,6 +677,23 @@ export function CadetNarrative({
     fetchFullPassage();
     return () => { cancelled = true; };
   }, [narrative]);
+
+  useEffect(() => {
+    if (edition === 'published' || !readerVerses.length) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9_000);
+    void fetchEditionVerses(edition, readerVerses.map((verse) => verse.reference), controller.signal)
+      .then((result) => {
+        if (!cancelled) setEditionResult({ edition, verses: readerVerses, result });
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [edition, readerVerses]);
 
   useEffect(() => {
     if (!conversationNarrativeIds.length) return;
@@ -738,6 +789,7 @@ export function CadetNarrative({
     if (!reference) return;
     const index = readerVerses.findIndex((verse) => verse.reference.toLowerCase() === reference.toLowerCase());
     if (index < 0) return;
+    cancelReadingRestore.current?.();
     const targetSourceNarrativeId = readerVerses[index].sourceNarrativeId || narrative.id;
     setOpenVerse(index);
     setOpenUserInsights(reference);
@@ -746,7 +798,7 @@ export function CadetNarrative({
     window.setTimeout(() => verseRefs.current[reference]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
     clearScriptureTarget();
     setNavigationTarget(null);
-  }, [navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
+  }, [cancelReadingRestore, navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
 
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
@@ -755,16 +807,14 @@ export function CadetNarrative({
     appClock.hour > MEDITATION_CUTOFF_HOUR ||
     (appClock.hour === MEDITATION_CUTOFF_HOUR && appClock.minute >= MEDITATION_CUTOFF_MINUTE);
   const canSubmitMeditation =
-    hasAccess &&
     !isHistoricalReading &&
-    !afterMeditationCutoff &&
+    (!afterMeditationCutoff || meditationExtensionActive) &&
     bestVerse.trim().length > 0 &&
     meditationWordCount >= 50 &&
     quoteWordCount > 0 &&
     quoteWordCount <= 10;
 
   const saveMeditation = async () => {
-    if (!requireSubscription()) return;
     if (!profile || isHistoricalReading || !canSubmitMeditation) return;
     setSaving(true);
     const { error } = await supabase.rpc('submit_daily_meditation', {
@@ -953,7 +1003,7 @@ export function CadetNarrative({
           onLoadMore={() => void loadHistory()}
           image={readingImage}
           onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
-          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
         />
       </div>
     );
@@ -969,9 +1019,18 @@ export function CadetNarrative({
   }));
   const verseChoices = displayVerses.map((verse) => ({ value: verse.reference, label: verse.reference }));
   const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
+  const comparableText = (value: string) => value.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
+  const featuredText = comparableText(narrative.verse_of_day || '');
+  const featuredVerse = featuredText ? displayVerses.find((verse) => comparableText(verse.text) === featuredText) : undefined;
+  const featuredTranslation = featuredVerse ? editionContent?.translations.get(featuredVerse.reference) : undefined;
+  const hasEditionFallback = edition !== 'published' && (
+    !readerVerses.length || (editionContent && displayVerses.some((verse) => !editionContent.translations.has(verse.reference)))
+  );
+
 
   return (
     <div
+      ref={readingRootRef}
       className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto"
       onPointerDownCapture={recordSundayEngagement}
       onScrollCapture={recordSundayEngagement}
@@ -985,7 +1044,7 @@ export function CadetNarrative({
               {new Date(`${activeDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
-          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => { setArchiveDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => setArchiveDate(null)}>
             <ArrowLeft size={14} /> Today
           </button>
         </div>
@@ -1041,8 +1100,11 @@ export function CadetNarrative({
             'font-display text-ink',
             isSundayRest ? 'max-h-[calc(60svh-7.5rem)] overflow-y-auto pr-1 text-base leading-relaxed sm:text-lg' : 'text-xl leading-snug',
           )}>
-            &ldquo;{narrative.verse_of_day}&rdquo;
+            <span data-no-translate lang={featuredTranslation ? selectedEdition?.language : undefined}>&ldquo;{featuredTranslation || narrative.verse_of_day}&rdquo;</span>
           </p>
+          {edition !== 'published' && !featuredTranslation && (
+            <p className="mt-1 text-xs text-stone">Featured verse in the published edition</p>
+          )}
           <ScrollEdge position="bottom" className={cn('text-brass', isSundayRest ? 'mt-2' : 'mt-3')} />
           </div>
         </div>
@@ -1060,6 +1122,26 @@ export function CadetNarrative({
         <div className="flex items-center gap-2 mb-3">
           <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
           <span className="eyebrow text-stone">Scripture</span>
+        </div>
+        <div className="mb-3 max-w-sm">
+          <p className="mb-1 text-xs font-semibold text-stone">Bible edition</p>
+          <AppSelect
+            ariaLabel="Bible edition"
+            value={edition}
+            onChange={(value) => {
+              saveScriptureEdition(value, profile?.id);
+              setEditionSelection({ userId: profile?.id, value });
+            }}
+            options={SCRIPTURE_EDITIONS.map((item) => ({
+              value: item.value,
+              label: item.value === 'published' ? `Published edition (${narrative.translation || 'WEB'})` : item.label,
+            }))}
+          />
+          {edition !== 'published' && readerVerses.length > 0 && !editionContent && (
+            <p className="mt-1 text-xs text-stone" role="status">Loading selected Bible edition…</p>
+          )}
+          {hasEditionFallback && <p className="mt-1 text-xs text-stone">Verses unavailable in this edition use the published text.</p>}
+          {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
         </div>
         <ScrollEdge position="top" className="text-brass mb-4" />
         <div className="space-y-4 sm:space-y-5">
@@ -1102,7 +1184,7 @@ export function CadetNarrative({
                   className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
                   aria-expanded={hasInsight ? expanded : undefined}
                 >
-                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
+                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span><span data-no-translate lang={editionContent?.translations.has(verse.reference) ? selectedEdition?.language : undefined}>{editionContent?.translations.get(verse.reference) || verse.text}</span></p>
                   <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
                     {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
                   </span>
@@ -1325,7 +1407,7 @@ export function CadetNarrative({
             );
           }) : fetchedVerses.map((verse, index) => (
             <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
-              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
+              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span><span data-no-translate>{verse.text}</span></p>
             </article>
           ))}
         </div>
@@ -1354,18 +1436,6 @@ export function CadetNarrative({
       {/* ── Meditation submission — three sections ── */}
       {!isSundayRest && !isHistoricalReading && <div data-artwork-theme={(meditationImage)?.url ? 'night' : undefined}
         className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
-        aria-disabled={!hasAccess}
-        onClickCapture={(event) => {
-          if (hasAccess || !(event.target as HTMLElement).closest('button,input,textarea,[role="button"],label')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          requireSubscription();
-        }}
-        onFocusCapture={(event) => {
-          if (hasAccess) return;
-          (event.target as HTMLElement).blur();
-          requireSubscription();
-        }}
       >
         <PanelImageBackdrop
           image={meditationImage}
@@ -1382,10 +1452,8 @@ export function CadetNarrative({
               <FlameIcon size={10} className="mr-1" /> Streak {streakCount}
             </span>
           </div>
-          {afterMeditationCutoff && !savedMeditation && (
-            <div className="mt-3 mb-3 p-3 rounded-lg bg-roman/10 border border-roman/25 text-xs text-roman">
-              Streak submissions close at 9:00 PM. You can read and draft, but today can no longer be registered for the streak.
-            </div>
+          {afterMeditationCutoff && !savedMeditation && !isHistoricalReading && profile && (
+            <MeditationExtension userId={profile.id} date={activeDate} onWindowChange={setMeditationExtensionActive}/>
           )}
           <div className="flex items-center gap-2 mt-3 mb-3">
             <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
@@ -1490,7 +1558,7 @@ export function CadetNarrative({
         onLoadMore={() => void loadHistory()}
         image={readingImage}
         onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
-        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
       />
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}

@@ -1,3 +1,4 @@
+import { GamePoints } from '../../../components/GamePoints';
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { ArrowLeft, Loader2, RefreshCcw } from 'lucide-react';
 import { fetchStoryModeProgress, startStoryModeLevel } from './api';
@@ -111,17 +112,20 @@ export function StoryModeShell({ onBackToDailyGames }: StoryModeShellProps) {
     const level = findStoryLevel(attempt.levelSlug);
     if (!level) throw new Error(`Story Mode content is missing ${attempt.levelSlug}.`);
     return (
-      <StoryLevelPlayer
-        level={level}
-        attempt={attempt}
-        machine={machine}
-        dispatch={dispatch}
-        onExit={leaveLevel}
-        onReplay={() => startLevel(attempt.levelSlug)}
-        onReplayBook={() => startLevel('abel-offering')}
-        onBrowse={browseJourney}
-        onProgressChanged={() => loadProgress().then(() => undefined)}
-      />
+      <div className="space-y-3">
+        <GamePoints game="story_mode" showCurrentPlayer revision={machine.phase} />
+        <StoryLevelPlayer
+          level={level}
+          attempt={attempt}
+          machine={machine}
+          dispatch={dispatch}
+          onExit={leaveLevel}
+          onReplay={() => startLevel(attempt.levelSlug)}
+          onReplayBook={() => startLevel('abel-offering')}
+          onBrowse={browseJourney}
+          onProgressChanged={() => loadProgress().then(() => undefined)}
+        />
+      </div>
     );
   }
 

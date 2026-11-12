@@ -1,3 +1,5 @@
+import { GamePoints } from '../../components/GamePoints';
+import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -71,9 +73,10 @@ type RoundTimeout = {
   nextIndex: number | null;
 };
 
-export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
+export function CadetGame({ onRewardEarned, onBackToDailyGames, initialDate }: {
   onRewardEarned: () => void;
   onBackToDailyGames?: () => void;
+  initialDate?: string;
 }) {
   const { profile } = useAuth();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
@@ -87,8 +90,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const today = getTodayISODate();
   const isQuizDay = getDayType(today) === 'saturday';
   const isSunday = getDayType(today) === 'sunday';
-  const isWeeklyNarrativeDay = isQuizDay || isSunday;
-  const [gameDate, setGameDate] = useState(today);
+  const isWeeklyNarrativeDay = !initialDate && (isQuizDay || isSunday);
+  const [gameDate, setGameDate] = useState(initialDate || today);
   const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
 
   useEffect(() => {
@@ -110,8 +113,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
       ? playable[0]?.narrative_date || gameDate
       : gameDate;
     const [narr, atts, balance, image] = await Promise.all([
-      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(today),
-      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : today),
+      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(initialDate || today),
+      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : initialDate || today),
       fetchLedgerTotal(profile.id),
       fetchPanelImageSetting('game').catch(() => null),
     ]);
@@ -124,7 +127,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     setDenariiBalance(balance);
     setGameImage(image);
     setLoading(false);
-  }, [gameDate, isSunday, isWeeklyNarrativeDay, profile, today]);
+  }, [gameDate, initialDate, isSunday, isWeeklyNarrativeDay, profile, today]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -238,6 +241,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
           <ArrowLeft size={15} /> Back to Daily Games
         </button>
       )}
+      <GamePoints game="daily_game" showCurrentPlayer />
       {sundayGamePicker}
       <div className="card p-5 relative overflow-hidden animate-slide-up">
         <div className="relative z-10 flex items-center justify-between gap-3">
@@ -349,6 +353,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
   const [runId, setRunId] = useState<string | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
+  const [relicInventoryRevision, setRelicInventoryRevision] = useState(0);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [localDenarii, setLocalDenarii] = useState(denariiBalance);
   const [hintShown, setHintShown] = useState(false);
@@ -417,10 +422,15 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
           setQuestionsLoading(false);
         }
       });
-    // Fetch relic inventory
+    return () => { cancelled = true; };
+  }, [narrative.narrative_date, level, mode, userId]);
+
+  useEffect(() => {
+    let cancelled = false;
     supabase
       .from('relic_inventory')
-      .select('quantity, relic_types(slug)')
+      .select('quantity, relic_types!inner(slug)')
+      .eq('relic_types.is_active', true)
       .eq('user_id', userId)
       .then(({ data }) => {
         if (cancelled || !data) return;
@@ -432,7 +442,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         setRelicInventory(map);
     });
     return () => { cancelled = true; };
-  }, [narrative.narrative_date, level, mode, userId]);
+  }, [userId, relicInventoryRevision]);
 
   const applyAnswerResult = useCallback((result: DailyGameAnswerResult, submittedAnswer: string | null) => {
     if (result.protected) {
@@ -811,6 +821,15 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
+      <GamePoints game="daily_game" showCurrentPlayer />
+
+      {!showFeedback && <ContextRelicShop userId={userId} timed
+        slugs={[
+          RELIC_SLUGS.HINT, RELIC_SLUGS.FREEZE_TIMER, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
+          RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
+          ...(q.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
+        ].filter(slug => !relicInventory[slug])}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
       <div key={`${q.id || currentQ}-${currentQ}`} className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>

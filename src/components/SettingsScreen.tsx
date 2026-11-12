@@ -1,3 +1,5 @@
+import { interfaceLanguage, preferredTimeZone } from '../lib/regionalPreferences';
+import { ProfileTimeZoneSelect } from './ProfileTimeZoneSelect';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -25,7 +27,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
-  const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [language, setLanguage] = useState<string>(() => interfaceLanguage(profile?.language_code));
+  const [timeZone, setTimeZone] = useState(() => preferredTimeZone(profile?.timezone));
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -98,6 +101,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         whatsappNumber: phoneNumberForCountry(whatsapp, country) || null,
         countryCode: country,
         languageCode: language,
+        timeZone,
         birthMonth: parsedBirthday.month,
         birthDay: parsedBirthday.day,
       });
@@ -171,9 +175,10 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name, description: item.timezone }))} />
             </label>
             <label className="block text-xs font-bold text-peri">
-              <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> Language</span>
+              <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> App language</span>
               <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
             </label>
+          <ProfileTimeZoneSelect value={timeZone} onChange={setTimeZone} />
             <label className="block text-xs font-bold text-peri">
               <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday</span>
               <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />

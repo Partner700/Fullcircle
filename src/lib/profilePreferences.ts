@@ -34,16 +34,23 @@ export async function saveOwnProfilePreferences(input: {
   whatsappNumber?: string | null;
   countryCode: string;
   languageCode: string;
+  timeZone?: string;
   birthMonth: number | null;
   birthDay: number | null;
   onboardingCompleted?: boolean | null;
 }) {
+  const timeZone = input.timeZone?.trim() || timezoneForCountry(input.countryCode);
+  try {
+    new Intl.DateTimeFormat('en', { timeZone });
+  } catch {
+    throw new Error('Choose a valid time zone, such as Africa/Douala or Europe/Paris.');
+  }
   const { error } = await supabase.rpc('save_own_profile_preferences', {
     p_display_name: input.displayName ?? null,
     p_whatsapp_number: input.whatsappNumber ?? null,
     p_country_code: input.countryCode,
     p_language_code: input.languageCode,
-    p_timezone: timezoneForCountry(input.countryCode),
+    p_timezone: timeZone,
     p_birth_month: input.birthMonth,
     p_birth_day: input.birthDay,
     p_onboarding_completed: input.onboardingCompleted ?? null,

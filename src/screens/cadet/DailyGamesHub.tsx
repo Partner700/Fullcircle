@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { GamePoints } from '../../components/GamePoints';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { GameActivityProfiles } from '../../components/GameActivityProfiles';
@@ -24,9 +25,12 @@ import {
   Swords,
 } from 'lucide-react';
 
+const PuzzleTrivia = lazy(() => import('./PuzzleTrivia'));
+
 interface DailyGamesHubProps {
   onOpenTrivia: () => void;
   onOpenArena: () => void;
+  onProgress?: () => void;
 }
 
 type HubState = {
@@ -45,10 +49,11 @@ const EMPTY_STATE: HubState = {
   storyImage: null,
 };
 
-export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps) {
+export function DailyGamesHub({ onOpenTrivia, onOpenArena, onProgress }: DailyGamesHubProps) {
   const { profile } = useAuth();
   const [state, setState] = useState<HubState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
+  const [puzzleOpen, setPuzzleOpen] = useState(false);
   const today = getTodayISODate();
   const saturday = getDayType(today) === 'saturday';
   const sunday = getDayType(today) === 'sunday';
@@ -113,6 +118,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps)
       ? 'Practice Daily Trivia'
       : 'Play Daily Trivia';
 
+  if (puzzleOpen) return <Suspense fallback={<p role="status">Opening Puzzle Trivia...</p>}><PuzzleTrivia arenaImage={state.arenaImage} onBack={() => {setPuzzleOpen(false);onProgress?.();}} /></Suspense>;
+
   return (
     <div className="mx-auto max-w-6xl space-y-5 animate-fade-in">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -120,6 +127,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps)
           <p className="eyebrow text-brass">Daily Games</p>
           <h2 className="mt-1 font-display text-2xl font-semibold text-ink">Choose today&apos;s challenge</h2>
           <p className="mt-1 max-w-2xl text-sm text-stone">Train in Scripture, enter the Arena, or continue your journey through the Bible.</p>
+          {!weeklyNarrativeDay && <p className="mt-1 text-sm text-stone">For your weekday streak, send your meditation and pass Level 1 of Daily Trivia.</p>}
         </div>
         {loading && (
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-stone">
@@ -127,6 +135,13 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena }: DailyGamesHubProps)
           </span>
         )}
       </header>
+
+      <GamePoints />
+
+      <article className="card relative overflow-hidden p-5">
+        <PanelImageBackdrop image={state.arenaImage} opacityFallback={26} veilClassName="arena-panel-veil" />
+        <div className="relative z-10"><p className="eyebrow text-gold">Words of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">Puzzle Trivia</h3><p className="mt-2 text-sm text-stone">Connect letters to uncover Bible people, places and objects in an interlocking crossword. Three difficulties, timed rounds and Scripture clues.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia <ArrowRight size={14}/></button><GameActivityProfiles activity="puzzle_trivia" players={gameActivity.players} loading={gameActivity.loading} /></div>
+      </article>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <article className="card relative flex min-h-[23rem] flex-col overflow-hidden p-5">

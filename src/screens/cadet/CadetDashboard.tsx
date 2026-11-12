@@ -1,3 +1,5 @@
+import { GamePoints } from '../../components/GamePoints';
+import { regionalDateTime } from '../../lib/regionalPreferences';
 import { useState, useEffect, useCallback, useRef, type ReactNode, type TouchEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
@@ -17,7 +19,7 @@ import { CurrentUserAvatarMarker } from '../../components/CurrentUserAvatarMarke
 import { UserAvatar } from '../../components/UserAvatar';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
-import { getRemovalState, formatDenarii, formatNumericDate, getDayType, getTodayISODate, cn } from '../../lib/utils';
+import { getAppDateTimeMs, getRemovalState, formatDenarii, formatNumericDate, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { openProfileCv } from '../../lib/profileCv';
@@ -385,7 +387,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
             />
             <TodayCheckItem
               icon={Moon}
-              label="Meditation submitted (before 9:00 PM)"
+              label={`Meditation submitted (before ${regionalDateTime(getAppDateTimeMs(today, 21), profile)})`}
               done={todayRecord?.meditation_submitted === true}
               n_a={dayType !== 'weekday'}
               note={dayType !== 'weekday' ? 'Meditation is only required on weekdays' : undefined}
@@ -770,6 +772,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       )}
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Hey Everyone</h2>
                       <p className={cn('mt-2 max-h-32 max-w-2xl overflow-y-auto whitespace-pre-wrap leading-relaxed text-stone', slide.announcement.content.length > 320 ? 'text-xs' : 'text-sm')}>{slide.announcement.content}</p>
+                      {slide.announcement.announcement_type === 'daily_game_reminder' && <GamePoints limit={3} className="mt-3" />}
                       {slide.announcement.announcement_type === 'weekly_quiz_reminder' && (
                         <QuizResponders
                           variant="slide"

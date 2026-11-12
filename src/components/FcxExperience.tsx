@@ -1,5 +1,8 @@
+import { useAuth } from '../context/AuthContext';
+import { regionalDateTime } from '../lib/regionalPreferences';
+import { FcxFapshiCheckout } from './FcxFapshiCheckout';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
@@ -54,6 +57,7 @@ function countdownParts(targetDate: string, nowMs: number) {
 }
 
 export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
+  const { profile } = useAuth();
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
@@ -71,9 +75,11 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     [countdownDate, countdownNow],
   );
   const paymentBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
-  const paymentHref = paymentBase
-    ? `${paymentBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
-    : null;
+  const refreshRegistrations = useCallback(() => {
+    void fetchActiveFcxExperience().then((updated) => {
+      if (updated?.id === experience.id) setVisibleExperience(updated);
+    }).catch(() => undefined);
+  }, [experience.id]);
   const askHref = paymentBase
     ? `${paymentBase}?text=${encodeURIComponent('Hello, I have a question about the Full Circle Experience (FCX).')}`
     : null;
@@ -170,7 +176,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       <div className="mt-4 min-w-0">
         <p className="eyebrow flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold text-stone">
-          <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
+          <CalendarDays size={13} /> {visibleExperience.event_date ? regionalDateTime(getAppDateTimeMs(countdownDate, FCX_START_HOUR), profile) : eventDateLabel(visibleExperience)}
           <span>· 12:00 PM</span>
           {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
         </p>
@@ -207,19 +213,10 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             <span className="text-[8px] font-black uppercase leading-none">Ask</span>
           </a>
         )}
-        {paymentHref && (
-          <a
-            href={paymentHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] active:shadow-[0_0_16px_rgba(255,216,77,0.72)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd84d]/80"
-            aria-label="Pay for the Full Circle Experience"
-            title="Pay for FCX"
-          >
-            <CircleDollarSign size={16} strokeWidth={2.4} />
-            <span className="text-[8px] font-black uppercase leading-none">Pay</span>
-          </a>
-        )}
+        <FcxFapshiCheckout key={visibleExperience.id} experience={visibleExperience} onConfirmed={refreshRegistrations}
+          className="fcx-action-button fcx-line flex h-12 shrink-0 items-center justify-center px-2 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffe477]/80">
+          <span className="text-xs font-black leading-none">{visibleExperience.ticket_price_xaf?.toLocaleString('en-US')}frs</span>
+        </FcxFapshiCheckout>
       </div>
 
       <div

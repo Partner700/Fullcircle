@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="215" />
+  <meta name="full-circle-release" content="257" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="%BASE_URL%icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="%BASE_URL%browserconfig.xml" />
@@ -21,7 +21,7 @@
 
   <!-- This tiny shell is deliberately kept inline. The complete application
        stylesheet is verified separately before React is allowed to mount. -->
-  <style data-full-circle-critical-styles="215">
+  <style data-full-circle-critical-styles="257">
     html,body,#root{min-height:100%;margin:0;background:#0f2037;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     html::before{content:"Opening Full Circle";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f2037;color:#dde3ff;font:700 15px system-ui;z-index:0}
     body{position:relative;z-index:1}
@@ -106,13 +106,13 @@
         ? window.location.pathname.slice(0, assetSegment + 1)
         : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
       var appUrl = new URL(appPath || '/', window.location.origin);
-      appUrl.searchParams.set('fc-asset-recovery', '215');
+      appUrl.searchParams.set('fc-asset-recovery', '257');
       window.location.replace(appUrl.toString());
     }
   </script>
 
   <!-- Manifest -->
-  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=215" />
+  <link rel="manifest" href="%BASE_URL%manifest.webmanifest?v=257" />
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icons/icon-192.png?v=7" />
@@ -160,8 +160,8 @@
   <meta name="twitter:image" content="https://fullcircle.partnertai.com/social/fullcircle-share.jpeg?v=7" />
 
   <!-- Keep the database connection warm. -->
-  <link rel="preconnect" href="https://nffqohxdelaglrmuzjwb.supabase.co" crossorigin />
-  <link rel="dns-prefetch" href="https://nffqohxdelaglrmuzjwb.supabase.co" />
+  <link rel="preconnect" href="https://ovusyeqbmtvfcrlflrbf.supabase.co" crossorigin />
+  <link rel="dns-prefetch" href="https://ovusyeqbmtvfcrlflrbf.supabase.co" />
 
   <!-- Brand fonts are bundled with the release so typography never depends on a third-party request. -->
 
@@ -172,8 +172,8 @@
     // updates quiet, but let an explicit retry verify the network and replace
     // every Full Circle shell cache that could be trapping the phone.
     (function () {
-      var release = '215';
-      var currentCachePrefix = 'full-circle-target-v215';
+      var release = '257';
+      var currentCachePrefix = 'full-circle-target-v257';
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -217,8 +217,8 @@
         var baseUrl = new URL('.', link.dataset.fcStylePrimary);
         var candidates = [
           new URL('full-circle-release.css?fc-style=' + release + '-' + Date.now(), baseUrl).href,
-          'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/full-circle-release.css?v=' + release,
-          'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/full-circle-release.css?v=' + release
+          'https://tnsorganization.github.io/Full-Circle/full-circle-release.css?v=' + release,
+          'https://cdn.jsdelivr.net/gh/Partner700/Fullcircle@main/dist/full-circle-release.css?v=' + release
         ];
         if (styleAttempt >= candidates.length) {
           window.__showFullCircleRecovery();
@@ -316,7 +316,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=215', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=257', { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }
@@ -336,8 +336,8 @@
         mirrorStarted = true;
         var assetPath = failedUrl.pathname.slice(assetMarker + 1);
         var mirrors = [
-          'https://cdn.jsdelivr.net/gh/TNSorganization/Full-Circle@gh-pages/',
-          'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/'
+          'https://tnsorganization.github.io/Full-Circle/',
+          'https://cdn.jsdelivr.net/gh/Partner700/Fullcircle@main/dist/'
         ];
         var loadMirror = function (index) {
           if (index >= mirrors.length) {

@@ -128,17 +128,21 @@ async function testVisiblePolling() {
   document.visibilityState = 'visible'; document.fire('visibilitychange'); await flush();
   assert.equal(calls, 2, 'Returning to the app fetches fresh data');
   navigator.onLine = false; window.fire('offline'); await advance(60_000);
-  assert.equal(calls, 2);
-  navigator.onLine = true; window.fire('online'); await flush();
-  assert.equal(calls, 3);
+  assert.equal(calls, 3, 'A stale offline flag must not permanently prevent visible screens from recovering');
+  navigator.onLine = true; window.fire('online'); await advance(1000);
+  assert.equal(calls, 4);
   hold = true; await advance(60_000);
   polling.refresh(); polling.refresh(); await advance(60_000);
-  assert.equal(calls, 4, 'A slow network cannot create overlapping polls');
+  assert.equal(calls, 5, 'A slow network cannot create overlapping polls');
   hold = false; release(); await flush(); await advance(1000);
-  assert.equal(calls, 5, 'Realtime changes during a pending read get one follow-up');
+  assert.equal(calls, 6, 'Realtime changes during a pending read get one follow-up');
+  await advance(1000); window.fire('focus'); await flush();
+  assert.equal(calls, 7, 'Window focus retries the visible screen');
+  window.fire('pageshow'); await advance(1000);
+  assert.equal(calls, 8, 'Restoring a page retries without an online event');
   polling.stop(); await advance(60_000); window.fire('online'); polling.refresh(); await flush();
-  assert.equal(calls, 5); assert.equal(timers.size, 0);
-  console.log('Hidden/offline pause, foreground catch-up, request coalescing and disposal passed');
+  assert.equal(calls, 8); assert.equal(timers.size, 0);
+  console.log('Hidden pause, stale offline recovery, foreground catch-up, request coalescing and disposal passed');
 }
 
 async function testDiagnosticsAndPages() {

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { normalizeCampayPhone } from "../_shared/campay.ts";
+import { assertFapshiConfigured, fapshiCheckoutUrl, findFapshiPayment, findPendingFapshiPayment, startFapshiPayment, verifyFapshiPayment } from "../_shared/fapshi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,6 +67,7 @@ type MobileMoneySettings = {
 
 type SupabaseAuthUserResponse = {
   id?: string;
+  email?: string;
 };
 
 function optionalEnv(name: string): string | undefined {
@@ -93,6 +95,10 @@ const campayBaseUrl =
 const campayAccessToken = optionalEnv("CAMPAY_ACCESS_TOKEN");
 const campayAppUsername = optionalEnv("CAMPAY_APP_USERNAME") || optionalEnv("CAMPAY_APP_ID");
 const campayAppPassword = optionalEnv("CAMPAY_APP_PASSWORD") || optionalEnv("CAMPAY_APP_SECRET");
+const useFapshi = optionalEnv("PAYMENT_PROVIDER")?.toLowerCase() === "fapshi";
+// Enable only after Fapshi authorizes Direct Pay for the live service.
+const useFapshiDirect = useFapshi && (optionalEnv("FAPSHI_CHECKOUT_MODE") ?? "direct").toLowerCase() === "direct";
+const paymentProvider = useFapshiDirect ? "fapshi_direct" : useFapshi ? "fapshi" : "campay";
 const checkoutCurrency = "XAF";
 const defaultXafPerUsd = 575;
 const configuredXafPerUsd = Number(optionalEnv("XAF_PER_USD") || defaultXafPerUsd);
@@ -119,7 +125,7 @@ async function getCampayToken(): Promise<string> {
   throw new Error("Missing CamPay credentials. Set CAMPAY_APP_USERNAME/CAMPAY_APP_PASSWORD or CAMPAY_ACCESS_TOKEN.");
 }
 
-async function getAuthenticatedUserId(req: Request): Promise<string> {
+async function getAuthenticatedUser(req: Request): Promise<SupabaseAuthUserResponse & { id: string }> {
   const authorization = req.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) {
     throw new Error("Missing authenticated user token.");
@@ -137,7 +143,7 @@ async function getAuthenticatedUserId(req: Request): Promise<string> {
 
   const user: SupabaseAuthUserResponse = await res.json();
   if (!user.id) throw new Error("Authenticated user not found.");
-  return user.id;
+  return { ...user, id: user.id };
 }
 
 function providerFor(method?: string, otherProvider?: string): string {
@@ -396,7 +402,7 @@ function legacyUsdForRecord(relic: Relic, amountXaf: number): number {
 
 async function fetchRelicProduct(relicSlug: string): Promise<CheckoutProduct> {
   const relicRes = await fetch(
-    `${supabaseUrl}/rest/v1/relic_types?slug=eq.${encodeURIComponent(relicSlug)}&select=id,slug,name,description,money_price_xaf,money_price_usd`,
+    `${supabaseUrl}/rest/v1/relic_types?slug=eq.${encodeURIComponent(relicSlug)}&is_active=eq.true&select=id,slug,name,description,money_price_xaf,money_price_usd`,
     {
       headers: {
         apikey: supabaseServiceKey,
@@ -436,7 +442,7 @@ async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct
   const plans: SubscriptionPlan[] = await planRes.json();
   const plan = plans[0];
   if (!plan) throw new Error("The subscription plan is not available.");
-  const checkoutMode = campayEnvironment === "DEV" ? "demo" : "live";
+  const checkoutMode = !useFapshi && campayEnvironment === "DEV" ? "demo" : "live";
   const amountXaf = Math.round(Number(
     checkoutMode === "demo" ? plan.demo_amount_xaf : plan.amount_xaf,
   ));
@@ -457,6 +463,141 @@ async function fetchSubscriptionProduct(planId: string): Promise<CheckoutProduct
   };
 }
 
+function isDirectPaymentMethod(method: unknown): method is "mtn_momo" | "orange_money" {
+  return method === "mtn_momo" || method === "orange_money";
+}
+
+async function startFcxCheckout(
+  user: SupabaseAuthUserResponse & { id: string }, eventId: string, amount: number,
+  method: unknown, customerPhone: unknown, retryRejected = true,
+): Promise<Response> {
+  if (!useFapshi) return Response.json({ error: "FCX checkout is unavailable." }, { status: 503, headers: corsHeaders });
+  if (!/^[0-9a-f-]{36}$/i.test(eventId) || !Number.isInteger(amount) || amount < 300) {
+    return Response.json({ error: "Refresh FCX details and confirm the ticket price." }, { status: 400, headers: corsHeaders });
+  }
+  if (useFapshiDirect && !isDirectPaymentMethod(method)) {
+    return Response.json({ error: "Refresh Full Circle and choose MTN MoMo or Orange Money." }, { status: 409, headers: corsHeaders });
+  }
+  const phone = useFapshiDirect ? normalizeCampayPhone(customerPhone) : null;
+  if (useFapshiDirect && !phone) {
+    return Response.json({ error: "Enter a valid Cameroon mobile money number." }, { status: 400, headers: corsHeaders });
+  }
+  const mobileMoney = phone ? { phone: phone.slice(3) } : undefined;
+  assertFapshiConfigured();
+  const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fcx_fapshi_checkout`, {
+    method: "POST",
+    headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_user_id: user.id, p_event_id: eventId, p_reference: `fp_${crypto.randomUUID()}`, p_displayed_amount: amount }),
+  });
+  if (!reservation.ok) {
+    const problem = await reservation.json().catch(() => ({}));
+    return Response.json({ error: problem.code === "P0001" ? problem.message : "FCX checkout is unavailable." }, {
+      status: 409, headers: corsHeaders,
+    });
+  }
+  const payment = await reservation.json() as {
+    id: string; reference: string; amount: number; title: string; checkout_url?: string; created: boolean;
+  };
+  let checkoutUrl = fapshiCheckoutUrl(payment.checkout_url);
+  let approvalStartedAt: string | undefined;
+  let status = "pending";
+  let paymentMethod = method;
+  if (useFapshiDirect && !payment.created) {
+    const existing = await findFapshiPayment(payment.reference);
+    if (existing?.user_id === user.id) {
+      paymentMethod = existing.payment_method;
+      status = await verifyFapshiPayment(existing).catch(() => "pending");
+      if (status === "rejected" && retryRejected) {
+        return startFcxCheckout(user, eventId, amount, method, customerPhone, false);
+      }
+    }
+  }
+  if (payment.created) {
+    if (mobileMoney) {
+      try {
+        await updatePaymentRecord(payment.id, { sender_phone: phone, payment_method: method });
+      } catch (error) {
+        await rejectPayment(payment.id, null, "Could not prepare this FCX payment.", {});
+        throw error;
+      }
+    }
+    const result = await startFapshiPayment({
+      amount: payment.amount, reference: payment.reference, name: payment.title, mobileMoney,
+    });
+    if (result.declined) {
+      await rejectPayment(payment.id, null, "Fapshi could not start this FCX payment.", {});
+      return Response.json({ error: "Fapshi could not start this payment. Try again later." }, { status: 502, headers: corsHeaders });
+    }
+    if (result.transId) {
+      if (mobileMoney) approvalStartedAt = new Date().toISOString();
+      await updatePaymentRecord(payment.id, {
+        provider_reference: result.transId, fapshi_checkout_url: result.checkoutUrl,
+      }).catch(() => {});
+    }
+    checkoutUrl = result.checkoutUrl ?? null;
+  }
+  return Response.json({
+    status, reference: payment.reference, payment_id: payment.id, provider: "Fapshi",
+    approval_started_at: approvalStartedAt, payment_method: paymentMethod,
+    amount_local: payment.amount, currency_code: "XAF", checkout_url: checkoutUrl,
+  }, { headers: corsHeaders });
+}
+
+async function startCartCheckout(
+  userId: string, method: unknown, customerPhone: unknown, amount: unknown,
+  relics: unknown, eventId: unknown, ticketQuantity: unknown,
+): Promise<Response> {
+  const phone = normalizeCampayPhone(customerPhone);
+  if (!useFapshiDirect) {
+    return Response.json({ error: "Mobile money cart checkout is unavailable." }, { status: 503, headers: corsHeaders });
+  }
+  const quantity = ticketQuantity ?? 0;
+  if (!phone || !isDirectPaymentMethod(method) || typeof amount !== "number" ||
+      !Number.isSafeInteger(amount) || amount < 100 || typeof quantity !== "number" ||
+      !Number.isInteger(quantity) || quantity < 0 || quantity > 2147483647 ||
+      (quantity > 0 && (typeof eventId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(eventId))) ||
+      !Array.isArray(relics) || (!relics.length && !quantity) ||
+      relics.some(item => !item || typeof item.slug !== "string" ||
+        !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 2147483647 || (item.pack_size != null &&
+        (!Number.isInteger(item.pack_size) || item.pack_size < 1 || item.pack_size > 2147483647)))) {
+    return Response.json({ error: "Review the cart and enter a valid Cameroon mobile money number." }, {
+      status: 400, headers: corsHeaders,
+    });
+  }
+
+  assertFapshiConfigured();
+  const reference = `fp_${crypto.randomUUID()}`;
+  const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fapshi_cart`, {
+    method: "POST",
+    headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      p_user_id: userId, p_reference: reference, p_phone: phone, p_method: method,
+      p_displayed_amount: amount, p_relics: relics.map(({ slug, quantity, pack_size }) => ({ slug, quantity, pack_size })),
+      p_event_id: quantity ? eventId : null, p_ticket_quantity: quantity, p_xaf_per_usd: xafPerUsdForLegacy(),
+    }),
+  });
+  if (!reservation.ok) {
+    const problem = await reservation.json().catch(() => ({}));
+    return Response.json({ error: problem.code === "P0001" ? problem.message : "Cart checkout is unavailable." }, {
+      status: 409, headers: corsHeaders,
+    });
+  }
+  const payment = await reservation.json() as { id: string; amount: number };
+  const result = await startFapshiPayment({
+    amount: payment.amount, reference, name: "Market cart", mobileMoney: { phone: phone.slice(3) },
+  });
+  if (result.declined) {
+    await rejectPayment(payment.id, null, "Fapshi could not start this payment.", {});
+    return Response.json({ error: "The payment prompt could not be sent. Try again." }, { status: 502, headers: corsHeaders });
+  }
+  const approvalStartedAt = result.transId ? new Date().toISOString() : undefined;
+  if (result.transId) await updatePaymentRecord(payment.id, { provider_reference: result.transId }).catch(() => {});
+  return Response.json({
+    status: "pending", reference, payment_id: payment.id, payment_method: method, provider: "Fapshi",
+    amount_local: payment.amount, currency_code: "XAF", approval_started_at: approvalStartedAt,
+  }, { headers: corsHeaders });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -465,26 +606,38 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
       ? "subscription"
       : "relic";
 
-    if (!user_id || (purchaseKind === "relic" && !relic_slug)) {
+    if (!user_id || (purchase_kind !== "fcx_ticket" && purchase_kind !== "cart" && purchaseKind === "relic" && !relic_slug && provider_only !== true)) {
       return new Response(JSON.stringify({ error: "A product and user_id are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const authenticatedUserId = await getAuthenticatedUserId(req);
-    if (authenticatedUserId !== user_id) {
+    const authenticatedUser = await getAuthenticatedUser(req);
+    if (authenticatedUser.id !== user_id) {
       return new Response(JSON.stringify({ error: "Checkout user mismatch" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (purchase_kind === "cart") {
+      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity);
+    }
+
+    if (purchase_kind === "fcx_ticket") {
+      return await startFcxCheckout(authenticatedUser, String(fcx_event_id ?? ""), Number(displayed_amount_xaf), payment_method, customer_phone);
+    }
+
+    if (provider_only === true) {
+      return Response.json({ payment_provider: paymentProvider }, { headers: corsHeaders });
     }
 
     const product = purchaseKind === "subscription"
@@ -509,6 +662,7 @@ Deno.serve(async (req: Request) => {
         amount_display: formatXaf(amountXaf),
         duration_days: product.durationDays,
         checkout_mode: product.checkoutMode,
+        payment_provider: paymentProvider,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -534,13 +688,117 @@ Deno.serve(async (req: Request) => {
     const provider = providerFor(payment_method, other_provider);
     const localAmount = amountXaf.toString();
 
-    if (payment_method === "other") {
+    if (!useFapshi && payment_method === "other") {
       return new Response(JSON.stringify({
         error: "This payment provider is not connected for automatic verification yet. Choose MTN MoMo or Orange Money.",
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (useFapshi) {
+      const directMethod = isDirectPaymentMethod(payment_method);
+      if (useFapshiDirect ? !directMethod : payment_method !== "fapshi_hosted") {
+        return Response.json({ error: "Payment options changed. Refresh Full Circle and choose a payment method." }, {
+          status: 409, headers: corsHeaders,
+        });
+      }
+      const phone = useFapshiDirect ? normalizeCampayPhone(customer_phone) : null;
+      if (useFapshiDirect && !phone) {
+        return Response.json({ error: "Enter a valid Cameroon mobile money number." }, {
+          status: 400, headers: corsHeaders,
+        });
+      }
+      if (!Number.isInteger(amountXaf) || amountXaf < (useFapshiDirect && product.purchaseKind === "relic" ? 100 : 300) || displayedAmountXaf !== amountXaf) {
+        return Response.json({ error: `Reopen checkout to confirm the price of ${formatXaf(amountXaf)}.` }, {
+          status: 409, headers: corsHeaders,
+        });
+      }
+      assertFapshiConfigured();
+      const mobileMoney = phone ? { phone: phone.slice(3) } : undefined;
+      const reference = `fp_${crypto.randomUUID()}`;
+      const paymentResponse = (
+        id: string, ref: string, amount: number, checkoutUrl: string | null | undefined,
+        approvalStartedAt?: string, status = "pending", method = payment_method,
+      ) =>
+        Response.json({
+          status,
+          reference: ref,
+          payment_id: id,
+          payment_method: method,
+          approval_started_at: approvalStartedAt,
+          provider: "Fapshi",
+          amount_local: amount,
+          currency_code: checkoutCurrency,
+          amount_display: formatXaf(amount),
+          checkout_url: checkoutUrl,
+          message: checkoutUrl
+            ? "Open Fapshi to pay with MTN MoMo or Orange Money."
+            : approvalStartedAt
+              ? "Approve the mobile money prompt on your phone with your PIN. Full Circle will confirm the payment here."
+              : "A checkout is pending. Check its status before trying again.",
+        }, { headers: corsHeaders });
+      const reservePayment = () => createPaymentRecord({
+        user_id,
+        relic_slug: product.slug,
+        relic_name: product.name,
+        purchase_kind: product.purchaseKind,
+        purchase_metadata: product.metadata,
+        amount_usd: amountUsd,
+        amount_local: amountXaf,
+        currency_code: checkoutCurrency,
+        provider: "Fapshi",
+        sender_phone: phone ?? "",
+        status: "pending",
+        reference,
+        external_reference: reference,
+        payment_method,
+      });
+      let paymentId: string;
+      try {
+        paymentId = await reservePayment();
+      } catch (error) {
+        if (useFapshiDirect && product.purchaseKind === "relic") throw error;
+        const existing = await findPendingFapshiPayment(user_id, product.slug);
+        if (!existing) throw error;
+        const status = useFapshiDirect ? await verifyFapshiPayment(existing).catch(() => "pending") : "pending";
+        if (status === "rejected") {
+          try {
+            paymentId = await reservePayment();
+          } catch (retryError) {
+            const concurrent = await findPendingFapshiPayment(user_id, product.slug);
+            if (!concurrent) throw retryError;
+            return paymentResponse(concurrent.id, concurrent.reference, Number(concurrent.amount_local),
+              fapshiCheckoutUrl(concurrent.fapshi_checkout_url), undefined,
+              concurrent.status, concurrent.payment_method ?? payment_method);
+          }
+        } else {
+          return paymentResponse(existing.id, existing.reference, Number(existing.amount_local),
+            fapshiCheckoutUrl(existing.fapshi_checkout_url), undefined,
+            status, existing.payment_method ?? payment_method);
+        }
+      }
+      const result = await startFapshiPayment({
+        amount: amountXaf,
+        reference,
+        name: product.name,
+        mobileMoney,
+      });
+      if (result.declined) {
+        await rejectPayment(paymentId, null, "Fapshi could not start this payment.", {});
+        return Response.json({ error: "Fapshi could not start this payment. Try again later." }, {
+          status: 502, headers: corsHeaders,
+        });
+      }
+      const approvalStartedAt = mobileMoney && result.transId ? new Date().toISOString() : undefined;
+      if (result.transId) {
+        await updatePaymentRecord(paymentId, {
+          provider_reference: result.transId,
+          fapshi_checkout_url: result.checkoutUrl,
+        }).catch(() => {});
+      }
+      return paymentResponse(paymentId, reference, amountXaf, result.checkoutUrl, approvalStartedAt);
     }
 
     const token = await getCampayToken();

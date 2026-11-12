@@ -1,11 +1,13 @@
-/** Poll only while visible and online, with at most one request in flight. */
+/** Poll visible screens, with at most one request in flight. */
 export function startVisiblePolling(load: () => Promise<unknown>, intervalMs: number) {
   let stopped = false;
   let pending = false;
   let timer: number | undefined;
   let lastStartedAt = -Infinity;
   let followUp = false;
-  const available = () => document.visibilityState === 'visible' && navigator.onLine !== false;
+  // navigator.onLine is only a hint: installed apps can retain a false value
+  // after mobile data resumes. Actual requests decide whether the API is reachable.
+  const available = () => document.visibilityState === 'visible';
   const schedule = (delay: number) => {
     window.clearTimeout(timer);
     if (!stopped && available()) timer = window.setTimeout(refresh, delay);
@@ -31,7 +33,8 @@ export function startVisiblePolling(load: () => Promise<unknown>, intervalMs: nu
   };
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('online', refresh);
-  window.addEventListener('offline', visibility);
+  window.addEventListener('focus', visibility);
+  window.addEventListener('pageshow', visibility);
   refresh();
   return {
     refresh,
@@ -40,7 +43,8 @@ export function startVisiblePolling(load: () => Promise<unknown>, intervalMs: nu
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('online', refresh);
-      window.removeEventListener('offline', visibility);
+      window.removeEventListener('focus', visibility);
+      window.removeEventListener('pageshow', visibility);
     },
   };
 }

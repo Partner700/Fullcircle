@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.biblical-journey]
 verify_jwt = false
+
+[functions.fapshi-webhook]
+verify_jwt = false

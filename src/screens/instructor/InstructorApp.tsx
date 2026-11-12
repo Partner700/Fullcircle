@@ -1,3 +1,6 @@
+import { interfaceLanguage, preferredTimeZone } from '../../lib/regionalPreferences';
+import { ProfileTimeZoneSelect } from '../../components/ProfileTimeZoneSelect';
+import { generateValedictionDraft, fetchValedictionDraftReview, validateValedictionDraft, type ValedictionDraftReview } from '../../lib/valedictionDrafts';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
@@ -3395,7 +3398,10 @@ function QuizBuilder() {
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(getTodayISODate());
   const [newStartTime, setNewStartTime] = useState('09:00');
-  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune'>('saturday');
+  const [valedictionCount, setValedictionCount] = useState(50);
+  const [draftReview, setDraftReview] = useState<ValedictionDraftReview | null>(null);
+  const [reviewError, setReviewError] = useState('');
+  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune' | 'valediction'>('saturday');
   const [quizDuration, setQuizDuration] = useState(30);
   const [selectedSession, setSelectedSession] = useState<QuizSession | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
@@ -3405,7 +3411,7 @@ function QuizBuilder() {
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(getTodayISODate());
   const [sessionStartTime, setSessionStartTime] = useState('09:00');
-  const [sessionType, setSessionType] = useState<'saturday' | 'fortune'>('saturday');
+  const [sessionType, setSessionType] = useState<'saturday' | 'fortune' | 'valediction'>('saturday');
   const [savingSessionDetails, setSavingSessionDetails] = useState(false);
   const [launchingSessionId, setLaunchingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -3427,11 +3433,20 @@ function QuizBuilder() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    setDraftReview(null); setReviewError('');
+    if (selectedSession?.quiz_type !== 'valediction') return;
+    void fetchValedictionDraftReview(selectedSession.id).then((review) => { if (active) setDraftReview(review); },
+      () => { if (active) setReviewError('Draft review status could not load. Reopen this quiz to retry.'); });
+    return () => { active = false; };
+  }, [selectedSession?.id, selectedSession?.quiz_type, generatedQuestions]);
+
   const createSession = async () => {
     if (!newTitle.trim()) return;
     try {
       const schedule = buildQuizSchedule(newDate, newStartTime, quizDuration);
-      await createQuizSession({
+      const created = await createQuizSession({
         session_date: newDate,
         title: newTitle,
         scheduled_start_time: schedule.scheduledStart,
@@ -3440,9 +3455,13 @@ function QuizBuilder() {
         live_closes_at: schedule.liveCloses,
         status: 'scheduled',
         quiz_type: newQuizType,
-        reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
-        reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
+        reward_perfect: newQuizType === 'valediction' ? 0 : 6000,
+        reward_partial: newQuizType === 'valediction' ? 0 : 1000,
       } as any);
+      if (newQuizType === 'valediction') {
+        setShowCreate(false);
+        await openSession(created);
+      }
     } catch (e: any) {
       alert(e.message || 'Failed to create quiz session');
       return;
@@ -3478,6 +3497,10 @@ function QuizBuilder() {
         return;
       }
 
+      if (session.quiz_type === 'valediction') {
+        if (!window.confirm(`I have reviewed all ${questions.length} Valediction questions and their answers. Validate and launch this quiz?`)) return;
+        setDraftReview(await validateValedictionDraft(session.id));
+      }
       await launchQuizSession(session.id);
       await load();
     } catch (error: any) {
@@ -3545,6 +3568,17 @@ function QuizBuilder() {
   };
 
   const generateQuestions = async (session: QuizSession) => {
+    if (session.quiz_type === 'valediction') {
+      if (generatedQuestions.length && !window.confirm('Replace this draft with a new set? Instructor validation will be required again.')) return;
+      setGenerating(true);
+      try {
+        await generateValedictionDraft(session.id, valedictionCount);
+        setGeneratedQuestions(await fetchQuestionsForSession(session.id));
+        await markRelaunchReady(session);
+      } catch (failure) { alert(failure instanceof Error ? failure.message : 'The Valediction draft could not be prepared.'); }
+      finally { setGenerating(false); }
+      return;
+    }
     setGenerating(true);
     try {
       const day = new Date(`${session.session_date}T12:00:00.000Z`).getUTCDay();
@@ -3657,6 +3691,15 @@ function QuizBuilder() {
     if (durationMinutes > 0) setQuizDuration(durationMinutes);
     const qs = await fetchQuestionsForSession(session.id);
     setGeneratedQuestions(qs);
+    if (session.quiz_type === 'valediction' && session.status === 'scheduled' && qs.length === 0) {
+      setGenerating(true);
+      try {
+        await generateValedictionDraft(session.id, valedictionCount);
+        setGeneratedQuestions(await fetchQuestionsForSession(session.id));
+      } catch (failure) {
+        setReviewError(failure instanceof Error ? failure.message : 'The Valediction draft could not be prepared. Use Auto-assemble to retry.');
+      } finally { setGenerating(false); }
+    }
   };
 
   const saveSessionDetails = async () => {
@@ -3751,11 +3794,11 @@ function QuizBuilder() {
               <FileQuestion size={14} /> Edit Quiz
             </button>
             <button onClick={() => launchQuiz(selectedSession)} disabled={generating || launchingSessionId === selectedSession.id || (selectedIsRelaunch && !selectedSession.relaunch_ready)} className="btn-primary text-sm">
-              {launchingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />} {selectedIsRelaunch ? 'Relaunch' : 'Launch'}
+              {launchingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />} {selectedSession.quiz_type === 'valediction' ? 'Validate & launch' : selectedIsRelaunch ? 'Relaunch' : 'Launch'}
             </button>
             <button onClick={() => generateQuestions(selectedSession)} disabled={generating} className="btn-primary text-sm">
               {generating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              {generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
+              {selectedSession.quiz_type === 'valediction' ? 'Auto-assemble Valediction' : generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
             </button>
             <button onClick={() => syncTaggedQuestions(selectedSession)} disabled={generating} className="btn-secondary text-sm">
               {generating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
@@ -3776,6 +3819,14 @@ function QuizBuilder() {
           </button>
           <span className="text-xs text-stone">{generatedQuestions.length} questions</span>
         </div>
+
+        {selectedSession.quiz_type === 'valediction' && <section className="card space-y-2 p-4">
+          <h3 className="font-display font-bold text-ink">Automatically prepared · instructor validated</h3>
+          <p className="text-xs text-stone">Draws suitable questions from all available app banks, removes duplicates, and balances the sources. Review the questions and answers below, then validate and launch. Any question edit requires fresh validation.</p>
+          {selectedEditable && <label className="block text-xs text-stone">Questions in a new draft<input type="number" min={10} max={100} value={valedictionCount} onChange={(event) => setValedictionCount(Math.min(100, Math.max(10, Number(event.target.value) || 50)))} className="input-field mt-1 max-w-28" /></label>}
+          {draftReview && <p className="text-xs text-stone">{draftReview.validated ? 'Instructor validated' : 'Awaiting instructor validation'}{Object.entries(draftReview.sources).length ? ` · ${Object.entries(draftReview.sources).map(([source, count]) => `${source}: ${count}`).join(' · ')}` : ''}</p>}
+          {reviewError && <p role="alert" className="text-xs text-coral">{reviewError}</p>}
+        </section>}
 
         {selectedIsRelaunch && selectedEditable && !selectedSession.relaunch_ready && (
           <p className="rounded-lg border border-gold/35 bg-gold-soft px-3 py-2 text-xs text-stone">Review the quiz and save an edit. Relaunch becomes available immediately after it is saved.</p>
@@ -3833,9 +3884,10 @@ function QuizBuilder() {
               </div>
               <div>
                 <label className="text-xs text-stone block mb-1">Quiz Type</label>
-                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune')} options={[
+                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune' | 'valediction')} options={[
                   { value: 'saturday', label: 'Saturday Quiz' },
                   { value: 'fortune', label: 'Fortune Quiz' },
+                  { value: 'valediction', label: 'Valediction Quiz (90% to pass)' },
                 ]} />
               </div>
               <div>
@@ -3906,9 +3958,10 @@ function QuizBuilder() {
         <div className="card p-4 space-y-3 bg-surface-2">
           <div>
             <label className="text-xs text-stone block mb-1">Quiz Type</label>
-            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune')} options={[
+            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune' | 'valediction')} options={[
               { value: 'saturday', label: 'Saturday Quiz', description: 'Scheduled, streak-critical' },
               { value: 'fortune', label: 'Fortune Quiz', description: 'Random bonus rewards' },
+              { value: 'valediction', label: 'Valediction Quiz', description: 'Qualifying cadets only; 90% required to become a Sentry' },
             ]} />
           </div>
           <div>
@@ -3955,7 +4008,7 @@ function QuizBuilder() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{s.title}</p>
                 <p className="text-xs text-stone">
-                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
+                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'valediction' ? 'Valediction' : s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
@@ -4005,7 +4058,8 @@ function InstructorSettings({ profile, tents, members }: {
   const { signOut, refreshProfile } = useAuth();
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
-  const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [language, setLanguage] = useState<string>(() => interfaceLanguage(profile?.language_code));
+  const [timeZone, setTimeZone] = useState(() => preferredTimeZone(profile?.timezone));
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [mmSettings, setMmSettings] = useState<MobileMoneySettings | null>(null);
@@ -4054,6 +4108,7 @@ function InstructorSettings({ profile, tents, members }: {
         whatsappNumber: phoneNumberForCountry(whatsapp, country),
         countryCode: country,
         languageCode: language,
+        timeZone,
         birthMonth: parsedBirthday.month,
         birthDay: parsedBirthday.day,
       });
@@ -4109,9 +4164,10 @@ function InstructorSettings({ profile, tents, members }: {
             <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name }))} />
           </label>
           <label className="block text-xs text-stone">
-            <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+            <span className="mb-1 flex items-center gap-1"><Languages size={12} /> App language</span>
             <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
           </label>
+          <ProfileTimeZoneSelect value={timeZone} onChange={setTimeZone} />
           <label className="block text-xs text-stone">
             <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
             <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
@@ -4238,7 +4294,7 @@ function InstructorSettings({ profile, tents, members }: {
           <h4 className="font-display font-semibold text-ink">CamPay Payments</h4>
         </div>
         <p className="text-xs text-stone">
-          Real-money relic purchases are processed through CamPay in the backend. Cadets stay in the platform
+          For relic purchases routed through CamPay, cadets stay in the platform
           while MTN MoMo and Orange Money prompts are initiated.
           Configure your CamPay credentials and webhook key in your project secrets.
         </p>
@@ -5501,6 +5557,21 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
 function MobileMoneyManager() {
   const [payments, setPayments] = useState<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<{ service: string; balance: number } | null>(null);
+  const [balanceStatus, setBalanceStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+
+  const loadBalance = useCallback(async () => {
+    setBalanceStatus('loading');
+    try {
+      const { data, error } = await supabase.functions.invoke('fapshi-service-balance');
+      if (error || !data) throw error ?? new Error('Balance unavailable');
+      setBalance(data);
+      setBalanceStatus('ready');
+    } catch {
+      setBalance(null);
+      setBalanceStatus('unavailable');
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -5512,15 +5583,30 @@ function MobileMoneyManager() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { void loadBalance(); }, [loadBalance]);
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Mobile Money Payments" subtitle="Review payments the app has confirmed or rejected. Confirmation is automatic through CamPay." />
+      <SectionHeader title="Mobile Money Payments" subtitle="Review confirmed and unsuccessful Mobile Money payments. The app checks each payment with its provider." />
+
+      <section className="card flex flex-wrap items-center justify-between gap-3 p-4" aria-label="Fapshi collection balance">
+        <div>
+          <h4 className="font-display font-semibold text-ink">Fapshi collection balance</h4>
+          <p className="mt-1 text-sm text-stone" role="status">
+            {balanceStatus === 'loading' ? 'Checking Fapshi…' : balanceStatus === 'ready' && balance
+              ? `${formatXaf(balance.balance)} · ${balance.service}`
+              : 'Balance unavailable from Fapshi.'}
+          </p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => void loadBalance()} disabled={balanceStatus === 'loading'}>
+          Refresh balance
+        </button>
+      </section>
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>
       ) : payments.length === 0 ? (
-        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="When the app confirms or rejects a payment through CamPay, it will appear here." />
+        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="Payments appear here once their provider reports a final status." />
       ) : (
         <div className="space-y-3">
           {payments.map((pay) => {

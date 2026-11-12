@@ -26,7 +26,7 @@ export function GameActivityProfiles({
     [activity, allPlayers],
   );
   const Icon = activity === 'arena' ? Swords : Gamepad2;
-  const label = activity === 'arena' ? 'Arena players' : 'Daily Game players';
+  const label = activity === 'arena' ? 'Arena players' : activity === 'puzzle_trivia' ? 'Puzzle Trivia players' : activity === 'prelude' ? 'The Prelude players' : 'Daily Game players';
 
   const playerRow = players.length > 0 ? (
     <div className="game-activity-profile-scroll flex min-h-9 items-center gap-1.5 overflow-x-auto pb-1 pt-0.5" aria-label={`${players.length} ${label.toLowerCase()} today`}>

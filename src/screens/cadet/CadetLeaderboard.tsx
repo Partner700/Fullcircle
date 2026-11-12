@@ -637,16 +637,20 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   }, [instructorMode]);
   useEffect(() => {
     const refreshWhenAvailable = () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) void load(true);
+      if (document.visibilityState === 'visible') void load(true);
     };
     const interval = window.setInterval(() => {
       refreshWhenAvailable();
     }, 60_000);
     window.addEventListener('online', refreshWhenAvailable);
+    window.addEventListener('focus', refreshWhenAvailable);
+    window.addEventListener('pageshow', refreshWhenAvailable);
     document.addEventListener('visibilitychange', refreshWhenAvailable);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('online', refreshWhenAvailable);
+      window.removeEventListener('focus', refreshWhenAvailable);
+      window.removeEventListener('pageshow', refreshWhenAvailable);
       document.removeEventListener('visibilitychange', refreshWhenAvailable);
     };
   }, [load]);

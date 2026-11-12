@@ -1,3 +1,4 @@
+import { interfaceLanguage } from './lib/regionalPreferences';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useScrollBoundaryFades } from './lib/useScrollBoundaryFades';
@@ -10,6 +11,8 @@ import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { importWithRetry } from './lib/importWithRetry';
 import { LogOut, RefreshCw } from 'lucide-react';
+import { isInstalledApp } from './lib/appDisplayMode';
+import { readShareDestination, shareDestinationMode, openShareInAppUrl, closeShareUrl } from './lib/shareDestination';
 import { NonBlockingErrorBoundary } from './components/NonBlockingErrorBoundary';
 
 const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }))));
@@ -18,6 +21,8 @@ const InstructorApp = lazy(() => importWithRetry(() => import('./screens/instruc
 const PublicShareScreen = lazy(() => importWithRetry(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen }))));
 const PublicArenaScreen = lazy(() => importWithRetry(() => import('./screens/PublicArenaScreen').then((module) => ({ default: module.PublicArenaScreen }))));
 const AuthenticatedOverlays = lazy(() => importWithRetry(() => import('./components/AuthenticatedOverlays').then((module) => ({ default: module.AuthenticatedOverlays }))));
+
+const MemberShareDestination = lazy(() => importWithRetry(() => import('./screens/MemberShareDestination').then((module) => ({ default: module.MemberShareDestination }))));
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -52,11 +57,16 @@ export default function App() {
   useScrollBoundaryFades();
   const { session, profile, role, configError, loading, confirmationFeedback, refreshProfile, signOut } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
+  const [shareDismissed, setShareDismissed] = useState(false);
+  const shareTarget = shareDismissed ? null : readShareDestination(window.location.search);
+  const shareMode = shareDestinationMode(Boolean(session), isInstalledApp(), new URLSearchParams(window.location.search).get('fc-open-app') === '1');
+  const closeSharedDestination = () => { window.history.replaceState(null, '', closeShareUrl(window.location.href)); setShareDismissed(true); };
   const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);
   const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
   const authenticatedUserId = session?.user.id || null;
   const authenticatedProfileId = profile?.id || null;
-  useFrenchUiTranslation(profile?.language_code);
+  const language = interfaceLanguage(profile?.language_code);
+  useFrenchUiTranslation(language);
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
   }, []);
@@ -84,8 +94,8 @@ export default function App() {
   }, [loading]);
 
   useEffect(() => {
-    document.documentElement.lang = profile?.language_code || 'en';
-  }, [profile?.language_code]);
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     if (!authenticatedUserId || !authenticatedProfileId) {
@@ -134,12 +144,16 @@ export default function App() {
     )}
   </>;
 
-  if (publicArenaRoomId && !configError) {
-    return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening Arena witness room" />}><PublicArenaScreen roomId={publicArenaRoomId} /></Suspense></>;
+  const visitorAppLink = <div className="bg-navy px-4 py-3 text-center text-sm text-peri"><a href={openShareInAppUrl(window.location.href)} className="underline">Already use Full Circle? Open in app</a></div>;
+
+  if (shareTarget && loading) return <ScreenLoader label="Opening shared Full Circle page" />;
+
+  if (publicArenaRoomId && !configError && shareMode === 'visitor' && !shareDismissed) {
+    return <>{overlays}{visitorAppLink}<Suspense fallback={<ScreenLoader label="Opening Arena witness room" />}><PublicArenaScreen roomId={publicArenaRoomId} /></Suspense></>;
   }
 
-  if (publicShare && !configError) {
-    return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;
+  if (publicShare && !configError && shareMode === 'visitor' && !shareDismissed) {
+    return <>{overlays}{visitorAppLink}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;
   }
 
   if (loading) {
@@ -256,6 +270,8 @@ export default function App() {
   if (!profileSetupComplete) {
     return <>{overlays}<ProfileOnboarding /></>;
   }
+
+  if (shareTarget) return <>{overlays}<Suspense fallback={<ScreenLoader />}><MemberShareDestination target={shareTarget} onHome={closeSharedDestination} /></Suspense></>;
 
   const app = role === 'instructor'
     ? <InstructorApp />

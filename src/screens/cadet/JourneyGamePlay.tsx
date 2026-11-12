@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, Clock3, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
@@ -328,6 +329,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <ArenaMatchup players={visiblePlayers} playing={state.game.status === 'playing'} />
     {error && <p className="rounded-md border border-coral/40 bg-coral-soft p-3 text-xs text-coral" role="alert">{error}</p>}
     <div className="space-y-3">
+      <GamePoints game="journey" players={roster} />
       <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />

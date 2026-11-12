@@ -540,14 +540,15 @@ export async function fetchQuizSessions() {
   return data as QuizSession[];
 }
 
-export async function fetchLatestQuizSession() {
-  const rpcResult = await supabase.rpc('get_current_quiz_session');
+export async function fetchLatestQuizSession(quizType: 'saturday' | 'fortune' | 'valediction' = 'saturday') {
+  const rpcResult = await supabase.rpc('get_current_quiz_session_for_type', { p_quiz_type: quizType });
   if (!rpcResult.error) return rpcResult.data as QuizSession | null;
 
   // Keep older deployments usable while the lifecycle migration rolls out.
   const { data, error } = await supabase
     .from('quiz_sessions')
     .select('*')
+    .eq('quiz_type', quizType)
     .order('session_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1).maybeSingle();
@@ -1164,6 +1165,13 @@ export async function fetchGameAttemptsForDate(userId: string, date: string) {
   return fetchGameAttempts(userId, date);
 }
 
+// One server-dated activity row per member/day; this never changes scores or rewards.
+export async function recordPuzzleTriviaPlay(userId: string) {
+  const { error } = await supabase.from('puzzle_trivia_activity').insert({ user_id: userId });
+  if (error && error.code !== '23505') throw error;
+  window.dispatchEvent(new Event('full-circle:game-activity'));
+}
+
 export async function fetchGameActivityPlayers(activityDate: string) {
   return shareReadRequest(`game-activity:${activityDate}`, async () => {
     const { data, error } = await supabase.rpc('get_game_activity_players', {
@@ -1229,7 +1237,7 @@ export async function fetchWeeklyVerseHighlights() {
 }
 
 export async function fetchRelicTypes() {
-  const { data, error } = await supabase.from('relic_types').select('*');
+  const { data, error } = await supabase.from('relic_types').select('*').eq('is_active', true);
   if (error) throw error;
   return data as RelicType[];
 }
@@ -1237,7 +1245,8 @@ export async function fetchRelicTypes() {
 export async function fetchRelicInventory(userId: string) {
   const { data, error } = await supabase
     .from('relic_inventory')
-    .select('*, relic_types(*)')
+    .select('*, relic_types!inner(*)')
+    .eq('relic_types.is_active', true)
     .eq('user_id', userId);
   if (error) throw error;
   return data as (RelicInventory & { relic_types: RelicType })[];
@@ -2251,7 +2260,9 @@ export async function purchaseDailyFreezerForCadet(sentryId: string, cadetId: st
 }
 
 export async function useRelic(userId: string, slug: string) {
-  const { data, error } = slug === 'simons-coin'
+  const { data, error } = slug === 'hezekiahs-sundial'
+    ? await supabase.rpc('use_meditation_extension')
+    : slug === 'simons-coin'
     ? await supabase.rpc('use_simons_coin', { p_user_id: userId })
     : await supabase.rpc('use_relic', { p_user_id: userId, p_relic_slug: slug });
   if (error) throw error;
@@ -2747,6 +2758,8 @@ export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(
 }
 
 export type CampayPaymentResult = {
+  approval_started_at?: string;
+  checkout_url?: string | null;
   status: string;
   reference: string;
   payment_id?: string;
@@ -2761,6 +2774,12 @@ export type CampayPaymentResult = {
   message?: string;
 };
 
+export type CheckoutProvider = 'campay' | 'fapshi' | 'fapshi_direct';
+
+function normalizeCheckoutProvider(value: unknown): CheckoutProvider {
+  return value === 'fapshi' || value === 'fapshi_direct' ? value : 'campay';
+}
+
 export type SubscriptionPlan = {
   id: string;
   name: string;
@@ -2768,6 +2787,7 @@ export type SubscriptionPlan = {
   duration_days: number;
   is_active: boolean;
   checkout_mode: 'demo' | 'live';
+  payment_provider: CheckoutProvider;
 };
 
 async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
@@ -2800,6 +2820,45 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
     ...data,
     reference: data.reference || data.tx_ref,
   } as CampayPaymentResult;
+}
+
+export function startMarketCartCheckout(
+  userId: string, amount: number, method: 'mtn_momo' | 'orange_money', phone: string,
+  relics: { slug: string; quantity: number; pack_size?: number }[], eventId?: string, ticketQuantity = 0,
+) {
+  return requestCampayCheckout({
+    purchase_kind: 'cart',
+    user_id: userId,
+    displayed_amount_xaf: amount,
+    payment_method: method,
+    customer_phone: phone,
+    cart_relics: relics,
+    fcx_event_id: eventId,
+    ticket_quantity: ticketQuantity,
+  });
+}
+
+export function startFcxFapshiCheckout(
+  eventId: string, userId: string, amount: number,
+  paymentMethod: 'fapshi_hosted' | 'mtn_momo' | 'orange_money',
+  customerPhone?: string,
+) {
+  return requestCampayCheckout({
+    purchase_kind: 'fcx_ticket',
+    fcx_event_id: eventId,
+    user_id: userId,
+    payment_method: paymentMethod,
+    customer_phone: customerPhone,
+    displayed_amount_xaf: amount,
+  });
+}
+
+export async function fetchCheckoutProvider(userId: string): Promise<CheckoutProvider> {
+  const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+    body: { user_id: userId, provider_only: true },
+  });
+  if (error) throw error;
+  return normalizeCheckoutProvider(data?.payment_provider);
 }
 
 export async function startCampayCheckout(
@@ -2866,13 +2925,14 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
     duration_days: Number(data.duration_days),
     is_active: true,
     checkout_mode: data.checkout_mode === 'demo' ? 'demo' : 'live',
+    payment_provider: normalizeCheckoutProvider(data.payment_provider),
   };
 }
 
 export async function startSubscriptionCheckout(
   planId: string,
   userId: string,
-  paymentMethod: 'mtn_momo' | 'orange_money',
+  paymentMethod: 'mtn_momo' | 'orange_money' | 'fapshi_hosted',
   customerPhone: string,
   displayedAmountXaf: number,
   customerEmail?: string,
@@ -3354,7 +3414,7 @@ export async function fetchPublicArenaSuccessor(roomId: string): Promise<string 
 export type ArenaFinalScorecard = {
   id: string;
   room_name: string;
-  game_type: 'standard' | 'ludo' | 'journey';
+  game_type: 'standard' | 'ludo' | 'journey' | 'prelude';
   completed_at: string | null;
   winner_id: string | null;
   players: Array<{
@@ -3402,7 +3462,7 @@ export async function scheduleInstructorArenaMatch(payload: {
 export type ArenaTournament = {
   id: string;
   title: string;
-  game_type: 'standard' | 'ludo' | 'journey';
+  game_type: 'standard' | 'ludo' | 'journey' | 'prelude';
   journey_character_slug?: string | null;
   journey_character_name?: string | null;
   has_group_stage: boolean;
@@ -3415,7 +3475,7 @@ export type ArenaTournament = {
     id: string;
     round_number: number;
     match_number: number;
-    planned_at: string;
+    planned_at: string | null;
     starts_at: string | null;
     room_id: string | null;
     room_status: string | null;
@@ -3440,7 +3500,7 @@ export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
 }
 
 export async function createInstructorArenaTournament(payload: {
-  title: string; gameType: 'standard' | 'ludo' | 'journey'; playerIds: string[]; gameTimes: string[]; hasGroups: boolean;
+  title: string; gameType: 'standard' | 'ludo' | 'journey' | 'prelude'; playerIds: string[]; gameTimes: Array<string | null>; hasGroups: boolean;
   journeyCharacterSlug?: string | null;
   gamePlayers: string[][]; bracketSize: number;
 }) {
@@ -3764,7 +3824,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
       .order('joined_at', { ascending: true }),
     supabase
       .from('arena_scheduled_matches')
-      .select('room_id,starts_at,player_ids,scheduled_by')
+      .select('room_id,starts_at,player_ids,scheduled_by,is_sentry_match')
       .in('room_id', roomIds),
     supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
     activeRoomIds.length
@@ -3800,6 +3860,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
     scheduled_start_at: scheduleMap.get(room.id)?.starts_at || null,
     scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
     scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
+    is_sentry_match: scheduleMap.get(room.id)?.is_sentry_match ?? false,
     arena_guest_witness_count: guestCountMap.get(room.id) || 0,
     arena_matchup_players: (matchupMap.get(room.id) || []).map((player) => (
       room.play_mode === 'machine' && /\[arena:journey\]/i.test(room.room_name || '')

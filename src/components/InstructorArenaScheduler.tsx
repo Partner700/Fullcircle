@@ -135,17 +135,17 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
           title: roomName.trim(), gameType, playerIds: tournamentRoster,
           hasGroups, gamePlayers, bracketSize: entrantCount,
           journeyCharacterSlug: isJourney ? journeyCharacterSlug : null,
-          gameTimes: gameTimes.map((value) => new Date(value).toISOString()),
+          gameTimes: gameTimes.map((value) => value ? new Date(value).toISOString() : null),
         });
       } else {
-        if (gameType === 'journey') throw new Error('Choose Journey Trivia in a tournament.');
+        if (gameType === 'journey' || gameType === 'prelude') throw new Error('Choose Journey Trivia in a tournament.');
         await scheduleInstructorArenaMatch({ roomName: roomName.trim(), gameType, playerIds: selected, startsAt: date.toISOString() });
       }
       setSelected([]);
       setRoomName('');
       setStartsAt('');
       resetFixtures(entrantCount, hasGroups);
-      setMessage(mode === 'tournament' ? 'Tournament scheduled. First-round players have been notified.' : 'Match scheduled. The selected players have been notified.');
+      setMessage(mode === 'tournament' ? 'Tournament saved. Players in scheduled, ready matches have been notified.' : 'Match scheduled. The selected players have been notified.');
       await Promise.all([onScheduled(), refreshTournaments()]);
     } catch (error) {
       setMessage(userFacingError(error, 'The schedule could not be created.'));
@@ -162,7 +162,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     try {
       await rescheduleArenaTournamentGame(gameId, date.toISOString());
       await Promise.all([refreshTournaments(), onScheduled()]);
-      setMessage('Replay scheduled. The selected players have been notified.');
+      setMessage('Game scheduled. Players will be notified when the match is ready.');
     } catch (error) {
       setMessage(userFacingError(error, 'The replay could not be scheduled.'));
     } finally { setBusy(false); }
@@ -184,7 +184,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
   return <section className="border-b border-border pb-5">
     <div className="mb-4 flex items-center gap-2"><CalendarClock size={18} className="text-gold" /><h2 className="font-display text-base font-bold text-ink">Instructor Arena schedule</h2></div>
     <div className="mb-4 inline-flex rounded-md border border-border bg-surface-2 p-0.5" role="group" aria-label="Schedule type">
-      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setGameType((current) => current === 'journey' ? 'standard' : current); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
+      <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'match' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('match'); setGameType((current) => (current === 'journey' || current === 'prelude') ? 'standard' : current); setSelected((ids) => ids.slice(0, 4)); }}><Swords size={13} className="mr-1 inline" /> Match</button>
       <button type="button" className={`rounded px-3 py-1.5 text-xs font-bold ${mode === 'tournament' ? 'bg-surface text-ink shadow-sm' : 'text-stone'}`} onClick={() => { setMode('tournament'); setSelected((ids) => ids.slice(0, entrantCount)); }}><Trophy size={13} className="mr-1 inline" /> Tournament</button>
     </div>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -192,7 +192,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
       {mode === 'match' && <label className="text-xs font-semibold text-stone">Start date and time<input className="input-field mt-1" type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>}
     </div>
     <div className="mt-3 flex flex-wrap gap-3">
-      <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect ariaLabel="Arena game category" value={gameType} onChange={(value) => { setGameType(value as ArenaGameType); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }, ...(mode === 'tournament' ? [{ value: 'journey', label: 'Journey Trivia' }] : [])]} /></div>
+      <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Game</p><AppSelect ariaLabel="Arena game category" value={gameType} onChange={(value) => { setGameType(value as ArenaGameType); if (mode === 'match') setSelected((ids) => ids.slice(0, 4)); }} options={[{ value: 'standard', label: 'Classic Trivia' }, { value: 'ludo', label: 'Ludo Trivia' }, ...(mode === 'tournament' ? [{ value: 'journey', label: 'Journey Trivia' }, { value: 'prelude', label: 'The Prelude' }] : [])]} /></div>
       {isJourney && <div className="w-44 max-w-full"><p className="mb-1 text-xs font-semibold text-stone">Narrative</p><AppSelect ariaLabel="Tournament Journey narrative" value={journeyCharacterSlug} onChange={setJourneyCharacterSlug} disabled={journeyLoading || Boolean(journeyError) || journeyCharacters.length === 0} placeholder={journeyLoading ? 'Loading narratives...' : 'No playable narratives'} options={journeyCharacters.map((character) => ({ value: character.slug, label: character.displayName }))} /></div>}
       {mode === 'tournament' && <div className="w-44"><p className="mb-1 text-xs font-semibold text-stone">Start at</p><AppSelect value={startRound} onChange={(value) => { const next = value as ArenaTournamentStart; const count = arenaTournamentEntrants(next, groupEntrants); setStartRound(next); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, next === 'groups'); }} options={[{ value: 'groups', label: 'Group stage' }, { value: 'round_of_16', label: 'Round of 16' }, { value: 'quarterfinal', label: 'Quarterfinals' }, { value: 'semifinal', label: 'Semifinals' }, { value: 'final', label: 'Final' }]} /></div>}
       {mode === 'tournament' && hasGroups && <div className="w-36"><p className="mb-1 text-xs font-semibold text-stone">Entrants</p><AppSelect value={String(groupEntrants)} onChange={(value) => { const count = Number(value) as 8 | 16 | 32; setGroupEntrants(count); setSelected((ids) => ids.slice(0, count)); resetFixtures(count, true); }} options={[{ value: '8', label: '8 players' }, { value: '16', label: '16 players' }, { value: '32', label: '32 players' }]} /></div>}
@@ -211,14 +211,15 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
     </div>
     </>}
     {mode === 'tournament' && <>
-      <div className="mt-4 divide-y divide-border">
+      <p className="mt-4 text-xs text-stone">Set a date and time only for the games you want to schedule now. Leave the others blank and schedule them later.</p>
+      <div className="mt-2 divide-y divide-border">
         {slots.map((slot) => {
           const pair = gamePlayers[slot.index] || tournamentFixtureChoices([]);
           const firstRound = slot.round === slots[0].round;
           const candidates = firstRound || !hasGroups ? players : players.filter((player) => tournamentRoster.includes(player.user_id) || pair.includes(player.user_id));
           return <fieldset key={slot.index} className="min-w-0 py-4" data-tournament-fixture={slot.label}>
             <legend className="float-left mb-2 w-full font-display text-sm font-bold text-ink">{slot.label}</legend>
-            <label className="block clear-both text-xs font-semibold text-stone">Date and time
+            <label className="block clear-both text-xs font-semibold text-stone">Date and time (optional)
               <input className="input-field mt-1 min-w-0" type="datetime-local" aria-label={`${slot.label} date and time`} value={gameTimes[slot.index] || ''} onChange={(event) => setGameTimes((current) => current.map((value, index) => index === slot.index ? event.target.value : value))} />
             </label>
             <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
@@ -261,10 +262,11 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
                   : [...new Map([...tournament.players, ...players.map((player) => ({
                     id: player.user_id, display_name: player.profiles?.display_name || 'Player', avatar_url: player.profiles?.avatar_url || null,
                   }))].map((player) => [player.id, player])).values()];
+              const scheduledAt = game.starts_at || game.planned_at;
               const automatic = [game.automatic_left_player_id, game.automatic_right_player_id];
               const canEdit = game.can_edit_players && !['cancelled', 'completed'].includes(tournament.status);
               return <div key={game.id} className="py-4 text-[11px]" data-tournament-fixture={label}>
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span className="font-semibold text-ink">{label}</span><span className="text-stone">{new Date(game.starts_at || game.planned_at).toLocaleString()}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span className="font-semibold text-ink">{label}</span><span className="text-stone">{scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Not scheduled'}</span></div>
                 <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-2">
                   {([0, 1, 2, 3] as const).map((side) => <div key={side} className="min-w-0">
                     <p className="mb-1 text-xs font-semibold text-stone">Player {side + 1}{side > 1 ? ' (optional)' : ''}</p>
@@ -278,7 +280,7 @@ export function InstructorArenaScheduler({ onScheduled }: { onScheduled: () => P
                   </div>)}
                 </div>
                 {game.winner_id && <p className="mt-2 text-gold">Winner: {playerName(game.winner_id)}</p>}
-                {endedWithoutWinner && tournament.status !== 'cancelled' && <div className="mt-2 flex flex-wrap gap-2"><input className="input-field min-w-0 flex-1 text-xs" aria-label={`Replay time for ${label}`} type="datetime-local" value={replayTimes[game.id] || ''} onChange={(event) => setReplayTimes((current) => ({ ...current, [game.id]: event.target.value }))} /><button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => void replayGame(game.id)}>Schedule replay</button></div>}
+                {(endedWithoutWinner || (!game.room_id && !game.planned_at)) && !['cancelled', 'completed'].includes(tournament.status) && <div className="mt-2 flex flex-wrap gap-2"><input className="input-field min-w-0 flex-1 text-xs" aria-label={`${endedWithoutWinner ? 'Replay' : 'Schedule'} time for ${label}`} type="datetime-local" value={replayTimes[game.id] || ''} onChange={(event) => setReplayTimes((current) => ({ ...current, [game.id]: event.target.value }))} /><button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => void replayGame(game.id)}>{endedWithoutWinner ? 'Schedule replay' : 'Schedule game'}</button></div>}
               </div>;
             })}
           </div>

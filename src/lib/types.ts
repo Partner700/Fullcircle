@@ -551,7 +551,7 @@ export interface QuizSession {
   live_opens_at: string;
   live_closes_at: string;
   status: QuizSessionStatus;
-  quiz_type: 'saturday' | 'fortune';
+  quiz_type: 'saturday' | 'fortune' | 'valediction';
   reward_perfect: number;
   reward_partial: number;
   relaunch_of_id?: string | null;
@@ -725,7 +725,7 @@ export interface GameAttempt {
 }
 
 export interface GameActivityPlayer {
-  activity: 'daily_game' | 'arena';
+  activity: 'daily_game' | 'arena' | 'puzzle_trivia' | 'prelude';
   user_id: string;
   display_name: string;
   avatar_url: string | null;
@@ -743,6 +743,7 @@ export interface RelicType {
   denarii_cost: number | null;
   money_price_usd: number | null;
   money_price_xaf: number | null;
+  cash_bundles?: Record<string, number>;
   effect_scope: string;
   icon: string;
 }
@@ -955,7 +956,7 @@ export interface StreakFreezer {
   id: string;
   user_id: string;
   freezer_type: FreezerType;
-  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'simons_coin' | 'thiefs_request' | 'game_reward' | 'arena_reward' | 'founders_gift' | 'treasure_reward';
+  source: 'denarii' | 'payment' | 'relic' | 'redemption' | 'simons_purse' | 'simons_coin' | 'thiefs_request' | 'game_reward' | 'arena_reward' | 'founders_gift' | 'treasure_reward' | 'welcome_quiz';
   purchased_at: string;
   used_at: string | null;
   applied_to_date: string | null;
@@ -1054,11 +1055,12 @@ export interface CurrencyInfo {
 }
 
 export interface MobileMoneyPayment {
+  fapshi_checkout_url?: string | null;
   id: string;
   user_id: string;
   relic_slug: string;
   relic_name: string;
-  purchase_kind?: 'relic' | 'subscription';
+  purchase_kind?: 'relic' | 'subscription' | 'fcx_ticket' | 'cart';
   purchase_metadata?: Record<string, unknown>;
   amount_usd: number;
   amount_local: number;

@@ -1,3 +1,8 @@
+import { GamePoints } from '../../components/GamePoints';
+import { regionalDateTime } from '../../lib/regionalPreferences';
+import { SentryArenaScheduler, type SentryScheduleRoster } from '../../components/SentryArenaScheduler';
+import PuzzleTrivia from './PuzzleTrivia';
+import PreludeTrivia from './PreludeTrivia';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -95,12 +100,16 @@ interface CadetArenaProps {
   onBalanceChanged?: () => Promise<void> | void;
   onBackToDailyGames?: () => void;
   witnessOnly?: boolean;
+  initialRoomId?: string;
   instructorSchedule?: boolean;
+  sentrySchedule?: SentryScheduleRoster;
 }
 
-export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly = false, instructorSchedule = false }: CadetArenaProps) {
+export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId, witnessOnly = false, instructorSchedule = false, sentrySchedule }: CadetArenaProps) {
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
+  const [preludeOpen,setPreludeOpen] = useState(false);
+  const [puzzleOpen, setPuzzleOpen] = useState(false);
   const [rooms, setRooms] = useState<any[]>([]);
   const [denarii, setDenarii] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -109,7 +118,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
   const [stake, setStake] = useState(50);
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [arenaOpponent, setArenaOpponent] = useState<'players' | 'machine'>('players');
-  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo' | 'journey'>('standard');
+  const [arenaGameType, setArenaGameType] = useState<'standard' | 'ludo' | 'journey' | 'prelude'>('standard');
   const [journeyCharacters, setJourneyCharacters] = useState<JourneyCharacter[]>([]);
   const [journeyCharacterSlug, setJourneyCharacterSlug] = useState('');
   const [journeyCatalogState, setJourneyCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -150,11 +159,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
   useEffect(() => {
     if (!profile) return;
+    if (initialRoomId) return;
     const savedRoomId = safeStorageGet('local', activeArenaRoomStorageKey(profile.id));
     const dismissed = new Set(safeJsonStorageGet<string[]>('local', dismissedArenaRoomsKey(profile.id), []));
     if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
     if (savedRoomId && dismissed.has(savedRoomId)) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
-  }, [profile]);
+  }, [profile, initialRoomId]);
 
   useEffect(() => {
     if (!profile || !activeRoomId || isSpectating) return;
@@ -230,6 +240,23 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       return false;
     }
   }, [profile, refreshRoom]);
+
+  const openedShareRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialRoomId || !profile || openedShareRef.current === initialRoomId) return;
+    openedShareRef.current = initialRoomId;
+    void (async () => {
+      const room = await refreshRoom(initialRoomId);
+      if (room?.status === 'completed') {
+        setIsSpectating(true); setActiveRoomId(initialRoomId); setPhase('finished');
+      } else if (room?.arena_participants?.some((person: { user_id: string; forfeited_at?: string | null }) => person.user_id === profile.id && !person.forfeited_at)) {
+        activateRoom(initialRoomId, room.status === 'completed' ? 'finished' : room.status === 'waiting' ? 'waiting' : 'playing');
+      } else {
+        await watchRoom(initialRoomId);
+      }
+    })();
+  }, [activateRoom, initialRoomId, profile, refreshRoom, watchRoom]);
+
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -563,7 +590,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         if (phase !== 'finished') {
           setPhase('finished');
         }
-      } else if (parseArenaGameType(room.room_name || '') === 'ludo' && room.completion_reason !== 'forfeit') {
+      } else if (['ludo','prelude'].includes(parseArenaGameType(room.room_name || '')) && room.completion_reason !== 'forfeit') {
         if (phase !== 'playing') setPhase('playing');
       } else if (phase !== 'finished') {
         setPhase('finished');
@@ -639,7 +666,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 
   const createRoom = async () => {
     if (!profile) return;
-    if (journeyCatalogState !== 'ready') {
+    if (arenaGameType === 'journey' && journeyCatalogState !== 'ready') {
       setError('The match list is still loading. Try again once it is ready.');
       return;
     }
@@ -733,6 +760,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     setInviting(false);
   };
 
+  const preludeRoom=rooms.find(room=>room.id===activeRoomId && parseArenaGameType(room.room_name || '')==='prelude');
+  if(preludeOpen || preludeRoom) return <PreludeTrivia arenaImage={arenaImage} initialRoomId={preludeRoom?.id} onBack={()=>{setPreludeOpen(false);if(preludeRoom)clearActiveRoom(false);void onBalanceChanged?.();}} onBalanceChanged={()=>void onBalanceChanged?.()}/>;
+  if (puzzleOpen) return <PuzzleTrivia arenaImage={arenaImage} onBack={() => {setPuzzleOpen(false);void onBalanceChanged?.();}} />;
+
   if (loading && phase === 'lobby') return (
     <div className="space-y-4 animate-fade-in">
       {onBackToDailyGames && (
@@ -781,7 +812,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             roomName={activeRoomName}
             userId={profile!.id}
             spectator={isSpectating}
-            awaitSeriesResult={Boolean(activeRoom?.scheduled && activeRoom.play_mode !== 'machine' && activeRoom.max_players <= 4)}
+            awaitSeriesResult={Boolean(activeRoom?.scheduled && !activeRoom.is_sentry_match && activeRoom.play_mode !== 'machine' && activeRoom.max_players <= 4)}
             spectatorCanChallenge={!witnessOnly}
             onGameCallCreated={handleGameCallCreated}
             onGameCallAction={handleGameCallAction}
@@ -823,6 +854,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
     return (
       <div className="space-y-4">
         <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
+        <GamePoints game="standard" players={arenaMatchupPlayers(activeRoom)} />
         <ArenaGamePlay
           roomName={activeRoom?.room_name || roomName}
           roomId={activeRoomId}
@@ -1032,6 +1064,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
         </div>
       </div>}
 
+      {!witnessOnly && <div className="card p-4"><h3 className="font-display font-bold text-ink">Puzzle Trivia</h3><p className="mt-1 text-xs text-stone">Solo Bible word puzzles · three difficulties · no entry fee.</p><button type="button" className="btn-secondary mt-3 text-xs" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia</button></div>}
+
+
+      {sentrySchedule && <SentryArenaScheduler key={sentrySchedule.tentId} {...sentrySchedule} onScheduled={refreshRooms} />}
+
       {instructorSchedule && <>
         <InstructorArenaScheduler onScheduled={refreshRooms} />
         <InstructorJourneyReview />
@@ -1063,7 +1100,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             <div>
               <label className="text-xs text-stone block mb-1">Game Play</label>
               <AppSelect value={arenaGameType} onChange={(value) => {
-                setArenaGameType(value as 'standard' | 'ludo' | 'journey');
+                if (value === 'prelude') {
+                  setShowCreate(false);
+                  setPreludeOpen(true);
+                  return;
+                }
+                setArenaGameType(value as 'standard' | 'ludo' | 'journey' | 'prelude');
                 if (value !== 'standard') setMaxPlayers((current) => Math.min(current, 4));
               }} options={arenaGameOptions(arenaOpponent, journeyCharacters.length)} />
             </div>
@@ -1163,7 +1205,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
             </div>
           </div>
           </>}
-          <button onClick={createRoom} disabled={creating || journeyCatalogState !== 'ready' || (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
+          <button onClick={createRoom} disabled={creating || (arenaGameType === 'journey' && journeyCatalogState !== 'ready') || (arenaGameType === 'journey' && !journeyCharacters.some((item) => item.slug === journeyCharacterSlug && item.ready)) || (arenaOpponent === 'machine' ? denarii < 50 : stake < 10 || stake + ARENA_GAME_CALL_FEE > denarii)} className="btn-primary text-sm">
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Swords size={14} />} {arenaOpponent === 'machine' ? 'Create Machine Match · 50 Ð' : `Create & Stake ${formatDenarii(stake)} Ð`}
           </button>
           {arenaOpponent === 'machine' ? <p className="text-xs text-stone">Machine matches charge only the fixed 50 Ð stake.</p> : <>
@@ -1193,7 +1235,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                       <p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p>
                       <ArenaMatchup players={arenaMatchupPlayers(room)} playing />
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-stone">
-                        <span>{parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : parseArenaGameType(room.room_name) === 'journey' ? 'Standard Trivia: Biblical Journey' : 'Classic Trivia'}</span>
+                        <span>{parseArenaGameType(room.room_name) === 'prelude' ? 'The Prelude' : parseArenaGameType(room.room_name) === 'ludo' ? 'Ludo Trivia' : parseArenaGameType(room.room_name) === 'journey' ? 'Standard Trivia: Biblical Journey' : 'Classic Trivia'}</span>
                         <span aria-hidden="true">·</span>
                         <ArenaElapsedTimer startedAt={room.started_at} />
                       </div>
@@ -1225,7 +1267,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
       {instructorSchedule && rooms.some((room) => room.scheduled && room.status === 'waiting') && <section className="space-y-2">
         <h3 className="font-display text-sm font-semibold text-ink">Scheduled matches</h3>
         {rooms.filter((room) => room.scheduled && room.status === 'waiting').map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
-          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{new Date(room.scheduled_start_at).toLocaleString()} · {(room.scheduled_player_ids || []).length} selected players</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{regionalDateTime(room.scheduled_start_at, profile)} · {(room.scheduled_player_ids || []).length} selected players</p></div>
           <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
           <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>
           <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
@@ -1284,6 +1326,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
                     ) : room.scheduled ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>
+                        {sentrySchedule && room.is_sentry_match && room.scheduled_by === profile?.id && (
+                          <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
+                        )}
                         {room.scheduled_player_ids?.includes(profile?.id) && participants.length < room.max_players && (
                           <button onClick={() => void joinRoom(room.id)} className="btn-primary text-xs"><Play size={14} /> Enter Match</button>
                         )}
@@ -1323,7 +1368,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, witnessOnly =
 }
 
 function parseArenaGameType(roomName: string) {
-  return /\[arena:journey\]/i.test(roomName) ? 'journey' : /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
+  return /\[arena:prelude\]/i.test(roomName) ? 'prelude' : /\[arena:journey\]/i.test(roomName) ? 'journey' : /\[arena:ludo\]/i.test(roomName) ? 'ludo' : 'standard';
 }
 
 function cleanArenaRoomName(roomName: string) {
@@ -1819,7 +1864,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const [settling, setSettling] = useState(false);
   const [settlementError, setSettlementError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rollRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rollRevealTimerRef = useRef<number | null>(null);
   const scoreRef = useRef(0);
   const correctCountRef = useRef(0);
   const completedRef = useRef(false);

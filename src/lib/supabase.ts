@@ -11,8 +11,8 @@ if (diagnostics && typeof window !== 'undefined') {
 // These are public browser credentials, not service-role secrets. Pinning the
 // production project here prevents a stale hosting environment variable from
 // ever rebuilding Full Circle against the retired, quota-restricted project.
-export const supabaseUrl = 'https://nffqohxdelaglrmuzjwb.supabase.co';
-export const supabaseAnonKey = 'sb_publishable_sRypQ222Tr1j9ocjRYqw5g_deLrtax-';
+export const supabaseUrl = 'https://ovusyeqbmtvfcrlflrbf.supabase.co';
+export const supabaseAnonKey = 'sb_publishable_HeGFIazo0kNZ53gf1eKuRA_bpfKORje';
 export const supabaseConfigError: string | null = null;
 
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
