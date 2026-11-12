@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { regionalDateTime } from '../../lib/regionalPreferences';
 import { useState, useEffect, useCallback, useRef, type ReactNode, type TouchEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -771,6 +772,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       )}
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Hey Everyone</h2>
                       <p className={cn('mt-2 max-h-32 max-w-2xl overflow-y-auto whitespace-pre-wrap leading-relaxed text-stone', slide.announcement.content.length > 320 ? 'text-xs' : 'text-sm')}>{slide.announcement.content}</p>
+                      {slide.announcement.announcement_type === 'daily_game_reminder' && <GamePoints limit={3} className="mt-3" />}
                       {slide.announcement.announcement_type === 'weekly_quiz_reminder' && (
                         <QuizResponders
                           variant="slide"

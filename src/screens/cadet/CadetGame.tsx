@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -240,6 +241,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames, initialDate }: {
           <ArrowLeft size={15} /> Back to Daily Games
         </button>
       )}
+      <GamePoints game="daily_game" showCurrentPlayer />
       {sundayGamePicker}
       <div className="card p-5 relative overflow-hidden animate-slide-up">
         <div className="relative z-10 flex items-center justify-between gap-3">
@@ -818,6 +820,8 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         <span>Figs: <span className="text-ink font-semibold">{score}</span></span>
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
+
+      <GamePoints game="daily_game" showCurrentPlayer />
 
       {!showFeedback && <ContextRelicShop userId={userId} timed
         slugs={[

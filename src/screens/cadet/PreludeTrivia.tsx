@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Clock3, Loader2, RefreshCw, Trophy, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -77,6 +78,9 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
   <PanelImageBackdrop image={arenaImage} opacityFallback={38} veilClassName="arena-panel-veil" simple/>
   <div className="relative z-10 space-y-4">
    <header className="flex items-center justify-between gap-3"><button type="button" onClick={game?leaveView:onBack} className="flex items-center gap-1 rounded-lg border border-white/25 bg-black/30 px-3 py-2 text-xs"><ArrowLeft size={15}/>{game?'Rooms':'Back'}</button><div className="text-center"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-gold">Numbers of Scripture</p><h2 className="font-display text-2xl font-bold">The Prelude</h2></div>{busy?<Loader2 className="animate-spin" size={18}/>:<Users size={20} className="text-gold"/>}</header>
+   <GamePoints game="prelude" revision={game?.phase === 'completed'} players={game?.players.map(player => ({
+     user_id: player.id, display_name: player.name, avatar_url: player.avatar,
+   }))} />
    {error && <div role="alert" className="rounded-lg border border-coral/40 bg-black/60 p-3 text-sm text-coral">{error}<div className="mt-2 flex gap-2"><button type="button" className="btn-secondary text-xs" onClick={()=>roomId?void command('state'):void refreshList()}><RefreshCw size={12}/> Refresh</button>{roomId && <button type="button" className="btn-secondary text-xs" onClick={leaveView}>Back to rooms</button>}</div></div>}
    {!roomId && <>
     <p className="text-sm leading-relaxed text-white/85">Flip a card. Match the number or tent symbol, then answer correctly to collect the whole open board. A joker collects it immediately.</p>

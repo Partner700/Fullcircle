@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -134,6 +135,8 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onProgress }: DailyGa
           </span>
         )}
       </header>
+
+      <GamePoints />
 
       <article className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={state.arenaImage} opacityFallback={26} veilClassName="arena-panel-veil" />

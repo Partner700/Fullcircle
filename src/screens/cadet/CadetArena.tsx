@@ -1,3 +1,4 @@
+import { GamePoints } from '../../components/GamePoints';
 import { regionalDateTime } from '../../lib/regionalPreferences';
 import { SentryArenaScheduler, type SentryScheduleRoster } from '../../components/SentryArenaScheduler';
 import PuzzleTrivia from './PuzzleTrivia';
@@ -853,6 +854,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     return (
       <div className="space-y-4">
         <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
+        <GamePoints game="standard" players={arenaMatchupPlayers(activeRoom)} />
         <ArenaGamePlay
           roomName={activeRoom?.room_name || roomName}
           roomId={activeRoomId}
