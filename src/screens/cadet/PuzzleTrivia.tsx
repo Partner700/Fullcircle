@@ -92,7 +92,7 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
     <div className="text-center"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-gold">Puzzle Trivia</p><h2 className="font-display text-lg font-bold">Level {round.level+1}</h2></div>
     <div className={`flex items-center gap-1 rounded-lg border border-white/25 bg-black/30 px-3 py-2 font-bold tabular-nums ${remaining<=30?'text-coral':'text-white'}`} aria-label={`${remaining} seconds remaining`}><Clock3 size={15}/>{Math.floor(remaining/60)}:{String(remaining%60).padStart(2,'0')}</div>
    </header>
-   <GamePoints game="puzzle_trivia" showCurrentPlayer revision={round.completed} />
+   <GamePoints game="puzzle_trivia" showCurrentPlayer={playing} revision={round.completed} />
    <div role="group" aria-label="Puzzle difficulty" className="flex justify-center gap-2">
     {(Object.keys(PUZZLE_DIFFICULTIES) as PuzzleDifficulty[]).map(value=><button key={value} type="button" aria-pressed={difficulty===value} disabled={playing || busy} onClick={()=>changeDifficulty(value)} className={`rounded-full border px-4 py-2 text-xs font-bold disabled:opacity-60 ${difficulty===value?'border-gold bg-gold text-navy':'border-white/25 bg-black/30 text-white'}`}>{PUZZLE_DIFFICULTIES[value].label}</button>)}
    </div>

@@ -29,12 +29,12 @@ type Points = { leaders: Leader[]; totals: Record<string, number> };
 const EMPTY: Points = { leaders: [], totals: {} };
 const PLAYER_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
-function PlayerPoints({ player, points }: { player: Player; points?: number }) {
+function PlayerPoints({ player, points, isCurrentPlayer }: { player: Player; points?: number; isCurrentPlayer: boolean }) {
   return (
     <div className="flex min-w-14 max-w-24 flex-col items-center gap-1 text-center" title={player.display_name}>
       <UserAvatar userId={player.user_id} name={player.display_name} avatarUrl={player.avatar_url} className="h-8 w-8" />
       <span className="text-[10px] font-bold tabular-nums text-ink">{points == null ? '—' : `${points.toLocaleString()} pts`}</span>
-      <span className="max-w-full truncate text-[10px] text-stone">{player.display_name}</span>
+      <span className="max-w-full truncate text-[10px] text-stone">{isCurrentPlayer ? 'You' : player.display_name}</span>
     </div>
   );
 }
@@ -117,7 +117,7 @@ export function GamePoints({ game, players, showCurrentPlayer = false, limit = 1
         <div className={cn(leaders.length > 0 && 'mt-2 border-t border-border pt-2')}>
           <p className="mb-1.5 text-[10px] font-semibold text-stone">Players’ lifetime points</p>
           <div className="flex flex-wrap gap-2">
-            {participants.map(player => <PlayerPoints key={player.user_id} player={player} points={points ? points.totals[player.user_id] ?? 0 : undefined} />)}
+            {participants.map(player => <PlayerPoints key={player.user_id} player={player} isCurrentPlayer={player.user_id === userId} points={points ? points.totals[player.user_id] ?? 0 : undefined} />)}
           </div>
         </div>
       )}

@@ -140,7 +140,7 @@ export function DailyGamesHub({ onOpenTrivia, onOpenArena, onProgress }: DailyGa
 
       <article className="card relative overflow-hidden p-5">
         <PanelImageBackdrop image={state.arenaImage} opacityFallback={26} veilClassName="arena-panel-veil" />
-        <div className="relative z-10"><p className="eyebrow text-gold">Words of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">Puzzle Trivia</h3><p className="mt-2 text-sm text-stone">Connect letters to uncover Bible people, places and objects in an interlocking crossword. Three difficulties, timed rounds and Scripture clues.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia <ArrowRight size={14}/></button><GameActivityProfiles activity="puzzle_trivia" players={gameActivity.players} loading={gameActivity.loading} /></div>
+        <div className="relative z-10"><p className="eyebrow text-gold">Words of Scripture</p><h3 className="mt-1 font-display text-xl font-bold text-ink">Puzzle Trivia</h3><p className="mt-2 text-sm text-stone">Connect letters to uncover Bible people, places and objects in an interlocking crossword. Three difficulties, timed rounds and Scripture clues.</p><button type="button" className="btn-primary mt-4 text-sm" onClick={() => setPuzzleOpen(true)}>Play Puzzle Trivia <ArrowRight size={14}/></button><GamePoints game="puzzle_trivia" className="mt-3" /></div>
       </article>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
