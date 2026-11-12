@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { InstructorCampTools } from './InstructorCampTools';
 
 type Instructor = { id: string; name: string; legacy: boolean };
 type Camp = { id: number; code: string; instructors: Instructor[] };
@@ -60,7 +61,7 @@ export function CampWorkspace({ initial }: { initial: Exclude<CampAccess, { role
         {error && <p className="card p-4 text-ink" role="alert">{error}</p>}
         {notice && <p className="card p-4 text-ink" role="status">{notice}</p>}
         {access.role === 'none' && <p className="card p-4 text-ink">This account has no camp assignment.</p>}
-        {access.role === 'instructor' && <section className="card p-5 text-ink"><h2 className="text-lg font-semibold">Camp {access.campCode}</h2><p className="mt-1 text-stone">You are assigned as an Instructor for this camp.</p></section>}
+        {access.role === 'instructor' && <InstructorCampTools campCode={access.campCode} />}
         {access.role === 'admin' && (
           <>
             <section className="card p-5 text-ink">
