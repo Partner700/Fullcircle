@@ -5,7 +5,17 @@ import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { UserAvatar } from './UserAvatar';
 
-type Game = 'daily_game' | 'puzzle_trivia' | 'story_mode' | 'standard' | 'journey' | 'ludo' | 'prelude';
+const GAME_NAMES = {
+  daily_game: 'Daily Trivia',
+  puzzle_trivia: 'Puzzle Trivia',
+  story_mode: 'Story Mode',
+  standard: 'Classic Trivia',
+  journey: 'Biblical Journey',
+  ludo: 'The Road Home',
+  prelude: 'The Prelude',
+} as const;
+
+type Game = keyof typeof GAME_NAMES;
 
 type Player = {
   user_id: string;
@@ -39,7 +49,10 @@ export function GamePoints({ game, players, showCurrentPlayer = false, limit = 1
 }) {
   const { profile } = useAuth();
   const userId = profile?.id;
-  const [points, setPoints] = useState<Points | null>(null);
+  const [result, setResult] = useState<{ game?: Game; userId: string; points: Points } | null>(null);
+  const points = result && result.game === game && result.userId === userId ? result.points : null;
+  const leaderLimit = game ? 1 : limit;
+  const title = game ? `${GAME_NAMES[game]} leader` : leaderLimit === 3 ? 'Top 3 overall' : 'Overall leader';
   const currentPlayer = profile && showCurrentPlayer
     ? [{ user_id: profile.id, display_name: profile.display_name, avatar_url: profile.avatar_url }]
     : [];
@@ -58,7 +71,7 @@ export function GamePoints({ game, players, showCurrentPlayer = false, limit = 1
           p_game: game ?? null,
           p_players: playerKey ? playerKey.split(',') : [],
         });
-        if (active && !error) setPoints(data ?? EMPTY);
+        if (active && !error) setResult({ game, userId, points: data ?? EMPTY });
       } catch {
         // A leaderboard request should never interrupt a game.
       } finally {
@@ -76,23 +89,23 @@ export function GamePoints({ game, players, showCurrentPlayer = false, limit = 1
   }, [game, playerKey, revision, userId]);
 
   if (!userId || (!participants.length && !points?.leaders.length)) return null;
-  const leaders = points?.leaders.slice(0, limit) ?? [];
+  const leaders = points?.leaders.slice(0, leaderLimit) ?? [];
   return (
-    <section aria-label={game ? 'Game points and game leader' : 'Overall game points leaders'} className={cn('rounded-lg border border-border bg-surface px-3 py-2 text-ink', className)}>
+    <section aria-label={title} className={cn('rounded-lg border border-border bg-surface px-3 py-2 text-ink', className)}>
       {leaders.length > 0 && (
         <div>
           <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-stone">
-            <Trophy size={13} className="text-gold" /> {game ? 'Game leader' : limit === 3 ? 'Top 3 overall' : 'Overall leader'}
+            <Trophy size={13} className="text-gold" /> {title}
           </p>
-          <ol className={cn('grid gap-1.5', limit === 3 && 'grid-cols-3')}>
+          <ol className={cn('grid gap-1.5', leaderLimit === 3 && 'grid-cols-3')}>
             {leaders.map(leader => (
-              <li key={leader.user_id} className={cn('flex min-w-0 items-center gap-2', limit === 3 && 'flex-col gap-1 text-center')}>
+              <li key={leader.user_id} className={cn('flex min-w-0 items-center gap-2', leaderLimit === 3 && 'flex-col gap-1 text-center')}>
                 <UserAvatar userId={leader.user_id} name={leader.display_name} avatarUrl={leader.avatar_url} className="h-8 w-8 shrink-0" />
                 <div className="min-w-0 max-w-full">
                   <p className="truncate text-xs font-bold" title={leader.display_name}>{leader.display_name}</p>
                   <p className="text-[10px] tabular-nums text-stone">
                     {leader.player_number != null && <>#{String(leader.player_number).padStart(3, '0')} · </>}
-                    {leader.points.toLocaleString()} pts
+                    {leader.points.toLocaleString()} {game ? 'pts in this game' : 'pts'}
                   </p>
                 </div>
               </li>
@@ -101,8 +114,11 @@ export function GamePoints({ game, players, showCurrentPlayer = false, limit = 1
         </div>
       )}
       {participants.length > 0 && (
-        <div aria-label="Players’ overall game points" className={cn('flex flex-wrap gap-2', leaders.length > 0 && 'mt-2 border-t border-border pt-2')}>
-          {participants.map(player => <PlayerPoints key={player.user_id} player={player} points={points ? points.totals[player.user_id] ?? 0 : undefined} />)}
+        <div className={cn(leaders.length > 0 && 'mt-2 border-t border-border pt-2')}>
+          <p className="mb-1.5 text-[10px] font-semibold text-stone">Players’ lifetime points</p>
+          <div className="flex flex-wrap gap-2">
+            {participants.map(player => <PlayerPoints key={player.user_id} player={player} points={points ? points.totals[player.user_id] ?? 0 : undefined} />)}
+          </div>
         </div>
       )}
     </section>
