@@ -254,7 +254,7 @@ export function CadetApp() {
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const [longestStreak, setLongestStreak] = useState(0);
-  const tentUnlocked = Boolean(tentInfo.tent) || longestStreak >= 10 || streakCount >= 10;
+  const tentUnlocked = Boolean(tentInfo.tent) || longestStreak >= 10;
   const [marksTotal, setMarksTotal] = useState(0);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
@@ -1206,7 +1206,7 @@ export function CadetApp() {
         {tab === 'quiz' && <CadetQuiz onQuizSubmitted={refreshCadetState} />}
         {tab === 'tent' && (!tentUnlocked ? (
           <p className="card p-5 text-sm text-stone">Reach a 10-day streak to unlock Tent. Your first month is free when you join.</p>
-        ) : tentInfo.tent && isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetTent />)}
+        ) : tentInfo.tent && isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetTent onJoined={async () => { await Promise.all([refreshCadetState(), loadSubStatus(), loadTentInfo()]); }} />)}
         {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
         {tab === 'awards' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
         {tab === 'store' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />)}

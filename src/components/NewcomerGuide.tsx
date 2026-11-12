@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BellRing, BookOpen, Gamepad2, Loader2, MoveUp, Pointer, Sparkles, X } from 'lucide-react';
+import { BookOpen, Gamepad2, Loader2, MoveUp, Pointer, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   completeNewcomerGuidanceStep,
@@ -12,7 +12,6 @@ import {
   type NewcomerGuidanceState,
   type NewcomerGuidanceStep,
 } from '../lib/newcomerGuidance';
-import { enableWebPush, getCurrentPushSubscription, supportsWebPush } from '../lib/pushNotifications';
 import { supabase } from '../lib/supabase';
 
 type Props = {
@@ -29,8 +28,8 @@ type TargetBox = {
 };
 
 const STEP_COPY: Partial<Record<NewcomerGuidanceStep, { title: string; text: string }>> = {
-  choose_tent: { title: 'Join your tent', text: 'Your instructor selected your available tent. Follow the hand and send your request.' },
-  dashboard_after_tent: { title: 'Return to your dashboard', text: 'Your request is with the sentry. Continue your short tour from the Dashboard.' },
+  choose_tent: { title: 'Join your tent', text: 'Tent access unlocks after a 10-day streak.' },
+  dashboard_after_tent: { title: 'Return to your dashboard', text: 'Continue your short tour from the Dashboard.' },
   daily_scriptures: { title: "Open Today's Reading", text: 'This is where your daily Scripture journey begins.' },
   scroll_reading: { title: 'Swipe up', text: 'Scroll through the Scripture to continue.' },
   best_verse: { title: 'Choose your Best Verse', text: 'Select the verse that spoke to you most.' },
@@ -129,12 +128,10 @@ function targetElementsForStep(step: NewcomerGuidanceStep, role?: string | null)
   return elements;
 }
 
-export function NewcomerGuide({ activeTab, onNavigate }: Props) {
+export function NewcomerGuide({ activeTab }: Props) {
   const { profile, role } = useAuth();
   const [guidance, setGuidance] = useState<NewcomerGuidanceState | null>(null);
   const [targets, setTargets] = useState<TargetBox[]>([]);
-  const [pushReady, setPushReady] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
   const [dismissBusy, setDismissBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState('');
   const advancingRef = useRef(false);
@@ -192,10 +189,6 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
   }, [load]);
 
   useEffect(() => {
-    if (!supportsWebPush()) return;
-    void getCurrentPushSubscription().then((subscription) => setPushReady(Boolean(subscription))).catch(() => undefined);
-  }, []);
-  useEffect(() => {
     const refresh = (event: Event) => {
       const next = (event as CustomEvent<NewcomerGuidanceState>).detail;
       if (next?.current_step) setGuidance(next);
@@ -242,21 +235,6 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     };
   }, [load, step]);
 
-  const enableAlarmDelivery = async () => {
-    setPushBusy(true);
-    setPushMessage('');
-    try {
-      await enableWebPush();
-      try { window.localStorage.setItem('full-circle-browser-notifications-enabled', 'true'); } catch { /* Permission remains active. */ }
-      try { await supabase.rpc('enable_browser_notifications'); } catch { /* The Web Push subscription is already enough. */ }
-      setPushReady(true);
-    } catch (error) {
-      setPushMessage(error instanceof Error ? error.message : 'Phone alarms could not be enabled.');
-    } finally {
-      setPushBusy(false);
-    }
-  };
-
   const dismissOptionalTour = async () => {
     if (step === 'choose_tent' || dismissBusy) return;
     setDismissBusy(true);
@@ -271,17 +249,13 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
 
   useEffect(() => {
     if (!step || step === 'complete') return;
-    if (step === 'choose_tent' && activeTab !== 'tent') {
-      onNavigate('tent');
-      return;
-    }
     if (step === 'dashboard_after_tent' && activeTab === 'dashboard') void completeStep(step);
     if (step === 'daily_scriptures' && activeTab === 'narrative') void completeStep(step);
     if (step === 'dashboard_games' && activeTab === 'dashboard') void completeStep(step);
     if (step === 'daily_games' && activeTab === 'games') void completeStep(step);
     if (step === 'daily_trivia' && activeTab === 'game') void completeStep(step);
     if (step === 'profile_settings' && activeTab === 'settings') void completeStep(step);
-  }, [activeTab, completeStep, onNavigate, step]);
+  }, [activeTab, completeStep, step]);
 
   useEffect(() => {
     if (step !== 'scroll_reading') return;
@@ -362,6 +336,7 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
     };
   }, [completeStep, role, step]);
 
+  if (step === 'choose_tent') return null;
   if (!guidance || guidance.completed || step === 'complete' || step === 'await_first_streak' || !step || typeof document === 'undefined') return null;
   const copy = STEP_COPY[step];
   const tour = (
@@ -370,14 +345,6 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
         <p className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> Full Circle Guide</p>
         <h2 className="mt-1 font-display text-base font-bold text-peri">{copy?.title}</h2>
         <p className="mt-0.5 text-xs leading-relaxed text-peri-dim">{copy?.text}</p>
-        {step === 'choose_tent' && supportsWebPush() && !pushReady && (
-          <button type="button" onClick={() => void enableAlarmDelivery()} disabled={pushBusy} className="btn-secondary mx-auto mt-2 px-3 py-1.5 text-[11px]">
-            {pushBusy ? <Loader2 size={13} className="animate-spin" /> : <BellRing size={13} />}
-            {pushBusy ? 'Enabling...' : 'Enable phone alarms'}
-          </button>
-        )}
-        {step === 'choose_tent' && pushReady && <p className="mt-1.5 text-[10px] font-bold text-sage">Phone alarm delivery is ready.</p>}
-        {step !== 'choose_tent' && (
           <button
             type="button"
             onClick={() => void dismissOptionalTour()}
@@ -387,7 +354,6 @@ export function NewcomerGuide({ activeTab, onNavigate }: Props) {
             {dismissBusy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
             Skip optional tour
           </button>
-        )}
         {pushMessage && <p className="mt-1.5 text-[10px] leading-relaxed text-coral">{pushMessage}</p>}
       </aside>
       {step === 'scroll_reading' ? (

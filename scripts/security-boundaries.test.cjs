@@ -500,7 +500,7 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
 const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
-assert.equal(startupRelease, '258', 'Every startup-shell change must advance the Full Circle release.');
+assert.equal(startupRelease, '259', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
@@ -1853,7 +1853,7 @@ for (const required of [
 assert.match(quoteQueries, /sentry_assign_cadet_to_tent/);
 assert.match(quoteQueries, /receipt\.tent_id !== tentId/);
 assert.match(quoteQueries, /get_my_tent_context/);
-assert.match(sentryApp, /sentryAddCadetToTent\(tentId, confirmCadet\.user_id\)/);
+assert.doesNotMatch(sentryApp, /sentryAddCadetToTent|reviewTentJoinRequest/);
 assert.match(cadetApp, /fetchOwnTentContext\(\)/);
 
 for (const required of [
@@ -2105,24 +2105,16 @@ assert.match(confirmedPresenceStreak, /v_affected_date date := date '2026-09-08'
 assert.match(confirmedPresenceStreak, /AND public\.streak_requirement_met\(v_ph_id, v_affected_date\)/);
 assert.match(confirmedPresenceStreak, /record\.record_date >= date '2026-09-08'/);
 assert.match(confirmedPresenceStreak, /SELECT public\.refresh_all_streak_snapshots\(\)/);
-assert.match(cadetTent, /data-guide-tent-choice=\{joinable \? 'directed' : undefined\}/);
-assert.match(cadetTent, /item\.member_count >= TENT_MEMBER_CAPACITY/);
-assert.match(cadetTent, /\{item\.member_count\}\/\{TENT_MEMBER_CAPACITY\} people/);
-assert.match(cadetTent, /fetchTentJoinDirections\(profile\.id\)/);
-assert.match(cadetTent, /fetchDefaultTentJoinDirection\(\)/);
-assert.match(cadetTent, /tent_join_guidance_settings/);
-assert.match(cadetTent, /directedTentId !== tentId/);
-assert.match(newcomerGuide, /Your instructor selected your available tent/);
-assert.match(instructorApp, /Camp-wide tour tent/);
-assert.match(instructorApp, /setDefaultTentJoinDirection\(tentId\)/);
-assert.match(instructorApp, /setTentJoinDirection\(userId, tentId\)/);
-assert.match(instructorApp, /Personal overrides remain available below/);
+assert.match(cadetTent, /get_tent_join_options/);
+assert.match(cadetTent, /join_eligible_tent/);
+assert.doesNotMatch(cadetTent, /request_to_join_tent|directedTentId/);
+assert.doesNotMatch(newcomerGuide, /Your instructor selected your available tent/);
+assert.doesNotMatch(instructorApp, /setDefaultTentJoinDirection|setTentJoinDirection|TentJoinRequests/);
 assert.match(cadetNarrative, /data-guide="best-verse"/);
 assert.match(cadetNarrative, /data-guide="daily-meditation"/);
 assert.match(cadetNarrative, /data-guide="daily-quote"/);
 assert.match(notificationArrival, /isTentJoinRequestArrival/);
-assert.match(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
-assert.match(doveNotificationArrivalComponent, /\} Accept/);
+assert.doesNotMatch(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.streak_forward_baselines',

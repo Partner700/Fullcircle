@@ -8,14 +8,13 @@ import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
 import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
-import { fetchAwards, fetchDefaultTentJoinDirection, fetchPanelImageSetting, fetchPublicStreakDetails, fetchTentJoinDirections } from '../../lib/queries';
+import { fetchAwards, fetchPanelImageSetting, fetchPublicStreakDetails } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { VallumText } from '../../components/ChiRhoMark';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { PanelImageSetting } from '../../lib/types';
 import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
-import { completeNewcomerGuidanceStep } from '../../lib/newcomerGuidance';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -51,15 +50,11 @@ type TentJoinOption = {
   id: string;
   name: string;
   profile_image_url: string | null;
-  sentry_id: string | null;
-  tent_houses?: { name?: string | null } | null;
-  member_count: number;
+  cadet_count: number;
+  cadet_limit: number;
 };
-type TentJoinRow = Omit<TentJoinOption, 'member_count'>;
 
-const TENT_MEMBER_CAPACITY = 10;
-
-export function CadetTent() {
+export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
   const { profile } = useAuth();
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
@@ -72,8 +67,8 @@ export function CadetTent() {
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
   const [availableTents, setAvailableTents] = useState<TentJoinOption[]>([]);
-  const [directedTentId, setDirectedTentId] = useState<string | null>(null);
-  const [pendingTentId, setPendingTentId] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState('');
+  const [optionsError, setOptionsError] = useState(false);
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
   const [awardView, setAwardView] = useState('week');
   const [showTentChat, setShowTentChat] = useState(false);
@@ -84,41 +79,17 @@ export function CadetTent() {
     if (!profile) { setLoading(false); return; }
     if (!hasLoadedRef.current) setLoading(true);
     try {
-      const { data: member } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
+      const { data: member, error: memberError } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
+      if (memberError) throw memberError;
+      setOptionsError(false);
       if (!member) {
         setTent(null);
         setMembers([]);
-        const [tentOptionsResult, requestResult, memberOptionsResult, directions, defaultTentId] = await Promise.all([
-          supabase.from('tents').select('id,name,profile_image_url,sentry_id,tent_houses(name)').order('name'),
-          supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
-          supabase.from('tent_members').select('tent_id,user_id'),
-          fetchTentJoinDirections(profile.id),
-          fetchDefaultTentJoinDirection(),
-        ]);
-        if (tentOptionsResult.error) throw tentOptionsResult.error;
-        if (requestResult.error) throw requestResult.error;
-        if (memberOptionsResult.error) throw memberOptionsResult.error;
-        const tentRows = (tentOptionsResult.data || []) as unknown as TentJoinRow[];
-        const requestRow = requestResult.data;
-        const memberRows = memberOptionsResult.data || [];
-        const membersByTent = new Map<string, Set<string>>();
-        memberRows.forEach((member: { tent_id: string; user_id: string }) => {
-          const people = membersByTent.get(member.tent_id) || new Set<string>();
-          people.add(member.user_id);
-          membersByTent.set(member.tent_id, people);
-        });
-        const tentsWithCounts = tentRows.map((row) => {
-          const people = membersByTent.get(row.id) || new Set<string>();
-          if (row.sentry_id) people.add(row.sentry_id);
-          return { ...row, member_count: people.size } as TentJoinOption;
-        });
-        setAvailableTents(tentsWithCounts);
-        setDirectedTentId(directions[0]?.tent_id || defaultTentId);
-        setPendingTentId(requestRow?.tent_id || null);
+        const { data, error } = await supabase.rpc('get_tent_join_options');
+        if (error) throw error;
+        setAvailableTents((data ?? []) as TentJoinOption[]);
         return;
       }
-
-      setDirectedTentId(null);
 
       const [tentResult, membersResult, reactionsResult, unreadResult] = await Promise.all([
         supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
@@ -172,6 +143,7 @@ export function CadetTent() {
       })();
     } catch (error) {
       console.error('Tent load error:', error);
+      setOptionsError(true);
       setTent(null);
     } finally {
       hasLoadedRef.current = true;
@@ -186,9 +158,6 @@ export function CadetTent() {
     const channel = supabase
       .channel(`cadet-tent-membership-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_members', filter: `user_id=eq.${profile.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_requests', filter: `user_id=eq.${profile.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_directions', filter: `user_id=eq.${profile.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_guidance_settings' }, refresh)
       .subscribe();
     const interval = window.setInterval(refresh, tent?.id ? 120_000 : 20_000);
     return () => {
@@ -197,27 +166,22 @@ export function CadetTent() {
     };
   }, [load, profile, tent?.id]);
 
-  const requestTent = async (tentId: string) => {
-    const selectedTent = availableTents.find((item) => item.id === tentId);
-    if (!directedTentId || directedTentId !== tentId) {
-      alert('Your instructor has not directed you to this tent. Follow the hand to the selected tent.');
-      await load();
-      return;
-    }
-    if (!selectedTent || selectedTent.member_count >= TENT_MEMBER_CAPACITY) {
-      alert('The selected tent already has 10 people. Your instructor must direct you to another available tent.');
-      await load();
-      return;
-    }
-    setRequestingTentId(tentId);
+  const joinTent = async (item: TentJoinOption) => {
+    if (requestingTentId || item.cadet_count >= item.cadet_limit) return;
+    if (!window.confirm(`Join ${item.name}?`)) return;
+    setRequestingTentId(item.id);
+    setJoinError('');
     try {
-      const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: tentId });
-      if (error) throw error;
-      setPendingTentId(tentId);
-      await completeNewcomerGuidanceStep('choose_tent').catch(() => undefined);
-    } catch (error: unknown) {
+      const { error } = await supabase.rpc('join_eligible_tent', { p_tent_id: item.id });
+      if (error) {
+        setJoinError(error.message);
+        await load();
+        return;
+      }
+      await Promise.allSettled([load(), onJoined()]);
+    } catch {
+      setJoinError('Could not confirm the join. Check your tent before retrying.');
       await load();
-      alert(error instanceof Error ? error.message : 'This tent cannot accept another request right now.');
     } finally {
       setRequestingTentId(null);
     }
@@ -269,33 +233,26 @@ export function CadetTent() {
       <div className="space-y-5 animate-fade-in">
         <EmptyState
           icon={Users}
-          title="You're not in a tent yet"
-          message={directedTentId
-            ? 'Your instructor selected your tent. Follow the hand and send your request.'
-            : 'Your instructor will direct you to an available tent. The choices stay muted until then.'}
+          title="Choose your tent"
+          message="Join a tent with an open cadet place. Your first month starts when you join for the first time."
         />
+        {joinError && <p className="card p-4 text-coral" role="alert">{joinError}</p>}
+        {optionsError ? (
+          <button type="button" className="btn-secondary" onClick={() => void load()}>Retry loading tents</button>
+        ) : availableTents.length === 0 && <p className="card p-4 text-stone">There are no tents available to join right now.</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           {availableTents.map((item) => {
-            const full = item.member_count >= TENT_MEMBER_CAPACITY;
-            const directed = directedTentId === item.id;
-            const joinable = directed && !full;
-            const pending = pendingTentId === item.id;
-            return <article
-              key={item.id}
-              data-guide-tent-choice={joinable ? 'directed' : undefined}
-              aria-disabled={!joinable || undefined}
-              className={cn('card flex items-center gap-3 p-4 transition-opacity', !joinable && 'opacity-50 saturate-50')}
-            >
+            const full = item.cadet_count >= item.cadet_limit;
+            return <article key={item.id} className={cn('card flex items-center gap-3 p-4', full && 'opacity-60')}>
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
                 {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-ink">{item.name}</p>
-                <p className="text-xs text-stone">{item.tent_houses?.name} · {item.member_count}/{TENT_MEMBER_CAPACITY} people</p>
-                {directed && <p className="mt-1 text-[10px] font-bold uppercase text-gold">Instructor selected</p>}
+                <p className="text-xs text-stone">{item.cadet_count}/{item.cadet_limit} cadet places taken</p>
               </div>
-              <button type="button" disabled={!joinable || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
-                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : !directed ? 'Muted' : <><UserPlus size={14} /> Join</>}
+              <button type="button" disabled={full || !!requestingTentId} onClick={() => void joinTent(item)} className="btn-secondary px-3 text-xs">
+                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : full ? 'Full' : <><UserPlus size={14} /> Join</>}
               </button>
             </article>;
           })}

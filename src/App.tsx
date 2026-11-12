@@ -13,10 +13,13 @@ import { importWithRetry } from './lib/importWithRetry';
 import { LogOut, RefreshCw } from 'lucide-react';
 import { isInstalledApp } from './lib/appDisplayMode';
 import { readShareDestination, shareDestinationMode, openShareInAppUrl, closeShareUrl } from './lib/shareDestination';
+import { supabase } from './lib/supabase';
+import type { CampAccess } from './screens/admin/CampWorkspace';
 import { NonBlockingErrorBoundary } from './components/NonBlockingErrorBoundary';
 
 const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }))));
 const SentryApp = lazy(() => importWithRetry(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }))));
+const CampWorkspace = lazy(() => importWithRetry(() => import('./screens/admin/CampWorkspace').then(({ CampWorkspace }) => ({ default: CampWorkspace }))));
 const InstructorApp = lazy(() => importWithRetry(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp }))));
 const PublicShareScreen = lazy(() => importWithRetry(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen }))));
 const PublicArenaScreen = lazy(() => importWithRetry(() => import('./screens/PublicArenaScreen').then((module) => ({ default: module.PublicArenaScreen }))));
@@ -64,6 +67,28 @@ export default function App() {
   const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);
   const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
   const authenticatedUserId = session?.user.id || null;
+  const [campLookup, setCampLookup] = useState<{ userId: string; access?: CampAccess } | null>(null);
+  useEffect(() => {
+    if (!authenticatedUserId) {
+      setCampLookup(null);
+      return;
+    }
+    let active = true;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_camp_workspace');
+        if (!active) return;
+        if (error?.code === 'PGRST202') {
+          setCampLookup({ userId: authenticatedUserId, access: { role: 'none' } });
+        } else {
+          setCampLookup({ userId: authenticatedUserId, access: error ? undefined : data as CampAccess });
+        }
+      } catch {
+        if (active) setCampLookup({ userId: authenticatedUserId });
+      }
+    })();
+    return () => { active = false; };
+  }, [authenticatedUserId]);
   const authenticatedProfileId = profile?.id || null;
   const language = interfaceLanguage(profile?.language_code);
   useFrenchUiTranslation(language);
@@ -233,6 +258,23 @@ export default function App() {
         )}
       </>
     );
+  }
+
+  // Resolve staff access before rendering any member onboarding or guide.
+  if (campLookup?.userId !== session.user.id) return <ScreenLoader label="Checking camp access" />;
+  if (!campLookup.access) {
+    return (
+      <main className="min-h-screen bg-navy px-4 py-10">
+        <section className="card mx-auto max-w-md space-y-3 p-5 text-ink" role="alert">
+          <p>Camp access could not be checked.</p>
+          <button className="btn-primary" onClick={() => window.location.reload()}>Retry</button>
+          <button className="btn-secondary ml-2" onClick={() => void signOut()}>Sign out</button>
+        </section>
+      </main>
+    );
+  }
+  if (campLookup.access.role !== 'none') {
+    return <Suspense fallback={<ScreenLoader label="Opening camp workspace" />}><CampWorkspace key={session.user.id} initial={campLookup.access} /></Suspense>;
   }
 
   if (!profile) {

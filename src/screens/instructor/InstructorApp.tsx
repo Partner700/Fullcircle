@@ -49,8 +49,7 @@ import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
   fetchAllNarratives, fetchAwards,
   fetchQuizSessions, createQuizSession, launchQuizSession, extendQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
-  fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
-  fetchDefaultTentJoinDirection, fetchTentJoinDirections, setDefaultTentJoinDirection, setTentJoinDirection,
+  fetchUnassignedUsers, isSaturdayQuizScheduled, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
 import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
@@ -356,7 +355,7 @@ export function InstructorApp() {
       )}
       {tab === 'announcements' && <AnnouncementManager />}
       {tab === 'dove_questions' && <DoveQuestionManager />}
-      {tab === 'tents' && <><TentJoinRequests onRefresh={loadAll} /><TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} /></>}
+      {tab === 'tents' && <TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} />}
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
@@ -1746,36 +1745,6 @@ function StatBox({ icon: Icon, label, value, tint }: { icon: any; label: string;
   );
 }
 
-function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [reviewing, setReviewing] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.from('tent_join_requests')
-      .select('id,created_at,user_id,tent_id,profiles(display_name,avatar_url),tents(name)')
-      .eq('status', 'pending').order('created_at');
-    if (!error) setRequests(data || []);
-  }, []);
-  useEffect(() => { void load(); }, [load]);
-  const review = async (id: string, approve: boolean) => {
-    setReviewing(id);
-    const { error } = await supabase.rpc('review_tent_join_request', { p_request_id: id, p_approve: approve });
-    setReviewing(null);
-    if (error) return alert(error.message);
-    await load();
-    onRefresh();
-  };
-  if (requests.length === 0) return null;
-  return <section className="card mb-5 p-5">
-    <SectionHeader title="Tent Join Requests" subtitle="Approve the instructor-directed tent while it has fewer than ten cadets. The sentry has a separate place." />
-    <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
-      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /></span>
-      <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
-      <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
-      <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
-    </div>)}</div>
-  </section>;
-}
-
 const TENT_CADET_CAPACITY = 10;
 
 function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {
@@ -1794,14 +1763,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [tentActionMessage, setTentActionMessage] = useState<string | null>(null);
   const [tentActionError, setTentActionError] = useState<string | null>(null);
-  const [directions, setDirections] = useState<Record<string, string>>({});
-  const [directionDrafts, setDirectionDrafts] = useState<Record<string, string>>({});
-  const [directionSavingId, setDirectionSavingId] = useState<string | null>(null);
-  const [directionsLoading, setDirectionsLoading] = useState(true);
-  const [defaultTentId, setDefaultTentId] = useState('');
-  const [defaultTentDraft, setDefaultTentDraft] = useState('');
-  const [defaultTentSaving, setDefaultTentSaving] = useState(false);
-
   const tentCadetsById = useMemo(() => {
     const counts = new Map<string, number>();
     tents.forEach((tent) => {
@@ -1814,83 +1775,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
     });
     return counts;
   }, [members, tents]);
-
-  const tentlessCadets = useMemo(() => {
-    const assignedUserIds = new Set(members.map((member) => member.user_id));
-    const activeCadetIds = new Set(roles
-      .filter((assignment) => assignment.role === 'cadet' && (assignment.status === 'active' || assignment.status === 'approved'))
-      .map((assignment) => assignment.user_id));
-    return profiles
-      .filter((candidate) => activeCadetIds.has(candidate.id) && !assignedUserIds.has(candidate.id))
-      .sort((left, right) => left.display_name.localeCompare(right.display_name));
-  }, [members, profiles, roles]);
-
-  const loadDirections = useCallback(async () => {
-    setDirectionsLoading(true);
-    try {
-      const [rows, campDefaultTentId] = await Promise.all([
-        fetchTentJoinDirections(),
-        fetchDefaultTentJoinDirection(),
-      ]);
-      const next = Object.fromEntries(rows.map((row) => [row.user_id, row.tent_id]));
-      setDirections(next);
-      setDirectionDrafts(next);
-      setDefaultTentId(campDefaultTentId || '');
-      setDefaultTentDraft(campDefaultTentId || '');
-    } catch (error) {
-      setTentActionError(error instanceof Error ? error.message : 'Tent directions could not be loaded.');
-    } finally {
-      setDirectionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void loadDirections(); }, [loadDirections]);
-
-  const saveDefaultDirection = async () => {
-    const tentId = defaultTentDraft || null;
-    setDefaultTentSaving(true);
-    setTentActionMessage(null);
-    setTentActionError(null);
-    try {
-      await setDefaultTentJoinDirection(tentId);
-      setDefaultTentId(tentId || '');
-      const tentName = tents.find((tent) => tent.id === tentId)?.name;
-      setTentActionMessage(tentName
-        ? `The tour hand now directs every new or tentless cadet to ${tentName}.`
-        : 'The camp-wide tour tent was cleared. Tents remain muted unless a personal direction exists.');
-    } catch (error) {
-      setTentActionError(error instanceof Error ? error.message : 'The camp-wide tour tent could not be saved.');
-      await loadDirections();
-    } finally {
-      setDefaultTentSaving(false);
-    }
-  };
-
-  const saveDirection = async (userId: string) => {
-    const tentId = directionDrafts[userId] || null;
-    setDirectionSavingId(userId);
-    setTentActionMessage(null);
-    setTentActionError(null);
-    try {
-      await setTentJoinDirection(userId, tentId);
-      setDirections((current) => {
-        const next = { ...current };
-        if (tentId) next[userId] = tentId;
-        else delete next[userId];
-        return next;
-      });
-      const cadetName = profiles.find((candidate) => candidate.id === userId)?.display_name || 'The cadet';
-      const tentName = tents.find((tent) => tent.id === tentId)?.name;
-      setTentActionMessage(tentName
-        ? `${cadetName} was directed to ${tentName}. The hand now points only there.`
-        : `${cadetName}'s tent direction was cleared.`);
-    } catch (error) {
-      setTentActionError(error instanceof Error ? error.message : 'The tent direction could not be saved.');
-      await loadDirections();
-    } finally {
-      setDirectionSavingId(null);
-    }
-  };
 
   const availableSentries = roles
     .filter((r) => r.role === 'sentry' && r.status === 'active')
@@ -1933,7 +1817,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
-        <SectionHeader title="Tent Management" subtitle="Create tents, assign sentries, add cadets" />
+        <SectionHeader title="Tent Management" subtitle="Create tents and assign Sentries" />
         <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm">
           <Plus size={16} /> New Tent
         </button>
@@ -1980,107 +1864,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
         </div>
       )}
 
-      <section className="card p-4">
-        <SectionHeader
-          title="Tour Tent Direction"
-          subtitle="Choose the tent the hand points to for every new or tentless cadet. Personal overrides remain available below."
-        />
-        {directionsLoading ? (
-          <div className="flex items-center justify-center py-6 text-sm text-stone"><Loader2 size={16} className="mr-2 animate-spin" /> Loading directions…</div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-3 rounded-lg border border-gold/25 bg-gold-soft/35 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
-              <div>
-                <p className="text-sm font-bold text-ink">Camp-wide tour tent</p>
-                <p className="text-xs text-stone">This is the default for every new and tentless cadet.</p>
-              </div>
-              <AppSelect
-                value={defaultTentDraft}
-                onChange={setDefaultTentDraft}
-                options={[
-                  { value: '', label: 'No camp-wide direction', description: 'All tents stay muted unless a personal override exists.' },
-                  ...tents
-                    .filter((tent) => (tentCadetsById.get(tent.id) || 0) < TENT_CADET_CAPACITY || defaultTentId === tent.id)
-                    .map((tent) => {
-                      const count = tentCadetsById.get(tent.id) || 0;
-                      return {
-                        value: tent.id,
-                        label: `${tent.name} · ${count}/${TENT_CADET_CAPACITY} cadets`,
-                        description: count >= TENT_CADET_CAPACITY ? 'Full — choose another tent' : `${TENT_CADET_CAPACITY - count} cadet place${TENT_CADET_CAPACITY - count === 1 ? '' : 's'} available`,
-                      };
-                    }),
-                ]}
-                buttonClassName="text-sm"
-                disabled={defaultTentSaving}
-              />
-              <button
-                type="button"
-                onClick={() => void saveDefaultDirection()}
-                disabled={defaultTentSaving || defaultTentDraft === defaultTentId}
-                className="btn-primary min-w-24 justify-center text-xs"
-              >
-                {defaultTentSaving ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
-                Save
-              </button>
-            </div>
-
-            <div>
-              <p className="text-xs font-extrabold uppercase text-stone">Optional personal overrides</p>
-              {tentlessCadets.length === 0 ? (
-                <p className="mt-2 text-sm text-stone">Every active cadet currently belongs to a tent.</p>
-              ) : (
-                <div className="mt-2 divide-y divide-border rounded-lg border border-border">
-                  {tentlessCadets.map((cadet) => {
-                    const currentTentId = directions[cadet.id] || '';
-                    const draftTentId = directionDrafts[cadet.id] ?? currentTentId;
-                    const options = [
-                      {
-                        value: '',
-                        label: defaultTentId ? `Use camp-wide direction · ${tents.find((tent) => tent.id === defaultTentId)?.name || 'selected tent'}` : 'No personal direction',
-                        description: defaultTentId ? 'The tour follows the camp-wide tent.' : 'All tents remain muted for this cadet.',
-                      },
-                      ...tents
-                        .filter((tent) => (tentCadetsById.get(tent.id) || 0) < TENT_CADET_CAPACITY || currentTentId === tent.id)
-                        .map((tent) => {
-                          const count = tentCadetsById.get(tent.id) || 0;
-                          const full = count >= TENT_CADET_CAPACITY;
-                          return {
-                            value: tent.id,
-                            label: `${tent.name} · ${count}/${TENT_CADET_CAPACITY} cadets`,
-                            description: full ? 'Full — choose another tent' : `${TENT_CADET_CAPACITY - count} cadet place${TENT_CADET_CAPACITY - count === 1 ? '' : 's'} available`,
-                          };
-                        }),
-                    ];
-                    return <div key={cadet.id} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <UserAvatar userId={cadet.id} name={cadet.display_name} avatarUrl={cadet.avatar_url} className="h-10 w-10 flex-shrink-0" />
-                        <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{cadet.display_name}</p><p className="text-xs text-stone">Tentless cadet</p></div>
-                      </div>
-                      <AppSelect
-                        value={draftTentId}
-                        onChange={(value) => setDirectionDrafts((current) => ({ ...current, [cadet.id]: value }))}
-                        options={options}
-                        buttonClassName="text-sm"
-                        disabled={directionSavingId === cadet.id}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void saveDirection(cadet.id)}
-                        disabled={directionSavingId === cadet.id || draftTentId === currentTentId}
-                        className="btn-primary min-w-24 justify-center text-xs"
-                      >
-                        {directionSavingId === cadet.id ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
-                        {currentTentId ? 'Update' : 'Direct'}
-                      </button>
-                    </div>;
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
       {tents.length === 0 ? (
         <EmptyState icon={TentIcon} title="No tents yet" message="Create a tent and assign a sentry to get started." />
       ) : (
@@ -2090,10 +1873,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
             const sentry = tentMembers.find((m) => m.role === 'sentry');
             const cadets = tentMembers.filter((m) => m.role === 'cadet');
             const cadetCount = tentCadetsById.get(t.id) || 0;
-            const availableCadets = roles
-              .filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved'))
-              .filter((r) => !members.some((m) => m.user_id === r.user_id));
-
             return (
               <div key={t.id} className="card p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -2153,53 +1932,11 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                   ))}
                 </div>
 
-                {cadetCount < TENT_CADET_CAPACITY && availableCadets.length > 0 && (
-                  <AddCadetRow tentId={t.id} availableCadets={availableCadets} profiles={profiles} onRefresh={onRefresh} />
-                )}
               </div>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function AddCadetRow({ tentId, availableCadets, profiles, onRefresh }: {
-  tentId: string; availableCadets: RoleAssignment[]; profiles: Profile[]; onRefresh: () => void;
-}) {
-  const [selected, setSelected] = useState('');
-  const [adding, setAdding] = useState(false);
-
-  const addCadet = async () => {
-    if (!selected) return;
-    setAdding(true);
-    try {
-      await assignCadetToTent(tentId, selected);
-      setSelected('');
-      onRefresh();
-    } catch (e: any) {
-      alert(e.message || 'Failed to add cadet');
-    }
-    setAdding(false);
-  };
-
-  return (
-    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-      <AppSelect
-        className="flex-1"
-        buttonClassName="text-sm"
-        value={selected}
-        onChange={setSelected}
-        placeholder="Add cadet..."
-        options={availableCadets.map((r) => {
-          const p = profiles.find((p) => p.id === r.user_id);
-          return { value: r.user_id, label: p?.display_name || 'Cadet' };
-        })}
-      />
-      <button onClick={addCadet} disabled={adding || !selected} className="btn-primary text-xs">
-        {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
-      </button>
     </div>
   );
 }
@@ -5484,18 +5221,14 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
         p_new_role: role,
       });
       if (roleError) throw roleError;
-      if (tentId) {
-        if (role === 'cadet') {
-          await assignCadetToTent(tentId, userId);
-        } else {
-          const { error: memberError } = await supabase.from('tent_members').insert({
-            user_id: userId,
-            tent_id: tentId,
-            role,
-          });
-          if (memberError) throw memberError;
-          await supabase.from('tents').update({ sentry_id: userId }).eq('id', tentId);
-        }
+      if (role === 'sentry' && tentId) {
+        const { error: memberError } = await supabase.from('tent_members').insert({
+          user_id: userId,
+          tent_id: tentId,
+          role,
+        });
+        if (memberError) throw memberError;
+        await supabase.from('tents').update({ sentry_id: userId }).eq('id', tentId);
       }
       await load();
       onRefresh();
@@ -5507,7 +5240,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Unassigned Users" subtitle="New accounts that haven't been assigned a role yet. Assign them as cadet or sentry and optionally place them in a tent." />
+      <SectionHeader title="Unassigned Users" subtitle="New accounts that haven't been assigned a role yet. Assign a Resident or Sentry role. Residents choose their own tent after qualifying." />
 
       {users.length === 0 ? (
         <EmptyState icon={UserPlus} title="Everyone is assigned" message="All users have active role assignments. New signups will appear here." />
@@ -5532,6 +5265,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
                     { value: 'sentry', label: 'Sentry' },
                   ]} />
                 </div>
+                {assignRole[u.user_id] === 'sentry' && (
                 <div>
                   <label className="text-xs text-stone block mb-1">Tent (optional)</label>
                   <AppSelect
@@ -5541,6 +5275,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
                     options={[{ value: '', label: 'No tent' }, ...tents.map((t) => ({ value: t.id, label: t.name }))]}
                   />
                 </div>
+                )}
                 <button onClick={() => assign(u.user_id)} disabled={assigning === u.user_id} className="btn-primary text-sm">
                   {assigning === u.user_id ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Assign
                 </button>

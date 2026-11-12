@@ -26,7 +26,7 @@ export function registerServiceWorker() {
 
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=258`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=259`, { updateViaCache: 'none' })
       .then((registration) => {
         let lastUpdateCheck = 0;
         const checkForUpdate = () => {

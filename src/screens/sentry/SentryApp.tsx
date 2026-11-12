@@ -14,11 +14,9 @@ import { SealBullet } from '../../components/AncientMotifs';
 import type { QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
-import { AppSelect } from '../../components/AppSelect';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
 import { ChiRhoMark } from '../../components/ChiRhoMark';
-import { UserAvatar } from '../../components/UserAvatar';
 import { SubscriptionGate, SubscriptionScreen, type SubscriptionStatusView } from '../../components/SubscriptionScreen';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
@@ -27,8 +25,8 @@ import { supabase } from '../../lib/supabase';
 import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchLedgerEntries, fetchReliableToolbarStats, fetchPublicStreakDetails, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
-  fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
-  fetchTentJoinRequests, reviewTentJoinRequest, fetchSentryCadetContacts, type TentJoinRequestSummary,
+  fetchAllChallengeSubmissions, reviewChallengeSubmission,
+  fetchSentryCadetContacts,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
@@ -61,7 +59,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ShoppingBag, FileQuestion, Award, Trophy,
-  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock, Contact,
+  Swords, Coins, Target, Eye, CreditCard, Lock, Contact,
 } from 'lucide-react';
 
 const SENTRY_LEADERSHIP_SCRIPTURES = [
@@ -652,7 +650,7 @@ export function SentryApp() {
         />
       )}
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
-      {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} onChanged={load} />}
+      {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
       {tab === 'games' && (
@@ -1208,155 +1206,16 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
   );
 }
 
-function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId, onChanged }: {
+function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId }: {
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
   strictStreaks: Record<string, StrictStreakData>;
   currentUserId: string;
   tentId: string;
-  onChanged: () => void;
 }) {
   const positions = useTentPositions(tentId, members.length);
-  const [showAdd, setShowAdd] = useState(false);
-  const [unassigned, setUnassigned] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
-  const [selectedCadet, setSelectedCadet] = useState('');
-  const [confirmCadet, setConfirmCadet] = useState<{ user_id: string; display_name: string; avatar_url: string | null } | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [joinRequests, setJoinRequests] = useState<TentJoinRequestSummary[]>([]);
-  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
-
-  const loadUnassigned = useCallback(async () => {
-    const users = await fetchSentryAddableCadets(currentUserId).catch(() => []);
-    setUnassigned(users);
-    setSelectedCadet('');
-    setConfirmCadet(null);
-  }, [currentUserId]);
-
-  useEffect(() => {
-    if (showAdd) void loadUnassigned();
-  }, [loadUnassigned, showAdd]);
-
-  const loadJoinRequests = useCallback(async () => {
-    setJoinRequests(await fetchTentJoinRequests(tentId).catch(() => []));
-  }, [tentId]);
-
-  useEffect(() => {
-    void loadJoinRequests();
-    const interval = window.setInterval(() => { void loadJoinRequests(); }, 20_000);
-    return () => window.clearInterval(interval);
-  }, [loadJoinRequests]);
-
-  const reviewRequest = async (requestId: string, approve: boolean) => {
-    setReviewingRequestId(requestId);
-    try {
-      await reviewTentJoinRequest(requestId, approve);
-      await Promise.all([loadJoinRequests(), onChanged()]);
-    } catch (error: any) {
-      alert(error.message || 'Could not review this tent application.');
-    } finally {
-      setReviewingRequestId(null);
-    }
-  };
-
-  const addCadet = async () => {
-    if (!confirmCadet) return;
-    setAdding(true);
-    try {
-      await sentryAddCadetToTent(tentId, confirmCadet.user_id);
-      setShowAdd(false);
-      setSelectedCadet('');
-      setConfirmCadet(null);
-      await onChanged();
-    } catch (error: any) {
-      alert(error.message || 'Could not add cadet to your tent.');
-    }
-    setAdding(false);
-  };
-
   return (
     <div className="space-y-3 animate-fade-in">
-      {joinRequests.length > 0 && (
-        <section className="card border-sage/35 bg-surface p-4">
-          <div className="mb-3">
-            <p className="font-display font-semibold text-ink">Tent Applications</p>
-            <p className="text-xs text-stone">Accept or decline cadets who asked to join your tent.</p>
-          </div>
-          <div className="space-y-2">
-            {joinRequests.map((request) => (
-              <div key={request.request_id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-2.5">
-                <UserAvatar userId={request.user_id} name={request.display_name} avatarUrl={request.avatar_url} className="h-9 w-9 shrink-0 border border-sage/35" />
-                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{request.display_name}</p>
-                <button type="button" className="btn-ghost px-2 py-1.5 text-xs text-coral" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, false)}>
-                  <X size={14} /> Deny
-                </button>
-                <button type="button" className="btn-primary px-2 py-1.5 text-xs" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, true)}>
-                  {reviewingRequestId === request.request_id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Accept
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      <div className="card p-4 bg-surface-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-display font-semibold text-ink">Tent Cadets</p>
-            <p className="text-xs text-stone">Sentries can add unassigned cadets. Only the instructor can remove or move cadets.</p>
-          </div>
-          <button onClick={() => {
-            setShowAdd((value) => !value);
-            setSelectedCadet('');
-            setConfirmCadet(null);
-          }} className="btn-secondary text-xs">
-            {showAdd ? <X size={14} /> : <UserPlus size={14} />}
-            {showAdd ? 'Close' : 'Add Cadet'}
-          </button>
-        </div>
-        {showAdd && (
-          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-            <AppSelect
-              value={selectedCadet}
-              onChange={setSelectedCadet}
-              placeholder={unassigned.length === 0 ? 'No unassigned cadets available' : 'Choose cadet'}
-              disabled={unassigned.length === 0}
-              buttonClassName="bg-surface text-xs shadow-sm"
-              options={unassigned.map((cadet) => ({ value: cadet.user_id, label: cadet.display_name }))}
-            />
-            <button
-              onClick={() => setConfirmCadet(unassigned.find((cadet) => cadet.user_id === selectedCadet) || null)}
-              disabled={!selectedCadet || adding}
-              className="btn-primary text-xs disabled:opacity-50"
-            >
-              <UserPlus size={14} />
-              Add
-            </button>
-          </div>
-        )}
-      </div>
-      {confirmCadet && (
-        <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/50 px-4 animate-fade-in" onClick={() => !adding && setConfirmCadet(null)}>
-          <div className="relative z-[2147483001] w-full max-w-sm rounded-2xl border border-border bg-bg p-5 shadow-2xl animate-scale-in" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start gap-3">
-              <span className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center text-sm font-bold text-brass">
-                <UserAvatar userId={confirmCadet.user_id} name={confirmCadet.display_name} avatarUrl={confirmCadet.avatar_url} className="h-full w-full border border-brass/30" />
-
-              </span>
-              <div className="min-w-0">
-                <h3 className="font-display text-base font-semibold text-ink">Add {confirmCadet.display_name}?</h3>
-                <p className="mt-1 text-sm leading-relaxed text-stone">This will add the cadet to your tent. Only the instructor can undo this or move them later.</p>
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" className="btn-secondary justify-center text-xs" disabled={adding} onClick={() => setConfirmCadet(null)}>
-                Cancel
-              </button>
-              <button type="button" className="btn-primary justify-center text-xs" disabled={adding} onClick={addCadet}>
-                {adding ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {members.length > 0 && <TentPositionControls {...positions} />}
       {[...members].sort(positions.compare).map((m) => {
         const streak = streakForMember(m.user_id, allRecords, strictStreaks);

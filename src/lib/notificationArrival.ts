@@ -31,7 +31,6 @@ export function isArenaScheduledResultArrival(notification: UserNotification) {
 export function isDoveArrival(notification: UserNotification) {
   return isMessageArrival(notification)
     || isQuizArrival(notification)
-    || isTentJoinRequestArrival(notification)
     || isResourceGrantArrival(notification)
     || isArenaScheduledResultArrival(notification);
 }
