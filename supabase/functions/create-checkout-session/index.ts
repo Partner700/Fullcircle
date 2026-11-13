@@ -545,7 +545,7 @@ async function startFcxCheckout(
 
 async function startCartCheckout(
   userId: string, method: unknown, customerPhone: unknown, amount: unknown,
-  relics: unknown, eventId: unknown, ticketQuantity: unknown,
+  relics: unknown, eventId: unknown, ticketQuantity: unknown, attendeeKind?: unknown, attendeeId?: unknown,
 ): Promise<Response> {
   const phone = normalizeCampayPhone(customerPhone);
   if (!useFapshiDirect) {
@@ -567,13 +567,20 @@ async function startCartCheckout(
 
   assertFapshiConfigured();
   const reference = `fp_${crypto.randomUUID()}`;
-  const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fapshi_cart`, {
+  const attendeeSelected = attendeeKind !== undefined;
+  if (attendeeSelected && (!quantity || !["self", "member", "guest"].includes(String(attendeeKind)) ||
+    (attendeeKind === "member" && (typeof attendeeId !== "string" || !/^[0-9a-f-]{36}$/i.test(attendeeId))))) {
+    return Response.json({ error: "Choose who the FCX ticket is for." }, { status: 400, headers: corsHeaders });
+  }
+  const reservationRpc = attendeeSelected ? "reserve_fcx_attendee_cart" : "reserve_fapshi_cart";
+  const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/${reservationRpc}`, {
     method: "POST",
     headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       p_user_id: userId, p_reference: reference, p_phone: phone, p_method: method,
       p_displayed_amount: amount, p_relics: relics.map(({ slug, quantity, pack_size }) => ({ slug, quantity, pack_size })),
       p_event_id: quantity ? eventId : null, p_ticket_quantity: quantity, p_xaf_per_usd: xafPerUsdForLegacy(),
+      ...(attendeeSelected ? { p_attendee_kind: attendeeKind, p_attendee_id: attendeeKind === "member" ? attendeeId : null } : {}),
     }),
   });
   if (!reservation.ok) {
@@ -606,7 +613,7 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity, attendee_kind, attendee_id,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
@@ -629,7 +636,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (purchase_kind === "cart") {
-      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity);
+      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity, attendee_kind, attendee_id);
     }
 
     if (purchase_kind === "fcx_ticket") {

@@ -96,6 +96,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
+  const [heroDialogOpen, setHeroDialogOpen] = useState(false);
   const [heroGuidePaused, setHeroGuidePaused] = useState(false);
   const hasLoadedRef = useRef(false);
   const loadRequestRef = useRef<Promise<void> | null>(null);
@@ -265,7 +266,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     return () => window.removeEventListener(NEWCOMER_GUIDANCE_HERO_EVENT, followGuide);
   }, [guideQuoteSlideIndex, guideVerseSlideIndex]);
 
-  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld && !heroGuidePaused, () => {
+  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld && !heroDialogOpen && !heroGuidePaused, () => {
     setHeroIndex((index) => index + 1);
   });
 
@@ -360,6 +361,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         onNext={() => setHeroIndex((idx) => idx + 1)}
         onCommentOpenChange={setHeroPaused}
         onHoldChange={setHeroHeld}
+        onDialogOpenChange={setHeroDialogOpen}
       />
 
       <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
@@ -484,7 +486,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   );
 }
 
-export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange }: {
+export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange, onDialogOpenChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -504,6 +506,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   onNext: () => void;
   onCommentOpenChange: (open: boolean) => void;
   onHoldChange: (held: boolean) => void;
+  onDialogOpenChange: (open: boolean) => void;
 }) {
   const isWeekend = dayType === 'saturday' || dayType === 'sunday';
   const welcomeScriptures = [
@@ -520,6 +523,18 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   const [withTransition, setWithTransition] = useState(true);
   const [scriptureIndex, setScriptureIndex] = useState(0);
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [dialogSlideKey, setDialogSlideKey] = useState<string | null>(null);
+  const handleDialogChange = (key: string, open: boolean) => {
+    setDialogSlideKey(open ? key : null);
+    onDialogOpenChange(open);
+  };
+  useEffect(() => {
+    if (dialogSlideKey && !slides.some((slide) => `${slide.id}-original` === dialogSlideKey)
+      && !(count > 1 && `${slides[0]?.id}-loop` === dialogSlideKey)) {
+      setDialogSlideKey(null);
+      onDialogOpenChange(false);
+    }
+  }, [count, dialogSlideKey, onDialogOpenChange, slides]);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
   const panelMaxHeight = conversationOpen
@@ -539,7 +554,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
     touchStartRef.current = null;
     onHoldChange(false);
     const touch = event.changedTouches[0];
-    if (!start || !touch || count <= 1 || conversationOpen) return;
+    if (!start || !touch || count <= 1 || conversationOpen || dialogSlideKey) return;
 
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
@@ -595,10 +610,11 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
             || logicalSlideIndex === previousSlideIndex
             || isLogicalActiveSlide
             || logicalSlideIndex === nextSlideIndex;
-          if (!isNearbySlide) {
+          const slideKey = `${slide.id}-${slideIndex < count ? 'original' : 'loop'}`;
+          if (!isNearbySlide && dialogSlideKey !== slideKey) {
             return (
               <div
-                key={`${slide.id}-${slideIndex}`}
+                key={slideKey}
                 aria-hidden="true"
                 className="min-w-full"
               />
@@ -623,7 +639,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
 
           return (
             <div data-artwork-theme={slide.kind === 'announcement' && slide.announcement.announcement_type === 'midday_reminder' ? 'day' : slide.kind !== 'quote' && slideImage?.url ? 'night' : undefined}
-              key={`${slide.id}-${slideIndex}`}
+              key={slideKey}
               data-guide-slide-active={displayIndex === slideIndex ? 'true' : 'false'}
               data-guide-slide-kind={slide.kind === 'quote' && slide.quote.user_id !== currentUserId ? 'other_quote' : slide.kind}
               className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16"
@@ -658,6 +674,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                     <FcxExperienceSlide
                       experience={slide.experience}
                       active={displayIndex === slideIndex}
+                      onCheckoutOpenChange={(open) => handleDialogChange(slideKey, open)}
                     />
                   )}
 
@@ -825,7 +842,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             )}
                           </div>
                         </div>
-                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /><QuoteReleaseTime quote={slide.quote} /></p>
+                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} onOpenChange={(open) => handleDialogChange(slideKey, open)} /><QuoteReleaseTime quote={slide.quote} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}

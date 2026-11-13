@@ -2825,6 +2825,7 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
 export function startMarketCartCheckout(
   userId: string, amount: number, method: 'mtn_momo' | 'orange_money', phone: string,
   relics: { slug: string; quantity: number; pack_size?: number }[], eventId?: string, ticketQuantity = 0,
+  attendee?: { kind: 'self' | 'member' | 'guest'; id?: string },
 ) {
   return requestCampayCheckout({
     purchase_kind: 'cart',
@@ -2835,6 +2836,8 @@ export function startMarketCartCheckout(
     cart_relics: relics,
     fcx_event_id: eventId,
     ticket_quantity: ticketQuantity,
+    attendee_kind: attendee?.kind,
+    attendee_id: attendee?.id,
   });
 }
 

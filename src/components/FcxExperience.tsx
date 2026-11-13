@@ -56,7 +56,7 @@ function countdownParts(targetDate: string, nowMs: number) {
   ];
 }
 
-export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
+export function FcxExperienceSlide({ experience, active, onCheckoutOpenChange }: { experience: FcxExperience; active: boolean; onCheckoutOpenChange?: (open: boolean) => void }) {
   const { profile } = useAuth();
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
@@ -213,7 +213,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             <span className="text-[8px] font-black uppercase leading-none">Ask</span>
           </a>
         )}
-        <FcxFapshiCheckout key={visibleExperience.id} experience={visibleExperience} onConfirmed={refreshRegistrations}
+        <FcxFapshiCheckout key={visibleExperience.id} experience={visibleExperience} onConfirmed={refreshRegistrations} onOpenChange={onCheckoutOpenChange}
           className="fcx-action-button fcx-line flex h-12 shrink-0 items-center justify-center px-2 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffe477]/80">
           <span className="text-xs font-black leading-none">{visibleExperience.ticket_price_xaf?.toLocaleString('en-US')}frs</span>
         </FcxFapshiCheckout>
@@ -238,7 +238,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         {seats.map((registration, index) => (
           <div
             key={registration?.id || `open-${index}`}
-            title={registration ? `${registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
+            title={registration ? `${/^Paid FCX spot [0-9a-f-]+ \/ \d+$/i.test(registration.display_name) ? 'Participant details pending' : registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
             className={cn(
               'fcx-seat-line relative flex h-6 w-6 items-center justify-center rounded-full',
               registration

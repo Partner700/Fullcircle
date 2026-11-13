@@ -5,10 +5,14 @@ import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
 import { fetchPublicMeditationView } from '../lib/queries';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 
-export function QuoteMeditationButton({ quote, image }: { quote: DailyQuoteFeedItem; image?: PanelImageSetting | null }) {
+export function QuoteMeditationButton({ quote, image, onOpenChange }: { quote: DailyQuoteFeedItem; image?: PanelImageSetting | null; onOpenChange?: (open: boolean) => void }) {
   const [meditation, setMeditation] = useState<Awaited<ReturnType<typeof fetchPublicMeditationView>>>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  function setMeditationOpen(value: boolean) {
+    setOpen(value);
+    onOpenChange?.(value);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -25,9 +29,11 @@ export function QuoteMeditationButton({ quote, image }: { quote: DailyQuoteFeedI
       className="fixed inset-0 z-[2147483630] flex items-center justify-center bg-black/55 p-3 sm:p-5"
       role="dialog"
       aria-modal="true"
+      onTouchStart={event => event.stopPropagation()}
+      onTouchEnd={event => event.stopPropagation()}
       aria-label={`${quote.display_name}'s meditation`}
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) setOpen(false);
+        if (event.target === event.currentTarget) setMeditationOpen(false);
       }}
     >
       <article data-artwork-theme={(image || null)?.url ? 'night' : undefined} className="card relative isolate max-h-[86vh] w-full max-w-xl overflow-hidden border-border shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
@@ -35,7 +41,7 @@ export function QuoteMeditationButton({ quote, image }: { quote: DailyQuoteFeedI
         <div className="panel-veil-layer award-panel-veil pointer-events-none absolute inset-0" aria-hidden="true" />
         <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
           <div><p className="eyebrow text-stone">Public Meditation</p><h2 className="font-display text-lg font-semibold text-ink">{quote.display_name}</h2></div>
-          <button type="button" className="btn-icon" onClick={() => setOpen(false)} aria-label="Close meditation"><X size={18} /></button>
+          <button type="button" className="btn-icon" onClick={() => setMeditationOpen(false)} aria-label="Close meditation"><X size={18} /></button>
         </div>
         <div className="relative z-10 max-h-[calc(86vh-5rem)] overflow-y-auto overscroll-contain px-5 pb-12 pt-5">
           {meditation.best_verse && <p className="text-xs font-bold text-brass">Best verse: {meditation.best_verse}</p>}
@@ -54,7 +60,7 @@ export function QuoteMeditationButton({ quote, image }: { quote: DailyQuoteFeedI
         className="ml-2 inline-flex align-baseline text-gold transition-colors hover:text-brass disabled:cursor-default disabled:text-stone-dim disabled:opacity-45"
         title={loading ? 'Checking meditation visibility' : meditation ? 'Read public meditation' : 'This meditation is private'}
         aria-label={meditation ? `Read ${quote.display_name}'s meditation` : `${quote.display_name}'s meditation is private`}
-        onClick={() => { if (meditation) setOpen(true); }}
+        onClick={() => { if (meditation) setMeditationOpen(true); }}
       >
         <Bookmark size={15} fill={meditation ? 'currentColor' : 'none'} />
       </button>

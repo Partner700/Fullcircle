@@ -777,6 +777,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
+  const [heroDialogOpen, setHeroDialogOpen] = useState(false);
   const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
   const [cadetQuizPodium, setCadetQuizPodium] = useState<WeeklyQuizRanking[]>([]);
   const [sentryQuizPodium, setSentryQuizPodium] = useState<WeeklyQuizRanking[]>([]);
@@ -936,7 +937,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
     ...standardHeroSlides.slice(quoteStartIndex),
   ];
 
-  useAutoAdvance(heroSlides.length > 1 && !heroPaused && !heroHeld, () => {
+  useAutoAdvance(heroSlides.length > 1 && !heroPaused && !heroHeld && !heroDialogOpen, () => {
     setHeroIndex((index) => index + 1);
   });
 
@@ -962,6 +963,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         onNext={() => setHeroIndex((index) => index + 1)}
         onCommentOpenChange={setHeroPaused}
         onHoldChange={setHeroHeld}
+        onDialogOpenChange={setHeroDialogOpen}
       />
       <input
         ref={tentPhotoInputRef}
