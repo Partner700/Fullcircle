@@ -45,6 +45,7 @@ function splitScriptureVerses(text: string) {
 }
 
 type ScriptureVerse = {
+  passageIndex?: number;
   reference: string;
   text: string;
   meditation: string;
@@ -642,7 +643,8 @@ export function CadetNarrative({
         main_text: narrative.main_text,
         highlighted_verses: narrative.highlighted_verses || [],
       }];
-    const savedVerses = passages.flatMap((passage) => (passage.highlighted_verses || []).map((verse) => ({
+    const savedVerses = passages.flatMap((passage, passageIndex) => (passage.highlighted_verses || []).map((verse) => ({
+      passageIndex,
       ...verse,
       sourceNarrativeId: verse.source_narrative_id || passage.source_narrative_id || narrative.id,
       sourceNarrativeDate: verse.source_narrative_date || passage.source_narrative_date || narrative.narrative_date,
@@ -1018,7 +1020,9 @@ export function CadetNarrative({
     sourceNarrativeDate: verse.source_narrative_date || narrative.narrative_date,
   }));
   const verseChoices = displayVerses.map((verse) => ({ value: verse.reference, label: verse.reference }));
-  const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
+  const scripturePanels = narrative.scripture_passages?.length
+    ? narrative.scripture_passages
+    : [{ reference: narrative.scripture_reference, main_text: narrative.main_text }];
   const comparableText = (value: string) => value.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
   const featuredText = comparableText(narrative.verse_of_day || '');
   const featuredVerse = featuredText ? displayVerses.find((verse) => comparableText(verse.text) === featuredText) : undefined;
@@ -1111,309 +1115,316 @@ export function CadetNarrative({
       )}
 
       {/* ── Scripture text ── */}
-      <div data-artwork-theme={(scriptureImage)?.url ? 'night' : undefined}
-        className="card reading-glass-panel relative isolate overflow-hidden p-5 animate-slide-up border-border"
-        style={{
-          backdropFilter: 'blur(26px) saturate(1.22)',
-        }}
-      >
-        <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
-        <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-3">
-          <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
-          <span className="eyebrow text-stone">Scripture</span>
-        </div>
-        <div className="mb-3 max-w-sm">
-          <p className="mb-1 text-xs font-semibold text-stone">Bible edition</p>
-          <AppSelect
-            ariaLabel="Bible edition"
-            value={edition}
-            onChange={(value) => {
-              saveScriptureEdition(value, profile?.id);
-              setEditionSelection({ userId: profile?.id, value });
+      {scripturePanels.map((passage, passageIndex) => {
+        const panelVerses = displayVerses
+          .map((verse, index) => ({ verse, index }))
+          .filter(({ verse }) => (verse.passageIndex ?? 0) === passageIndex);
+        return (
+          <section key={`${passage.reference}-${passageIndex}`} aria-label={passage.reference} data-artwork-theme={(scriptureImage)?.url ? 'night' : undefined}
+            className="card reading-glass-panel relative isolate overflow-hidden p-5 animate-slide-up border-border"
+            style={{
+              backdropFilter: 'blur(26px) saturate(1.22)',
             }}
-            options={SCRIPTURE_EDITIONS.map((item) => ({
-              value: item.value,
-              label: item.value === 'published' ? `Published edition (${narrative.translation || 'WEB'})` : item.label,
-            }))}
-          />
-          {edition !== 'published' && readerVerses.length > 0 && !editionContent && (
-            <p className="mt-1 text-xs text-stone" role="status">Loading selected Bible edition…</p>
-          )}
-          {hasEditionFallback && <p className="mt-1 text-xs text-stone">Verses unavailable in this edition use the published text.</p>}
-          {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
-        </div>
-        <ScrollEdge position="top" className="text-brass mb-4" />
-        <div className="space-y-4 sm:space-y-5">
-          {displayVerses.length ? displayVerses.map((verse, index) => {
-            const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
-            const userInsights = verseInsights.filter((item: any) => (
-              item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
-            ));
-            const hasInsight = Boolean(verse.meditation?.trim());
-            const hasReaderInsight = userInsights.length > 0;
-            const participants = insightParticipants(userInsights);
-            const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
-            const verseReferenceKey = readingVerseChallengeKey(sourceNarrativeId, verse.reference);
-            const hiddenVerseMarker = hiddenVerseMarkers.find((marker) => marker.reference_key === verseReferenceKey);
-            const taggedMe = Boolean(hiddenVerseMarker) || userInsights.some((item: any) =>
-              (item.mentioned_user_ids || []).includes(profile?.id)
-              || (item.comments || []).some((comment: any) =>
-                comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
-              ),
-            );
-            const expanded = isSundayRest || openVerse === index;
-            const sundayInsightKey = `${sourceNarrativeId}:${verse.reference}`;
-            const userExpanded = isSundayRest
-              ? !closedSundayInsights.includes(sundayInsightKey)
-              : openUserInsights === verse.reference;
-            const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
-            return (
-              <article
-                key={`${verse.reference}-${index}`}
-                ref={(element) => { verseRefs.current[verse.reference] = element; }}
-                data-verse-reference={verse.reference}
-                className={cn(
-                  'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300 [overflow-anchor:none]',
-                  taggedMe ? 'verse-highlight-tagged' : sharedByMe ? 'verse-highlight-mine' : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => !isSundayRest && hasInsight && setOpenVerse(expanded ? null : index)}
-                  className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
-                  aria-expanded={hasInsight ? expanded : undefined}
-                >
-                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span><span data-no-translate lang={editionContent?.translations.has(verse.reference) ? selectedEdition?.language : undefined}>{editionContent?.translations.get(verse.reference) || verse.text}</span></p>
-                  <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
-                    {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
-                  </span>
-                </button>
-                {hasInsight && expanded && (
-                  <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
-                    <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
-                  </div>
-                )}
-                <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
-                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
-                      if (isSundayRest) {
-                        if (userExpanded) {
-                          setClosedSundayInsights((current) => current.includes(sundayInsightKey) ? current : [...current, sundayInsightKey]);
-                          return;
-                        }
-                        if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
-                        setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
-                        openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
-                        return;
-                      }
-                      if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
-                      setOpenUserInsights(userExpanded ? null : verse.reference);
-                      if (!userExpanded) {
-                        openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
-                      }
-                    }}>
-                      {userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
-                    </button>
-                  </div>
-                  {!userExpanded && participants.length > 0 && (
-                    <div
-                      className="mt-3 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1"
-                      aria-label={`${participants.length} reader insight participant${participants.length === 1 ? '' : 's'}`}
+          >
+            <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
+            <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-3">
+              <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
+              <h2 className="eyebrow text-stone">{passage.reference || 'Scripture'}</h2>
+            </div>
+            {passageIndex === 0 && <div className="mb-3 max-w-sm">
+              <p className="mb-1 text-xs font-semibold text-stone">Bible edition</p>
+              <AppSelect
+                ariaLabel="Bible edition"
+                value={edition}
+                onChange={(value) => {
+                  saveScriptureEdition(value, profile?.id);
+                  setEditionSelection({ userId: profile?.id, value });
+                }}
+                options={SCRIPTURE_EDITIONS.map((item) => ({
+                  value: item.value,
+                  label: item.value === 'published' ? `Published edition (${narrative.translation || 'WEB'})` : item.label,
+                }))}
+              />
+              {edition !== 'published' && readerVerses.length > 0 && !editionContent && (
+                <p className="mt-1 text-xs text-stone" role="status">Loading selected Bible edition…</p>
+              )}
+              {hasEditionFallback && <p className="mt-1 text-xs text-stone">Verses unavailable in this edition use the published text.</p>}
+              {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
+            </div>}
+            <ScrollEdge position="top" className="text-brass mb-4" />
+            <div className="space-y-4 sm:space-y-5">
+              {panelVerses.length ? panelVerses.map(({ verse, index }) => {
+                const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
+                const userInsights = verseInsights.filter((item: any) => (
+                  item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
+                ));
+                const hasInsight = Boolean(verse.meditation?.trim());
+                const hasReaderInsight = userInsights.length > 0;
+                const participants = insightParticipants(userInsights);
+                const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
+                const verseReferenceKey = readingVerseChallengeKey(sourceNarrativeId, verse.reference);
+                const hiddenVerseMarker = hiddenVerseMarkers.find((marker) => marker.reference_key === verseReferenceKey);
+                const taggedMe = Boolean(hiddenVerseMarker) || userInsights.some((item: any) =>
+                  (item.mentioned_user_ids || []).includes(profile?.id)
+                  || (item.comments || []).some((comment: any) =>
+                    comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
+                  ),
+                );
+                const expanded = isSundayRest || openVerse === index;
+                const sundayInsightKey = `${sourceNarrativeId}:${verse.reference}`;
+                const userExpanded = isSundayRest
+                  ? !closedSundayInsights.includes(sundayInsightKey)
+                  : openUserInsights === verse.reference;
+                const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
+                return (
+                  <article
+                    key={`${verse.reference}-${index}`}
+                    ref={(element) => { verseRefs.current[verse.reference] = element; }}
+                    data-verse-reference={verse.reference}
+                    className={cn(
+                      'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300 [overflow-anchor:none]',
+                      taggedMe ? 'verse-highlight-tagged' : sharedByMe ? 'verse-highlight-mine' : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => !isSundayRest && hasInsight && setOpenVerse(expanded ? null : index)}
+                      className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
+                      aria-expanded={hasInsight ? expanded : undefined}
                     >
-                      {participants.map((participant) => participant.isGuest ? (
-                        <span
-                          key={participant.userId}
-                          title="Guest reader"
-                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft text-peri"
+                      <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span><span data-no-translate lang={editionContent?.translations.has(verse.reference) ? selectedEdition?.language : undefined}>{editionContent?.translations.get(verse.reference) || verse.text}</span></p>
+                      <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
+                        {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
+                      </span>
+                    </button>
+                    {hasInsight && expanded && (
+                      <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
+                        <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
+                      </div>
+                    )}
+                    <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
+                        <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                          if (isSundayRest) {
+                            if (userExpanded) {
+                              setClosedSundayInsights((current) => current.includes(sundayInsightKey) ? current : [...current, sundayInsightKey]);
+                              return;
+                            }
+                            if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
+                            setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
+                            openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
+                            return;
+                          }
+                          if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
+                          setOpenUserInsights(userExpanded ? null : verse.reference);
+                          if (!userExpanded) {
+                            openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
+                          }
+                        }}>
+                          {userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                        </button>
+                      </div>
+                      {!userExpanded && participants.length > 0 && (
+                        <div
+                          className="mt-3 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1"
+                          aria-label={`${participants.length} reader insight participant${participants.length === 1 ? '' : 's'}`}
                         >
-                          <Dove size={14} />
-                        </span>
-                      ) : (
-                        <MessageAvatar
-                          key={participant.userId}
-                          profile={messageProfile(participant.userId, participant.displayName, participant.avatarUrl)}
-                          currentUserId={profile?.id}
-                          size="xs"
-                          className="shrink-0"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {userExpanded && (
-                    <div className="mt-3 space-y-3">
-                      {userInsights.map((item: any) => {
-                        const authorName = item.profiles?.display_name || 'Reader';
-                        const comments = item.comments || [];
-                        const repliesOpen = openInsightReplies === item.id;
-                        const commentsVisible = isSundayRest || repliesOpen;
-                        return (
-                          <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
-                            <div className="flex items-start gap-2.5">
-                              <MessageAvatar
-                                profile={messageProfile(item.user_id, authorName, item.profiles?.avatar_url)}
-                                currentUserId={profile?.id}
-                                size="sm"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-ink">
-                                  {authorName}{item.user_id === profile?.id ? ' · You' : ''}{' '}
-                                  <RelativeTime value={item.created_at} className="font-medium text-stone-dim" />
-                                </p>
-                                {editingInsightId === item.id ? (
-                                  <div className="mt-1 flex items-end gap-2">
-                                    <textarea value={editingInsightBody} onChange={(event) => setEditingInsightBody(event.target.value)} className="input-field min-h-16 flex-1 text-xs" autoFocus />
-                                    <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
+                          {participants.map((participant) => participant.isGuest ? (
+                            <span
+                              key={participant.userId}
+                              title="Guest reader"
+                              className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft text-peri"
+                            >
+                              <Dove size={14} />
+                            </span>
+                          ) : (
+                            <MessageAvatar
+                              key={participant.userId}
+                              profile={messageProfile(participant.userId, participant.displayName, participant.avatarUrl)}
+                              currentUserId={profile?.id}
+                              size="xs"
+                              className="shrink-0"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {userExpanded && (
+                        <div className="mt-3 space-y-3">
+                          {userInsights.map((item: any) => {
+                            const authorName = item.profiles?.display_name || 'Reader';
+                            const comments = item.comments || [];
+                            const repliesOpen = openInsightReplies === item.id;
+                            const commentsVisible = isSundayRest || repliesOpen;
+                            return (
+                              <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
+                                <div className="flex items-start gap-2.5">
+                                  <MessageAvatar
+                                    profile={messageProfile(item.user_id, authorName, item.profiles?.avatar_url)}
+                                    currentUserId={profile?.id}
+                                    size="sm"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-ink">
+                                      {authorName}{item.user_id === profile?.id ? ' · You' : ''}{' '}
+                                      <RelativeTime value={item.created_at} className="font-medium text-stone-dim" />
+                                    </p>
+                                    {editingInsightId === item.id ? (
+                                      <div className="mt-1 flex items-end gap-2">
+                                        <textarea value={editingInsightBody} onChange={(event) => setEditingInsightBody(event.target.value)} className="input-field min-h-16 flex-1 text-xs" autoFocus />
+                                        <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
+                                      </div>
+                                    ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
+                                    {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
                                   </div>
-                                ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
-                                {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
-                              </div>
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
-                              {INSIGHT_REACTIONS.map(({ type, label, icon: ReactionIcon }) => {
-                                const reaction = item.reactions?.[type] || { count: 0, reacted: false };
-                                const pending = reactionPendingKey === `${item.id}:${type}`;
-                                return (
-                                  <button
-                                    key={type}
-                                    type="button"
-                                    disabled={Boolean(reactionPendingKey)}
-                                    onClick={() => void reactToInsight(item.id, type)}
-                                    className={cn(
-                                      'inline-flex h-7 min-w-9 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors disabled:opacity-60',
-                                      reaction.reacted
-                                        ? type === 'heart'
-                                          ? 'border-coral/50 bg-coral-soft text-coral'
-                                          : 'border-gold/50 bg-gold-soft text-gold'
-                                        : 'border-border bg-surface text-stone hover:border-border-bright hover:text-ink',
-                                      pending && 'animate-pulse',
-                                    )}
-                                    title={label}
-                                    aria-label={`${label}: ${reaction.count}`}
-                                    aria-pressed={reaction.reacted}
-                                    aria-busy={pending}
-                                  >
-                                    <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
-                                    <span>{reaction.count}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {(() => {
-                              const actors = Array.from(new Map(
-                                INSIGHT_REACTIONS.flatMap(({ type }) => item.reactions?.[type]?.actors || [])
-                                  .map((actor: any) => [actor.user_id, actor]),
-                              ).values()).slice(0, 5);
-                              if (!actors.length) return null;
-                              return (
-                                <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
-                                  {actors.map((actor: any) => actor.is_guest ? (
-                                    <span
-                                      key={actor.user_id}
-                                      title="Guest reader"
-                                      className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-peri shadow-sm"
-                                    >
-                                      <Dove size={14} />
-                                    </span>
-                                  ) : (
-                                    <MessageAvatar
-                                      key={actor.user_id}
-                                      profile={messageProfile(actor.user_id, actor.display_name, actor.avatar_url)}
-                                      currentUserId={profile?.id}
-                                      size="xs"
-                                    />
-                                  ))}
                                 </div>
-                              );
-                            })()}
-                            <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
-                              if (!requireSubscription()) return;
-                              setOpenInsightReplies(repliesOpen ? null : item.id);
-                              setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
-                              setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
-                            }}>
-                              <MessageCircle size={13} /> {comments.length ? `${comments.length} ${comments.length === 1 ? 'reply' : 'replies'}` : 'Reply'}
-                            </button>
-                            {commentsVisible && (comments.length > 0 || repliesOpen) && (
-                              <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
-                                {comments.map((comment: any) => (
-                                  <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
-                                    <div className="flex items-start gap-2.5">
-                                      <MessageAvatar
-                                        profile={messageProfile(comment.user_id, comment.profile?.display_name || 'Reader', comment.profile?.avatar_url)}
-                                        currentUserId={profile?.id}
-                                        size="sm"
-                                      />
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
-                                        {editingCommentId === comment.id ? (
-                                          <div className="mt-1 flex items-end gap-2">
-                                            <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
-                                            <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
+                                  {INSIGHT_REACTIONS.map(({ type, label, icon: ReactionIcon }) => {
+                                    const reaction = item.reactions?.[type] || { count: 0, reacted: false };
+                                    const pending = reactionPendingKey === `${item.id}:${type}`;
+                                    return (
+                                      <button
+                                        key={type}
+                                        type="button"
+                                        disabled={Boolean(reactionPendingKey)}
+                                        onClick={() => void reactToInsight(item.id, type)}
+                                        className={cn(
+                                          'inline-flex h-7 min-w-9 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors disabled:opacity-60',
+                                          reaction.reacted
+                                            ? type === 'heart'
+                                              ? 'border-coral/50 bg-coral-soft text-coral'
+                                              : 'border-gold/50 bg-gold-soft text-gold'
+                                            : 'border-border bg-surface text-stone hover:border-border-bright hover:text-ink',
+                                          pending && 'animate-pulse',
+                                        )}
+                                        title={label}
+                                        aria-label={`${label}: ${reaction.count}`}
+                                        aria-pressed={reaction.reacted}
+                                        aria-busy={pending}
+                                      >
+                                        <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
+                                        <span>{reaction.count}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {(() => {
+                                  const actors = Array.from(new Map(
+                                    INSIGHT_REACTIONS.flatMap(({ type }) => item.reactions?.[type]?.actors || [])
+                                      .map((actor: any) => [actor.user_id, actor]),
+                                  ).values()).slice(0, 5);
+                                  if (!actors.length) return null;
+                                  return (
+                                    <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                      {actors.map((actor: any) => actor.is_guest ? (
+                                        <span
+                                          key={actor.user_id}
+                                          title="Guest reader"
+                                          className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-peri shadow-sm"
+                                        >
+                                          <Dove size={14} />
+                                        </span>
+                                      ) : (
+                                        <MessageAvatar
+                                          key={actor.user_id}
+                                          profile={messageProfile(actor.user_id, actor.display_name, actor.avatar_url)}
+                                          currentUserId={profile?.id}
+                                          size="xs"
+                                        />
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                                <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
+                                  if (!requireSubscription()) return;
+                                  setOpenInsightReplies(repliesOpen ? null : item.id);
+                                  setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
+                                  setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
+                                }}>
+                                  <MessageCircle size={13} /> {comments.length ? `${comments.length} ${comments.length === 1 ? 'reply' : 'replies'}` : 'Reply'}
+                                </button>
+                                {commentsVisible && (comments.length > 0 || repliesOpen) && (
+                                  <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
+                                    {comments.map((comment: any) => (
+                                      <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
+                                        <div className="flex items-start gap-2.5">
+                                          <MessageAvatar
+                                            profile={messageProfile(comment.user_id, comment.profile?.display_name || 'Reader', comment.profile?.avatar_url)}
+                                            currentUserId={profile?.id}
+                                            size="sm"
+                                          />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
+                                            {editingCommentId === comment.id ? (
+                                              <div className="mt-1 flex items-end gap-2">
+                                                <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
+                                                <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                              </div>
+                                            ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
+                                            {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
+                                            <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
+                                              if (!requireSubscription()) return;
+                                              const displayName = comment.profile?.display_name || 'Reader';
+                                              setOpenInsightReplies(item.id);
+                                              setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
+                                              setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
+                                            }}><Reply size={11} /> Reply</button>
                                           </div>
-                                        ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
-                                        {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
-                                        <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
-                                          if (!requireSubscription()) return;
-                                          const displayName = comment.profile?.display_name || 'Reader';
-                                          setOpenInsightReplies(item.id);
-                                          setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
-                                          setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
-                                        }}><Reply size={11} /> Reply</button>
+                                        </div>
                                       </div>
-                                    </div>
+                                    ))}
+                                    {repliesOpen && (
+                                      <>
+                                        {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
+                                        <div className="flex items-end gap-2">
+                                          <div className="min-w-0 flex-1">
+                                            <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
+                                          </div>
+                                          <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
-                                ))}
-                                {repliesOpen && (
-                                  <>
-                                    {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
-                                    <div className="flex items-end gap-2">
-                                      <div className="min-w-0 flex-1">
-                                        <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
-                                      </div>
-                                      <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
-                                    </div>
-                                  </>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {hasAccess ? (
-                        <>
-                          <MentionTextarea
-                            className="input-field min-h-[5.5rem] w-full text-sm"
-                            value={myInsightDrafts[verse.reference] || ''}
-                            onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
-                            candidates={campMentionCandidates}
-                            placeholder="Write your insight on this verse. Type @ to tag someone..."
-                          />
-                          <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference, sourceNarrativeId)}>
-                            {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
-                          </button>
-                        </>
-                      ) : (
-                        <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => requireSubscription()}>
-                          <Lock size={13} /> Subscribe to write an insight
-                        </button>
+                            );
+                          })}
+                          {hasAccess ? (
+                            <>
+                              <MentionTextarea
+                                className="input-field min-h-[5.5rem] w-full text-sm"
+                                value={myInsightDrafts[verse.reference] || ''}
+                                onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
+                                candidates={campMentionCandidates}
+                                placeholder="Write your insight on this verse. Type @ to tag someone..."
+                              />
+                              <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference, sourceNarrativeId)}>
+                                {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
+                              </button>
+                            </>
+                          ) : (
+                            <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => requireSubscription()}>
+                              <Lock size={13} /> Subscribe to write an insight
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </article>
-            );
-          }) : fetchedVerses.map((verse, index) => (
-            <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
-              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span><span data-no-translate>{verse.text}</span></p>
-            </article>
-          ))}
-        </div>
-        <ScrollEdge position="bottom" className="text-brass mt-4" />
-        </div>
-      </div>
+                  </article>
+                );
+              }) : splitScriptureVerses(passage.main_text || '').map((verse, index) => (
+                <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
+                  <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span><span data-no-translate>{verse.text}</span></p>
+                </article>
+              ))}
+            </div>
+            <ScrollEdge position="bottom" className="text-brass mt-4" />
+            </div>
+          </section>
+        );
+      })}
 
       {/* ── Reflection prompts ── */}
       {!isSundayRest && narrative.reflection_prompts && narrative.reflection_prompts.length > 0 && (

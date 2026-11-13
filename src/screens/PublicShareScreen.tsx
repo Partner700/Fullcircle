@@ -95,13 +95,13 @@ type SharedVerse = {
   meditation?: string;
 };
 
-function readingVerses(reading: SharedReading): SharedVerse[] {
+function readingPanels(reading: SharedReading): Array<{ reference: string; verses: SharedVerse[] }> {
   if (reading.weekly_highlights?.length) {
-    return reading.weekly_highlights.map((highlight) => ({
+    return [{ reference: 'Scripture', verses: reading.weekly_highlights.map((highlight) => ({
       narrativeId: highlight.narrative_id,
       reference: highlight.reference,
       text: highlight.text,
-    }));
+    })) }];
   }
 
   const passages = reading.scripture_passages?.length
@@ -113,16 +113,16 @@ function readingVerses(reading: SharedReading): SharedVerse[] {
       source_narrative_id: undefined,
     }];
 
-  return passages.flatMap((passage) => {
+  return passages.map((passage) => {
     const verses = passage.highlighted_verses?.length
       ? passage.highlighted_verses
       : [{ reference: passage.reference, text: passage.main_text, meditation: '', source_narrative_id: undefined }];
-    return verses.map((verse) => ({
+    return { reference: passage.reference, verses: verses.map((verse) => ({
       narrativeId: verse.source_narrative_id || passage.source_narrative_id || reading.id,
       reference: verse.reference || passage.reference,
       text: verse.text,
       meditation: verse.meditation,
-    }));
+    })) };
   });
 }
 
@@ -295,7 +295,7 @@ function SharedReadingView({
   onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
   onAddInsight: (narrativeId: string, verseReference: string, body: string) => Promise<void>;
 }) {
-  const verses = readingVerses(reading);
+  const panels = readingPanels(reading);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingVerse, setSavingVerse] = useState<string | null>(null);
   const isSundayReading = new Date(`${reading.narrative_date}T12:00:00`).getDay() === 0;
@@ -330,74 +330,76 @@ function SharedReadingView({
         </section>
       )}
 
-      <section data-artwork-theme={(reading.panel_images?.scripture)?.url ? 'night' : undefined} className="card reading-glass-panel relative isolate overflow-hidden border-border p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
-        <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
-        <div className="relative z-10">
-          <div className="mb-3 flex items-center gap-2"><ScrollText size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">Scripture</span></div>
-          <ScrollEdge position="top" className="mb-4 text-brass" />
-          <div className="space-y-4 sm:space-y-5">
-            {verses.map((verse, index) => {
-              const insights = (reading.insights || []).filter((insight) => (
-                insight.narrative_id === verse.narrativeId && insight.verse_reference === verse.reference
-              ));
-              const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
-              return (
-                <section key={`${verse.narrativeId}:${verse.reference}:${index}`} className={cn('rounded-xl border border-transparent px-2 py-2', insights.length > 0 && 'verse-highlight-insight')}>
-                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
-                  <p className="mt-2 text-[10px] font-bold uppercase text-brass">
-                    {verse.reference}{verse.meditation?.trim() ? ' · Instructor annotation available' : ''}{insights.length ? ` · ${insights.length} reader insight${insights.length === 1 ? '' : 's'}` : ''}
-                  </p>
-                  {verse.meditation?.trim() && (
-                    <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase text-brass">Instructor insight</p>
-                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{verse.meditation}</p>
-                    </div>
-                  )}
-                  <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-bold uppercase text-stone">Reader insights</p>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-stone"><Lightbulb size={12} /> Add insight</span>
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <textarea
-                        value={drafts[verse.reference] || ''}
-                        onChange={(event) => setDrafts((current) => ({ ...current, [verse.reference]: event.target.value }))}
-                        className="input-field min-h-16 flex-1 resize-y text-xs"
-                        placeholder="Share what this verse gave you..."
-                        maxLength={3000}
-                      />
-                      <button
-                        type="button"
-                        className="btn-primary self-end px-3 text-xs"
-                        disabled={!drafts[verse.reference]?.trim() || savingVerse === verse.reference}
-                        onClick={() => {
-                          const body = drafts[verse.reference]?.trim();
-                          if (!body) return;
-                          setSavingVerse(verse.reference);
-                          void onAddInsight(verse.narrativeId, verse.reference, body)
-                            .then(() => setDrafts((current) => ({ ...current, [verse.reference]: '' })))
-                            .finally(() => setSavingVerse(null));
-                        }}
-                      >
-                        {savingVerse === verse.reference ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                        <span className="sr-only">Share insight</span>
-                      </button>
-                    </div>
-                    {insights.length ? (
-                      <div className="mt-3 space-y-3">
-                        {insights.map((insight) => <InsightThread key={insight.id} insight={insight} signupHref={signupHref} pending={pendingReaction} onReact={onReact} />)}
+      {panels.map((panel, panelIndex) => (
+        <section key={`${panel.reference}-${panelIndex}`} aria-label={panel.reference} data-artwork-theme={(reading.panel_images?.scripture)?.url ? 'night' : undefined} className="card reading-glass-panel relative isolate overflow-hidden border-border p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
+          <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
+          <div className="relative z-10">
+            <div className="mb-3 flex items-center gap-2"><ScrollText size={18} className="text-brass" strokeWidth={1.5} /><h2 className="eyebrow text-stone">{panel.reference || 'Scripture'}</h2></div>
+            <ScrollEdge position="top" className="mb-4 text-brass" />
+            <div className="space-y-4 sm:space-y-5">
+              {panel.verses.map((verse, index) => {
+                const insights = (reading.insights || []).filter((insight) => (
+                  insight.narrative_id === verse.narrativeId && insight.verse_reference === verse.reference
+                ));
+                const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
+                return (
+                  <section key={`${verse.narrativeId}:${verse.reference}:${index}`} className={cn('rounded-xl border border-transparent px-2 py-2', insights.length > 0 && 'verse-highlight-insight')}>
+                    <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
+                    <p className="mt-2 text-[10px] font-bold uppercase text-brass">
+                      {verse.reference}{verse.meditation?.trim() ? ' · Instructor annotation available' : ''}{insights.length ? ` · ${insights.length} reader insight${insights.length === 1 ? '' : 's'}` : ''}
+                    </p>
+                    {verse.meditation?.trim() && (
+                      <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase text-brass">Instructor insight</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{verse.meditation}</p>
                       </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-stone">No reader insight has been shared on this verse yet.</p>
                     )}
-                  </div>
-                </section>
-              );
-            })}
+                    <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-bold uppercase text-stone">Reader insights</p>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-stone"><Lightbulb size={12} /> Add insight</span>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <textarea
+                          value={drafts[verse.reference] || ''}
+                          onChange={(event) => setDrafts((current) => ({ ...current, [verse.reference]: event.target.value }))}
+                          className="input-field min-h-16 flex-1 resize-y text-xs"
+                          placeholder="Share what this verse gave you..."
+                          maxLength={3000}
+                        />
+                        <button
+                          type="button"
+                          className="btn-primary self-end px-3 text-xs"
+                          disabled={!drafts[verse.reference]?.trim() || savingVerse === verse.reference}
+                          onClick={() => {
+                            const body = drafts[verse.reference]?.trim();
+                            if (!body) return;
+                            setSavingVerse(verse.reference);
+                            void onAddInsight(verse.narrativeId, verse.reference, body)
+                              .then(() => setDrafts((current) => ({ ...current, [verse.reference]: '' })))
+                              .finally(() => setSavingVerse(null));
+                          }}
+                        >
+                          {savingVerse === verse.reference ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                          <span className="sr-only">Share insight</span>
+                        </button>
+                      </div>
+                      {insights.length ? (
+                        <div className="mt-3 space-y-3">
+                          {insights.map((insight) => <InsightThread key={insight.id} insight={insight} signupHref={signupHref} pending={pendingReaction} onReact={onReact} />)}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-stone">No reader insight has been shared on this verse yet.</p>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+            <ScrollEdge position="bottom" className="mt-4 text-brass" />
           </div>
-          <ScrollEdge position="bottom" className="mt-4 text-brass" />
-        </div>
-      </section>
+        </section>
+      ))}
 
       {!isSundayReading && reading.reflection_prompts?.length > 0 && (
         <section className="card border-border bg-surface p-5 animate-slide-up">
