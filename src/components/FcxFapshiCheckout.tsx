@@ -1,3 +1,4 @@
+import { AppSelect } from './AppSelect';
 import { MobileMoneyFailureMessage } from './MobileMoneyFailureMessage';
 import { X } from 'lucide-react';
 import { DirectMobileMoneyFields, type DirectMobileMoneyMethod } from './DirectMobileMoneyFields';
@@ -335,20 +336,25 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
                 {attendeeEventId && (
                   <fieldset className="space-y-2" disabled={busy}>
                     <legend className="mb-2 text-sm font-semibold">Who is this ticket for?</legend>
-                    <select className="input-field w-full" aria-label="Who is this ticket for?" value={attendeeKind}
-                      onChange={event => { setAttendeeKind(event.target.value as typeof attendeeKind); setAttendeeId(''); }}>
-                      <option value="">Choose an attendee</option>
-                      <option value="self">Myself</option>
-                      <option value="member">An app user</option>
-                      <option value="guest">An external participant</option>
-                    </select>
+                    <AppSelect ariaLabel="Who is this ticket for?" value={attendeeKind} disabled={busy}
+                      placeholder="Choose an attendee"
+                      options={[
+                        { value: 'self', label: 'Myself' },
+                        { value: 'member', label: 'An app user' },
+                        { value: 'guest', label: 'An external participant' },
+                      ]}
+                      onChange={value => {
+                        setAttendeeKind(value as typeof attendeeKind);
+                        setAttendeeId('');
+                        setMemberSearch('');
+                      }} />
                     {attendeeKind === 'member' && <>
                       <input className="input-field w-full" placeholder="Search by name" aria-label="Search app users"
-                        value={memberSearch} onChange={event => setMemberSearch(event.target.value)} />
-                      <select className="input-field w-full" aria-label="Select an app user" size={5} value={attendeeId}
-                        onChange={event => setAttendeeId(event.target.value)}>
-                        {members.map(member => <option key={member.id} value={member.id}>{member.display_name}</option>)}
-                      </select>
+                        value={memberSearch} onChange={event => { setMemberSearch(event.target.value); setAttendeeId(''); }} />
+                      <AppSelect ariaLabel="Select an app user" value={attendeeId} disabled={busy || !members.length}
+                        placeholder={members.length ? 'Select an app user' : 'No matching app users'}
+                        options={members.map(member => ({ value: member.id, label: member.display_name }))}
+                        onChange={setAttendeeId} />
                     </>}
                     {attendeeKind === 'guest' && <p className="text-xs text-stone">Add their name and photo after payment.</p>}
                   </fieldset>
