@@ -32,7 +32,7 @@ import {
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
   MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight, ChevronDown,
-  Lock, Share2,
+  Lock, Share2, FileQuestion,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -299,10 +299,12 @@ function ReadingArchiveBrowser({
 
 export function CadetNarrative({
   onMeditationSaved,
+  onOpenWeeklyQuiz,
   streakCount = 0,
   initialDate,
 }: {
   onMeditationSaved?: () => Promise<void> | void;
+  onOpenWeeklyQuiz?: () => void;
   streakCount?: number;
   initialDate?: string;
 }) {
@@ -979,16 +981,28 @@ export function CadetNarrative({
   }
 
   if (!narrative) {
+    const showQuizPrompt = activeDate === today && dayType === 'saturday' && Boolean(onOpenWeeklyQuiz);
+    const EmptyStateIcon = showQuizPrompt ? FileQuestion : BookOpen;
+
     return (
       <div className="space-y-5 max-w-3xl mx-auto">
         <section data-artwork-theme={readingImage?.url ? 'night' : undefined} className="card relative isolate overflow-hidden p-8 text-center">
           <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
           <div className="relative z-10">
             <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-navy-3/80 backdrop-blur-md">
-              <BookOpen size={24} className="text-peri-dim" />
+              <EmptyStateIcon size={24} className="text-peri-dim" />
             </div>
-            <h3 className="font-display font-bold text-peri mb-1">No reading published</h3>
-            <p className="mx-auto max-w-sm text-sm text-peri-dim">This date has no published reading. Your previous readings remain available below.</p>
+            <h3 className="font-display font-bold text-peri mb-1">{showQuizPrompt ? 'Saturday Quiz' : 'No reading published'}</h3>
+            <p className="mx-auto max-w-sm text-sm text-peri-dim">
+              {showQuizPrompt
+                ? 'Open Weekly Quiz to take the Saturday Quiz or check its status.'
+                : 'This date has no published reading. Your previous readings remain available below.'}
+            </p>
+            {showQuizPrompt && (
+              <button type="button" className="btn-primary mt-4" onClick={onOpenWeeklyQuiz}>
+                Open Weekly Quiz <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </section>
         {isHistoricalReading && (

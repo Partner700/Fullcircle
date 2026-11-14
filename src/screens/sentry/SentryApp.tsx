@@ -652,7 +652,7 @@ export function SentryApp() {
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
-      {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
+      {tab === 'reading' && <CadetNarrative onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
       {tab === 'games' && (
         <DailyGamesHub
           onProgress={load}

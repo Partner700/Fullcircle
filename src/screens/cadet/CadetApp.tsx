@@ -1191,7 +1191,7 @@ export function CadetApp() {
       }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshAfterMeditation} streakCount={streakCount} />}
+        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'games' && (
           <DailyGamesHub
