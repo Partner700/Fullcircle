@@ -1,3 +1,4 @@
+import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
 import { GamePoints } from '../../components/GamePoints';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Clock3, RotateCcw, Shuffle, X } from 'lucide-react';
@@ -34,10 +35,22 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
  const expired=deadline!==null && remaining===0 && !complete;
  const order=letterOrder || [...pack.letters].map((_,i)=>i);
  const currentWord=selection.map(index=>pack.letters[index]).join('');
+ const [scriptureReference,setScriptureReference]=useState<string>();
  const aid=board.words[target]?.aid;
  const apply=async(action:string,args:Record<string,unknown>={})=>{
   setBusy(true);setError('');
-  try {const next=await puzzleCommand(action,args);setRound(next);setTarget(previous=>next.board?.words[previous]?.word?Math.max(0,next.board.words.findIndex(word=>!word.word)):previous);setNow(Date.now());setNotice(next.notice || '');return true;}
+  try {
+   const next=await puzzleCommand(action,args);
+   setRound(next);
+   if (action !== 'relic' || args.p_relic === 'skip') {
+    const words = next.board?.words;
+    setTarget(previous => words?.[previous]?.word ? Math.max(0,words.findIndex(word => !word.word)) : previous);
+   }
+   if (action === 'relic' && args.p_relic === 'reveal-reference') {
+    setScriptureReference(next.board?.words[Number(args.p_target)]?.reference ?? undefined);
+   }
+   setNow(Date.now());setNotice(next.notice || '');return true;
+  }
   catch(failure){setError(userFacingError(failure,'Puzzle Trivia could not update. Try again.'));return false;}
   finally{setBusy(false);}
  };
@@ -137,14 +150,15 @@ export default function PuzzleTrivia({ arenaImage, onBack }: { arenaImage: Panel
    </>}
    {notice && <p role="status" className="text-center text-sm text-gold">{notice}</p>}
    {error && <div role="alert" className="rounded-lg bg-black/60 p-3 text-sm text-coral">{error}<button type="button" className="btn-secondary ml-2 text-xs" onClick={()=>void apply('load',{p_difficulty:difficulty})}>Refresh puzzle</button></div>}
+   {scriptureReference && <ScriptureRelicPopup reference={scriptureReference} onClose={()=>setScriptureReference(undefined)} />}
    {busy && <p role="status" className="text-center text-xs text-white/80">Updating puzzle...</p>}
    {round.id && <div data-artwork-theme="night" className="puzzle-relic-panel rounded-xl border border-white/20 bg-navy-2 p-3 text-ink"><label className="text-xs font-bold">Relic target<select className="input-field mt-1 w-full" value={target} onChange={event=>setTarget(Number(event.target.value))}>{board.words.map((entry,index)=><option key={index} value={index}>Word {index+1} · {entry.length} letters{entry.word?` · ${entry.word}`:''}</option>)}</select></label>
-    {profile && <PuzzleRelics userId={profile.id} playing={playing} busy={busy} used={aid?.used||[]} roundUsed={board.words.flatMap(word=>word.aid?.used||[])} hasSelection={Boolean(currentWord)} onUse={useRelic}/>}
+    {profile && <PuzzleRelics userId={profile.id} playing={playing} busy={busy} solved={Boolean(board.words[target]?.word)} used={aid?.used||[]} roundUsed={board.words.flatMap(word=>word.aid?.used||[])} hasSelection={Boolean(currentWord)} onUse={useRelic}/>}
     {(aid?.answer||aid?.firstLetter)&&<p role="status" className="mt-2 text-xs font-semibold text-gold">{aid.answer?`Revealed answer: ${aid.answer}`:`First letter: ${aid.firstLetter}`}</p>}
-    <p className="mt-2 text-xs text-white/80">Relics assist the selected word. Assisted words earn no FIGS. Freeze Timer adds 60 seconds once per round. Reveal Reference unlocks one word’s Scripture reference.</p>
+    <p className="mt-2 text-xs text-white/80">Relics assist the selected word. Correct assisted words earn 1 Fig. Reveal Reference reduces the normal award by 1 Fig. Freeze Timer adds 60 seconds once per round. Reveal Reference unlocks one word’s Scripture reference.</p>
    </div>}
    <div className="space-y-2 rounded-xl border border-white/15 bg-black/45 p-3"><h3 className="text-xs font-bold uppercase tracking-wider text-gold">Scripture clues</h3>
-    {board.words.map((entry,index)=><div key={index} className="border-t border-white/10 pt-2 text-xs"><p className="font-bold">{index+1}. {entry.category} · {entry.length} letters {entry.word && <span className="text-gold">· {entry.word}</span>}{entry.aid.used?.some(slug=>!['reveal-reference','freeze-timer'].includes(slug))?' · assisted':''}</p><p className="mt-1 leading-relaxed text-white/85">{entry.clue || 'Find this word from the crossword and its available letters.'}</p><p className="mt-1 text-gold/90">{entry.reference || 'Scripture reference locked · use Reveal Reference'}</p></div>)}
+    {board.words.map((entry,index)=><div key={index} className="border-t border-white/10 pt-2 text-xs"><p className="font-bold">{index+1}. {entry.category} · {entry.length} letters {entry.word && <span className="text-gold">· {entry.word}</span>}{entry.aid.used?.some(slug=>!['reveal-reference','freeze-timer'].includes(slug))?' · assisted':''}</p><p className="mt-1 leading-relaxed text-white/85">{entry.clue || 'Find this word from the crossword and its available letters.'}</p><p className="mt-1 text-gold/90">{entry.reference ? 'Scripture reference viewed' : 'Scripture reference locked · use Reveal Reference'}</p></div>)}
    </div>
    <p className="text-center text-[10px] text-white/65">Account progress saved online · {round.figs || 0} FIGS · 500 Denarii per first level clear · Timer continues when you leave.</p>
   </div>

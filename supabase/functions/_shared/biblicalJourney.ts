@@ -46,6 +46,7 @@ export type JourneyPlayer = {
   savedLocation: JourneyLocation | null;
   pendingEffects: JourneyEffect[];
   correctAnswers: number;
+  questionFigs?: number;
   score?: number;
   completedLaps?: number;
 };
@@ -347,7 +348,6 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         opponent.location = previous;
         player.location = opponentPrevious;
         animation = 'swap';
-        deductBackwardSteps(game, opponent, opponentPrevious, item.source);
         record(game, opponent, item.source, 'swap', opponentPrevious, animation);
         break;
       }
@@ -384,7 +384,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         break;
     }
     if (!isImprisoned(player)) player.status = statusFor(player.location);
-    if (['move', 'milestone', 'loop_shift', 'swap'].includes(effect.kind)) {
+    if (['move', 'milestone', 'loop_shift'].includes(effect.kind)) {
       deductBackwardSteps(game, player, previous, item.source);
     }
     record(game, player, item.source, effect.kind, previous, animation);

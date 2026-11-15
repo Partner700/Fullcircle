@@ -1,3 +1,6 @@
+import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
+import { ContextRelicShop } from '../../components/ContextRelicShop';
+import { preludeQuestionRelic, TRIVIA_QUESTION_RELICS, type TriviaQuestionRelics } from '../../lib/triviaQuestionRelics';
 import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Clock3, Loader2, RefreshCw, Trophy, Users } from 'lucide-react';
@@ -26,6 +29,8 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
  const [now,setNow]=useState(Date.now());
  const inFlight=useRef(false);
  const seenVersion=useRef(-1);
+ const [referenceOpen,setReferenceOpen]=useState(false);
+ const [relicAid,setRelicAid]=useState<{roomId:string; version:number; aid:TriviaQuestionRelics} | null>(null);
  const version=game?.version;
  const refreshList=useCallback(async()=>{try{setRooms(await preludeCommand('list') as Room[]);}catch(failure){setError(userFacingError(failure,'Rooms could not load.'));}},[]);
  const accept=useCallback((next:PreludeState)=>{
@@ -54,7 +59,7 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
   void refresh();const interval=window.setInterval(()=>void refresh(),roomId?1250:15000);
   return()=>{active=false;window.clearInterval(interval);};
  },[roomId,accept,refreshList]);
- useEffect(()=>{setAnswers([]);},[version]);
+ useEffect(()=>{setAnswers([]);setReferenceOpen(false);},[version]);
  useEffect(()=>{const interval=window.setInterval(()=>setNow(Date.now()),500);return()=>window.clearInterval(interval);},[]);
  const leaveView=()=>{viewGeneration.current+=1;setConfirmForfeit(false);setRoomId(null);setGame(null);seenVersion.current=-1;safeStorageRemove('local',savedKey);setError('');void refreshList();};
  const forfeit=async()=>{
@@ -72,6 +77,19 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
  const scribeSelection=scribeTurn?game?.pending?.scribeSelection:null;
  const displayedAnswers=scribeTurn?scribeSelection||[]:answers;
  const seconds=game?.deadline?Math.max(0,Math.ceil((new Date(game.deadline).getTime()-now)/1000)):0;
+ const currentAid = relicAid && relicAid.roomId === game?.id && relicAid.version === game.version ? relicAid.aid : undefined;
+ const useQuestionRelic=async(slug:string)=>{
+  if (!game || !myTurn || !seconds || inFlight.current) return false;
+  inFlight.current=true;setBusy(true);
+  try {
+   const aid=await preludeQuestionRelic(game.id,game.version,slug);
+   setRelicAid({roomId:game.id,version:game.version,aid:{...currentAid,...aid,
+    reference:aid.reference || currentAid?.reference, answer:aid.answer || currentAid?.answer}});
+   if (slug==='reveal-reference' && aid.reference) setReferenceOpen(true);
+   if (aid.deadline) setGame(previous=>previous?.version===game.version?{...previous,deadline:aid.deadline}:previous);
+   return true;
+  } finally {inFlight.current=false;setBusy(false);}
+ };
  const winner=game?.players.find(player=>player.id===game.winnerId);
  const waitingTime=game?.startsAt?Math.max(0,Math.ceil((new Date(game.startsAt).getTime()-now)/1000)):0;
  return <section className="relative isolate mx-auto max-w-5xl overflow-hidden rounded-2xl border border-gold/25 bg-navy p-4 text-white sm:p-6" aria-label="The Prelude">
@@ -96,7 +114,14 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
     {game.phase==='waiting' && <div className="rounded-xl border border-gold/30 bg-black/45 p-5 text-center"><h3 className="font-display text-xl text-gold">Waiting at the table</h3><p className="mt-2 text-sm">{game.players.length}/{game.maxPlayers} players · {game.difficulty==='hard'?'Select all correct answers':'Multiple choice'}</p>{waitingTime>0 && <p className="mt-2 text-xs">Scheduled start in {Math.floor(waitingTime/60)}m {waitingTime%60}s</p>}{(game.creatorId===profile?.id||(game.startsAt&&game.players.some(player=>player.id===profile?.id))) && <button type="button" disabled={busy||game.players.length<2||waitingTime>0} onClick={()=>void command('start')} className="btn-primary mt-4">Start round</button>}<p className="mt-3 text-xs text-white/65">104 cards · 100 numbered cards + four jokers · No entry fee</p></div>}
     {(game.phase==='playing'||game.phase==='question') && <>
      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-black/50 p-3"><p className="text-sm font-bold text-gold">{myTurn?'Your turn':`${current?.name}’s turn`}</p><p className="flex items-center gap-1 text-xs"><Clock3 size={14}/>{seconds}s · {game.cards.length} unused cards</p></div>
-     {game.phase==='question' && game.pending && <div className="rounded-xl border border-gold/40 bg-black/75 p-4"><p className="text-xs font-bold uppercase text-gold">{scribeTurn?'The Scribe’s question':game.pending.multiple?'Select all correct answers':'Choose one answer'}</p><div className="mt-2 flex items-center gap-3">{game.board.length>0&&<div key={game.moves?.[game.moves.length-1]?.id || game.version} className="prelude-question-card h-16 w-11 shrink-0"><PreludeCardFace card={game.board[game.board.length-1]}/></div>}<h3 className="font-display text-lg font-bold">What does {game.pending.number} represent in Scripture?</h3></div><div role="group" aria-label="Scripture answers" className="mt-3 space-y-2">{game.pending.options.map(option=><label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${displayedAnswers.includes(option.id)?'border-gold bg-gold/15':'border-white/25 bg-white/5'}`}><input type={game.pending?.multiple?'checkbox':'radio'} name="prelude-answer" disabled={!myTurn||busy} checked={displayedAnswers.includes(option.id)} onChange={()=>setAnswers(previous=>game.pending?.multiple?previous.includes(option.id)?previous.filter(id=>id!==option.id):[...previous,option.id]:[option.id])} className="mt-1 accent-yellow-400"/><span>{option.text}</span></label>)}</div>{scribeTurn && <p role="status" className="mt-3 text-sm font-semibold text-gold">
+     {game.phase==='question' && game.pending && <div className="rounded-xl border border-gold/40 bg-black/75 p-4"><p className="text-xs font-bold uppercase text-gold">{scribeTurn?'The Scribe’s question':game.pending.multiple?'Select all correct answers':'Choose one answer'}</p><div className="mt-2 flex items-center gap-3">{game.board.length>0&&<div key={game.moves?.[game.moves.length-1]?.id || game.version} className="prelude-question-card h-16 w-11 shrink-0"><PreludeCardFace card={game.board[game.board.length-1]}/></div>}<h3 className="font-display text-lg font-bold">What does {game.pending.number} represent in Scripture?</h3></div>
+     {myTurn && profile && seconds > 0 && <ContextRelicShop userId={profile.id} timed label="Use or buy relics"
+      slugs={TRIVIA_QUESTION_RELICS.filter(slug=>!currentAid?.used.includes(slug)
+        && (slug!=='freeze-timer' || !game.pending?.relics?.includes(slug)))}
+      canUseOwned={()=>!busy} onUseOwned={useQuestionRelic} onChanged={()=>undefined} />}
+     {currentAid?.reference && myTurn && referenceOpen && <ScriptureRelicPopup reference={currentAid.reference} onClose={()=>setReferenceOpen(false)} />}
+     {currentAid?.answer && myTurn && <p className="text-sm text-gold">Answer: {currentAid.answer}</p>}
+     <div role="group" aria-label="Scripture answers" className="mt-3 space-y-2">{game.pending.options.map(option=><label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${displayedAnswers.includes(option.id)?'border-gold bg-gold/15':'border-white/25 bg-white/5'}`}><input type={game.pending?.multiple?'checkbox':'radio'} name="prelude-answer" disabled={!myTurn||busy} checked={displayedAnswers.includes(option.id)} onChange={()=>setAnswers(previous=>game.pending?.multiple?previous.includes(option.id)?previous.filter(id=>id!==option.id):[...previous,option.id]:[option.id])} className="mt-1 accent-yellow-400"/><span>{option.text}</span></label>)}</div>{scribeTurn && <p role="status" className="mt-3 text-sm font-semibold text-gold">
        {scribeSelection?(game.pending.scribeCorrect?'The Scribe answered correctly.':'The Scribe answered incorrectly.'):'The Scribe is thinking…'}
       </p>}{myTurn && <button type="button" disabled={busy||!answers.length||!seconds} onClick={()=>void command('answer',{p_answers:answers})} className="btn-primary mt-4">Submit answer</button>}</div>}
      <PreludeTable game={game} canFlip={myTurn&&game.phase==='playing'&&seconds>0} busy={busy} onFlip={slot=>command('flip',{p_slot:slot})}/>

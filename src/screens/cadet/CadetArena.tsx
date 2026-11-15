@@ -1,3 +1,6 @@
+import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
+import { ContextRelicShop } from '../../components/ContextRelicShop';
+import { classicTriviaRelic, TRIVIA_QUESTION_RELICS, type TriviaQuestionRelics } from '../../lib/triviaQuestionRelics';
 import { GamePoints } from '../../components/GamePoints';
 import { regionalDateTime } from '../../lib/regionalPreferences';
 import { SentryArenaScheduler, type SentryScheduleRoster } from '../../components/SentryArenaScheduler';
@@ -1853,6 +1856,9 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   const [latestOutcome, setLatestOutcome] = useState<{ player: string; correct: boolean; answer: string } | null>(null);
   const [matchPlayers, setMatchPlayers] = useState<{ user_id: string; display_name: string; avatar_url: string | null; rhudes: number }[]>([]);
   const [timeLeft, setTimeLeft] = useState(40);
+  const [classicAid, setClassicAid] = useState<TriviaQuestionRelics>();
+  const classicExtraTime = useRef(0);
+  const [classicReference, setClassicReference] = useState<string>();
   const [ready, setReady] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
@@ -2085,9 +2091,9 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
 
     const seconds = getArenaQuestionSeconds(activeQuestion);
     const deadline = Date.now() + seconds * 1000;
-    setTimeLeft(seconds);
+    setTimeLeft(seconds + classicExtraTime.current / 1000);
     timerRef.current = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      const remaining = Math.max(0, Math.ceil((deadline + classicExtraTime.current - Date.now()) / 1000));
       setTimeLeft(remaining);
       if (remaining > 0) return;
       if (timerRef.current) clearInterval(timerRef.current);
@@ -2099,6 +2105,15 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
     }, 250);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [ready, questions, currentQ, answeredIds, completeGame, handleAnswer, turnPhase, isMyTurn, questionOpen]);
+
+  const useClassicRelic = async (slug: string) => {
+    if (!isMyTurn || turnPhase !== 'user' || !questionOpen || submittingAnswer || timeLeft <= 0) return false;
+    const aid = await classicTriviaRelic(roomId, currentQ, slug);
+    classicExtraTime.current = (aid.extended ? 10_000 : 0) + (aid.used.includes('reveal-reference') ? 10_000 : 0);
+    if (slug === 'reveal-reference' && aid.reference) setClassicReference(aid.reference);
+    setClassicAid(aid);
+    return true;
+  };
 
   const rollDie = useCallback(() => {
     if (!isMyTurn || turnPhase !== 'user' || rolling || revealingRoll || questionOpen || answeredIds.has(currentQ)) return;
@@ -2119,6 +2134,10 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
           setRevealingRoll(false);
           try {
             await publishArenaTriviaState(roomId, currentQ, 'question', 'player');
+            const aid = await classicTriviaRelic(roomId, currentQ).catch(() => undefined);
+            classicExtraTime.current = (aid?.extended ? 10_000 : 0) + (aid?.used.includes('reveal-reference') ? 10_000 : 0);
+            setClassicReference(undefined);
+            setClassicAid(aid);
             setQuestionOpen(true);
             void playSoundEffect('sound_arena_round', 0.62);
           } catch (error) {
@@ -2260,6 +2279,15 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
             {q.type === 'true_false' && <div className="grid grid-cols-2 gap-3"><button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="rounded-lg border-2 border-sage py-4 font-display text-lg font-bold text-sage transition-colors hover:bg-sage-soft"><CheckCircle2 size={24} className="mx-auto mb-1" />True</button><button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="rounded-lg border-2 border-coral py-4 font-display text-lg font-bold text-coral transition-colors hover:bg-coral-soft"><XCircle size={24} className="mx-auto mb-1" />False</button></div>}
             {(q.type === 'multiple_choice' || q.type === 'true_false') && q.options && q.type !== 'true_false' && <div className="space-y-2">{q.options.map((option, index) => <button key={index} onClick={() => void handleAnswer(option)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="w-full rounded-lg border border-border p-3.5 text-left text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold-soft">{option}</button>)}</div>}
             {(q.type === 'cloze' || q.type === 'scriptorium' || q.type === 'order_sequence' || q.type === 'matching' || q.type === 'standard_text') && <div className="space-y-2"><input className="input-field" placeholder="Type your answer..." autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && typedAnswer.trim()) void handleAnswer(typedAnswer.trim()); }} /><button className="btn-primary w-full" onClick={() => { if (typedAnswer.trim()) void handleAnswer(typedAnswer.trim()); }} disabled={!typedAnswer.trim() || isCurrentAnswered || submittingAnswer}>Submit</button></div>}
+            {!isCurrentAnswered && turnPhase === 'user' && timeLeft > 0 && classicAid && (
+              <ContextRelicShop userId={userId} timed aboveOverlay label="Use or buy relics"
+                slugs={TRIVIA_QUESTION_RELICS.filter(slug => !classicAid.used.includes(slug)
+                  && (slug !== 'freeze-timer' || !classicAid.extended)
+                  && (slug !== 'reveal-reference' || classicAid.hasReference))}
+                canUseOwned={() => !submittingAnswer} onUseOwned={useClassicRelic} onChanged={() => undefined} />
+            )}
+            {classicReference && <ScriptureRelicPopup reference={classicReference} onClose={() => setClassicReference(undefined)} />}
+            {classicAid?.answer && <p className="mt-2 text-sm text-brass">Answer: {classicAid.answer}</p>}
             {submittingAnswer && <div className="mt-3 flex items-center justify-center gap-2 text-xs font-bold text-stone"><Loader2 size={14} className="animate-spin" /> Checking answer</div>}
           </div>
         </div>

@@ -1,22 +1,23 @@
+import { RelicSymbol } from './RelicSymbol';
 import { ContextRelicShop } from './ContextRelicShop';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { userFacingError } from '../lib/connectionErrors';
 
 const RELICS = [
- { slug: 'sword-goliath', name: 'Sword of Goliath', detail: 'Complete this puzzle. Assisted words earn no FIGS.' },
+ { slug: 'sword-goliath', name: 'Sword of Goliath', detail: 'Complete this puzzle for 1 Fig per newly completed word.' },
  { slug: 'talking-donkey', name: 'Talking Donkey', detail: 'Check your connected letters against the selected word before submitting.' },
  { slug: 'witch-ball-endor', name: 'Crystal Ball of Endor', detail: 'Reveal the selected word.' },
  { slug: 'hint', name: 'Hint', detail: 'Reveal a clue and the first letter.' },
  { slug: 'eliminate', name: 'Eliminate', detail: 'Dim letters outside the selected word.' },
  { slug: 'freeze-timer', name: 'Freeze Timer', detail: 'Add 60 seconds once per round.' },
- { slug: 'skip', name: 'Skip', detail: 'Complete the selected word without FIGS.' },
+ { slug: 'skip', name: 'Skip', detail: 'Complete the selected word for 1 Fig.' },
  { slug: 'reveal-reference', name: 'Reveal Reference', detail: 'Unlock the selected word’s Scripture reference.' },
 ] as const;
 export type PuzzleRelicSlug = typeof RELICS[number]['slug'];
 
-export function PuzzleRelics({ userId, playing, busy, used, roundUsed, hasSelection, onUse }: {
- userId: string; playing: boolean; busy: boolean; used: string[]; roundUsed: string[]; hasSelection: boolean;
+export function PuzzleRelics({ userId, playing, busy, solved, used, roundUsed, hasSelection, onUse }: {
+ userId: string; playing: boolean; busy: boolean; solved: boolean; used: string[]; roundUsed: string[]; hasSelection: boolean;
  onUse: (slug: PuzzleRelicSlug) => Promise<boolean>;
 }) {
  const [inventory,setInventory]=useState<Record<string,number>>({});
@@ -41,12 +42,14 @@ export function PuzzleRelics({ userId, playing, busy, used, roundUsed, hasSelect
   return()=>{active=false;};
  },[userId,retry]);
  const use=async(slug:PuzzleRelicSlug)=>{
-  if(inFlight.current||busy)return;
+  if(inFlight.current||busy)return false;
   inFlight.current=true;setUsing(slug);
-  try{if(await onUse(slug))setRetry(value=>value+1);}
-  catch(failure){setError(userFacingError(failure,'The relic could not be used.'));}
+  try{const applied=await onUse(slug);if(applied)setRetry(value=>value+1);return applied;}
+  catch(failure){setError(userFacingError(failure,'The relic could not be used.'));return false;}
   finally{inFlight.current=false;setUsing(null);}
  };
+ const isApplicable = (slug: PuzzleRelicSlug) => slug === 'reveal-reference' || playing
+  && (!solved || slug === 'freeze-timer' || slug === 'sword-goliath');
  const owned=RELICS.filter(relic=>inventory[relic.slug]>0);
  return <div className="mt-3 border-t border-border pt-3" aria-label="Owned Puzzle Trivia relics">
   <h4 className="text-xs font-bold">Your puzzle relics</h4>
@@ -54,12 +57,14 @@ export function PuzzleRelics({ userId, playing, busy, used, roundUsed, hasSelect
   <div className="mt-2 flex flex-wrap gap-2">{owned.map(relic=>{
    const alreadyUsed=['sword-goliath','freeze-timer'].includes(relic.slug)?roundUsed.includes(relic.slug):used.includes(relic.slug);
    const needsLetters=relic.slug==='talking-donkey'&&!hasSelection;
-   return <button key={relic.slug} type="button" title={relic.detail} disabled={busy||!!using||loading||alreadyUsed||!playing&&relic.slug!=='reveal-reference'||needsLetters}
-    onClick={()=>void use(relic.slug)} className="btn-secondary text-xs disabled:cursor-not-allowed disabled:border-white/25 disabled:bg-white/5 disabled:text-white/75">{using===relic.slug?'Using…':relic.name} · {inventory[relic.slug]}{alreadyUsed?' · used':''}{needsLetters?' · connect letters first':''}</button>;
+   return <button key={relic.slug} type="button" title={relic.detail} disabled={busy||!!using||loading||alreadyUsed||!isApplicable(relic.slug)||needsLetters}
+    onClick={()=>void use(relic.slug)} className="btn-secondary text-xs disabled:cursor-not-allowed disabled:border-white/25 disabled:bg-white/5 disabled:text-white/75"><RelicSymbol slug={relic.slug} size={14} />{using===relic.slug?'Using…':relic.name} · {inventory[relic.slug]}{alreadyUsed?' · used':''}{needsLetters?' · connect letters first':''}</button>;
   })}</div>
   {!loading&&!error&&!owned.length&&<p className="mt-2 text-xs text-white/80">You do not own a relic that can be used in this puzzle. Quiz, streak and wallet relics stay in their own sections.</p>}
-  <ContextRelicShop userId={userId} timed={playing}
-    slugs={RELICS.filter(({ slug }) => !inventory[slug] && (playing || slug === 'reveal-reference') &&
+  <ContextRelicShop userId={userId} timed={playing} label="Use or buy relics"
+    onUseOwned={(slug) => use(slug as PuzzleRelicSlug)}
+    canUseOwned={(slug) => !busy && !using && (slug !== 'talking-donkey' || hasSelection)}
+    slugs={RELICS.filter(({ slug }) => isApplicable(slug) &&
       !(['sword-goliath', 'freeze-timer'].includes(slug) ? roundUsed : used).includes(slug)).map(relic => relic.slug)}
     onChanged={() => setRetry(value => value + 1)} />
   {error&&<div role="alert" className="mt-2 text-xs text-coral">{error}<button type="button" className="btn-secondary ml-2 text-xs" onClick={()=>setRetry(value=>value+1)}>Retry relics</button></div>}

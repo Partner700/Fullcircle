@@ -1,4 +1,4 @@
-import { arenaRelicEffect } from './arenaRelics.ts';
+import { arenaQuestionFigs, arenaRelicEffect } from './arenaRelics.ts';
 
 export const ROAD_HOME_CONFIG = {
   trackLength: 52,
@@ -81,6 +81,7 @@ export type RoadHomeStats = {
   relicsUsed: number;
   prisonEscapes: number;
   totalMovement: number;
+  questionFigs?: number;
 };
 
 export type RoadHomePlayer = {
@@ -676,6 +677,8 @@ function resolveAnswer(state: RoadHomeState, answer: string) {
   if (!question || !purpose) throw new Error('There is no active question.');
   const correct = answerIsCorrect(question, answer);
   state.questionAttempts += 1;
+  player.stats.questionFigs = (player.stats.questionFigs ?? player.stats.correct)
+    + arenaQuestionFigs(correct, state.questionAid);
   if (correct) {
     player.stats.correct += 1;
     addEvent(state, 'QUESTION_CORRECT', `${player.name} chose "${answer}" — correct${question.reference ? ` (${question.reference})` : ''}.`, player.id);

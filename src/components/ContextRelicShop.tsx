@@ -1,3 +1,4 @@
+import { RelicSymbol } from './RelicSymbol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { fetchRelicInventory, purchaseRelic, useRelic } from '../lib/queries';
@@ -10,12 +11,14 @@ import { MarketCartCheckout } from './FcxFapshiCheckout';
 
 type RelicOffer = Pick<RelicType, 'id' | 'slug' | 'name' | 'denarii_cost' | 'money_price_xaf' | 'money_price_usd' | 'cash_bundles'>;
 
-export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwned, label = 'Get relics', afterDenariiPurchase, aboveOverlay }: {
+export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwned, onUseOwned, canUseOwned, label = 'Get relics', afterDenariiPurchase, aboveOverlay }: {
   userId: string;
   slugs: readonly string[];
   onChanged: () => void;
   timed?: boolean;
   activateOwned?: boolean;
+  onUseOwned?: (slug: string) => Promise<boolean | void>;
+  canUseOwned?: (slug: string) => boolean;
   label?: string;
   afterDenariiPurchase?: () => Promise<void>;
   aboveOverlay?: boolean;
@@ -31,24 +34,23 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
   const notifyChanged = useRef(onChanged);
   notifyChanged.current = onChanged;
   const slugKey = slugs.join(',');
+  const showOwned = Boolean(activateOwned || onUseOwned);
   const refresh = useCallback(async () => {
     const version = ++request.current;
     const [{ data, error: catalogError }, wallet, inventory] = await Promise.all([
       supabase.from('relic_types').select('id,slug,name,denarii_cost,money_price_xaf,money_price_usd,cash_bundles')
         .eq('is_active', true).in('slug', slugKey.split(',')).order('name'),
       supabase.rpc('get_user_denarii_total', { p_user_id: userId }),
-      activateOwned ? fetchRelicInventory(userId) : Promise.resolve([]),
+      showOwned ? fetchRelicInventory(userId) : Promise.resolve([]),
     ]);
     if (version !== request.current) return;
     if (catalogError) throw catalogError;
-    if (wallet.error || wallet.data == null || !Number.isFinite(Number(wallet.data))) {
-      throw wallet.error ?? new Error('Your Denarii balance is unavailable.');
-    }
+    const validBalance = !wallet.error && wallet.data != null && Number.isFinite(Number(wallet.data));
     setOffers(data || []);
-    setBalance(Number(wallet.data));
+    setBalance(validBalance ? Number(wallet.data) : null);
     setOwned(Object.fromEntries(inventory.map(item => [item.relic_type_id, item.quantity])));
-    setError('');
-  }, [activateOwned, slugKey, userId]);
+    setError(validBalance ? '' : 'Your Denarii balance is unavailable.');
+  }, [showOwned, slugKey, userId]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,9 +72,13 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     setNotice('');
     try {
       if (activate) {
-        const result = await useRelic(userId, offer.slug);
-        if (result?.success === false) throw new Error(result.message || 'The relic could not be used.');
-        setNotice(result?.message || 'Relic activated.');
+        if (onUseOwned) {
+          if (await onUseOwned(offer.slug) === false) return;
+        } else {
+          const result = await useRelic(userId, offer.slug);
+          if (result?.success === false) throw new Error(result.message || 'The relic could not be used.');
+          setNotice(result?.message || 'Relic activated.');
+        }
       } else {
         await purchaseRelic(userId, offer.slug);
         if (afterDenariiPurchase) await afterDenariiPurchase();
@@ -105,27 +111,27 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           const canBuyWithDenarii = balance !== null && cost > 0 && balance >= cost;
           return (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 last:border-0">
-              <span className="font-semibold text-ink">{offer.name}</span>
+              <span className="inline-flex items-center gap-2 font-semibold text-ink"><RelicSymbol slug={offer.slug} /> {offer.name}</span>
               <div className="flex flex-wrap items-center gap-2">
-                {activateOwned && (owned[offer.id] ?? 0) > 0 && (
-                  <button type="button" className="btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void act(offer, true)}>
-                    Use ({owned[offer.id]})
+                {showOwned && (owned[offer.id] ?? 0) > 0 ? (
+                  <button type="button" className="btn-secondary text-xs"
+                    disabled={Boolean(busy) || canUseOwned?.(offer.slug) === false} onClick={() => void act(offer, true)}>
+                    <RelicSymbol slug={offer.slug} size={14} /> Use ({owned[offer.id]} owned)
                   </button>
-                )}
-                {canBuyWithDenarii ? (
+                ) : canBuyWithDenarii ? (
                   <button type="button" className="btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void act(offer, false)}>
-                    {afterDenariiPurchase ? 'Buy & use' : 'Buy'} · {formatDenarii(cost)} Ð
+                    <RelicSymbol slug={offer.slug} size={14} /> {afterDenariiPurchase ? 'Buy & use' : 'Buy'} · {formatDenarii(cost)} Ð
                   </button>
                 ) : bundles.length > 0 && balance !== null ? bundles.map(({ size, price }) => (
                   <MarketCartCheckout key={size} className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
                     lines={[{ key: `${offer.id}:${size}`, name: `${offer.name} (pack of ${size})`,
                       unitPrice: price, quantity: 1, relicSlug: offer.slug ?? undefined, packSize: size }]}>
-                    Buy {size} · {formatXaf(price)}
+                    <RelicSymbol slug={offer.slug ?? ""} size={14} /> Buy {size} · {formatXaf(price)}
                   </MarketCartCheckout>
                 )) : cash >= 100 && balance !== null ? (
                   <MarketCartCheckout className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
                     lines={[{ key: offer.id, name: offer.name, unitPrice: cash, quantity: 1, relicSlug: offer.slug }]}>
-                    Buy · {formatXaf(cash)}
+                    <RelicSymbol slug={offer.slug} size={14} /> Buy · {formatXaf(cash)}
                   </MarketCartCheckout>
                 ) : cost > 0 && balance !== null ? <span className="text-stone">Need {formatDenarii(cost - balance)} Ð more</span> : null}
               </div>

@@ -115,7 +115,7 @@ export function GamePoints({ game, players, showCurrentPlayer = false, limit = 1
       )}
       {participants.length > 0 && (
         <div className={cn(leaders.length > 0 && 'mt-2 border-t border-border pt-2')}>
-          <p className="mb-1.5 text-[10px] font-semibold text-stone">Players’ lifetime points</p>
+          <p className="mb-1.5 text-[10px] font-semibold text-stone">{game ? 'Total game points' : 'Players’ lifetime points'}</p>
           <div className="flex flex-wrap gap-2">
             {participants.map(player => <PlayerPoints key={player.user_id} player={player} isCurrentPlayer={player.user_id === userId} points={points ? points.totals[player.user_id] ?? 0 : undefined} />)}
           </div>

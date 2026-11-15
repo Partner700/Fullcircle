@@ -209,6 +209,7 @@ async function finishArenaRoom(room: any, state: RoadHomeState) {
         user_id: player.id,
         score: player.stats.totalMovement + player.stats.correct,
         correct_count: player.stats.correct,
+        figs_earned: player.stats.questionFigs,
       })),
       p_completion_reason: state.eventLog.some((event) => event.type === "PLAYER_FORFEITED") ? "forfeit" : "finished",
     }),

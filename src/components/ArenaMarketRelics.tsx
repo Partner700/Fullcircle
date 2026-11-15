@@ -1,3 +1,5 @@
+import { ScriptureRelicPopup } from './ScriptureRelicPopup';
+import { RelicSymbol } from './RelicSymbol';
 import { ContextRelicShop } from './ContextRelicShop';
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Eye, Lightbulb, ListFilter, Loader2, RotateCw, SkipForward, TimerReset, Volume2 } from 'lucide-react';
@@ -24,6 +26,7 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
   const [using, setUsing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [showReference, setShowReference] = useState(false);
   const busy = useRef(false);
   useEffect(() => {
     let active = true;
@@ -43,29 +46,37 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
     return () => { active = false; };
   }, [userId, retry]);
   const use = async (slug: ArenaRelicSlug) => {
-    if (busy.current || disabled) return;
+    if (busy.current || disabled) return false;
     busy.current = true;
     setUsing(slug);
     try {
-      if (await onUse(slug)) setInventory((owned) => ({ ...owned, [slug]: Math.max(0, (owned[slug] || 0) - 1) }));
+      const applied = await onUse(slug);
+      if (applied && slug === 'reveal-reference') setShowReference(true);
+      if (applied) setInventory((owned) => ({ ...owned, [slug]: Math.max(0, (owned[slug] || 0) - 1) }));
       else setRetry((value) => value + 1);
+      return applied;
     } catch (failure) {
       setError(userFacingError(failure, 'The relic could not be used. Try again.'));
+      return false;
     } finally { busy.current = false; setUsing(null); }
   };
   return <div className="mt-3 border-t border-border pt-3" aria-label="Owned Arena relics">
-    <div className="flex flex-wrap gap-2">{relics.filter(({ slug }) => inventory[slug] > 0 && (!allowedSlugs || allowedSlugs.includes(slug))).map(({ slug, name, Icon }) =>
+    <div className="flex flex-wrap gap-2">{relics.filter(({ slug }) => inventory[slug] > 0 && (!allowedSlugs || allowedSlugs.includes(slug))).map(({ slug, name }) =>
       <button key={slug} type="button" title={`${name} (${inventory[slug]})`} aria-label={`Use ${name} (${inventory[slug]} owned)`}
         disabled={disabled || !!using || aid?.used.includes(slug) || slug === 'eliminate' && !['multiple_choice', 'odd_one'].includes(questionType)}
         onClick={() => void use(slug)} className="icon-btn relative h-10 w-10 shrink-0 disabled:opacity-40">
-        {using === slug ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
+        {using === slug ? <Loader2 size={18} className="animate-spin" /> : <RelicSymbol slug={slug} size={18} />}
         <span className="absolute -right-1 -top-1 rounded bg-surface-2 px-1 text-[9px] font-bold text-brass">{inventory[slug]}</span>
       </button>)}</div>
-    <ContextRelicShop userId={userId} timed
-      slugs={relics.filter(({ slug }) => !disabled && !inventory[slug] &&
+    <ContextRelicShop userId={userId} timed label="Use or buy relics"
+      canUseOwned={() => !disabled && !using}
+      onUseOwned={(slug) => use(slug as ArenaRelicSlug)}
+      slugs={relics.filter(({ slug }) => !disabled &&
         (!allowedSlugs || allowedSlugs.includes(slug)) && !aid?.used.includes(slug) &&
         (slug !== 'eliminate' || ['multiple_choice', 'odd_one'].includes(questionType))).map(relic => relic.slug)}
       onChanged={() => setRetry(value => value + 1)} />
+    {showReference && aid?.scriptureReference && <ScriptureRelicPopup reference={aid.scriptureReference}
+      onClose={() => setShowReference(false)} />}
     {aid?.notice && <p className="mt-2 text-xs text-brass" role="status">{aid.notice}</p>}
     {error && <div className="mt-2 flex items-center gap-2 text-xs text-coral"><span>{error}</span><button type="button" className="icon-btn h-8 w-8 shrink-0" title="Retry relics" aria-label="Retry relics" onClick={() => setRetry((value) => value + 1)}><RotateCw size={14} /></button></div>}
   </div>;

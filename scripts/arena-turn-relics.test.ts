@@ -39,6 +39,15 @@ const back = resolveJourneyRoll(game,'alpha',1,{...plain,traps:{16:JOURNEY_TRAP_
 assert.equal(back.players[0].correctAnswers,11);
 assert.equal(journeyScore(back.players[0]),4);
 assert.deepEqual(back.players[0].location,{route:'main',space:9});
+const exchange = createJourneyGame(['alpha','beta']);
+exchange.players[0].location={route:'main',space:15};
+exchange.players[1].location={route:'main',space:30};
+exchange.players[0].score=8; exchange.players[1].score=12;
+exchange.players[0].questionFigs=5; exchange.players[1].questionFigs=7;
+const swapped=resolveJourneyRoll(exchange,'alpha',1,{...plain,traps:{16:JOURNEY_TRAP_LIBRARY.great_exchange}});
+assert.deepEqual(swapped.players.map(player=>player.location),[{route:'main',space:30},{route:'main',space:16}]);
+assert.deepEqual(swapped.players.map(player=>journeyScore(player)),[9,12]);
+assert.deepEqual(swapped.players.map(player=>player.questionFigs),[5,7]);
 const clamped = resolveJourneyRoll(createJourneyGame(['alpha','beta']),'alpha',2,
   {...plain,traps:{3:JOURNEY_TRAP_LIBRARY.great_fall}});
 assert.equal(journeyScore(clamped.players[0]),0,'backward steps cannot make Journey points negative');
@@ -81,10 +90,12 @@ assert.equal(state.awaitingRoll,true);
 assert.equal(state.game.turnIndex,0,'six bonus survives an incorrect answer');
 const skip=await applyJourneyRelic(open,'alpha','skip',lookup,()=>0);
 assert.equal(skip.game.players[0].correctAnswers,0);
+assert.equal(skip.game.players[0].questionFigs,1);
 assert.equal(skip.lastVerdict?.selectedAnswer,'Skipped');
 const crystal=await applyJourneyRelic(open,'alpha','witch-ball-endor',lookup,()=>0);
 assert.equal(crystal.lastVerdict?.correct,true);
 assert.equal(crystal.game.players[0].correctAnswers,1);
+assert.equal(crystal.game.players[0].questionFigs,1);
 assert.equal(crystal.questionAid,undefined);
 const expired=structuredClone(open); expired.questionDeadline=new Date(Date.now()-1).toISOString();
 await assert.rejects(()=>applyJourneyRelic(expired,'alpha','hint',lookup,()=>0),/only during/);

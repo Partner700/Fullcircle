@@ -814,6 +814,9 @@ export async function consumeQuizQuestionRelic(attemptId: string, questionId: st
   if (error) throw error;
   return data as {
     success: boolean;
+    reference?: string;
+    passage?: string;
+    effective_closes_at?: string;
     notice?: string;
     eliminated_options?: string[];
     skipped?: boolean;

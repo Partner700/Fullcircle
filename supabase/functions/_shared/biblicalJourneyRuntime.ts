@@ -9,7 +9,7 @@ import {
   serveJourneyPrisonTurn,
   type JourneyGame,
 } from './biblicalJourney.ts';
-import { arenaRelicEffect, type ArenaQuestionAid } from './arenaRelics.ts';
+import { arenaQuestionFigs, arenaRelicEffect, type ArenaQuestionAid } from './arenaRelics.ts';
 
 export type JourneyQuestion = {
   id: string;
@@ -197,6 +197,12 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
     next.game = resolveJourneyRoll(next.game, actorId, die);
   } else {
     next.game = resolveJourneyMiss(next.game, actorId, original.pendingDie);
+  }
+  const player = next.game.players.find(p => p.id === actorId);
+  const previousPlayer = original.game.players.find(p => p.id === actorId);
+  if (player && previousPlayer) {
+    player.questionFigs = (previousPlayer.questionFigs ?? previousPlayer.correctAnswers)
+      + arenaQuestionFigs(correct, next.questionAid);
   }
   next.lastVerdict = {
     playerId: actorId, questionId: question.id, question: question.question,

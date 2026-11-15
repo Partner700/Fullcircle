@@ -5,6 +5,7 @@ export type ArenaQuestionAid = {
   hiddenOptions: string[];
   notice: string;
   donkeyActive?: boolean;
+  scriptureReference?: string;
 };
 
 export function arenaRelicEffect(slug: string, question: {
@@ -28,6 +29,8 @@ export function arenaRelicEffect(slug: string, question: {
     aid.notice = '60 seconds added.';
   } else if (slug === 'reveal-reference') {
     if (!question.reference?.trim()) throw new Error('This question has no reference to reveal.');
+    extraSeconds = 10;
+    aid.scriptureReference = question.reference;
     aid.notice = `Reference: ${question.reference}`;
   } else if (slug === 'talking-donkey') {
     aid.donkeyActive = true;
@@ -37,8 +40,14 @@ export function arenaRelicEffect(slug: string, question: {
     aid.notice = 'The Crystal Ball secured this answer.';
   } else {
     answer = '';
-    aid.notice = 'Question skipped. No point earned.';
+    aid.notice = 'Question skipped. 1 Fig earned.';
   }
   aid.used.push(slug as ArenaRelicSlug);
   return { aid, extraSeconds, answer };
+}
+
+export function arenaQuestionFigs(correct: boolean, aid?: ArenaQuestionAid): number {
+  if (aid?.used.includes('skip')) return 1;
+  if (!correct) return 0;
+  return aid?.used.includes('reveal-reference') && aid.used.length === 1 ? 0 : 1;
 }

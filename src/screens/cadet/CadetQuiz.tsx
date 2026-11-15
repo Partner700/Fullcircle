@@ -1,3 +1,5 @@
+import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
+import { RelicSymbol } from '../../components/RelicSymbol';
 import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -191,11 +193,6 @@ function localQuizDayStart(sessionDate: string) {
 
 function localQuizResultsRelease(sessionDate: string) {
   return getAppDateTimeMs(sessionDate, 16, 0);
-}
-
-function hasUsedLazarus(attempt: QuizAttempt | null) {
-  const used = attempt?.relics_used;
-  return Array.isArray(used) && used.some((entry: any) => entry?.slug === RELIC_SLUGS.LAZARUS_COIN);
 }
 
 function looksLikeGeneratorLeak(option: string) {
@@ -544,7 +541,6 @@ function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizS
     && now >= localQuizDayStart(session.session_date)
     && now < lazarusDeadline;
   const canUseLazarus = quizType !== 'valediction' && lazarusWindowOpen && lazarusCount > 0;
-  const attemptLazarusActive = hasUsedLazarus(attempt) && lazarusWindowOpen;
 
   let phase: Phase;
   if (session.status === 'scheduled') phase = 'scheduled';
@@ -655,7 +651,7 @@ function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizS
   }
 
   // In quiz
-  if (inQuiz && (phase === 'live' || lazarusMode || attemptLazarusActive) && attempt?.status === 'in_progress') {
+  if (inQuiz && attempt?.status === 'in_progress') {
     return (
       <QuizPlay
         allowRelics={quizType !== 'valediction'}
@@ -939,6 +935,8 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
   const submissionStartedRef = useRef(false);
   const deadlineCheckRef = useRef(false);
+  const [referencePopup, setReferencePopup] = useState<{ reference: string; passage?: string }>();
+  const [relicClose, setRelicClose] = useState(0);
   const exitForfeitArmedRef = useRef(false);
   const exitForfeitSentRef = useRef(false);
 
@@ -1005,7 +1003,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
   // expiry before submitting a timed-out attempt.
   useEffect(() => {
     const interval = setInterval(() => {
-      const remaining = Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000);
+      const remaining = Math.floor((Math.max(liveCloses, relicClose) - (Date.now() + serverClockOffsetMs)) / 1000);
       setTimeLeft(Math.max(0, remaining));
       if (remaining > 0 || deadlineCheckRef.current || submissionStartedRef.current) return;
       deadlineCheckRef.current = true;
@@ -1016,7 +1014,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         .finally(() => { deadlineCheckRef.current = false; });
     }, 1000);
     return () => clearInterval(interval);
-  }, [handleSubmit, liveCloses, serverClockOffsetMs, verifyDeadline]);
+  }, [handleSubmit, liveCloses, relicClose, serverClockOffsetMs, verifyDeadline]);
 
   if (questions.length === 0) {
     return (
@@ -1102,7 +1100,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
   };
 
   const useGoliathSword = async () => {
-    if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
+    if (submitting || usingGoliath) return;
     setUsingGoliath(true);
     try {
       setRelicInventory((prev) => ({
@@ -1118,7 +1116,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
   };
 
   const consumeQuestionRelic = async (slug: string) => {
-    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+    if (showFeedback || usingQuestionRelic) return;
     setUsingQuestionRelic(slug);
     try {
       const result = await withQuizNetworkRetry(() => consumeQuizQuestionRelic(attempt.id, q.id, slug));
@@ -1126,6 +1124,8 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
+      if (result.reference) setReferencePopup({ reference: result.reference, passage: result.passage });
+      if (result.effective_closes_at) setRelicClose(Date.parse(result.effective_closes_at));
       if (result.notice) setRelicNotice(result.notice);
       if (result.eliminated_options) setEliminatedOptions(result.eliminated_options);
       if (result.skipped || result.auto_answered) {
@@ -1200,7 +1200,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
             [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
             [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
             [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
-          ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
+          ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, , onClick, applicable]) => {
             const amount = relicInventory[slug as string] || 0;
             if (!amount || !applicable) return null;
             const isUsing = usingQuestionRelic === slug;
@@ -1213,7 +1213,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
                 className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
                 title={`Use ${label} relic`}
               >
-                {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                {isUsing ? <Loader2 size={12} className="animate-spin" /> : <RelicSymbol slug={slug} size={12} />}
                 <span>{label}</span> ({amount})
               </button>
             );
@@ -1221,14 +1221,17 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         </div>
       )}
 
-      {allowRelics && !showFeedback && <ContextRelicShop userId={userId} timed
+      {allowRelics && !showFeedback && <ContextRelicShop userId={userId} timed label="Use or buy relics"
+        canUseOwned={() => !submitting && !usingGoliath && !usingQuestionRelic}
+        onUseOwned={(slug) => slug === RELIC_SLUGS.SWORD_GOLIATH ? useGoliathSword() : consumeQuestionRelic(slug)}
         slugs={[
           RELIC_SLUGS.HINT, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
           RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
           ...(payload.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
-        ].filter(slug => !relicInventory[slug])}
+        ]}
         onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
 
+      {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
       {/* Question card with scroll-edge motif */}
       <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
         <ScrollEdge position="top" className="text-stone mb-2" />

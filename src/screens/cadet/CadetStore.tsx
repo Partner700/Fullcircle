@@ -1,3 +1,4 @@
+import { RelicSymbol } from '../../components/RelicSymbol';
 import { relicCashBundles, relicMoneyPriceXaf } from '../../lib/relicPricing';
 import { useDraggableShortcut } from '../../hooks/useDraggableShortcut';
 import { MobileMoneyFailureMessage } from '../../components/MobileMoneyFailureMessage';
@@ -22,23 +23,9 @@ import { phoneNumberForCountry } from '../../lib/profileOptions';
 import type { CampayPaymentResult, CheckoutProvider } from '../../lib/queries';
 import type { FcxExperience, PanelImageSetting, RelicType, StreakFreezer } from '../../lib/types';
 import {
-  Clock3, ShoppingBag, ShoppingCart, Coins, Loader2, Snowflake, Sparkles, Swords, MessageSquare,
-  Wallet, Cross, CheckCircle2, Lock, Smartphone, X, Landmark, Send, Trophy, Shield, Ticket,
+  ShoppingBag, ShoppingCart, Coins, Loader2, Snowflake, Sparkles, MessageSquare,
+  CheckCircle2, Lock, Smartphone, X, Landmark, Send, Ticket,
 } from 'lucide-react';
-
-const RELIC_ICONS: Record<string, any> = {
-  'hezekiahs-sundial': Clock3,
-  'witch-ball-endor': Sparkles,
-  'sword-goliath': Swords,
-  'talking-donkey': MessageSquare,
-  'simons-purse': Wallet,
-  'thieves-request': Cross,
-  'masters-reward': Trophy,
-  'lazarus-coin': Coins,
-  'redemption-coin': Coins,
-  'simons-coin': Wallet,
-  'shield-of-faith': Shield,
-};
 
 const RELIC_COLORS: Record<string, string> = {
   'witch-ball-endor': '#7B6FB0',
@@ -816,7 +803,6 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         <div className="relative z-10 space-y-3">
           {relics.map((relic) => {
             const slug = relic.slug || '';
-            const Icon = RELIC_ICONS[slug] || Sparkles;
             const color = RELIC_COLORS[slug] || '#C9A227';
             const owned = inventory[relic.id] || 0;
             const denariiCost = Number(relic.denarii_cost || 0);
@@ -833,7 +819,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{ background: `${color}20` }}>
-                    <Icon size={22} style={{ color }} />
+                    <RelicSymbol slug={slug} size={22} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
