@@ -387,6 +387,7 @@ export interface RoleAssignment {
   end_date?: string | null;
   approver_id: string | null;
   created_at: string;
+  recipient_profile?: { display_name: string } | null;
 }
 
 export interface TentHouse {

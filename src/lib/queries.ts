@@ -118,7 +118,9 @@ export async function fetchBoardAvatars(userIds: string[]) {
 }
 
 export async function fetchAllRoleAssignments() {
-  const { data, error } = await supabase.from('role_assignments').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('role_assignments')
+    .select('*, recipient_profile:profiles!role_assignments_user_id_fkey(display_name)')
+    .order('created_at', { ascending: false });
   if (error) throw error;
   return data as RoleAssignment[];
 }

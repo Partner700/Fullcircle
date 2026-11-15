@@ -288,7 +288,12 @@ export function InstructorApp() {
 
   // The landing dashboard does not need every profile or historical award.
   // Defer those larger management datasets until a management screen is opened.
-  useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
+  useEffect(() => { void loadDashboardData(); }, [loadDashboardData]);
+  useEffect(() => {
+    if (['tents', 'cadets', 'sentries', 'awards', 'treasury'].includes(tab)) {
+      void loadAll();
+    }
+  }, [tab, loadAll]);
   useEffect(() => {
     const refreshWhenVisible = () => {
       if (document.visibilityState !== 'visible') return;
@@ -322,8 +327,7 @@ export function InstructorApp() {
     if (!NAV_ITEMS.some((item) => item.key === key)) return;
     setTab(key as Tab);
     if (key === 'narratives') setEditingNarrative('new');
-    if (['tents', 'cadets', 'sentries', 'awards', 'treasury'].includes(key) && profiles.length === 0) void loadAll();
-  }, [loadAll, profiles.length]);
+  }, []);
 
   useEffect(() => {
     const navigate = (event: Event) => {
@@ -2556,7 +2560,19 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const sentries = useMemo(() => roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved')), [roles]);
   const cadetIds = useMemo(() => cadets.map((r) => r.user_id), [cadets]);
   const sentryIds = useMemo(() => sentries.map((r) => r.user_id), [sentries]);
-  const profileName = useCallback((userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet', [profiles]);
+  const recipientNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const role of roles) {
+      const name = role.recipient_profile?.display_name?.trim();
+      if (name) names.set(role.user_id, name);
+    }
+    for (const profile of profiles) {
+      const name = profile.display_name?.trim();
+      if (name) names.set(profile.id, name);
+    }
+    return names;
+  }, [profiles, roles]);
+  const profileName = useCallback((userId: string) => recipientNames.get(userId) || 'Name unavailable', [recipientNames]);
 
 
   useEffect(() => {
@@ -2974,10 +2990,9 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           <MultiSelectDropdown
             label={`Select ${targetType === 'cadet' ? 'Cadet(s)' : 'Sentry(s)'}`}
             placeholder={`Choose ${targetType}s…`}
-            options={(targetType === 'cadet' ? cadets : sentries).map((r) => {
-              const p = profiles.find((p) => p.id === r.user_id);
-              return { id: r.user_id, label: p?.display_name || 'Unknown' };
-            })}
+            options={(targetType === 'cadet' ? cadets : sentries).map((r) => ({
+              id: r.user_id, label: profileName(r.user_id),
+            }))}
             selected={selectedUserIds}
             onToggle={toggleUserId}
           />
