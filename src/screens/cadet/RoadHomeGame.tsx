@@ -735,17 +735,21 @@ function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnI
       {centre && row === 7 && col === 7 && <Crown size={18} className="text-peri/80" />}
       {tokens.map(({ player, pawn }, tokenIndex) => {
         const legal = player.id === userId && state.legalPawnIds.includes(pawn.id) && state.phase === 'SELECTING_PAWN';
-        return <button key={pawn.id} type="button" disabled={!legal || sending} onClick={() => onMove(pawn.id)} title={`${player.name} pawn ${pawn.number}${pawn.prisonRounds ? ` · prison ${pawn.prisonRounds}` : ''}`} className={cn(
-          'absolute z-10 flex h-[72%] w-[72%] max-h-8 max-w-8 items-center justify-center rounded-full border-2 text-[clamp(7px,1.4vw,11px)] font-black shadow-md transition-all',
+        return <button key={pawn.id} type="button" disabled={!legal || sending} onClick={() => onMove(pawn.id)} aria-label={`${player.name} pawn ${pawn.number}${pawn.prisonRounds ? ` · prison ${pawn.prisonRounds}` : ''}`} title={`${player.name} pawn ${pawn.number}`} className={cn(
+          'absolute z-10 flex w-[88%] max-w-8 aspect-square items-center justify-center rounded-full border shadow-md transition-all',
           COLOUR_CLASS[player.colour],
           tokens.length > 1 && tokenIndex === 0 && '-translate-x-[18%] -translate-y-[18%]',
           tokens.length > 1 && tokenIndex === 1 && 'translate-x-[18%] translate-y-[18%]',
           tokens.length > 2 && tokenIndex === 2 && 'translate-x-[18%] -translate-y-[18%]',
           tokens.length > 3 && tokenIndex === 3 && '-translate-x-[18%] translate-y-[18%]',
           legal && 'animate-pulse cursor-pointer ring-2 ring-white ring-offset-1 ring-offset-gold hover:scale-110',
-          pawn.progress === 58 && 'opacity-45 grayscale saturate-50',
+          pawn.progress === 58 && 'opacity-75',
           movingPawnIds.has(pawn.id) && 'z-20 animate-bounce ring-2 ring-white/80',
-        )}>{pawn.prisonRounds ? <LockKeyhole size={10} /> : pawn.progress === 58 ? <Crown size={10} /> : pawn.number}</button>;
+        )}><UserAvatar name={player.name} userId={player.id} avatarUrl={player.avatarUrl} showAwardBadge={false} loading="eager" className="!absolute inset-0" />
+          {pawn.prisonRounds > 0 || pawn.progress === 58 ? <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface text-ink">
+            {pawn.prisonRounds ? <LockKeyhole size={9} /> : <Crown size={9} />}
+          </span> : null}
+        </button>;
       })}
     </div>;
   })}</div>;

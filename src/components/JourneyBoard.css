@@ -13,10 +13,9 @@
 .journey-red { background: #55393f; border-color: #e39086; color: #ffc3b6; }
 .journey-grey { background: #535a66; border-color: #b8bdc7; color: #f0f1f4; }
 .journey-occupied { box-shadow: 0 0 0 2px #f5d372; z-index: 2; }
-.journey-piece { position: absolute; width: clamp(14px, 4.2%, 22px); aspect-ratio: 1; overflow: hidden; border: 2px solid #f2f2f5; border-radius: 50%; background: #172d43; z-index: 5; pointer-events: none; box-shadow: 0 1px 4px #081426; transition: left 155ms linear, top 155ms linear, transform 155ms linear; }
+.journey-piece { position: absolute; width: clamp(20px, 5.4%, 30px); aspect-ratio: 1; display: block; overflow: hidden; border: 1px solid #f2f2f5; border-radius: 50%; background: #172d43; z-index: 5; pointer-events: none; box-shadow: 0 1px 4px #081426; transition: left 155ms linear, top 155ms linear, transform 155ms linear; }
 .journey-piece-self { border-color: #fbd56a; }
 .journey-piece-jailed { box-shadow: 0 0 0 2px #e39086; }
-.journey-piece span { font-size: 8px; }
 .journey-board-title { position: absolute; top: 17%; left: 16%; right: 16%; text-align: center; display: grid; gap: 2px; line-height: 1.25; }
 .journey-board-title > span { font-size: 7px; color: #e8b958; font-weight: 700; }
 .journey-board-title > strong { font-family: var(--font-display); font-size: 14px; overflow-wrap: anywhere; }

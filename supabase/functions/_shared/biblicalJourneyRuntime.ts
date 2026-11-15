@@ -169,19 +169,19 @@ export function rollJourneyDie(original: JourneyRuntime, actorId: string, random
 }
 
 export async function answerJourneyQuestion(original: JourneyRuntime, actorId: string, answer: string,
-  lookup: JourneyQuestionLookup, random: () => number, skip = false): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
   if (!question || original.awaitingRoll || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
     throw new Error('This question is not open for you.');
   }
   if (original.questionOpensAt && Date.now() < Date.parse(original.questionOpensAt)) throw new Error('Wait for the question to open.');
   const expired = Boolean(original.questionDeadline && Date.now() >= Date.parse(original.questionDeadline));
-  if (!expired && !skip && !answer.trim()) throw new Error('Enter an answer before time runs out.');
-  const submittedAnswer = skip ? 'Skipped' : expired ? 'Time expired' : answer;
-  const correct = !skip && !expired && journeyAnswerIsCorrect(question, answer);
+  if (!expired && !answer.trim()) throw new Error('Enter an answer before time runs out.');
+  const submittedAnswer = expired ? 'Time expired' : answer;
+  const correct = !expired && journeyAnswerIsCorrect(question, answer);
   const pending = original.game.pendingAction;
   const next = structuredClone(original);
-  if (!correct && !skip && !expired && next.questionAid?.donkeyActive) {
+  if (!correct && !expired && next.questionAid?.donkeyActive) {
     next.lastVerdict = null;
     next.questionAid.donkeyActive = false;
     next.questionAid.notice = 'That answer was stopped. Choose again before time runs out.';
@@ -228,7 +228,16 @@ export async function applyJourneyRelic(original: JourneyRuntime, actorId: strin
   const next = structuredClone(original);
   next.questionAid = effect.aid;
   next.lastVerdict = null;
-  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random, slug === 'skip');
+  if (slug === 'skip') {
+    const player = next.game.players[next.game.turnIndex];
+    player.questionFigs = (player.questionFigs ?? player.correctAnswers) + arenaQuestionFigs(false, effect.aid);
+    next.game.pendingAction = null;
+    next.game.bonusTurnPlayerId = null;
+    next.game.version += 1;
+    await openNextQuestion(next, lookup, random);
+    return next;
+  }
+  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random);
   if (effect.extraSeconds) next.questionDeadline = new Date(Date.parse(original.questionDeadline) + effect.extraSeconds * 1000).toISOString();
   next.game.version += 1;
   return next;

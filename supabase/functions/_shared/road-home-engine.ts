@@ -432,6 +432,19 @@ function expireChallengeIfComplete(state: RoadHomeState, challenge: RoadHomeChal
   return true;
 }
 
+function resetToRoll(state: RoadHomeState) {
+  state.phase = 'AWAITING_ROLL';
+  state.diceValue = null;
+  state.currentQuestion = null;
+  state.questionPurpose = null;
+  state.questionDeadline = null;
+  state.questionAid = undefined;
+  state.questionAttempts = 0;
+  state.legalPawnIds = [];
+  state.pendingMoveValue = null;
+  state.moveContinuation = null;
+}
+
 function prepareOwnTurn(state: RoadHomeState) {
   const player = activePlayer(state);
   const imprisoned = player.pawns.find((pawn) => pawn.prisonRounds > 0);
@@ -448,14 +461,7 @@ function prepareOwnTurn(state: RoadHomeState) {
     addEvent(state, 'TURN_STARTED', `${player.name} received an inherited challenge worth ${challenge.rolledValue} spaces.`, player.id);
     return;
   }
-  state.phase = 'AWAITING_ROLL';
-  state.diceValue = null;
-  state.currentQuestion = null;
-  state.questionPurpose = null;
-  state.questionDeadline = null;
-  state.legalPawnIds = [];
-  state.pendingMoveValue = null;
-  state.moveContinuation = null;
+  resetToRoll(state);
   addEvent(state, 'TURN_STARTED', `${player.name}'s turn started.`, player.id);
 }
 
@@ -839,10 +845,25 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
       || Date.now() >= Date.parse(state.questionDeadline)) throw new Error('Relics are available only during your open question.');
     const effect = arenaRelicEffect(command.slug, { ...question, options: question.options || [] },
       state.questionAid, (answer) => answerIsCorrect(question, answer));
-    state.questionAid = effect.aid;
-    if (effect.extraSeconds) state.questionDeadline = new Date(Date.parse(state.questionDeadline) + effect.extraSeconds * 1000).toISOString();
-    if (effect.answer !== undefined) resolveAnswer(state, effect.answer);
-    addEvent(state, 'MARKET_RELIC_USED', `${player.name}: ${effect.aid.notice}`, player.id);
+    if (command.slug === 'skip') {
+      player.stats.questionFigs = (player.stats.questionFigs ?? player.stats.correct) + arenaQuestionFigs(false, effect.aid);
+      const challenge = state.challengeQueue.find((item) => item.id === state.activeChallengeId);
+      if (state.questionPurpose === 'inherited' && challenge) {
+        challenge.declinedPlayerIds.push(player.id);
+        expireChallengeIfComplete(state, challenge);
+      }
+      state.activeChallengeId = null;
+      state.activePrisonPawnId = null;
+      state.pendingSurprise = null;
+      state.bonusRollsUsed = 0;
+      resetToRoll(state);
+      addEvent(state, 'MARKET_RELIC_USED', `${player.name} skipped the round, earned 1 Fig, and can roll again.`, player.id);
+    } else {
+      state.questionAid = effect.aid;
+      if (effect.extraSeconds) state.questionDeadline = new Date(Date.parse(state.questionDeadline) + effect.extraSeconds * 1000).toISOString();
+      if (effect.answer !== undefined) resolveAnswer(state, effect.answer);
+      addEvent(state, 'MARKET_RELIC_USED', `${player.name}: ${effect.aid.notice}`, player.id);
+    }
   } else if (command.action === 'MOVE') {
     if (state.phase !== 'SELECTING_PAWN') throw new Error('A pawn cannot be moved now.');
     movePawn(state, command.pawnId, random);

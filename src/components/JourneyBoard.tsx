@@ -130,7 +130,7 @@ export function JourneyBoard({ game, profiles, viewerId, characterName, arenaIma
         return <span key={player.id} className={`journey-piece ${player.id === viewerId ? 'journey-piece-self' : ''} ${player.prisonTurnsRemaining > 0 ? 'journey-piece-jailed' : ''}`}
           style={{ ...position(point, boardHeight), transform: `translate(calc(-50% + ${slot % 2 * 8}px), calc(-50% + ${Math.floor(slot / 2) * 8}px))` }}
           title={`${profiles[player.id]?.name || 'Player'}${player.prisonTurnsRemaining > 0 ? ` · ${player.prisonTurnsRemaining} turns missed` : ''}`}>
-          <UserAvatar userId={player.id} name={profiles[player.id]?.name || 'Player'} avatarUrl={profiles[player.id]?.avatarUrl} showAwardBadge={false} className="h-full w-full" />
+          <UserAvatar userId={player.id} name={profiles[player.id]?.name || 'Player'} avatarUrl={profiles[player.id]?.avatarUrl} showAwardBadge={false} loading="eager" className="!absolute inset-0" />
         </span>;
       })}
       <div className="journey-board-title"><span>FULL CIRCLE ARENA</span><strong>{title}</strong><span>{config.winningLaps} LAPS TO VICTORY</span></div>
