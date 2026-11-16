@@ -316,6 +316,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   if (state.game.status === 'finished') return <ArenaFinalScorecard roomId={roomId} onExit={onExit} arenaImage={arenaImage} />;
 
   return <div className="space-y-4">
+    <ArenaMatchup players={visiblePlayers} playing pinned />
     <div className="border-b border-border pb-3">
       <p className="eyebrow text-brass">{character?.displayName || 'Biblical Journey'}</p>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
@@ -326,7 +327,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
         </div>
       </div>
     </div>
-    <ArenaMatchup players={visiblePlayers} playing={state.game.status === 'playing'} />
     {error && <p className="rounded-md border border-coral/40 bg-coral-soft p-3 text-xs text-coral" role="alert">{error}</p>}
     <div className="space-y-3">
       <GamePoints game="journey" players={roster} />

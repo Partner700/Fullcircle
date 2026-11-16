@@ -1,4 +1,4 @@
-import { type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { type CSSProperties, type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn, formatPlayerNumber } from '../lib/utils';
 import { DoveMark } from './Dove';
@@ -348,7 +348,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, []);
 
   return (
-    <div className="relative min-h-screen flex overflow-x-hidden bg-navy">
+    <div className="relative min-h-screen flex overflow-x-clip bg-navy">
       {weeklyBackground && (
         <PanelImageBackdrop
           image={weeklyBackground}
@@ -562,7 +562,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
           </aside>
         </div>
 
-        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6">{children}</main>
+        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6" style={{ '--app-header-height': `${headerHeight}px` } as CSSProperties}>{children}</main>
       </div>
     </div>
   );
