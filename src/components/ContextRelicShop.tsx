@@ -139,7 +139,8 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
                       unitPrice: price, quantity: 1, relicSlug: offer.slug ?? undefined, packSize: size }]}>
                     <RelicSymbol slug={offer.slug ?? ""} size={14} /> Buy {size} · {formatXaf(price)}
                   </MarketCartCheckout>
-                )) : showCash && cash >= 100 ? (
+                )) : null}
+                {showCash && cash >= 100 && (showAllPaymentOptions || !bundles.length) ? (
                   <MarketCartCheckout className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
                     lines={[{ key: offer.id, name: offer.name, unitPrice: cash, quantity: 1, relicSlug: offer.slug }]}>
                     <RelicSymbol slug={offer.slug} size={14} /> Buy · {formatXaf(cash)}

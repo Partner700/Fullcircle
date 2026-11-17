@@ -1,3 +1,4 @@
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../_shared/arenaBoardMarket.ts';
 import { arenaShieldOwners } from '../_shared/arenaShield.ts';
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import {
@@ -12,6 +13,8 @@ import {
   rollJourneyDie,
   applyJourneyRelic,
   decideJourneyShield,
+  pauseJourneyMatch,
+  undoJourneyMove,
   type JourneyQuestion,
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
@@ -156,7 +159,7 @@ Deno.serve(async (request) => {
       })) });
     }
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD'].includes(action)) {
+    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD', 'UNDO', 'STANDSTILL'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
     const context = await roomContext(roomId);
@@ -221,18 +224,36 @@ Deno.serve(async (request) => {
       return json({ error: 'Respond to the Arena challenge before playing your next move.' }, 409);
     }
 
-    const previous = current.state as JourneyRuntime;
+    const original = current.state as JourneyRuntime;
+    if (Date.now() < Date.parse(original.pausedUntil || '')) return json({ error: 'The match is paused by Standstill.' }, 409);
+    if (action === 'BOT' && Date.now() < Date.parse(original.undo?.botWaitUntil || '')) {
+      return json({ error: 'Wait for the Undo window to end.' }, 409);
+    }
+    const previous = { ...original };
+    delete previous.pausedUntil;
+    if (action !== 'UNDO' && action !== 'SHIELD') delete previous.undo;
     const decision = body.decision;
     if (action === 'SHIELD' && decision !== 'use' && decision !== 'expire') return json({ error: 'Choose a valid Shield of Faith action.' }, 400);
     if (previous.game.shieldOffer && action !== 'SHIELD') return json({ error: 'Wait for the Shield of Faith decision.' }, 409);
     const useShield = action === 'SHIELD' && decision === 'use';
     const shieldOwners = body.shieldDecisionV1 === true && ['ANSWER', 'EXPIRE', 'CHOOSE', 'BOT', 'RELIC', 'SHIELD'].includes(action)
       ? await arenaShieldOwners(rest, activePlayers.map((player) => player.user_id), useShield ? actorId : undefined) : undefined;
+    let holdBotForUndo = false;
+    if (body.journeyMarketRelicsV1 === true && context.room.play_mode === 'machine'
+      && (action === 'ANSWER' || action === 'RELIC' && body.slug === 'witch-ball-endor')) {
+      const inventory = await rest(`relic_inventory?select=id,relic_types!inner(slug)&user_id=eq.${actorId}&quantity=gt.0&relic_types.slug=eq.${ARENA_UNDO}&limit=1`);
+      holdBotForUndo = Boolean(inventory?.length);
+    }
+    const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
     let next: JourneyRuntime;
-    if (action === 'SHIELD') {
+    if (action === 'UNDO') {
+      next = await undoJourneyMove(previous, actorId, approvedQuestion, secureRandom);
+    } else if (action === 'STANDSTILL') {
+      next = pauseJourneyMatch(previous, actorId);
+    } else if (action === 'SHIELD') {
       next = await decideJourneyShield(previous, actorId, decision, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'RELIC') {
-      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom, shieldOwners);
+      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom, shieldOwners, holdBotForUndo);
     } else if (action === 'BOT') {
       if (context.room.play_mode !== 'machine' || !machineJourneyMayAct(previous)) {
         return json({ error: 'It is not The Scribe\'s turn.' }, 409);
@@ -243,7 +264,7 @@ Deno.serve(async (request) => {
       next = rollJourneyDie(previous, actorId, secureRandom);
     } else if (action === 'ANSWER') {
       const answer = String(body.answer || '').slice(0, 2000);
-      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners);
+      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners, holdBotForUndo);
     } else if (action === 'EXPIRE') {
       next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'CHOOSE') {
@@ -252,18 +273,19 @@ Deno.serve(async (request) => {
     } else {
       next = await serveJourneySentence(previous, actorId, approvedQuestion, secureRandom);
     }
-    const result = await rest(useShield ? 'rpc/commit_arena_shield_turn' : 'rpc/commit_arena_journey_turn', {
+    const result = await rest(spend ? 'rpc/commit_arena_board_market_turn'
+      : useShield ? 'rpc/commit_arena_shield_turn' : 'rpc/commit_arena_journey_turn', {
       method: 'POST', body: JSON.stringify({
         p_room_id: roomId, p_expected_version: current.version,
         p_next_state: next, p_command_id: commandId, p_actor_id: actorId,
-        ...(useShield ? {} : { p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null }),
+        ...(spend ? { p_spend_slug: spend, p_award_slug: null, p_public_state: null } : useShield ? {} : { p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null }),
       }),
     }) as { duplicate: boolean; state: JourneyRuntime };
     return json({ state: publicJourneyRuntime(result.state), version: result.state.game.version,
       duplicate: result.duplicate });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Journey server could not complete that action.';
-    const known = /Shield of Faith|relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
+    const known = /Shield of Faith|Undo|Standstill|relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
     if (!known) console.error('Biblical Journey action failed:', error);
     return json({ error: known ? message : 'The Journey could not advance. Try again.' }, known ? 409 : 500);
   }

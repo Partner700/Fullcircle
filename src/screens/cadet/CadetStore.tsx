@@ -852,7 +852,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                           <Lock size={10} /> Cash only
                         </span>
                       )}
-                      {!cashBundles.length && (
+                      {(!cashBundles.length || moneyPriceXaf > 0) && (
                       <button
                         onClick={() => openPaymentModal(relic)}
                         disabled={moneyPriceXaf <= 0 || gifting}

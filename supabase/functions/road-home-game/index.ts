@@ -1,3 +1,4 @@
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../_shared/arenaBoardMarket.ts';
 import { arenaShieldOwners } from '../_shared/arenaShield.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
@@ -186,11 +187,13 @@ async function createGame(roomId: string, state: RoadHomeState) {
   return publicState;
 }
 
-async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null, useShield = false) {
-  const result = await rest(useShield ? 'rpc/commit_arena_shield_turn' : 'rpc/commit_arena_ludo_turn', {
+async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null, useShield = false, market?: { spend?: string; award?: string }) {
+  const result = await rest(useShield ? 'rpc/commit_arena_shield_turn'
+    : market ? 'rpc/commit_arena_board_market_turn' : 'rpc/commit_arena_ludo_turn', {
     method: 'POST', body: JSON.stringify({ p_room_id: roomId, p_expected_version: previous.version,
       p_next_state: next, p_public_state: publicRoadHomeState(next), p_command_id: commandId,
-      p_actor_id: actorId, ...(useShield ? {} : { p_relic_slug: relicSlug }) }),
+      p_actor_id: actorId, ...(market ? { p_spend_slug: market.spend ?? null, p_award_slug: market.award ?? null }
+        : useShield ? {} : { p_relic_slug: relicSlug }) }),
   });
   return result.state;
 }
@@ -326,10 +329,17 @@ Deno.serve(async (request) => {
     const useShield = command.action === 'SHIELD' && command.decision === 'use' && !previous.shieldLanding?.usesMatchRelic;
     const shieldOwners = body.shieldDecisionV1 === true ? await arenaShieldOwners(rest,
       context.participantIds.filter((id) => !context.forfeitedIds.includes(id)), useShield ? actorId : undefined) : undefined;
-    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners);
+    let holdBotForUndo = false;
+    if (body.ludoMarketRelicsV1 === true && action === 'MOVE' && previous.players.some((player) => player.isBot)) {
+      const undoStock = await rest(`relic_inventory?select=id,relic_types!inner(slug)&user_id=eq.${actorId}&quantity=gt.0&relic_types.slug=eq.${ARENA_UNDO}&limit=1`);
+      holdBotForUndo = Boolean(undoStock?.length);
+    }
+    const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
+    const award = action === 'ACK_SURPRISE' ? previous.pendingSurprise?.marketRelicSlug : undefined;
+    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners, holdBotForUndo);
     next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')), shieldOwners);
     const publicState = await saveGame(roomId, previous, next, commandId, actorId,
-      command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield);
+      command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield, spend || award ? { spend, award } : undefined);
     await finishArenaRoom(context.room, next);
     return json({ state: publicState, version: next.version });
   } catch (error) {

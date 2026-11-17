@@ -1,3 +1,4 @@
+import { arenaMatchRelicIsMuted, countArenaMatchRelicUse, type ArenaMatchRelicUses } from './arenaMatchRelicLimits.ts';
 import { createArenaShieldOffer, validateArenaShieldDecision, type ArenaShieldOffer } from './arenaShield.ts';
 
 export type JourneyLocation =
@@ -84,6 +85,7 @@ export type JourneyGame = {
   version: number;
   bonusTurnPlayerId?: string | null;
   shieldOffer?: ArenaShieldOffer;
+  matchRelicUses?: ArenaMatchRelicUses;
   shieldContinuation?: { queue: QueuedEffect[]; seen: string[]; depth: number; after?: QueuedEffect[] };
 };
 
@@ -294,8 +296,10 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
   const queue = [...initial];
   const seen = new Set(resume?.seen);
   let depth = resume?.depth ?? 0;
+  const machineMatch = game.players.some((player) => player.id === JOURNEY_MACHINE_ID);
   const offer = (target: JourneyPlayer, item: QueuedEffect, consequence: string) => {
-    if (!shieldOwners || target.id === JOURNEY_MACHINE_ID || item.skipShield) return false;
+    if (!shieldOwners || target.id === JOURNEY_MACHINE_ID || item.skipShield
+      || arenaMatchRelicIsMuted(game.matchRelicUses, target.id, 'shield-of-faith', machineMatch)) return false;
     game.shieldOffer = createArenaShieldOffer(target.id, consequence, shieldOwners.includes(target.id));
     game.shieldContinuation = { queue: [item, ...queue], seen: [...seen], depth, after: resume?.after };
     return true;
@@ -557,6 +561,11 @@ export function resolveJourneyShield(original: JourneyGame, actorId: string, dec
   delete game.shieldContinuation;
   const [penalty, ...remaining] = shieldContinuation.queue;
   if (decision === 'use') {
+    const machineMatch = game.players.some((player) => player.id === JOURNEY_MACHINE_ID);
+    if (arenaMatchRelicIsMuted(game.matchRelicUses, actorId, 'shield-of-faith', machineMatch)) {
+      throw new Error('You have used all five Shields of Faith for this match.');
+    }
+    countArenaMatchRelicUse(game, actorId, 'shield-of-faith');
     const player = game.players.find((candidate) => candidate.id === actorId)!;
     record(game, player, penalty.source, 'shield-of-faith', player.location, 'reveal', 'applied', 'penalty-prevented');
   }

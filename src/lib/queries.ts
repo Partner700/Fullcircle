@@ -3810,6 +3810,7 @@ export function sendRoadHomeCommand(
     expectedVersion,
     commandId,
     shieldDecisionV1: true,
+    ludoMarketRelicsV1: true,
   });
 }
 

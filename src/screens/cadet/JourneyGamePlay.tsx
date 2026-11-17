@@ -1,3 +1,6 @@
+import { ContextRelicShop } from '../../components/ContextRelicShop';
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../../../supabase/functions/_shared/arenaBoardMarket';
+import { arenaMatchRelicIsMuted } from '../../../supabase/functions/_shared/arenaMatchRelicLimits';
 import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
 import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -193,7 +196,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD', payload: Record<string, unknown> = {}) => {
+  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL', payload: Record<string, unknown> = {}) => {
     if (!state || spectator || sending) return false;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
@@ -227,7 +230,22 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     }
   }, [applyResponse, roomId, sending, spectator, state]);
 
-  const botMayAct = machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && (squareNotices.length === 0 || Boolean(state?.currentQuestion)) && state ? machineJourneyMayAct(state) : false;
+  const [relicNow, setRelicNow] = useState(Date.now);
+  const pauseUntil = Date.parse(state?.pausedUntil || '');
+  const undoUntil = Date.parse(state?.undoOffer?.botWaitUntil || '');
+  const pauseRemaining = Math.max(0, Math.ceil((pauseUntil - relicNow) / 1000) || 0);
+  const undoMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_UNDO, machine);
+  const standstillMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_STANDSTILL, machine);
+  const undoAvailable = !spectator && !undoMuted && state?.undoOffer?.playerId === userId
+    && (!Number.isFinite(undoUntil) || relicNow < undoUntil);
+  useEffect(() => {
+    if (!Number.isFinite(pauseUntil) && !Number.isFinite(undoUntil)) return;
+    const tick = () => setRelicNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [pauseUntil, undoUntil]);
+  const botMayAct = pauseRemaining === 0 && machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && (squareNotices.length === 0 || Boolean(state?.currentQuestion)) && state ? machineJourneyMayAct(state) : false;
   useEffect(() => {
     if (!botMayAct || sending) return;
     let timer: number | undefined;
@@ -235,32 +253,33 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       if (timer) window.clearTimeout(timer);
       if (document.visibilityState === 'visible') {
         const untilOpen = state?.questionOpensAt ? Math.max(0, Date.parse(state.questionOpensAt) - Date.now()) : 0;
-        timer = window.setTimeout(() => void send('BOT'), untilOpen + Math.min(1500 * 2 ** botFailures, 15_000));
+        const untilUndoCloses = Number.isFinite(undoUntil) ? Math.max(0, undoUntil - Date.now()) : 0;
+        timer = window.setTimeout(() => void send('BOT'), Math.max(untilOpen, untilUndoCloses) + Math.min(1500 * 2 ** botFailures, 15_000));
       }
     };
     document.addEventListener('visibilitychange', schedule);
     schedule();
     return () => { if (timer) window.clearTimeout(timer); document.removeEventListener('visibilitychange', schedule); };
-  }, [botFailures, botMayAct, send, sending, state?.game.version, state?.questionOpensAt]);
+  }, [botFailures, botMayAct, send, sending, state?.game.version, state?.questionOpensAt, undoUntil]);
 
   const activePlayer = state?.game.players[state.game.turnIndex];
   useEffect(() => {
-    if (!state || state.game.shieldOffer || spectator || sending || activePlayer?.id !== userId || activePlayer.prisonTurnsRemaining <= 0) return;
+    if (!state || pauseRemaining > 0 || state.game.shieldOffer || spectator || sending || activePlayer?.id !== userId || activePlayer.prisonTurnsRemaining <= 0) return;
     void send('SERVE');
-  }, [activePlayer, send, sending, spectator, state, userId]);
+  }, [activePlayer, pauseRemaining, send, sending, spectator, state, userId]);
   const myTurn = !spectator && state?.game.status === 'playing'
     && state.currentQuestionPlayerId === userId;
   const openQuestion = state?.currentQuestion;
   const waitingForMyAnswer = myTurn && state?.currentQuestionPlayerId === userId;
   useEffect(() => {
-    if (!state?.currentQuestion || !state.questionDeadline || spectator || sending
+    if (!state?.currentQuestion || !state.questionDeadline || pauseRemaining > 0 || spectator || sending
       || Date.now() < Date.parse(state.questionDeadline)
       || machine && state.currentQuestionPlayerId === JOURNEY_MACHINE_ID) return;
     const key = `${state.currentQuestion.id}:${state.game.version}`;
     if (timedOutRef.current === key) return;
     timedOutRef.current = key;
     void send('EXPIRE');
-  }, [machine, secondsLeft, send, sending, spectator, state, timeoutRetry]);
+  }, [machine, pauseRemaining, secondsLeft, send, sending, spectator, state, timeoutRetry]);
   const mayChoose = !spectator && state?.game.pendingAction?.kind === 'choice'
     && state.game.pendingAction.playerId !== userId
     && state.game.players.some((player) => player.id === userId);
@@ -304,7 +323,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     if (notices.length) setSquareNotices((current) => [...current, ...notices]);
   }, [state, boardConfig, profiles]);
 
-  const rollReady = Boolean(state?.awaitingRoll && activePlayer?.id === userId && !spectator && !sending && !movementPending && !verdictVisible && !squareNotices.length);
+  const rollReady = Boolean(pauseRemaining === 0 && state?.awaitingRoll && activePlayer?.id === userId && !spectator && !sending && !movementPending && !verdictVisible && !squareNotices.length);
   const movementFinished = useCallback(() => setMovementPending(false), []);
   const squareNotice = squareNotices[0];
 
@@ -316,8 +335,28 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   </div>;
   if (state.game.status === 'finished') return <ArenaFinalScorecard roomId={roomId} onExit={onExit} arenaImage={arenaImage} />;
 
+  const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
+    && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
+  const undoShop = undoAvailable && <ContextRelicShop userId={userId} label="Undo" slugs={[ARENA_UNDO]}
+    preload={Number.isFinite(undoUntil)} onChanged={() => undefined} canUseOwned={() => !sending}
+    onUseOwned={() => send('UNDO')} />;
+
   return <div className="space-y-4">
     <ArenaMatchup players={visiblePlayers} playing pinned />
+    {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
+      && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
+    {pauseRemaining > 0 && <JourneyDialog label="Standstill">
+      <h2 className="font-display text-lg font-bold text-ink">Standstill</h2>
+      <p className="mt-2 text-sm text-stone">The match will resume automatically.</p>
+      <p className="mt-3 font-display text-3xl tabular-nums text-gold">{Math.floor(pauseRemaining / 60)}:{String(pauseRemaining % 60).padStart(2, '0')}</p>
+      <button type="button" className="btn-secondary mt-4 text-xs" onClick={onExit}>Leave match view</button>
+    </JourneyDialog>}
+    {!spectator && (undoMuted || standstillMuted) && <p role="status" className="text-xs text-stone">
+      Match limits reached: {[undoMuted && 'Undo (3)', standstillMuted && 'Standstill (1)'].filter(Boolean).join(', ')}.
+    </p>}
+    {(!verdictVisible || chatOpen) && undoShop}
+    {standstillAvailable && !openQuestion && <ContextRelicShop userId={userId} label="Standstill" slugs={[ARENA_STANDSTILL]}
+      onChanged={() => undefined} canUseOwned={() => !sending} onUseOwned={() => send('STANDSTILL')} />}
     {state.game.shieldOffer && <ArenaShieldDecision key={state.game.version} offer={state.game.shieldOffer}
       viewerId={spectator ? undefined : userId} sending={sending}
       onDecide={(decision) => send('SHIELD', { decision })} />}
@@ -338,7 +377,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
       <div className="min-w-0 space-y-3">
-        {!state.game.shieldOffer && verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
+        {pauseRemaining === 0 && !state.game.shieldOffer && verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
           <div className="flex items-center gap-2">
             {state.lastVerdict.correct ? <CheckCircle2 size={24} className="text-sage" /> : <XCircle size={24} className="text-coral" />}
             <h3 className="font-display text-lg font-bold text-ink">{state.lastVerdict.correct ? 'Correct answer' : state.lastVerdict.selectedAnswer === 'Time expired' ? 'Time is up' : 'Not quite'}</h3>
@@ -350,9 +389,10 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
           {state.lastVerdict.explanation && <p className="mt-2 text-xs text-stone">{state.lastVerdict.explanation}</p>}
           {state.lastVerdict.reference && <p className="mt-1 text-xs text-brass">{state.lastVerdict.reference}</p>}
           <button type="button" className="btn-secondary mt-3 w-full justify-center" onClick={() => setVerdictVisible(false)}>Continue</button>
+          {undoShop}
         </div></JourneyDialog> : null}
 
-        {openQuestion && asking && !chatOpen && state.game.status === 'playing' && <JourneyDialog label="Biblical Journey question" onClose={!waitingForMyAnswer ? () => setQuestionHidden(true) : undefined}><section className="min-w-0" aria-label="Biblical Journey question">
+        {pauseRemaining === 0 && openQuestion && asking && !chatOpen && state.game.status === 'playing' && <JourneyDialog label="Biblical Journey question" onClose={!waitingForMyAnswer ? () => setQuestionHidden(true) : undefined}><section className="min-w-0" aria-label="Biblical Journey question">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0"><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s turn</h3></div>
             <div className="flex shrink-0 items-center gap-1">
@@ -383,6 +423,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
           </div>}
           {waitingForMyAnswer && <ArenaMarketRelics userId={userId} questionType={openQuestion.type} aid={state.questionAid}
             disabled={sending || secondsLeft === 0} onUse={(slug) => send('RELIC', { slug })} />}
+          {standstillAvailable && waitingForMyAnswer && <ContextRelicShop userId={userId} label="Standstill" slugs={[ARENA_STANDSTILL]}
+            onChanged={() => undefined} canUseOwned={() => !sending && secondsLeft > 0} onUseOwned={() => send('STANDSTILL')} />}
           {error && <p className="mt-2 text-xs text-coral" role="alert">{error}</p>}
           {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
           <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>
@@ -401,7 +443,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       </div>
     </div>}
 
-    {!state.game.shieldOffer && squareNotice && !movementPending && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
+    {pauseRemaining === 0 && !state.game.shieldOffer && squareNotice && !movementPending && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
       <div className={`flex items-center gap-3 ${squareNotice.square.tone === 'red' ? 'text-coral' : 'text-brass'}`}><JourneySquareIcon square={squareNotice.square} size={32} /><div><p className="text-xs text-stone">{squareNotice.name}</p><h3 className="font-display text-xl font-bold">{squareNotice.square.title}</h3></div></div>
       <p className="mt-4 text-sm leading-relaxed text-ink">{squareNotice.square.description}</p>
       <button type="button" className={`mt-4 flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-bold ${squareNotice.square.tone === 'red' ? 'border border-coral bg-coral-soft text-coral' : 'btn-primary'}`} onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>

@@ -1,3 +1,7 @@
+import { ARENA_MATCH_RELIC_LIMITS, arenaMatchRelicIsMuted, type ArenaMatchRelic } from '../../../supabase/functions/_shared/arenaMatchRelicLimits';
+import { ContextRelicShop } from '../../components/ContextRelicShop';
+import { JourneyDialog } from '../../components/JourneyDialog';
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../../../supabase/functions/_shared/arenaBoardMarket';
 import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
 import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -138,6 +142,7 @@ export function RoadHomeGame({
   const [error, setError] = useState<string | null>(null);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [relicClock, setRelicClock] = useState(Date.now);
   const [rollOutcome, setRollOutcome] = useState<RollOutcome | null>(null);
   const [rollReveal, setRollReveal] = useState<RollReveal | null>(null);
   const [diceRolling, setDiceRolling] = useState(false);
@@ -279,6 +284,28 @@ export function RoadHomeGame({
 
   const activePlayer = state?.players[state.activePlayerIndex] || null;
   const myTurn = activePlayer?.id === userId;
+  const pauseRemaining = Math.max(0, Math.ceil((Date.parse(state?.pausedUntil || '') - relicClock) / 1000) || 0);
+  const botUndoDeadline = state?.undoOffer?.playerId === userId ? state?.undoOffer?.botWaitUntil : undefined;
+  const machineMatch = Boolean(state?.players.some((player) => player.isBot));
+  const relicMuted = (slug: ArenaMatchRelic) => arenaMatchRelicIsMuted(state?.matchRelicUses, userId, slug, machineMatch);
+  const undoMuted = relicMuted(ARENA_UNDO);
+  const standstillMuted = relicMuted(ARENA_STANDSTILL);
+  const shieldMuted = relicMuted('shield-of-faith');
+  const canUndo = !undoMuted && state?.undoOffer?.playerId === userId && (!botUndoDeadline || relicClock < Date.parse(botUndoDeadline));
+  useEffect(() => {
+    if (!state?.pausedUntil && !botUndoDeadline) return;
+    const tick = () => setRelicClock(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [botUndoDeadline, state?.pausedUntil]);
+
+  useEffect(() => {
+    if (!spectator && !sending && botUndoDeadline && Date.now() >= Date.parse(botUndoDeadline)) {
+      const retry = window.setTimeout(() => void send('CONTINUE'), 250);
+      return () => window.clearTimeout(retry);
+    }
+  }, [botUndoDeadline, canUndo, send, sending, spectator]);
   const me = state?.players.find((player) => player.id === userId) || null;
   const activeChallenge = state?.challengeQueue.find((challenge) => challenge.id === state.activeChallengeId) || null;
 
@@ -369,11 +396,11 @@ export function RoadHomeGame({
   }, [state]);
 
   useEffect(() => {
-    if (!state || !myTurn || state.phase !== 'QUESTION' || !state.questionDeadline || timedOutVersion.current === state.version) return;
+    if (!state || !myTurn || state.phase !== 'QUESTION' || pauseRemaining || !state.questionDeadline || timedOutVersion.current === state.version) return;
     if (new Date(state.questionDeadline).getTime() > Date.now()) return;
     timedOutVersion.current = state.version;
     void send('ANSWER', { answer: '' });
-  }, [myTurn, secondsLeft, send, state]);
+  }, [myTurn, pauseRemaining, secondsLeft, send, state]);
 
   useEffect(() => {
     if (secondsLeft > 0 && secondsLeft <= 5 && state?.phase === 'QUESTION') playRoundWarningBeep();
@@ -499,6 +526,12 @@ export function RoadHomeGame({
         </div>
       </div>
 
+      {pauseRemaining > 0 && <JourneyDialog label="Standstill">
+        <h2 className="font-display text-lg font-bold text-ink">Standstill</h2>
+        <p className="mt-2 text-sm text-stone">The match will resume automatically.</p>
+        <p className="mt-3 font-display text-3xl tabular-nums text-gold">{Math.floor(pauseRemaining / 60)}:{String(pauseRemaining % 60).padStart(2, '0')}</p>
+        <button type="button" className="btn-secondary mt-4 text-xs" onClick={onExit}>Leave match view</button>
+      </JourneyDialog>}
       {state.shieldOffer && <ArenaShieldDecision key={state.version} offer={state.shieldOffer}
         viewerId={spectator ? undefined : userId} sending={sending}
         onDecide={(decision) => send('SHIELD', { decision })} />}
@@ -571,11 +604,20 @@ export function RoadHomeGame({
               userId={userId}
             />
           )}
+          {!spectator && pauseRemaining === 0 && (canUndo || myTurn && !standstillMuted && !['QUESTION', 'SHIELD_DECISION'].includes(state.phase)) && (
+            <ContextRelicShop userId={userId} label="Ludo relics" preload={Boolean(botUndoDeadline)} onChanged={() => undefined}
+              slugs={[...(canUndo ? [ARENA_UNDO] : []), ...(myTurn && !standstillMuted && !['QUESTION', 'SHIELD_DECISION'].includes(state.phase) ? [ARENA_STANDSTILL] : [])]}
+              canUseOwned={() => !sending} onUseOwned={(slug) => send(slug === ARENA_UNDO ? 'UNDO' : 'STANDSTILL')} />
+          )}
+          {!spectator && (undoMuted || standstillMuted || shieldMuted) && <p className="text-xs text-stone" role="status">
+            Match limits reached: {[undoMuted && `Undo (${ARENA_MATCH_RELIC_LIMITS.undo})`, standstillMuted && 'Standstill (1)', shieldMuted && 'Shield of Faith (5)'].filter(Boolean).join(', ')}.
+          </p>}
+          {botUndoDeadline && <button type="button" className="btn-secondary text-xs" disabled={sending} onClick={() => void send('CONTINUE')}>Continue match</button>}
           {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
         </aside>
       </div>
 
-      {myTurn && state.phase === 'QUESTION' && me && !diceRolling && !rollReveal && (
+      {myTurn && state.phase === 'QUESTION' && pauseRemaining === 0 && me && !diceRolling && !rollReveal && (
         <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Ludo Trivia question">
           <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto animate-scale-in">
             {error && <p className="mb-2 rounded-md bg-surface p-3 text-xs text-coral" role="alert">{error}</p>}
@@ -590,6 +632,9 @@ export function RoadHomeGame({
               rollOutcome={rollOutcome}
               send={send}
             />
+            {standstillMuted ? <p className="mt-2 text-xs text-stone">Standstill used for this match.</p> : <ContextRelicShop userId={userId} label="Standstill" slugs={[ARENA_STANDSTILL]}
+              onChanged={() => undefined} canUseOwned={() => !sending && secondsLeft > 0}
+              onUseOwned={() => send('STANDSTILL')} />}
           </div>
         </div>
       )}

@@ -1,3 +1,4 @@
+import type { ArenaMatchRelicUses } from '../../supabase/functions/_shared/arenaMatchRelicLimits';
 import type { ArenaShieldOffer } from '../../supabase/functions/_shared/arenaShield';
 
 export type RoadHomePhase =
@@ -87,6 +88,9 @@ export type RoadHomeEvent = {
 
 export type RoadHomeState = {
   shieldOffer?: ArenaShieldOffer;
+  matchRelicUses?: ArenaMatchRelicUses;
+  pausedUntil?: string;
+  undoOffer?: { playerId: string; botWaitUntil?: string };
   questionAid?: import('../../supabase/functions/_shared/arenaRelics').ArenaQuestionAid;
   roomId: string;
   version: number;

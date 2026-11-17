@@ -242,3 +242,94 @@ console.log('Road Home engine acceptance tests passed.');
   assert.equal(defended.players[0].relics.includes('Shield of Faith'), false);
   assert.equal(defended.players[0].pawns[0].prisonRounds, 0);
 }
+
+// An Undo restores the board and stats while keeping the command version monotonic.
+{
+  const state = game();
+  const [mover, other] = state.players;
+  const pawn = mover.pawns[0];
+  pawn.progress = 0;
+  makeSelectable(state, 1, pawn.id);
+  const moved = applyRoadHomeCommand(state, mover.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1));
+  assert.equal(publicRoadHomeState(moved).undoOffer?.playerId, mover.id);
+  assert.equal('undo' in publicRoadHomeState(moved), false);
+  assert.throws(() => applyRoadHomeCommand(moved, other.id, { action: 'UNDO' }, [], fixed(.1)), /no longer/);
+  const restored = applyRoadHomeCommand(moved, mover.id, { action: 'UNDO' }, [], fixed(.1));
+  assert.equal(restored.version, moved.version + 1);
+  assert.equal(restored.phase, 'SELECTING_PAWN');
+  assert.deepEqual(restored.players, state.players);
+  assert.equal(restored.undo, undefined);
+  const advanced = applyRoadHomeCommand(moved, other.id, { action: 'ROLL' }, [], fixed(.99));
+  assert.throws(() => applyRoadHomeCommand(advanced, mover.id, { action: 'UNDO' }, [], fixed(.1)), /no longer/);
+}
+
+// Standstill blocks moves for ten minutes without using up the open question timer.
+{
+  let state = game();
+  const player = state.players[0];
+  player.pawns[0].progress = 0;
+  state = applyRoadHomeCommand(state, player.id, { action: 'ROLL' }, [], fixed(.1));
+  const originalDeadline = Date.parse(state.questionDeadline!);
+  const paused = applyRoadHomeCommand(state, player.id, { action: 'STANDSTILL' }, [], fixed(.1));
+  assert.equal(Date.parse(paused.questionDeadline!) - originalDeadline, 600_000);
+  assert.ok(Date.parse(paused.pausedUntil!) - Date.now() > 599_000);
+  assert.throws(() => applyRoadHomeCommand(paused, player.id, { action: 'ANSWER', answer: 'wrong' }, [], fixed(.1)), /is paused/);
+  paused.pausedUntil = new Date(Date.now() - 1).toISOString();
+  paused.questionDeadline = new Date(Date.now() + 5000).toISOString();
+  const resumed = applyRoadHomeCommand(paused, player.id, { action: 'ANSWER', answer: paused.currentQuestion!.correctAnswer }, [], fixed(.1));
+  assert.equal(resumed.phase, 'SELECTING_PAWN');
+  assert.equal(resumed.pausedUntil, undefined);
+}
+
+// New discovery cards point to actual low-tier Market relics and bypass the match relic cap.
+{
+  const state = game();
+  const player = state.players[0];
+  player.relics.push('Manna Pouch', 'Lamp of Guidance', 'Key of Deliverance');
+  const pawn = player.pawns[0];
+  pawn.progress = 9;
+  makeSelectable(state, 1, pawn.id);
+  const discovery = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.9));
+  assert.equal(discovery.pendingSurprise?.marketRelicSlug, 'freeze-timer');
+  const claimed = applyRoadHomeCommand(discovery, player.id, { action: 'ACK_SURPRISE' }, [], fixed(.1));
+  assert.equal(claimed.players[0].stats.relicsFound, 1);
+  assert.deepEqual(claimed.players[0].relics, player.relics);
+  assert.equal(claimed.undo, undefined);
+}
+
+// Match limits belong to each player and cannot be rewound along with the board.
+{
+  const state = game();
+  const [player, opponent] = state.players;
+  const pawn = player.pawns[0];
+  pawn.progress = 0;
+  state.matchRelicUses = { [player.id]: { undo: 2 }, [opponent.id]: { undo: 1 } };
+  makeSelectable(state, 1, pawn.id);
+  const moved = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1));
+  const restored = applyRoadHomeCommand(moved, player.id, { action: 'UNDO' }, [], fixed(.1));
+  assert.equal(restored.matchRelicUses?.[player.id].undo, 3);
+  assert.equal(restored.matchRelicUses?.[opponent.id].undo, 1);
+  const movedAgain = applyRoadHomeCommand(restored, player.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1));
+  assert.throws(() => applyRoadHomeCommand(movedAgain, player.id, { action: 'UNDO' }, [], fixed(.1)), /3-use limit/);
+  const machine = structuredClone(movedAgain);
+  machine.players[1].isBot = true;
+  assert.equal(applyRoadHomeCommand(machine, player.id, { action: 'UNDO' }, [], fixed(.1)).matchRelicUses?.[player.id].undo, 4);
+}
+
+{
+  const state = game();
+  const player = state.players[0];
+  state.matchRelicUses = { [player.id]: { standstill: 1, 'shield-of-faith': 5 } };
+  assert.throws(() => applyRoadHomeCommand(state, player.id, { action: 'STANDSTILL' }, [], fixed(.1)), /1-use limit/);
+  const pawn = player.pawns[0];
+  pawn.progress = 5;
+  makeSelectable(state, 1, pawn.id);
+  const muted = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1), [player.id]);
+  assert.equal(muted.shieldOffer, undefined);
+  assert.equal(muted.players[0].pawns[0].prisonRounds, 1);
+  state.players[1].isBot = true;
+  const machine = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1), [player.id]);
+  assert.equal(machine.shieldOffer?.playerId, player.id);
+  assert.equal(applyRoadHomeCommand(machine, player.id, { action: 'SHIELD', decision: 'use' }, [], fixed(.1)).matchRelicUses?.[player.id]['shield-of-faith'], 6);
+  assert.ok(applyRoadHomeCommand(state, player.id, { action: 'STANDSTILL' }, [], fixed(.1)).pausedUntil);
+}
