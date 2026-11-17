@@ -1,3 +1,4 @@
+import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
 import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, Clock3, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
@@ -192,7 +193,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC', payload: Record<string, unknown> = {}) => {
+  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD', payload: Record<string, unknown> = {}) => {
     if (!state || spectator || sending) return false;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
@@ -244,7 +245,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
 
   const activePlayer = state?.game.players[state.game.turnIndex];
   useEffect(() => {
-    if (!state || spectator || sending || activePlayer?.id !== userId || activePlayer.prisonTurnsRemaining <= 0) return;
+    if (!state || state.game.shieldOffer || spectator || sending || activePlayer?.id !== userId || activePlayer.prisonTurnsRemaining <= 0) return;
     void send('SERVE');
   }, [activePlayer, send, sending, spectator, state, userId]);
   const myTurn = !spectator && state?.game.status === 'playing'
@@ -317,6 +318,9 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
 
   return <div className="space-y-4">
     <ArenaMatchup players={visiblePlayers} playing pinned />
+    {state.game.shieldOffer && <ArenaShieldDecision key={state.game.version} offer={state.game.shieldOffer}
+      viewerId={spectator ? undefined : userId} sending={sending}
+      onDecide={(decision) => send('SHIELD', { decision })} />}
     <div className="border-b border-border pb-3">
       <p className="eyebrow text-brass">{character?.displayName || 'Biblical Journey'}</p>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
@@ -334,7 +338,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
       <div className="min-w-0 space-y-3">
-        {verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
+        {!state.game.shieldOffer && verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
           <div className="flex items-center gap-2">
             {state.lastVerdict.correct ? <CheckCircle2 size={24} className="text-sage" /> : <XCircle size={24} className="text-coral" />}
             <h3 className="font-display text-lg font-bold text-ink">{state.lastVerdict.correct ? 'Correct answer' : state.lastVerdict.selectedAnswer === 'Time expired' ? 'Time is up' : 'Not quite'}</h3>
@@ -397,7 +401,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       </div>
     </div>}
 
-    {squareNotice && !movementPending && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
+    {!state.game.shieldOffer && squareNotice && !movementPending && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
       <div className={`flex items-center gap-3 ${squareNotice.square.tone === 'red' ? 'text-coral' : 'text-brass'}`}><JourneySquareIcon square={squareNotice.square} size={32} /><div><p className="text-xs text-stone">{squareNotice.name}</p><h3 className="font-display text-xl font-bold">{squareNotice.square.title}</h3></div></div>
       <p className="mt-4 text-sm leading-relaxed text-ink">{squareNotice.square.description}</p>
       <button type="button" className={`mt-4 flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-bold ${squareNotice.square.tone === 'red' ? 'border border-coral bg-coral-soft text-coral' : 'btn-primary'}`} onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>

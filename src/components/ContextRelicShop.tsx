@@ -11,7 +11,7 @@ import { MarketCartCheckout } from './FcxFapshiCheckout';
 
 type RelicOffer = Pick<RelicType, 'id' | 'slug' | 'name' | 'denarii_cost' | 'money_price_xaf' | 'money_price_usd' | 'cash_bundles'>;
 
-export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwned, onUseOwned, canUseOwned, label = 'Get relics', afterDenariiPurchase, aboveOverlay }: {
+export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwned, onUseOwned, canUseOwned, label = 'Get relics', afterDenariiPurchase, aboveOverlay, showAllPaymentOptions, purchaseDeadline, preload }: {
   userId: string;
   slugs: readonly string[];
   onChanged: () => void;
@@ -22,6 +22,9 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
   label?: string;
   afterDenariiPurchase?: () => Promise<void>;
   aboveOverlay?: boolean;
+  showAllPaymentOptions?: boolean;
+  purchaseDeadline?: number;
+  preload?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [offers, setOffers] = useState<RelicOffer[] | null>(null);
@@ -52,12 +55,13 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     setError(validBalance ? '' : 'Your Denarii balance is unavailable.');
   }, [showOwned, slugKey, userId]);
 
+  const loadOffers = open || preload;
   useEffect(() => {
-    if (!open) return;
+    if (!loadOffers) return;
     if (!slugKey) { setOffers([]); return; }
     void refresh().catch(failure => setError(userFacingError(failure, 'Relic prices could not load.')));
     return () => { request.current++; };
-  }, [open, refresh, slugKey]);
+  }, [loadOffers, refresh, slugKey]);
 
   const confirm = useCallback(() => {
     notifyChanged.current();
@@ -67,6 +71,10 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
 
   async function act(offer: RelicOffer, activate: boolean) {
     if (!offer.slug || busy) return;
+    if (purchaseDeadline !== undefined && Date.now() >= purchaseDeadline) {
+      setError('The decision timer has expired.');
+      return;
+    }
     setBusy(offer.id);
     setError('');
     setNotice('');
@@ -109,31 +117,38 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           const cash = relicMoneyPriceXaf(offer);
           const bundles = relicCashBundles(offer);
           const canBuyWithDenarii = balance !== null && cost > 0 && balance >= cost;
+          const hasOwned = showOwned && (owned[offer.id] ?? 0) > 0;
+          const showCash = !hasOwned && (!canBuyWithDenarii || showAllPaymentOptions) && (balance !== null || showAllPaymentOptions);
           return (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 last:border-0">
               <span className="inline-flex items-center gap-2 font-semibold text-ink"><RelicSymbol slug={offer.slug} /> {offer.name}</span>
               <div className="flex flex-wrap items-center gap-2">
-                {showOwned && (owned[offer.id] ?? 0) > 0 ? (
+                {hasOwned ? (
                   <button type="button" className="btn-secondary text-xs"
                     disabled={Boolean(busy) || canUseOwned?.(offer.slug) === false} onClick={() => void act(offer, true)}>
                     <RelicSymbol slug={offer.slug} size={14} /> Use ({owned[offer.id]} owned)
                   </button>
-                ) : canBuyWithDenarii ? (
-                  <button type="button" className="btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void act(offer, false)}>
+                ) : canBuyWithDenarii || showAllPaymentOptions && cost > 0 ? (
+                  <button type="button" className="btn-primary text-xs" disabled={Boolean(busy) || !canBuyWithDenarii} onClick={() => void act(offer, false)}>
                     <RelicSymbol slug={offer.slug} size={14} /> {afterDenariiPurchase ? 'Buy & use' : 'Buy'} · {formatDenarii(cost)} Ð
                   </button>
-                ) : bundles.length > 0 && balance !== null ? bundles.map(({ size, price }) => (
+                ) : null}
+                {showCash && bundles.length > 0 ? bundles.map(({ size, price }) => (
                   <MarketCartCheckout key={size} className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
                     lines={[{ key: `${offer.id}:${size}`, name: `${offer.name} (pack of ${size})`,
                       unitPrice: price, quantity: 1, relicSlug: offer.slug ?? undefined, packSize: size }]}>
                     <RelicSymbol slug={offer.slug ?? ""} size={14} /> Buy {size} · {formatXaf(price)}
                   </MarketCartCheckout>
-                )) : cash >= 100 && balance !== null ? (
+                )) : showCash && cash >= 100 ? (
                   <MarketCartCheckout className="btn-primary text-xs" onConfirmed={confirm} aboveOverlay={aboveOverlay}
                     lines={[{ key: offer.id, name: offer.name, unitPrice: cash, quantity: 1, relicSlug: offer.slug }]}>
                     <RelicSymbol slug={offer.slug} size={14} /> Buy · {formatXaf(cash)}
                   </MarketCartCheckout>
-                ) : cost > 0 && balance !== null ? <span className="text-stone">Need {formatDenarii(cost - balance)} Ð more</span> : null}
+                ) : null}
+                {!hasOwned && !canBuyWithDenarii && cost > 0 && balance !== null
+                  && (showAllPaymentOptions || !bundles.length && cash < 100) && (
+                    <span className="text-stone">Need {formatDenarii(cost - balance)} Ð more</span>
+                  )}
               </div>
             </div>
           );

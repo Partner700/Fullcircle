@@ -3809,6 +3809,7 @@ export function sendRoadHomeCommand(
     payload,
     expectedVersion,
     commandId,
+    shieldDecisionV1: true,
   });
 }
 

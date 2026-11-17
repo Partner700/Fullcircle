@@ -1,3 +1,5 @@
+import { createArenaShieldOffer, validateArenaShieldDecision, type ArenaShieldOffer } from './arenaShield.ts';
+
 export type JourneyLocation =
   | { route: 'main'; space: number }
   | { route: 'loop'; space: number }
@@ -81,6 +83,8 @@ export type JourneyGame = {
   events: JourneyEvent[];
   version: number;
   bonusTurnPlayerId?: string | null;
+  shieldOffer?: ArenaShieldOffer;
+  shieldContinuation?: { queue: QueuedEffect[]; seen: string[]; depth: number; after?: QueuedEffect[] };
 };
 
 export const JOURNEY_MACHINE_ID = '00000000-0000-0000-0000-000000000000';
@@ -254,7 +258,7 @@ function servePrisonTurn(game: JourneyGame, player: JourneyPlayer) {
   record(game, player, 'prison-release', 'release', previous, 'reveal');
 }
 
-type QueuedEffect = { playerId: string; source: string; effect: JourneyEffect; key: string };
+type QueuedEffect = { playerId: string; source: string; effect: JourneyEffect; key: string; skipShield?: boolean };
 
 export function journeyScore(player: JourneyPlayer): number {
   return Math.max(0, player.score ?? player.correctAnswers);
@@ -285,10 +289,17 @@ function landingEffect(config: JourneyConfig, player: JourneyPlayer): QueuedEffe
   return trap ? { playerId: player.id, source: `main:${space}`, effect: trap.effect, key: trap.id } : null;
 }
 
-function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: QueuedEffect[]) {
+function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: QueuedEffect[],
+  shieldOwners: readonly string[] | undefined, resume?: JourneyGame['shieldContinuation']) {
   const queue = [...initial];
-  const seen = new Set<string>();
-  let depth = 0;
+  const seen = new Set(resume?.seen);
+  let depth = resume?.depth ?? 0;
+  const offer = (target: JourneyPlayer, item: QueuedEffect, consequence: string) => {
+    if (!shieldOwners || target.id === JOURNEY_MACHINE_ID || item.skipShield) return false;
+    game.shieldOffer = createArenaShieldOffer(target.id, consequence, shieldOwners.includes(target.id));
+    game.shieldContinuation = { queue: [item, ...queue], seen: [...seen], depth, after: resume?.after };
+    return true;
+  };
   while (queue.length > 0) {
     const item = queue.shift()!;
     const player = game.players.find((candidate) => candidate.id === item.playerId);
@@ -299,16 +310,39 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         depth >= config.maximumChainDepth ? 'chain-depth-limit' : 'repeated-state');
       break;
     }
-    seen.add(signature);
-    depth += 1;
     const previous = structuredClone(player.location);
     const effect = item.effect;
+    const onMain = previous.route === 'main' && !isImprisoned(player);
+    const routeEnd = config.finalChallengeSpace - 1;
+    const moveTarget = effect.kind === 'move' && previous.route === 'main'
+      ? Math.max(1, Math.min(routeEnd, effect.to ?? previous.space + (effect.by || 0))) : null;
+    const opponents = effect.kind === 'swap' && onMain ? game.players.filter((other) =>
+      other.id !== player.id && other.location.route === 'main' && other.status !== 'FINISHED' && !isImprisoned(other)) : [];
+    opponents.sort((a, b) => ((a.completedLaps || 0) - (b.completedLaps || 0)) * config.finishSpace
+      + (a.location as { space: number }).space - (b.location as { space: number }).space);
+    const opponent = effect.kind === 'swap' ? (effect.opponent === 'last' ? opponents[0] : opponents[opponents.length - 1]) : undefined;
+    if (onMain && previous.route === 'main' && opponent?.location.route === 'main') {
+      const target = opponent.location.space < previous.space ? player : opponent.location.space > previous.space ? opponent : null;
+      if (target && offer(target, item, 'A position swap would send you backward.')) return;
+    }
+    const consequence = (
+      (effect.kind === 'prison' && !isImprisoned(player)) ||
+      (effect.kind === 'extend_prison' && isImprisoned(player) && player.prisonTurnsRemaining < 5)
+    ) ? 'You are about to receive a prison penalty.'
+      : effect.kind === 'loop' && !isImprisoned(player) && (item.key !== 'return_maze' || player.loopEscapes > 0) ? 'You are about to be sent into the maze.'
+      : (onMain && previous.route === 'main' && ((moveTarget !== null && moveTarget < previous.space)
+        || (effect.kind === 'milestone' && previous.space > 1)))
+        || (effect.kind === 'loop_shift' && previous.route === 'loop' && effect.to < previous.space)
+        ? 'You are about to be moved backward.' : null;
+    if (consequence && offer(player, item, consequence)) return;
+    seen.add(signature);
+    depth += 1;
     let animation: JourneyEvent['animation'] = 'none';
     let followLanding = false;
     switch (effect.kind) {
       case 'move': {
         if (player.location.route !== 'main' || isImprisoned(player)) break;
-        const target = Math.max(1, Math.min(config.finalChallengeSpace - 1, effect.to ?? player.location.space + (effect.by || 0)));
+        const target = moveTarget!;
         animation = target >= player.location.space ? 'forward' : 'backward';
         player.location = main(target);
         followLanding = effect.activateLanding !== false;
@@ -339,10 +373,6 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         break;
       case 'swap': {
         if (player.location.route !== 'main' || isImprisoned(player)) break;
-        const candidates = game.players.filter((other) => other.id !== player.id && other.location.route === 'main' && other.status !== 'FINISHED' && !isImprisoned(other));
-        candidates.sort((a, b) => ((a.completedLaps || 0) - (b.completedLaps || 0)) * config.finishSpace
-          + (a.location as { space: number }).space - (b.location as { space: number }).space);
-        const opponent = effect.opponent === 'last' ? candidates[0] : candidates[candidates.length - 1];
         if (!opponent) break;
         const opponentPrevious = structuredClone(opponent.location);
         opponent.location = previous;
@@ -352,6 +382,14 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         break;
       }
       case 'all_move':
+        if (effect.by < 0 && shieldOwners) {
+          queue.unshift(...game.players.filter((other) => other.location.route === 'main'
+            && other.status !== 'FINISHED' && !isImprisoned(other)).map((other): QueuedEffect => ({
+            ...item, playerId: other.id, key: `${item.key}:${other.id}`,
+            effect: { kind: 'move', by: effect.by, activateLanding: false },
+          })));
+          break;
+        }
         for (const other of game.players) {
           if (other.location.route !== 'main' || other.status === 'FINISHED' || isImprisoned(other)) continue;
           const from = structuredClone(other.location);
@@ -396,9 +434,9 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
 }
 
 export function resolveJourneyRoll(original: JourneyGame, playerId: string, die: number,
-  config: JourneyConfig = journeyConfigForGame(original)): JourneyGame {
+  config: JourneyConfig = journeyConfigForGame(original), shieldOwners?: readonly string[]): JourneyGame {
   if (!Number.isInteger(die) || die < 1 || die > 6) throw new Error('A die result must be between 1 and 6.');
-  if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
+  if (original.status !== 'playing' || original.pendingAction || original.shieldOffer || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
   }
   const game = copyGame(original);
@@ -445,22 +483,24 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       return game;
     }
     const effect = landingEffect(config, player);
-    if (effect) resolveEffects(game, config, [effect]);
+    if (effect) resolveEffects(game, config, [effect], shieldOwners);
   }
-  if (game.pendingAction) {
+  if (game.shieldContinuation && dueEffects.length) {
+    game.shieldContinuation.after = dueEffects.map((effect, index) => ({ playerId, source: 'delayed-penalty', effect, key: `delayed:${index}` }));
+  } else if (game.pendingAction) {
     player.pendingEffects.unshift(...dueEffects);
-  } else {
+  } else if (!game.shieldOffer) {
     if (dueEffects.length && !isImprisoned(player)) {
-      resolveEffects(game, config, dueEffects.map((effect, index) => ({ playerId, source: 'delayed-penalty', effect, key: `delayed:${index}` })));
+      resolveEffects(game, config, dueEffects.map((effect, index) => ({ playerId, source: 'delayed-penalty', effect, key: `delayed:${index}` })), shieldOwners);
     }
-    if (!game.pendingAction) nextTurn(game);
+    if (!game.pendingAction && !game.shieldOffer) nextTurn(game);
   }
   game.version += 1;
   return game;
 }
 
 export function resolveJourneyMiss(original: JourneyGame, playerId: string, die?: number | null): JourneyGame {
-  if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
+  if (original.status !== 'playing' || original.pendingAction || original.shieldOffer || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
   }
   const game = copyGame(original);
@@ -474,20 +514,20 @@ export function resolveJourneyMiss(original: JourneyGame, playerId: string, die?
 }
 
 export function serveJourneyPrisonTurn(original: JourneyGame, playerId: string): JourneyGame {
-  if (original.status !== 'playing' || original.pendingAction || original.players[original.turnIndex]?.id !== playerId) {
+  if (original.status !== 'playing' || original.pendingAction || original.shieldOffer || original.players[original.turnIndex]?.id !== playerId) {
     throw new Error('It is not this player\'s turn.');
   }
   const game = copyGame(original);
   const player = game.players[game.turnIndex];
   if (!isImprisoned(player)) throw new Error('Only a prisoner may serve a prison turn.');
   servePrisonTurn(game, player);
-  if (!game.pendingAction) nextTurn(game);
+  if (!game.pendingAction && !game.shieldOffer) nextTurn(game);
   game.version += 1;
   return game;
 }
 
 export function resolveJourneyAction(original: JourneyGame, actorId: string, choice: 0 | 1,
-  config: JourneyConfig = journeyConfigForGame(original)): JourneyGame {
+  config: JourneyConfig = journeyConfigForGame(original), shieldOwners?: readonly string[]): JourneyGame {
   const pending = original.pendingAction;
   if (!pending) throw new Error('There is no journey decision to resolve.');
   if (choice !== 0 && choice !== 1) throw new Error('Choose one of the two outcomes.');
@@ -501,8 +541,33 @@ export function resolveJourneyAction(original: JourneyGame, actorId: string, cho
     const player = game.players.find((candidate) => candidate.id === pending.playerId);
     if (player?.location.route === 'main') awardAnswer(player);
   }
-  resolveEffects(game, config, [{ playerId: pending.playerId, source: pending.source, effect: pending.choices[choice], key: `${pending.kind}:${choice}` }]);
-  if (!game.pendingAction) nextTurn(game);
+  resolveEffects(game, config, [{ playerId: pending.playerId, source: pending.source, effect: pending.choices[choice], key: `${pending.kind}:${choice}` }], shieldOwners);
+  if (!game.pendingAction && !game.shieldOffer) nextTurn(game);
+  game.version += 1;
+  return game;
+}
+
+export function resolveJourneyShield(original: JourneyGame, actorId: string, decision: 'use' | 'expire',
+  shieldOwners: readonly string[] | undefined, config = journeyConfigForGame(original)): JourneyGame {
+  const { shieldOffer, shieldContinuation } = original;
+  if (!shieldOffer || !shieldContinuation) throw new Error('There is no pending Shield of Faith choice.');
+  validateArenaShieldDecision(shieldOffer, actorId, decision);
+  const game = copyGame(original);
+  delete game.shieldOffer;
+  delete game.shieldContinuation;
+  const [penalty, ...remaining] = shieldContinuation.queue;
+  if (decision === 'use') {
+    const player = game.players.find((candidate) => candidate.id === actorId)!;
+    record(game, player, penalty.source, 'shield-of-faith', player.location, 'reveal', 'applied', 'penalty-prevented');
+  }
+  const queue = decision === 'use' ? remaining : [{ ...penalty, skipShield: true }, ...remaining];
+  resolveEffects(game, config, queue, shieldOwners, shieldContinuation);
+  if (!game.shieldOffer && shieldContinuation.after?.length) {
+    const player = game.players[game.turnIndex];
+    if (game.pendingAction) player.pendingEffects.unshift(...shieldContinuation.after.map((item) => item.effect));
+    else if (!isImprisoned(player)) resolveEffects(game, config, shieldContinuation.after, shieldOwners);
+  }
+  if (!game.pendingAction && !game.shieldOffer) nextTurn(game);
   game.version += 1;
   return game;
 }

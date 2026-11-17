@@ -6,6 +6,7 @@ import {
   resolveJourneyAction,
   resolveJourneyMiss,
   resolveJourneyRoll,
+  resolveJourneyShield,
   serveJourneyPrisonTurn,
   type JourneyGame,
 } from './biblicalJourney.ts';
@@ -92,7 +93,7 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
   runtime.awaitingRoll = false;
   runtime.pendingDie = null;
   runtime.questionAid = undefined;
-  if (runtime.game.status !== 'playing') return;
+  if (runtime.game.status !== 'playing' || runtime.game.shieldOffer) return;
   const pending = runtime.game.pendingAction;
   if (pending?.kind === 'choice') return;
   const player = pending
@@ -169,7 +170,7 @@ export function rollJourneyDie(original: JourneyRuntime, actorId: string, random
 }
 
 export async function answerJourneyQuestion(original: JourneyRuntime, actorId: string, answer: string,
-  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
   if (!question || original.awaitingRoll || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
     throw new Error('This question is not open for you.');
@@ -190,11 +191,11 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
   }
   let die: number | null = original.pendingDie || null;
   if (pending?.kind === 'trial') {
-    next.game = resolveJourneyAction(next.game, actorId, correct ? 0 : 1);
+    next.game = resolveJourneyAction(next.game, actorId, correct ? 0 : 1, undefined, shieldOwners);
   } else if (correct) {
     // Existing matches without the new roll phase can finish their current question.
     die = original.pendingDie || randomIndex(6, random) + 1;
-    next.game = resolveJourneyRoll(next.game, actorId, die);
+    next.game = resolveJourneyRoll(next.game, actorId, die, undefined, shieldOwners);
   } else {
     next.game = resolveJourneyMiss(next.game, actorId, original.pendingDie);
   }
@@ -215,7 +216,7 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
 }
 
 export async function applyJourneyRelic(original: JourneyRuntime, actorId: string, slug: string,
-  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
   if (!question || original.awaitingRoll || original.game.status !== 'playing'
     || original.currentQuestionPlayerId !== actorId || actorId === JOURNEY_MACHINE_ID
@@ -237,26 +238,26 @@ export async function applyJourneyRelic(original: JourneyRuntime, actorId: strin
     await openNextQuestion(next, lookup, random);
     return next;
   }
-  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random);
+  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random, shieldOwners);
   if (effect.extraSeconds) next.questionDeadline = new Date(Date.parse(original.questionDeadline) + effect.extraSeconds * 1000).toISOString();
   next.game.version += 1;
   return next;
 }
 
 export async function expireJourneyQuestion(original: JourneyRuntime,
-  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   if (!original.currentQuestionPlayerId || !original.questionDeadline
     || Date.now() < Date.parse(original.questionDeadline)) {
     throw new Error('This question has not timed out.');
   }
-  return answerJourneyQuestion(original, original.currentQuestionPlayerId, '', lookup, random);
+  return answerJourneyQuestion(original, original.currentQuestionPlayerId, '', lookup, random, shieldOwners);
 }
 
 export async function chooseJourneyPenalty(original: JourneyRuntime, actorId: string, choice: 0 | 1,
-  lookup: JourneyQuestionLookup, random: () => number): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   if (original.game.pendingAction?.kind !== 'choice') throw new Error('There is no opposing-player decision to make.');
   const next = structuredClone(original);
-  next.game = resolveJourneyAction(next.game, actorId, choice);
+  next.game = resolveJourneyAction(next.game, actorId, choice, undefined, shieldOwners);
   next.lastVerdict = null;
   await openNextQuestion(next, lookup, random);
   return next;
@@ -272,7 +273,7 @@ export async function serveJourneySentence(original: JourneyRuntime, actorId: st
 }
 
 export function machineJourneyMayAct(runtime: Pick<JourneyRuntime, 'game' | 'currentQuestionPlayerId'>): boolean {
-  if (runtime.game.status !== 'playing') return false;
+  if (runtime.game.status !== 'playing' || runtime.game.shieldOffer) return false;
   const pending = runtime.game.pendingAction;
   if (pending?.kind === 'choice') return pending.playerId !== JOURNEY_MACHINE_ID;
   if (pending?.kind === 'trial') return runtime.currentQuestionPlayerId === JOURNEY_MACHINE_ID;
@@ -280,14 +281,14 @@ export function machineJourneyMayAct(runtime: Pick<JourneyRuntime, 'game' | 'cur
 }
 
 export async function advanceMachineJourney(original: JourneyRuntime, lookup: JourneyQuestionLookup,
-  random: () => number, accuracy: number): Promise<JourneyRuntime> {
+  random: () => number, accuracy: number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   if (!machineJourneyMayAct(original) || !original.game.players.some((player) => player.id === JOURNEY_MACHINE_ID)) {
     throw new Error('It is not The Scribe\'s turn.');
   }
   if (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1) throw new Error('Invalid machine accuracy.');
   if (original.awaitingRoll) return rollJourneyDie(original, JOURNEY_MACHINE_ID, random);
   if (original.game.pendingAction?.kind === 'choice') {
-    return chooseJourneyPenalty(original, JOURNEY_MACHINE_ID, random() < 0.5 ? 0 : 1, lookup, random);
+    return chooseJourneyPenalty(original, JOURNEY_MACHINE_ID, random() < 0.5 ? 0 : 1, lookup, random, shieldOwners);
   }
   if (!original.game.pendingAction && original.game.players[original.game.turnIndex].prisonTurnsRemaining > 0) {
     return serveJourneySentence(original, JOURNEY_MACHINE_ID, lookup, random);
@@ -298,13 +299,14 @@ export async function advanceMachineJourney(original: JourneyRuntime, lookup: Jo
   }
   const correct = random() < accuracy;
   const next = await answerJourneyQuestion(original, JOURNEY_MACHINE_ID,
-    correct ? question.correctAnswer : '#', lookup, random);
+    correct ? question.correctAnswer : '#', lookup, random, shieldOwners);
   if (!correct && next.lastVerdict) next.lastVerdict.selectedAnswer = 'No answer';
   return next;
 }
 
 export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicState {
   const game = structuredClone(runtime.game);
+  delete game.shieldContinuation;
   for (const player of game.players) {
     player.pendingEffects = [];
     player.score = Math.max(0, player.score ?? player.correctAnswers);
@@ -325,4 +327,13 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
       question: currentQuestion.question, options: currentQuestion.options,
     } : null,
   };
+}
+
+export async function decideJourneyShield(original: JourneyRuntime, actorId: string, decision: 'use' | 'expire',
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
+  const next = structuredClone(original);
+  next.game = resolveJourneyShield(next.game, actorId, decision, shieldOwners);
+  next.lastVerdict = null;
+  await openNextQuestion(next, lookup, random);
+  return next;
 }

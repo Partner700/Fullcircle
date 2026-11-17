@@ -1,3 +1,4 @@
+import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
 import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -103,6 +104,7 @@ function baseOwner(row: number, col: number) {
 function formatPhase(state: RoadHomeState, mine: boolean) {
   const active = state.players[state.activePlayerIndex];
   if (state.phase === 'GAME_OVER') return 'The road is complete';
+  if (state.phase === 'SHIELD_DECISION') return 'Shield of Faith decision';
   if (!mine) return `${active?.name || 'A player'} is taking a turn`;
   if (state.phase === 'AWAITING_ROLL') return 'Roll the dice';
   if (state.phase === 'QUESTION') return state.questionPurpose === 'inherited' ? 'Answer the inherited challenge' : state.questionPurpose === 'prison' ? 'Answer for freedom' : 'Answer to earn your move';
@@ -497,6 +499,9 @@ export function RoadHomeGame({
         </div>
       </div>
 
+      {state.shieldOffer && <ArenaShieldDecision key={state.version} offer={state.shieldOffer}
+        viewerId={spectator ? undefined : userId} sending={sending}
+        onDecide={(decision) => send('SHIELD', { decision })} />}
       {error && <div className="flex items-center justify-between gap-3 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-xs text-coral"><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button></div>}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">

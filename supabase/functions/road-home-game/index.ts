@@ -1,3 +1,4 @@
+import { arenaShieldOwners } from '../_shared/arenaShield.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   applyRoadHomeCommand,
@@ -185,11 +186,11 @@ async function createGame(roomId: string, state: RoadHomeState) {
   return publicState;
 }
 
-async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null) {
-  const result = await rest('rpc/commit_arena_ludo_turn', {
+async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null, useShield = false) {
+  const result = await rest(useShield ? 'rpc/commit_arena_shield_turn' : 'rpc/commit_arena_ludo_turn', {
     method: 'POST', body: JSON.stringify({ p_room_id: roomId, p_expected_version: previous.version,
       p_next_state: next, p_public_state: publicRoadHomeState(next), p_command_id: commandId,
-      p_actor_id: actorId, p_relic_slug: relicSlug }),
+      p_actor_id: actorId, ...(useShield ? {} : { p_relic_slug: relicSlug }) }),
   });
   return result.state;
 }
@@ -299,7 +300,7 @@ Deno.serve(async (request) => {
       await finishArenaRoom(context.room, normalized);
       return json({ state: publicRoadHomeState(normalized), version: normalized.version, duplicate: true });
     }
-    if (action !== "FORFEIT" && await hasPendingViewerChallenge(roomId, actorId)) {
+    if (action !== "FORFEIT" && action !== "SHIELD" && await hasPendingViewerChallenge(roomId, actorId)) {
       return json({ error: "Respond to the Arena challenge before playing your next move." }, 409);
     }
     if (body.expectedVersion != null && Number(body.expectedVersion) !== Number(existingPrivate.version)) {
@@ -322,10 +323,13 @@ Deno.serve(async (request) => {
       try { commandState = await replenishQuestionPool(commandState, String(context.room.room_name || "Bible Arena")); } catch { /* Keep the verified current deck if expansion is temporarily unavailable. */ }
     }
     const questionPool = commandState.questionPool?.length ? commandState.questionPool : await questionDeck(roomId);
-    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom);
-    next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')));
+    const useShield = command.action === 'SHIELD' && command.decision === 'use' && !previous.shieldLanding?.usesMatchRelic;
+    const shieldOwners = body.shieldDecisionV1 === true ? await arenaShieldOwners(rest,
+      context.participantIds.filter((id) => !context.forfeitedIds.includes(id)), useShield ? actorId : undefined) : undefined;
+    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners);
+    next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')), shieldOwners);
     const publicState = await saveGame(roomId, previous, next, commandId, actorId,
-      command.action === 'USE_MARKET_RELIC' ? command.slug : null);
+      command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield);
     await finishArenaRoom(context.room, next);
     return json({ state: publicState, version: next.version });
   } catch (error) {

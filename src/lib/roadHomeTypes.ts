@@ -1,9 +1,12 @@
+import type { ArenaShieldOffer } from '../../supabase/functions/_shared/arenaShield';
+
 export type RoadHomePhase =
   | 'AWAITING_ROLL'
   | 'QUESTION'
   | 'SELECTING_PAWN'
   | 'INHERITED_OFFER'
   | 'PRISON_MANAGEMENT'
+  | 'SHIELD_DECISION'
   | 'SURPRISE_CARD'
   | 'GAME_OVER';
 
@@ -83,6 +86,7 @@ export type RoadHomeEvent = {
 };
 
 export type RoadHomeState = {
+  shieldOffer?: ArenaShieldOffer;
   questionAid?: import('../../supabase/functions/_shared/arenaRelics').ArenaQuestionAid;
   roomId: string;
   version: number;

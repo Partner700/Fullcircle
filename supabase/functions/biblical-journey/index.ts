@@ -1,3 +1,4 @@
+import { arenaShieldOwners } from '../_shared/arenaShield.ts';
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import {
   advanceMachineJourney,
@@ -10,6 +11,7 @@ import {
   machineJourneyMayAct,
   rollJourneyDie,
   applyJourneyRelic,
+  decideJourneyShield,
   type JourneyQuestion,
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
@@ -154,7 +156,7 @@ Deno.serve(async (request) => {
       })) });
     }
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC'].includes(action)) {
+    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
     const context = await roomContext(roomId);
@@ -215,45 +217,53 @@ Deno.serve(async (request) => {
       return json({ error: 'The board changed on another device.',
         state: publicJourneyRuntime(current.state as JourneyRuntime), version: current.version }, 409);
     }
-    if (action !== 'BOT' && action !== 'EXPIRE' && await pendingViewerChallenge(roomId, actorId)) {
+    if (action !== 'BOT' && action !== 'EXPIRE' && action !== 'SHIELD' && await pendingViewerChallenge(roomId, actorId)) {
       return json({ error: 'Respond to the Arena challenge before playing your next move.' }, 409);
     }
 
     const previous = current.state as JourneyRuntime;
+    const decision = body.decision;
+    if (action === 'SHIELD' && decision !== 'use' && decision !== 'expire') return json({ error: 'Choose a valid Shield of Faith action.' }, 400);
+    if (previous.game.shieldOffer && action !== 'SHIELD') return json({ error: 'Wait for the Shield of Faith decision.' }, 409);
+    const useShield = action === 'SHIELD' && decision === 'use';
+    const shieldOwners = body.shieldDecisionV1 === true && ['ANSWER', 'EXPIRE', 'CHOOSE', 'BOT', 'RELIC', 'SHIELD'].includes(action)
+      ? await arenaShieldOwners(rest, activePlayers.map((player) => player.user_id), useShield ? actorId : undefined) : undefined;
     let next: JourneyRuntime;
-    if (action === 'RELIC') {
-      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom);
+    if (action === 'SHIELD') {
+      next = await decideJourneyShield(previous, actorId, decision, approvedQuestion, secureRandom, shieldOwners);
+    } else if (action === 'RELIC') {
+      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'BOT') {
       if (context.room.play_mode !== 'machine' || !machineJourneyMayAct(previous)) {
         return json({ error: 'It is not The Scribe\'s turn.' }, 409);
       }
       next = await advanceMachineJourney(previous, approvedQuestion, secureRandom,
-        machineAccuracy(String(context.room.room_name)));
+        machineAccuracy(String(context.room.room_name)), shieldOwners);
     } else if (action === 'ROLL') {
       next = rollJourneyDie(previous, actorId, secureRandom);
     } else if (action === 'ANSWER') {
       const answer = String(body.answer || '').slice(0, 2000);
-      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom);
+      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'EXPIRE') {
-      next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom);
+      next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'CHOOSE') {
       if (body.choice !== 0 && body.choice !== 1) return json({ error: 'Choose a valid outcome.' }, 400);
-      next = await chooseJourneyPenalty(previous, actorId, body.choice, approvedQuestion, secureRandom);
+      next = await chooseJourneyPenalty(previous, actorId, body.choice, approvedQuestion, secureRandom, shieldOwners);
     } else {
       next = await serveJourneySentence(previous, actorId, approvedQuestion, secureRandom);
     }
-    const result = await rest('rpc/commit_arena_journey_turn', {
+    const result = await rest(useShield ? 'rpc/commit_arena_shield_turn' : 'rpc/commit_arena_journey_turn', {
       method: 'POST', body: JSON.stringify({
         p_room_id: roomId, p_expected_version: current.version,
         p_next_state: next, p_command_id: commandId, p_actor_id: actorId,
-        p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null,
+        ...(useShield ? {} : { p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null }),
       }),
     }) as { duplicate: boolean; state: JourneyRuntime };
     return json({ state: publicJourneyRuntime(result.state), version: result.state.game.version,
       duplicate: result.duplicate });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Journey server could not complete that action.';
-    const known = /relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
+    const known = /Shield of Faith|relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
     if (!known) console.error('Biblical Journey action failed:', error);
     return json({ error: known ? message : 'The Journey could not advance. Try again.' }, known ? 409 : 500);
   }

@@ -193,3 +193,52 @@ assert.deepEqual(ROAD_HOME_CONFIG.rewards, {
 }
 
 console.log('Road Home engine acceptance tests passed.');
+
+// The targeted pawn gets an offer before entering prison or being captured.
+{
+  const state = game();
+  const [attacker, defender] = state.players;
+  const pawn = attacker.pawns[0];
+  pawn.progress = 5;
+  makeSelectable(state, 1, pawn.id);
+  const pending = applyRoadHomeCommand(state, attacker.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1), [attacker.id]);
+  const unowned = applyRoadHomeCommand(state, attacker.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1), []);
+  assert.equal(unowned.shieldOffer?.ownsShield, false);
+  assert.equal(unowned.players[0].pawns[0].prisonRounds, 0);
+  assert.equal(pending.phase, 'SHIELD_DECISION');
+  assert.equal(pending.shieldOffer?.ownsShield, true);
+  assert.equal(pending.players[0].pawns[0].prisonRounds, 0);
+  assert.equal(publicRoadHomeState(pending).shieldLanding, undefined);
+  const protectedMove = applyRoadHomeCommand(pending, attacker.id, { action: 'SHIELD', decision: 'use' }, [], fixed(.1));
+  assert.equal(protectedMove.players[0].pawns[0].prisonRounds, 0);
+  assert.equal(protectedMove.players[0].pawns[0].progress, 6);
+
+  pawn.progress = 14;
+  defender.pawns[0].progress = 2;
+  const capture = applyRoadHomeCommand(state, attacker.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1), [defender.id]);
+  assert.equal(capture.shieldOffer?.playerId, defender.id);
+  assert.equal(capture.players[1].pawns[0].progress, 2);
+  assert.throws(() => applyRoadHomeCommand(capture, attacker.id, { action: 'SHIELD', decision: 'use' }, [], fixed(.1)), /affected player/);
+  const defendedCapture = applyRoadHomeCommand(capture, defender.id, { action: 'SHIELD', decision: 'use' }, [], fixed(.1));
+  assert.equal(defendedCapture.players[1].pawns[0].progress, 2);
+  assert.equal(defendedCapture.players[0].stats.captured, 0);
+  capture.shieldOffer!.deadline = new Date(Date.now() - 1).toISOString();
+  const expiredCapture = applyRoadHomeCommand(capture, attacker.id, { action: 'SHIELD', decision: 'expire' }, [], fixed(.1), [defender.id]);
+  assert.equal(expiredCapture.players[1].pawns[0].progress, -1);
+  assert.equal(expiredCapture.players[0].stats.captured, 1);
+}
+
+// A Shield found during a match is spent from that match before Market stock.
+{
+  const state = game();
+  const player = state.players[0];
+  player.relics.push('Shield of Faith');
+  const pawn = player.pawns[0];
+  pawn.progress = 5;
+  makeSelectable(state, 1, pawn.id);
+  const offered = applyRoadHomeCommand(state, player.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1), []);
+  assert.equal(offered.shieldLanding?.usesMatchRelic, true);
+  const defended = applyRoadHomeCommand(offered, player.id, { action: 'SHIELD', decision: 'use' }, [], fixed(.1));
+  assert.equal(defended.players[0].relics.includes('Shield of Faith'), false);
+  assert.equal(defended.players[0].pawns[0].prisonRounds, 0);
+}

@@ -1,3 +1,4 @@
+import { createArenaShieldOffer, validateArenaShieldDecision, type ArenaShieldOffer } from './arenaShield.ts';
 import { arenaQuestionFigs, arenaRelicEffect } from './arenaRelics.ts';
 
 export const ROAD_HOME_CONFIG = {
@@ -40,6 +41,7 @@ export type RoadHomePhase =
   | 'INHERITED_OFFER'
   | 'PRISON_MANAGEMENT'
   | 'SURPRISE_CARD'
+  | 'SHIELD_DECISION'
   | 'GAME_OVER';
 
 export type RoadHomeQuestion = {
@@ -154,6 +156,8 @@ export type RoadHomeState = {
   activePrisonPawnId: string | null;
   challengeQueue: RoadHomeChallenge[];
   pendingSurprise: RoadHomeSurprise | null;
+  shieldOffer?: ArenaShieldOffer;
+  shieldLanding?: { movingPawnId: string; penalizedPawnId: string; protectedPawnIds: string[]; usesMatchRelic: boolean };
   usedQuestionIds: string[];
   rankings: string[];
   eventLog: RoadHomeEvent[];
@@ -178,6 +182,7 @@ export type RoadHomeCommand =
   | { action: 'ACK_SURPRISE' }
   | { action: 'USE_RELIC'; relic: string; pawnId?: string }
   | { action: 'USE_MARKET_RELIC'; slug: string }
+  | { action: 'SHIELD'; decision: 'use' | 'expire' }
   | { action: 'FORFEIT' };
 
 type RandomFn = () => number;
@@ -528,6 +533,10 @@ export function forfeitRoadHomePlayer(stateInput: RoadHomeState, playerId: strin
   if (player.forfeited) return state;
 
   const wasActive = state.activePlayerIndex === playerIndex;
+  if (wasActive) {
+    delete state.shieldOffer;
+    delete state.shieldLanding;
+  }
   player.forfeited = true;
   state.challengeQueue.forEach((challenge) => {
     challenge.eligiblePlayerIds = challenge.eligiblePlayerIds.filter((id) => id !== playerId);
@@ -544,6 +553,8 @@ export function forfeitRoadHomePlayer(stateInput: RoadHomeState, playerId: strin
       state.rankings.unshift(winner.id);
     }
     state.phase = 'GAME_OVER';
+    delete state.shieldOffer;
+    delete state.shieldLanding;
     state.currentQuestion = null;
     state.questionDeadline = null;
     state.legalPawnIds = [];
@@ -609,7 +620,16 @@ function finishMovement(state: RoadHomeState) {
   advanceTurn(state);
 }
 
-function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: RoadHomePawn, random: RandomFn) {
+function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: RoadHomePawn, random: RandomFn,
+  shieldOwners: readonly string[] | undefined, protectedPawnIds: string[] = [], expiredPawnId?: string) {
+  const offer = (target: RoadHomePlayer, penalizedPawn: RoadHomePawn, consequence: string) => {
+    if (!shieldOwners || target.isBot || target.forfeited || expiredPawnId === penalizedPawn.id) return false;
+    const usesMatchRelic = target.relics.includes('Shield of Faith');
+    state.shieldOffer = createArenaShieldOffer(target.id, consequence, usesMatchRelic || shieldOwners.includes(target.id));
+    state.shieldLanding = { movingPawnId: pawn.id, penalizedPawnId: penalizedPawn.id, protectedPawnIds, usesMatchRelic };
+    state.phase = 'SHIELD_DECISION';
+    return true;
+  };
   if (pawn.progress === ROAD_HOME_CONFIG.finalHome) {
     addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.pawnHome, 'a pawn reached Home');
     addEvent(state, 'PAWN_HOME', `${player.name}'s pawn ${pawn.number} reached Home.`, player.id);
@@ -621,6 +641,8 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
       const victims = opponent.pawns.filter((item) => globalPosition(opponent, item) === target && item.prisonRounds === 0);
       if (victims.length !== 1) continue;
       const victim = victims[0];
+      if (protectedPawnIds.includes(victim.id)) continue;
+      if (!victim.shielded && offer(opponent, victim, `Pawn ${victim.number} is about to be captured and sent back to base.`)) return;
       if (victim.shielded) {
         victim.shielded = false;
         victim.progress = Math.max(0, victim.progress - 1);
@@ -639,9 +661,12 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
     }
   }
   if (target != null && ROAD_HOME_CONFIG.prisonSpaces.includes(target as never)) {
-    pawn.prisonRounds = drawPrisonSentence(random);
-    pawn.imprisonedTurn = state.turnNumber;
-    addEvent(state, 'PAWN_IMPRISONED', `${player.name}'s pawn ${pawn.number} was imprisoned for ${pawn.prisonRounds} round${pawn.prisonRounds === 1 ? '' : 's'}.`, player.id);
+    if (offer(player, pawn, `Pawn ${pawn.number} is about to enter prison.`)) return;
+    if (!protectedPawnIds.includes(pawn.id)) {
+      pawn.prisonRounds = drawPrisonSentence(random);
+      pawn.imprisonedTurn = state.turnNumber;
+      addEvent(state, 'PAWN_IMPRISONED', `${player.name}'s pawn ${pawn.number} was imprisoned for ${pawn.prisonRounds} round${pawn.prisonRounds === 1 ? '' : 's'}.`, player.id);
+    }
   }
   if ((target != null && ROAD_HOME_CONFIG.surpriseSpaces.includes(target as never)) || ROAD_HOME_CONFIG.homeSurpriseProgress.includes(pawn.progress as never)) {
     state.pendingSurprise = drawSurprise(random);
@@ -652,7 +677,7 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
   finishMovement(state);
 }
 
-function movePawn(state: RoadHomeState, pawnId: string, random: RandomFn) {
+function movePawn(state: RoadHomeState, pawnId: string, random: RandomFn, shieldOwners?: readonly string[]) {
   const player = activePlayer(state);
   const pawn = player.pawns.find((item) => item.id === pawnId);
   const value = state.pendingMoveValue || 0;
@@ -662,7 +687,7 @@ function movePawn(state: RoadHomeState, pawnId: string, random: RandomFn) {
   pawn.progress = from < 0 ? 0 : from + value;
   player.stats.totalMovement += value;
   addEvent(state, from < 0 ? 'PAWN_DEPLOYED' : 'PAWN_MOVED', from < 0 ? `${player.name} deployed pawn ${pawn.number}.` : `${player.name} moved pawn ${pawn.number} by ${value}.`, player.id);
-  resolveLanding(state, player, pawn, random);
+  resolveLanding(state, player, pawn, random, shieldOwners);
 }
 
 function continueAfterPrison(state: RoadHomeState) {
@@ -811,12 +836,40 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
   return state;
 }
 
-export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random) {
+export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random, shieldOwners?: readonly string[]) {
   if (command.action === 'FORFEIT') return forfeitRoadHomePlayer(stateInput, actorId);
   const state = normalizeRoadHomeEconomyState(stateInput);
   const questions = normalizeQuestions(questionsInput);
   const player = activePlayer(state);
   if (state.phase === 'GAME_OVER') throw new Error('This Road Home match is complete.');
+  if (command.action === 'SHIELD') {
+    const { shieldOffer, shieldLanding } = state;
+    if (state.phase !== 'SHIELD_DECISION' || !shieldOffer || !shieldLanding) throw new Error('There is no pending Shield of Faith choice.');
+    if (command.decision !== 'use' && command.decision !== 'expire') throw new Error('Choose a valid Shield of Faith action.');
+    validateArenaShieldDecision(shieldOffer, actorId, command.decision);
+    const target = player.pawns.find((pawn) => pawn.id === shieldLanding.movingPawnId);
+    if (!target) throw new Error('The moving pawn could not be found.');
+    delete state.shieldOffer;
+    delete state.shieldLanding;
+    if (command.decision === 'use') {
+      shieldLanding.protectedPawnIds.push(shieldLanding.penalizedPawnId);
+      const defender = state.players.find((candidate) => candidate.id === actorId)!;
+      if (shieldLanding.usesMatchRelic) {
+        const index = defender.relics.indexOf('Shield of Faith');
+        if (index === -1) throw new Error('You do not own a Shield of Faith in this match.');
+        defender.relics.splice(index, 1);
+      }
+      defender.stats.relicsUsed += 1;
+      addEvent(state, 'RELIC_USED', `${defender.name}'s Shield of Faith prevented the penalty.`, actorId);
+    }
+    // Restore movement before continuing, since some continuations change the active player.
+    state.phase = 'SELECTING_PAWN';
+    resolveLanding(state, player, target, random, shieldOwners, shieldLanding.protectedPawnIds, shieldLanding.penalizedPawnId);
+    state.updatedAt = nowIso();
+    state.version += 1;
+    return state;
+  }
+  if (state.phase === 'SHIELD_DECISION') throw new Error('Wait for the Shield of Faith decision.');
   if (player.id !== actorId) throw new Error(`It is ${player.name}'s turn.`);
 
   if (command.action === 'ROLL') {
@@ -866,7 +919,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     }
   } else if (command.action === 'MOVE') {
     if (state.phase !== 'SELECTING_PAWN') throw new Error('A pawn cannot be moved now.');
-    movePawn(state, command.pawnId, random);
+    movePawn(state, command.pawnId, random, shieldOwners);
   } else if (command.action === 'CHALLENGE_DECISION') {
     if (state.phase !== 'INHERITED_OFFER') throw new Error('There is no inherited challenge to decide.');
     const challenge = state.challengeQueue.find((item) => item.id === state.activeChallengeId);
@@ -973,10 +1026,11 @@ export function runRoadHomeBots(
   questionsInput: unknown[],
   random: RandomFn = Math.random,
   machineDifficulty: 'easy' | 'medium' | 'hard' = 'medium',
+  shieldOwners?: readonly string[],
 ) {
   let state = normalizeRoadHomeEconomyState(stateInput);
   let guard = 0;
-  while (state.phase !== 'GAME_OVER' && activePlayer(state).isBot && guard < 80) {
+  while (state.phase !== 'GAME_OVER' && state.phase !== 'SHIELD_DECISION' && activePlayer(state).isBot && guard < 80) {
     guard += 1;
     const bot = activePlayer(state);
     if (state.phase === 'PRISON_MANAGEMENT') {
@@ -997,7 +1051,7 @@ export function runRoadHomeBots(
         const bPawn = pawnById(state, b)?.pawn;
         return (bPawn?.progress || -1) - (aPawn?.progress || -1);
       })[0];
-      state = applyRoadHomeCommand(state, bot.id, { action: 'MOVE', pawnId }, questionsInput, random);
+      state = applyRoadHomeCommand(state, bot.id, { action: 'MOVE', pawnId }, questionsInput, random, shieldOwners);
     } else if (state.phase === 'SURPRISE_CARD') {
       state = applyRoadHomeCommand(state, bot.id, { action: 'ACK_SURPRISE' }, questionsInput, random);
     }
@@ -1007,6 +1061,7 @@ export function runRoadHomeBots(
 
 export function publicRoadHomeState(stateInput: RoadHomeState) {
   const state = normalizeRoadHomeEconomyState(stateInput);
+  delete state.shieldLanding;
   state.questionPool = [];
   if (state.currentQuestion) {
     state.currentQuestion.correctAnswer = '';
