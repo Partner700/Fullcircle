@@ -111,6 +111,7 @@ export function HiddenChallengeStatus() {
       <button
         type="button"
         {...shortcut}
+        data-hidden-item-shortcut
         className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl cursor-grab active:cursor-grabbing md:bottom-6 md:right-6"
         title="Treasures and Mines (drag to move)"
         aria-label="Open hidden item status"

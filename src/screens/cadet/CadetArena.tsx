@@ -2263,6 +2263,13 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
         </details>
       )}
 
+      <ContextRelicShop userId={userId} floating timed={questionOpen && turnPhase === 'user'} label="Use or buy relics"
+        slugs={TRIVIA_QUESTION_RELICS.filter(slug => !classicAid?.used.includes(slug)
+          && (slug !== 'freeze-timer' || !classicAid?.extended)
+          && (slug !== 'reveal-reference' || !classicAid || classicAid.hasReference))}
+        canUseOwned={() => Boolean(classicAid && questionOpen && isMyTurn && !isCurrentAnswered
+          && turnPhase === 'user' && timeLeft > 0 && !submittingAnswer)}
+        onUseOwned={useClassicRelic} onChanged={() => undefined} />
       {questionOpen && isMyTurn && (turnPhase === 'user' || turnPhase === 'user-feedback') && (
         <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm">
           <div className="relative z-[2147483001] max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-label="Arena question">
@@ -2279,13 +2286,6 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
             {q.type === 'true_false' && <div className="grid grid-cols-2 gap-3"><button onClick={() => void handleAnswer('True')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="rounded-lg border-2 border-sage py-4 font-display text-lg font-bold text-sage transition-colors hover:bg-sage-soft"><CheckCircle2 size={24} className="mx-auto mb-1" />True</button><button onClick={() => void handleAnswer('False')} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="rounded-lg border-2 border-coral py-4 font-display text-lg font-bold text-coral transition-colors hover:bg-coral-soft"><XCircle size={24} className="mx-auto mb-1" />False</button></div>}
             {(q.type === 'multiple_choice' || q.type === 'true_false') && q.options && q.type !== 'true_false' && <div className="space-y-2">{q.options.map((option, index) => <button key={index} onClick={() => void handleAnswer(option)} disabled={isCurrentAnswered || submittingAnswer || turnPhase !== 'user'} className="w-full rounded-lg border border-border p-3.5 text-left text-sm font-medium text-ink transition-colors hover:border-gold hover:bg-gold-soft">{option}</button>)}</div>}
             {(q.type === 'cloze' || q.type === 'scriptorium' || q.type === 'order_sequence' || q.type === 'matching' || q.type === 'standard_text') && <div className="space-y-2"><input className="input-field" placeholder="Type your answer..." autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && typedAnswer.trim()) void handleAnswer(typedAnswer.trim()); }} /><button className="btn-primary w-full" onClick={() => { if (typedAnswer.trim()) void handleAnswer(typedAnswer.trim()); }} disabled={!typedAnswer.trim() || isCurrentAnswered || submittingAnswer}>Submit</button></div>}
-            {!isCurrentAnswered && turnPhase === 'user' && timeLeft > 0 && classicAid && (
-              <ContextRelicShop userId={userId} timed aboveOverlay label="Use or buy relics"
-                slugs={TRIVIA_QUESTION_RELICS.filter(slug => !classicAid.used.includes(slug)
-                  && (slug !== 'freeze-timer' || !classicAid.extended)
-                  && (slug !== 'reveal-reference' || classicAid.hasReference))}
-                canUseOwned={() => !submittingAnswer} onUseOwned={useClassicRelic} onChanged={() => undefined} />
-            )}
             {classicReference && <ScriptureRelicPopup reference={classicReference} onClose={() => setClassicReference(undefined)} />}
             {classicAid?.answer && <p className="mt-2 text-sm text-brass">Answer: {classicAid.answer}</p>}
             {submittingAnswer && <div className="mt-3 flex items-center justify-center gap-2 text-xs font-bold text-stone"><Loader2 size={14} className="animate-spin" /> Checking answer</div>}

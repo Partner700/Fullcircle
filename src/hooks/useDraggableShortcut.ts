@@ -20,6 +20,7 @@ export function useDraggableShortcut(positionKey: string, onOpen: () => void): S
   const suppressClick = useRef(false);
 
   useEffect(() => {
+    if (!positionKey) return;
     try {
       const saved = JSON.parse(localStorage.getItem(positionKey) || 'null');
       setPosition(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? keepInViewport(saved) : null);
@@ -29,6 +30,7 @@ export function useDraggableShortcut(positionKey: string, onOpen: () => void): S
   }, [positionKey]);
 
   useEffect(() => {
+    if (!positionKey) return;
     const resize = () => setPosition(current => current && keepInViewport(current));
     const viewport = window.visualViewport;
     window.addEventListener('resize', resize);
@@ -37,7 +39,7 @@ export function useDraggableShortcut(positionKey: string, onOpen: () => void): S
       window.removeEventListener('resize', resize);
       viewport?.removeEventListener('resize', resize);
     };
-  }, []);
+  }, [positionKey]);
 
   return {
     onPointerDown(event) {

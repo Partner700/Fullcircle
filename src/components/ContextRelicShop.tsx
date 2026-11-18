@@ -1,7 +1,8 @@
 import { createPortal } from 'react-dom';
 import { RelicSymbol } from './RelicSymbol';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, X } from 'lucide-react';
+import { useDraggableShortcut } from '../hooks/useDraggableShortcut';
 import { fetchRelicInventory, purchaseRelic, useRelic } from '../lib/queries';
 import { relicCashBundles, relicMoneyPriceXaf } from '../lib/relicPricing';
 import { supabase } from '../lib/supabase';
@@ -104,18 +105,27 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     }
   }
 
-  if (!slugs.length && !open) return null;
+  const shortcut = useDraggableShortcut(
+    floating ? `full-circle-relic-position:${userId}` : '',
+    () => setOpen(value => !value),
+  );
+
+  if (!floating && !slugs.length && !open) return null;
   const shop = (
     <div className={floating
-      ? 'pointer-events-none fixed right-3 z-[2147483050] flex w-[min(26rem,calc(100vw-1.5rem))] flex-col items-end gap-2 text-xs'
-      : 'my-2 w-full text-xs'}
-      style={floating ? { bottom: 'calc(4.5rem + env(safe-area-inset-bottom))' } : undefined}>
-
-      {slugs.length > 0 && <button type="button" aria-expanded={open} className={floating ? "pointer-events-auto btn-primary rounded-full shadow-lg text-xs" : "btn-secondary text-xs"}
-        onClick={() => setOpen(value => !value)}><ShoppingCart size={15} /> {open && floating ? "Close relics" : label}</button>}
+      ? 'pointer-events-none fixed bottom-36 right-3 z-[2147483590] w-[min(26rem,calc(100vw-1.5rem))] text-xs'
+      : 'my-2 w-full text-xs'}>
+      {!floating && slugs.length > 0 && (
+        <button type="button" aria-expanded={open} className="btn-secondary text-xs"
+          onClick={() => setOpen(value => !value)}><ShoppingCart size={15} /> {label}</button>
+      )}
       <div hidden={!open} className={floating
-        ? 'pointer-events-auto order-first max-h-[50dvh] w-full space-y-2 overflow-y-auto rounded-lg border border-brass/60 bg-surface p-3 shadow-xl'
+        ? 'pointer-events-auto max-h-[50dvh] w-full space-y-2 overflow-y-auto rounded-lg border border-brass/60 bg-surface p-3 shadow-xl'
         : 'mt-2 space-y-2 rounded-lg border border-border bg-surface p-3'}>
+        {floating && <div className="flex items-center justify-between gap-2">
+          <h2 className="font-display text-sm font-bold text-ink">{label}</h2>
+          <button type="button" className="icon-btn" aria-label="Close relics" onClick={() => setOpen(false)}><X size={16} /></button>
+        </div>}
         {timed && <p className="text-stone">The timer keeps running during checkout.</p>}
         {balance !== null && <p className="text-stone">Balance {formatDenarii(balance)} Ð</p>}
         {offers === null && !error && <p role="status">Loading relics…</p>}
@@ -127,7 +137,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           const bundles = relicCashBundles(offer);
           const canBuyWithDenarii = balance !== null && cost > 0 && balance >= cost;
           const hasOwned = showOwned && (owned[offer.id] ?? 0) > 0;
-          const showCash = (!hasOwned || floating) && (!canBuyWithDenarii || showAllPaymentOptions) && (balance !== null || showAllPaymentOptions);
+          const showCash = (!hasOwned || showAllPaymentOptions) && (!canBuyWithDenarii || showAllPaymentOptions) && (balance !== null || showAllPaymentOptions);
           return (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 last:border-0">
               <span className="inline-flex items-center gap-2 font-semibold text-ink"><RelicSymbol slug={offer.slug} /> {offer.name}</span>
@@ -138,7 +148,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
                     <RelicSymbol slug={offer.slug} size={14} /> Use ({owned[offer.id]} owned)
                   </button>
                 ) : null}
-                {(!hasOwned || floating) && (canBuyWithDenarii || showAllPaymentOptions && cost > 0) ? (
+                {(!hasOwned || showAllPaymentOptions) && (canBuyWithDenarii || showAllPaymentOptions && cost > 0) ? (
                   <button type="button" className="btn-primary text-xs" disabled={Boolean(busy) || !canBuyWithDenarii} onClick={() => void act(offer, false)}>
                     <RelicSymbol slug={offer.slug} size={14} /> {afterDenariiPurchase ? 'Buy & use' : 'Buy'} · {formatDenarii(cost)} Ð
                   </button>
@@ -170,5 +180,18 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
       </div>
     </div>
   );
-  return floating ? createPortal(shop, document.body) : shop;
+  return floating ? createPortal(<>
+    {shop}
+    <button
+      type="button"
+      {...shortcut}
+      data-game-relic-shortcut
+      aria-label={open ? 'Close relics' : 'Open relics'}
+      aria-expanded={open}
+      title={`${label} (drag to move)`}
+      className="fixed bottom-20 right-3 z-[2147483600] flex h-11 w-11 cursor-grab select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl active:cursor-grabbing md:bottom-6 md:right-6"
+    >
+      <RelicSymbol slug="relics" size={20} />
+    </button>
+  </>, document.body) : shop;
 }

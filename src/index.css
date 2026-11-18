@@ -2612,3 +2612,7 @@ select {
 .prelude-center > p:first-child { position:absolute;top:-12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
 .prelude-center > p:last-child { position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
 .prelude-center-card { max-height:100%; }
+
+body:has([data-game-relic-shortcut]) [data-hidden-item-shortcut] {
+  display: none;
+}

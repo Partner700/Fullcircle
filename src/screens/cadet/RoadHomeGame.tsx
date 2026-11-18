@@ -620,17 +620,17 @@ export function RoadHomeGame({
           </div>
         </div>
       )}
-      {!spectator && pauseRemaining === 0 && state.phase !== 'SHIELD_DECISION' && (
+      {!spectator && (
         <ArenaMarketRelics userId={userId} questionType={state.currentQuestion?.type || ''}
           aid={state.questionAid} timed={state.phase === 'QUESTION'}
-          disabled={!myTurn || state.phase !== 'QUESTION' || sending || diceRolling || Boolean(rollReveal) || secondsLeft <= 0}
+          disabled={pauseRemaining > 0 || !myTurn || state.phase !== 'QUESTION' || sending || diceRolling || Boolean(rollReveal) || secondsLeft <= 0}
           onUse={(slug) => send('USE_MARKET_RELIC', { slug })}
           boardRelics={[
-            { slug: ARENA_UNDO, usable: Boolean(canUndo && !sending), use: () => send('UNDO') },
-            { slug: ARENA_STANDSTILL, usable: myTurn && !sending && !standstillMuted && (state.phase !== 'QUESTION' || secondsLeft > 0), use: () => send('STANDSTILL') },
+            { slug: ARENA_UNDO, usable: Boolean(canUndo && !sending && pauseRemaining === 0 && state.phase !== 'SHIELD_DECISION'), use: () => send('UNDO') },
+            { slug: ARENA_STANDSTILL, usable: myTurn && pauseRemaining === 0 && state.phase !== 'SHIELD_DECISION' && !sending && !standstillMuted && (state.phase !== 'QUESTION' || secondsLeft > 0), use: () => send('STANDSTILL') },
             { slug: 'shield-of-faith', usable: false, use: async () => false },
           ]}>
-          {me?.relics.length ? <RelicTray player={me} state={state} sending={sending || !myTurn} send={send} /> : null}
+          {me?.relics.length ? <RelicTray player={me} state={state} sending={sending || !myTurn || pauseRemaining > 0 || state.phase === 'SHIELD_DECISION'} send={send} /> : null}
         </ArenaMarketRelics>
       )}
       {spectator && (

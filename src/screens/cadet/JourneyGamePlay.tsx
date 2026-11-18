@@ -347,12 +347,12 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     {!spectator && (undoMuted || standstillMuted) && <p role="status" className="text-xs text-stone">
       Match limits reached: {[undoMuted && 'Undo (3)', standstillMuted && 'Standstill (1)'].filter(Boolean).join(', ')}.
     </p>}
-    {!spectator && pauseRemaining === 0 && !state.game.shieldOffer && <ArenaMarketRelics
+    {!spectator && <ArenaMarketRelics
       userId={userId} questionType={openQuestion?.type || ''} aid={state.questionAid}
-      disabled={!waitingForMyAnswer || !asking || sending || secondsLeft <= 0}
+      disabled={pauseRemaining > 0 || Boolean(state.game.shieldOffer) || !waitingForMyAnswer || !asking || sending || secondsLeft <= 0}
       timed={Boolean(waitingForMyAnswer && asking)} onUse={(slug) => send('RELIC', { slug })}
       boardRelics={[
-        { slug: ARENA_UNDO, usable: Boolean(undoAvailable && !sending), use: () => send('UNDO') },
+        { slug: ARENA_UNDO, usable: Boolean(undoAvailable && !sending && pauseRemaining === 0 && !state.game.shieldOffer), use: () => send('UNDO') },
         { slug: ARENA_STANDSTILL, usable: standstillAvailable && !sending && (!asking || secondsLeft > 0), use: () => send('STANDSTILL') },
         { slug: 'shield-of-faith', usable: false, use: async () => false },
       ]} />}

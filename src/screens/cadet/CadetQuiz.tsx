@@ -1225,8 +1225,8 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         </div>
       )}
 
-      {allowRelics && !showFeedback && <ContextRelicShop userId={userId} timed label="Use or buy relics"
-        canUseOwned={() => !submitting && !usingGoliath && !usingQuestionRelic}
+      {allowRelics && <ContextRelicShop userId={userId} floating timed={!showFeedback} label="Use or buy relics"
+        canUseOwned={() => !showFeedback && !submitting && !usingGoliath && !usingQuestionRelic}
         onUseOwned={(slug) => slug === RELIC_SLUGS.SWORD_GOLIATH ? useGoliathSword() : consumeQuestionRelic(slug)}
         slugs={[
           RELIC_SLUGS.HINT, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchCampMentionCandidates, fetchPanelImageSetting, type CampMentionCandidate, type BibleChapterLocation } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { PanelImageSetting } from '../lib/types';
+import { AppSelect } from './AppSelect';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 
 export type ScriptureQuestionTarget = { reference: string; narrativeId?: string; chapter?: BibleChapterLocation };
@@ -94,13 +95,20 @@ export function ScriptureQuestionComposer({ target, close, onPosted }: {
 
   return <QuestionDialog image={image} title="Ask a question" dismiss={busy ? undefined : close}>
     <p className="text-sm text-ink">{target.reference}</p>
-    <label className="block space-y-1 text-sm font-semibold">Tag
-      <select className="input-field w-full" value={scope} disabled={busy} onChange={event => setScope(event.target.value as typeof scope)}>
-        <option value="people">Specific people</option>
-        <option value="camp">Entire camp</option>
-        <option value="community">Entire community</option>
-      </select>
-    </label>
+    <div>
+      <p className="mb-1 text-xs font-semibold text-stone">Tag</p>
+      <AppSelect
+        ariaLabel="Tag"
+        value={scope}
+        disabled={busy}
+        onChange={value => setScope(value as typeof scope)}
+        options={[
+          { value: 'people', label: 'Specific people' },
+          { value: 'camp', label: 'Entire camp' },
+          { value: 'community', label: 'Entire community' },
+        ]}
+      />
+    </div>
     {scope !== 'community' && <>
       <div className="flex flex-wrap gap-2">
         {selected.map(person => <button key={person.user_id} type="button" className="btn-secondary text-xs" disabled={busy}

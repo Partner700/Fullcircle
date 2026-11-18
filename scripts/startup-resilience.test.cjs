@@ -178,7 +178,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v273-shell')).put(scope + 'index.html', appResponse('current target app'));
+    await (await cache.open('full-circle-target-v274-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
@@ -242,7 +242,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v273-shell')).put(
+    await (await cache.open('full-circle-target-v274-shell')).put(
       scope + 'index.html',
       response('<html><main id="root">proxy error</main></html>', 'text/html'),
     );
@@ -257,7 +257,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v273-shell')).put(scope + 'index.html', appResponse('old cached shell', '225'));
+    await (await cache.open('full-circle-target-v274-shell')).put(scope + 'index.html', appResponse('old cached shell', '225'));
     const w = worker(async (url) => url.startsWith(scope) ? appResponse('stale carrier shell', '225') : appResponse('latest mirror shell'));
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
     assert.match(await delivered.text(), /latest mirror shell/, 'An online launch must prefer the current mirror over stale carrier and cached copies.');
@@ -266,14 +266,14 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v273-shell')).put(scope + 'index.html', appResponse('offline shell', '225'));
+    await (await cache.open('full-circle-target-v274-shell')).put(scope + 'index.html', appResponse('offline shell', '225'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
     assert.match(await delivered.text(), /offline shell/, 'A safe cached copy remains usable when all online copies are unavailable.');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v273-shell')).put(scope + 'index.html', appResponse('cached shell'));
+    await (await cache.open('full-circle-target-v274-shell')).put(scope + 'index.html', appResponse('cached shell'));
     const w = worker(async () => appResponse('fresh network shell'), cache);
     const delivered = await w.networkFirstNavigation({
       url: scope + '?fc-repair=270',
@@ -283,7 +283,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await cache.open('full-circle-target-v273-shell');
+    await cache.open('full-circle-target-v274-shell');
     await cache.open('full-circle-target-v176-assets');
     const w = worker(async () => appResponse(), cache);
     const resetEvent = { data: { type: 'RESET_APP_SHELL' }, jobs: [], waitUntil(promise) { this.jobs.push(promise); } };

@@ -55,7 +55,9 @@ export function AppSelect({
       if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      if (rootRef.current?.closest('dialog[open]')) event.preventDefault();
+      setOpen(false);
     };
     const onReposition = () => updateMenuRect();
     window.addEventListener('pointerdown', onPointerDown);
@@ -141,7 +143,10 @@ export function AppSelect({
         </span>
       </button>
     </div>
-    {typeof document === 'undefined' ? menu : menu && createPortal(menu, document.body)}
+    {typeof document === 'undefined' ? menu : menu && createPortal(
+      menu,
+      rootRef.current?.closest('dialog[open]') ?? document.body,
+    )}
     </>
   );
 }

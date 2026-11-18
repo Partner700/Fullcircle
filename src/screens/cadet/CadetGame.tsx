@@ -832,15 +832,15 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
       {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
       <GamePoints game="daily_game" showCurrentPlayer />
 
-      {!showFeedback && <ContextRelicShop userId={userId} timed label="Use or buy relics"
-        canUseOwned={() => !submitting && !usingGoliath && !usingQuestionRelic}
+      <ContextRelicShop userId={userId} floating timed={!showFeedback} label="Use or buy relics"
+        canUseOwned={() => !showFeedback && !answerRevealed && !submitting && !usingGoliath && !usingQuestionRelic}
         onUseOwned={(slug) => slug === RELIC_SLUGS.SWORD_GOLIATH ? useGoliathSword() : consumeQuestionRelic(slug)}
         slugs={[
           RELIC_SLUGS.HINT, RELIC_SLUGS.FREEZE_TIMER, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
           RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
           ...(q.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
         ]}
-        onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />
       <div key={`${q.id || currentQ}-${currentQ}`} className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>

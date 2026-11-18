@@ -61,7 +61,7 @@ export function PuzzleRelics({ userId, playing, busy, solved, used, roundUsed, h
     onClick={()=>void use(relic.slug)} className="btn-secondary text-xs disabled:cursor-not-allowed disabled:border-white/25 disabled:bg-white/5 disabled:text-white/75"><RelicSymbol slug={relic.slug} size={14} />{using===relic.slug?'Using…':relic.name} · {inventory[relic.slug]}{alreadyUsed?' · used':''}{needsLetters?' · connect letters first':''}</button>;
   })}</div>
   {!loading&&!error&&!owned.length&&<p className="mt-2 text-xs text-white/80">You do not own a relic that can be used in this puzzle. Quiz, streak and wallet relics stay in their own sections.</p>}
-  <ContextRelicShop userId={userId} timed={playing} label="Use or buy relics"
+  <ContextRelicShop userId={userId} floating timed={playing} label="Use or buy relics"
     onUseOwned={(slug) => use(slug as PuzzleRelicSlug)}
     canUseOwned={(slug) => !busy && !using && (slug !== 'talking-donkey' || hasSelection)}
     slugs={RELICS.filter(({ slug }) => isApplicable(slug) &&
