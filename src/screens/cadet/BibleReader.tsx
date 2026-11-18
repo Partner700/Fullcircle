@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Heart, Lightbulb, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
+import { AppSelect } from '../../components/AppSelect';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
 import { BIBLE_BOOKS } from '../../lib/bibleBooks';
@@ -10,6 +11,11 @@ import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, tog
 import { supabase } from '../../lib/supabase';
 import type { PanelImageSetting } from '../../lib/types';
 
+const books = BIBLE_BOOKS.map((book, index) => ({
+  value: String(index),
+  label: book.name,
+  description: index < 39 ? 'Old Testament' : 'New Testament',
+}));
 const editions = SCRIPTURE_EDITIONS.filter(item => item.value !== 'published');
 const reactions = [
   { key: 'heart', Icon: Heart, label: 'Like' },
@@ -118,23 +124,47 @@ export function BibleReader() {
       <PanelImageBackdrop image={artwork} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} />
       <div className="relative z-10 space-y-4">
         <h1 className="flex items-center gap-2 font-display text-2xl font-bold text-peri"><BookOpen size={24} /> Bible</h1>
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <label className="text-sm font-semibold">Book
-            <select className="input-field mt-1 w-full" value={bookIndex} onChange={event => openChapter(Number(event.target.value), 1)}>
-              <optgroup label="Old Testament">{BIBLE_BOOKS.slice(0, 39).map((entry, index) => <option key={entry.slug} value={index}>{entry.name}</option>)}</optgroup>
-              <optgroup label="New Testament">{BIBLE_BOOKS.slice(39).map((entry, index) => <option key={entry.slug} value={index + 39}>{entry.name}</option>)}</optgroup>
-            </select>
-          </label>
-          <label className="text-sm font-semibold">Chapter
-            <select className="input-field mt-1 w-full" value={chapter} onChange={event => openChapter(bookIndex, Number(event.target.value))}>
-              {Array.from({ length: book.chapters }, (_, index) => <option key={index + 1}>{index + 1}</option>)}
-            </select>
-          </label>
-          <label className="col-span-2 text-sm font-semibold">Bible edition
-            <select className="input-field mt-1 w-full" value={edition} onChange={event => { setText(null); setEdition(event.target.value); }}>
-              {editions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </label>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-semibold text-stone">Book</p>
+            <AppSelect
+              ariaLabel="Book"
+              value={String(bookIndex)}
+              options={books}
+              onChange={value => {
+                const nextBook = Number(value);
+                if (nextBook !== bookIndex) openChapter(nextBook, 1);
+              }}
+            />
+          </div>
+          <div className="min-w-28">
+            <p className="mb-1 text-xs font-semibold text-stone">Chapter</p>
+            <AppSelect
+              ariaLabel="Chapter"
+              value={String(chapter)}
+              options={Array.from({ length: book.chapters }, (_, index) => {
+                const number = String(index + 1);
+                return { value: number, label: number };
+              })}
+              onChange={value => {
+                const nextChapter = Number(value);
+                if (nextChapter !== chapter) openChapter(bookIndex, nextChapter);
+              }}
+            />
+          </div>
+          <div className="col-span-2">
+            <p className="mb-1 text-xs font-semibold text-stone">Bible edition</p>
+            <AppSelect
+              ariaLabel="Bible edition"
+              value={edition}
+              options={editions}
+              onChange={value => {
+                if (value === edition) return;
+                setText(null);
+                setEdition(value);
+              }}
+            />
+          </div>
         </div>
       </div>
     </section>

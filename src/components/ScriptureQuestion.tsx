@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type MouseEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchCampMentionCandidates, fetchPanelImageSetting, type CampMentionCandidate, type BibleChapterLocation } from '../lib/queries';
@@ -12,6 +12,13 @@ function QuestionDialog({ image, title, dismiss, children }: {
   image: PanelImageSetting | null; title: string; dismiss?: () => void; children: React.ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const startedOnBackdrop = useRef(false);
+
+  const isBackdrop = (event: MouseEvent<HTMLDialogElement> | PointerEvent<HTMLDialogElement>) => {
+    if (event.target !== event.currentTarget) return false;
+    const { left, top, right, bottom } = event.currentTarget.getBoundingClientRect();
+    return event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom;
+  };
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -19,6 +26,12 @@ function QuestionDialog({ image, title, dismiss, children }: {
   }, []);
   return <dialog ref={dialog} aria-label={title} data-artwork-theme={image?.url ? 'night' : undefined}
     className="card fixed inset-0 m-auto max-h-[85dvh] w-[min(92vw,36rem)] overflow-auto p-5 text-ink backdrop:bg-black/75"
+    onPointerDown={(event) => { startedOnBackdrop.current = isBackdrop(event); }}
+    onClick={(event) => {
+      const shouldDismiss = startedOnBackdrop.current && isBackdrop(event);
+      startedOnBackdrop.current = false;
+      if (shouldDismiss) dismiss?.();
+    }}
     onCancel={(event) => { event.preventDefault(); dismiss?.(); }}>
     <PanelImageBackdrop image={image} opacityOverride={60} veilClassName="welcome-slide-veil" modeFilter={false} />
     <div className="relative z-10 space-y-4">
