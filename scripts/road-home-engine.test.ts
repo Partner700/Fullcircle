@@ -7,6 +7,7 @@ import {
   normalizeQuestions,
   publicRoadHomeState,
   ROAD_HOME_CONFIG,
+  runRoadHomeBots,
   type RoadHomeState,
 } from '../supabase/functions/_shared/road-home-engine.ts';
 
@@ -261,6 +262,27 @@ console.log('Road Home engine acceptance tests passed.');
   assert.equal(restored.undo, undefined);
   const advanced = applyRoadHomeCommand(moved, other.id, { action: 'ROLL' }, [], fixed(.99));
   assert.throws(() => applyRoadHomeCommand(advanced, mover.id, { action: 'UNDO' }, [], fixed(.1)), /no longer/);
+}
+
+// Undo restores both the human move and the automatic machine reply.
+{
+  const state = createRoadHomeGame('machine-room', [
+    { id: 'player-a', name: 'A' }, { id: 'bot', name: 'The Scribe', isBot: true },
+  ], [], fixed(.5));
+  const [mover, bot] = state.players;
+  const pawn = mover.pawns[0];
+  pawn.progress = 0;
+  bot.pawns[0].progress = 0;
+  makeSelectable(state, 1, pawn.id);
+  const moved = applyRoadHomeCommand(state, mover.id, { action: 'MOVE', pawnId: pawn.id }, [], fixed(.1));
+  const replied = runRoadHomeBots(moved, [], fixed(.1), 'hard');
+  assert.ok(replied.version > moved.version);
+  assert.equal(replied.players[replied.activePlayerIndex].id, mover.id);
+  assert.notDeepEqual(replied.players[1], state.players[1]);
+  assert.equal(publicRoadHomeState(replied).undoOffer?.playerId, mover.id);
+  const restored = applyRoadHomeCommand(replied, mover.id, { action: 'UNDO' }, [], fixed(.1));
+  assert.deepEqual(restored.players, state.players);
+  assert.equal(restored.version, replied.version + 1);
 }
 
 // Standstill blocks moves for ten minutes without using up the open question timer.

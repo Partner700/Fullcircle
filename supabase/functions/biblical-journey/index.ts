@@ -226,24 +226,17 @@ Deno.serve(async (request) => {
 
     const original = current.state as JourneyRuntime;
     if (Date.now() < Date.parse(original.pausedUntil || '')) return json({ error: 'The match is paused by Standstill.' }, 409);
-    if (action === 'BOT' && Date.now() < Date.parse(original.undo?.botWaitUntil || '')) {
-      return json({ error: 'Wait for the Undo window to end.' }, 409);
-    }
     const previous = { ...original };
     delete previous.pausedUntil;
-    if (action !== 'UNDO' && action !== 'SHIELD') delete previous.undo;
+    const resolvingMachineChoice = context.room.play_mode === 'machine' && action === 'CHOOSE'
+      && original.game.pendingAction?.playerId === JOURNEY_MACHINE_ID;
+    if (!['UNDO', 'SHIELD', 'STANDSTILL', 'BOT'].includes(action) && !resolvingMachineChoice) delete previous.undo;
     const decision = body.decision;
     if (action === 'SHIELD' && decision !== 'use' && decision !== 'expire') return json({ error: 'Choose a valid Shield of Faith action.' }, 400);
     if (previous.game.shieldOffer && action !== 'SHIELD') return json({ error: 'Wait for the Shield of Faith decision.' }, 409);
     const useShield = action === 'SHIELD' && decision === 'use';
     const shieldOwners = body.shieldDecisionV1 === true && ['ANSWER', 'EXPIRE', 'CHOOSE', 'BOT', 'RELIC', 'SHIELD'].includes(action)
       ? await arenaShieldOwners(rest, activePlayers.map((player) => player.user_id), useShield ? actorId : undefined) : undefined;
-    let holdBotForUndo = false;
-    if (body.journeyMarketRelicsV1 === true && context.room.play_mode === 'machine'
-      && (action === 'ANSWER' || action === 'RELIC' && body.slug === 'witch-ball-endor')) {
-      const inventory = await rest(`relic_inventory?select=id,relic_types!inner(slug)&user_id=eq.${actorId}&quantity=gt.0&relic_types.slug=eq.${ARENA_UNDO}&limit=1`);
-      holdBotForUndo = Boolean(inventory?.length);
-    }
     const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
     let next: JourneyRuntime;
     if (action === 'UNDO') {
@@ -253,7 +246,7 @@ Deno.serve(async (request) => {
     } else if (action === 'SHIELD') {
       next = await decideJourneyShield(previous, actorId, decision, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'RELIC') {
-      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom, shieldOwners, holdBotForUndo);
+      next = await applyJourneyRelic(previous, actorId, String(body.slug || ''), approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'BOT') {
       if (context.room.play_mode !== 'machine' || !machineJourneyMayAct(previous)) {
         return json({ error: 'It is not The Scribe\'s turn.' }, 409);
@@ -264,7 +257,7 @@ Deno.serve(async (request) => {
       next = rollJourneyDie(previous, actorId, secureRandom);
     } else if (action === 'ANSWER') {
       const answer = String(body.answer || '').slice(0, 2000);
-      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners, holdBotForUndo);
+      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'EXPIRE') {
       next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'CHOOSE') {

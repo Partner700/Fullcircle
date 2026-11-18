@@ -405,6 +405,7 @@ export interface Tent {
   tent_house_id: string;
   sentry_id: string | null;
   cycle_label: string;
+  max_cadets?: number;
   profile_image_url: string | null;
   created_at: string;
   tent_houses?: TentHouse;

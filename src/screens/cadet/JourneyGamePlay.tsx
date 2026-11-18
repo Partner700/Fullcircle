@@ -1,4 +1,3 @@
-import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { ARENA_STANDSTILL, ARENA_UNDO } from '../../../supabase/functions/_shared/arenaBoardMarket';
 import { arenaMatchRelicIsMuted } from '../../../supabase/functions/_shared/arenaMatchRelicLimits';
 import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
@@ -209,6 +208,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       applyResponse(response);
       commandRef.current = null;
       if (action === 'BOT') setBotFailures(0);
+      if (action === 'UNDO') setSquareNotices([]);
       return true;
     } catch (sendError) {
       const conflict = sendError as Error & { state?: JourneyPublicState | null; version?: number };
@@ -232,20 +232,18 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
 
   const [relicNow, setRelicNow] = useState(Date.now);
   const pauseUntil = Date.parse(state?.pausedUntil || '');
-  const undoUntil = Date.parse(state?.undoOffer?.botWaitUntil || '');
   const pauseRemaining = Math.max(0, Math.ceil((pauseUntil - relicNow) / 1000) || 0);
   const undoMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_UNDO, machine);
   const standstillMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_STANDSTILL, machine);
-  const undoAvailable = !spectator && !undoMuted && state?.undoOffer?.playerId === userId
-    && (!Number.isFinite(undoUntil) || relicNow < undoUntil);
+  const undoAvailable = !spectator && !undoMuted && state?.undoOffer?.playerId === userId;
   useEffect(() => {
-    if (!Number.isFinite(pauseUntil) && !Number.isFinite(undoUntil)) return;
+    if (!Number.isFinite(pauseUntil)) return;
     const tick = () => setRelicNow(Date.now());
     tick();
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
-  }, [pauseUntil, undoUntil]);
-  const botMayAct = pauseRemaining === 0 && machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && (squareNotices.length === 0 || Boolean(state?.currentQuestion)) && state ? machineJourneyMayAct(state) : false;
+  }, [pauseUntil]);
+  const botMayAct = pauseRemaining === 0 && machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && state ? machineJourneyMayAct(state) : false;
   useEffect(() => {
     if (!botMayAct || sending) return;
     let timer: number | undefined;
@@ -253,14 +251,13 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       if (timer) window.clearTimeout(timer);
       if (document.visibilityState === 'visible') {
         const untilOpen = state?.questionOpensAt ? Math.max(0, Date.parse(state.questionOpensAt) - Date.now()) : 0;
-        const untilUndoCloses = Number.isFinite(undoUntil) ? Math.max(0, undoUntil - Date.now()) : 0;
-        timer = window.setTimeout(() => void send('BOT'), Math.max(untilOpen, untilUndoCloses) + Math.min(1500 * 2 ** botFailures, 15_000));
+        timer = window.setTimeout(() => void send('BOT'), untilOpen + Math.min(1500 * 2 ** botFailures, 15_000));
       }
     };
     document.addEventListener('visibilitychange', schedule);
     schedule();
     return () => { if (timer) window.clearTimeout(timer); document.removeEventListener('visibilitychange', schedule); };
-  }, [botFailures, botMayAct, send, sending, state?.game.version, state?.questionOpensAt, undoUntil]);
+  }, [botFailures, botMayAct, send, sending, state?.game.version, state?.questionOpensAt]);
 
   const activePlayer = state?.game.players[state.game.turnIndex];
   useEffect(() => {
@@ -337,10 +334,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
-  const undoShop = undoAvailable && <ContextRelicShop userId={userId} label="Undo" slugs={[ARENA_UNDO]}
-    preload={Number.isFinite(undoUntil)} onChanged={() => undefined} canUseOwned={() => !sending}
-    onUseOwned={() => send('UNDO')} />;
-
   return <div className="space-y-4">
     <ArenaMatchup players={visiblePlayers} playing pinned />
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
@@ -354,9 +347,15 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     {!spectator && (undoMuted || standstillMuted) && <p role="status" className="text-xs text-stone">
       Match limits reached: {[undoMuted && 'Undo (3)', standstillMuted && 'Standstill (1)'].filter(Boolean).join(', ')}.
     </p>}
-    {(!verdictVisible || chatOpen) && undoShop}
-    {standstillAvailable && !openQuestion && <ContextRelicShop userId={userId} label="Standstill" slugs={[ARENA_STANDSTILL]}
-      onChanged={() => undefined} canUseOwned={() => !sending} onUseOwned={() => send('STANDSTILL')} />}
+    {!spectator && pauseRemaining === 0 && !state.game.shieldOffer && <ArenaMarketRelics
+      userId={userId} questionType={openQuestion?.type || ''} aid={state.questionAid}
+      disabled={!waitingForMyAnswer || !asking || sending || secondsLeft <= 0}
+      timed={Boolean(waitingForMyAnswer && asking)} onUse={(slug) => send('RELIC', { slug })}
+      boardRelics={[
+        { slug: ARENA_UNDO, usable: Boolean(undoAvailable && !sending), use: () => send('UNDO') },
+        { slug: ARENA_STANDSTILL, usable: standstillAvailable && !sending && (!asking || secondsLeft > 0), use: () => send('STANDSTILL') },
+        { slug: 'shield-of-faith', usable: false, use: async () => false },
+      ]} />}
     {state.game.shieldOffer && <ArenaShieldDecision key={state.game.version} offer={state.game.shieldOffer}
       viewerId={spectator ? undefined : userId} sending={sending}
       onDecide={(decision) => send('SHIELD', { decision })} />}
@@ -389,7 +388,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
           {state.lastVerdict.explanation && <p className="mt-2 text-xs text-stone">{state.lastVerdict.explanation}</p>}
           {state.lastVerdict.reference && <p className="mt-1 text-xs text-brass">{state.lastVerdict.reference}</p>}
           <button type="button" className="btn-secondary mt-3 w-full justify-center" onClick={() => setVerdictVisible(false)}>Continue</button>
-          {undoShop}
         </div></JourneyDialog> : null}
 
         {pauseRemaining === 0 && openQuestion && asking && !chatOpen && state.game.status === 'playing' && <JourneyDialog label="Biblical Journey question" onClose={!waitingForMyAnswer ? () => setQuestionHidden(true) : undefined}><section className="min-w-0" aria-label="Biblical Journey question">
@@ -421,10 +419,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
               answer: openQuestion.type === 'order_sequence' ? answerFromOrder(openQuestion, order) : answer.trim(),
             })}>{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit answer</button>
           </div>}
-          {waitingForMyAnswer && <ArenaMarketRelics userId={userId} questionType={openQuestion.type} aid={state.questionAid}
-            disabled={sending || secondsLeft === 0} onUse={(slug) => send('RELIC', { slug })} />}
-          {standstillAvailable && waitingForMyAnswer && <ContextRelicShop userId={userId} label="Standstill" slugs={[ARENA_STANDSTILL]}
-            onChanged={() => undefined} canUseOwned={() => !sending && secondsLeft > 0} onUseOwned={() => send('STANDSTILL')} />}
           {error && <p className="mt-2 text-xs text-coral" role="alert">{error}</p>}
           {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
           <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>

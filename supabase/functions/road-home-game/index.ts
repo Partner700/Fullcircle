@@ -329,14 +329,9 @@ Deno.serve(async (request) => {
     const useShield = command.action === 'SHIELD' && command.decision === 'use' && !previous.shieldLanding?.usesMatchRelic;
     const shieldOwners = body.shieldDecisionV1 === true ? await arenaShieldOwners(rest,
       context.participantIds.filter((id) => !context.forfeitedIds.includes(id)), useShield ? actorId : undefined) : undefined;
-    let holdBotForUndo = false;
-    if (body.ludoMarketRelicsV1 === true && action === 'MOVE' && previous.players.some((player) => player.isBot)) {
-      const undoStock = await rest(`relic_inventory?select=id,relic_types!inner(slug)&user_id=eq.${actorId}&quantity=gt.0&relic_types.slug=eq.${ARENA_UNDO}&limit=1`);
-      holdBotForUndo = Boolean(undoStock?.length);
-    }
     const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
     const award = action === 'ACK_SURPRISE' ? previous.pendingSurprise?.marketRelicSlug : undefined;
-    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners, holdBotForUndo);
+    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners);
     next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')), shieldOwners);
     const publicState = await saveGame(roomId, previous, next, commandId, actorId,
       command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield, spend || award ? { spend, award } : undefined);

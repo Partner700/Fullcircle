@@ -162,7 +162,7 @@ export type RoadHomeState = {
   shieldOffer?: ArenaShieldOffer;
   matchRelicUses?: ArenaMatchRelicUses;
   pausedUntil?: string;
-  undo?: { playerId: string; before: Omit<RoadHomeState, 'undo'>; botWaitUntil?: string; holdBot?: boolean };
+  undo?: { playerId: string; before: Omit<RoadHomeState, 'undo'> };
   shieldLanding?: { movingPawnId: string; penalizedPawnId: string; protectedPawnIds: string[]; usesMatchRelic: boolean };
   usedQuestionIds: string[];
   rankings: string[];
@@ -188,7 +188,7 @@ export type RoadHomeCommand =
   | { action: 'ACK_SURPRISE' }
   | { action: 'USE_RELIC'; relic: string; pawnId?: string }
   | { action: 'USE_MARKET_RELIC'; slug: string }
-  | { action: 'UNDO' | 'STANDSTILL' | 'CONTINUE' }
+  | { action: 'UNDO' | 'STANDSTILL' }
   | { action: 'SHIELD'; decision: 'use' | 'expire' }
   | { action: 'FORFEIT' };
 
@@ -858,7 +858,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
   return state;
 }
 
-export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random, shieldOwners?: readonly string[], holdBotForUndo = false) {
+export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random, shieldOwners?: readonly string[]) {
   if (command.action === 'FORFEIT') return forfeitRoadHomePlayer(stateInput, actorId);
   const state = normalizeRoadHomeEconomyState(stateInput);
   const questions = normalizeQuestions(questionsInput);
@@ -868,7 +868,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
   if (state.pausedUntil && now < Date.parse(state.pausedUntil)) throw new Error('The match is paused by Standstill.');
   if (command.action === 'UNDO') {
     assertRelicIsAvailable(state, actorId, 'undo');
-    if (state.phase === 'SHIELD_DECISION' || state.undo?.playerId !== actorId || (state.undo.botWaitUntil && now >= Date.parse(state.undo.botWaitUntil))) {
+    if (state.phase === 'SHIELD_DECISION' || state.undo?.playerId !== actorId) {
       throw new Error('Your last move can no longer be undone.');
     }
     const restored: RoadHomeState = state.undo.before;
@@ -880,15 +880,11 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     restored.version = state.version + 1;
     return restored;
   }
-  if (command.action === 'CONTINUE') {
-    if (!state.undo?.botWaitUntil || state.undo.playerId !== actorId) throw new Error('There is no move to continue.');
-    delete state.undo;
-    state.version += 1;
-    state.updatedAt = nowIso();
-    return state;
-  }
   const previousUndo = state.undo;
-  delete state.undo;
+  const machineMatch = state.players.some(candidate => candidate.isBot);
+  const resolvingSurprise = command.action === 'ACK_SURPRISE' && !state.pendingSurprise?.marketRelicSlug
+    || command.action === 'ANSWER' && ['surprise', 'verse'].includes(state.questionPurpose ?? '');
+  if (!machineMatch || (!player.isBot && !resolvingSurprise)) delete state.undo;
   if (command.action === 'STANDSTILL') {
     assertRelicIsAvailable(state, actorId, 'standstill');
     if (player.id !== actorId || player.isBot || state.phase === 'SHIELD_DECISION') {
@@ -897,6 +893,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     if (state.phase === 'QUESTION' && state.questionDeadline && Date.parse(state.questionDeadline) <= now) {
       throw new Error('The question has already timed out.');
     }
+    state.undo = previousUndo;
     countArenaMatchRelicUse(state, actorId, 'standstill');
     state.pausedUntil = new Date(now + ARENA_STANDSTILL_MS).toISOString();
     if (state.phase === 'QUESTION' && state.questionDeadline) {
@@ -933,12 +930,8 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     // Restore movement before continuing, since some continuations change the active player.
     state.phase = 'SELECTING_PAWN';
     resolveLanding(state, player, target, random, shieldOwners, shieldLanding.protectedPawnIds, shieldLanding.penalizedPawnId);
-    if (command.decision === 'expire' && previousUndo && state.phase !== 'GAME_OVER') {
-      state.undo = previousUndo;
-      if (state.phase !== 'SHIELD_DECISION' && previousUndo.holdBot && activePlayer(state).isBot) {
-        state.undo.botWaitUntil = new Date(now + 10_000).toISOString();
-      }
-    }
+    if (command.decision === 'expire' && previousUndo && state.phase !== 'GAME_OVER') state.undo = previousUndo;
+    else delete state.undo;
     state.updatedAt = nowIso();
     state.version += 1;
     return state;
@@ -999,8 +992,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
       (before?.matchRelicUses?.[candidate.id]?.['shield-of-faith'] ?? 0)
       !== (state.matchRelicUses?.[candidate.id]?.['shield-of-faith'] ?? 0));
     if (before && state.phase !== 'GAME_OVER' && !usedShield) {
-      state.undo = { playerId: actorId, before, holdBot: holdBotForUndo,
-        botWaitUntil: state.phase !== 'SHIELD_DECISION' && holdBotForUndo && activePlayer(state).isBot ? new Date(now + 10_000).toISOString() : undefined };
+      state.undo = { playerId: actorId, before };
     }
   } else if (command.action === 'CHALLENGE_DECISION') {
     if (state.phase !== 'INHERITED_OFFER') throw new Error('There is no inherited challenge to decide.');
@@ -1118,7 +1110,7 @@ export function runRoadHomeBots(
 ) {
   let state = normalizeRoadHomeEconomyState(stateInput);
   let guard = 0;
-  while (!state.undo?.botWaitUntil && (!state.pausedUntil || Date.now() >= Date.parse(state.pausedUntil))
+  while ((!state.pausedUntil || Date.now() >= Date.parse(state.pausedUntil))
     && state.phase !== 'GAME_OVER' && state.phase !== 'SHIELD_DECISION' && activePlayer(state).isBot && guard < 80) {
     guard += 1;
     const bot = activePlayer(state);
@@ -1151,7 +1143,7 @@ export function runRoadHomeBots(
 export function publicRoadHomeState(stateInput: RoadHomeState) {
   const state = normalizeRoadHomeEconomyState(stateInput);
   delete state.shieldLanding;
-  const undoOffer = state.undo && state.phase !== 'SHIELD_DECISION' ? { playerId: state.undo.playerId, botWaitUntil: state.undo.botWaitUntil } : undefined;
+  const undoOffer = state.undo && state.phase !== 'SHIELD_DECISION' ? { playerId: state.undo.playerId } : undefined;
   delete state.undo;
   state.questionPool = [];
   if (state.currentQuestion) {

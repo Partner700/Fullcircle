@@ -52,7 +52,7 @@ export type JourneyRuntime = {
   questionOpensAt?: string | null;
   questionAid?: ArenaQuestionAid;
   pausedUntil?: string;
-  undo?: { playerId: string; before: JourneyGame; botWaitUntil?: string; holdBot: boolean };
+  undo?: { playerId: string; before: JourneyGame };
 };
 
 export const JOURNEY_QUESTION_SECONDS = 30;
@@ -60,7 +60,7 @@ export const JOURNEY_VERDICT_MS = 3200;
 export const JOURNEY_ROLL_REVEAL_MS = 1800;
 
 export type JourneyPublicState = Omit<JourneyRuntime, 'questionIdsByStage' | 'usedQuestionIds' | 'currentQuestion' | 'undo'> & {
-  undoOffer?: { playerId: string; botWaitUntil?: string };
+  undoOffer?: { playerId: string };
   currentQuestion: Pick<JourneyQuestion, 'id' | 'stage' | 'type' | 'question' | 'options'> | null;
 };
 
@@ -175,7 +175,7 @@ export function rollJourneyDie(original: JourneyRuntime, actorId: string, random
 }
 
 export async function answerJourneyQuestion(original: JourneyRuntime, actorId: string, answer: string,
-  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[], holdBotForUndo = false): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
   if (!question || original.awaitingRoll || original.currentQuestionPlayerId !== actorId || original.game.status !== 'playing') {
     throw new Error('This question is not open for you.');
@@ -217,17 +217,15 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
     explanation: question.explanation, die,
   };
   await openNextQuestion(next, lookup, random, JOURNEY_VERDICT_MS);
-  if (correct && !pending && actorId !== JOURNEY_MACHINE_ID && next.game.status === 'playing') {
-    next.undo = { playerId: actorId, before: original.game, holdBot: holdBotForUndo };
-    if (holdBotForUndo && machineJourneyMayAct(next)) {
-      next.undo.botWaitUntil = new Date(Date.now() + 10_000).toISOString();
-    }
+  const machineMatch = original.game.players.some(candidate => candidate.id === JOURNEY_MACHINE_ID);
+  if (!pending && actorId !== JOURNEY_MACHINE_ID && next.game.status === 'playing' && (correct || machineMatch)) {
+    next.undo = { playerId: actorId, before: original.game };
   }
   return next;
 }
 
 export async function applyJourneyRelic(original: JourneyRuntime, actorId: string, slug: string,
-  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[], holdBotForUndo = false): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   const question = original.currentQuestion;
   if (!question || original.awaitingRoll || original.game.status !== 'playing'
     || original.currentQuestionPlayerId !== actorId || actorId === JOURNEY_MACHINE_ID
@@ -249,7 +247,7 @@ export async function applyJourneyRelic(original: JourneyRuntime, actorId: strin
     await openNextQuestion(next, lookup, random);
     return next;
   }
-  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random, shieldOwners, holdBotForUndo);
+  if (effect.answer !== undefined) return answerJourneyQuestion(next, actorId, effect.answer, lookup, random, shieldOwners);
   if (effect.extraSeconds) next.questionDeadline = new Date(Date.parse(original.questionDeadline) + effect.extraSeconds * 1000).toISOString();
   next.game.version += 1;
   return next;
@@ -328,7 +326,7 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
     game,
     pausedUntil: runtime.pausedUntil,
     undoOffer: runtime.undo && !game.shieldOffer
-      ? { playerId: runtime.undo.playerId, botWaitUntil: runtime.undo.botWaitUntil } : undefined,
+      ? { playerId: runtime.undo.playerId } : undefined,
     currentQuestionPlayerId: runtime.currentQuestionPlayerId,
     questionDeadline: runtime.questionDeadline || null,
     lastVerdict: runtime.lastVerdict,
@@ -350,9 +348,6 @@ export async function decideJourneyShield(original: JourneyRuntime, actorId: str
   if (decision === 'use') delete next.undo;
   next.lastVerdict = null;
   await openNextQuestion(next, lookup, random);
-  if (next.undo?.holdBot && machineJourneyMayAct(next)) {
-    next.undo.botWaitUntil = new Date(Date.now() + 10_000).toISOString();
-  }
   return next;
 }
 
@@ -363,8 +358,7 @@ export async function undoJourneyMove(original: JourneyRuntime, actorId: string,
   if (arenaMatchRelicIsMuted(game.matchRelicUses, actorId, 'undo', machine)) {
     throw new Error('You have reached the three-use Undo limit for this match.');
   }
-  if (!undo || undo.playerId !== actorId || game.status !== 'playing' || game.shieldOffer
-    || (undo.botWaitUntil && Date.now() >= Date.parse(undo.botWaitUntil))) {
+  if (!undo || undo.playerId !== actorId || game.status !== 'playing' || game.shieldOffer) {
     throw new Error('Your last Journey move can no longer be undone.');
   }
   const next = structuredClone(original);
@@ -401,7 +395,6 @@ export function pauseJourneyMatch(original: JourneyRuntime, actorId: string): Jo
   if (next.questionOpensAt && Date.parse(next.questionOpensAt) > now) {
     next.questionOpensAt = new Date(Date.parse(next.questionOpensAt) + ARENA_STANDSTILL_MS).toISOString();
   }
-  delete next.undo;
   next.game.version += 1;
   return next;
 }

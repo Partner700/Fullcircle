@@ -1,7 +1,7 @@
 import { ScriptureRelicPopup } from './ScriptureRelicPopup';
 import { RelicSymbol } from './RelicSymbol';
 import { ContextRelicShop } from './ContextRelicShop';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BookOpen, Eye, Lightbulb, ListFilter, Loader2, RotateCw, SkipForward, TimerReset, Volume2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { userFacingError } from '../lib/connectionErrors';
@@ -17,10 +17,13 @@ const relics = [
   { slug: 'skip', name: 'Skip', Icon: SkipForward },
 ] as const;
 
-export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, allowedSlugs }: {
+export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, allowedSlugs, boardRelics, timed, children }: {
   userId: string; questionType: string; aid?: ArenaQuestionAid; disabled: boolean;
   onUse: (slug: ArenaRelicSlug) => Promise<boolean>;
   allowedSlugs?: readonly string[];
+  boardRelics?: { slug: string; usable: boolean; use: () => Promise<boolean> }[];
+  timed?: boolean;
+  children?: ReactNode;
 }) {
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [using, setUsing] = useState<string | null>(null);
@@ -28,7 +31,11 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
   const [retry, setRetry] = useState(0);
   const [showReference, setShowReference] = useState(false);
   const busy = useRef(false);
+  const floating = Boolean(boardRelics);
+  const questionRelicUsable = (slug: string) => !disabled && !using && Boolean(questionType) && !aid?.used.includes(slug as ArenaRelicSlug)
+    && (slug !== "eliminate" || ["multiple_choice", "odd_one"].includes(questionType));
   useEffect(() => {
+    if (floating) return;
     let active = true;
     void supabase.from('relic_inventory').select('quantity,relic_types!inner(slug)').eq('relic_types.is_active',true)
       .eq('user_id', userId).gt('quantity', 0).in('relic_types.slug', [...ARENA_RELICS])
@@ -44,7 +51,7 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
         setError(null);
       });
     return () => { active = false; };
-  }, [userId, retry]);
+  }, [userId, retry, floating]);
   const use = async (slug: ArenaRelicSlug) => {
     if (busy.current || disabled) return false;
     busy.current = true;
@@ -60,6 +67,16 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
       return false;
     } finally { busy.current = false; setUsing(null); }
   };
+  if (boardRelics) return <>
+    <ContextRelicShop userId={userId} timed={timed} label={boardRelics.some(item => item.slug === "undo" && item.usable) ? "Relics · Undo available" : "Relics"} floating showAllPaymentOptions
+      slugs={[...boardRelics.map(item => item.slug), ...relics.filter(({ slug }) => !allowedSlugs || allowedSlugs.includes(slug)).map(item => item.slug)]}
+      canUseOwned={slug => boardRelics.find(item => item.slug === slug)?.usable ?? questionRelicUsable(slug)}
+      onUseOwned={slug => boardRelics.find(item => item.slug === slug)?.use() ?? use(slug as ArenaRelicSlug)}
+      onChanged={() => undefined}>{children}</ContextRelicShop>
+    {showReference && aid?.scriptureReference && <ScriptureRelicPopup reference={aid.scriptureReference} onClose={() => setShowReference(false)} />}
+    {aid?.notice && <p className="text-xs text-brass" role="status">{aid.notice}</p>}
+    {error && <p className="text-xs text-coral" role="alert">{error}</p>}
+  </>;
   return <div className="mt-3 border-t border-border pt-3" aria-label="Owned Arena relics">
     <div className="flex flex-wrap gap-2">{relics.filter(({ slug }) => inventory[slug] > 0 && (!allowedSlugs || allowedSlugs.includes(slug))).map(({ slug, name }) =>
       <button key={slug} type="button" title={`${name} (${inventory[slug]})`} aria-label={`Use ${name} (${inventory[slug]} owned)`}

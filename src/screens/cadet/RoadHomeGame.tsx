@@ -1,5 +1,4 @@
 import { ARENA_MATCH_RELIC_LIMITS, arenaMatchRelicIsMuted, type ArenaMatchRelic } from '../../../supabase/functions/_shared/arenaMatchRelicLimits';
-import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { JourneyDialog } from '../../components/JourneyDialog';
 import { ARENA_STANDSTILL, ARENA_UNDO } from '../../../supabase/functions/_shared/arenaBoardMarket';
 import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
@@ -285,27 +284,20 @@ export function RoadHomeGame({
   const activePlayer = state?.players[state.activePlayerIndex] || null;
   const myTurn = activePlayer?.id === userId;
   const pauseRemaining = Math.max(0, Math.ceil((Date.parse(state?.pausedUntil || '') - relicClock) / 1000) || 0);
-  const botUndoDeadline = state?.undoOffer?.playerId === userId ? state?.undoOffer?.botWaitUntil : undefined;
   const machineMatch = Boolean(state?.players.some((player) => player.isBot));
   const relicMuted = (slug: ArenaMatchRelic) => arenaMatchRelicIsMuted(state?.matchRelicUses, userId, slug, machineMatch);
   const undoMuted = relicMuted(ARENA_UNDO);
   const standstillMuted = relicMuted(ARENA_STANDSTILL);
   const shieldMuted = relicMuted('shield-of-faith');
-  const canUndo = !undoMuted && state?.undoOffer?.playerId === userId && (!botUndoDeadline || relicClock < Date.parse(botUndoDeadline));
+  const canUndo = !undoMuted && state?.undoOffer?.playerId === userId;
   useEffect(() => {
-    if (!state?.pausedUntil && !botUndoDeadline) return;
+    if (!state?.pausedUntil) return;
     const tick = () => setRelicClock(Date.now());
     tick();
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
-  }, [botUndoDeadline, state?.pausedUntil]);
+  }, [state?.pausedUntil]);
 
-  useEffect(() => {
-    if (!spectator && !sending && botUndoDeadline && Date.now() >= Date.parse(botUndoDeadline)) {
-      const retry = window.setTimeout(() => void send('CONTINUE'), 250);
-      return () => window.clearTimeout(retry);
-    }
-  }, [botUndoDeadline, canUndo, send, sending, spectator]);
   const me = state?.players.find((player) => player.id === userId) || null;
   const activeChallenge = state?.challengeQueue.find((challenge) => challenge.id === state.activeChallengeId) || null;
 
@@ -604,16 +596,9 @@ export function RoadHomeGame({
               userId={userId}
             />
           )}
-          {!spectator && pauseRemaining === 0 && (canUndo || myTurn && !standstillMuted && !['QUESTION', 'SHIELD_DECISION'].includes(state.phase)) && (
-            <ContextRelicShop userId={userId} label="Ludo relics" preload={Boolean(botUndoDeadline)} onChanged={() => undefined}
-              slugs={[...(canUndo ? [ARENA_UNDO] : []), ...(myTurn && !standstillMuted && !['QUESTION', 'SHIELD_DECISION'].includes(state.phase) ? [ARENA_STANDSTILL] : [])]}
-              canUseOwned={() => !sending} onUseOwned={(slug) => send(slug === ARENA_UNDO ? 'UNDO' : 'STANDSTILL')} />
-          )}
           {!spectator && (undoMuted || standstillMuted || shieldMuted) && <p className="text-xs text-stone" role="status">
             Match limits reached: {[undoMuted && `Undo (${ARENA_MATCH_RELIC_LIMITS.undo})`, standstillMuted && 'Standstill (1)', shieldMuted && 'Shield of Faith (5)'].filter(Boolean).join(', ')}.
           </p>}
-          {botUndoDeadline && <button type="button" className="btn-secondary text-xs" disabled={sending} onClick={() => void send('CONTINUE')}>Continue match</button>}
-          {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
         </aside>
       </div>
 
@@ -632,11 +617,21 @@ export function RoadHomeGame({
               rollOutcome={rollOutcome}
               send={send}
             />
-            {standstillMuted ? <p className="mt-2 text-xs text-stone">Standstill used for this match.</p> : <ContextRelicShop userId={userId} label="Standstill" slugs={[ARENA_STANDSTILL]}
-              onChanged={() => undefined} canUseOwned={() => !sending && secondsLeft > 0}
-              onUseOwned={() => send('STANDSTILL')} />}
           </div>
         </div>
+      )}
+      {!spectator && pauseRemaining === 0 && state.phase !== 'SHIELD_DECISION' && (
+        <ArenaMarketRelics userId={userId} questionType={state.currentQuestion?.type || ''}
+          aid={state.questionAid} timed={state.phase === 'QUESTION'}
+          disabled={!myTurn || state.phase !== 'QUESTION' || sending || diceRolling || Boolean(rollReveal) || secondsLeft <= 0}
+          onUse={(slug) => send('USE_MARKET_RELIC', { slug })}
+          boardRelics={[
+            { slug: ARENA_UNDO, usable: Boolean(canUndo && !sending), use: () => send('UNDO') },
+            { slug: ARENA_STANDSTILL, usable: myTurn && !sending && !standstillMuted && (state.phase !== 'QUESTION' || secondsLeft > 0), use: () => send('STANDSTILL') },
+            { slug: 'shield-of-faith', usable: false, use: async () => false },
+          ]}>
+          {me?.relics.length ? <RelicTray player={me} state={state} sending={sending || !myTurn} send={send} /> : null}
+        </ArenaMarketRelics>
       )}
       {spectator && (
         <ArenaWitnessChatDrawer
@@ -857,15 +852,14 @@ function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTyped
 
   if (state.phase === 'QUESTION' && state.currentQuestion) {
     const question = state.currentQuestion;
-    return <div className="rounded-lg border border-royal/45 bg-surface/95 p-4"><div className="flex items-center justify-between gap-2"><span className="badge badge-brass text-[9px]">{state.questionPurpose === 'inherited' ? 'Inherited' : state.questionPurpose === 'prison' ? 'Prison' : state.questionPurpose === 'verse' ? 'Verse Card' : state.questionPurpose === 'surprise' ? 'Surprise' : question.difficulty.replace('_', ' ')}</span><span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span></div><h3 className="mt-3 text-base font-bold leading-snug text-ink">{question.prompt}</h3>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.filter((option) => !state.questionAid?.hiddenOptions.includes(option)).map((option) => <button key={option} disabled={sending} onClick={() => void send('ANSWER', { answer: option })} className="w-full rounded-lg border border-border bg-surface-2 p-3 text-left text-xs font-semibold text-ink transition-colors hover:border-gold">{option}</button>)}</div> : <form className="mt-4 space-y-2" onSubmit={(event) => { event.preventDefault(); if (typedAnswer.trim()) void send('ANSWER', { answer: typedAnswer.trim() }); }}><input className="input-field" autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} placeholder="Type your answer" /><button disabled={sending || !typedAnswer.trim()} className="btn-primary w-full text-xs">Submit Answer</button></form>}<ArenaMarketRelics userId={me.id} questionType={question.type} aid={state.questionAid} disabled={sending || secondsLeft === 0} onUse={(slug) => send('USE_MARKET_RELIC', { slug })} /></div>;
+    return <div className="rounded-lg border border-royal/45 bg-surface/95 p-4"><div className="flex items-center justify-between gap-2"><span className="badge badge-brass text-[9px]">{state.questionPurpose === 'inherited' ? 'Inherited' : state.questionPurpose === 'prison' ? 'Prison' : state.questionPurpose === 'verse' ? 'Verse Card' : state.questionPurpose === 'surprise' ? 'Surprise' : question.difficulty.replace('_', ' ')}</span><span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span></div><h3 className="mt-3 text-base font-bold leading-snug text-ink">{question.prompt}</h3>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.filter((option) => !state.questionAid?.hiddenOptions.includes(option)).map((option) => <button key={option} disabled={sending} onClick={() => void send('ANSWER', { answer: option })} className="w-full rounded-lg border border-border bg-surface-2 p-3 text-left text-xs font-semibold text-ink transition-colors hover:border-gold">{option}</button>)}</div> : <form className="mt-4 space-y-2" onSubmit={(event) => { event.preventDefault(); if (typedAnswer.trim()) void send('ANSWER', { answer: typedAnswer.trim() }); }}><input className="input-field" autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} placeholder="Type your answer" /><button disabled={sending || !typedAnswer.trim()} className="btn-primary w-full text-xs">Submit Answer</button></form>}</div>;
   }
   return null;
 }
 
 function RelicTray({ player, state, sending, send }: { player: RoadHomePlayer; state: RoadHomeState; sending: boolean; send: SendCommand }) {
-  if (!player.relics.length) return <div className="rounded-lg border border-border bg-surface/90 p-3"><p className="text-xs font-bold text-ink">Relics · 0/3</p><p className="mt-1 text-[11px] text-stone">Surprise spaces can reveal match relics.</p></div>;
   const usable = (relic: string) => relic === 'Manna Pouch' || (relic === 'Key of Deliverance' && state.phase === 'PRISON_MANAGEMENT') || (relic === 'Lamp of Guidance' && state.phase === 'QUESTION' && state.currentQuestion?.type === 'multiple_choice') || (relic === 'Scroll of Recall' && state.phase === 'QUESTION') || (relic === 'Golden Scroll' && state.phase === 'QUESTION' && state.questionPurpose === 'own') || (relic === "Shepherd's Staff" && state.phase === 'INHERITED_OFFER');
-  return <div className="rounded-lg border border-border bg-surface/90 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Relics</p><span className="text-[10px] text-stone">{player.relics.length}/3</span></div><div className="space-y-1.5">{player.relics.map((relic, index) => <button key={`${relic}-${index}`} disabled={sending || !usable(relic)} onClick={() => void send('USE_RELIC', { relic })} className="flex w-full items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-2 text-left text-[11px] font-semibold text-ink disabled:opacity-55"><Sparkles size={13} className="text-gold" /><span className="min-w-0 flex-1 truncate">{relic}</span>{usable(relic) && <span className="text-[9px] text-sage">Use</span>}</button>)}</div></div>;
+  return <div className="rounded-lg border border-border bg-surface/90 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Match inventory</p><span className="text-[10px] text-stone">{player.relics.length}/3</span></div><div className="space-y-1.5">{player.relics.map((relic, index) => <button key={`${relic}-${index}`} disabled={sending || !usable(relic)} onClick={() => void send('USE_RELIC', { relic })} className="flex w-full items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-2 text-left text-[11px] font-semibold text-ink disabled:opacity-55"><Sparkles size={13} className="text-gold" /><span className="min-w-0 flex-1 truncate">{relic}</span>{usable(relic) && <span className="text-[9px] text-sage">Use</span>}</button>)}</div></div>;
 }
 
 function RoadHomeConfetti() {

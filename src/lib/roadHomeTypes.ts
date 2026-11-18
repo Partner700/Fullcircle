@@ -90,7 +90,7 @@ export type RoadHomeState = {
   shieldOffer?: ArenaShieldOffer;
   matchRelicUses?: ArenaMatchRelicUses;
   pausedUntil?: string;
-  undoOffer?: { playerId: string; botWaitUntil?: string };
+  undoOffer?: { playerId: string };
   questionAid?: import('../../supabase/functions/_shared/arenaRelics').ArenaQuestionAid;
   roomId: string;
   version: number;

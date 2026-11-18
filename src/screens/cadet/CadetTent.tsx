@@ -52,9 +52,10 @@ type TentJoinOption = {
   profile_image_url: string | null;
   cadet_count: number;
   cadet_limit: number;
+  requested: boolean;
 };
 
-export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
+export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => Promise<void> }) {
   const { profile } = useAuth();
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
@@ -74,6 +75,9 @@ export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
   const [showTentChat, setShowTentChat] = useState(false);
   const positions = useTentPositions(tent?.id, members.length);
   const hasLoadedRef = useRef(false);
+  const lastTentId = useRef<string | null | undefined>(undefined);
+  const membershipChanged = useRef(onMembershipChanged);
+  membershipChanged.current = onMembershipChanged;
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
@@ -82,6 +86,11 @@ export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
       const { data: member, error: memberError } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
       if (memberError) throw memberError;
       setOptionsError(false);
+      const nextTentId = member?.tent_id ?? null;
+      if (lastTentId.current !== undefined && lastTentId.current !== nextTentId) {
+        void membershipChanged.current();
+      }
+      lastTentId.current = nextTentId;
       if (!member) {
         setTent(null);
         setMembers([]);
@@ -167,20 +176,20 @@ export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
   }, [load, profile, tent?.id]);
 
   const joinTent = async (item: TentJoinOption) => {
-    if (requestingTentId || item.cadet_count >= item.cadet_limit) return;
-    if (!window.confirm(`Join ${item.name}?`)) return;
+    if (requestingTentId || item.requested) return;
+    if (!window.confirm(`Request to join ${item.name}?`)) return;
     setRequestingTentId(item.id);
     setJoinError('');
     try {
-      const { error } = await supabase.rpc('join_eligible_tent', { p_tent_id: item.id });
+      const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: item.id });
       if (error) {
         setJoinError(error.message);
         await load();
         return;
       }
-      await Promise.allSettled([load(), onJoined()]);
+      await load();
     } catch {
-      setJoinError('Could not confirm the join. Check your tent before retrying.');
+      setJoinError('Could not confirm your request. Check its status before retrying.');
       await load();
     } finally {
       setRequestingTentId(null);
@@ -233,8 +242,8 @@ export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
       <div className="space-y-5 animate-fade-in">
         <EmptyState
           icon={Users}
-          title="Choose your tent"
-          message="Join a tent with an open cadet place. Your first month starts when you join for the first time."
+          title="Request a tent"
+          message="You can request any listed tent. A full tent can accept your application once a place opens. Your first month starts when you join."
         />
         {joinError && <p className="card p-4 text-coral" role="alert">{joinError}</p>}
         {optionsError ? (
@@ -243,16 +252,16 @@ export function CadetTent({ onJoined }: { onJoined: () => Promise<void> }) {
         <div className="grid gap-3 sm:grid-cols-2">
           {availableTents.map((item) => {
             const full = item.cadet_count >= item.cadet_limit;
-            return <article key={item.id} className={cn('card flex items-center gap-3 p-4', full && 'opacity-60')}>
+            return <article key={item.id} className="card flex items-center gap-3 p-4">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
                 {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-ink">{item.name}</p>
-                <p className="text-xs text-stone">{item.cadet_count}/{item.cadet_limit} cadet places taken</p>
+                <p className="text-xs text-stone">{item.cadet_count}/{item.cadet_limit} cadet places taken{full ? ' · Full' : ''}</p>
               </div>
-              <button type="button" disabled={full || !!requestingTentId} onClick={() => void joinTent(item)} className="btn-secondary px-3 text-xs">
-                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : full ? 'Full' : <><UserPlus size={14} /> Join</>}
+              <button type="button" disabled={item.requested || !!requestingTentId} onClick={() => void joinTent(item)} className="btn-secondary px-3 text-xs">
+                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : item.requested ? 'Requested' : <><UserPlus size={14} /> Request</>}
               </button>
             </article>;
           })}

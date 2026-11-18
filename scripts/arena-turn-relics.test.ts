@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createJourneyGame, JOURNEY_MACHINE_ID, DEFAULT_JOURNEY_CONFIG, JOURNEY_TRAP_LIBRARY, journeyScore, resolveJourneyAction, resolveJourneyMiss, resolveJourneyRoll, resolveJourneyShield } from '../supabase/functions/_shared/biblicalJourney.ts';
-import { answerJourneyQuestion, createJourneyRuntime, publicJourneyRuntime, rollJourneyDie, applyJourneyRelic, pauseJourneyMatch, undoJourneyMove, type JourneyQuestion } from '../supabase/functions/_shared/biblicalJourneyRuntime.ts';
+import { advanceMachineJourney, answerJourneyQuestion, createJourneyRuntime, publicJourneyRuntime, rollJourneyDie, applyJourneyRelic, pauseJourneyMatch, undoJourneyMove, type JourneyQuestion } from '../supabase/functions/_shared/biblicalJourneyRuntime.ts';
 import { applyRoadHomeCommand, createRoadHomeGame, publicRoadHomeState } from '../supabase/functions/_shared/road-home-engine.ts';
 import { arenaPlayerScore } from '../src/lib/arenaScorecard.ts';
 
@@ -153,9 +153,16 @@ const scribeMove = rollJourneyDie(scribeStart, 'alpha', () => .25);
 scribeMove.questionOpensAt = new Date(Date.now() - 1).toISOString();
 scribeMove.game.matchRelicUses = { alpha: { undo: 3, standstill: 1 } };
 assert.equal(pauseJourneyMatch(scribeMove, 'alpha').game.matchRelicUses?.alpha.standstill, 2);
-const scribeMoved = await answerJourneyQuestion(scribeMove, 'alpha', 'Noah', lookup, () => 0, undefined, true);
-assert.ok(publicJourneyRuntime(scribeMoved).undoOffer?.botWaitUntil);
-assert.equal((await undoJourneyMove(scribeMoved, 'alpha', lookup, () => 0)).game.matchRelicUses?.alpha.undo, 4);
+const scribeMoved = await answerJourneyQuestion(scribeMove, 'alpha', 'Noah', lookup, () => 0);
+assert.equal(publicJourneyRuntime(scribeMoved).undoOffer?.playerId, 'alpha');
+const scribeRolled = await advanceMachineJourney(scribeMoved, lookup, () => .25, .9);
+scribeRolled.questionOpensAt = new Date(Date.now() - 1).toISOString();
+const scribeAnswered = await advanceMachineJourney(scribeRolled, lookup, () => .25, .9);
+assert.ok(scribeAnswered.game.players[1].correctAnswers > scribeMove.game.players[1].correctAnswers);
+const rewoundPair = await undoJourneyMove(scribeAnswered, 'alpha', lookup, () => 0);
+assert.deepEqual(rewoundPair.game.players, scribeMove.game.players);
+assert.equal(rewoundPair.game.matchRelicUses?.alpha.undo, 4);
+assert.equal(rewoundPair.game.version, scribeAnswered.game.version + 1);
 
 const skipOpen=rollJourneyDie(start,'alpha',()=>.25);
 skipOpen.questionOpensAt=new Date(Date.now()-1).toISOString();

@@ -310,7 +310,7 @@ export function CadetNarrative({
 }) {
   const { profile } = useAuth();
   const profileId = profile?.id;
-  const { hasAccess, requireSubscription } = useSubscriptionAccess();
+  const { hasAccess, requireSubscription, hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [loading, setLoading] = useState(true);
   const [meditation, setMeditation] = useState('');
@@ -439,14 +439,14 @@ export function CadetNarrative({
   }, [narrative]);
 
   const reloadVerseInsights = useCallback(async () => {
-    if (!conversationNarrativeIds.length) {
+    if (!hasPremiumAccess || !conversationNarrativeIds.length) {
       setVerseInsights([]);
       return [];
     }
     const items = await fetchVerseInsights(conversationNarrativeIds, profile?.id);
     setVerseInsights(items);
     return items;
-  }, [conversationNarrativeIds, profile?.id]);
+  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess]);
 
   const reloadHiddenVerseMarkers = useCallback(async () => {
     if (!profile?.id || !conversationNarrativeIds.length) {
@@ -700,7 +700,7 @@ export function CadetNarrative({
   }, [edition, readerVerses]);
 
   useEffect(() => {
-    if (!conversationNarrativeIds.length) return;
+    if (!hasPremiumAccess || !conversationNarrativeIds.length) { setVerseInsights([]); return; }
     let cancelled = false;
     fetchVerseInsights(conversationNarrativeIds, profile?.id).then((items) => {
       if (!cancelled) {
@@ -708,7 +708,7 @@ export function CadetNarrative({
       }
     });
     return () => { cancelled = true; };
-  }, [conversationNarrativeIds, profile?.id]);
+  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess]);
 
   useEffect(() => {
     if (!profile?.id || !conversationNarrativeIds.length) {
@@ -736,7 +736,7 @@ export function CadetNarrative({
 
   const visibleInsightIds = useMemo(() => verseInsights.map(insight => String(insight.id)).sort().join(','), [verseInsights]);
   useEffect(() => {
-    if (!narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
+    if (!hasPremiumAccess || !narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
     let refreshTimer: number | null = null;
 
     const refreshInsights = () => {
@@ -761,7 +761,7 @@ export function CadetNarrative({
       document.removeEventListener('visibilitychange', refreshInsights);
       void supabase.removeChannel(channel);
     };
-  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds]);
+  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds, hasPremiumAccess]);
 
   useEffect(() => {
     const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
@@ -869,7 +869,7 @@ export function CadetNarrative({
   };
 
   const submitVerseInsight = async (reference: string, sourceNarrativeId?: string) => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!profile || !narrative?.id) return;
     const body = (myInsightDrafts[reference] || '').trim();
     if (!body) return;
@@ -886,7 +886,7 @@ export function CadetNarrative({
   };
 
   const submitInsightReply = async (insight: any) => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!profile || !narrative?.id) return;
     const body = (replyDrafts[insight.id] || '').trim();
     if (!body) return;
@@ -912,7 +912,7 @@ export function CadetNarrative({
   };
 
   const submitInsightEdit = async () => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!editingInsightId || !editingInsightBody.trim() || !narrative?.id) return;
     try {
       await editVerseInsight(editingInsightId, editingInsightBody.trim());
@@ -923,7 +923,7 @@ export function CadetNarrative({
   };
 
   const submitInsightCommentEdit = async () => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!editingCommentId || !editingCommentBody.trim() || !narrative?.id) return;
     try {
       await editVerseInsightComment(editingCommentId, editingCommentBody.trim());
@@ -934,6 +934,7 @@ export function CadetNarrative({
   };
 
   const reactToInsight = async (insightId: string, reactionType: VerseInsightReactionType) => {
+    if (!requirePremiumAccess()) return;
     if (!profile || reactionPendingKey) return;
     const pendingKey = `${insightId}:${reactionType}`;
     const insight = verseInsights.find((item: any) => item.id === insightId);
@@ -1170,7 +1171,7 @@ export function CadetNarrative({
             <div className="space-y-4 sm:space-y-5">
               {panelVerses.length ? panelVerses.map(({ verse, index }) => {
                 const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
-                const userInsights = verseInsights.filter((item: any) => (
+                const userInsights = (hasPremiumAccess ? verseInsights : []).filter((item: any) => (
                   item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
                 ));
                 const hasInsight = Boolean(verse.meditation?.trim());
@@ -1222,23 +1223,26 @@ export function CadetNarrative({
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
                         <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                          if (!hasPremiumAccess) {
+                            if (hiddenVerseMarker) openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
+                            else requirePremiumAccess();
+                            return;
+                          }
                           if (isSundayRest) {
                             if (userExpanded) {
                               setClosedSundayInsights((current) => current.includes(sundayInsightKey) ? current : [...current, sundayInsightKey]);
                               return;
                             }
-                            if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
                             setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
                             openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
                             return;
                           }
-                          if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
                           setOpenUserInsights(userExpanded ? null : verse.reference);
                           if (!userExpanded) {
                             openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
                           }
                         }}>
-                          {userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                          {hiddenVerseMarker && !hasPremiumAccess ? 'Open tag' : !hasPremiumAccess ? 'Subscribe' : userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
                         </button>
                       </div>
                       {!userExpanded && participants.length > 0 && (
@@ -1265,7 +1269,7 @@ export function CadetNarrative({
                           ))}
                         </div>
                       )}
-                      {userExpanded && (
+                      {hasPremiumAccess && userExpanded && (
                         <div className="mt-3 space-y-3">
                           {userInsights.map((item: any) => {
                             const authorName = item.profiles?.display_name || 'Reader';
@@ -1291,7 +1295,7 @@ export function CadetNarrative({
                                         <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
                                       </div>
                                     ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
-                                    {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
+                                    {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requirePremiumAccess()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
                                   </div>
                                 </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
@@ -1352,7 +1356,7 @@ export function CadetNarrative({
                                   );
                                 })()}
                                 <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
-                                  if (!requireSubscription()) return;
+                                  if (!requirePremiumAccess()) return;
                                   setOpenInsightReplies(repliesOpen ? null : item.id);
                                   setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
                                   setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
@@ -1377,9 +1381,9 @@ export function CadetNarrative({
                                                 <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
                                               </div>
                                             ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
-                                            {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
+                                            {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requirePremiumAccess()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
                                             <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
-                                              if (!requireSubscription()) return;
+                                              if (!requirePremiumAccess()) return;
                                               const displayName = comment.profile?.display_name || 'Reader';
                                               setOpenInsightReplies(item.id);
                                               setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
@@ -1405,24 +1409,16 @@ export function CadetNarrative({
                               </div>
                             );
                           })}
-                          {hasAccess ? (
-                            <>
-                              <MentionTextarea
-                                className="input-field min-h-[5.5rem] w-full text-sm"
-                                value={myInsightDrafts[verse.reference] || ''}
-                                onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
-                                candidates={campMentionCandidates}
-                                placeholder="Write your insight on this verse. Type @ to tag someone..."
-                              />
-                              <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference, sourceNarrativeId)}>
-                                {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
-                              </button>
-                            </>
-                          ) : (
-                            <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => requireSubscription()}>
-                              <Lock size={13} /> Subscribe to write an insight
-                            </button>
-                          )}
+                          <MentionTextarea
+                            className="input-field min-h-[5.5rem] w-full text-sm"
+                            value={myInsightDrafts[verse.reference] || ''}
+                            onChange={(value) => setMyInsightDrafts((prev) => ({ ...prev, [verse.reference]: value }))}
+                            candidates={campMentionCandidates}
+                            placeholder="Write your insight on this verse. Type @ to tag someone..."
+                          />
+                          <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference, sourceNarrativeId)}>
+                            {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
+                          </button>
                         </div>
                       )}
                     </div>

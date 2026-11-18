@@ -1,5 +1,6 @@
 import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
 import { RelicSymbol } from '../../components/RelicSymbol';
+import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -218,11 +219,13 @@ type ValedictionStatus = { eligible: boolean; streak: number; figs: number; is_s
 
 export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted: () => void; sharedSession?: QuizSession }) {
   const [quizType, setQuizType] = useState<QuizType>(sharedSession?.quiz_type as QuizType || 'saturday');
+  const { hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
+  const quizUnlocked = quizType === 'saturday' || hasPremiumAccess;
   const [eligibility, setEligibility] = useState<ValedictionStatus | null>(null);
   const [eligibilityError, setEligibilityError] = useState<string | null>(null);
   const [eligibilityRetry, setEligibilityRetry] = useState(0);
   useEffect(() => {
-    if (quizType !== 'valediction') return;
+    if (!quizUnlocked || quizType !== 'valediction') return;
     let active = true;
     setEligibility(null);
     setEligibilityError(null);
@@ -232,7 +235,7 @@ export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted:
       else setEligibility(data as ValedictionStatus);
     }, () => { if (active) setEligibilityError('Eligibility could not load. Please retry.'); });
     return () => { active = false; };
-  }, [quizType, eligibilityRetry]);
+  }, [quizType, eligibilityRetry, quizUnlocked]);
   const refresh = () => { onQuizSubmitted(); setEligibilityRetry((value) => value + 1); };
   return <div className="space-y-4">
     <div role="group" aria-label="Quiz category" className="flex flex-wrap gap-2">
@@ -242,7 +245,8 @@ export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted:
         {type === 'valediction' ? 'Valediction Quiz' : type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}
       </button>)}
     </div>
-    {quizType === 'valediction' && <div className="card p-4 text-sm">
+    {!quizUnlocked && <div className="card p-4 text-sm"><p>Subscribe to play {quizType === 'fortune' ? 'Fortune Quiz' : 'Valediction Quiz'}.</p><button type="button" className="btn-primary mt-3 text-xs" onClick={requirePremiumAccess}>View subscription</button></div>}
+    {quizUnlocked && quizType === 'valediction' && <div className="card p-4 text-sm">
       <h2 className="font-display font-bold text-ink">Earn your Sentry status</h2>
       <p className="mt-2 text-stone">Qualify with 100 verified streak days and more than 10,000 figs, then score at least 90% on the Valediction quiz. Relics cannot be used.</p>
       {eligibility && <p className="mt-2 text-gold">{eligibility.streak}/100 streak days · {eligibility.figs.toLocaleString()}/10,001 figs</p>}
@@ -251,7 +255,7 @@ export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted:
       {!eligibility && !eligibilityError && <p role="status" className="mt-2 text-stone">Checking eligibility...</p>}
       {eligibility && !eligibility.eligible && !eligibility.is_sentry && <p className="mt-2 text-stone">Keep building your streak and figs to unlock this quiz.</p>}
     </div>}
-    {(quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} sharedSession={sharedSession?.quiz_type === quizType ? sharedSession : undefined} onQuizSubmitted={refresh} />}
+    {quizUnlocked && (quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} sharedSession={sharedSession?.quiz_type === quizType ? sharedSession : undefined} onQuizSubmitted={refresh} />}
   </div>;
 }
 

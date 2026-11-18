@@ -2,7 +2,7 @@ import { TentPositionBadges, TentPositionControls } from '../../components/TentP
 import { useTentPositions } from '../../lib/tentPositions';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
+import { SubscriptionAccessProvider, subscriptionHasPremiumAccess, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
@@ -26,7 +26,7 @@ import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchLedgerEntries, fetchReliableToolbarStats, fetchPublicStreakDetails, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission,
-  fetchSentryCadetContacts,
+  fetchSentryCadetContacts, fetchTentJoinRequests, reviewTentJoinRequest, type TentJoinRequestSummary,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
@@ -544,7 +544,7 @@ export function SentryApp() {
   };
 
   return (
-    <SubscriptionAccessProvider isExpired={isExpired} onSubscriptionRequired={() => setTab('subscribe')}>
+    <SubscriptionAccessProvider isExpired={isExpired} hasPremiumAccess={subscriptionHasPremiumAccess(subStatus, subscriptionClock)} onSubscriptionRequired={() => setTab('subscribe')}>
     <>
     <AppShell
       navItems={NAV_ITEMS}
@@ -650,7 +650,7 @@ export function SentryApp() {
         />
       )}
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
-      {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
+      {tent && tab === 'cadets' && <SentryCadets onChanged={load} cadetLimit={Math.max(tent.max_cadets ?? 10, 10)} members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
       {tab === 'reading' && <CadetNarrative onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
       {tab === 'games' && (
@@ -1208,7 +1208,9 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
   );
 }
 
-function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId }: {
+function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId, cadetLimit, onChanged }: {
+  cadetLimit: number;
+  onChanged: () => Promise<void>;
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
   strictStreaks: Record<string, StrictStreakData>;
@@ -1216,8 +1218,48 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   tentId: string;
 }) {
   const positions = useTentPositions(tentId, members.length);
+  const [applications, setApplications] = useState<TentJoinRequestSummary[]>([]);
+  const [requestError, setRequestError] = useState('');
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const full = members.filter(member => member.role === 'cadet').length >= cadetLimit;
+  const refreshApplications = useCallback(async () => {
+    setApplications(await fetchTentJoinRequests(tentId));
+  }, [tentId]);
+  useEffect(() => {
+    const refresh = () => { void refreshApplications().catch(() => setRequestError('Could not load tent requests.')); };
+    refresh();
+    const timer = window.setInterval(refresh, 20_000);
+    return () => window.clearInterval(timer);
+  }, [refreshApplications]);
+
+  const review = async (requestId: string, approve: boolean) => {
+    setReviewing(requestId);
+    setRequestError('');
+    try {
+      await reviewTentJoinRequest(requestId, approve);
+      await Promise.all([refreshApplications(), onChanged()]);
+    } catch (error) {
+      setRequestError((error as { message?: string })?.message || 'Could not review this request.');
+      void onChanged();
+    } finally {
+      setReviewing(null);
+    }
+  };
   return (
     <div className="space-y-3 animate-fade-in">
+      <section className="card space-y-3 p-4">
+        <h2 className="font-display font-semibold">Tent requests</h2>
+        {full && <p className="text-xs text-stone">The tent is full. Accept requests when a place opens.</p>}
+        {requestError && <p role="alert" className="text-xs text-coral">{requestError}</p>}
+        {!requestError && applications.length === 0 && <p className="text-xs text-stone">No pending requests.</p>}
+        {applications.map(application => <div key={application.request_id} className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+          <span className="flex-1 text-sm font-semibold">{application.display_name}</span>
+          <button type="button" className="btn-primary text-xs" disabled={full || reviewing !== null}
+            onClick={() => void review(application.request_id, true)}>Accept</button>
+          <button type="button" className="btn-secondary text-xs" disabled={reviewing !== null}
+            onClick={() => void review(application.request_id, false)}>Decline</button>
+        </div>)}
+      </section>
       {members.length > 0 && <TentPositionControls {...positions} />}
       {[...members].sort(positions.compare).map((m) => {
         const streak = streakForMember(m.user_id, allRecords, strictStreaks);

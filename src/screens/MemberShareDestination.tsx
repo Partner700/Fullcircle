@@ -6,7 +6,7 @@ import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
 import { UserAvatar } from '../components/UserAvatar';
 import { SubscriptionGate, SubscriptionScreen } from '../components/SubscriptionScreen';
 import { useAuth } from '../context/AuthContext';
-import { SubscriptionAccessProvider, subscriptionIsExpired } from '../context/SubscriptionAccessContext';
+import { SubscriptionAccessProvider, subscriptionHasPremiumAccess, subscriptionIsExpired } from '../context/SubscriptionAccessContext';
 import { fetchPublicBirthdayAnnouncement, type PublicBirthdayView } from '../lib/birthdays';
 import { getSubscriptionStatus } from '../lib/queries';
 import { supabase } from '../lib/supabase';
@@ -76,16 +76,16 @@ export function MemberShareDestination({ target, onHome }: { target: ShareDestin
     return () => { active = false; };
   }, [profile?.id, retry]);
   const expired = role !== 'instructor' && subscriptionIsExpired(status);
-  const protectedTarget = target.kind === 'quiz' || target.kind === 'arena';
+  const protectedTarget = target.kind === 'arena';
   const title = { reading: 'Bible reading', quiz: 'Quiz', game: 'Daily Trivia', arena: 'Arena', birthday: 'Birthday celebration' }[target.kind];
   const home = () => { signalActiveQuizExitIntent(); onHome(); };
   return <AppShell headerTitle={title} activeKey={subscribe ? 'subscribe' : 'shared'}
     navItems={[{ key: 'home', label: 'Home', icon: Home }, { key: 'shared', label: title, icon: Link }]}
     onNavigate={(key) => { if (key === 'home') home(); else setSubscribe(false); }}>
-    <SubscriptionAccessProvider isExpired={expired} onSubscriptionRequired={() => setSubscribe(true)}>
+    <SubscriptionAccessProvider isExpired={expired} hasPremiumAccess={role === "instructor" || subscriptionHasPremiumAccess(status, Date.now())} onSubscriptionRequired={() => setSubscribe(true)}>
       {subscribe ? <SubscriptionScreen subStatus={status} onActivated={(next) => { setStatus(next); setSubscribe(false); }} />
-        : protectedTarget && loading ? <p role="status"><Loader2 className="animate-spin" />Opening {title}…</p>
-        : protectedTarget && error ? <div role="alert">{error}<button className="btn-secondary" onClick={() => setRetry((n) => n + 1)}>Retry</button></div>
+        : (protectedTarget || target.kind === "quiz") && loading ? <p role="status"><Loader2 className="animate-spin" />Opening {title}…</p>
+        : (protectedTarget || target.kind === "quiz") && error ? <div role="alert">{error}<button className="btn-secondary" onClick={() => setRetry((n) => n + 1)}>Retry</button></div>
         : protectedTarget && expired ? <SubscriptionGate onSubscribe={() => setSubscribe(true)} />
         : target.kind === 'reading' ? <CadetNarrative initialDate={target.date} />
         : target.kind === 'quiz' ? <SharedQuiz id={target.id} />
