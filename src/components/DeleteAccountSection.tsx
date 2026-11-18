@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -112,7 +113,15 @@ export function DeleteAccountSection({ dark = false }: { dark?: boolean }) {
       });
 
       if (invokeError || data?.error) {
-        setError(data?.error || invokeError?.message || 'Account deletion failed.');
+        const details = invokeError instanceof FunctionsHttpError
+          ? await invokeError.context.json().catch(() => null)
+          : data;
+        const message = typeof details?.error === 'string' ? details.error : '';
+        setError(message.startsWith('Resources were secured, but account deletion must be retried:')
+          ? 'The inheritance was prepared, but the account could not be deleted. Contact Full Circle support before retrying.'
+          : message || (invokeError instanceof FunctionsHttpError
+            ? 'The server could not complete account deletion.'
+            : invokeError?.message || 'Account deletion failed.'));
         setDeleting(false);
         return;
       }

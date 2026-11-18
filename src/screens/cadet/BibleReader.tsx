@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Heart, Lightbulb, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
@@ -27,6 +27,8 @@ export function BibleReader() {
   const { hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
   const [bookIndex, setBookIndex] = useState(0);
   const [chapter, setChapter] = useState(1);
+  const reader = useRef<HTMLDivElement>(null);
+  const swipeStart = useRef<{ identifier: number; x: number; y: number } | null>(null);
   const [edition, setEdition] = useState(() => {
     const stored = readScriptureEdition(profile?.id);
     return stored === 'published' ? 'web' : stored;
@@ -89,6 +91,31 @@ export function BibleReader() {
       if (BIBLE_BOOKS[nextBook]) openChapter(nextBook, direction === 1 ? 1 : BIBLE_BOOKS[nextBook].chapters);
     }
   };
+  const turnPage = (direction: -1 | 1) => {
+    if (direction === -1 && bookIndex === 0 && chapter === 1) return;
+    if (direction === 1 && bookIndex === BIBLE_BOOKS.length - 1 && chapter === book.chapters) return;
+    move(direction);
+    reader.current?.scrollIntoView({ block: 'start' });
+  };
+  const startSwipe = (event: TouchEvent<HTMLElement>) => {
+    swipeStart.current = null;
+    if (event.touches.length !== 1 || window.getSelection()?.toString()) return;
+    if (event.target instanceof Element && event.target.closest('button, a, input, textarea, select, [contenteditable]')) return;
+    const touch = event.touches[0];
+    swipeStart.current = { identifier: touch.identifier, x: touch.clientX, y: touch.clientY };
+  };
+  const finishSwipe = (event: TouchEvent<HTMLElement>) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || event.touches.length || window.getSelection()?.toString()) return;
+    const touch = Array.from(event.changedTouches).find(item => item.identifier === start.identifier);
+    if (!touch) return;
+    const horizontal = touch.clientX - start.x;
+    const vertical = touch.clientY - start.y;
+    if (Math.abs(horizontal) >= 64 && Math.abs(horizontal) > Math.abs(vertical) * 1.5) {
+      turnPage(horizontal < 0 ? 1 : -1);
+    }
+  };
   const updateThread = async (action: () => Promise<unknown>) => {
     if (!requirePremiumAccess() || busy) return;
     setError('');
@@ -118,13 +145,13 @@ export function BibleReader() {
     setQuestion({ reference, chapter: { book: book.slug, chapter } });
   };
 
-  return <div className="today-reading-screen mx-auto max-w-3xl space-y-4">
+  return <div ref={reader} className="today-reading-screen mx-auto max-w-3xl space-y-4">
     <section className="card reading-glass-panel relative isolate overflow-hidden border-border p-5"
       data-artwork-theme={artwork?.url ? 'night' : undefined}>
       <PanelImageBackdrop image={artwork} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} />
       <div className="relative z-10 space-y-4">
         <h1 className="flex items-center gap-2 font-display text-2xl font-bold text-peri"><BookOpen size={24} /> Bible</h1>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_7.5rem] gap-3">
           <div className="min-w-0">
             <p className="mb-1 text-xs font-semibold text-stone">Book</p>
             <AppSelect
@@ -137,10 +164,11 @@ export function BibleReader() {
               }}
             />
           </div>
-          <div className="min-w-28">
+          <div>
             <p className="mb-1 text-xs font-semibold text-stone">Chapter</p>
             <AppSelect
               ariaLabel="Chapter"
+              buttonClassName="tabular-nums gap-2"
               value={String(chapter)}
               options={Array.from({ length: book.chapters }, (_, index) => {
                 const number = String(index + 1);
@@ -168,9 +196,10 @@ export function BibleReader() {
         </div>
       </div>
     </section>
-    <section className="card reading-glass-panel relative isolate overflow-hidden border-brass/30 p-4 sm:p-6"
-      data-artwork-theme={artwork?.url ? 'night' : undefined}>
-      <PanelImageBackdrop image={artwork} opacityOverride={35} veilClassName="welcome-slide-veil" modeFilter={false} />
+    <section className="reading-glass-panel relative isolate overflow-hidden rounded-2xl border p-4 sm:p-6"
+      style={{ touchAction: 'pan-y pinch-zoom' }}
+      onTouchStart={startSwipe} onTouchEnd={finishSwipe}
+      onTouchCancel={() => { swipeStart.current = null; }}>
       <div className="relative z-10">
         <h2 className="mb-3 font-display text-xl font-bold text-peri">{book.name} {chapter}</h2>
         {!text && !textError && <p role="status">Loading chapter…</p>}
@@ -225,8 +254,8 @@ export function BibleReader() {
       </div>
     </section>
     <nav aria-label="Bible chapters" className="flex justify-between gap-2">
-      <button className="btn-secondary" disabled={bookIndex === 0 && chapter === 1} onClick={() => { move(-1); window.scrollTo(0, 0); }}><ChevronLeft size={16} /> Previous chapter</button>
-      <button className="btn-secondary" disabled={bookIndex === BIBLE_BOOKS.length - 1 && chapter === book.chapters} onClick={() => { move(1); window.scrollTo(0, 0); }}>Next chapter <ChevronRight size={16} /></button>
+      <button className="btn-secondary" disabled={bookIndex === 0 && chapter === 1} onClick={() => turnPage(-1)}><ChevronLeft size={16} /> Previous chapter</button>
+      <button className="btn-secondary" disabled={bookIndex === BIBLE_BOOKS.length - 1 && chapter === book.chapters} onClick={() => turnPage(1)}>Next chapter <ChevronRight size={16} /></button>
     </nav>
     {question && <ScriptureQuestionComposer target={question} close={() => setQuestion(null)} onPosted={() => setRefresh(value => value + 1)} />}
   </div>;
