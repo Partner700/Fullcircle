@@ -164,7 +164,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
 
   useEffect(() => {
     if (!reference || confirmed || !open) return;
-    if (provider !== 'fapshi_direct') void checkStatus(reference);
+    void checkStatus(reference);
     const timer = window.setInterval(() => void checkStatus(reference), provider === 'fapshi_direct' ? 16_000 : 15_000);
     // Read verified webhook outcomes without consuming Fapshi's polling allowance.
     void checkStatus(reference, false, true);
@@ -260,7 +260,10 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
         setPayment(result);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Checkout could not start.');
+      const reason = cause instanceof Error ? cause.message : 'Checkout could not start.';
+      setError(reason === 'Insufficient funds.' || reason === 'Payment approval expired.'
+        ? <MobileMoneyFailureMessage reason={reason} />
+        : reason);
     } finally {
       submitting.current = false;
       setBusy(false);

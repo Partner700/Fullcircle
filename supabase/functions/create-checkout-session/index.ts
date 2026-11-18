@@ -525,8 +525,8 @@ async function startFcxCheckout(
       amount: payment.amount, reference: payment.reference, name: payment.title, mobileMoney,
     });
     if (result.declined) {
-      await rejectPayment(payment.id, null, "Fapshi could not start this FCX payment.", {});
-      return Response.json({ error: "Fapshi could not start this payment. Try again later." }, { status: 502, headers: corsHeaders });
+      await rejectPayment(payment.id, result.transId ?? null, result.reason ?? "Fapshi could not start this payment.", {});
+      return Response.json({ error: result.reason ?? "Fapshi could not start this payment. Try again later." }, { status: 502, headers: corsHeaders });
     }
     if (result.transId) {
       if (mobileMoney) approvalStartedAt = new Date().toISOString();
@@ -594,8 +594,8 @@ async function startCartCheckout(
     amount: payment.amount, reference, name: "Market cart", mobileMoney: { phone: phone.slice(3) },
   });
   if (result.declined) {
-    await rejectPayment(payment.id, null, "Fapshi could not start this payment.", {});
-    return Response.json({ error: "The payment prompt could not be sent. Try again." }, { status: 502, headers: corsHeaders });
+    await rejectPayment(payment.id, result.transId ?? null, result.reason ?? "Fapshi could not start this payment.", {});
+    return Response.json({ error: result.reason ?? "The payment prompt could not be sent. Try again." }, { status: 502, headers: corsHeaders });
   }
   const approvalStartedAt = result.transId ? new Date().toISOString() : undefined;
   if (result.transId) await updatePaymentRecord(payment.id, { provider_reference: result.transId }).catch(() => {});
@@ -793,8 +793,8 @@ Deno.serve(async (req: Request) => {
         mobileMoney,
       });
       if (result.declined) {
-        await rejectPayment(paymentId, null, "Fapshi could not start this payment.", {});
-        return Response.json({ error: "Fapshi could not start this payment. Try again later." }, {
+        await rejectPayment(paymentId, result.transId ?? null, result.reason ?? "Fapshi could not start this payment.", {});
+        return Response.json({ error: result.reason ?? "Fapshi could not start this payment. Try again later." }, {
           status: 502, headers: corsHeaders,
         });
       }

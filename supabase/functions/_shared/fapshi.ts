@@ -73,12 +73,29 @@ export function fapshiCheckoutUrl(value: unknown): string | null {
   }
 }
 
+const insufficientFundsReason = "Insufficient funds.";
+
+function directPaymentFailure(details: Json): string | null {
+  const structured = [details.failureReason, details.failureCode]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ").replace(/[_-]+/g, " ");
+  const message = typeof details.message === "string" ? details.message.trim() : "";
+  const lowBalance = /\b(?:insufficient|not enough) (?:funds|balance)\b/i;
+  if (lowBalance.test(structured) || /^(?:insufficient|not enough) (?:funds|balance)[.!]?$/i.test(message)) {
+    return insufficientFundsReason;
+  }
+  if (/\b(?:expired|timeout|timed out|no response|no action taken)\b/i.test(structured)) {
+    return "Payment approval expired.";
+  }
+  return null;
+}
+
 export async function startFapshiPayment(input: {
   amount: number;
   reference: string;
   name: string;
   mobileMoney?: { phone: string };
-}): Promise<{ transId?: string; checkoutUrl?: string; declined?: true }> {
+}): Promise<{ transId?: string; checkoutUrl?: string; declined?: true; reason?: string }> {
   try {
     const response = await api(input.mobileMoney ? "/direct-pay" : "/initiate-pay", {
       amount: input.amount,
@@ -90,12 +107,20 @@ export async function startFapshiPayment(input: {
       externalId: input.reference,
       message: `Full Circle: ${input.name}`,
     });
-    if ([400, 401, 403, 404, 422].includes(response.status)) return { declined: true };
-    if (!response.ok) return {};
-    const data = await response.json() as Json;
-    if (input.mobileMoney) return transactionId(data.transId) ? { transId: data.transId } : {};
-    const checkoutUrl = fapshiCheckoutUrl(data.link);
-    return transactionId(data.transId) && checkoutUrl ? { transId: data.transId, checkoutUrl } : {};
+    const declined = [400, 401, 403, 404, 422].includes(response.status);
+    if (!response.ok && !declined) return {};
+    const data = await response.json().catch(() => ({})) as Json | null;
+    const details = data ?? {};
+    if (input.mobileMoney && (declined || details.status === "FAILED")) {
+      const reason = directPaymentFailure(details);
+      if (reason || declined || !transactionId(details.transId)) {
+        return { declined: true, reason: reason ?? undefined, transId: transactionId(details.transId) ? details.transId : undefined };
+      }
+    }
+    if (declined) return { declined: true };
+    if (input.mobileMoney) return transactionId(details.transId) ? { transId: details.transId } : {};
+    const checkoutUrl = fapshiCheckoutUrl(details.link);
+    return transactionId(details.transId) && checkoutUrl ? { transId: details.transId, checkoutUrl } : {};
   } catch {
     // The provider may have accepted the request before the connection failed.
     return {};
@@ -247,17 +272,9 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
   // Hosted checkout can be retried after a failed attempt, until the link expires.
   const direct = ["mtn_momo", "orange_money"].includes(payment.payment_method ?? "");
   if (verified.status === "EXPIRED" || (verified.status === "FAILED" && direct)) {
-    const failureDetails = [verified.failureReason, verified.failureCode]
-      .filter((value): value is string => typeof value === "string")
-      .join(" ").replace(/[_-]+/g, " ");
-    let reason = "Fapshi payment was not completed.";
-    if (verified.status === "EXPIRED") {
-      reason = direct ? "Payment approval expired." : "The checkout link expired.";
-    } else if (/\binsufficient (?:funds|balance)\b|\bnot enough (?:funds|balance)\b/i.test(failureDetails)) {
-      reason = "Insufficient funds.";
-    } else if (/\b(?:expired|timeout|timed out|no response|no action taken)\b/i.test(failureDetails)) {
-      reason = "Payment approval expired.";
-    }
+    const reason = verified.status === "EXPIRED"
+      ? (direct ? "Payment approval expired." : "The checkout link expired.")
+      : directPaymentFailure(verified) ?? "Fapshi payment was not completed.";
     const rejected = await database("rpc/reject_campay_payment", {
       method: "POST",
       body: JSON.stringify({ ...common, p_reason: reason }),

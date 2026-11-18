@@ -102,6 +102,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [otherContact, setOtherContact] = useState('');
   const [otherTransactionReference, setOtherTransactionReference] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
+  const [paymentStartError, setPaymentStartError] = useState('');
   const [paymentResult, setPaymentResult] = useState<CampayPaymentResult | null>(null);
   const [paymentStartingQuantity, setPaymentStartingQuantity] = useState(0);
   const [paySubmitting, setPaySubmitting] = useState(false);
@@ -278,10 +279,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     setOtherContact('');
     setOtherTransactionReference('');
     setPaymentNote('');
+    setPaymentStartError('');
     setPaymentResult(null);
   };
 
   const retryPayment = () => {
+    setPaymentStartError('');
     setPaymentResult(null);
     setPaySubmitting(false);
     setCheckingPayment(false);
@@ -290,6 +293,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const submitPayment = async () => {
     if (!profile || !paymentModalRelic || paySubmitting) return;
     setPaySubmitting(true);
+    setPaymentStartError('');
     try {
       const slug = paymentModalRelic.slug || paymentModalRelic.id;
       const displayedAmountXaf = relicMoneyPriceXaf(paymentModalRelic);
@@ -325,7 +329,9 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       if (isPaymentSuccessful(result.status)) {
         await refreshPurchaseState();
       }
-    } catch (e: any) { alert(e.message || 'Failed to start payment.'); }
+    } catch (error) {
+      setPaymentStartError(error instanceof Error ? error.message : 'Failed to start payment.');
+    }
     setPaySubmitting(false);
   };
 
@@ -448,7 +454,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       } catch {}
       return false;
     };
-    if (!awaitingDirectApproval) void poll();
+    void poll();
     const interval = window.setInterval(async () => {
       if (await poll()) window.clearInterval(interval);
 
@@ -942,6 +948,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <p className="text-xs text-stone">This is the amount you will pay at checkout.</p>
             </div>
 
+            {paymentStartError && <p className="text-sm text-coral" role="alert">
+              {paymentStartError === 'Insufficient funds.' || paymentStartError === 'Payment approval expired.'
+                ? <MobileMoneyFailureMessage reason={paymentStartError} />
+                : paymentStartError}
+            </p>}
             {paymentResult ? (
               <div className="space-y-4">
                 <div key={`${paymentResult.reference}:${paymentResult.status}`} className={cn(

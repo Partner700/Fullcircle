@@ -31,6 +31,7 @@ const webhook = handler;
 
 let payment;
 let providerPayment;
+let initialDirectDecline;
 let createCount = 0;
 let statusCount = 0;
 let lostResponse = false;
@@ -67,6 +68,7 @@ globalThis.fetch = async (input, init = {}) => {
       assert.equal(body.phone, '675123456');
       assert.equal(body.medium, undefined, 'Fapshi should detect the carrier from the number');
       assert.equal(body.pin, undefined);
+      if (initialDirectDecline) return json(initialDirectDecline.body, initialDirectDecline.status);
     } else {
       assert.equal(body.phone, undefined);
     }
@@ -276,7 +278,7 @@ for (const [providerResult, expected] of [
   [{ status: 'EXPIRED' }, 'Payment approval expired.'],
   [{ status: 'FAILED', failureCode: 'USSD_TIMEOUT' }, 'Payment approval expired.'],
   [{ status: 'FAILED', failureReason: 'Insufficient funds' }, 'Insufficient funds.'],
-  [{ status: 'FAILED', message: 'Insufficient funds' }, 'Fapshi payment was not completed.'],
+  [{ status: 'FAILED', message: 'Insufficient funds' }, 'Insufficient funds.'],
 ]) {
   const attempt = await (await direct(req(mobileOrder, cadet))).json();
   assert.equal(attempt.status, 'pending');
@@ -330,6 +332,20 @@ const cartOrder = {
 const beforeCart = createCount;
 assert.equal((await direct(req({ ...cartOrder, displayed_amount_xaf: 6599 }, cadet))).status, 409);
 assert.equal(createCount, beforeCart, 'a stale total cannot send a payment prompt');
+for (const response of [
+  { status: 422, body: { message: 'Insufficient funds' } },
+  { status: 200, body: { status: 'FAILED', failureCode: 'INSUFFICIENT_BALANCE' } },
+]) {
+  initialDirectDecline = response;
+  const checks = statusCount;
+  const decline = await direct(req(cartOrder, cadet));
+  assert.equal(decline.status, 502);
+  assert.equal((await decline.json()).error, 'Insufficient funds.');
+  assert.equal(payment.status, 'rejected');
+  assert.equal(payment.rejection_reason, 'Insufficient funds.');
+  assert.equal(statusCount, checks, 'an explicit initiation decline needs no status poll');
+}
+initialDirectDecline = undefined;
 const cart = await (await direct(req(cartOrder, cadet))).json();
 assert.equal(cart.amount_local, 6600);
 assert.equal(createCount, beforeCart + 1, 'a mixed cart sends one payment prompt');

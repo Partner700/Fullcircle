@@ -294,6 +294,8 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
       setPayment(result);
       if (CONFIRMED_STATUSES.has(String(result.status).toLowerCase())) {
         await finishActivation();
+      } else if (plan.payment_provider === 'fapshi_direct' && result.status === 'pending') {
+        void checkPayment(false);
       }
     } catch (reason: unknown) {
       setError(errorMessage(reason, 'Could not start the subscription payment.'));
@@ -375,7 +377,7 @@ export function SubscriptionScreen({ subStatus, onActivated }: SubscriptionScree
         )}
         </>}
 
-        {error && <div className="mt-4 rounded-lg border border-coral/30 bg-coral-soft px-3 py-2.5 text-sm text-coral">{error}</div>}
+        {error && <div className="mt-4 rounded-lg border border-coral/30 bg-coral-soft px-3 py-2.5 text-sm text-coral" role="alert">{error === 'Insufficient funds.' || error === 'Payment approval expired.' ? <MobileMoneyFailureMessage reason={error} /> : error}</div>}
         {payment && (
           <div className={`mt-4 rounded-lg border px-3 py-3 text-sm ${confirmed ? 'border-moss/35 bg-moss/10 text-moss' : payment.status === 'rejected' ? 'border-coral/35 bg-coral-soft text-coral' : 'border-gold/30 bg-gold-soft text-ink'}`}>
             <div className="flex items-start gap-2">
