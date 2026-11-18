@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { RelicSymbol } from './RelicSymbol';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
+import { registerGameRelicShortcut } from '../lib/gameRelicShortcut';
 import { useDraggableShortcut } from '../hooks/useDraggableShortcut';
 import { fetchRelicInventory, purchaseRelic, useRelic } from '../lib/queries';
 import { relicCashBundles, relicMoneyPriceXaf } from '../lib/relicPricing';
@@ -48,16 +49,21 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
       supabase.from('relic_types').select('id,slug,name,denarii_cost,money_price_xaf,money_price_usd,cash_bundles')
         .eq('is_active', true).in('slug', slugKey.split(',')).order('name'),
       supabase.rpc('get_user_denarii_total', { p_user_id: userId }),
-      showOwned ? fetchRelicInventory(userId) : Promise.resolve([]),
+      showOwned ? fetchRelicInventory(userId).catch(() => null) : Promise.resolve([]),
     ]);
     if (version !== request.current) return;
     if (catalogError) throw catalogError;
     const validBalance = !wallet.error && wallet.data != null && Number.isFinite(Number(wallet.data));
     setOffers(data || []);
     setBalance(validBalance ? Number(wallet.data) : null);
-    setOwned(Object.fromEntries(inventory.map(item => [item.relic_type_id, item.quantity])));
-    setError(validBalance ? '' : 'Your Denarii balance is unavailable.');
+    if (inventory) setOwned(Object.fromEntries(inventory.map(item => [item.relic_type_id, item.quantity])));
+    setError(inventory === null ? 'Your relic inventory is unavailable.'
+      : validBalance ? '' : 'Your Denarii balance is unavailable.');
   }, [showOwned, slugKey, userId]);
+
+  useEffect(() => {
+    if (floating) return registerGameRelicShortcut();
+  }, [floating]);
 
   const loadOffers = open || preload;
   useEffect(() => {
@@ -113,14 +119,21 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
   if (!floating && !slugs.length && !open) return null;
   const shop = (
     <div className={floating
-      ? 'pointer-events-none fixed bottom-36 right-3 z-[2147483590] md:bottom-20 w-[min(26rem,calc(100vw-1.5rem))] text-xs'
-      : 'my-2 w-full text-xs'}>
+      ? 'text-xs'
+      : 'my-2 w-full text-xs'}
+      style={floating ? {
+        position: 'fixed', zIndex: 2147483590, right: '0.75rem',
+        bottom: 'max(5rem, env(safe-area-inset-bottom))', width: 'min(26rem, calc(100vw - 1.5rem))',
+        pointerEvents: 'auto',
+      } : undefined}
+      onClick={floating ? event => event.stopPropagation() : undefined}>
       {!floating && slugs.length > 0 && (
         <button type="button" aria-expanded={open} className="btn-secondary text-xs"
           onClick={() => setOpen(value => !value)}><ShoppingCart size={15} /> {label}</button>
       )}
-      <div hidden={!open} className={floating
-        ? 'pointer-events-auto max-h-[min(60dvh,calc(100dvh-9.5rem))] w-full md:max-h-[min(60dvh,calc(100dvh-5.5rem))] space-y-2 overflow-y-auto rounded-lg border border-brass/60 bg-surface p-3 shadow-xl'
+      <div hidden={!open} role={floating ? 'region' : undefined} aria-label={floating ? 'Game relics' : undefined}
+        className={floating
+        ? 'max-h-[min(65dvh,calc(100dvh-6rem))] w-full space-y-2 overflow-y-auto rounded-lg border border-brass/60 bg-surface p-3 shadow-xl'
         : 'mt-2 space-y-2 rounded-lg border border-border bg-surface p-3'}>
         {floating && <div className="flex items-center justify-between gap-2">
           <h2 className="font-display text-sm font-bold text-ink">{label}</h2>
@@ -129,6 +142,11 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
         {timed && <p className="text-stone">The timer keeps running during checkout.</p>}
         {balance !== null && <p className="text-stone">Balance {formatDenarii(balance)} Ð</p>}
         {offers === null && !error && <p role="status">Loading relics…</p>}
+        {slugs.includes('undo') && !offers?.some(offer => offer.slug === 'undo') && (
+          <button type="button" disabled className="btn-secondary text-xs">
+            <RelicSymbol slug="undo" /> Undo
+          </button>
+        )}
         {offers?.length === 0 && <p>No relics are available here.</p>}
         {offers?.filter(offer => offer.slug && slugs.includes(offer.slug)).map(offer => {
           if (!offer.slug) return null;
@@ -142,10 +160,10 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 last:border-0">
               <span className="inline-flex items-center gap-2 font-semibold text-ink"><RelicSymbol slug={offer.slug} /> {offer.name}</span>
               <div className="flex flex-wrap items-center gap-2">
-                {hasOwned ? (
+                {hasOwned || offer.slug === 'undo' ? (
                   <button type="button" className="btn-secondary text-xs"
-                    disabled={Boolean(busy) || canUseOwned?.(offer.slug) === false} onClick={() => void act(offer, true)}>
-                    <RelicSymbol slug={offer.slug} size={14} /> Use ({owned[offer.id]} owned)
+                    disabled={!hasOwned || Boolean(busy) || canUseOwned?.(offer.slug) === false} onClick={() => void act(offer, true)}>
+                    <RelicSymbol slug={offer.slug} size={14} /> {offer.slug === 'undo' ? 'Use Undo' : 'Use'} ({owned[offer.id] ?? 0} owned)
                   </button>
                 ) : null}
                 {(!hasOwned || showAllPaymentOptions) && (canBuyWithDenarii || showAllPaymentOptions && cost > 0) ? (
@@ -181,15 +199,27 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     </div>
   );
   return floating ? createPortal(<>
-    {shop}
+    {open && shop}
     <button
       type="button"
       {...shortcut}
-      data-game-relic-shortcut
+      style={{
+        position: 'fixed', zIndex: 2147483600, pointerEvents: 'auto',
+        right: '0.75rem', bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+        ...shortcut.style,
+      }}
+      onPointerUp={event => {
+        event.stopPropagation();
+        shortcut.onPointerUp?.(event);
+      }}
+      onClick={event => {
+        event.stopPropagation();
+        shortcut.onClick?.(event);
+      }}
       aria-label={open ? 'Close relics' : 'Open relics'}
       aria-expanded={open}
       title={`${label} (drag to move)`}
-      className="fixed bottom-20 right-3 z-[2147483600] flex h-11 w-11 cursor-grab select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl active:cursor-grabbing md:bottom-6 md:right-6"
+      className="flex h-11 w-11 cursor-grab select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl active:cursor-grabbing"
     >
       <RelicSymbol slug="relics" size={20} />
     </button>

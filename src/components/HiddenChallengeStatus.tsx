@@ -1,6 +1,7 @@
 import { useDraggableShortcut } from '../hooks/useDraggableShortcut';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Bomb, CheckCircle2, Gift, Loader2, MapPin, PackageSearch, TimerReset, X, XCircle } from 'lucide-react';
+import { gameRelicShortcutIsActive, subscribeToGameRelicShortcut } from '../lib/gameRelicShortcut';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyHiddenChallengeStatus, HIDDEN_CHALLENGE_STATUS_EVENT } from '../lib/hiddenChallenges';
 import { requestHiddenChallengeComposer } from '../lib/hiddenChallenges';
@@ -53,6 +54,7 @@ function rewardLabel(item: HiddenChallengeCreatorStatus) {
 
 export function HiddenChallengeStatus() {
   const { profile } = useAuth();
+  const gameRelicsActive = useSyncExternalStore(subscribeToGameRelicShortcut, gameRelicShortcutIsActive);
   const [items, setItems] = useState<HiddenChallengeCreatorStatus[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -104,14 +106,17 @@ export function HiddenChallengeStatus() {
     void load(true);
   });
 
-  if (!profile?.id) return null;
+  useEffect(() => {
+    if (gameRelicsActive) setOpen(false);
+  }, [gameRelicsActive]);
+
+  if (!profile?.id || gameRelicsActive) return null;
 
   return (
     <>
       <button
         type="button"
         {...shortcut}
-        data-hidden-item-shortcut
         className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl cursor-grab active:cursor-grabbing md:bottom-6 md:right-6"
         title="Treasures and Mines (drag to move)"
         aria-label="Open hidden item status"
