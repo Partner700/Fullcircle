@@ -24,9 +24,10 @@ export function registerServiceWorker() {
     return;
   }
 
+  const release = document.querySelector<HTMLMetaElement>('meta[name="full-circle-release"]')?.content;
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=270`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=${release ?? 'current'}`, { updateViaCache: 'none' })
       .then((registration) => {
         let lastUpdateCheck = 0;
         const checkForUpdate = () => {

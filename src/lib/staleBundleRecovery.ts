@@ -1,6 +1,5 @@
 const RECOVERY_KEY = 'full-circle-stale-bundle-recovery-at';
 const RECOVERY_WINDOW_MS = 300_000;
-const RELEASE_MARKER = '270';
 let lastRecoveryInMemory = 0;
 
 const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css/i;
@@ -25,7 +24,7 @@ export async function reloadFreshApp(): Promise<void> {
   }
 
   const freshUrl = currentUrl;
-  freshUrl.searchParams.set('fc-release', RELEASE_MARKER);
+  freshUrl.searchParams.set('fc-release', document.querySelector<HTMLMetaElement>('meta[name="full-circle-release"]')?.content ?? 'current');
   freshUrl.searchParams.set('fc-retry-at', String(Date.now()));
   window.location.replace(freshUrl.toString());
 }

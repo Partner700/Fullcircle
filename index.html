@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="277" />
+  <meta name="full-circle-release" content="278" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="%BASE_URL%icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="%BASE_URL%browserconfig.xml" />
@@ -106,7 +106,7 @@
         ? window.location.pathname.slice(0, assetSegment + 1)
         : window.location.pathname.slice(0, window.location.pathname.lastIndexOf('/') + 1);
       var appUrl = new URL(appPath || '/', window.location.origin);
-      appUrl.searchParams.set('fc-asset-recovery', '270');
+      appUrl.searchParams.set('fc-asset-recovery', document.querySelector('meta[name="full-circle-release"]').content);
       window.location.replace(appUrl.toString());
     }
   </script>
@@ -172,8 +172,8 @@
     // updates quiet, but let an explicit retry verify the network and replace
     // every Full Circle shell cache that could be trapping the phone.
     (function () {
-      var release = '270';
-      var currentCachePrefix = 'full-circle-target-v277';
+      var release = document.querySelector('meta[name="full-circle-release"]').content;
+      var currentCachePrefix = 'full-circle-target-v' + release;
       var marker = 'fc-repair';
       var repairStarted = false;
       var mirrorStarted = false;
@@ -316,7 +316,7 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
-          .register('%BASE_URL%fc-worker.js?v=270', { updateViaCache: 'none' })
+          .register('%BASE_URL%fc-worker.js?v=' + release, { updateViaCache: 'none' })
           .then(function (registration) { return registration.update(); })
           .catch(function () {});
       }

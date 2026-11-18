@@ -78,8 +78,8 @@ function worker(fetcher, cache = memoryCaches()) {
 }
 
 const response = (text = 'app', type = 'text/html') => new Response(text, { headers: { 'content-type': type } });
-const appHtml = (text = 'app', release = '270') => `<!doctype html><html><head><meta name="full-circle-release" content="${release}"></head><body><main id="root">${text}</main></body></html>`;
-const appResponse = (text = 'app', release = '270') => response(appHtml(text, release), 'text/html');
+const appHtml = (text = 'app', release = '278') => `<!doctype html><html><head><meta name="full-circle-release" content="${release}"></head><body><main id="root">${text}</main></body></html>`;
+const appResponse = (text = 'app', release = '278') => response(appHtml(text, release), 'text/html');
 function mirrorResponse(url, text = 'export const loaded = true;') {
   const result = response(text, 'application/javascript');
   Object.defineProperty(result, 'url', { value: url });
@@ -173,12 +173,12 @@ async function run() {
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.ok(!(await cache.keys()).includes('full-circle-target-v176-shell'), 'The Release 176 loop must be removed from affected phones.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '270');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '278');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v277-shell')).put(scope + 'index.html', appResponse('current target app'));
+    await (await cache.open('full-circle-target-v278-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
@@ -242,7 +242,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v277-shell')).put(
+    await (await cache.open('full-circle-target-v278-shell')).put(
       scope + 'index.html',
       response('<html><main id="root">proxy error</main></html>', 'text/html'),
     );
@@ -251,13 +251,13 @@ async function run() {
   }
   {
     const w = worker(async () => appResponse());
-    assert.equal(await w.validReleaseResponse(appResponse('current release', '270'), request()), true, 'A verified current shell must not be rejected by an older worker.');
+    assert.equal(await w.validReleaseResponse(appResponse('current release', '278'), request()), true, 'A verified current shell must not be rejected by an older worker.');
     assert.equal(await w.validReleaseResponse(appResponse('previous safe release', '177'), request()), true, 'The previous safe shell remains usable during an interrupted update.');
     assert.equal(await w.validReleaseResponse(appResponse('retired release', '176'), request()), false, 'The broken retired shell must never be accepted again.');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v277-shell')).put(scope + 'index.html', appResponse('old cached shell', '225'));
+    await (await cache.open('full-circle-target-v278-shell')).put(scope + 'index.html', appResponse('old cached shell', '225'));
     const w = worker(async (url) => url.startsWith(scope) ? appResponse('stale carrier shell', '225') : appResponse('latest mirror shell'));
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
     assert.match(await delivered.text(), /latest mirror shell/, 'An online launch must prefer the current mirror over stale carrier and cached copies.');
@@ -266,24 +266,24 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v277-shell')).put(scope + 'index.html', appResponse('offline shell', '225'));
+    await (await cache.open('full-circle-target-v278-shell')).put(scope + 'index.html', appResponse('offline shell', '225'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
     assert.match(await delivered.text(), /offline shell/, 'A safe cached copy remains usable when all online copies are unavailable.');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v277-shell')).put(scope + 'index.html', appResponse('cached shell'));
+    await (await cache.open('full-circle-target-v278-shell')).put(scope + 'index.html', appResponse('cached shell'));
     const w = worker(async () => appResponse('fresh network shell'), cache);
     const delivered = await w.networkFirstNavigation({
-      url: scope + '?fc-repair=270',
+      url: scope + '?fc-repair=278',
       mode: 'navigate',
     }, w.event);
     assert.match(await delivered.text(), /fresh network shell/, 'A recovery navigation must bypass the cached shell.');
   }
   {
     const cache = memoryCaches();
-    await cache.open('full-circle-target-v277-shell');
+    await cache.open('full-circle-target-v278-shell');
     await cache.open('full-circle-target-v176-assets');
     const w = worker(async () => appResponse(), cache);
     const resetEvent = { data: { type: 'RESET_APP_SHELL' }, jobs: [], waitUntil(promise) { this.jobs.push(promise); } };
@@ -338,7 +338,7 @@ async function testRecovery() {
     location: { href: scope, replace(url) { this.href = url; redirects.push(url); }, reload() { throw new Error('Unexpected reload'); } },
     get sessionStorage() { throw new Error('Storage denied'); },
   };
-  const globals = { window, navigator: { serviceWorker: { getRegistration: () => new Promise(() => {}) } } };
+  const globals = { window, document: { querySelector: () => ({ content: '278' }) }, navigator: { serviceWorker: { getRegistration: () => new Promise(() => {}) } } };
   const first = loadTs('src/lib/staleBundleRecovery.ts', globals);
   assert.equal(first.recoverFromStaleBundle('Load failed'), false, 'API failures must not reload the app.');
   assert.equal(first.recoverFromStaleBundle('Failed to fetch dynamically imported module'), true);
@@ -349,5 +349,30 @@ async function testRecovery() {
   assert.equal(reloaded.recoverFromStaleBundle('vite:preloadError'), false, 'URL loop guard must survive reload without storage.');
   assert.equal(redirects.length, 1);
 }
+
+// Exercise the shipped bootstrap against the shipped stylesheet release number.
+const builtShell = fs.readFileSync(path.join(root, 'dist/index.html'), 'utf8');
+const builtStyles = fs.readFileSync(path.join(root, 'dist/full-circle-release.css'), 'utf8');
+const shellRelease = builtShell.match(/name="full-circle-release" content="(\d+)"/)[1];
+const styleRelease = builtStyles.match(/--full-circle-release-style:"(\d+)"/)[1];
+const bootstrap = [...builtShell.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+  .map(match => match[1]).find(script => script.includes('window.__fullCircleBootRelease ='));
+const documentElement = { dataset: {} };
+const boot = {
+  location: { href: scope },
+  addEventListener() {},
+  clearTimeout() {},
+  dispatchEvent() {},
+  requestAnimationFrame(callback) { callback(); },
+  getComputedStyle() { return { getPropertyValue: () => styleRelease }; },
+};
+vm.runInNewContext(bootstrap, {
+  window: boot, navigator: {}, URL,
+  document: { documentElement, querySelector: () => ({ content: shellRelease }) },
+  CustomEvent: class {},
+});
+boot.__markFullCircleStylesReady();
+assert.equal(boot.__fullCircleBootRelease, shellRelease);
+assert.equal(boot.__fullCircleStylesReady, true, 'The built stylesheet must unlock the built app shell.');
 
 run().catch((error) => { console.error(error); process.exitCode = 1; });

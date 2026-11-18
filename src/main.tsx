@@ -15,7 +15,7 @@ type FullCircleBootWindow = Window & {
   __showFullCircleRecovery?: () => void;
 };
 
-const RELEASE_STYLE_MARKER = '270';
+const release = document.querySelector<HTMLMetaElement>('meta[name="full-circle-release"]')?.content;
 const bootWindow = window as FullCircleBootWindow;
 const appRoot = document.getElementById('root')!;
 let appMounted = false;
@@ -42,7 +42,7 @@ function releaseStylesAreReady() {
     .getPropertyValue('--full-circle-release-style')
     .replace(/["']/g, '')
     .trim();
-  return bootWindow.__fullCircleStylesReady === true && marker === RELEASE_STYLE_MARKER;
+  return bootWindow.__fullCircleStylesReady === true && Boolean(release) && marker === release;
 }
 
 function mountFullCircle() {
