@@ -48,6 +48,7 @@ import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
 import { CadetStreak } from '../cadet/CadetStreak';
+import { BibleReader } from '../cadet/BibleReader';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
@@ -70,9 +71,9 @@ const SENTRY_LEADERSHIP_SCRIPTURES = [
   { text: 'Do not fear, for I am with you; do not be dismayed, for I am your God.', reference: 'Isaiah 41:10' },
 ];
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'bible' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
-const SENTRY_TABS: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'games', 'game', 'arena', 'story', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+const SENTRY_TABS: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'bible', 'games', 'game', 'arena', 'story', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
 const PREMIUM_TABS = new Set<Tab>(['arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
 
 type StrictStreakData = {
@@ -88,6 +89,7 @@ const NAV_ITEMS = [
   { key: 'cadets', label: 'My Cadets', icon: CadetIcon },
   { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
+  { key: 'bible', label: "Bible", icon: CadetIcon },
   { key: 'games', label: 'Daily Games', icon: GamepadIcon },
   { key: 'streak', label: 'My Streak', icon: Shield },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
@@ -530,6 +532,7 @@ export function SentryApp() {
     cadets: 'My Cadets',
     challenges: 'Challenge Review',
     reading: "Today's Reading",
+    bible: 'Bible',
     games: 'Daily Games',
     game: 'Daily Trivia',
     arena: 'Arena',
@@ -652,7 +655,8 @@ export function SentryApp() {
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'cadets' && <SentryCadets onChanged={load} cadetLimit={Math.max(tent.max_cadets ?? 10, 10)} members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
-      {tab === 'reading' && <CadetNarrative onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
+      {tab === 'bible' && <BibleReader />}
+      {tab === 'reading' && <CadetNarrative onOpenBible={() => handleNavigate('bible')} onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
       {tab === 'games' && (
         <DailyGamesHub
           onProgress={load}
@@ -726,6 +730,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
         </button>
+        <button onClick={() => onNavigate('bible')} className="btn-secondary"><CadetIcon size={16} /> Bible</button>
         <button onClick={() => onNavigate('games')} className="btn-secondary">
           <GamepadIcon size={18} /> Daily Games
         </button>

@@ -1901,23 +1901,29 @@ function emptyVerseInsightReactionState(): VerseInsightReactionState {
   };
 }
 
-export async function fetchVerseInsights(narrativeId: string | string[], reactorUserId?: string) {
+export type BibleChapterLocation = { book: string; chapter: number };
+
+export async function fetchVerseInsights(location: string | string[] | BibleChapterLocation, reactorUserId?: string) {
   void reactorUserId;
-  const narrativeIds = Array.from(new Set((Array.isArray(narrativeId) ? narrativeId : [narrativeId]).filter(Boolean)));
-  if (!narrativeIds.length) return [];
   let insightQuery = supabase
     .from('scripture_verse_insights')
-    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)');
-  insightQuery = narrativeIds.length === 1
-    ? insightQuery.eq('narrative_id', narrativeIds[0])
-    : insightQuery.in('narrative_id', narrativeIds);
+    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,is_question,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)');
+  if (typeof location === 'object' && !Array.isArray(location)) {
+    insightQuery = insightQuery.is('narrative_id', null).eq('bible_book', location.book).eq('bible_chapter', location.chapter);
+  } else {
+    const narrativeIds = Array.from(new Set((Array.isArray(location) ? location : [location]).filter(Boolean)));
+    if (!narrativeIds.length) return [];
+    insightQuery = narrativeIds.length === 1
+      ? insightQuery.eq('narrative_id', narrativeIds[0])
+      : insightQuery.in('narrative_id', narrativeIds);
+  }
   const { data, error } = await insightQuery.order('created_at', { ascending: false });
   if (error) {
     console.warn('Verse insights unavailable:', error.message);
     return [];
   }
   const insights = data || [];
-  if (!insights.length) return insights;
+  if (!insights.length) return [];
   const insightIds = insights.map((insight) => insight.id);
   const [commentResult, reactionResult] = await Promise.all([
     supabase
@@ -1991,7 +1997,7 @@ export async function fetchCampMentionCandidates() {
 
 export async function saveVerseInsight(
   narrativeId: string,
-  userId: string,
+  _userId: string,
   verseReference: string,
   body: string,
   mentionedUserIds: string[] = [],
@@ -2002,18 +2008,7 @@ export async function saveVerseInsight(
     p_body: body.trim(),
     p_mentioned_user_ids: mentionedUserIds,
   });
-  if (!rpcError) return;
-  const { error } = await supabase
-    .from('scripture_verse_insights')
-    .upsert({
-      narrative_id: narrativeId,
-      user_id: userId,
-      verse_reference: verseReference,
-      body: body.trim(),
-      mentioned_user_ids: mentionedUserIds,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'narrative_id,user_id,verse_reference' });
-  if (error) throw error;
+  if (rpcError) throw rpcError;
 }
 
 export async function editVerseInsight(insightId: string, body: string) {

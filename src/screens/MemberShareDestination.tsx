@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { signalActiveQuizExitIntent } from '../lib/quizIntegrity';
 import type { QuizSession, ScheduledAnnouncement } from '../lib/types';
 import type { ShareDestination } from '../lib/shareDestination';
+import { BibleReader } from './cadet/BibleReader';
 import { CadetNarrative } from './cadet/CadetNarrative';
 import { CadetQuiz } from './cadet/CadetQuiz';
 import { CadetGame } from './cadet/CadetGame';
@@ -66,6 +67,7 @@ export function MemberShareDestination({ target, onHome }: { target: ShareDestin
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [subscribe, setSubscribe] = useState(false);
+  const [openBible, setOpenBible] = useState(false);
   useEffect(() => {
     let active = true;
     if (!profile?.id) return;
@@ -79,15 +81,16 @@ export function MemberShareDestination({ target, onHome }: { target: ShareDestin
   const protectedTarget = target.kind === 'arena';
   const title = { reading: 'Bible reading', quiz: 'Quiz', game: 'Daily Trivia', arena: 'Arena', birthday: 'Birthday celebration' }[target.kind];
   const home = () => { signalActiveQuizExitIntent(); onHome(); };
-  return <AppShell headerTitle={title} activeKey={subscribe ? 'subscribe' : 'shared'}
-    navItems={[{ key: 'home', label: 'Home', icon: Home }, { key: 'shared', label: title, icon: Link }]}
-    onNavigate={(key) => { if (key === 'home') home(); else setSubscribe(false); }}>
+  return <AppShell headerTitle={openBible ? 'Bible' : title} activeKey={subscribe ? 'subscribe' : openBible ? 'bible' : 'shared'}
+    navItems={[{ key: 'home', label: 'Home', icon: Home }, { key: 'shared', label: title, icon: Link },
+      ...(target.kind === 'reading' ? [{ key: 'bible', label: 'Bible', icon: Link }] : [])]}
+    onNavigate={(key) => { if (key === 'home') home(); else { setOpenBible(key === 'bible'); setSubscribe(false); } }}>
     <SubscriptionAccessProvider isExpired={expired} hasPremiumAccess={role === "instructor" || subscriptionHasPremiumAccess(status, Date.now())} onSubscriptionRequired={() => setSubscribe(true)}>
       {subscribe ? <SubscriptionScreen subStatus={status} onActivated={(next) => { setStatus(next); setSubscribe(false); }} />
         : (protectedTarget || target.kind === "quiz") && loading ? <p role="status"><Loader2 className="animate-spin" />Opening {title}…</p>
         : (protectedTarget || target.kind === "quiz") && error ? <div role="alert">{error}<button className="btn-secondary" onClick={() => setRetry((n) => n + 1)}>Retry</button></div>
         : protectedTarget && expired ? <SubscriptionGate onSubscribe={() => setSubscribe(true)} />
-        : target.kind === 'reading' ? <CadetNarrative initialDate={target.date} />
+        : target.kind === 'reading' ? (openBible ? <BibleReader /> : <CadetNarrative initialDate={target.date} onOpenBible={() => setOpenBible(true)} />)
         : target.kind === 'quiz' ? <SharedQuiz id={target.id} />
         : target.kind === 'game' ? <CadetGame initialDate={target.date} onRewardEarned={() => {}} onBackToDailyGames={home} />
         : target.kind === 'arena' ? <CadetArena witnessOnly={role === 'instructor'} initialRoomId={target.id} onBackToDailyGames={home} />

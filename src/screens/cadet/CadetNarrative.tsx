@@ -1,3 +1,5 @@
+import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
+import { HelpCircle } from 'lucide-react';
 import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
 import { MeditationExtension } from '../../components/MeditationExtension';
 import { readableFetch } from "../../lib/connectionErrors";
@@ -300,15 +302,18 @@ function ReadingArchiveBrowser({
 export function CadetNarrative({
   onMeditationSaved,
   onOpenWeeklyQuiz,
+  onOpenBible,
   streakCount = 0,
   initialDate,
 }: {
   onMeditationSaved?: () => Promise<void> | void;
   onOpenWeeklyQuiz?: () => void;
+  onOpenBible?: () => void;
   streakCount?: number;
   initialDate?: string;
 }) {
   const { profile } = useAuth();
+  const [scriptureQuestion, setScriptureQuestion] = useState<ScriptureQuestionTarget | null>(null);
   const profileId = profile?.id;
   const { hasAccess, requireSubscription, hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
@@ -981,6 +986,10 @@ export function CadetNarrative({
     );
   }
 
+  const bibleLink = onOpenBible && <button type="button" className="btn-secondary w-full justify-center" onClick={onOpenBible}>
+    <BookOpen size={17} /> Open the Bible <ChevronRight size={16} />
+  </button>;
+
   if (!narrative) {
     const showQuizPrompt = activeDate === today && dayType === 'saturday' && Boolean(onOpenWeeklyQuiz);
     const EmptyStateIcon = showQuizPrompt ? FileQuestion : BookOpen;
@@ -1022,6 +1031,7 @@ export function CadetNarrative({
           onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
           onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
         />
+        {bibleLink}
       </div>
     );
   }
@@ -1221,7 +1231,11 @@ export function CadetNarrative({
                     )}
                     <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
+                        <p className="mr-auto text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
+                        <button type="button" className="btn-ghost px-2 py-1 text-[10px]" title="Ask a question" aria-label={`Ask a question about ${verse.reference}`}
+                          onClick={() => { if (sourceNarrativeId && requirePremiumAccess()) setScriptureQuestion({ reference: verse.reference, narrativeId: sourceNarrativeId }); }}>
+                          <HelpCircle size={15} />
+                        </button>
                         <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
                           if (!hasPremiumAccess) {
                             if (hiddenVerseMarker) openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
@@ -1286,7 +1300,7 @@ export function CadetNarrative({
                                   />
                                   <div className="min-w-0 flex-1">
                                     <p className="text-xs font-bold text-ink">
-                                      {authorName}{item.user_id === profile?.id ? ' · You' : ''}{' '}
+                                      {authorName}{item.is_question ? ' · Question' : ''}{item.user_id === profile?.id ? ' · You' : ''}{' '}
                                       <RelativeTime value={item.created_at} className="font-medium text-stone-dim" />
                                     </p>
                                     {editingInsightId === item.id ? (
@@ -1327,6 +1341,10 @@ export function CadetNarrative({
                                       </button>
                                     );
                                   })}
+                                  <button type="button" className="btn-ghost px-2 py-1 text-[10px]" aria-label="Ask a question" title="Ask a question"
+                                    onClick={() => { if (sourceNarrativeId && requirePremiumAccess()) setScriptureQuestion({ reference: verse.reference, narrativeId: sourceNarrativeId }); }}>
+                                    <HelpCircle size={15} />
+                                  </button>
                                 </div>
                                 {(() => {
                                   const actors = Array.from(new Map(
@@ -1733,6 +1751,13 @@ export function CadetNarrative({
           </div>
         </div>
       )}
+      {bibleLink}
+      {scriptureQuestion && <ScriptureQuestionComposer target={scriptureQuestion} close={() => setScriptureQuestion(null)}
+        onPosted={() => {
+          setOpenUserInsights(scriptureQuestion.reference);
+          setClosedSundayInsights(keys => keys.filter(key => key !== `${scriptureQuestion.narrativeId}:${scriptureQuestion.reference}`));
+          void reloadVerseInsights();
+        }} />}
     </div>
   );
 }

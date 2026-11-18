@@ -62,3 +62,17 @@ export async function fetchEditionVerses(
   }));
   return { translations, credit: [...credits].join(' · ') };
 }
+
+export async function fetchEditionChapter(edition: string, book: string, chapter: number, signal: AbortSignal) {
+  const response = await fetch(`https://api.midvash.com/v1/${encodeURIComponent(edition)}/${encodeURIComponent(book)}/${chapter}`, { signal });
+  if (!response.ok) throw new Error('This chapter could not load.');
+  const { data, meta } = await response.json();
+  if (data?.version !== edition || data.chapter !== chapter || !Number.isInteger(data.verse)
+      || !Array.isArray(data.verses) || !data.verses.length || data.verses.some((verse: unknown) => typeof verse !== 'string')) {
+    throw new Error('This edition did not return a complete chapter.');
+  }
+  return {
+    verses: (data.verses as string[]).map((text, index) => ({ number: Number(data.verse) + index, text })),
+    credit: typeof meta?.copyright === 'string' ? meta.copyright : '',
+  };
+}

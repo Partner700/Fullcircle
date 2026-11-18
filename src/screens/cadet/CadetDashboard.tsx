@@ -38,7 +38,7 @@ import {
   Quote, Megaphone, Tent as TentIcon, ShoppingBag, Award, Contact,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
+type Tab = 'dashboard' | 'narrative' | 'bible' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
 const fetchVerseCommentsForWelcome = (_quoteUserId: string, quoteRecordDate: string) => fetchDailyVerseComments(quoteRecordDate);
 
 export type DashboardHeroSlide =
@@ -441,6 +441,12 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
             )}
           </div>
         </div>
+
+        <button type="button" onClick={() => onNavigate('bible')} className="card card-hover flex min-h-32 flex-col items-start gap-2 p-4 text-left">
+          <BookOpen size={20} className="text-brass" />
+          <span className="font-display text-lg font-bold text-ink">Bible</span>
+          <span className="text-sm text-stone">Browse all books and chapters</span>
+        </button>
 
         <div data-artwork-theme={(panelImages.recent_denarii)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
           <PanelImageBackdrop image={panelImages.recent_denarii} />

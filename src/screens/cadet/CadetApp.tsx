@@ -12,6 +12,7 @@ import { DoveNotificationArrival } from '../../components/DoveNotificationArriva
 import { ResidentWelcomeQuiz } from '../../components/ResidentWelcomeQuiz';
 import { NewcomerGuide } from '../../components/NewcomerGuide';
 import { CadetDashboard } from './CadetDashboard';
+import { BibleReader } from './BibleReader';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
 import { DailyGamesHub } from './DailyGamesHub';
@@ -58,9 +59,9 @@ import {
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck, Contact, PhoneCall,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+type Tab = 'dashboard' | 'narrative' | 'bible' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
-const CADET_TABS: Tab[] = ['dashboard', 'narrative', 'streak', 'games', 'game', 'arena', 'story', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+const CADET_TABS: Tab[] = ['dashboard', 'narrative', 'bible', 'streak', 'games', 'game', 'arena', 'story', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
 const PREMIUM_TABS = new Set<Tab>(['arena', 'story', 'leaderboard', 'awards', 'store']);
 
 type CadetNotificationType = 'info' | 'warning' | 'success';
@@ -158,6 +159,7 @@ const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
   { key: 'profile', label: 'My Profile', icon: Contact },
   { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
+  { key: 'bible', label: 'Bible', icon: BookOpen },
   { key: 'streak', label: 'My Streak', icon: Flame },
   { key: 'games', label: 'Daily Games', icon: Gamepad2 },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
@@ -931,6 +933,7 @@ export function CadetApp() {
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Cadet Dashboard',
     narrative: 'Today\'s Reading',
+    bible: 'Bible',
     streak: 'My Streak',
     games: 'Daily Games',
     game: 'Daily Trivia',
@@ -1191,7 +1194,8 @@ export function CadetApp() {
       }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
+        {tab === 'bible' && <BibleReader />}
+        {tab === 'narrative' && <CadetNarrative onOpenBible={() => handleNavigate('bible')} onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'games' && (
           <DailyGamesHub
