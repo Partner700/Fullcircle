@@ -66,8 +66,11 @@ export function useDraggableShortcut(positionKey: string, onOpen: () => void): S
       const gesture = drag.current;
       if (gesture?.pointerId !== event.pointerId) return;
       drag.current = null;
-      if (!gesture.moved) return;
       suppressClick.current = true;
+      if (!gesture.moved) {
+        onOpen();
+        return;
+      }
       const next = keepInViewport({
         x: gesture.origin.x + event.clientX - gesture.start.x,
         y: gesture.origin.y + event.clientY - gesture.start.y,
@@ -88,7 +91,9 @@ export function useDraggableShortcut(positionKey: string, onOpen: () => void): S
       }
     },
     onClick(event) {
-      if (suppressClick.current && event.detail !== 0) {
+      // Pointer releases already handled the gesture. Keyboard and assistive
+      // technology can still activate the button with a click.
+      if (suppressClick.current && (event.detail !== 0 || event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType)) {
         suppressClick.current = false;
         return;
       }

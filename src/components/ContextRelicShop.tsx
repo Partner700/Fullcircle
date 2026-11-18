@@ -113,14 +113,14 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
   if (!floating && !slugs.length && !open) return null;
   const shop = (
     <div className={floating
-      ? 'pointer-events-none fixed bottom-36 right-3 z-[2147483590] w-[min(26rem,calc(100vw-1.5rem))] text-xs'
+      ? 'pointer-events-none fixed bottom-36 right-3 z-[2147483590] md:bottom-20 w-[min(26rem,calc(100vw-1.5rem))] text-xs'
       : 'my-2 w-full text-xs'}>
       {!floating && slugs.length > 0 && (
         <button type="button" aria-expanded={open} className="btn-secondary text-xs"
           onClick={() => setOpen(value => !value)}><ShoppingCart size={15} /> {label}</button>
       )}
       <div hidden={!open} className={floating
-        ? 'pointer-events-auto max-h-[50dvh] w-full space-y-2 overflow-y-auto rounded-lg border border-brass/60 bg-surface p-3 shadow-xl'
+        ? 'pointer-events-auto max-h-[min(60dvh,calc(100dvh-9.5rem))] w-full md:max-h-[min(60dvh,calc(100dvh-5.5rem))] space-y-2 overflow-y-auto rounded-lg border border-brass/60 bg-surface p-3 shadow-xl'
         : 'mt-2 space-y-2 rounded-lg border border-border bg-surface p-3'}>
         {floating && <div className="flex items-center justify-between gap-2">
           <h2 className="font-display text-sm font-bold text-ink">{label}</h2>
