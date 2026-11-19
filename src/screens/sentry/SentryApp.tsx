@@ -56,6 +56,7 @@ import { CadetArena } from '../cadet/CadetArena';
 import { CadetQuiz } from '../cadet/CadetQuiz';
 import { CadetAwards } from '../cadet/CadetAwards';
 import { DashboardHeroSlideshow, type DashboardHeroSlide } from '../cadet/CadetDashboard';
+import { useInterTentWelcomeSlide } from '../../components/InterTentWelcomeSlide';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
@@ -305,7 +306,7 @@ export function SentryApp() {
       getSubscriptionStatus(profile.id),
       fetchAnnouncements(['all', 'cadets', 'sentries']),
       fetchPanelImageSettings([
-        'welcome', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'welcome', 'arena', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
         'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
       ], ['all', 'cadets', 'sentries']),
     ]);
@@ -777,6 +778,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   onUploadTentPhoto: (file: File) => Promise<void>;
   uploadingTentPhoto: boolean;
 }) {
+  const championshipSlide=useInterTentWelcomeSlide(currentUserId||undefined,()=>onNavigate('arena'));
   const [showTentChat, setShowTentChat] = useState(false);
   const [tentUnreadCount, setTentUnreadCount] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -920,6 +922,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:panelImages.arena||null,veilClassName:'arena-panel-veil'}]:[]),
     ...(cadetQuizPodium.length ? [{ id: `quiz-podium-cadets-${cadetQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: cadetQuizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(sentryQuizPodium.length ? [{ id: `quiz-podium-sentries-${sentryQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: sentryQuizPodium.slice(0, 3), division: 'Sentries' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),

@@ -14,6 +14,7 @@ import { VallumText } from '../../components/ChiRhoMark';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
+import { useInterTentWelcomeSlide } from '../../components/InterTentWelcomeSlide';
 import { QuizResponders } from '../../components/QuizResponders';
 import { CurrentUserAvatarMarker } from '../../components/CurrentUserAvatarMarker';
 import { UserAvatar } from '../../components/UserAvatar';
@@ -77,6 +78,7 @@ interface Props {
 
 export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNavigate, refreshKey = 0, notificationBadges = {} }: Props) {
   const { profile } = useAuth();
+  const championshipSlide=useInterTentWelcomeSlide(profile?.id,()=>onNavigate('arena'));
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [records, setRecords] = useState<DailyRecord[]>([]);
   const [ledger, setLedger] = useState<DenariiLedgerEntry[]>([]);
@@ -131,7 +133,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           }
         }),
         fetchPanelImageSettings([
-          'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'welcome', 'arena', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release',
         ]).then(setPanelImages),
       ]);
@@ -226,6 +228,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   }));
   const standardHeroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:panelImages.arena||null,veilClassName:'arena-panel-veil'}]:[]),
     ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),

@@ -1,11 +1,13 @@
-import { CalendarClock, Eye, Play, Share2, Swords, Trophy } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { CalendarClock, Eye, Play, Share2, Swords, Trophy, Radio } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { UserAvatar } from './UserAvatar';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import type { PanelImageSetting } from '../lib/types';
-import { interTentLegLabel, interTentMatchLabel, type InterTentFixture } from '../lib/interTentChampionship';
+import { interTentCountdown, interTentLegLabel, interTentMatchLabel, type InterTentFixture } from '../lib/interTentChampionship';
 import { formatPlayerNumber } from '../lib/utils';
+import { arenaPlayerScore } from '../lib/arenaScorecard';
+import type { ArenaMatchupPlayer } from '../lib/arenaMatchup';
 
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Douala', weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(value));
 
@@ -18,18 +20,32 @@ function houseId(name: string) {
   return null;
 }
 
-export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, draft, onOpen, onShare, children }: {
+function FixtureCountdown({ plannedAt, draft, live, completed }: {plannedAt:string;draft:boolean;live:boolean;completed:boolean}) {
+  const [now,setNow]=useState(Date.now());
+  useEffect(()=>{if(live||completed)return;const tick=()=>setNow(Date.now());tick();const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[live,completed,plannedAt]);
+  if(completed)return null;
+  if(live)return <div className="flex items-center justify-center gap-1 text-xs font-bold text-coral"><Radio size={14} className="animate-pulse"/> LIVE · Scores updating</div>;
+  const countdown=interTentCountdown(plannedAt,now);
+  return <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-bold text-stone"><span>{countdown.remaining?'Starts in':draft?'Awaiting qualification':'Match time'}</span>{countdown.remaining>0&&<span className="font-display text-lg font-black tabular-nums text-gold">{countdown.text}</span>}</div>;
+}
+
+export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, draft, livePlayers, compact, onOpen, onShare, children }: {
   fixture: InterTentFixture;
   arenaImage?: PanelImageSetting | null;
   avatars: Record<string, string | null>;
   participant: boolean;
   draft: boolean;
+  livePlayers?: ArenaMatchupPlayer[];
+  compact?: boolean;
   onOpen: () => void;
   onShare?: () => void;
   children?: ReactNode;
 }) {
   const canOpen = Boolean(fixture.room_id && (fixture.room_status === 'waiting' || fixture.room_status === 'playing'));
   const status = fixture.result ? 'Completed' : draft ? 'Qualification pending' : fixture.room_status === 'playing' ? 'Live now' : fixture.room_status === 'waiting' ? 'Scheduled' : fixture.sides.length ? 'Awaiting scheduling' : 'Awaiting qualifiers';
+  const live=fixture.room_status==='playing'&&!fixture.result;
+  const scoreById=new Map((livePlayers||[]).map(p=>[p.user_id,arenaPlayerScore(p)]));
+  const highest=scoreById.size?Math.max(...scoreById.values()):0;
   const placeholders = fixture.stage === 'semi' ? ['Laurel #1', 'Spades #1', 'Square #1'] : ['Semifinal #1', 'Semifinal #2'];
   const matchLabel = fixture.sides.length ? fixture.sides.map(side=>side.players.map(p=>formatPlayerNumber(p.player_number)).join(' & ')).join(' vs ') : interTentMatchLabel(fixture);
   return <article data-artwork-theme={arenaImage?.url ? 'night' : undefined} className="card relative min-w-0 overflow-hidden p-3 sm:p-4" aria-label={`Match ${fixture.sequence}: ${matchLabel}`}>
@@ -40,6 +56,7 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
         <span className={`badge text-[10px] ${fixture.room_status === 'playing' ? 'text-coral' : fixture.result ? 'text-sage' : 'text-stone'}`}>{status}</span>
       </header>
       <div className="flex flex-wrap items-center justify-center gap-1.5 text-center text-xs font-semibold text-ink"><CalendarClock size={15} className="text-gold" /><time dateTime={fixture.planned_at}>{dateLabel(fixture.planned_at)}</time><span className="text-[10px] text-stone">Cameroon time</span></div>
+      <FixtureCountdown plannedAt={fixture.planned_at} draft={draft} live={live} completed={Boolean(fixture.result)||['expired','cancelled','completed'].includes(fixture.room_status||'')}/>
       <div className="flex min-w-0 items-stretch justify-center gap-1 sm:gap-3">
         {fixture.sides.length ? fixture.sides.map((side, index) => {
           const symbol = houseId(side.tent_name);
@@ -48,7 +65,7 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
             {index > 0 && <span className="flex shrink-0 items-center self-center text-gold" aria-label="versus"><Swords size={16} /></span>}
             <div className="flex min-w-0 flex-1 flex-col items-center gap-2 rounded-lg border border-border bg-surface/55 p-2 text-center">
               <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">{symbol && <TentHouseSymbol houseId={symbol} size={23}/>}<span className="break-words text-[10px] font-bold text-stone">{side.tent_name}</span></div>
-              <div className="flex flex-wrap justify-center gap-1.5">{side.players.map(player => <div key={player.id} className="flex min-w-0 flex-col items-center gap-1" title={player.name}><UserAvatar userId={player.id} name={player.name} avatarUrl={avatars[player.id]} className="h-10 w-10 shrink-0 border border-gold/35 sm:h-12 sm:w-12" /><span className="font-display text-sm font-bold tabular-nums text-ink">{formatPlayerNumber(player.player_number)}</span></div>)}</div>
+              <div className="flex flex-wrap justify-center gap-1.5">{side.players.map(player => <div key={player.id} className="flex min-w-0 flex-col items-center gap-1" title={player.name}><UserAvatar userId={player.id} name={player.name} avatarUrl={avatars[player.id]} className={`${compact?'h-8 w-8':'h-10 w-10 sm:h-12 sm:w-12'} shrink-0 border border-gold/35`} /><span className="font-display text-sm font-bold tabular-nums text-ink">{formatPlayerNumber(player.player_number)}</span>{live&&<span className={`font-display text-lg font-black tabular-nums ${scoreById.has(player.id)&&scoreById.get(player.id)===highest&&highest>0?'text-gold':'text-ink'}`} aria-label={`Live score ${scoreById.has(player.id)?scoreById.get(player.id):'loading'}`}>{scoreById.get(player.id)??'—'}</span>}</div>)}</div>
               {result && <p className="font-display text-base font-bold text-gold tabular-nums">{result.points} pts</p>}
             </div>
           </div>;

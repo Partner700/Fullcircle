@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CalendarClock, Trophy, RotateCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchArenaInvitees } from '../lib/queries';
@@ -6,13 +6,14 @@ import { DAVID_GROUPS, type InterTentChampionship, type InterTentGroup } from '.
 import type { PanelImageSetting } from '../lib/types';
 import { InterTentMatchCard } from './InterTentMatchCard';
 import { AppSelect } from './AppSelect';
+import { useInterTentChampionships } from '../hooks/useInterTentChampionships';
 
 const groupKeys: InterTentGroup[] = ['A','B','C','D'];
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {timeZone:'Africa/Douala',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(value));
 type Candidate = { id: string; name: string };
 
 export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, witnessOnly, onScheduled, onOpenRoom, onShareRoom }: { instructor: boolean; viewerId: string; arenaImage?: PanelImageSetting | null; witnessOnly?: boolean; onScheduled: () => void | Promise<void>; onOpenRoom: (id:string,participant:boolean,status:'waiting'|'playing') => Promise<void>; onShareRoom?: (id:string) => void | Promise<void> }) {
-  const [events,setEvents] = useState<InterTentChampionship[]>([]);
+  const {events,refresh,available:enabled,failed,scores}=useInterTentChampionships(viewerId);
   const [players,setPlayers] = useState<Candidate[]>([]);
   const [avatars,setAvatars] = useState<Record<string,string|null>>({});
   const [groups,setGroups] = useState<Record<string,string[]>>({});
@@ -20,18 +21,8 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
   const [editing,setEditing] = useState<string|null>(null);
   const [rescheduleTimes,setRescheduleTimes] = useState<Record<string,string>>({});
   const [busy,setBusy] = useState(false);
-  const [enabled,setEnabled] = useState(false);
   const [message,setMessage] = useState('');
-  const refresh = useCallback(async () => {
-    const {data,error} = await supabase.rpc('get_intertent_championships');
-    if (error) {
-      // Existing clients and databases remain usable before this optional feature is installed.
-      if (instructor) setMessage('The Inter-Tent Championship service is not available yet.');
-      return;
-    }
-    setEnabled(true); setEvents(Array.isArray(data) ? data as InterTentChampionship[] : []);
-  },[instructor]);
-  useEffect(() => { void refresh(); },[refresh]);
+  useEffect(()=>{if(failed&&instructor&&!enabled)setMessage('The Inter-Tent Championship service is not available yet.');},[failed,instructor,enabled]);
   const fixturePlayerIds = [...new Set(events.flatMap(e=>e.fixtures.flatMap(f=>f.sides.flatMap(s=>s.players.map(p=>p.id)))))].sort().join(',');
   useEffect(() => {
     if (!fixturePlayerIds) return;
@@ -74,7 +65,7 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
   };
   const editDraft = (event:InterTentChampionship) => {
     setGroups(Object.fromEntries(groupKeys.map(g=>[g,event.fixtures.find(f=>f.group_key===g&&f.leg===1)?.sides.flatMap(side=>side.players.map(p=>p.id))||[]])));
-    const first=event.fixtures.find(f=>f.sequence===1);
+    const first=event.fixtures.find(f=>f.sequence===2);
     if(first) setFirstTuesday(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Douala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(first.planned_at)));
     setEditing(event.id);
   };
@@ -113,7 +104,7 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
         <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={()=>editDraft(event)}>Edit draft players and dates</button>
       </div>}
       <div className="space-y-3">
-        {event.fixtures.map(f=>{const participant=!witnessOnly&&f.sides.some(s=>s.players.some(p=>p.id===viewerId));return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage} participant={participant} draft={event.status==='draft'} onOpen={()=>void onOpenRoom(f.room_id!,participant,f.room_status as 'waiting'|'playing')} onShare={onShareRoom&&f.room_id?()=>void onShareRoom(f.room_id!):undefined}>
+        {event.fixtures.map(f=>{const participant=!witnessOnly&&f.sides.some(s=>s.players.some(p=>p.id===viewerId));return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage} participant={participant} draft={event.status==='draft'} livePlayers={f.room_id?scores.get(f.room_id):undefined} onOpen={()=>void onOpenRoom(f.room_id!,participant,f.room_status as 'waiting'|'playing')} onShare={onShareRoom&&f.room_id?()=>void onShareRoom(f.room_id!):undefined}>
           {event.can_manage && ['scheduled','playing'].includes(event.status) && !f.result && f.sides.length>0 && !['playing'].includes(f.room_status || '') && <div className="flex flex-wrap gap-2 items-end w-full text-xs">
             <label className="text-stone flex-1 min-w-0">New time (Cameroon)<input type="datetime-local" className="input-field mt-1" value={rescheduleTimes[f.id]||''} onChange={e=>setRescheduleTimes(prev=>({...prev,[f.id]:e.target.value}))}/></label>
             <button type="button" className="btn-secondary text-xs" disabled={busy||!rescheduleTimes[f.id]} onClick={()=>void reschedule(f.id)}>Reschedule</button>

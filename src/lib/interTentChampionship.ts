@@ -27,8 +27,24 @@ export function davidFixturePlan() {
   return days.flatMap((date, day) => {
     const groups: InterTentGroup[] = day % 2 === 0 ? ['A', 'B'] : ['C', 'D'];
     return groups.map((group, slot) => ({ group, leg: Math.floor(day / 2) + 1,
-      startsAt: `${date}T18:${slot ? '30' : '00'}:00+01:00` }));
+      startsAt: day===0&&slot===0?'2026-11-22T19:00:00+01:00':`${date}T18:${slot ? '30' : '00'}:00+01:00` }));
   });
+}
+
+export function currentInterTentFixture(events: InterTentChampionship[], now = Date.now()) {
+  const fixtures=events.filter(e=>e.status!=='completed').flatMap(event=>event.fixtures.map(fixture=>({event,fixture}))).filter(({fixture})=>!fixture.result&&!['cancelled','expired','completed'].includes(fixture.room_status||''));
+  fixtures.sort((a,b)=>Date.parse(a.fixture.planned_at)-Date.parse(b.fixture.planned_at));
+  return fixtures.find(({fixture})=>fixture.room_status==='playing')
+    || fixtures.find(({fixture})=>fixture.room_status==='waiting'&&Date.parse(fixture.planned_at)<=now)
+    || fixtures.find(({fixture})=>Date.parse(fixture.planned_at)>=now)
+    || fixtures[0] || null;
+}
+
+export function interTentCountdown(plannedAt: string, now: number) {
+  const remaining=Math.max(0,Math.ceil((Date.parse(plannedAt)-now)/1000));
+  const days=Math.floor(remaining/86400),hours=Math.floor(remaining%86400/3600),minutes=Math.floor(remaining%3600/60),seconds=remaining%60;
+  const clock=[hours,minutes,seconds].map(n=>String(n).padStart(2,'0')).join(':');
+  return {remaining,text:days?`${days}d ${clock}`:clock};
 }
 
 export function interTentMatchLabel(fixture: Pick<InterTentFixture, 'sides' | 'stage'>): string {
