@@ -18,3 +18,15 @@ export const BIBLE_BOOKS = [
   chapters: chapters as number,
   slug: String(name).toLowerCase().replace(/ /g, '-'),
 }));
+
+export function canonicalBibleVerseReference(reference: string): string | null {
+  const match = reference.trim().match(/^(.+?)\s+(\d+)\s*:\s*(\d+)$/);
+  if (!match) return null;
+  const name = match[1].toLowerCase().replace(/\s+/g, ' ').replace(/^([1-3])(?=\S)/, '$1 ');
+  const bookName = name === 'psalm' ? 'psalms' : name === 'song of songs' ? 'song of solomon' : name;
+  const book = BIBLE_BOOKS.find((entry) => entry.name.toLowerCase() === bookName);
+  const chapter = Number(match[2]);
+  const verse = Number(match[3]);
+  if (!book || chapter < 1 || chapter > book.chapters || verse < 1) return null;
+  return `${book.name} ${chapter}:${verse}`;
+}

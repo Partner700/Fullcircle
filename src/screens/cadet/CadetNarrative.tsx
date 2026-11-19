@@ -1,3 +1,4 @@
+import { canonicalBibleVerseReference } from '../../lib/bibleBooks';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
 import { HelpCircle } from 'lucide-react';
 import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
@@ -443,15 +444,21 @@ export function CadetNarrative({
     return narrative?.id ? [narrative.id] : [];
   }, [narrative]);
 
+  const bibleVerseReferences = useMemo(() => {
+    const verses = readerVerses.length ? readerVerses : narrative?.highlighted_verses || [];
+    return Array.from(new Set(verses.map(({ reference }) => canonicalBibleVerseReference(reference))
+      .filter((reference): reference is string => reference !== null)));
+  }, [readerVerses, narrative]);
+
   const reloadVerseInsights = useCallback(async () => {
     if (!hasPremiumAccess || !conversationNarrativeIds.length) {
       setVerseInsights([]);
       return [];
     }
-    const items = await fetchVerseInsights(conversationNarrativeIds, profile?.id);
+    const items = await fetchVerseInsights(conversationNarrativeIds, profile?.id, bibleVerseReferences);
     setVerseInsights(items);
     return items;
-  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess]);
+  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess, bibleVerseReferences]);
 
   const reloadHiddenVerseMarkers = useCallback(async () => {
     if (!profile?.id || !conversationNarrativeIds.length) {
@@ -707,13 +714,13 @@ export function CadetNarrative({
   useEffect(() => {
     if (!hasPremiumAccess || !conversationNarrativeIds.length) { setVerseInsights([]); return; }
     let cancelled = false;
-    fetchVerseInsights(conversationNarrativeIds, profile?.id).then((items) => {
+    fetchVerseInsights(conversationNarrativeIds, profile?.id, bibleVerseReferences).then((items) => {
       if (!cancelled) {
         setVerseInsights(items);
       }
     });
     return () => { cancelled = true; };
-  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess]);
+  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess, bibleVerseReferences]);
 
   useEffect(() => {
     if (!profile?.id || !conversationNarrativeIds.length) {
@@ -756,6 +763,11 @@ export function CadetNarrative({
     conversationNarrativeIds.forEach((narrativeId) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `narrative_id=eq.${narrativeId}` }, refreshInsights);
     });
+    const bibleBooks = new Set(bibleVerseReferences.map((reference) =>
+      reference.slice(0, reference.lastIndexOf(' ')).toLowerCase().replace(/ /g, '-')));
+    bibleBooks.forEach((book) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `bible_book=eq.${book}` }, refreshInsights);
+    });
     subscribeToScopedChanges(channel, 'scripture_insight_comments', 'insight_id', visibleInsightIds.split(','), refreshInsights);
     subscribeToScopedChanges(channel, 'scripture_insight_reactions', 'insight_id', visibleInsightIds.split(','), refreshInsights);
     channel.subscribe();
@@ -766,7 +778,7 @@ export function CadetNarrative({
       document.removeEventListener('visibilitychange', refreshInsights);
       void supabase.removeChannel(channel);
     };
-  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds, hasPremiumAccess]);
+  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds, hasPremiumAccess, bibleVerseReferences]);
 
   useEffect(() => {
     const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
@@ -1181,8 +1193,11 @@ export function CadetNarrative({
             <div className="space-y-4 sm:space-y-5">
               {panelVerses.length ? panelVerses.map(({ verse, index }) => {
                 const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
-                const userInsights = (hasPremiumAccess ? verseInsights : []).filter((item: any) => (
-                  item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
+                const bibleReference = canonicalBibleVerseReference(verse.reference);
+                const userInsights = (hasPremiumAccess ? verseInsights : []).filter((item) => (
+                  item.narrative_id === null
+                    ? !item.is_question && item.verse_reference === bibleReference
+                    : item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
                 ));
                 const hasInsight = Boolean(verse.meditation?.trim());
                 const hasReaderInsight = userInsights.length > 0;

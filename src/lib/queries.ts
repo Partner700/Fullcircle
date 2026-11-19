@@ -1903,11 +1903,12 @@ function emptyVerseInsightReactionState(): VerseInsightReactionState {
 
 export type BibleChapterLocation = { book: string; chapter: number };
 
-export async function fetchVerseInsights(location: string | string[] | BibleChapterLocation, reactorUserId?: string) {
+export async function fetchVerseInsights(location: string | string[] | BibleChapterLocation, reactorUserId?: string, bibleVerseReferences: string[] = []) {
   void reactorUserId;
-  let insightQuery = supabase
+  const selectInsights = () => supabase
     .from('scripture_verse_insights')
     .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,is_question,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)');
+  let insightQuery = selectInsights();
   if (typeof location === 'object' && !Array.isArray(location)) {
     insightQuery = insightQuery.is('narrative_id', null).eq('bible_book', location.book).eq('bible_chapter', location.chapter);
   } else {
@@ -1917,12 +1918,17 @@ export async function fetchVerseInsights(location: string | string[] | BibleChap
       ? insightQuery.eq('narrative_id', narrativeIds[0])
       : insightQuery.in('narrative_id', narrativeIds);
   }
-  const { data, error } = await insightQuery.order('created_at', { ascending: false });
-  if (error) {
-    console.warn('Verse insights unavailable:', error.message);
-    return [];
-  }
-  const insights = data || [];
+  const [readingResult, bibleResult] = await Promise.all([
+    insightQuery.order('created_at', { ascending: false }),
+    bibleVerseReferences.length
+      ? selectInsights().is('narrative_id', null).eq('is_question', false)
+        .in('verse_reference', bibleVerseReferences).order('created_at', { ascending: false })
+      : null,
+  ]);
+  if (readingResult.error) console.warn('Verse insights unavailable:', readingResult.error.message);
+  if (bibleResult?.error) console.warn('Bible insights unavailable:', bibleResult.error.message);
+  const insights = [...(readingResult.data || []), ...(bibleResult?.data || [])]
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
   if (!insights.length) return [];
   const insightIds = insights.map((insight) => insight.id);
   const [commentResult, reactionResult] = await Promise.all([
