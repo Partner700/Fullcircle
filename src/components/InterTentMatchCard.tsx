@@ -5,6 +5,7 @@ import { UserAvatar } from './UserAvatar';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import type { PanelImageSetting } from '../lib/types';
 import { interTentLegLabel, interTentMatchLabel, type InterTentFixture } from '../lib/interTentChampionship';
+import { formatPlayerNumber } from '../lib/utils';
 
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Douala', weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(value));
 
@@ -30,7 +31,8 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
   const canOpen = Boolean(fixture.room_id && (fixture.room_status === 'waiting' || fixture.room_status === 'playing'));
   const status = fixture.result ? 'Completed' : draft ? 'Qualification pending' : fixture.room_status === 'playing' ? 'Live now' : fixture.room_status === 'waiting' ? 'Scheduled' : fixture.sides.length ? 'Awaiting scheduling' : 'Awaiting qualifiers';
   const placeholders = fixture.stage === 'semi' ? ['Laurel #1', 'Spades #1', 'Square #1'] : ['Semifinal #1', 'Semifinal #2'];
-  return <article data-artwork-theme={arenaImage?.url ? 'night' : undefined} className="card relative min-w-0 overflow-hidden p-3 sm:p-4" aria-label={`Match ${fixture.sequence}: ${interTentMatchLabel(fixture)}`}>
+  const matchLabel = fixture.sides.length ? fixture.sides.map(side=>side.players.map(p=>formatPlayerNumber(p.player_number)).join(' & ')).join(' vs ') : interTentMatchLabel(fixture);
+  return <article data-artwork-theme={arenaImage?.url ? 'night' : undefined} className="card relative min-w-0 overflow-hidden p-3 sm:p-4" aria-label={`Match ${fixture.sequence}: ${matchLabel}`}>
     <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="arena-panel-veil" />
     <div className="relative z-10 space-y-3">
       <header className="flex flex-wrap items-start justify-between gap-2">
@@ -46,8 +48,7 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
             {index > 0 && <span className="flex shrink-0 items-center self-center text-gold" aria-label="versus"><Swords size={16} /></span>}
             <div className="flex min-w-0 flex-1 flex-col items-center gap-2 rounded-lg border border-border bg-surface/55 p-2 text-center">
               <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">{symbol && <TentHouseSymbol houseId={symbol} size={23}/>}<span className="break-words text-[10px] font-bold text-stone">{side.tent_name}</span></div>
-              <div className="flex flex-wrap justify-center gap-1.5">{side.players.map(player => <UserAvatar key={player.id} userId={player.id} name={player.name} avatarUrl={avatars[player.id]} className="h-10 w-10 shrink-0 border border-gold/35 sm:h-12 sm:w-12" />)}</div>
-              <p className="w-full break-words text-xs font-bold leading-snug text-ink">{side.players.map(p => p.name).join(' & ')}</p>
+              <div className="flex flex-wrap justify-center gap-1.5">{side.players.map(player => <div key={player.id} className="flex min-w-0 flex-col items-center gap-1" title={player.name}><UserAvatar userId={player.id} name={player.name} avatarUrl={avatars[player.id]} className="h-10 w-10 shrink-0 border border-gold/35 sm:h-12 sm:w-12" /><span className="font-display text-sm font-bold tabular-nums text-ink">{formatPlayerNumber(player.player_number)}</span></div>)}</div>
               {result && <p className="font-display text-base font-bold text-gold tabular-nums">{result.points} pts</p>}
             </div>
           </div>;

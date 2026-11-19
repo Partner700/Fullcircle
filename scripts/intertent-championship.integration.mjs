@@ -29,6 +29,8 @@ insert into public.profiles values ('${a}','Esther',700,1,false),('${b}','Chwi',
 insert into public.tent_members(user_id,tent_id,role) values ('${a}','${laurel}','cadet'),('${b}','${laurel}','cadet'),('${c}','${spades}','cadet'),('${d}','${square}','cadet'),('${e}','${spades}','cadet'),('${f}','${spades}','cadet'),('${g}','${square}','cadet');
 insert into public.arena_rooms(status,winner_id) select 'completed',id from public.profiles cross join generate_series(1,3) where id not in ('${e}','${inst}','${other}');`);
 await db.exec(readFileSync(new URL('./install-intertent-championship.sql',import.meta.url),'utf8'));
+await db.exec(`alter table public.profiles add column player_number integer; update public.profiles set player_number=cast(right(id::text,3) as integer);`);
+await db.exec(readFileSync(new URL('./intertent-fixture-player-numbers.sql',import.meta.url),'utf8'));
 const query=async(sql,params=[])=> (await db.query(sql,params)).rows;
 const actor=async(u)=>{await query("select set_config('test.uid',$1,false)",[u]);};
 const groups={A:[a,b,c,d],B:[b,e,f,g],C:[a,c,d,g],D:[b,c,e,d]};
@@ -42,6 +44,7 @@ let [{events}]=await query('select public.get_intertent_championships() events')
 assert.equal(events[0].fixtures.length,19);assert.equal(events[0].eligibility.find(p=>p.user_id===e).qualified,false);
 assert.equal(events[0].fixtures.filter(x=>x.stage==='group').length,16);
 assert.equal(events[0].fixtures[0].sides.length,3);
+assert.deepEqual(events[0].fixtures[0].sides.flatMap(s=>s.players.map(p=>p.player_number)),[1,2,3,4]);
 assert.equal((await query('select public.create_intertent_david_championship($1::jsonb,$2::date,$3) id',[JSON.stringify(groups),date,champ]))[0].id,champ);
 await assert.rejects(query('select public.activate_intertent_championship($1)',[champ]),/500 Figs and 3 Rhudes/);
 await actor(other);
@@ -49,6 +52,12 @@ assert.deepEqual((await query('select public.get_intertent_championships() event
 await assert.rejects(query('select public.activate_intertent_championship($1)',[champ]));
 await actor(a);
 assert.deepEqual((await query('select public.get_intertent_championships() events'))[0].events[0].eligibility,[]);
+assert.deepEqual((await query('select public.get_intertent_championships() events'))[0].events[0].fixtures[0].sides.flatMap(s=>s.players.map(p=>p.player_number)),[1,2,3,4]);
+assert.equal((await query("select has_function_privilege('anon','public.get_intertent_championships()','execute') access"))[0].access,false);
+await query('update public.profiles set player_number=null where id=$1',[a]);
+assert.equal((await query('select public.get_intertent_championships() events'))[0].events[0].fixtures[0].sides[0].players[0].player_number,null);
+await query('update public.profiles set player_number=77 where id=$1',[a]);
+assert.equal((await query('select public.get_intertent_championships() events'))[0].events[0].fixtures[0].sides[0].players[0].player_number,77);
 await db.exec('set role authenticated');
 await assert.rejects(query('select * from private.intertent_fixtures'),/permission denied/);
 await assert.rejects(query('select public.get_intertent_match_sides($1)',[id(999)]),/permission denied/);

@@ -1,5 +1,5 @@
 export type InterTentGroup = 'A' | 'B' | 'C' | 'D';
-export type InterTentSide = { tent_id: string; tent_name: string; players: Array<{ id: string; name: string }> };
+export type InterTentSide = { tent_id: string; tent_name: string; players: Array<{ id: string; name: string; player_number?: number | null }> };
 export type InterTentFixture = {
   id: string; sequence: number; stage: 'group' | 'semi' | 'final'; group_key: InterTentGroup | null;
   leg: number; planned_at: string; room_id: string | null; room_status: string | null;
