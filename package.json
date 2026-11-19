@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:bandwidth": "node scripts/bandwidth-savings.test.cjs && node --experimental-strip-types scripts/tent-record-refresh.test.ts",
     "test:arena-matchup": "node --experimental-strip-types scripts/arena-matchup.test.ts",
+    "test:intertent": "node --experimental-strip-types scripts/intertent-championship.test.ts && node scripts/intertent-championship.integration.mjs",
     "test:arena-relics": "node --experimental-strip-types scripts/arena-turn-relics.test.ts",
     "test:journey": "node --experimental-strip-types scripts/biblical-journey.test.ts && node --experimental-strip-types scripts/biblical-journey-runtime.test.ts && node --experimental-strip-types scripts/journey-question-import.test.ts && node --experimental-strip-types scripts/elisha-legacy.test.ts && node --experimental-strip-types scripts/arena-standard-rollout.test.ts && node scripts/arena-journey-machine.test.cjs && node scripts/arena-journey-bank.test.cjs && node scripts/journey-automatic-bank.test.cjs && node scripts/elisha-reviewed-rollout.test.cjs && node scripts/instructor-journey-navigation.test.cjs && python3 scripts/test_biblical_journey_import.py && node scripts/journey-catalog.test.cjs",
     "test:fcx": "node scripts/fcx-ticket.test.cjs",

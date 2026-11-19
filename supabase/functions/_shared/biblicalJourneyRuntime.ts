@@ -134,7 +134,7 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
 
 export async function createJourneyRuntime(characterSlug: string, playerIds: string[],
   questions: Array<Pick<JourneyQuestion, 'id' | 'stage'>>, lookup: JourneyQuestionLookup,
-  random: () => number): Promise<JourneyRuntime> {
+  random: () => number, tentSides?: Record<string, string>): Promise<JourneyRuntime> {
   const questionIdsByStage: Record<number, string[]> = {};
   for (const question of questions) {
     if (question.stage < 1 || question.stage > 5) continue;
@@ -150,7 +150,7 @@ export async function createJourneyRuntime(characterSlug: string, playerIds: str
     throw new Error('This character needs at least 200 active questions before a match can start.');
   }
   const runtime: JourneyRuntime = {
-    characterSlug, game: createJourneyGame(playerIds), questionIdsByStage,
+    characterSlug, game: createJourneyGame(playerIds, tentSides), questionIdsByStage,
     usedQuestionIds: [], currentQuestion: null, currentQuestionPlayerId: null,
     questionDeadline: null, lastVerdict: null,
   };

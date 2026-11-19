@@ -371,6 +371,13 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     </div>
     {error && <p className="rounded-md border border-coral/40 bg-coral-soft p-3 text-xs text-coral" role="alert">{error}</p>}
     <div className="space-y-3">
+      {state.game.tentSides && <div className="rounded-md border border-border p-3 text-xs text-stone">
+        <p className="eyebrow text-brass">Inter-Tent Championship · Competing sides</p>
+        <p className="mt-1 font-semibold text-ink">{Array.from(new Set(Object.values(state.game.tentSides))).map(side =>
+          state.game.players.filter(player => state.game.tentSides?.[player.id] === side)
+            .map(player => profiles[player.id]?.name || 'Player').join(' & ')).join(' vs ')}</p>
+        <p className="mt-1">Your tent teammates share tournament points. Competitive swaps and transferred penalties exclude teammates.</p>
+      </div>}
       <GamePoints game="journey" players={roster} />
       <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}

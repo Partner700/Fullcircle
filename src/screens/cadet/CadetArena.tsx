@@ -17,6 +17,7 @@ import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaRecentResult } from '../../components/ArenaRecentResult';
 import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
+import { InterTentChampionshipPanel } from '../../components/InterTentChampionshipPanel';
 import { InstructorJourneyReview } from '../../components/InstructorJourneyReview';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
@@ -909,7 +910,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     const isCreator = room?.creator_id === profile?.id;
     const machineMatch = room?.play_mode === 'machine';
     const scheduleReady = !room?.scheduled_start_at || Date.now() >= Date.parse(room.scheduled_start_at);
-    const canStart = scheduleReady && (machineMatch || participants.length >= 2);
+    const interTentMatch = /\[intertent\]/i.test(room?.room_name || '');
+    const canStart = scheduleReady && (machineMatch || participants.filter((p:any)=>!p.forfeited_at).length >= (interTentMatch ? Number(room?.max_players || 4) : 2));
     const availableInvitees = allInvitees.filter((player) => !participants.some((p: any) => p.user_id === player.user_id));
 
     return (
@@ -1071,6 +1073,16 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
 
 
       {sentrySchedule && <SentryArenaScheduler key={sentrySchedule.tentId} {...sentrySchedule} onScheduled={refreshRooms} />}
+
+      {profile && <InterTentChampionshipPanel instructor={instructorSchedule} viewerId={profile.id} onScheduled={refreshRooms} onOpenRoom={async(id,participant,status)=>{
+        if(!participant || witnessOnly){await watchRoom(id,status);return;}
+        try {
+          const fresh=await refreshRoom(id);
+          if(fresh?.arena_participants?.some((p:any)=>p.user_id===profile.id&&!p.forfeited_at)){activateRoom(id,status);return;}
+          if(status==='playing'){await watchRoom(id,status);return;}
+          await joinInstructorArenaMatch(id);activateRoom(id,'waiting');await refreshRoom(id);
+        } catch(e){setError(e instanceof Error?e.message:'The tournament match could not be opened.');}
+      }} />}
 
       {instructorSchedule && <>
         <InstructorArenaScheduler onScheduled={refreshRooms} />

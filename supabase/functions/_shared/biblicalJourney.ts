@@ -74,6 +74,8 @@ export type JourneyPendingAction = {
 } | null;
 
 export type JourneyGame = {
+  /** Server-assigned tent sides only for inter-tent events. */
+  tentSides?: Record<string, string>;
   boardSpaces?: 45 | 51;
   winningLaps?: number;
   players: JourneyPlayer[];
@@ -185,9 +187,15 @@ export function journeyConfigForGame(game: JourneyGame): JourneyConfig {
     : LEGACY_JOURNEY_CONFIG;
 }
 
-export function createJourneyGame(playerIds: string[]): JourneyGame {
+export function journeySameSide(game: JourneyGame, a: string, b: string): boolean {
+  return a !== b && Boolean(game.tentSides?.[a]) && game.tentSides?.[a] === game.tentSides?.[b];
+}
+
+export function createJourneyGame(playerIds: string[], tentSides?: Record<string, string>): JourneyGame {
   if (playerIds.length < 1 || new Set(playerIds).size !== playerIds.length) throw new Error('Journey players must be unique.');
+  if (tentSides && (Object.keys(tentSides).length !== playerIds.length || playerIds.some(id => !tentSides[id]))) throw new Error('Every Journey player needs a tent side.');
   return {
+    ...(tentSides ? { tentSides: { ...tentSides } } : {}),
     boardSpaces: 45,
     winningLaps: 2,
     players: playerIds.map((id) => ({
@@ -321,7 +329,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
     const moveTarget = effect.kind === 'move' && previous.route === 'main'
       ? Math.max(1, Math.min(routeEnd, effect.to ?? previous.space + (effect.by || 0))) : null;
     const opponents = effect.kind === 'swap' && onMain ? game.players.filter((other) =>
-      other.id !== player.id && other.location.route === 'main' && other.status !== 'FINISHED' && !isImprisoned(other)) : [];
+      other.id !== player.id && !journeySameSide(game, player.id, other.id) && other.location.route === 'main' && other.status !== 'FINISHED' && !isImprisoned(other)) : [];
     opponents.sort((a, b) => ((a.completedLaps || 0) - (b.completedLaps || 0)) * config.finishSpace
       + (a.location as { space: number }).space - (b.location as { space: number }).space);
     const opponent = effect.kind === 'swap' ? (effect.opponent === 'last' ? opponents[0] : opponents[opponents.length - 1]) : undefined;
@@ -387,7 +395,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
       }
       case 'all_move':
         if (effect.by < 0 && shieldOwners) {
-          queue.unshift(...game.players.filter((other) => other.location.route === 'main'
+          queue.unshift(...game.players.filter((other) => !journeySameSide(game, player.id, other.id) && other.location.route === 'main'
             && other.status !== 'FINISHED' && !isImprisoned(other)).map((other): QueuedEffect => ({
             ...item, playerId: other.id, key: `${item.key}:${other.id}`,
             effect: { kind: 'move', by: effect.by, activateLanding: false },
@@ -395,7 +403,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
           break;
         }
         for (const other of game.players) {
-          if (other.location.route !== 'main' || other.status === 'FINISHED' || isImprisoned(other)) continue;
+          if ((effect.by < 0 && journeySameSide(game, player.id, other.id)) || other.location.route !== 'main' || other.status === 'FINISHED' || isImprisoned(other)) continue;
           const from = structuredClone(other.location);
           other.location = main(Math.max(1, Math.min(config.finalChallengeSpace - 1, other.location.space + effect.by)));
           deductBackwardSteps(game, other, from, item.source);
@@ -409,7 +417,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         player.pendingEffects.push(effect.effect);
         break;
       case 'transfer_delayed': {
-        const other = game.players.find((candidate) => candidate.id !== player.id && candidate.status !== 'FINISHED');
+        const other = game.players.find((candidate) => candidate.id !== player.id && !journeySameSide(game, player.id, candidate.id) && candidate.status !== 'FINISHED');
         if (other && player.pendingEffects.length) other.pendingEffects.push(player.pendingEffects.shift()!);
         break;
       }

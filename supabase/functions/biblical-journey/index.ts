@@ -125,7 +125,7 @@ function secureRandom() {
   return value[0] / 4294967296;
 }
 
-async function initialRuntime(roomId: string, characterSlug: string, playerIds: string[]) {
+async function initialRuntime(roomId: string, characterSlug: string, playerIds: string[], roomName: string) {
   const characters = await rest(`arena_journey_characters?slug=eq.${characterSlug}&ready=eq.true&select=slug`);
   if (!characters?.length) throw new Error('That Biblical Journey character is not ready to play.');
   const rows = await rest('rpc/get_arena_journey_active_question_pool', {
@@ -134,7 +134,17 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
   const questions = (rows || []).map((row: { id: string; question_stage: number }) => ({
     id: String(row.id), stage: Number(row.question_stage),
   }));
-  return await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom);
+  let tentSides: Record<string, string> | undefined;
+  if (/\[intertent\]/i.test(roomName)) {
+    const sides = await rest('rpc/get_intertent_match_sides', {
+      method: 'POST', body: JSON.stringify({ p_room_id: roomId }),
+    });
+    if (!sides || typeof sides !== 'object' || Array.isArray(sides) || playerIds.some(id => !sides[id])) {
+      throw new Error('The inter-tent lineup is not ready.');
+    }
+    tentSides = sides;
+  }
+  return await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom, tentSides);
 }
 
 async function pendingViewerChallenge(roomId: string, playerId: string) {
@@ -193,7 +203,7 @@ Deno.serve(async (request) => {
         return json({ error: 'This Journey room has the wrong number of players.' }, 409);
       }
       const prepared = await initialRuntime(roomId, context.characterSlug,
-        [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])]);
+        [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])], String(context.room.room_name));
       // Older cached clients still draw 51 squares until they receive the new app.
       if (body.boardSpaces !== 45) {
         prepared.game.boardSpaces = 51;
