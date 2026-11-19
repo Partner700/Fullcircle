@@ -1074,7 +1074,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
 
       {sentrySchedule && <SentryArenaScheduler key={sentrySchedule.tentId} {...sentrySchedule} onScheduled={refreshRooms} />}
 
-      {profile && <InterTentChampionshipPanel instructor={instructorSchedule} viewerId={profile.id} onScheduled={refreshRooms} onOpenRoom={async(id,participant,status)=>{
+      {profile && <InterTentChampionshipPanel instructor={instructorSchedule} viewerId={profile.id} arenaImage={arenaImage} witnessOnly={witnessOnly} onScheduled={refreshRooms} onShareRoom={shareRoom} onOpenRoom={async(id,participant,status)=>{
         if(!participant || witnessOnly){await watchRoom(id,status);return;}
         try {
           const fresh=await refreshRoom(id);

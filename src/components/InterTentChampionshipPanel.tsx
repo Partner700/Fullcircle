@@ -2,16 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { CalendarClock, Trophy, RotateCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchArenaInvitees } from '../lib/queries';
-import { DAVID_GROUPS, interTentLegLabel, interTentMatchLabel, type InterTentChampionship, type InterTentGroup } from '../lib/interTentChampionship';
+import { DAVID_GROUPS, type InterTentChampionship, type InterTentGroup } from '../lib/interTentChampionship';
+import type { PanelImageSetting } from '../lib/types';
+import { InterTentMatchCard } from './InterTentMatchCard';
 import { AppSelect } from './AppSelect';
 
 const groupKeys: InterTentGroup[] = ['A','B','C','D'];
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {timeZone:'Africa/Douala',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(value));
 type Candidate = { id: string; name: string };
 
-export function InterTentChampionshipPanel({ instructor, viewerId, onScheduled, onOpenRoom }: { instructor: boolean; viewerId: string; onScheduled: () => void | Promise<void>; onOpenRoom: (id:string,participant:boolean,status:'waiting'|'playing') => Promise<void> }) {
+export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, witnessOnly, onScheduled, onOpenRoom, onShareRoom }: { instructor: boolean; viewerId: string; arenaImage?: PanelImageSetting | null; witnessOnly?: boolean; onScheduled: () => void | Promise<void>; onOpenRoom: (id:string,participant:boolean,status:'waiting'|'playing') => Promise<void>; onShareRoom?: (id:string) => void | Promise<void> }) {
   const [events,setEvents] = useState<InterTentChampionship[]>([]);
   const [players,setPlayers] = useState<Candidate[]>([]);
+  const [avatars,setAvatars] = useState<Record<string,string|null>>({});
   const [groups,setGroups] = useState<Record<string,string[]>>({});
   const [firstTuesday,setFirstTuesday] = useState('2026-11-24');
   const [editing,setEditing] = useState<string|null>(null);
@@ -29,6 +32,15 @@ export function InterTentChampionshipPanel({ instructor, viewerId, onScheduled, 
     setEnabled(true); setEvents(Array.isArray(data) ? data as InterTentChampionship[] : []);
   },[instructor]);
   useEffect(() => { void refresh(); },[refresh]);
+  const fixturePlayerIds = [...new Set(events.flatMap(e=>e.fixtures.flatMap(f=>f.sides.flatMap(s=>s.players.map(p=>p.id)))))].sort().join(',');
+  useEffect(() => {
+    if (!fixturePlayerIds) return;
+    let alive=true;
+    void supabase.from('profiles').select('id,avatar_url').in('id',fixturePlayerIds.split(',')).then(({data,error})=>{
+      if (alive && !error) setAvatars(Object.fromEntries((data||[]).map(p=>[p.id,p.avatar_url])));
+    });
+    return ()=>{alive=false;};
+  },[fixturePlayerIds]);
   useEffect(() => {
     if (!instructor || !enabled) return;
     let alive=true;
@@ -100,20 +112,13 @@ export function InterTentChampionshipPanel({ instructor, viewerId, onScheduled, 
         <button type="button" className="btn-primary text-xs" disabled={busy||Boolean(editing)||!event.eligibility.length||event.eligibility.some(p=>!p.qualified)} onClick={()=>void activate(event.id)}>Activate and notify players</button>
         <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={()=>editDraft(event)}>Edit draft players and dates</button>
       </div>}
-      <div className="divide-y divide-border">
-        {event.fixtures.map(f=><article key={f.id} className="py-2.5 text-xs space-y-1">
-          <p className="text-stone">{interTentLegLabel(f)} · {dateLabel(f.planned_at)}</p>
-          <p className="text-ink font-semibold">{interTentMatchLabel(f)}</p>
-          {f.result && <p className="text-gold">{f.result.map(r=>`${f.sides.find(s=>s.tent_id===r.tent_id)?.tent_name||'Tent'} ${r.points} pts`).join(' · ')}</p>}
-          {!f.result && <p className="text-stone">{f.room_status || (f.room_id?'Scheduled':f.stage==='group'?'Pending qualification':'Awaiting qualifiers')}</p>}
-          {f.room_id && (f.room_status==='waiting'||f.room_status==='playing') && <button type="button" className="btn-secondary text-xs" onClick={()=>void onOpenRoom(f.room_id!,f.sides.some(s=>s.players.some(p=>p.id===viewerId)),f.room_status as 'waiting'|'playing')}>
-            {f.sides.some(s=>s.players.some(p=>p.id===viewerId))?'Open match':'Witness'}
-          </button>}
-          {event.can_manage && ['scheduled','playing'].includes(event.status) && !f.result && f.sides.length>0 && !['playing'].includes(f.room_status || '') && <div className="flex gap-2 items-end">
+      <div className="space-y-3">
+        {event.fixtures.map(f=>{const participant=!witnessOnly&&f.sides.some(s=>s.players.some(p=>p.id===viewerId));return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage} participant={participant} draft={event.status==='draft'} onOpen={()=>void onOpenRoom(f.room_id!,participant,f.room_status as 'waiting'|'playing')} onShare={onShareRoom&&f.room_id?()=>void onShareRoom(f.room_id!):undefined}>
+          {event.can_manage && ['scheduled','playing'].includes(event.status) && !f.result && f.sides.length>0 && !['playing'].includes(f.room_status || '') && <div className="flex flex-wrap gap-2 items-end w-full text-xs">
             <label className="text-stone flex-1 min-w-0">New time (Cameroon)<input type="datetime-local" className="input-field mt-1" value={rescheduleTimes[f.id]||''} onChange={e=>setRescheduleTimes(prev=>({...prev,[f.id]:e.target.value}))}/></label>
             <button type="button" className="btn-secondary text-xs" disabled={busy||!rescheduleTimes[f.id]} onClick={()=>void reschedule(f.id)}>Reschedule</button>
           </div>}
-        </article>)}
+        </InterTentMatchCard>})}
       </div>
       {event.standings.length>0 && <><h4 className="font-display font-bold text-ink">Group standings</h4><p className="text-xs text-stone">Average points per played match; ties use average correct answers, then average game score.</p><div className="divide-y divide-border">{event.standings.map(p=><div key={p.user_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{p.name}</p><p className="text-stone">{p.tent_name} · {p.matches} matches</p></div><p className="text-gold font-bold">{Number(p.average).toFixed(2)}</p></div>)}</div></>}
       {event.semifinal_standings?.length>0&&<><h4 className="font-display font-bold text-ink">Semifinal standings</h4><p className="text-xs text-stone">Two-leg combined points. The two highest advance.</p><div className="divide-y divide-border">{event.semifinal_standings.map(p=><div key={p.user_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{p.name}</p><p className="text-stone">{p.tent_name} · {p.matches}/2 legs played</p></div><p className="text-gold font-bold">{p.points} pts</p></div>)}</div></>}
