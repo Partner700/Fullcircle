@@ -52,7 +52,7 @@ import {
   fetchUnassignedUsers, isSaturdayQuizScheduled, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
-import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
+import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, interTentWelcomeArtwork, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
 import { uploadAppFile } from '../../lib/storageUploads';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
@@ -456,6 +456,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_daily_game_reminder', label: 'Daily Trivia Reminder', audience: 'all' },
   { type: 'panel_image_weekly_quiz_reminder', label: 'Weekly Quiz Reminder', audience: 'all' },
   { type: 'panel_image_arena', label: 'Arena', audience: 'all' },
+  { type: 'panel_image_intertent_welcome', label: 'Tournament Welcome Slide', audience: 'all' },
   { type: 'panel_image_story_mode', label: 'Story Mode', audience: 'all' },
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
@@ -693,13 +694,17 @@ function AnnouncementManager() {
     }
   };
 
-  const activeImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
+  const savedImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
     ...slot,
     item: selectPanelImageAnnouncement(announcements, slot.type, slot.audience),
   })).map((setting) => ({
     ...setting,
     image: setting.item ? panelImageFromAnnouncement(setting.item) : null,
   }));
+  const arenaArtwork = savedImageSettings.find((setting) => setting.type === 'panel_image_arena')?.image;
+  const activeImageSettings = savedImageSettings.map((setting) => setting.type === 'panel_image_intertent_welcome'
+    ? { ...setting, image: interTentWelcomeArtwork(arenaArtwork, setting.image) }
+    : setting);
 
   const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
   const profileArtworkSetting = activeImageSettings.find((setting) => setting.type === 'panel_image_profile') || null;
@@ -724,8 +729,8 @@ function AnnouncementManager() {
   const openImageEditor = (type: string) => {
     const setting = activeImageSettings.find((candidate) => candidate.type === type);
     setEditingImageType(type);
-    setImagePositionX(Number(setting?.item?.image_position_x ?? 50));
-    setImagePositionY(Number(setting?.item?.image_position_y ?? 50));
+    setImagePositionX(Number(setting?.image?.positionX ?? 50));
+    setImagePositionY(Number(setting?.image?.positionY ?? 50));
     setImageAdjustments(normaliseAdjustments(setting?.image?.adjustments));
     setActiveImageAdjustment('brightness');
   };
@@ -816,15 +821,19 @@ function AnnouncementManager() {
   };
 
   const saveImageFraming = async () => {
-    if (!editingImageSetting?.item) return;
+    if (!editingImageSetting?.image) return;
     setSavingImagePosition(true);
     try {
-      await updateAnnouncement(editingImageSetting.item.id, {
-        content: serializePanelImageSetting(editingImageSetting.image?.url || '', imageAdjustments),
-        image_position_x: imagePositionX,
-        image_position_y: imagePositionY,
-      });
-      await load();
+      if (!editingImageSetting.item) {
+        await publishImageSetting(editingImageSetting.type, editingImageSetting.image.url, editingImageSetting.audience, imagePositionX, imagePositionY, imageAdjustments);
+      } else {
+        await updateAnnouncement(editingImageSetting.item.id, {
+          content: serializePanelImageSetting(editingImageSetting.image.url, imageAdjustments),
+          image_position_x: imagePositionX,
+          image_position_y: imagePositionY,
+        });
+        await load();
+      }
       setEditingImageType(null);
     } catch (e: any) {
       alert(e.message || 'Failed to save image framing');
@@ -1042,7 +1051,7 @@ function AnnouncementManager() {
                   <div className="flex items-center justify-between gap-2 p-3">
                     <span className="text-xs font-semibold text-ink">{setting.label}</span>
                     <span className="text-[10px] font-semibold text-brass">
-                      {setting.item ? 'Edit image' : 'Add image'}
+                      {setting.item ? 'Edit image' : setting.image ? 'Customize image' : 'Add image'}
                     </span>
                   </div>
                 </button>
@@ -1232,7 +1241,10 @@ function AnnouncementManager() {
                 )}
               </div>
 
-              {editingImageSetting.item && (
+              {editingImageSetting.image && !editingImageSetting.item && (
+                <p className="text-xs text-stone">Currently using the Arena artwork. Save your adjustments here to customize the tournament welcome slide independently.</p>
+              )}
+              {editingImageSetting.image && (
                 <div className="space-y-4 rounded-lg border border-border bg-surface-2 p-3">
                   <div className="flex items-center gap-2">
                     <Move size={15} className="text-brass" />
@@ -1322,7 +1334,7 @@ function AnnouncementManager() {
                     )}
                   >
                     {uploadingImageType === editingImageSetting.type ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                    {editingImageSetting.item ? 'Replace image' : 'Add image'}
+                    {editingImageSetting.image ? 'Replace image' : 'Add image'}
                     <input
                       type="file"
                       accept="image/*"
@@ -1345,7 +1357,7 @@ function AnnouncementManager() {
                     </button>
                   )}
                 </div>
-                {editingImageSetting.item && (
+                {editingImageSetting.image && (
                   <button
                     type="button"
                     onClick={saveImageFraming}

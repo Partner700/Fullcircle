@@ -134,7 +134,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           }
         }),
         fetchPanelImageSettings([
-          'welcome', 'arena', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'welcome', 'arena', 'intertent_welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
           'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release',
         ]).then(setPanelImages),
       ]);
@@ -229,7 +229,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   }));
   const standardHeroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
-    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena),veilClassName:'intertent-welcome-veil'}]:[]),
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena,panelImages.intertent_welcome),veilClassName:'intertent-welcome-veil'}]:[]),
     ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),

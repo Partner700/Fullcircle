@@ -310,7 +310,7 @@ export function SentryApp() {
       getSubscriptionStatus(profile.id),
       fetchAnnouncements(['all', 'cadets', 'sentries']),
       fetchPanelImageSettings([
-        'welcome', 'arena', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'welcome', 'arena', 'intertent_welcome', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
         'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
       ], ['all', 'cadets', 'sentries']),
     ]);
@@ -926,7 +926,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
-    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena),veilClassName:'intertent-welcome-veil'}]:[]),
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena,panelImages.intertent_welcome),veilClassName:'intertent-welcome-veil'}]:[]),
     ...(cadetQuizPodium.length ? [{ id: `quiz-podium-cadets-${cadetQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: cadetQuizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(sentryQuizPodium.length ? [{ id: `quiz-podium-sentries-${sentryQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: sentryQuizPodium.slice(0, 3), division: 'Sentries' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),

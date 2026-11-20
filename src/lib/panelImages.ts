@@ -147,9 +147,10 @@ export function panelImageOpacity(image: PanelImageSetting | null | undefined, f
   return Math.max(0, Math.min(100, opacity)) / 100;
 }
 
-// Presentation-only correction for the championship welcome slide. Keep the
-// configured Arena artwork and its settings unchanged everywhere else.
-export function interTentWelcomeArtwork(image: PanelImageSetting | null | undefined): PanelImageSetting | null {
+// Prefer dedicated tournament artwork, preserving the original Arena-based
+// presentation as a fallback until an instructor saves a custom setting.
+export function interTentWelcomeArtwork(image: PanelImageSetting | null | undefined, dedicated?: PanelImageSetting | null): PanelImageSetting | null {
+  if (dedicated) return dedicated;
   if (!image) return null;
   const adjustments = normaliseAdjustments(image.adjustments);
   return {
