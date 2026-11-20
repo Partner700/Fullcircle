@@ -243,8 +243,9 @@ export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => 
         <EmptyState
           icon={Users}
           title="Request a tent"
-          message="You can request any listed tent. A full tent can accept your application once a place opens. Your first month starts when you join."
+          message="There’s always room for a fresh start. Feel free to request as many tents as you like, even if a tent is currently full. You can join when a Sentry accepts your request and a place opens."
         />
+        <p className="card p-4 text-xs text-stone">If you have previously left a tent, you are welcome to apply again. Once you are accepted into one tent, your other requests will close automatically. Your free first month starts with your first membership; returning members need an active subscription to join.</p>
         {joinError && <p className="card p-4 text-coral" role="alert">{joinError}</p>}
         {optionsError ? (
           <button type="button" className="btn-secondary" onClick={() => void load()}>Retry loading tents</button>

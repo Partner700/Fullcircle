@@ -259,7 +259,8 @@ export function CadetApp() {
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const [longestStreak, setLongestStreak] = useState(0);
-  const tentUnlocked = Boolean(tentInfo.tent) || longestStreak >= 5;
+  const [canReapplyToTent, setCanReapplyToTent] = useState(false);
+  const tentUnlocked = Boolean(tentInfo.tent) || longestStreak >= 5 || canReapplyToTent;
   const [marksTotal, setMarksTotal] = useState(0);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
@@ -305,6 +306,7 @@ export function CadetApp() {
     };
     setStreakCount(cached?.streak || 0);
     setLongestStreak(0);
+    setCanReapplyToTent(false);
     setDenariiTotal(cached?.denarii || 0);
     setMarksTotal(cached?.marks || 0);
     setToolbarReady(!!cached);
@@ -815,6 +817,17 @@ export function CadetApp() {
     if (toolbarUserId) void fetchStrictStreak(toolbarUserId).then((streak) => { if (!cancelled) setLongestStreak(streak.longest_streak); }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [loadTentInfo, loadSubStatus, toolbarUserId]);
+
+  useEffect(() => {
+    if (!toolbarUserId || tentInfo.tent || longestStreak >= 5) return;
+    let cancelled = false;
+    // The server also recognizes previous tent membership, including legacy
+    // members whose historical best may be below today's qualification rule.
+    void supabase.rpc('get_tent_join_options').then(({ data, error }) => {
+      if (!cancelled && !error) setCanReapplyToTent(Array.isArray(data) && data.length > 0);
+    });
+    return () => { cancelled = true; };
+  }, [toolbarUserId, tentInfo.tent, longestStreak, cadetRefreshKey]);
 
   useEffect(() => {
     if (isExpired && PREMIUM_TABS.has(tab)) {

@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting, fetchFullCircleEconomyRules } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
 import { resolveBoardMovement } from '../../lib/boardMovement';
+import { boardCategory } from '../../lib/boardCategories';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
@@ -385,14 +386,15 @@ function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; v
 export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch = false }: { instructorMode?: boolean; allowAudienceSwitch?: boolean } = {}) {
   const { profile } = useAuth();
   const [tab, setTab] = useState<BoardTab>(() => instructorMode ? 'instructor_narratives' : 'streak');
-  const [audience, setAudience] = useState<BoardAudience>(() => instructorMode ? 'instructor' : 'cadet');
-  const [streakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
-  const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
-  const [liveRows, setLiveRows] = useState<LiveLeaderboardRow[]>([]);
-  const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
-  const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
-  const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
-  const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [audience, setAudience] = useState<BoardAudience>(() => instructorMode ? 'instructor' : allowAudienceSwitch ? 'sentry' : 'cadet');
+  const [allStreakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
+  const [allLeaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
+  const [allLiveRows, setLiveRows] = useState<LiveLeaderboardRow[]>([]);
+  const [allTentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
+  const [allQuizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
+  const [allRhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
+  const [allMarksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [ownTentId, setOwnTentId] = useState<string | null>(null);
   const [economyRules, setEconomyRules] = useState<FullCircleEconomyRules | null>(null);
   const [marksInfoOpen, setMarksInfoOpen] = useState(false);
   const [instructorBoards, setInstructorBoards] = useState<InstructorBoardRows>(emptyInstructorBoards);
@@ -477,13 +479,17 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
 
       const memberAudience: Exclude<BoardAudience, 'instructor'> = requestedAudience;
 
-      const [leaders, boardMovements, independentStreaks] = await Promise.allSettled([
+      const [leaders, boardMovements, independentStreaks, ownMembership] = await Promise.allSettled([
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
         withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: memberAudience }), 'Challenge boards'),
         // The streak board has its own quick, published feed so a slow
         // movement query can never hide it from sentries.
         withBoardTimeout(fetchStreakboardSnapshots(memberAudience), 'Streak board', 5_500),
+        profile?.id ? withBoardTimeout(supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(), 'Your tent') : Promise.resolve(null),
       ]);
+      if (ownMembership.status === 'fulfilled' && ownMembership.value && !ownMembership.value.error) {
+        setOwnTentId(ownMembership.value.data?.tent_id ?? null);
+      }
       const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
       setLeaderRows(leaderRowsRaw as any);
 
@@ -550,7 +556,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         ]);
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
-        const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows);
+        const liveRowsRaw = ((liveResult?.data || []) as LiveLeaderboardRow[]);
         const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
         const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === memberAudience);
         const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === memberAudience);
@@ -671,7 +677,27 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     { key: 'instructor_figs', label: 'Figs', title: 'Camp Fig Board', description: 'The overall lifetime Figs earned across the instructor\'s camp.', valueKey: 'total_figs', valueLabel: 'Camp Figs', icon: <BadgeCheck size={16} /> },
   ];
   const activeInstructorBoard = instructorTabs.find((item) => item.key === tab) || instructorTabs[0];
-  const activeInstructorRows = instructorBoards[activeInstructorBoard.key];
+  const userId = profile?.id;
+  const userKey = (row: { user_id: string }) => row.user_id;
+  const instructorGroup = boardCategory(instructorBoards[activeInstructorBoard.key], userId, userKey, (row) => row[activeInstructorBoard.valueKey]);
+  const streakGroup = boardCategory(allStreakRows, userId, userKey, (row) => row.current_streak ?? row.consistency ?? 0);
+  const leaderGroup = boardCategory(allLeaderRows, userId, userKey, (row) => row.total_denarii);
+  const liveGroup = boardCategory(allLiveRows, userId, userKey, (row) => row.total_denarii);
+  const quizGroup = boardCategory(allQuizRows, userId, userKey, (row) => row.total_score);
+  const rhudeGroup = boardCategory(allRhudeRows, userId, userKey, (row) => row.rhudes);
+  const marksGroup = boardCategory(allMarksRows, userId, userKey, (row) => row.marks);
+  const tentGroup = boardCategory(allTentRows, ownTentId, (row) => row.tent_id, (row) => row.combined_score);
+  const { rows: activeInstructorRows } = instructorGroup;
+  const { rows: streakRows } = streakGroup;
+  const { rows: leaderRows } = leaderGroup;
+  const { rows: liveRows } = liveGroup;
+  const { rows: quizRows } = quizGroup;
+  const { rows: rhudeRows } = rhudeGroup;
+  const { rows: marksRows } = marksGroup;
+  const { rows: tentRows } = tentGroup;
+  const activeGroup = audience === 'instructor' ? instructorGroup : {
+    streak: streakGroup, leader: liveGroup, quiz: quizGroup, rhude: rhudeGroup, marks: marksGroup, tent_house: tentGroup,
+  }[tab as Exclude<BoardTab, InstructorBoardTab>];
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
     ? instructorTabs
@@ -715,6 +741,11 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           <BoardTabButton key={item.key} active={tab === item.key} onClick={() => setTab(item.key)} icon={item.icon} label={item.label} />
         ))}
       </div>
+      {activeGroup && activeGroup.rows.length > 0 && (
+        <p className="relative z-10 mt-2 text-xs font-semibold text-stone">
+          {activeGroup.observer ? 'Viewing: ' : 'Your category: '}{activeGroup.label}
+        </p>
+      )}
     </div>
   );
 
@@ -863,6 +894,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                   title="Last Week's Result"
                   subtitle={`Frozen at Saturday 6 PM · Week ending ${formatShortDate(leaderRows[0].week_ending)}`}
                 />
+                <p className="mb-2 text-xs font-semibold text-stone">{leaderGroup.observer ? 'Viewing: ' : 'Your category: '}{leaderGroup.label}</p>
                 <BoardList>
                   {leaderRows.map((row) => (
                     <BoardRow
