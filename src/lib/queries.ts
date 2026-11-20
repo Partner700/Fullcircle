@@ -24,6 +24,7 @@ import { createReadCache } from './readCache';
 import { MESSAGE_PAGE_SIZE, messageCursorFilter, type ChatMessage, type MessagePage, type MessagePageOptions } from './messagePages';
 import { expandQuoteReactionSummary, type CompactQuoteReactionSummary } from './quoteReactionSummary';
 import { JOURNEY_MACHINE_ID } from '../../supabase/functions/_shared/biblicalJourney';
+import { isPersonalAward } from './awardCollection';
 
 const sharedReadRequests = new Map<string, Promise<unknown>>();
 const panelImageReads = createReadCache<Record<string, PanelImageSetting>>(60_000);
@@ -1380,6 +1381,23 @@ export async function fetchLeaderboardSnapshots() {
     .order('rank');
   if (err2) throw err2;
   return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
+}
+
+export async function fetchPersonalAwards(userId: string): Promise<Award[]> {
+  if (!userId) return [];
+  const awards: Award[] = [];
+  const pageSize = 200;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from('awards').select('*')
+      .or(`user_id.eq.${userId},award_target_id.eq.${userId}`)
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = (data || []) as Award[];
+    awards.push(...page.filter(award => isPersonalAward(award, userId)));
+    if (page.length < pageSize) break;
+  }
+  return Array.from(new Map(awards.map(award => [award.id, award])).values());
 }
 
 export async function fetchAwards(createdSince?: string, monthPrefix?: string, recipientIds?: string[]): Promise<AwardWithRecipient[]> {
