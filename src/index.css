@@ -2371,7 +2371,7 @@
 
 /* The welcome fixture sits over the original Arena artwork, not an opaque card. */
 .intertent-welcome-veil {
-  background: rgba(7, 20, 43, 0.12);
+  background: rgba(7, 20, 43, 0.19);
 }
 .intertent-welcome-glass {
   background: rgba(7, 20, 43, 0.16);
