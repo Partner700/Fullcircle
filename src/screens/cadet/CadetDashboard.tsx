@@ -228,7 +228,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   }));
   const standardHeroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
-    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:panelImages.arena||null,veilClassName:'arena-panel-veil'}]:[]),
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:panelImages.arena||null,veilClassName:'intertent-welcome-veil'}]:[]),
     ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
