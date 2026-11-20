@@ -13,6 +13,7 @@ import { ResidentWelcomeQuiz } from '../../components/ResidentWelcomeQuiz';
 import { NewcomerGuide } from '../../components/NewcomerGuide';
 import { CadetDashboard } from './CadetDashboard';
 import { BibleReader } from './BibleReader';
+import type { BibleReadingLocation } from '../../lib/bibleBooks';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
 import { DailyGamesHub } from './DailyGamesHub';
@@ -252,6 +253,8 @@ export function CadetApp() {
   const { profile, session } = useAuth();
   const toolbarUserId = session?.user.id || profile?.id || '';
   const [tab, setTab] = useState<Tab>(() => getInitialCadetTab(toolbarUserId));
+  const [bibleTarget,setBibleTarget]=useState<{userId:string;location:BibleReadingLocation}|null>(null);
+  useEffect(()=>{if(tab!=='bible')setBibleTarget(null);},[tab]);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
@@ -1194,8 +1197,8 @@ export function CadetApp() {
       }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-        {tab === 'bible' && <BibleReader />}
-        {tab === 'narrative' && <CadetNarrative onOpenBible={() => handleNavigate('bible')} onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
+        {tab === 'bible' && <BibleReader key={toolbarUserId} initialLocation={bibleTarget?.userId===toolbarUserId?bibleTarget.location:null} />}
+        {tab === 'narrative' && <CadetNarrative onOpenBible={(location) => {setBibleTarget(location?{userId:toolbarUserId,location}:null);handleNavigate('bible');}} onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'games' && (
           <DailyGamesHub

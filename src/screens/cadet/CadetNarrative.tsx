@@ -1,4 +1,4 @@
-import { canonicalBibleVerseReference } from '../../lib/bibleBooks';
+import { canonicalBibleVerseReference, parseBibleReadingReference, type BibleReadingLocation } from '../../lib/bibleBooks';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
 import { HelpCircle } from 'lucide-react';
 import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
@@ -309,7 +309,7 @@ export function CadetNarrative({
 }: {
   onMeditationSaved?: () => Promise<void> | void;
   onOpenWeeklyQuiz?: () => void;
-  onOpenBible?: () => void;
+  onOpenBible?: (location: BibleReadingLocation | null) => void;
   streakCount?: number;
   initialDate?: string;
 }) {
@@ -998,7 +998,7 @@ export function CadetNarrative({
     );
   }
 
-  const bibleLink = onOpenBible && <button type="button" className="btn-secondary w-full justify-center" onClick={onOpenBible}>
+  const bibleLink = onOpenBible && <button type="button" className="btn-secondary w-full justify-center" onClick={()=>onOpenBible(parseBibleReadingReference(narrative?.scripture_passages?.[0]?.reference || narrative?.scripture_reference) || parseBibleReadingReference(readerVerses[0]?.reference))}>
     <BookOpen size={17} /> Open the Bible <ChevronRight size={16} />
   </button>;
 

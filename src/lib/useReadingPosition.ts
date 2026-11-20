@@ -10,6 +10,7 @@ export function useReadingPosition(
   date: string,
   ready: boolean,
   hasScriptureTarget: boolean,
+  captureNewTarget = false,
 ) {
   const cancelRestore = useRef<(() => void) | null>(null);
   const targetRef = useRef(hasScriptureTarget);
@@ -21,7 +22,7 @@ export function useReadingPosition(
 
     const key = `full-circle-reading-position-v1:${userId}:${date}`;
     const saved = safeJsonStorageGet<ReadingPosition | null>('local', key, null);
-    let position = saved && Number.isFinite(saved.top) && saved.top >= 0 ? saved : { top: 0 };
+    let position = ! (captureNewTarget && targetRef.current) && saved && Number.isFinite(saved.top) && saved.top >= 0 ? saved : { top: 0 };
     let restoring = !targetRef.current;
     let saveTimer: number | undefined;
 
@@ -67,6 +68,9 @@ export function useReadingPosition(
     };
 
     restore();
+    // The Bible can open an explicit verse instead of an old saved position.
+    // Record that new position even if the user leaves without scrolling.
+    const targetFrame = captureNewTarget && targetRef.current ? window.requestAnimationFrame(trackScroll) : 0;
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(restore);
     observer?.observe(root);
     root.addEventListener('animationend', restore);
@@ -81,6 +85,7 @@ export function useReadingPosition(
     document.addEventListener('visibilitychange', resume);
 
     return () => {
+      if (targetFrame) window.cancelAnimationFrame(targetFrame);
       persist();
       cancelRestore.current = null;
       observer?.disconnect();
@@ -95,7 +100,7 @@ export function useReadingPosition(
       window.removeEventListener('pageshow', resume);
       document.removeEventListener('visibilitychange', resume);
     };
-  }, [date, ready, rootRef, userId]);
+  }, [date, ready, rootRef, userId, captureNewTarget]);
 
   return cancelRestore;
 }

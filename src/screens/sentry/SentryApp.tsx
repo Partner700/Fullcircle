@@ -49,6 +49,7 @@ import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
 import { CadetStreak } from '../cadet/CadetStreak';
 import { BibleReader } from '../cadet/BibleReader';
+import type { BibleReadingLocation } from '../../lib/bibleBooks';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
@@ -57,6 +58,7 @@ import { CadetQuiz } from '../cadet/CadetQuiz';
 import { CadetAwards } from '../cadet/CadetAwards';
 import { DashboardHeroSlideshow, type DashboardHeroSlide } from '../cadet/CadetDashboard';
 import { useInterTentWelcomeSlide } from '../../components/InterTentWelcomeSlide';
+import { interTentWelcomeArtwork } from '../../lib/panelImages';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
@@ -131,6 +133,8 @@ function streakForMember(
 export function SentryApp() {
   const { profile, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>(() => getInitialSentryTab(profile?.id || ''));
+  const [bibleTarget,setBibleTarget]=useState<{userId:string;location:BibleReadingLocation}|null>(null);
+  useEffect(()=>{if(tab!=='bible')setBibleTarget(null);},[tab]);
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [allRecords, setAllRecords] = useState<Record<string, DailyRecord[]>>({});
@@ -656,8 +660,8 @@ export function SentryApp() {
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'cadets' && <SentryCadets onChanged={load} cadetLimit={Math.max(tent.max_cadets ?? 10, 10)} members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
-      {tab === 'bible' && <BibleReader />}
-      {tab === 'reading' && <CadetNarrative onOpenBible={() => handleNavigate('bible')} onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
+      {tab === 'bible' && <BibleReader key={profile?.id} initialLocation={bibleTarget&&bibleTarget.userId===profile?.id?bibleTarget.location:null} />}
+      {tab === 'reading' && <CadetNarrative onOpenBible={(location) => {setBibleTarget(location&&profile?.id?{userId:profile.id,location}:null);handleNavigate('bible');}} onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
       {tab === 'games' && (
         <DailyGamesHub
           onProgress={load}
@@ -922,7 +926,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
-    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:panelImages.arena||null,veilClassName:'intertent-welcome-veil'}]:[]),
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena),veilClassName:'intertent-welcome-veil'}]:[]),
     ...(cadetQuizPodium.length ? [{ id: `quiz-podium-cadets-${cadetQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: cadetQuizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(sentryQuizPodium.length ? [{ id: `quiz-podium-sentries-${sentryQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: sentryQuizPodium.slice(0, 3), division: 'Sentries' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),

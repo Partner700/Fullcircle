@@ -146,3 +146,19 @@ export function panelImageOpacity(image: PanelImageSetting | null | undefined, f
   const opacity = image?.adjustments?.opacity ?? fallback;
   return Math.max(0, Math.min(100, opacity)) / 100;
 }
+
+// Presentation-only correction for the championship welcome slide. Keep the
+// configured Arena artwork and its settings unchanged everywhere else.
+export function interTentWelcomeArtwork(image: PanelImageSetting | null | undefined): PanelImageSetting | null {
+  if (!image) return null;
+  const adjustments = normaliseAdjustments(image.adjustments);
+  return {
+    ...image,
+    adjustments: normaliseAdjustments({
+      ...adjustments,
+      brightness: adjustments.brightness - 3,
+      blackPoint: adjustments.blackPoint + 3,
+      whitePoint: adjustments.whitePoint - 3,
+    }),
+  };
+}

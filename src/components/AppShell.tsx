@@ -21,7 +21,7 @@ import { signalActiveQuizExitIntent } from '../lib/quizIntegrity';
 
 type Theme = 'night' | 'day';
 const CONTINUITY_EXCLUDED_TABS = ['quiz'] as const;
-const SCROLL_CONTINUITY_EXCLUDED_TABS: readonly string[] = ['quiz', 'narrative', 'reading'];
+const SCROLL_CONTINUITY_EXCLUDED_TABS: readonly string[] = ['quiz', 'narrative', 'reading', 'bible'];
 
 function tabUrl(tab: string) {
   const url = new URL(window.location.href);

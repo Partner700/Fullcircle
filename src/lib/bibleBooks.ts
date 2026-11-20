@@ -30,3 +30,31 @@ export function canonicalBibleVerseReference(reference: string): string | null {
   if (!book || chapter < 1 || chapter > book.chapters || verse < 1) return null;
   return `${book.name} ${chapter}:${verse}`;
 }
+
+export type BibleReadingLocation = { bookIndex: number; chapter: number; verse?: number };
+
+/** Open the start of a published reference, including chapter and verse ranges. */
+export function parseBibleReadingReference(reference: string | null | undefined): BibleReadingLocation | null {
+  const value = String(reference || '').trim().replace(/^([1-3])\s*(?=[A-Za-z])/, '$1 ');
+  const match = value.match(/^(.+?)\s+(\d+)(?:\s*:\s*(\d+))?/);
+  if (!match) return null;
+  const rawName = match[1].toLowerCase().replace(/\s+/g, ' ');
+  const name = rawName === 'psalm' ? 'psalms' : rawName === 'song of songs' ? 'song of solomon' : rawName;
+  const bookIndex = BIBLE_BOOKS.findIndex(book => book.name.toLowerCase() === name);
+  if (bookIndex < 0) return null;
+  const book = BIBLE_BOOKS[bookIndex];
+  const first = Number(match[2]);
+  const chapter = book.chapters === 1 && !match[3] ? 1 : first;
+  const verse = match[3] ? Number(match[3]) : book.chapters === 1 && first > 1 ? first : undefined;
+  if (!Number.isInteger(chapter) || chapter < 1 || chapter > book.chapters || (verse !== undefined && (!Number.isInteger(verse) || verse < 1))) return null;
+  return { bookIndex, chapter, ...(verse !== undefined ? { verse } : {}) };
+}
+
+export function validBibleReadingLocation(value: unknown): BibleReadingLocation | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<BibleReadingLocation>;
+  const { bookIndex, chapter, verse } = candidate;
+  if (typeof bookIndex !== 'number' || !Number.isInteger(bookIndex) || !BIBLE_BOOKS[bookIndex]
+      || typeof chapter !== 'number' || !Number.isInteger(chapter) || chapter < 1 || chapter > BIBLE_BOOKS[bookIndex].chapters) return null;
+  return { bookIndex, chapter, ...(typeof verse === 'number' && Number.isInteger(verse) && verse > 0 ? { verse } : {}) };
+}

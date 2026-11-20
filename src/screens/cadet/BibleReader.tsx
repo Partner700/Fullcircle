@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type TouchEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type TouchEvent } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Heart, Lightbulb, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { AppSelect } from '../../components/AppSelect';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
-import { BIBLE_BOOKS } from '../../lib/bibleBooks';
-import { fetchEditionChapter, readScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
+import { BIBLE_BOOKS, validBibleReadingLocation, type BibleReadingLocation } from '../../lib/bibleBooks';
+import { readBibleReadingLocation, saveBibleReadingLocation } from '../../lib/bibleReadingLocation';
+import { fetchEditionChapter, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
+import { useReadingPosition } from '../../lib/useReadingPosition';
 import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, toggleVerseInsightReaction } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import type { PanelImageSetting } from '../../lib/types';
@@ -22,11 +24,12 @@ const reactions = [
   { key: 'lightbulb', Icon: Lightbulb, label: 'Thinking about it' },
 ] as const;
 
-export function BibleReader() {
+export function BibleReader({ initialLocation }: { initialLocation?: BibleReadingLocation | null } = {}) {
   const { profile } = useAuth();
   const { hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
-  const [bookIndex, setBookIndex] = useState(0);
-  const [chapter, setChapter] = useState(1);
+  const [location, setLocation] = useState(() => validBibleReadingLocation(initialLocation) || readBibleReadingLocation(profile?.id));
+  const {bookIndex,chapter}=location;
+  const [pendingTarget,setPendingTarget]=useState<BibleReadingLocation|null>(()=>validBibleReadingLocation(initialLocation));
   const reader = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{ identifier: number; x: number; y: number } | null>(null);
   const [edition, setEdition] = useState(() => {
@@ -47,6 +50,16 @@ export function BibleReader() {
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useReadingPosition(reader,profile?.id,`bible-${book.slug}-${chapter}`,Boolean(text),Boolean(pendingTarget),true);
+  useEffect(()=>{saveBibleReadingLocation(profile?.id,{bookIndex,chapter});},[profile?.id,bookIndex,chapter]);
+  useLayoutEffect(()=>{
+    if(!text||!pendingTarget||pendingTarget.bookIndex!==bookIndex||pendingTarget.chapter!==chapter)return;
+    const target=pendingTarget.verse===undefined?null:reader.current?.querySelector<HTMLElement>(`[data-bible-verse="${pendingTarget.verse}"]`);
+    if(target)target.scrollIntoView({block:'start',behavior:'instant'});
+    else window.scrollTo({top:0,behavior:'instant'});
+    setPendingTarget(null);
+  },[text,pendingTarget,bookIndex,chapter]);
 
   useEffect(() => {
     let active = true;
@@ -76,8 +89,10 @@ export function BibleReader() {
     setError('');
   };
   const openChapter = (nextBook: number, nextChapter: number) => {
-    setBookIndex(nextBook);
-    setChapter(nextChapter);
+    const next={bookIndex:nextBook,chapter:nextChapter};
+    setLocation(next);
+    setPendingTarget(next);
+    saveBibleReadingLocation(profile?.id,next);
     setText(null);
     setInsights([]);
     setOpenVerse(null);
@@ -190,6 +205,7 @@ export function BibleReader() {
                 if (value === edition) return;
                 setText(null);
                 setEdition(value);
+                saveScriptureEdition(value,profile?.id);
               }}
             />
           </div>
@@ -207,7 +223,7 @@ export function BibleReader() {
         {text?.verses.map(verse => {
           const reference = `${book.name} ${chapter}:${verse.number}`;
           const rows = hasPremiumAccess ? insights.filter(item => item.verse_reference === reference) : [];
-          return <article key={verse.number} className="space-y-2 border-b border-border py-3 last:border-0">
+          return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className="space-y-2 border-b border-border py-3 last:border-0">
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-ghost text-xs" aria-expanded={openVerse === verse.number} onClick={() => {
