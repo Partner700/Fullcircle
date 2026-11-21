@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from 'react';
 import {
-  Award, BadgeCheck, BookOpen, Crown, Gem, KeyRound, Landmark, Medal,
+  Award, BadgeCheck, BookOpen, Crown, Medal,
   MessageCircle, PenTool, Send, Shield, Sprout, Star,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { ChiRhoMark } from './ChiRhoMark';
+import { awardCategoryKey } from '../lib/awardCollection';
+import { TempleIcon, BethelStoneIcon, LumenDomusIcon } from './TentAwardIcons';
 
 export type AvatarBadgeSize = 'auto' | 'xs' | 'sm' | 'md';
 type AvatarAward = { award_type: string; title: string; cadence: 'weekly' | 'monthly' };
@@ -56,7 +58,7 @@ const AWARD_ICONS = {
   reputation: Star,
   tutorix: BadgeCheck,
   valley_champion: Shield,
-  lords_secret: KeyRound,
+  lords_secret: TempleIcon,
   monthly_scribe: PenTool,
   monthly_valley_champion: Shield,
   muralis: Medal,
@@ -64,18 +66,20 @@ const AWARD_ICONS = {
   grand_scribe: PenTool,
   grand_valley_champion: Shield,
   grand_orator: MessageCircle,
-  bethel_stone: Gem,
-  temple_mount: Landmark,
+  bethel_stone: BethelStoneIcon,
+  temple_mount: LumenDomusIcon,
 } as const;
 
 function normalizedAwardType(awardType: string, title = '') {
   const type = awardType.trim().toLowerCase().replace(/[\s-]+/g, '_');
   const normalizedTitle = title.trim().toLowerCase();
-  if (type && type !== 'individual' && type !== 'cadet' && type !== 'sentry') return type;
+  const category = awardCategoryKey({ title, award_type: awardType });
+  if (!category.startsWith('other:')) return category;
+  if (type && type !== 'individual' && type !== 'cadet' && type !== 'sentry' && type !== 'leadership') return type;
   if (normalizedTitle.includes('grand vallum')) return 'grand_vallum';
   if (normalizedTitle.includes('vallum')) return 'vallum';
   if (normalizedTitle.includes('muralis')) return 'muralis';
-  if (normalizedTitle.includes('centurion')) return 'centurion';
+  if (normalizedTitle.includes('centurion') || normalizedTitle.includes('century award')) return 'centurion';
   if (normalizedTitle.includes('angel')) return 'angel';
   if (normalizedTitle.includes('nuncio')) return 'nuncio';
   if (normalizedTitle.includes('rhetoric')) return 'rhetoric';

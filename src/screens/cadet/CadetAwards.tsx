@@ -5,7 +5,7 @@ import { LaurelWreath, MeanderBorder, SealBullet } from '../../components/Ancien
 import { fetchAwardReactions, fetchAwards, fetchPersonalAwards, reactToAward, type AwardReactionState } from '../../lib/queries';
 import { formatShortDate, getTodayISODate, cn } from '../../lib/utils';
 import type { Award, AwardWithRecipient } from '../../lib/types';
-import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, BadgeCheck, Send, Gem, Landmark, Medal, KeyRound, Star, ChevronDown, ChevronRight } from 'lucide-react';
+import { Award as AwardIcon, Trophy, Crown, BookOpen, MessageCircle, Shield, PenTool, Sprout, BadgeCheck, Send, Medal, Star, ChevronDown, ChevronRight } from 'lucide-react';
 import { AwardReactions } from '../../components/AwardReactions';
 import { AppSelect } from '../../components/AppSelect';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
@@ -13,6 +13,7 @@ import { MessageAvatar } from '../../components/TentMessenger';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { awardCategoryKey, buildAwardCategories } from '../../lib/awardCollection';
+import { TempleIcon, BethelStoneIcon, LumenDomusIcon } from '../../components/TentAwardIcons';
 
 const AWARD_ICON_MAP: Record<string, typeof AwardIcon> = {
   rhetoric: MessageCircle,
@@ -24,7 +25,7 @@ const AWARD_ICON_MAP: Record<string, typeof AwardIcon> = {
   reputation: Star,
   tutorix: BadgeCheck,
   valley_champion: Shield,
-  lords_secret: KeyRound,
+  lords_secret: TempleIcon,
   vallum: Trophy,
   monthly_scribe: PenTool,
   monthly_valley_champion: Shield,
@@ -34,8 +35,8 @@ const AWARD_ICON_MAP: Record<string, typeof AwardIcon> = {
   grand_orator: MessageCircle,
   muralis: Medal,
   centurion: Shield,
-  bethel_stone: Gem,
-  temple_mount: Landmark,
+  bethel_stone: BethelStoneIcon,
+  temple_mount: LumenDomusIcon,
 };
 
 // Warm-palette award colors (brass / roman / moss / etc.)
@@ -59,7 +60,7 @@ const AWARD_COLOR_MAP: Record<string, string> = {
   grand_orator: '#C9A227',
   muralis: '#C9A227',
   centurion: '#7C8CFF',
-  bethel_stone: '#B8553E',
+  bethel_stone: '#B88A18',
   temple_mount: '#C9A227',
 };
 
@@ -73,7 +74,7 @@ const AWARD_LABEL_MAP: Record<string, string> = {
   reputation: 'Reputation Award',
   tutorix: 'Tutorix',
   valley_champion: 'Valley Champion',
-  lords_secret: "The Lord's Secret",
+  lords_secret: 'Temple',
   vallum: 'Vallum',
   monthly_scribe: 'Monthly Scribe',
   monthly_valley_champion: 'Monthly Valley Champion',
@@ -82,9 +83,9 @@ const AWARD_LABEL_MAP: Record<string, string> = {
   grand_valley_champion: 'Grand Valley Champion',
   grand_orator: 'Grand Orator',
   muralis: 'Muralis',
-  centurion: 'Centurion',
+  centurion: 'Century Award (Centurion)',
   bethel_stone: 'Bethel Stone',
-  temple_mount: 'Temple Mount',
+  temple_mount: 'Lumen Domus',
 };
 
 const WEEKLY_AWARD_CYCLE = /^week-(\d{4}-\d{2}-\d{2})$/;
@@ -227,7 +228,7 @@ export function CadetAwards() {
                     </div>
                   </div>
                   {(award.description || category?.meaning) && (
-                    <p className="relative text-xs text-stone mt-3"><VallumText text={award.description || category!.meaning} size={11} /></p>
+                    <p className="relative text-xs text-stone mt-3"><VallumText text={key === 'angel' || key === 'nuncio' || key === 'centurion' ? category!.meaning : award.description || category!.meaning} size={11} /></p>
                   )}
                 </div>
               );
@@ -393,7 +394,7 @@ export function CadetAwards() {
             </li>
             <li className="flex items-center gap-2">
               <SealBullet className="text-brass flex-shrink-0" />
-              <span><span className="text-ink font-medium">Tent Awards</span> — The Lord's Secret weekly, Bethel Stone monthly, and Temple Mount annually.</span>
+              <span><span className="text-ink font-medium">Tent Awards</span> — Temple weekly, Bethel Stone monthly, and Lumen Domus annually.</span>
             </li>
           </ul>
         </div>

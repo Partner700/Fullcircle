@@ -156,7 +156,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames, initialDate }: {
     const url = `${window.location.origin}${window.location.pathname}?share=game&date=${today}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Full Circle Daily Trivia · Level 1', url });
-      else await navigator.clipboard?.writeText(url);
+      else if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+      else { window.prompt('Copy this game link:', url); return; }
       await recordExternalShare('game', today).catch(() => undefined);
     } catch (error: any) {
       if (error?.name !== 'AbortError') alert('Could not share this game.');

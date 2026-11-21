@@ -21,6 +21,10 @@ const records = [
 const personal = records.filter(row => isPersonalAward(row, 'me'));
 assert.equal(personal.length, 8);
 assert.equal(awardCategoryKey(records[5]), 'lords_secret');
+assert.equal(awardCategoryKey(award('11', 'Temple', 'tent')), 'lords_secret');
+assert.equal(awardCategoryKey(award('12', 'Lumen Domus', 'tent')), 'temple_mount');
+assert.equal(awardCategoryKey(award('13', 'Temple Mount', 'tent')), 'temple_mount');
+assert.equal(awardCategoryKey(award('14', 'Century Award (Centurion)', 'leadership')), 'centurion');
 assert.equal(awardCategoryKey(records[2]), 'grand_vallum');
 const categories = buildAwardCategories(personal);
 const count = (key: string) => categories.find(row => row.key === key)?.count;

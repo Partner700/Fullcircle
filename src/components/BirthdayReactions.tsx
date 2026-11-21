@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { recordExternalShare } from '../lib/queries';
 import { fetchBirthdayConversation, saveBirthdayWish, setBirthdayReaction, type BirthdayConversation } from '../lib/birthdays';
 import { updateReactionOptimistically } from '../lib/reactionState';
 import type { DailyQuoteComment, ScheduledAnnouncement } from '../lib/types';
@@ -98,7 +99,9 @@ export function BirthdayReactions({ announcement, active, onOpenChange, onMessag
         setShareNotice('Birthday link copied.');
       } else {
         window.prompt('Copy this birthday link:', shareData.url);
+        return;
       }
+      if (profile?.id) await recordExternalShare('birthday', announcement.id).catch(() => undefined);
     } catch (reason) {
       if (!(reason instanceof DOMException && reason.name === 'AbortError')) setShareNotice('The birthday link could not be shared.');
     }

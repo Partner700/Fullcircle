@@ -30,6 +30,7 @@ import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { CampTreasury } from '../../components/InstructorTreasury';
 import { VallumText } from '../../components/ChiRhoMark';
+import { AwardBadgeGlyph } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
 import { GameActivityProfiles } from '../../components/GameActivityProfiles';
 import { AwardReleasePlanner } from '../../components/AwardReleasePlanner';
@@ -80,7 +81,7 @@ import {
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
   fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, savePanelImageSetting, fetchPanelImageSetting,
-  fetchMarksBoard, fetchWeeklyAwardMetrics,
+  fetchMarksBoard, fetchWeeklyAwardMetrics, fetchWeeklyAngelAwardMetrics,
 } from '../../lib/queries';
 
 type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'journey_questions' | 'arena' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
@@ -134,6 +135,7 @@ function AwardCheckboxList({ selected, onToggle, target = 'cadet' }: { selected:
                     checked ? 'border-peri bg-peri/5' : 'border-border-bright bg-surface-2 hover:border-stone/30')}>
                   <input type="checkbox" checked={checked} onChange={() => onToggle(award.title)}
                     className="mt-0.5 accent-peri flex-shrink-0" />
+                  {award.forTent && <span className="shrink-0 text-brass"><AwardBadgeGlyph awardType="tent" title={award.title} size={24} /></span>}
                   <div>
                     <p className="text-xs font-semibold text-ink leading-tight"><VallumText text={award.title} size={11} /></p>
                     <p className="text-[11px] text-stone mt-0.5"><VallumText text={award.description} size={10} /></p>
@@ -2482,7 +2484,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'weekly',
     awards: [
       { title: 'Rhetoric Award (Orator)', description: 'Most reactions and comments received across quotes and scripture insights during the week' },
-      { title: 'Angel Award (Angelos)', description: 'Weekly leader in insight likes, public meditations, and external shares' },
+      { title: 'Angel Award (Angelos)', description: 'Most insights published, meditations made public, and app links shared during the week' },
       { title: 'Rumor Award', description: 'Weekly Vallum: the cadet leading the Marks table' },
       { title: 'Scribe Award', description: 'Highest total figs earned during the week' },
       { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
@@ -2495,7 +2497,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Weekly Tent',
     cadence: 'weekly',
     awards: [
-      { title: "The Lord's Secret", description: 'Best Performing Tent', forTent: true },
+      { title: 'Temple', description: 'Best Performing Tent of the Week', forTent: true },
     ],
   },
   {
@@ -2503,11 +2505,11 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'monthly',
     awards: [
       { title: 'Vallum', description: 'Overall Best Cadet of the Month by Marks' },
-      { title: 'Messenger Award (Nuncio)', description: 'Monthly leader in insight likes, public meditations, and external shares' },
+      { title: 'Messenger Award (Nuncio)', description: 'Most insights published, meditations made public, and app links shared during the month' },
       { title: 'Monthly Scribe', description: 'Highest Monthly Fig Total' },
       { title: 'Monthly Valley Champion', description: 'Most Monthly Arena Victories' },
       { title: 'Muralis', description: 'Winner of the previous Full Circle Experience' },
-      { title: 'Centurion', description: 'Best Sentry of the Month', forSentry: true },
+      { title: 'Century Award (Centurion)', description: 'Best Sentry of the Month by attendance and daily meditation submissions', forSentry: true },
     ],
   },
   {
@@ -2531,7 +2533,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Annual Tent',
     cadence: 'annual',
     awards: [
-      { title: 'Temple Mount', description: 'Overall Best Tent of the Year', forTent: true },
+      { title: 'Lumen Domus', description: 'Overall Best Tent of the Year', forTent: true },
     ],
   },
 ];
@@ -2598,7 +2600,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, weeklyAwardMetricsResult, { data: arenaWins }, marksBoardResult] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, weeklyAwardMetricsResult, { data: arenaWins }, marksBoardResult, angelMetrics] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
@@ -2619,6 +2621,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
             : Promise.resolve({ data: [], error: null }),
           fetchMarksBoard().then((data) => ({ data })).catch(() => ({ data: [] })),
+          fetchWeeklyAngelAwardMetrics().catch(() => []),
         ]);
 
         const todayIso = getTodayISODate();
@@ -2773,18 +2776,18 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           });
         }
 
-        const messengerRanking = [...cadetWeeklyMetrics]
-          .filter((metric) => Number(metric.messenger_score) > 0)
+        const messengerRanking = angelMetrics
+          .filter((metric) => cadetIds.includes(metric.user_id) && Number(metric.angel_score) > 0)
           .sort((left, right) => (
-            Number(right.messenger_score) - Number(left.messenger_score)
-            || Number(right.insight_likes) - Number(left.insight_likes)
+            Number(right.angel_score) - Number(left.angel_score)
+            || Number(right.insights_published) - Number(left.insights_published)
             || Number(right.public_meditations) - Number(left.public_meditations)
             || Number(right.external_shares) - Number(left.external_shares)
             || left.display_name.localeCompare(right.display_name)
           ))
           .slice(0, 4);
         const messengerDetail = (metric: typeof messengerRanking[number]) => (
-          `${Number(metric.insight_likes)} insight like(s) · ${Number(metric.public_meditations)} public meditation(s) · ${Number(metric.external_shares)} external share(s)`
+          `${Number(metric.insights_published)} insight(s) published · ${Number(metric.public_meditations)} public meditation(s) · ${Number(metric.external_shares)} app link share(s)`
         );
         const topMessenger = messengerRanking[0];
         if (topMessenger) {
@@ -2813,7 +2816,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         const topTent = tentRanking[0];
         if (topTent) {
           next.push({
-            title: "The Lord's Secret",
+            title: 'Temple',
             candidate: tents.find((tent) => tent.id === topTent[0])?.name || 'Leading tent',
             candidateId: topTent[0],
             detail: `${topTent[1]} aggregate daily action(s). Tent awards are given to tents, not tent houses.`,
@@ -3030,6 +3033,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                           checked ? 'border-peri bg-peri/5' : 'border-border-bright bg-surface-2 hover:border-stone/30')}>
                         <input type="checkbox" checked={checked} onChange={() => toggleAward(award.title)}
                           className="mt-0.5 accent-peri flex-shrink-0" />
+                        {award.forTent && <span className="shrink-0 text-brass"><AwardBadgeGlyph awardType="tent" title={award.title} size={28} /></span>}
                         <div>
                           <p className="text-sm font-semibold text-ink leading-tight"><VallumText text={award.title} size={13} /></p>
                           <p className="text-xs text-stone mt-0.5"><VallumText text={award.description} size={11} /></p>

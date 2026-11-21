@@ -27,6 +27,7 @@ import { JourneyGamePlay } from './JourneyGamePlay';
 import { fetchJourneyCatalog, type JourneyCharacter } from '../../lib/journeyClient';
 import { arenaGameOptions, preferredArenaGameType } from '../../lib/arenaJourneyRollout';
 import { supabase } from '../../lib/supabase';
+import { recordExternalShare } from '../../lib/queries';
 import {
   fetchLedgerTotal,
   createArenaRoom,
@@ -317,6 +318,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     try {
       if (navigator.share) await navigator.share({ title: 'Witness a Full Circle Arena match', url: url.toString() });
       else await navigator.clipboard.writeText(url.toString());
+      await recordExternalShare('arena', roomId).catch(() => undefined);
     } catch (shareError) {
       if ((shareError as Error)?.name !== 'AbortError') setError('The Arena link could not be shared.');
     }

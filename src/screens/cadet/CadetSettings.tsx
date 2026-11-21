@@ -6,7 +6,7 @@ import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
+import { fetchPersonalAwards, fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -68,12 +68,13 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
           }));
         }),
         getSubscriptionStatus(profile.id).then(setSubStatus),
-        ...(['game_attempts', 'quiz_attempts', 'daily_records', 'awards'] as const).map(async (table, index) => {
+        fetchPersonalAwards(profile.id).then(awards => setStats(previous => ({ ...previous, awardsCount: awards.length }))),
+        ...(['game_attempts', 'quiz_attempts', 'daily_records'] as const).map(async (table, index) => {
           let query = supabase.from(table).select('*', { count: 'exact', head: true }).eq('user_id', profile.id);
           if (table === 'daily_records') query = query.eq('meditation_submitted', true);
           const { count, error } = await query;
           if (error) throw error;
-          const key = (['gamesPlayed', 'quizzesTaken', 'narrativesRead', 'awardsCount'] as const)[index];
+          const key = (['gamesPlayed', 'quizzesTaken', 'narrativesRead'] as const)[index];
           setStats((previous) => ({ ...previous, [key]: count ?? 0 }));
         }),
         (async () => {
@@ -122,7 +123,6 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
     { label: 'Denarii', value: formatDenarii(stats.denarii), icon: Coins, color: 'text-gold' },
     { label: 'Figs', value: stats.figs.toLocaleString(), icon: BadgeCheck, color: 'text-sage' },
     { label: 'Rhudes', value: stats.rhudes.toLocaleString(), icon: Shield, color: 'text-royal' },
-    { label: 'Marks', value: stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 }), icon: ChiRhoMark, color: 'text-peri-2' },
     { label: 'Current Streak', value: `${stats.currentStreak} days`, icon: Flame, color: 'text-brass' },
     { label: 'Longest Streak', value: `${stats.longestStreak} days`, icon: TrendingUp, color: 'text-roman' },
     { label: 'Awards', value: stats.awardsCount, icon: Award, color: 'text-royal' },
@@ -146,6 +146,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
             <p className="font-display font-semibold text-ink text-lg">{profile?.display_name}</p>
             <p className="text-sm text-stone">{profile?.email}</p>
             <p className="text-xs text-stone mt-1">Role: Cadet</p>
+            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-peri" title="Labarum"><ChiRhoMark size={14} />{stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 

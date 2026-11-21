@@ -2340,7 +2340,7 @@ for (const required of [
 for (const required of [
   'fetchProfileCv(targetId)',
   'Full Circle Profile',
-  'Valediction marks',
+  'Lifetime individual honors earned',
   'Days the Bible has been read consistently',
   'Bible questions answered correctly',
   'Bible duels won',
@@ -2353,7 +2353,9 @@ assert.match(authenticatedOverlays, /<ProfileCvHost\s*\/?>/);
 assert.match(profileCvModal, /profile-cv-overlay[^\n]*items-center justify-center/);
 assert.match(profileCvModal, /icon=\{Flame\} label="Streak"/);
 assert.match(profileCvModal, /icon=\{BadgeCheck\} label="Figs"/);
-assert.match(profileCvModal, /icon=\{ChiRhoMark\} label="Marks"/);
+assert.match(profileCvModal, /<ChiRhoMark size=\{14\}/);
+assert.match(profileCvModal, /icon=\{Award\} label="Awards"/);
+assert.doesNotMatch(profileCvModal, /label="Marks"/);
 assert.match(profileCvModal, /data\.completed_challenges/);
 assert.match(profileCvModal, /fetchPanelImageSetting\('profile'\)/);
 assert.match(instructorApp, /panel_image_profile', label: 'Member Profile'/);

@@ -276,6 +276,7 @@ export interface Profile {
 
 export interface ProfileCvData {
   completed_challenges: number;
+  awards_count: number | null;
   user_id: string;
   display_name: string;
   avatar_url: string | null;
@@ -858,6 +859,15 @@ export interface MonthlyMessengerAwardMetric {
   public_meditations: number;
   external_shares: number;
   messenger_score: number;
+}
+
+export interface WeeklyAngelAwardMetric {
+  user_id: string;
+  display_name: string;
+  insights_published: number;
+  public_meditations: number;
+  external_shares: number;
+  angel_score: number;
 }
 
 export interface ScheduledAnnouncement {

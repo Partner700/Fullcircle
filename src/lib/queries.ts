@@ -943,8 +943,14 @@ export async function fetchMonthlyMessengerAwardMetrics(monthStart?: string) {
   return (data || []) as import('./types').MonthlyMessengerAwardMetric[];
 }
 
+export async function fetchWeeklyAngelAwardMetrics(weekStart?: string) {
+  const { data, error } = await supabase.rpc('get_weekly_angel_award_metrics', { p_week_start: weekStart || null });
+  if (error) throw error;
+  return (data || []) as import('./types').WeeklyAngelAwardMetric[];
+}
+
 export async function recordExternalShare(
-  shareKind: 'reading' | 'quiz' | 'game' | 'meditation',
+  shareKind: 'reading' | 'quiz' | 'game' | 'meditation' | 'arena' | 'birthday',
   referenceKey: string,
 ) {
   const { data, error } = await supabase.rpc('record_external_share', {
@@ -1055,7 +1061,9 @@ export async function fetchProfileCv(userId: string) {
   if (error) throw error;
   if (!data || typeof data !== 'object') throw new Error('This Full Circle profile is unavailable.');
   const row = data as any;
+  const awardsCount = await fetchPersonalAwards(String(row.user_id || userId)).then(awards => awards.length).catch(() => null);
   return {
+    awards_count: awardsCount,
     user_id: String(row.user_id || userId),
     display_name: String(row.display_name || 'Full Circle member'),
     avatar_url: row.avatar_url ? String(row.avatar_url) : null,
