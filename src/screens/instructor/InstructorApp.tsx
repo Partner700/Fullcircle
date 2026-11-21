@@ -12,6 +12,7 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
+import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
 import { CadetArena } from '../cadet/CadetArena';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
@@ -2249,6 +2250,9 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Sentry Management" subtitle="View, promote, award, replace, or remove sentries" />
+      <p className="text-xs text-stone">Consider Command and Rite performance when selecting Sentry award winners.</p>
+      <SentryLeadershipBoard kind="command" viewerId={instructorId} />
+      <SentryLeadershipBoard kind="rite" viewerId={instructorId} />
       <input className="input-field" placeholder="Search sentries…" value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="space-y-3">
         {filtered.map((r) => {
@@ -3655,7 +3659,7 @@ function QuizBuilder() {
                 <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune' | 'valediction')} options={[
                   { value: 'saturday', label: 'Saturday Quiz' },
                   { value: 'fortune', label: 'Fortune Quiz' },
-                  { value: 'valediction', label: 'Valediction Quiz (90% to pass)' },
+                  { value: 'valediction', label: 'Valediction Quiz (80% Sentry · 95% Instructor)' },
                 ]} />
               </div>
               <div>
@@ -3729,7 +3733,7 @@ function QuizBuilder() {
             <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune' | 'valediction')} options={[
               { value: 'saturday', label: 'Saturday Quiz', description: 'Scheduled, streak-critical' },
               { value: 'fortune', label: 'Fortune Quiz', description: 'Random bonus rewards' },
-              { value: 'valediction', label: 'Valediction Quiz', description: 'Qualifying cadets only; 90% required to become a Sentry' },
+              { value: 'valediction', label: 'Valediction Quiz', description: 'Qualifying cadets: 80% for Sentry; qualifying Sentries: 95% for Instructor exam' },
             ]} />
           </div>
           <div>

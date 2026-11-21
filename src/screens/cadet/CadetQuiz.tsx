@@ -215,7 +215,7 @@ function cleanQuizOptions(options: unknown, correctAnswer: unknown) {
 }
 
 type QuizType = 'saturday' | 'fortune' | 'valediction';
-type ValedictionStatus = { eligible: boolean; streak: number; figs: number; is_sentry: boolean };
+type ValedictionStatus = { eligible: boolean; streak: number; figs: number; is_sentry: boolean; target_role: 'sentry' | 'instructor'; required_streak: number; required_figs: number; passing_percent: number };
 
 export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted: () => void; sharedSession?: QuizSession }) {
   const [quizType, setQuizType] = useState<QuizType>(sharedSession?.quiz_type as QuizType || 'saturday');
@@ -247,34 +247,33 @@ export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted:
     </div>
     {!quizUnlocked && <div className="card p-4 text-sm"><p>Subscribe to play {quizType === 'fortune' ? 'Fortune Quiz' : 'Valediction Quiz'}.</p><button type="button" className="btn-primary mt-3 text-xs" onClick={requirePremiumAccess}>View subscription</button></div>}
     {quizUnlocked && quizType === 'valediction' && <div className="card p-4 text-sm">
-      <h2 className="font-display font-bold text-ink">Earn your Sentry status</h2>
-      <p className="mt-2 text-stone">Qualify with 100 verified streak days and more than 10,000 figs, then score at least 90% on the Valediction quiz. Relics cannot be used.</p>
-      {eligibility && <p className="mt-2 text-gold">{eligibility.streak}/100 streak days · {eligibility.figs.toLocaleString()}/10,001 figs</p>}
-      {eligibility?.is_sentry && <p className="mt-2 text-moss">You already hold Sentry status.</p>}
+      <h2 className="font-display font-bold text-ink">{eligibility?.target_role === 'instructor' ? 'Instructor qualification' : 'Earn your Sentry status'}</h2>
+      {eligibility && <><p className="mt-2 text-stone">Qualify with {eligibility.required_streak} verified streak days and {eligibility.required_figs.toLocaleString()} Figs, then score at least {eligibility.passing_percent}% on the Valediction Quiz. Relics cannot be used.</p>
+      <p className="mt-2 text-gold">{eligibility.streak}/{eligibility.required_streak} streak days · {eligibility.figs.toLocaleString()}/{eligibility.required_figs.toLocaleString()} Figs</p></>}
       {eligibilityError && <><p role="alert" className="mt-2 text-coral">{eligibilityError}</p><button type="button" className="btn-secondary mt-2 text-xs" onClick={() => setEligibilityRetry((value) => value + 1)}>Retry</button></>}
       {!eligibility && !eligibilityError && <p role="status" className="mt-2 text-stone">Checking eligibility...</p>}
-      {eligibility && !eligibility.eligible && !eligibility.is_sentry && <p className="mt-2 text-stone">Keep building your streak and figs to unlock this quiz.</p>}
+      {eligibility && !eligibility.eligible && <p className="mt-2 text-stone">Keep building your streak and Figs to unlock this quiz.</p>}
     </div>}
     {quizUnlocked && (quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} sharedSession={sharedSession?.quiz_type === quizType ? sharedSession : undefined} onQuizSubmitted={refresh} />}
   </div>;
 }
 
 function ValedictionResult({ attempt }: { attempt: QuizAttempt }) {
-  const [result, setResult] = useState<{ correct_count: number; question_count: number; passed: boolean } | null>(null);
+  const [result, setResult] = useState<{ correct_count: number; question_count: number; passed: boolean; target_role: string; passing_percent: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
-    void supabase.from('valediction_results').select('correct_count,question_count,passed').eq('attempt_id', attempt.id).single().then(({ data, error: failure }) => {
+    void supabase.from('valediction_results').select('correct_count,question_count,passed,target_role,passing_percent').eq('attempt_id', attempt.id).single().then(({ data, error: failure }) => {
       if (!active) return;
       if (failure) setError('Your result could not load. Reopen the quiz to retry.'); else setResult(data);
     }, () => { if (active) setError('Your result could not load. Reopen the quiz to retry.'); });
     return () => { active = false; };
   }, [attempt.id]);
-  if (attempt.status === 'forfeited') return <div className="card p-5"><h2 className="font-display font-bold">Valediction attempt ended</h2><p className="mt-2 text-stone">This attempt was forfeited. You remain a cadet and can try the next Valediction quiz.</p></div>;
+  if (attempt.status === 'forfeited') return <div className="card p-5"><h2 className="font-display font-bold">Valediction attempt ended</h2><p className="mt-2 text-stone">This attempt was forfeited. Your role remains unchanged. You can try the next Valediction quiz.</p></div>;
   return <div className="card p-5"><h2 className="font-display font-bold">Valediction result</h2>
     {error ? <p role="alert" className="mt-2 text-coral">{error}</p> : !result ? <p role="status">Loading your verified result...</p> : <>
       <p className="mt-2 text-gold">{result.correct_count}/{result.question_count} correct · {(result.correct_count * 100 / result.question_count).toFixed(1)}%</p>
-      <p className="mt-2 text-stone">{result.passed ? 'Passed! You have earned Sentry status. Reopen the app to enter your Sentry workspace.' : 'Not passed. You need at least 90%. You can try again in the next Valediction quiz.'}</p>
+      <p className="mt-2 text-stone">{result.passed ? result.target_role === 'instructor' ? 'Passed! Your Instructor exam qualification is recorded. Camp assignment is a separate step.' : 'Passed! You have earned Sentry status. Reopen the app to enter your Sentry workspace.' : `Not passed. You need at least ${result.passing_percent}%. You can try again in the next Valediction quiz.`}</p>
     </>}
   </div>;
 }

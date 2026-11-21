@@ -325,6 +325,8 @@ export async function setTentJoinDirection(userId: string, tentId: string | null
 
 export type TentAssignmentReceipt = {
   success: boolean;
+  invited: boolean;
+  invitation_id: string;
   user_id: string;
   tent_id: string;
   tent_name: string;
@@ -339,8 +341,8 @@ export async function sentryAddCadetToTent(tentId: string, cadetId: string) {
   });
   if (error) throw error;
   const receipt = data as TentAssignmentReceipt | null;
-  if (!receipt?.success || receipt.user_id !== cadetId || receipt.tent_id !== tentId) {
-    throw new Error('The tent assignment could not be verified. Please try again.');
+  if (!receipt?.success || !receipt.invited || !receipt.invitation_id || receipt.user_id !== cadetId || receipt.tent_id !== tentId) {
+    throw new Error('The tent invitation could not be verified. Please try again.');
   }
   return receipt;
 }

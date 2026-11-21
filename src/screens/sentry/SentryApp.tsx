@@ -26,7 +26,7 @@ import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchLedgerEntries, fetchReliableToolbarStats, fetchPublicStreakDetails, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
   fetchAllChallengeSubmissions, reviewChallengeSubmission,
-  fetchSentryCadetContacts, fetchTentJoinRequests, reviewTentJoinRequest, type TentJoinRequestSummary,
+  fetchSentryCadetContacts, fetchTentJoinRequests, reviewTentJoinRequest, fetchSentryAddableCadets, sentryAddCadetToTent, type TentJoinRequestSummary,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
@@ -1233,16 +1233,42 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   const [applications, setApplications] = useState<TentJoinRequestSummary[]>([]);
   const [requestError, setRequestError] = useState('');
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<{ user_id: string; display_name: string }[]>([]);
+  const [sentInvites, setSentInvites] = useState<{ recipient_id: string; display_name: string }[]>([]);
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [inviting, setInviting] = useState<string | null>(null);
   const full = members.filter(member => member.role === 'cadet').length >= cadetLimit;
   const refreshApplications = useCallback(async () => {
     setApplications(await fetchTentJoinRequests(tentId));
   }, [tentId]);
+  const refreshInvites = useCallback(async () => {
+    const [residents, result] = await Promise.all([fetchSentryAddableCadets(currentUserId), supabase.rpc('get_sent_tent_invitations', { p_tent_id: tentId })]);
+    if (result.error) throw result.error;
+    setCandidates(residents);
+    setSentInvites(result.data ?? []);
+  }, [currentUserId, tentId]);
   useEffect(() => {
     const refresh = () => { void refreshApplications().catch(() => setRequestError('Could not load tent requests.')); };
     refresh();
     const timer = window.setInterval(refresh, 20_000);
     return () => window.clearInterval(timer);
   }, [refreshApplications]);
+  useEffect(() => {
+    const refresh = () => { void refreshInvites().catch(() => setRequestError('Could not load tent invitations.')); };
+    refresh();
+    const timer = window.setInterval(refresh, 20_000);
+    return () => window.clearInterval(timer);
+  }, [refreshInvites]);
+  const inviteResident = async (id: string) => {
+    setInviting(id);
+    setRequestError('');
+    try {
+      await sentryAddCadetToTent(tentId, id);
+      await refreshInvites();
+    } catch (error) {
+      setRequestError((error as { message?: string })?.message || 'Could not send invitation.');
+    } finally { setInviting(null); }
+  };
 
   const review = async (requestId: string, approve: boolean) => {
     setReviewing(requestId);
@@ -1259,6 +1285,15 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
   };
   return (
     <div className="space-y-3 animate-fade-in">
+      <section className="card space-y-3 p-4">
+        <h2 className="font-display font-semibold">Invite residents</h2>
+        <p className="text-xs text-stone">Send an invitation even before a resident qualifies. They join only when they accept after reaching five streaks.</p>
+        {sentInvites.map(invite => <div key={invite.recipient_id} className="flex justify-between gap-2 text-sm"><span>{invite.display_name}</span><span className="text-xs text-stone">Invitation pending</span></div>)}
+        <input className="input w-full" placeholder="Search residents to invite" value={inviteSearch} onChange={e => setInviteSearch(e.target.value)} />
+        {inviteSearch.trim() && candidates.filter(c => c.display_name.toLowerCase().includes(inviteSearch.trim().toLowerCase()) && !sentInvites.some(i => i.recipient_id === c.user_id)).slice(0,20).map(c => <div key={c.user_id} className="flex items-center justify-between gap-2 border-t border-border pt-2">
+          <span className="text-sm">{c.display_name}</span><button className="btn-secondary text-xs" disabled={inviting !== null} onClick={() => void inviteResident(c.user_id)}>{inviting === c.user_id ? 'Sending…' : 'Invite'}</button>
+        </div>)}
+      </section>
       <section className="card space-y-3 p-4">
         <h2 className="font-display font-semibold">Tent requests</h2>
         {full && <p className="text-xs text-stone">The tent is full. Accept requests when a place opens.</p>}

@@ -1096,7 +1096,7 @@ export function CadetApp() {
     <SubscriptionAccessProvider isExpired={isExpired} hasPremiumAccess={subscriptionHasPremiumAccess(subStatus, subscriptionClock)} onSubscriptionRequired={() => setTab('subscribe')}>
     <>
     <AppShell
-      navItems={NAV_ITEMS.map((item) => item.key === 'tent' && !tentUnlocked ? { ...item, disabled: true, title: 'Reach a 5-day streak to unlock Tent' } : item)}
+      navItems={NAV_ITEMS}
       activeKey={tab}
       navActiveKey={dailyGamesNavigationKey(tab)}
       onNavigate={handleNavigate}
@@ -1224,9 +1224,7 @@ export function CadetApp() {
         {tab === 'arena' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
         {tab === 'story' && <StoryModeUnderDevelopment onBackToDailyGames={() => handleNavigate('games')} />}
         {tab === 'quiz' && <CadetQuiz onQuizSubmitted={refreshCadetState} />}
-        {tab === 'tent' && (!tentUnlocked ? (
-          <p className="card p-5 text-sm text-stone">Reach a 5-day streak to unlock Tent. Your first month is free when you join.</p>
-        ) : tentInfo.tent && isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetTent onMembershipChanged={async () => { await Promise.all([refreshCadetState(), loadSubStatus(), loadTentInfo()]); }} />)}
+        {tab === 'tent' && (tentInfo.tent && isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetTent canApply={tentUnlocked} onMembershipChanged={async () => { await Promise.all([refreshCadetState(), loadSubStatus(), loadTentInfo()]); }} />)}
         {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
         {tab === 'awards' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
         {tab === 'store' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />)}

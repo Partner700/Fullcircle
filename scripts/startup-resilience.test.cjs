@@ -78,8 +78,8 @@ function worker(fetcher, cache = memoryCaches()) {
 }
 
 const response = (text = 'app', type = 'text/html') => new Response(text, { headers: { 'content-type': type } });
-const appHtml = (text = 'app', release = '291') => `<!doctype html><html><head><meta name="full-circle-release" content="${release}"></head><body><main id="root">${text}</main></body></html>`;
-const appResponse = (text = 'app', release = '291') => response(appHtml(text, release), 'text/html');
+const appHtml = (text = 'app', release = '292') => `<!doctype html><html><head><meta name="full-circle-release" content="${release}"></head><body><main id="root">${text}</main></body></html>`;
+const appResponse = (text = 'app', release = '292') => response(appHtml(text, release), 'text/html');
 function mirrorResponse(url, text = 'export const loaded = true;') {
   const result = response(text, 'application/javascript');
   Object.defineProperty(result, 'url', { value: url });
@@ -173,12 +173,12 @@ async function run() {
     assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
     assert.ok(!(await cache.keys()).includes('full-circle-target-v176-shell'), 'The Release 176 loop must be removed from affected phones.');
     assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '291');
+    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '292');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v291-shell')).put(scope + 'index.html', appResponse('current target app'));
+    await (await cache.open('full-circle-target-v292-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
@@ -242,7 +242,7 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v291-shell')).put(
+    await (await cache.open('full-circle-target-v292-shell')).put(
       scope + 'index.html',
       response('<html><main id="root">proxy error</main></html>', 'text/html'),
     );
@@ -251,13 +251,13 @@ async function run() {
   }
   {
     const w = worker(async () => appResponse());
-    assert.equal(await w.validReleaseResponse(appResponse('current release', '291'), request()), true, 'A verified current shell must not be rejected by an older worker.');
+    assert.equal(await w.validReleaseResponse(appResponse('current release', '292'), request()), true, 'A verified current shell must not be rejected by an older worker.');
     assert.equal(await w.validReleaseResponse(appResponse('previous safe release', '177'), request()), true, 'The previous safe shell remains usable during an interrupted update.');
     assert.equal(await w.validReleaseResponse(appResponse('retired release', '176'), request()), false, 'The broken retired shell must never be accepted again.');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v291-shell')).put(scope + 'index.html', appResponse('old cached shell', '225'));
+    await (await cache.open('full-circle-target-v292-shell')).put(scope + 'index.html', appResponse('old cached shell', '225'));
     const w = worker(async (url) => url.startsWith(scope) ? appResponse('stale carrier shell', '225') : appResponse('latest mirror shell'));
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
     assert.match(await delivered.text(), /latest mirror shell/, 'An online launch must prefer the current mirror over stale carrier and cached copies.');
@@ -266,24 +266,24 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v291-shell')).put(scope + 'index.html', appResponse('offline shell', '225'));
+    await (await cache.open('full-circle-target-v292-shell')).put(scope + 'index.html', appResponse('offline shell', '225'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
     assert.match(await delivered.text(), /offline shell/, 'A safe cached copy remains usable when all online copies are unavailable.');
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v291-shell')).put(scope + 'index.html', appResponse('cached shell'));
+    await (await cache.open('full-circle-target-v292-shell')).put(scope + 'index.html', appResponse('cached shell'));
     const w = worker(async () => appResponse('fresh network shell'), cache);
     const delivered = await w.networkFirstNavigation({
-      url: scope + '?fc-repair=291',
+      url: scope + '?fc-repair=292',
       mode: 'navigate',
     }, w.event);
     assert.match(await delivered.text(), /fresh network shell/, 'A recovery navigation must bypass the cached shell.');
   }
   {
     const cache = memoryCaches();
-    await cache.open('full-circle-target-v291-shell');
+    await cache.open('full-circle-target-v292-shell');
     await cache.open('full-circle-target-v176-assets');
     const w = worker(async () => appResponse(), cache);
     const resetEvent = { data: { type: 'RESET_APP_SHELL' }, jobs: [], waitUntil(promise) { this.jobs.push(promise); } };
@@ -338,7 +338,7 @@ async function testRecovery() {
     location: { href: scope, replace(url) { this.href = url; redirects.push(url); }, reload() { throw new Error('Unexpected reload'); } },
     get sessionStorage() { throw new Error('Storage denied'); },
   };
-  const globals = { window, document: { querySelector: () => ({ content: '291' }) }, navigator: { serviceWorker: { getRegistration: () => new Promise(() => {}) } } };
+  const globals = { window, document: { querySelector: () => ({ content: '292' }) }, navigator: { serviceWorker: { getRegistration: () => new Promise(() => {}) } } };
   const first = loadTs('src/lib/staleBundleRecovery.ts', globals);
   assert.equal(first.recoverFromStaleBundle('Load failed'), false, 'API failures must not reload the app.');
   assert.equal(first.recoverFromStaleBundle('Failed to fetch dynamically imported module'), true);

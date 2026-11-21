@@ -55,7 +55,9 @@ type TentJoinOption = {
   requested: boolean;
 };
 
-export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => Promise<void> }) {
+type TentInvitation = { invitation_id: string; tent_name: string; sentry_name: string; longest_streak: number; has_space: boolean; can_accept: boolean };
+
+export function CadetTent({ onMembershipChanged, canApply }: { onMembershipChanged: () => Promise<void>; canApply: boolean }) {
   const { profile } = useAuth();
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
@@ -68,6 +70,8 @@ export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => 
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
   const [availableTents, setAvailableTents] = useState<TentJoinOption[]>([]);
+  const [invitations, setInvitations] = useState<TentInvitation[]>([]);
+  const [responding, setResponding] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [optionsError, setOptionsError] = useState(false);
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
@@ -94,7 +98,9 @@ export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => 
       if (!member) {
         setTent(null);
         setMembers([]);
-        const { data, error } = await supabase.rpc('get_tent_join_options');
+        const [{ data, error }, invites] = await Promise.all([supabase.rpc('get_tent_join_options'), supabase.rpc('get_my_tent_invitations')]);
+        if (invites.error) throw invites.error;
+        setInvitations((invites.data ?? []) as TentInvitation[]);
         if (error) throw error;
         setAvailableTents((data ?? []) as TentJoinOption[]);
         return;
@@ -196,6 +202,21 @@ export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => 
     }
   };
 
+  const respond = async (invite: TentInvitation, accept: boolean) => {
+    if (responding || (accept && !invite.can_accept)) return;
+    if (!window.confirm(accept ? `Join ${invite.tent_name}?` : `Decline the invitation from ${invite.tent_name}?`)) return;
+    setResponding(true);
+    setJoinError('');
+    try {
+      const { error } = await supabase.rpc('respond_to_tent_invitation', { p_invitation_id: invite.invitation_id, p_accept: accept });
+      if (error) throw error;
+      await load();
+    } catch (error) {
+      setJoinError((error as { message?: string }).message || 'Could not respond to the invitation.');
+      await load();
+    } finally { setResponding(false); }
+  };
+
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
     if (!profile || !tent) return;
     const existing = reactions.find((reaction) => reaction.reactor_user_id === profile.id
@@ -240,6 +261,21 @@ export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => 
   if (!tent) {
     return (
       <div className="space-y-5 animate-fade-in">
+        <section className="card p-4 space-y-3">
+          <h2 className="font-display font-semibold">Tent invitations</h2>
+          <p className="text-xs text-stone">A Sentry can invite you before you qualify. You decide whether to join.</p>
+          {!invitations.length && <p className="text-xs text-stone">No pending invitations.</p>}
+          {invitations.map(invite => <article key={invite.invitation_id} className="border-t border-border pt-3 space-y-2">
+            <p className="font-semibold text-ink">{invite.tent_name}</p>
+            <p className="text-xs text-stone">Invited by {invite.sentry_name}</p>
+            {invite.longest_streak < 5 && <p className="text-xs text-gold">Reach a 5-day streak to accept ({invite.longest_streak}/5).</p>}
+            {!invite.has_space && <p className="text-xs text-stone">Tent is full. Your invitation will remain pending.</p>}
+            <div className="flex gap-2">
+              <button className="btn-primary text-xs" disabled={responding || !invite.can_accept} onClick={() => void respond(invite, true)}>Accept invitation</button>
+              <button className="btn-secondary text-xs" disabled={responding} onClick={() => void respond(invite, false)}>Decline</button>
+            </div>
+          </article>)}
+        </section>
         <EmptyState
           icon={Users}
           title="Request a tent"
@@ -249,7 +285,7 @@ export function CadetTent({ onMembershipChanged }: { onMembershipChanged: () => 
         {joinError && <p className="card p-4 text-coral" role="alert">{joinError}</p>}
         {optionsError ? (
           <button type="button" className="btn-secondary" onClick={() => void load()}>Retry loading tents</button>
-        ) : availableTents.length === 0 && <p className="card p-4 text-stone">There are no tents available to join right now.</p>}
+        ) : !canApply ? <p className="card p-4 text-stone">Reach a 5-day streak to apply for a tent. Your first month is free when you join.</p> : availableTents.length === 0 && <p className="card p-4 text-stone">There are no tents available to join right now.</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           {availableTents.map((item) => {
             const full = item.cadet_count >= item.cadet_limit;

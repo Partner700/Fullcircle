@@ -10,12 +10,13 @@ import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetc
 import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
 import { resolveBoardMovement } from '../../lib/boardMovement';
 import { boardCategory } from '../../lib/boardCategories';
+import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 
 type InstructorBoardTab = 'instructor_narratives' | 'instructor_residents' | 'instructor_marks' | 'instructor_denarii' | 'instructor_figs';
-type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | InstructorBoardTab;
+type BoardTab = 'leader' | 'rite' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | InstructorBoardTab;
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
 
 type InstructorBoardRow = {
@@ -696,14 +697,15 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const { rows: marksRows } = marksGroup;
   const { rows: tentRows } = tentGroup;
   const activeGroup = audience === 'instructor' ? instructorGroup : {
-    streak: streakGroup, leader: liveGroup, quiz: quizGroup, rhude: rhudeGroup, marks: marksGroup, tent_house: tentGroup,
+    streak: streakGroup, leader: audience === 'sentry' ? undefined : liveGroup, rite: undefined, quiz: quizGroup, rhude: rhudeGroup, marks: marksGroup, tent_house: tentGroup,
   }[tab as Exclude<BoardTab, InstructorBoardTab>];
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
     ? instructorTabs
     : [
       { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
-      { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
+      { key: 'leader', label: audience === 'sentry' ? 'Command Board' : 'Denarii Board', icon: audience === 'sentry' ? <Users size={16} /> : <Coins size={16} /> },
+      ...(audience === 'sentry' ? [{ key: 'rite' as BoardTab, label: 'Rite Board', icon: <BadgeCheck size={16} /> }] : []),
       { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
       { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
       ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <ChiRhoMark size={16} /> }] : []),
@@ -808,7 +810,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Denarii Leaderboard (live) */}
-      {audience !== 'instructor' && tab === 'leader' && (
+      {audience === 'sentry' && (tab === 'leader' || tab === 'rite') && <SentryLeadershipBoard kind={tab === 'leader' ? 'command' : 'rite'} viewerId={profile?.id} />}
+      {audience === 'cadet' && tab === 'leader' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
