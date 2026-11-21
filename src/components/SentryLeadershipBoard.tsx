@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { boardCategory } from '../lib/boardCategories';
 import { fetchBoardAvatars, fetchPanelImageSetting } from '../lib/queries';
@@ -7,12 +7,15 @@ import { BoardList, BoardRow } from './BoardRow';
 import { ChallengeBoardPanel } from './ChallengeBoardPanel';
 import { BadgeCheck, Clock, Trophy, Users } from 'lucide-react';
 import { EmptyState } from './AppShell';
-import { cn } from '../lib/utils';
+import { cn, getTodayISODate } from '../lib/utils';
+import { updateLeadershipHistory, type LeadershipHistory, type LeadershipMovement } from '../lib/leadershipBoardMovement';
+import { ChallengeBoardMovementSummary } from './ChallengeBoardMovementSummary';
 
 type Row = {user_id: string; display_name: string; command_score: number; rite_count: number; rank?: number};
 export function SentryLeadershipBoard({ kind, viewerId, boardImage, houseIds }: {kind: 'command' | 'rite'; viewerId?: string; boardImage?: PanelImageSetting | null; houseIds?: Record<string,string | null | undefined>}) {
   const [period,setPeriod] = useState('day');
-  const [rows,setRows] = useState<Row[]>([]);
+  const [rows,setRows] = useState<(Row & LeadershipMovement & { rank: number })[]>([]);
+  const histories = useRef<Record<string, LeadershipHistory>>({});
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [artwork,setArtwork] = useState<PanelImageSetting | null>(null);
@@ -26,23 +29,31 @@ export function SentryLeadershipBoard({ kind, viewerId, boardImage, houseIds }: 
   },[boardImage]);
   useEffect(() => {
     let active=true;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setRows([]);
+    const storageKey=`full-circle-leadership-history-${viewerId??'observer'}-${kind}-${kind==='rite'?'lifetime':period}`;
+    if (!histories.current[storageKey]) {
+      try { histories.current[storageKey] = JSON.parse(window.localStorage.getItem(storageKey)||'{}') || {}; } catch { histories.current[storageKey] = {}; }
+    }
     const refresh=async()=>{
       const {data,error}=await supabase.rpc('get_sentry_leadership_board',{p_period:kind==='rite'?'day':period});
       if(!active)return;
       if(error){setError('Could not load leadership rankings.');setRows([]);} else {
         const next=(data??[]) as Row[];
-        setRows(next);setError('');setLastUpdated(new Date());
+        const value=(row:Row)=>Number(kind==='command'?row.command_score:row.rite_count)||0;
+        const ranked=[...next].sort((a,b)=>value(b)-value(a)||a.user_id.localeCompare(b.user_id)).map((row,index)=>({...row,rank:index+1}));
+        const snapshot=updateLeadershipHistory(ranked,value,histories.current[storageKey],getTodayISODate());
+        histories.current[storageKey]=snapshot.history;
+        try { window.localStorage.setItem(storageKey,JSON.stringify(snapshot.history)); } catch { /* in-memory fallback */ }
+        setRows(snapshot.rows);setError('');setLastUpdated(new Date());
         void fetchBoardAvatars(next.map(row=>row.user_id)).then(result=>{if(active)setAvatars(result);}).catch(()=>{});
       }
       setLoading(false);
     };
     void refresh();const timer=window.setInterval(()=>void refresh(),60_000);
     return()=>{active=false;window.clearInterval(timer);};
-  },[kind,period]);
+  },[kind,period,viewerId]);
   const score=(row:Row)=>Number(kind==='command'?row.command_score:row.rite_count)||0;
-  const ranked=[...rows].sort((a,b)=>score(b)-score(a)||a.user_id.localeCompare(b.user_id)).map((row,index)=>({...row,rank:index+1}));
-  const group=boardCategory(ranked,viewerId,r=>r.user_id,score);
+  const group=boardCategory(rows,viewerId,r=>r.user_id,score);
   const image=boardImage===undefined?artwork:boardImage;
   const Icon=kind==='command'?Users:BadgeCheck;
   return <div className="space-y-4">
@@ -57,9 +68,10 @@ export function SentryLeadershipBoard({ kind, viewerId, boardImage, houseIds }: 
     </ChallengeBoardPanel>
     <ChallengeBoardPanel image={image}>
       {loading?<p className="py-8 text-center text-sm text-stone">Loading leadership rankings…</p>:error?<p role="alert" className="text-coral text-sm">{error}</p>:rows.length?<>
-        <p className="mb-3 text-xs font-semibold text-stone">{group.observer?'Viewing: ':'Your category: '}{group.label}</p>
+        <ChallengeBoardMovementSummary rising={group.rows.filter(row=>row.movement===1).length} falling={group.rows.filter(row=>row.movement===-1).length} records={group.rows.filter(row=>row.isRecord).length} />
+        <p className="mt-4 mb-3 text-xs font-semibold text-stone">{group.observer?'Viewing: ':'Your category: '}{group.label}</p>
         {lastUpdated&&<p className="text-xs text-stone mb-3">Live as of {lastUpdated.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>}
-        <BoardList>{group.rows.map(row=><BoardRow key={row.user_id} rank={row.rank} name={row.display_name} userId={row.user_id} avatarUrl={avatars[row.user_id]} houseId={houseIds?.[row.user_id]||undefined} currentUserId={viewerId} isCurrentUser={row.user_id===viewerId} value={score(row).toLocaleString()} valueLabel={kind==='command'?'Active cadets':'Sentries developed'} />)}</BoardList>
+        <BoardList>{group.rows.map(row=><BoardRow key={row.user_id} rank={row.rank} name={row.display_name} userId={row.user_id} avatarUrl={avatars[row.user_id]} houseId={houseIds?.[row.user_id]||undefined} currentUserId={viewerId} isCurrentUser={row.user_id===viewerId} value={score(row).toLocaleString()} movement={row.movement} isRecord={row.isRecord} valueLabel={kind==='command'?'Active cadets':'Sentries developed'} />)}</BoardList>
       </>:<EmptyState icon={Trophy} title="No data yet" message="Leadership records will appear here as cadets complete their daily requirements and become Sentries." />}
     </ChallengeBoardPanel>
   </div>;

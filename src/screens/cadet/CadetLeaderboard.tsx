@@ -12,6 +12,7 @@ import { resolveBoardMovement } from '../../lib/boardMovement';
 import { boardCategory } from '../../lib/boardCategories';
 import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
 import { ChallengeBoardPanel } from '../../components/ChallengeBoardPanel';
+import { ChallengeBoardMovementSummary } from '../../components/ChallengeBoardMovementSummary';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
@@ -367,22 +368,7 @@ function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; v
   const up = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) > 0).length;
   const down = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) < 0).length;
   const records = rows.filter((row) => isNewRecord(row, valueForRow?.(row))).length;
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      <div className="rounded-lg border border-sage/25 bg-sage/10 px-3 py-2">
-        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-sage"><ArrowUp size={12} /> Rising</p>
-        <p className="mt-1 font-display text-xl font-black text-ink">{up}</p>
-      </div>
-      <div className="rounded-lg border border-coral/25 bg-coral/10 px-3 py-2">
-        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-coral"><ArrowDown size={12} /> Falling</p>
-        <p className="mt-1 font-display text-xl font-black text-ink">{down}</p>
-      </div>
-      <div className="rounded-lg border border-gold/25 bg-gold/10 px-3 py-2">
-        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> Records</p>
-        <p className="mt-1 font-display text-xl font-black text-ink">{records}</p>
-      </div>
-    </div>
-  );
+  return <ChallengeBoardMovementSummary rising={up} falling={down} records={records} />;
 }
 
 export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch = false }: { instructorMode?: boolean; allowAudienceSwitch?: boolean } = {}) {
