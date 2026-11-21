@@ -11,6 +11,7 @@ import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/u
 import { resolveBoardMovement } from '../../lib/boardMovement';
 import { boardCategory } from '../../lib/boardCategories';
 import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
+import { ChallengeBoardPanel } from '../../components/ChallengeBoardPanel';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
@@ -713,10 +714,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     ];
 
   const BoardPanel = ({ children, className = 'p-4' }: { children: ReactNode; className?: string }) => (
-    <div data-artwork-theme={(boardImage)?.url ? 'night' : undefined} className={cn('card relative overflow-hidden', className)}>
-      <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
-      <div className="relative z-10">{children}</div>
-    </div>
+    <ChallengeBoardPanel image={boardImage} className={className}>{children}</ChallengeBoardPanel>
   );
 
   const boardNavigation = (
@@ -810,7 +808,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Denarii Leaderboard (live) */}
-      {audience === 'sentry' && (tab === 'leader' || tab === 'rite') && <SentryLeadershipBoard kind={tab === 'leader' ? 'command' : 'rite'} viewerId={profile?.id} />}
+      {audience === 'sentry' && (tab === 'leader' || tab === 'rite') && <SentryLeadershipBoard kind={tab === 'leader' ? 'command' : 'rite'} viewerId={profile?.id} boardImage={boardImage} houseIds={Object.fromEntries(allLiveRows.map(row=>[row.user_id,row.tent_house_id]))} />}
       {audience === 'cadet' && tab === 'leader' && (
         <div className="space-y-4">
           <BoardPanel>

@@ -2251,8 +2251,8 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Sentry Management" subtitle="View, promote, award, replace, or remove sentries" />
       <p className="text-xs text-stone">Consider Command and Rite performance when selecting Sentry award winners.</p>
-      <SentryLeadershipBoard kind="command" viewerId={instructorId} />
-      <SentryLeadershipBoard kind="rite" viewerId={instructorId} />
+      <SentryLeadershipBoard kind="command" viewerId={instructorId} houseIds={Object.fromEntries(tents.filter(tent=>tent.sentry_id).map(tent=>[tent.sentry_id!,tent.tent_house_id]))} />
+      <SentryLeadershipBoard kind="rite" viewerId={instructorId} houseIds={Object.fromEntries(tents.filter(tent=>tent.sentry_id).map(tent=>[tent.sentry_id!,tent.tent_house_id]))} />
       <input className="input-field" placeholder="Search sentries…" value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="space-y-3">
         {filtered.map((r) => {
