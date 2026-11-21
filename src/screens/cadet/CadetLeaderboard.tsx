@@ -13,12 +13,13 @@ import { boardCategory } from '../../lib/boardCategories';
 import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
 import { ChallengeBoardPanel } from '../../components/ChallengeBoardPanel';
 import { ChallengeBoardMovementSummary } from '../../components/ChallengeBoardMovementSummary';
+import { RegionalChallengeBoard } from '../../components/RegionalChallengeBoard';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 
 type InstructorBoardTab = 'instructor_narratives' | 'instructor_residents' | 'instructor_marks' | 'instructor_denarii' | 'instructor_figs';
-type BoardTab = 'leader' | 'rite' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | InstructorBoardTab;
+type BoardTab = 'leader' | 'rite' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'regional' | InstructorBoardTab;
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
 
 type InstructorBoardRow = {
@@ -684,7 +685,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   const { rows: marksRows } = marksGroup;
   const { rows: tentRows } = tentGroup;
   const activeGroup = audience === 'instructor' ? instructorGroup : {
-    streak: streakGroup, leader: audience === 'sentry' ? undefined : liveGroup, rite: undefined, quiz: quizGroup, rhude: rhudeGroup, marks: marksGroup, tent_house: tentGroup,
+    streak: streakGroup, leader: audience === 'sentry' ? undefined : liveGroup, rite: undefined, regional: undefined, quiz: quizGroup, rhude: rhudeGroup, marks: marksGroup, tent_house: tentGroup,
   }[tab as Exclude<BoardTab, InstructorBoardTab>];
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
@@ -697,6 +698,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
       ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <ChiRhoMark size={16} /> }] : []),
       { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
+      { key: 'regional', label: 'Regional', icon: <Users size={16} /> },
     ];
 
   const BoardPanel = ({ children, className = 'p-4' }: { children: ReactNode; className?: string }) => (
@@ -747,6 +749,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   return (
     <div className="space-y-5 animate-fade-in">
       {boardNavigation}
+
+      {tab === 'regional' && audience !== 'instructor' && profile && <RegionalChallengeBoard key={audience} viewerId={profile.id} audience={audience} image={boardImage} initialCountry={profile.country_code} />}
 
       {instructorMode && audience === 'instructor' && (
         <div className="space-y-4">
