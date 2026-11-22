@@ -10,6 +10,7 @@ import { forfeitPrelude, preludeCommand, type PreludeState } from '../../lib/scr
 import { userFacingError } from '../../lib/connectionErrors';
 import { safeStorageGet, safeStorageSet, safeStorageRemove } from '../../lib/safeStorage';
 import { PreludeTable, PreludePlayerStacks, PreludeCardFace } from '../../components/PreludeTable';
+import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
 import type { PanelImageSetting } from '../../lib/types';
 
 type Room = Pick<PreludeState,'id'|'name'|'phase'|'difficulty'|'players'|'creatorId'>;
@@ -107,6 +108,10 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
    </>}
    {roomId && !game && !error && <p role="status" className="text-center text-sm"><Loader2 className="mx-auto mb-2 animate-spin"/>Opening your table...</p>}
    {game && <>
+    {(game.phase==='playing'||game.phase==='question') && profile?.id && <>
+      <ArenaHeartReaction roomId={game.id} userId={profile.id} />
+      <ArenaTurnAlert roomId={game.id} userId={profile.id} activePlayerId={current?.id} activePlayerName={current?.name} prompt={game.phase==='question' ? 'Answer your question now.' : 'Flip a card to take your turn.'} />
+    </>}
     {(game.phase==='playing'||game.phase==='question') && game.players.some(player=>player.id===profile?.id) && <div className="rounded-xl border border-white/20 bg-black/50 p-3">
      {confirmForfeit?<div role="alert" className="space-y-3"><p className="text-sm">Forfeit this round? You will leave the match and cannot rejoin it.</p><div className="flex gap-2"><button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>setConfirmForfeit(false)}>Keep playing</button><button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>void forfeit()}>{busy?'Forfeiting…':'Confirm forfeit'}</button></div></div>:<button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>setConfirmForfeit(true)}>Forfeit round</button>}
     </div>}
