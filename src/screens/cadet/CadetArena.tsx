@@ -428,7 +428,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       .subscribe();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshRooms();
-    }, hasLiveRooms ? 15_000 : 30_000);
+    }, hasLiveRooms ? 20_000 : 45_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void refreshRooms(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -452,7 +452,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         }));
       } catch { /* The regular Arena refresh will retry. */ }
     };
-    const interval = window.setInterval(() => { void refreshScores(); }, 5_000);
+    const interval = window.setInterval(() => { void refreshScores(); }, 10_000);
     return () => { active = false; window.clearInterval(interval); };
   }, [phase, liveRoomIds]);
 
@@ -615,7 +615,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   useEffect(() => {
     if (!activeRoomId || phase !== 'waiting') return;
     let cancelled = false;
+    let refreshInFlight = false;
     const refreshActiveRoom = async () => {
+      if (refreshInFlight || document.visibilityState !== 'visible') return;
+      refreshInFlight = true;
       try {
         const freshRoom = await fetchArenaRoom(activeRoomId);
         if (cancelled || !freshRoom) return;
@@ -633,10 +636,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         }
       } catch {
         // Realtime/polling will try again; keep the waiting room mounted.
+      } finally {
+        refreshInFlight = false;
       }
     };
     void refreshActiveRoom();
-    const interval = window.setInterval(() => { void refreshActiveRoom(); }, isSpectating ? 8_000 : 2500);
+    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshActiveRoom(); }, isSpectating ? 12_000 : 5_000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -913,7 +918,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     const machineMatch = room?.play_mode === 'machine';
     const scheduleReady = !room?.scheduled_start_at || Date.now() >= Date.parse(room.scheduled_start_at);
     const interTentMatch = /\[intertent\]/i.test(room?.room_name || '');
-    const canStart = scheduleReady && (machineMatch || participants.filter((p:any)=>!p.forfeited_at).length >= (interTentMatch ? Number(room?.max_players || 4) : 2));
+    const canStart = scheduleReady && (machineMatch || participants.filter((p:any)=>!p.forfeited_at).length >= 2);
     const availableInvitees = allInvitees.filter((player) => !participants.some((p: any) => p.user_id === player.user_id));
 
     return (
@@ -934,6 +939,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           <h3 className="mb-3 text-center font-display text-lg font-semibold text-ink">{cleanArenaRoomName(room?.room_name || 'Arena Room')}</h3>
           <div className="mb-3"><ArenaMatchup players={arenaMatchupPlayers(room)} /></div>
           {room?.scheduled_start_at && <ArenaMatchCountdown startsAt={room.scheduled_start_at} />}
+          {interTentMatch && <p className="mb-3 text-xs text-center text-stone">The match starts with any two scheduled players. Other players have five minutes after it begins to join; missing that window incurs a 5,000D penalty.</p>}
 
           {!machineMatch && (
             <ArenaRoomChat
