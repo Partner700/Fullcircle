@@ -3936,6 +3936,26 @@ export async function fetchArenaRooms() {
   return rooms;
 }
 
+/** Cheap single-room heartbeat used while waiting to enter a scheduled match.
+ * Avoid the much heavier roster, audience and scoreboard fan-out on each tick.
+ */
+export async function fetchArenaRoomPulse(roomId: string): Promise<{
+  status: string;
+  active_player_ids: string[];
+} | null> {
+  const [room, participants] = await Promise.all([
+    supabase.from('arena_rooms').select('id,status').eq('id', roomId).maybeSingle(),
+    supabase.from('arena_participants').select('user_id').eq('room_id', roomId).is('forfeited_at', null),
+  ]);
+  if (room.error) throw room.error;
+  if (participants.error) throw participants.error;
+  if (!room.data) return null;
+  return {
+    status: String(room.data.status),
+    active_player_ids: (participants.data || []).map((row) => row.user_id),
+  };
+}
+
 export async function fetchArenaRoom(roomId: string, includeQuestions = false) {
   const { data, error } = await supabase
     .from('arena_rooms')
