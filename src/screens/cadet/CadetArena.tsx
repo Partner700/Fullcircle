@@ -53,7 +53,6 @@ import {
   fetchArenaRooms,
   fetchArenaRoom,
   fetchArenaRoomPulse,
-  fetchArenaMatchups,
   fetchRhudeBoard,
   fetchArenaInvitees,
   prepareArenaQuestionDeck,
@@ -153,7 +152,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   const hydratingRoomRef = useRef<string | null>(null);
   activeRoomIdRef.current = activeRoomId;
   const hasLiveRooms = rooms.some((room) => room.status === 'playing');
-  const liveRoomIds = rooms.filter((room) => room.status === 'playing').map((room) => room.id).join(',');
 
   useEffect(() => {
     void setScenarioSound(phase === 'playing' ? 'sound_game_level_1' : phase === 'lobby' || phase === 'waiting' ? 'sound_arena_lobby' : null);
@@ -420,59 +418,27 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     await Promise.all([load(), Promise.resolve(onBalanceChanged?.())]);
   }, [activateRoom, load, onBalanceChanged]);
 
+  // A live arena_rooms event can be emitted on every match state change.
+  // Each lobby refresh fans out to seven endpoints, so subscribing every
+  // lobby to all room events caused a request storm on mobile connections.
+  // Refresh the lobby on a bounded schedule instead; the active match keeps
+  // its own room-specific realtime channel below.
   useEffect(() => {
     if (!profile || phase !== 'lobby') return;
-    let refreshTimer: number | null = null;
-    let lastRefreshAt = 0;
     let refreshInFlight = false;
-    const doRefresh = async () => {
+    const refreshLobby = async () => {
       if (refreshInFlight || document.visibilityState !== 'visible') return;
       refreshInFlight = true;
-      lastRefreshAt = Date.now();
       try { await refreshRooms(); } finally { refreshInFlight = false; }
     };
-    const scheduleRefresh = () => {
-      if (refreshTimer !== null || document.visibilityState !== 'visible') return;
-      // Room activity can arrive dozens of times per minute during a match.
-      // Bound network work rather than fetching every room on every event.
-      refreshTimer = window.setTimeout(() => {
-        refreshTimer = null;
-        void doRefresh();
-      }, Math.max(1200, 8000 - (Date.now() - lastRefreshAt)));
-    };
-    const channel = supabase
-      .channel(`arena_lobby_${profile.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, scheduleRefresh)
-      .subscribe();
-    const interval = window.setInterval(() => {
-      void doRefresh();
-    }, hasLiveRooms ? 25_000 : 50_000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void doRefresh(); };
+    const interval = window.setInterval(() => { void refreshLobby(); }, hasLiveRooms ? 30_000 : 60_000);
+    const onVisible = () => { void refreshLobby(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
-      void supabase.removeChannel(channel);
     };
   }, [phase, profile, refreshRooms, hasLiveRooms]);
-
-  useEffect(() => {
-    if (phase !== 'lobby' || !liveRoomIds) return;
-    let active = true;
-    const refreshScores = async () => {
-      if (document.visibilityState !== 'visible') return;
-      try {
-        const scores = await fetchArenaMatchups(liveRoomIds.split(','));
-        if (active) setRooms((current) => current.map((room) => {
-          const players = scores.get(room.id);
-          return players ? { ...room, arena_matchup_players: players } : room;
-        }));
-      } catch { /* The regular Arena refresh will retry. */ }
-    };
-    const interval = window.setInterval(() => { void refreshScores(); }, 25_000);
-    return () => { active = false; window.clearInterval(interval); };
-  }, [phase, liveRoomIds]);
 
   // Realtime subscription for room updates
   useEffect(() => {
