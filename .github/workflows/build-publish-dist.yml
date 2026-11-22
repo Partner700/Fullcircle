@@ -67,6 +67,10 @@ jobs:
             exit 0
           fi
           git commit -m "Publish verified Full Circle Arena match build [skip ci]"
+          # Keep older hashed assets in the repository for open installed clients.
+          # They are intentionally not staged, so restore their worktree copies
+          # before rebasing onto a main branch updated during the build.
+          git restore --worktree dist
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
