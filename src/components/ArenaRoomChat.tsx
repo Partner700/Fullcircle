@@ -207,7 +207,7 @@ export function ArenaRoomChat({
   }, [guestKey, loadCalls, loadMessages, roomId, useGameCalls]);
 
   const timeline = useMemo(() => [
-    ...messages.map((message) => ({ kind: 'message' as const, id: message.id, createdAt: message.created_at, message })),
+    ...messages.filter((message) => message.body.trim() !== '❤️').map((message) => ({ kind: 'message' as const, id: message.id, createdAt: message.created_at, message })),
     ...gameCalls.map((gameCall) => ({ kind: 'call' as const, id: gameCall.id, createdAt: gameCall.created_at, gameCall })),
   ].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()), [gameCalls, messages]);
 
