@@ -50,14 +50,17 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
  };
  useEffect(()=>{
   let active=true;
+  let refreshing=false;
   const generation=viewGeneration.current;
   const refresh=async()=>{
-   if(document.visibilityState!=='visible' || inFlight.current)return;
-   if(!roomId){void refreshList();return;}
+   if(document.visibilityState!=='visible' || inFlight.current || refreshing)return;
+   refreshing=true;
+   if(!roomId){try{await refreshList();}finally{refreshing=false;}return;}
    try{const next=await preludeCommand('state',{p_room_id:roomId}) as PreludeState;if(active && generation===viewGeneration.current)accept(next);}
-   catch(failure){if(active)setError(userFacingError(failure,'The room could not refresh.'));}
+   catch(failure){if(active)setError(userFacingError(failure,'The room could refresh.'));}
+   finally{refreshing=false;}
   };
-  void refresh();const interval=window.setInterval(()=>void refresh(),roomId?1250:15000);
+  void refresh();const interval=window.setInterval(()=>void refresh(),roomId?2400:15000);
   return()=>{active=false;window.clearInterval(interval);};
  },[roomId,accept,refreshList]);
  useEffect(()=>{setAnswers([]);setReferenceOpen(false);},[version]);
