@@ -14,6 +14,7 @@ import { AppSelect } from '../../components/AppSelect';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaMatchCountdown } from '../../components/ArenaMatchCountdown';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
+import { arenaPlayerScore } from '../../lib/arenaScorecard';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaRecentResult } from '../../components/ArenaRecentResult';
 import { InstructorArenaScheduler } from '../../components/InstructorArenaScheduler';
