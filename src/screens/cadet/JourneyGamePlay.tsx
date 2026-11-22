@@ -8,6 +8,7 @@ import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
 import { JourneyBoard, JourneySquareIcon } from '../../components/JourneyBoard';
 import { JourneyDialog } from '../../components/JourneyDialog';
 import { journeyEffectDescription, journeyEventSquare, type JourneySquare } from '../../lib/journeyPresentation';
@@ -335,6 +336,10 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
   return <div className="space-y-4">
+    <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
+    <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
+      activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
+      spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
     <ArenaMatchup players={visiblePlayers} playing pinned />
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
       && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
