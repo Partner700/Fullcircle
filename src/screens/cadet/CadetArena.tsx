@@ -1623,6 +1623,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
+      <ArenaHeartReaction roomId={room.id} userId={userId} guestKey={guestKey} />
       <div className="flex items-center justify-between gap-3 px-1">
         <button type="button" onClick={onExit} className="btn-ghost text-sm"><ArrowLeft size={14} /> Arena</button>
         <span className="badge badge-gold"><Eye size={12} /> Witnessing Live</span>
