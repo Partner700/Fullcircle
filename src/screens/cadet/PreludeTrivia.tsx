@@ -57,7 +57,7 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
    refreshing=true;
    if(!roomId){try{await refreshList();}finally{refreshing=false;}return;}
    try{const next=await preludeCommand('state',{p_room_id:roomId}) as PreludeState;if(active && generation===viewGeneration.current)accept(next);}
-   catch(failure){if(active)setError(userFacingError(failure,'The room could refresh.'));}
+   catch(failure){if(active)setError(userFacingError(failure,'The room could not refresh.'));}
    finally{refreshing=false;}
   };
   void refresh();const interval=window.setInterval(()=>void refresh(),roomId?2400:15000);
