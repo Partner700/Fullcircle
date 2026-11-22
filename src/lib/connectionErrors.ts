@@ -25,7 +25,9 @@ export function connectionIssue(error: unknown, options: { offline?: boolean; ti
 }
 
 export function userFacingError(error: unknown, fallback = 'This could not be completed. Please try again.'): string {
-  const kind = connectionIssue(error, { offline: typeof navigator !== 'undefined' && navigator.onLine === false });
+  // Mobile PWAs can report navigator.onLine=false even when data has returned.
+  // Do not accuse the member of being offline based on that unreliable flag.
+  const kind = connectionIssue(error);
   if (kind) return messages[kind];
   const value = error && typeof error === 'object' ? error as ErrorLike : {};
   const message = typeof error === 'string' ? error : typeof value.message === 'string' ? value.message : '';
@@ -34,7 +36,7 @@ export function userFacingError(error: unknown, fallback = 'This could not be co
 }
 
 export function connectionError(error: unknown, options: { offline?: boolean; timedOut?: boolean } = {}): Error {
-  const kind = connectionIssue(error, { offline: typeof navigator !== 'undefined' && navigator.onLine === false, ...options });
+  const kind = connectionIssue(error, options);
   if (!kind) return error instanceof Error ? error : new Error(userFacingError(error));
   const readable = Object.assign(new Error(messages[kind]), { cause: error });
   // PostgREST stringifies thrown fetch errors. An empty name avoids a technical prefix.
