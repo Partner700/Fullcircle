@@ -3,6 +3,9 @@ export type ArenaMatchupPlayer = {
   display_name: string;
   avatar_url: string | null;
   tent_house_id: string | null;
+  /** Exact tent membership, not the broader house symbol. */
+  tent_id?: string | null;
+  player_number?: number | null;
   correct_count: number;
   score?: number;
 };
