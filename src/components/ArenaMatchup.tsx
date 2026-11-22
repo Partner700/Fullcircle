@@ -4,7 +4,7 @@ import { arenaPlayerScore } from '../lib/arenaScorecard';
 import { formatPlayerNumber } from '../lib/utils';
 import { UserAvatar } from './UserAvatar';
 import { TentHouseSymbol } from './TentHouseSymbol';
-import { shortArenaName, type ArenaMatchupPlayer } from '../lib/arenaMatchup';
+import { groupArenaMatchupSides, shortArenaName, type ArenaMatchupPlayer } from '../lib/arenaMatchup';
 
 const LEADING_SCORE_COLOR = '#fbd56a';
 const TRAILING_SCORE_COLOR = '#edf0fb';
@@ -36,21 +36,6 @@ function LiveScore({ player, leading }: { player: ArenaMatchupPlayer; leading: b
     style={{ '--arena-score-color': color, color: 'var(--arena-score-color)' } as CSSProperties}>
     {score}
   </strong>;
-}
-
-type Side = { key: string; players: ArenaMatchupPlayer[] };
-
-/** Players in the exact same tent are allies. Different tents use crossed swords,
- * even when they belong to the same broader house. */
-export function groupArenaMatchupSides(players: ArenaMatchupPlayer[]): Side[] {
-  const sides: Side[] = [];
-  for (const player of players) {
-    const key = player.tent_id ? `tent:${player.tent_id}` : `player:${player.user_id}`;
-    const matching = sides.find((side) => side.key === key);
-    if (matching) matching.players.push(player);
-    else sides.push({ key, players: [player] });
-  }
-  return sides;
 }
 
 function PlayerProfile({ player, leading, playing }: {
