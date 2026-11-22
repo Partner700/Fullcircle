@@ -106,18 +106,19 @@
       <path d="M231 407H264L255 418Z" fill="#3A5680"/>
       <ellipse cx="286" cy="389" rx="14" ry="9" fill="#3A5680" opacity="0.4"/>
     </svg>
-    <h1>You're Offline</h1>
-    <p>Full Circle needs an internet connection to load. Check your connection and try again.</p>
+    <h1>Full Circle is reconnecting</h1>
+    <p>The app could not load its latest files. Your connection may still be working. Reconnect here or use the independent Full Circle app.</p>
     <button class="retry-btn" onclick="recoverFullCircle()">
       <span class="status-dot"></span>
       Retry Connection
     </button>
+    <p style="margin-top: 1rem;"><a href="https://tnsorganization.github.io/Full-Circle/" style="display:inline-block;border:1px solid #8896CC;border-radius:12px;padding:12px 16px;color:#DDE3FF;text-decoration:none;font-weight:700;">Open Full Circle backup app</a></p>
     <p style="margin-top: 1rem; font-size: 0.8rem; color: #8896CC;">
       Some previously loaded content may still be available.
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '270';
+    var RECOVERY_VERSION = '295';
     var recoveryInProgress = false;
 
     async function installRecoveryWorker() {
@@ -175,7 +176,9 @@
           : null;
         var cachedReady = await isVerifiedAppShell(cachedShell);
         if (!networkReady && !cachedReady) throw new Error('Full Circle is not reachable yet.');
-        if (networkReady) await clearBrokenShells(registration);
+        // Do not purge healthy cached app files during a temporary mobile-data blip.
+        // Hashed bundles can coexist; a forced purge stranded members mid-game.
+        if (networkReady) registration?.active?.postMessage({ type: 'WARM_APP_SHELL' });
         failedRecoveryAttempts = 0;
         window.location.replace(new URL('./?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
       } catch (error) {
