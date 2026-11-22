@@ -1,28 +1,15 @@
 import { type CSSProperties, useLayoutEffect, useRef } from 'react';
+import { Swords } from 'lucide-react';
 import { arenaPlayerScore } from '../lib/arenaScorecard';
-import { Dices, Swords } from 'lucide-react';
+import { formatPlayerNumber } from '../lib/utils';
 import { UserAvatar } from './UserAvatar';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { shortArenaName, type ArenaMatchupPlayer } from '../lib/arenaMatchup';
 
-function PlayerSide({ player, reverse = false }: { player?: ArenaMatchupPlayer; reverse?: boolean }) {
-  if (!player) return <div className="min-w-0 text-center text-xs text-stone">Waiting</div>;
-  const symbol = player.tent_house_id
-    ? <TentHouseSymbol houseId={player.tent_house_id} size={22} />
-    : player.display_name === 'The Scribe'
-      ? <Dices size={20} className="shrink-0 text-gold" />
-      : null;
-  return <div className={`flex min-w-0 items-center gap-1.5 ${reverse ? 'flex-row-reverse' : ''}`}>
-    <UserAvatar userId={player.user_id} name={player.display_name} avatarUrl={player.avatar_url} className="h-8 w-8 shrink-0" />
-    <span className="min-w-0 truncate text-xs font-bold text-ink" title={player.display_name}>{shortArenaName(player.display_name)}</span>
-    {symbol}
-  </div>;
-}
-
 const LEADING_SCORE_COLOR = '#fbd56a';
 const TRAILING_SCORE_COLOR = '#edf0fb';
 
-function LiveScore({ player, leading }: { player?: ArenaMatchupPlayer; leading: boolean }) {
+function LiveScore({ player, leading }: { player: ArenaMatchupPlayer; leading: boolean }) {
   const numberRef = useRef<HTMLElement>(null);
   const score = arenaPlayerScore(player);
   const previousScore = useRef(score);
@@ -45,43 +32,80 @@ function LiveScore({ player, leading }: { player?: ArenaMatchupPlayer; leading: 
     return () => flash.cancel();
   }, [score]);
 
-  return <strong ref={numberRef} className="inline-block tabular-nums"
+  return <strong ref={numberRef} className="inline-block font-display text-base font-black tabular-nums sm:text-lg"
     style={{ '--arena-score-color': color, color: 'var(--arena-score-color)' } as CSSProperties}>
     {score}
   </strong>;
 }
 
-export function ArenaMatchup({ players, playing = false, pinned = false }: { players: ArenaMatchupPlayer[]; playing?: boolean; pinned?: boolean }) {
-  const [first, second] = players;
-  const scores = players.map(arenaPlayerScore);
-  const highest = Math.max(...scores);
-  const hasLeader = scores.filter((score) => score === highest).length === 1 && scores.length > 1;
-  const isLeading = (player?: ArenaMatchupPlayer) => Boolean(player && hasLeader && arenaPlayerScore(player) === highest);
-  return <div className={pinned ? 'sticky top-[var(--app-header-height,env(safe-area-inset-top,0px))] z-[25] min-w-0 rounded-xl border border-border bg-surface px-2.5 py-2 shadow-md sm:px-3' : 'min-w-0'}
-    role={pinned ? 'region' : undefined} aria-label="Arena players and scores" aria-live={playing ? 'polite' : 'off'}>
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-      <PlayerSide player={first} />
-      <span className="flex min-w-12 items-center justify-center whitespace-nowrap font-display text-base font-bold tabular-nums text-ink">
-        {playing
-          ? pinned
-            ? <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#192941] px-2.5 py-1 text-lg leading-none text-[#edf0fb]">
-                <LiveScore key={first?.user_id} player={first} leading={isLeading(first)} />
-                <span>–</span>
-                <LiveScore key={second?.user_id} player={second} leading={isLeading(second)} />
-              </span>
-            : `${arenaPlayerScore(first)} - ${arenaPlayerScore(second)}`
-          : <Swords size={19} className="text-gold" aria-label="versus" />}
-      </span>
-      <PlayerSide player={second} reverse />
+type Side = { key: string; players: ArenaMatchupPlayer[] };
+
+/** Players in the exact same tent are allies. Different tents use crossed swords,
+ * even when they belong to the same broader house. */
+export function groupArenaMatchupSides(players: ArenaMatchupPlayer[]): Side[] {
+  const sides: Side[] = [];
+  for (const player of players) {
+    const key = player.tent_id ? `tent:${player.tent_id}` : `player:${player.user_id}`;
+    const matching = sides.find((side) => side.key === key);
+    if (matching) matching.players.push(player);
+    else sides.push({ key, players: [player] });
+  }
+  return sides;
+}
+
+function PlayerProfile({ player, leading, playing }: {
+  player: ArenaMatchupPlayer; leading: boolean; playing: boolean;
+}) {
+  return <div className="flex min-w-[3.3rem] flex-col items-center justify-start gap-0.5 text-center"
+    title={player.display_name} aria-label={`${player.display_name}, player ${formatPlayerNumber(player.player_number)}, score ${arenaPlayerScore(player)}`}>
+    <div className="relative">
+      <UserAvatar userId={player.user_id} name={player.display_name} avatarUrl={player.avatar_url}
+        className="h-9 w-9 shrink-0 border-2 border-gold/40 sm:h-11 sm:w-11" />
+      {player.tent_house_id && <span className="absolute -bottom-1 -right-2 rounded-full bg-surface p-0.5">
+        <TentHouseSymbol houseId={player.tent_house_id} size={14} />
+      </span>}
     </div>
-    {players.length > 2 && <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-      {players.slice(2).map((player) => <span key={player.user_id} className="flex min-w-0 max-w-[8rem] items-center gap-1 text-[11px] font-semibold text-stone">
-        {player.tent_house_id && <TentHouseSymbol houseId={player.tent_house_id} size={18} />}
-        <span className="truncate">{shortArenaName(player.display_name)}</span>
-        {playing && (pinned
-          ? <span className="rounded bg-[#192941] px-1.5 py-0.5"><LiveScore player={player} leading={isLeading(player)} /></span>
-          : <strong className="text-ink">{arenaPlayerScore(player)}</strong>)}
-      </span>)}
-    </div>}
+    <span className="mt-1 font-display text-[11px] font-bold tabular-nums text-ink sm:text-xs">
+      {formatPlayerNumber(player.player_number)}
+    </span>
+    <span className="rounded bg-[#192941] px-2 py-0.5 leading-none" aria-label={`${arenaPlayerScore(player)} points`}>
+      <LiveScore key={player.user_id} player={player} leading={playing && leading} />
+    </span>
+    <span className="max-w-[4.75rem] truncate text-[9px] font-medium text-stone sm:text-[10px]">
+      {shortArenaName(player.display_name)}
+    </span>
+  </div>;
+}
+
+export function ArenaMatchup({ players, playing = false, pinned = false }: {
+  players: ArenaMatchupPlayer[]; playing?: boolean; pinned?: boolean;
+}) {
+  const scores = players.map(arenaPlayerScore);
+  const highest = Math.max(0, ...scores);
+  const hasLeader = scores.filter((score) => score === highest).length === 1 && scores.length > 1;
+  const sides = groupArenaMatchupSides(players);
+  return <div className={pinned
+    ? 'sticky top-[var(--app-header-height,env(safe-area-inset-top,0px))] z-[25] min-w-0 rounded-xl border border-border bg-surface px-2 py-2 shadow-md'
+    : 'min-w-0'}
+    role={pinned ? 'region' : undefined} aria-label="Arena players and scores"
+    aria-live={playing ? 'polite' : 'off'}>
+    {sides.length === 0
+      ? <p className="py-2 text-center text-xs text-stone">Waiting for players</p>
+      : <div className="min-w-0 overflow-x-auto">
+        <div className="flex w-max min-w-full items-start justify-center gap-1.5 py-1 sm:gap-2.5">
+          {sides.map((side, index) => <div key={side.key} className="contents">
+            {index > 0 && <span className="flex h-12 shrink-0 items-center justify-center text-gold"
+              aria-label="versus another tent"><Swords size={18} aria-hidden="true" /></span>}
+            <div className="flex shrink-0 items-start gap-1 sm:gap-2">
+              {side.players.map((player, allyIndex) => <div key={player.user_id} className="contents">
+                {allyIndex > 0 && <span className="flex h-12 shrink-0 items-center justify-center font-display text-lg font-black text-gold"
+                  aria-label="same tent teammates">&amp;</span>}
+                <PlayerProfile player={player}
+                  leading={hasLeader && arenaPlayerScore(player) === highest} playing={playing} />
+              </div>)}
+            </div>
+          </div>)}
+        </div>
+      </div>}
   </div>;
 }
