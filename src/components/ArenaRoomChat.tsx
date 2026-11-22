@@ -198,7 +198,7 @@ export function ArenaRoomChat({
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadMessages();
       if (useGameCalls && document.visibilityState === 'visible') void loadCalls();
-    }, guestKey ? 5_000 : 20_000);
+    }, guestKey ? 12_000 : 30_000);
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       window.clearInterval(interval);
