@@ -11,6 +11,7 @@ on:
       - 'package-lock.json'
       - 'vite.config.ts'
       - 'scripts/copy-hostinger-fallback.cjs'
+      - 'scripts/network-request-timeout.test.ts'
       - '.github/workflows/build-publish-dist.yml'
   workflow_dispatch:
 
@@ -39,6 +40,8 @@ jobs:
         run: npm ci
       - name: Check types
         run: npm run typecheck
+      - name: Test network timeouts
+        run: node --experimental-strip-types scripts/network-request-timeout.test.ts
       - name: Build current app
         run: npm run build
       - name: Restore relative URLs for subpath and standalone installations
