@@ -377,7 +377,14 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    const retiredCaches = await clearRetiredFullCircleCaches().catch(() => []);
+    // An updating worker must not destroy the last working app before it can
+    // prove that the new shell is reachable. Retain offline-capable caches
+    // during carrier outages; clean the retired set after a current shell
+    // is already verified and cached.
+    const currentShellReady = Boolean(await cachedAppShell().catch(() => null));
+    const retiredCaches = currentShellReady
+      ? await clearRetiredFullCircleCaches().catch(() => [])
+      : [];
     if (self.registration.navigationPreload) {
       await self.registration.navigationPreload.disable().catch(() => undefined);
     }
