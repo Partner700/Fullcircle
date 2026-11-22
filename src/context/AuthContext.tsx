@@ -177,7 +177,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // The bootstrap RPC returns the signed-in person's private profile and
       // active role in one round trip. Retry briefly while a restored mobile
       // token settles, then retain the older two-query path as rollout safety.
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      // Under server overload, several sequential bootstrap attempts multiply
+      // connection pressure. Prefer one authoritative bootstrap request, and
+      // keep an already verified local identity when that request times out.
+      for (let attempt = 0; attempt < 1; attempt += 1) {
         let bootstrap: PostgrestSingleResponse<unknown> | null = null;
         try {
           bootstrap = await waitForAbortable(
@@ -213,6 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           continue;
         }
         break;
+      }
+
+      if (readCachedIdentity(userId)) {
+        // Existing authenticated session is preserved. Do not flood the
+        // database with another profile/role fallback while Auth is timing out.
+        return;
       }
 
       let prof: Profile | null = null;
