@@ -61,10 +61,12 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f dist
+          git add -f --ignore-removal dist
           if git diff --cached --quiet; then
             echo "No asset changes"
             exit 0
           fi
           git commit -m "Publish verified Full Circle Arena match build [skip ci]"
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
