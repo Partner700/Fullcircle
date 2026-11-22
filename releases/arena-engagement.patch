@@ -1,0 +1,351 @@
+diff --git a/scripts/arena-spectators.test.cjs b/scripts/arena-spectators.test.cjs
+index 6d54896..c68b962 100644
+--- a/scripts/arena-spectators.test.cjs
++++ b/scripts/arena-spectators.test.cjs
+@@ -110,7 +110,7 @@ assert.match(arena, /participants\.length >= room\.max_players[\s\S]*?watchRoom\
+ 
+ assert.match(roadHome, /spectator\s*\? await fetchRoadHomeSpectatorState\(roomId, publicAccess\)/);
+ assert.match(roadHome, /if \(spectator \|\| !state \|\| sending\) return false/);
+-assert.match(roadHome, /<ArenaWitnessChatDrawer[\s\S]*?allowGameCalls=\{spectatorCanChallenge\}/);
++assert.match(roadHome, /<ArenaWitnessChatDrawer[\s\S]*?allowGameCalls=\{spectator && spectatorCanChallenge\}/);
+ assert.doesNotMatch(roadHome, /Viewer chat is read-only/);
+ assert.match(roadHome, /Witnessing Live/);
+ 
+@@ -164,14 +164,16 @@ assert.match(arena, /playbackNow - Date\.parse\(liveQuestion\.answered_at\) < 50
+ assert.match(arena, /allowGameCalls=\{allowChallenges\}/);
+ assert.match(arena, /setDismissedQuestionKey\(activeQuestionKey\)/);
+ assert.match(arena, /activeWitnessQuestion\.opened_at/);
+-assert.match(arena, /showLauncher=\{!showWitnessQuestion\}/);
++assert.match(arena, /<ArenaWitnessChatDrawer[\s\S]*?showLauncher\s/);
+ assert.match(arena, /onOpenChat=\{\(\) => setChatOpen\(true\)\}/);
+ assert.match(arena, /phase === 'playing' \? 'sound_game_level_1'/);
+ assert.match(roadHome, /setDismissedQuestionId\(witnessQuestionId\)/);
+ assert.match(roadHome, /questionKey: `\$\{roomId\}:\$\{state\.currentQuestion\.id\}:\$\{state\.questionDeadline \|\| state\.turnNumber\}`/);
+-assert.match(roadHome, /showLauncher=\{!showWitnessQuestion\}/);
++assert.match(roadHome, /showLauncher=\{spectator \|\| !\(myTurn && state.phase === 'QUESTION'\)\}/);
+ assert.match(roadHome, /onOpenChat=\{\(\) => setChatOpen\(true\)\}/);
+-assert.match(witnessChatDrawer, /className="btn-primary fixed right-4 z-\[2147483010\]/);
++assert.match(witnessChatDrawer, /className="fixed left-3 z-\[2147483010\]/);
++assert.match(witnessChatDrawer, /arena-chat-unread/);
++assert.match(witnessChatDrawer, /arena-love-heart/);
+ assert.match(witnessChatDrawer, /className="fixed inset-0 z-\[2147483020\]/);
+ assert.match(witnessChatDrawer, /<ArenaRoomChat[\s\S]*?guestKey=\{guestKey\}/);
+ assert.match(publicArena, /room\?\.status === 'playing' \? 'sound_game_level_1'/);
+diff --git a/src/components/ArenaRoomChat.tsx b/src/components/ArenaRoomChat.tsx
+index 53dd7a7..46a7cd9 100644
+--- a/src/components/ArenaRoomChat.tsx
++++ b/src/components/ArenaRoomChat.tsx
+@@ -12,6 +12,7 @@ import {
+ import type { ArenaChatGameCall } from '../lib/queries';
+ import { supabase } from '../lib/supabase';
+ import { cn, formatDenarii } from '../lib/utils';
++import { isArenaHeart } from '../lib/arenaEngagement';
+ 
+ type ArenaMessage = {
+   id: string;
+@@ -207,7 +208,7 @@ export function ArenaRoomChat({
+   }, [guestKey, loadCalls, loadMessages, roomId, useGameCalls]);
+ 
+   const timeline = useMemo(() => [
+-    ...messages.map((message) => ({ kind: 'message' as const, id: message.id, createdAt: message.created_at, message })),
++    ...messages.filter(message => !isArenaHeart(message.body)).map((message) => ({ kind: 'message' as const, id: message.id, createdAt: message.created_at, message })),
+     ...gameCalls.map((gameCall) => ({ kind: 'call' as const, id: gameCall.id, createdAt: gameCall.created_at, gameCall })),
+   ].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()), [gameCalls, messages]);
+ 
+diff --git a/src/components/ArenaWitnessChatDrawer.tsx b/src/components/ArenaWitnessChatDrawer.tsx
+index fcdbb97..11d2afe 100644
+--- a/src/components/ArenaWitnessChatDrawer.tsx
++++ b/src/components/ArenaWitnessChatDrawer.tsx
+@@ -1,7 +1,11 @@
+-import { useEffect, useRef } from 'react';
+-import { MessageCircle, X } from 'lucide-react';
++import { useEffect, useRef, useState, useCallback } from 'react';
++import { createPortal } from 'react-dom';
++import { Heart, MessageCircle, X } from 'lucide-react';
+ import { ArenaRoomChat, type ArenaChallengeTarget } from './ArenaRoomChat';
+ import type { ArenaChatGameCall } from '../lib/queries';
++import { fetchArenaRoomMessages, postPublicArenaComment, sendArenaRoomMessage } from '../lib/queries';
++import { supabase } from '../lib/supabase';
++import { ARENA_HEART, newArenaEngagement } from '../lib/arenaEngagement';
+ 
+ type Props = {
+   roomId: string;
+@@ -29,6 +33,69 @@ export function ArenaWitnessChatDrawer({
+   onGameCallAction,
+ }: Props) {
+   const closeButtonRef = useRef<HTMLButtonElement>(null);
++  const [unread, setUnread] = useState(0);
++  const [bursts, setBursts] = useState<number[]>([]);
++  const [sendingHeart, setSendingHeart] = useState(false);
++  const [heartError, setHeartError] = useState('');
++  const [engagementReady, setEngagementReady] = useState(false);
++  const lastHeart = useRef(0);
++  const openRef = useRef(open);
++  openRef.current = open;
++  const sequence = useRef(0);
++  const timers = useRef<number[]>([]);
++  const refreshRef = useRef<() => void>(() => {});
++  const animate = useCallback((count: number) => {
++    const ids = Array.from({ length: Math.min(count, 3) }, () => ++sequence.current);
++    if (!ids.length) return;
++    setBursts(current => [...current, ...ids].slice(-6));
++    const timer = window.setTimeout(() => {
++      setBursts(current => current.filter(id => !ids.includes(id)));
++      timers.current = timers.current.filter(id => id !== timer);
++    }, 2100);
++    timers.current.push(timer);
++  }, []);
++
++  useEffect(() => {
++    let alive = true, loading = false, pending = false;
++    let seen: Set<string> | null = null;
++    setUnread(0); setBursts([]); setHeartError(''); setEngagementReady(false); lastHeart.current = 0;
++    const refresh = async () => {
++      if (!alive) return;
++      if (loading) { pending = true; return; }
++      loading = true;
++      try {
++        const messages = await fetchArenaRoomMessages(roomId);
++        if (!alive) return;
++        const next = newArenaEngagement(seen, messages, userId);
++        seen = next.seen;
++        setEngagementReady(true);
++        if (next.hearts) animate(next.hearts);
++        if (!openRef.current && next.unread) setUnread(count => count + next.unread);
++      } catch { /* The existing chat remains available during reconnects. */ }
++      finally { loading = false; if (pending && alive) { pending = false; void refresh(); } }
++    };
++    refreshRef.current = () => { void refresh(); };
++    void refresh();
++    const channel = supabase.channel(`arena-engagement-${roomId}`)
++      .on('postgres_changes', {event:'INSERT', schema:'public', table:'arena_room_messages', filter:`room_id=eq.${roomId}`}, refreshRef.current)
++      .subscribe();
++    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 3000);
++    return () => { alive = false; window.clearInterval(interval); void supabase.removeChannel(channel); timers.current.forEach(window.clearTimeout); timers.current = []; refreshRef.current = () => {}; };
++  }, [roomId, userId, animate]);
++
++  useEffect(() => { if (open) { setUnread(0); refreshRef.current(); } }, [open]);
++
++  const sendHeart = async () => {
++    if (!engagementReady || sendingHeart || Date.now() - lastHeart.current < 800 || (!guestKey && !userId)) return;
++    lastHeart.current = Date.now();
++    setSendingHeart(true); setHeartError('');
++    try {
++      if (guestKey) await postPublicArenaComment(roomId, guestKey, ARENA_HEART);
++      else await sendArenaRoomMessage(roomId, userId, ARENA_HEART);
++      refreshRef.current();
++    } catch { setHeartError('Could not send love. Try again.'); }
++    finally { setSendingHeart(false); }
++  };
+ 
+   useEffect(() => {
+     if (!open) return;
+@@ -40,18 +107,23 @@ export function ArenaWitnessChatDrawer({
+     return () => window.removeEventListener('keydown', closeOnEscape);
+   }, [onOpenChange, open]);
+ 
+-  return (
++  return createPortal(
+     <>
++      <div className="arena-love-sky" aria-hidden="true">{bursts.flatMap(id => Array.from({length:5}, (_, index) => <span key={`${id}-${index}`} className={`arena-love-heart arena-love-heart-${index}`}>❤️</span>))}</div>
+       {!open && showLauncher && (
++        <div className="fixed left-3 z-[2147483010] flex items-center gap-2" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
++        <button type="button" onClick={() => void sendHeart()} disabled={sendingHeart || !engagementReady} className="arena-love-button" aria-label="Send love to the match"><Heart size={21} fill="currentColor" /></button>
+         <button
+           type="button"
+           onClick={() => onOpenChange(true)}
+-          className="btn-primary fixed right-4 z-[2147483010] min-h-11 px-4 shadow-xl"
+-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+-          aria-label="Open match chat"
++          className="btn-primary relative min-h-11 px-4 shadow-xl"
++          aria-label={unread ? `Open match chat, ${unread} unread messages` : 'Open match chat'}
+         >
+           <MessageCircle size={17} /> Chat
++          {unread > 0 && <span className="arena-chat-unread">{unread > 99 ? '99+' : unread}</span>}
+         </button>
++        {heartError && <span role="status" className="rounded bg-navy px-2 py-1 text-xs text-ink">{heartError}</span>}
++        </div>
+       )}
+       {open && (
+         <div
+@@ -67,8 +139,10 @@ export function ArenaWitnessChatDrawer({
+           >
+             <div className="mb-2 flex items-center justify-between gap-3 px-1">
+               <h3 className="flex items-center gap-2 text-sm font-bold text-ink"><MessageCircle size={16} className="text-brass" /> Match chat</h3>
++              <button type="button" onClick={() => void sendHeart()} disabled={sendingHeart || !engagementReady} className="arena-love-button" aria-label="Send love to the match"><Heart size={18} fill="currentColor" /></button>
+               <button ref={closeButtonRef} type="button" onClick={() => onOpenChange(false)} className="icon-btn h-8 w-8" title="Close match chat" aria-label="Close match chat"><X size={17} /></button>
+             </div>
++            {heartError && <p role="status" className="text-xs text-coral">{heartError}</p>}
+             <ArenaRoomChat
+               roomId={roomId}
+               userId={userId}
+@@ -82,6 +156,6 @@ export function ArenaWitnessChatDrawer({
+           </section>
+         </div>
+       )}
+-    </>
++    </>, document.body
+   );
+ }
+diff --git a/src/index.css b/src/index.css
+index 7f8ec87..a485303 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -2634,3 +2634,18 @@ select {
+ .prelude-center > p:first-child { position:absolute;top:-12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
+ .prelude-center > p:last-child { position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
+ .prelude-center-card { max-height:100%; }
++
++.arena-love-button { display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#762642;color:#ffb6c9;border:1px solid #f48caa;box-shadow:0 3px 12px #0004;flex-shrink:0; }
++.arena-love-button:active { transform:scale(.92); }
++.arena-love-button:disabled { opacity:.6; }
++.arena-chat-unread { position:absolute;top:-7px;right:-6px;min-width:20px;height:20px;display:grid;place-items:center;border-radius:999px;background:#d73b58;color:white;border:2px solid var(--navy-2,#17243c);font-size:10px;font-weight:800;padding:0 3px; }
++.arena-love-sky { position:fixed;left:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 65px);height:min(45vh,330px);width:64px;pointer-events:none;z-index:2147483030; }
++.arena-love-heart { position:absolute;bottom:0;left:12px;font-size:22px;opacity:0;animation:arena-love-rise 1.65s ease-out forwards; }
++.arena-love-heart-0 { --heart-drift: -8px;animation-delay:0s; }
++.arena-love-heart-1 { --heart-drift: 18px;animation-delay:.10s;font-size:19px; }
++.arena-love-heart-2 { --heart-drift: -3px;animation-delay:.20s;font-size:25px; }
++.arena-love-heart-3 { --heart-drift: 27px;animation-delay:.30s;font-size:17px; }
++.arena-love-heart-4 { --heart-drift: 9px;animation-delay:.40s; }
++@keyframes arena-love-rise { 0% { opacity:0;transform:translate(0,0) scale(.65); } 15% {opacity:1;} 75% {opacity:.85;} 100% {opacity:0;transform:translate(var(--heart-drift),-210px) scale(1.2);} }
++@media(prefers-reduced-motion:reduce) { .arena-love-heart {animation:arena-love-fade 1.3s linear forwards;left:calc(4px + var(--heart-drift));} }
++@keyframes arena-love-fade { 0%,100%{opacity:0;} 20%,70%{opacity:1;} }
+diff --git a/src/screens/cadet/CadetArena.tsx b/src/screens/cadet/CadetArena.tsx
+index c42d873..a72e507 100644
+--- a/src/screens/cadet/CadetArena.tsx
++++ b/src/screens/cadet/CadetArena.tsx
+@@ -1646,7 +1646,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges,
+         userId={userId}
+         guestKey={guestKey}
+         open={chatOpen}
+-        showLauncher={!showWitnessQuestion}
++        showLauncher
+         onOpenChange={setChatOpen}
+         allowGameCalls={allowChallenges}
+         challengeTargets={allowChallenges ? participants.map((participant: any) => ({
+@@ -1877,6 +1877,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete,
+   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+   const [answerError, setAnswerError] = useState<string | null>(null);
+   const [questionOpen, setQuestionOpen] = useState(false);
++  const [matchChatOpen, setMatchChatOpen] = useState(false);
+   const [rolling, setRolling] = useState(false);
+   const [revealingRoll, setRevealingRoll] = useState(false);
+   const [dieValue, setDieValue] = useState(1);
+@@ -2267,15 +2268,7 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete,
+         onRoll={rollDie}
+       />
+ 
+-      {!machineMatch && (
+-        <details className="group overflow-hidden rounded-lg border border-border bg-surface/80">
+-          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-bold text-ink">
+-            <span className="flex items-center gap-2"><MessageCircle size={14} className="text-brass" /> Room chat</span>
+-            <ChevronDown size={15} className="text-stone transition-transform group-open:rotate-180" />
+-          </summary>
+-          <ArenaRoomChat roomId={roomId} userId={userId} compact onGameCallAction={onGameCallAction} />
+-        </details>
+-      )}
++      {!machineMatch && <ArenaWitnessChatDrawer roomId={roomId} userId={userId} open={matchChatOpen} showLauncher={!questionOpen} onOpenChange={setMatchChatOpen} allowGameCalls={false} onGameCallAction={onGameCallAction} />}
+ 
+       <ContextRelicShop userId={userId} floating timed={questionOpen && turnPhase === 'user'} label="Use or buy relics"
+         slugs={TRIVIA_QUESTION_RELICS.filter(slug => !classicAid?.used.includes(slug)
+diff --git a/src/screens/cadet/PreludeTrivia.tsx b/src/screens/cadet/PreludeTrivia.tsx
+index 9ea5aad..00702d8 100644
+--- a/src/screens/cadet/PreludeTrivia.tsx
++++ b/src/screens/cadet/PreludeTrivia.tsx
+@@ -10,6 +10,8 @@ import { forfeitPrelude, preludeCommand, type PreludeState } from '../../lib/scr
+ import { userFacingError } from '../../lib/connectionErrors';
+ import { safeStorageGet, safeStorageSet, safeStorageRemove } from '../../lib/safeStorage';
+ import { PreludeTable, PreludePlayerStacks, PreludeCardFace } from '../../components/PreludeTable';
++import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
++import { heartbeatArenaParticipant } from '../../lib/queries';
+ import type { PanelImageSetting } from '../../lib/types';
+ 
+ type Room = Pick<PreludeState,'id'|'name'|'phase'|'difficulty'|'players'|'creatorId'>;
+@@ -24,6 +26,7 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [confirmForfeit,setConfirmForfeit]=useState(false);
++ const [chatOpen,setChatOpen]=useState(false);
+  const viewGeneration=useRef(0);
+  const [answers,setAnswers]=useState<number[]>([]);
+  const [now,setNow]=useState(Date.now());
+@@ -60,8 +63,15 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
+   return()=>{active=false;window.clearInterval(interval);};
+  },[roomId,accept,refreshList]);
+  useEffect(()=>{setAnswers([]);setReferenceOpen(false);},[version]);
++ const activeParticipant = Boolean(profile && game && (game.phase==='playing'||game.phase==='question') && game.players.some(player=>player.id===profile.id));
++ useEffect(()=>{
++  if(!roomId || !profile?.id || !activeParticipant)return;
++  const beat=()=>{if(document.visibilityState==='visible')void heartbeatArenaParticipant(roomId,profile.id).catch(()=>undefined);};
++  beat();const interval=window.setInterval(beat,20000);
++  return()=>window.clearInterval(interval);
++ },[roomId,profile?.id,activeParticipant]);
+  useEffect(()=>{const interval=window.setInterval(()=>setNow(Date.now()),500);return()=>window.clearInterval(interval);},[]);
+- const leaveView=()=>{viewGeneration.current+=1;setConfirmForfeit(false);setRoomId(null);setGame(null);seenVersion.current=-1;safeStorageRemove('local',savedKey);setError('');void refreshList();};
++ const leaveView=()=>{viewGeneration.current+=1;setConfirmForfeit(false);setChatOpen(false);setRoomId(null);setGame(null);seenVersion.current=-1;safeStorageRemove('local',savedKey);setError('');void refreshList();};
+  const forfeit=async()=>{
+   if(!roomId || inFlight.current)return;
+   inFlight.current=true;setBusy(true);setError('');
+@@ -111,6 +121,7 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
+      {confirmForfeit?<div role="alert" className="space-y-3"><p className="text-sm">Forfeit this round? You will leave the match and cannot rejoin it.</p><div className="flex gap-2"><button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>setConfirmForfeit(false)}>Keep playing</button><button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>void forfeit()}>{busy?'Forfeiting…':'Confirm forfeit'}</button></div></div>:<button type="button" disabled={busy} className="btn-secondary text-xs" onClick={()=>setConfirmForfeit(true)}>Forfeit round</button>}
+     </div>}
+     <PreludePlayerStacks players={game.players} currentPlayerId={game.phase==='playing'||game.phase==='question'?current?.id:undefined} userId={profile?.id}/>
++    {profile && (game.phase==='playing'||game.phase==='question') && <ArenaWitnessChatDrawer key={game.id} roomId={game.id} userId={profile.id} open={chatOpen} showLauncher={!(myTurn && game.phase==='question')} onOpenChange={setChatOpen} allowGameCalls={false} />}
+     {game.phase==='waiting' && <div className="rounded-xl border border-gold/30 bg-black/45 p-5 text-center"><h3 className="font-display text-xl text-gold">Waiting at the table</h3><p className="mt-2 text-sm">{game.players.length}/{game.maxPlayers} players · {game.difficulty==='hard'?'Select all correct answers':'Multiple choice'}</p>{waitingTime>0 && <p className="mt-2 text-xs">Scheduled start in {Math.floor(waitingTime/60)}m {waitingTime%60}s</p>}{(game.creatorId===profile?.id||(game.startsAt&&game.players.some(player=>player.id===profile?.id))) && <button type="button" disabled={busy||game.players.length<2||waitingTime>0} onClick={()=>void command('start')} className="btn-primary mt-4">Start round</button>}<p className="mt-3 text-xs text-white/65">104 cards · 100 numbered cards + four jokers · No entry fee</p></div>}
+     {(game.phase==='playing'||game.phase==='question') && <>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-black/50 p-3"><p className="text-sm font-bold text-gold">{myTurn?'Your turn':`${current?.name}’s turn`}</p><p className="flex items-center gap-1 text-xs"><Clock3 size={14}/>{seconds}s · {game.cards.length} unused cards</p></div>
+diff --git a/src/screens/cadet/RoadHomeGame.tsx b/src/screens/cadet/RoadHomeGame.tsx
+index bcb2384..d29d5b7 100644
+--- a/src/screens/cadet/RoadHomeGame.tsx
++++ b/src/screens/cadet/RoadHomeGame.tsx
+@@ -12,7 +12,6 @@ import { Dove } from '../../components/Dove';
+ import { UserAvatar } from '../../components/UserAvatar';
+ import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
+ import { ArenaDieButton } from '../../components/ArenaDieButton';
+-import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+ import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+ import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
+ import { fetchArenaFinalScorecard, fetchPublicArenaSuccessor, fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
+@@ -587,15 +586,6 @@ export function RoadHomeGame({
+               <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-stone">Turn {state.turnNumber}</p><p className="truncate text-sm font-bold text-ink">{formatPhase(state, myTurn)}</p></div>
+             </div>
+           </div>
+-          {!spectator && <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
+-            <MessageCircle size={15} /> Match Chat
+-          </button>}
+-          {!spectator && chatOpen && (
+-            <ArenaRoomChat
+-              roomId={roomId}
+-              userId={userId}
+-            />
+-          )}
+           {!spectator && (undoMuted || standstillMuted || shieldMuted) && <p className="text-xs text-stone" role="status">
+             Match limits reached: {[undoMuted && `Undo (${ARENA_MATCH_RELIC_LIMITS.undo})`, standstillMuted && 'Standstill (1)', shieldMuted && 'Shield of Faith (5)'].filter(Boolean).join(', ')}.
+           </p>}
+@@ -633,20 +623,20 @@ export function RoadHomeGame({
+           {me?.relics.length ? <RelicTray player={me} state={state} sending={sending || !myTurn || pauseRemaining > 0 || state.phase === 'SHIELD_DECISION'} send={send} /> : null}
+         </ArenaMarketRelics>
+       )}
+-      {spectator && (
++      {(
+         <ArenaWitnessChatDrawer
+           roomId={roomId}
+           userId={userId}
+           guestKey={guestKey}
+           open={chatOpen}
+-          showLauncher={!showWitnessQuestion}
++          showLauncher={spectator || !(myTurn && state.phase === 'QUESTION')}
+           onOpenChange={setChatOpen}
+-          allowGameCalls={spectatorCanChallenge}
+-          challengeTargets={spectatorCanChallenge ? state.players
++          allowGameCalls={spectator && spectatorCanChallenge}
++          challengeTargets={spectator && spectatorCanChallenge ? state.players
+             .filter((player) => !player.isBot)
+             .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
+-          onGameCallCreated={spectatorCanChallenge ? onGameCallCreated : undefined}
+-          onGameCallAction={spectatorCanChallenge ? onGameCallAction : undefined}
++          onGameCallCreated={spectator && spectatorCanChallenge ? onGameCallCreated : undefined}
++          onGameCallAction={spectator && spectatorCanChallenge ? onGameCallAction : undefined}
+         />
+       )}
+       {showWitnessQuestion && spectator && state.phase === 'QUESTION' && state.currentQuestion && activePlayer && (

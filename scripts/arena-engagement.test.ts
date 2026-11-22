@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { ARENA_HEART, newArenaEngagement, isArenaHeart } from '../src/lib/arenaEngagement.ts';
+const msg = (id: string, body: string, sender_id: string | null = 'other', age = 0) => ({id,body,sender_id,created_at:new Date(Date.now()-age).toISOString()});
+const old = msg('1','Previous message');
+const baseline = newArenaEngagement(null,[old],'me');
+assert.equal(baseline.unread,0);assert.equal(baseline.hearts,0);
+const messages = [old,msg('2',ARENA_HEART),msg('3','Go team!'),msg('4','My comment','me'),msg('5','Guest support',null)];
+const next = newArenaEngagement(baseline.seen,messages,'me');
+assert.equal(next.hearts,1);assert.equal(next.unread,2);
+const repeated = newArenaEngagement(next.seen,messages,'me');
+assert.equal(repeated.hearts,0);assert.equal(repeated.unread,0);
+const empty = newArenaEngagement(next.seen,[],'me');
+assert.equal(newArenaEngagement(empty.seen,messages,'me').unread,0);
+assert.equal(newArenaEngagement(next.seen,[...messages,msg('6',ARENA_HEART,'other',60_000)],'me').hearts,0);
+assert.equal(isArenaHeart('I love this ❤️'),false);
+console.log('Arena engagement: baseline, deduplication, heart expiry, unread counts and guest messages passed.');

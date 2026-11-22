@@ -1,0 +1,47 @@
+name: Arena source-only release candidate
+
+on:
+  push:
+    branches: [arena-release-candidate]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arena-release-candidate
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply reviewed Arena-only source changes
+        run: |
+          git apply --check releases/arena-engagement.patch
+          git apply releases/arena-engagement.patch
+      - run: npm ci
+      - name: Verify the Arena interactions
+        run: |
+          npm run typecheck
+          node --experimental-strip-types scripts/arena-engagement.test.ts
+          node scripts/arena-spectators.test.cjs
+      - name: Build in an isolated workspace
+        run: npm run build
+      - name: Check release structure
+        run: |
+          test -f dist/index.html
+          test -f dist/release-manifest.json
+          test -f dist/fc-worker.js
+          test -f dist/leadership-identity-v1.js
+          test -f dist/leadership-identity-v1.css
+          grep -Fq 'arena-love-button' dist/full-circle-release.css
+          grep -Fq 'leadership-identity-v1.js' dist/index.html
+      - name: Keep candidate separate from production
+        run: echo 'Candidate verified. No production branch, hosting settings, user data or publicly downloadable build artifact has been changed.'
