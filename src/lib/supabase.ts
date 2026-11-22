@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createEgressDiagnostics } from './egressDiagnostics';
 import { connectionError, readableFetch } from './connectionErrors';
-import { networkAttemptTimeout } from './networkRequestTimeout';
+import { isSlowArenaRead, networkAttemptTimeout } from './networkRequestTimeout';
 
 const diagnostics = import.meta.env.DEV ? createEgressDiagnostics() : null;
 if (diagnostics && typeof window !== 'undefined') {
@@ -45,7 +45,8 @@ async function waitForApiBody(response: Response, method: string) {
 async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const method = requestMethod(input, init);
   const canRetry = method === 'GET' || method === 'HEAD';
-  const attempts = canRetry ? 2 : 1;
+  // An extra slow Arena GET doubles traffic when the gateway is already overloaded.
+  const attempts = isSlowArenaRead(input, method) ? 1 : canRetry ? 2 : 1;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
