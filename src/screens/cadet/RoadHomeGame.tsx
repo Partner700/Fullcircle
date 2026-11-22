@@ -14,6 +14,7 @@ import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { fetchArenaFinalScorecard, fetchPublicArenaSuccessor, fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
@@ -508,6 +509,10 @@ export function RoadHomeGame({
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
+      <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
+      <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.phase !== 'GAME_OVER' ? activePlayer?.id : undefined}
+        activePlayerName={activePlayer?.name} spectator={spectator}
+        prompt={state.phase === 'AWAITING_ROLL' ? 'Roll the dice to take your turn.' : state.phase === 'QUESTION' ? 'Answer your question now.' : 'Make your next move.'} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><p className="eyebrow">Full Circle: The Road Home</p><h2 className="truncate font-display text-xl font-bold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2></div>
         <div className="flex items-center gap-2">
