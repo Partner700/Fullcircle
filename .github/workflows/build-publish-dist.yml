@@ -42,6 +42,8 @@ jobs:
         run: npm run typecheck
       - name: Test network timeouts
         run: node --experimental-strip-types scripts/network-request-timeout.test.ts
+      - name: Test camp access recovery
+        run: node --experimental-strip-types scripts/camp-access-recovery.test.ts
       - name: Build current app
         run: npm run build
       - name: Restore relative URLs for subpath and standalone installations
