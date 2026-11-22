@@ -72,5 +72,11 @@ jobs:
           # before rebasing onto a main branch updated during the build.
           git reset --hard HEAD
           git fetch origin main
-          git rebase origin/main
+          # Do not rebase a generated release over a newer build. That can
+          # mix an old index with newer hashed chunks and strand mobile PWAs.
+          # A newer source push already queued its own build.
+          if [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD^)" ]; then
+            echo "Another commit reached main during this build; do not publish stale assets."
+            exit 0
+          fi
           git push origin HEAD:main
