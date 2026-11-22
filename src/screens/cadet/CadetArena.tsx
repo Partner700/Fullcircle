@@ -871,6 +871,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
             roomName={activeRoomName}
             userId={profile!.id}
             spectator={isSpectating}
+            matchupPlayers={arenaMatchupPlayers(activeRoom)}
             awaitSeriesResult={Boolean(activeRoom?.scheduled && !activeRoom.is_sentry_match && activeRoom.play_mode !== 'machine' && activeRoom.max_players <= 4)}
             spectatorCanChallenge={!witnessOnly}
             onGameCallCreated={handleGameCallCreated}
@@ -918,6 +919,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           roomName={activeRoom?.room_name || roomName}
           roomId={activeRoomId}
           userId={profile!.id}
+          matchupPlayers={arenaMatchupPlayers(activeRoom)}
           roomQuestionSet={activeRoom?.question_set}
           onComplete={async (score, correctCount) => {
             let finishedRoom = null;
@@ -1900,10 +1902,11 @@ function dedupeArenaQuestions(items: QuestionPayload[]) {
   });
 }
 
-function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit, onGameCallAction }: {
+function ArenaGamePlay({ roomName, roomId, userId, matchupPlayers, roomQuestionSet, onComplete, onForfeit, forfeiting, onExit, onGameCallAction }: {
   roomName: string;
   roomId: string;
   userId: string;
+  matchupPlayers: ArenaMatchupPlayer[];
   roomQuestionSet?: QuestionPayload[] | null;
   onComplete: (score: number, correctCount: number) => Promise<void>;
   onForfeit: () => void;
@@ -2290,6 +2293,11 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
       <ArenaHeartReaction roomId={roomId} userId={userId} />
+      <ArenaMatchup players={matchupPlayers.map((player) => ({
+        ...player,
+        score: machineMatch && player.user_id === '00000000-0000-0000-0000-000000000000'
+          ? machineScore : player.user_id === userId ? score : feedScores.get(player.user_id) ?? arenaPlayerScore(player),
+      }))} playing pinned />
       <ArenaTurnAlert roomId={roomId} userId={userId}
         activePlayerId={machineMatch ? (turnPhase.startsWith('machine') ? undefined : userId) : activeRealPlayer?.user_id}
         activePlayerName={waitingName} prompt="Roll the die and answer your question." />
