@@ -51,6 +51,7 @@ import {
   leaveArenaRoomView,
   fetchArenaRooms,
   fetchArenaRoom,
+  fetchArenaRoomPulse,
   fetchArenaMatchups,
   fetchRhudeBoard,
   fetchArenaInvitees,
@@ -146,6 +147,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   const followingRestartRef = useRef<string | null>(null);
   const lastScheduledStartAttempt = useRef(0);
   const activeRoomIdRef = useRef(activeRoomId);
+  const roomsRef = useRef(rooms);
+  roomsRef.current = rooms;
   const hydratingRoomRef = useRef<string | null>(null);
   activeRoomIdRef.current = activeRoomId;
   const hasLiveRooms = rooms.some((room) => room.status === 'playing');
@@ -419,18 +422,31 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   useEffect(() => {
     if (!profile || phase !== 'lobby') return;
     let refreshTimer: number | null = null;
+    let lastRefreshAt = 0;
+    let refreshInFlight = false;
+    const doRefresh = async () => {
+      if (refreshInFlight || document.visibilityState !== 'visible') return;
+      refreshInFlight = true;
+      lastRefreshAt = Date.now();
+      try { await refreshRooms(); } finally { refreshInFlight = false; }
+    };
     const scheduleRefresh = () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => { void refreshRooms(); }, 180);
+      if (refreshTimer !== null || document.visibilityState !== 'visible') return;
+      // Room activity can arrive dozens of times per minute during a match.
+      // Bound network work rather than fetching every room on every event.
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void doRefresh();
+      }, Math.max(1200, 8000 - (Date.now() - lastRefreshAt)));
     };
     const channel = supabase
       .channel(`arena_lobby_${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms' }, scheduleRefresh)
       .subscribe();
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshRooms();
-    }, hasLiveRooms ? 20_000 : 45_000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void refreshRooms(); };
+      void doRefresh();
+    }, hasLiveRooms ? 25_000 : 50_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void doRefresh(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
@@ -453,23 +469,36 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         }));
       } catch { /* The regular Arena refresh will retry. */ }
     };
-    const interval = window.setInterval(() => { void refreshScores(); }, 10_000);
+    const interval = window.setInterval(() => { void refreshScores(); }, 25_000);
     return () => { active = false; window.clearInterval(interval); };
   }, [phase, liveRoomIds]);
 
   // Realtime subscription for room updates
   useEffect(() => {
     if (!activeRoomId) return;
+    let roomRefreshTimer: number | null = null;
+    let lastRoomRefreshAt = 0;
+    const queueRoomRefresh = () => {
+      if (document.visibilityState !== 'visible' || roomRefreshTimer !== null) return;
+      roomRefreshTimer = window.setTimeout(() => {
+        roomRefreshTimer = null;
+        lastRoomRefreshAt = Date.now();
+        void refreshRoom(activeRoomId);
+      }, Math.max(350, 4500 - (Date.now() - lastRoomRefreshAt)));
+    };
     const channel = supabase
       .channel(`arena_room_${activeRoomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_participants', filter: `room_id=eq.${activeRoomId}` },
-        () => { void refreshRoom(activeRoomId); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_viewers', filter: `room_id=eq.${activeRoomId}` },
-        () => { void refreshRoom(activeRoomId); })
+        queueRoomRefresh)
+      // Spectator heartbeats update arena_viewers often; those updates should
+      // not trigger a full multi-query room reload for every watching client.
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms', filter: `id=eq.${activeRoomId}` },
-        () => { void refreshRoom(activeRoomId); })
+        queueRoomRefresh)
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      if (roomRefreshTimer !== null) window.clearTimeout(roomRefreshTimer);
+      void supabase.removeChannel(channel);
+    };
   }, [activeRoomId, refreshRoom]);
 
   useEffect(() => {
@@ -617,26 +646,44 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     if (!activeRoomId || phase !== 'waiting') return;
     let cancelled = false;
     let refreshInFlight = false;
+    let lastDetailRefresh = 0;
     const refreshActiveRoom = async () => {
       if (refreshInFlight || document.visibilityState !== 'visible') return;
       refreshInFlight = true;
       try {
-        const freshRoom = await fetchArenaRoom(activeRoomId);
-        if (cancelled || !freshRoom) return;
-        setRooms((prev) => upsertArenaRoom(prev, freshRoom));
-        if (freshRoom.status === 'playing') setPhase('playing');
-        if (['cancelled', 'expired'].includes(freshRoom.status)) clearActiveRoom(false);
-        if (freshRoom.status === 'waiting' && freshRoom.scheduled && !isSpectating && profile
-          && Date.now() >= Date.parse(freshRoom.scheduled_start_at)
-          && (freshRoom.arena_participants || []).filter((participant: any) => !participant.forfeited_at).length >= 2
-          && (freshRoom.arena_participants || []).some((participant: any) => participant.user_id === profile.id && !participant.forfeited_at)
+        // One lightweight room pulse replaces seven or more requests per tick.
+        const pulse = await fetchArenaRoomPulse(activeRoomId);
+        if (cancelled || !pulse) return;
+        if (pulse.status === 'playing') {
+          const latest = await refreshRoom(activeRoomId);
+          if (!cancelled && latest?.status === 'playing') setPhase('playing');
+          return;
+        }
+        if (['cancelled', 'expired', 'completed'].includes(pulse.status)) {
+          clearActiveRoom(false);
+          return;
+        }
+        const knownRoom = roomsRef.current.find((room) => room.id === activeRoomId);
+        if (pulse.status === 'waiting' && knownRoom?.scheduled && !isSpectating && profile
+          && Date.now() >= Date.parse(knownRoom.scheduled_start_at || '')
+          && pulse.active_player_ids.length >= 2
+          && pulse.active_player_ids.includes(profile.id)
           && Date.now() - lastScheduledStartAttempt.current > 8000) {
           lastScheduledStartAttempt.current = Date.now();
           await startScheduledArenaMatch(activeRoomId);
-          if (!cancelled) setPhase('playing');
+          if (!cancelled) {
+            await refreshRoom(activeRoomId);
+            setPhase('playing');
+          }
+          return;
+        }
+        // Fallback detail refresh in case a carrier blocks websocket updates.
+        if (Date.now() - lastDetailRefresh > 25_000) {
+          lastDetailRefresh = Date.now();
+          await refreshRoom(activeRoomId);
         }
       } catch {
-        // Realtime/polling will try again; keep the waiting room mounted.
+        // Network failures must not tear down an active waiting room.
       } finally {
         refreshInFlight = false;
       }
