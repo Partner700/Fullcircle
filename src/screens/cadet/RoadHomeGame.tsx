@@ -14,6 +14,8 @@ import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+import { ArenaMatchup } from '../../components/ArenaMatchup';
+import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
 import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { fetchArenaFinalScorecard, fetchPublicArenaSuccessor, fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
@@ -27,6 +29,7 @@ type Props = {
   roomId: string;
   roomName: string;
   userId: string;
+  matchupPlayers?: ArenaMatchupPlayer[];
   spectator?: boolean;
   spectatorCanChallenge?: boolean;
   publicAccess?: boolean;
@@ -123,6 +126,7 @@ export function RoadHomeGame({
   roomId,
   roomName,
   userId,
+  matchupPlayers = [],
   spectator = false,
   spectatorCanChallenge = true,
   publicAccess = false,
@@ -510,6 +514,13 @@ export function RoadHomeGame({
   return (
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
       <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
+      <ArenaMatchup players={state.players.map((player) => ({
+        ...(matchupPlayers.find((match) => match.user_id === player.id) ?? {
+          user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl || null,
+          tent_house_id: null, correct_count: 0,
+        }),
+        score: Number(player.stats.correct) || 0,
+      }))} playing pinned />
       <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={activePlayer?.id}
         activePlayerName={activePlayer?.name} spectator={spectator}
         prompt={state.phase === 'AWAITING_ROLL' ? 'Roll the dice to take your turn.' : state.phase === 'QUESTION' ? 'Answer your question now.' : 'Make your next move.'} />
