@@ -41,6 +41,19 @@ jobs:
         run: npm run typecheck
       - name: Build current app
         run: npm run build
+      - name: Restore relative URLs for subpath and standalone installations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('index.html', '404.html'):
+              path = Path('dist') / name
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              for asset in ('game-soundtrack-v1.js', 'arena-engagement-v1.js'):
+                  text = text.replace('src="/' + asset + '"', 'src="./' + asset + '"')
+              path.write_text(text)
+          PY
       - name: Record exact source commit
         run: git rev-parse HEAD > dist/.fullcircle-source-sha
       - name: Commit verified build output
