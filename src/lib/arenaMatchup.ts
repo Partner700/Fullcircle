@@ -18,3 +18,17 @@ export function shortArenaName(name: string) {
   return (candidates.length ? candidates : words).reduce((shortest, word) =>
     word.length < shortest.length ? word : shortest);
 }
+
+
+/** Only exact tent membership makes Arena players teammates.
+ * Sharing a house symbol does not make them the same tent. */
+export function groupArenaMatchupSides(players: ArenaMatchupPlayer[]) {
+  const sides: Array<{ key: string; players: ArenaMatchupPlayer[] }> = [];
+  for (const player of players) {
+    const key = player.tent_id ? `tent:${player.tent_id}` : `player:${player.user_id}`;
+    const existing = sides.find((side) => side.key === key);
+    if (existing) existing.players.push(player);
+    else sides.push({ key, players: [player] });
+  }
+  return sides;
+}
