@@ -15,6 +15,7 @@ import { isInstalledApp } from './lib/appDisplayMode';
 import { readShareDestination, shareDestinationMode, openShareInAppUrl, closeShareUrl } from './lib/shareDestination';
 import { supabase } from './lib/supabase';
 import type { CampAccess } from './screens/admin/CampWorkspace';
+import { readVerifiedMemberCamp, rememberVerifiedMemberCamp } from './lib/campAccessRecovery';
 import { NonBlockingErrorBoundary } from './components/NonBlockingErrorBoundary';
 
 const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }))));
@@ -68,27 +69,36 @@ export default function App() {
   const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
   const authenticatedUserId = session?.user.id || null;
   const [campLookup, setCampLookup] = useState<{ userId: string; access?: CampAccess } | null>(null);
+  const [campRetry, setCampRetry] = useState(0);
   useEffect(() => {
     if (!authenticatedUserId) {
       setCampLookup(null);
       return;
     }
+    // A successful prior 'none' response only permits the ordinary member UI.
+    // Staff access is never cached; it must be verified on every session.
+    const verifiedMember = readVerifiedMemberCamp(authenticatedUserId);
+    if (verifiedMember) setCampLookup({ userId: authenticatedUserId, access: verifiedMember });
     let active = true;
     void (async () => {
       try {
         const { data, error } = await supabase.rpc('get_camp_workspace');
         if (!active) return;
         if (error?.code === 'PGRST202') {
+          // Backward compatibility with a missing RPC on older installations.
           setCampLookup({ userId: authenticatedUserId, access: { role: 'none' } });
+        } else if (error || !data || !['none', 'admin', 'instructor'].includes(data.role)) {
+          if (!verifiedMember) setCampLookup({ userId: authenticatedUserId });
         } else {
-          setCampLookup({ userId: authenticatedUserId, access: error ? undefined : data as CampAccess });
+          rememberVerifiedMemberCamp(authenticatedUserId, data.role);
+          setCampLookup({ userId: authenticatedUserId, access: data as CampAccess });
         }
       } catch {
-        if (active) setCampLookup({ userId: authenticatedUserId });
+        if (active && !verifiedMember) setCampLookup({ userId: authenticatedUserId });
       }
     })();
     return () => { active = false; };
-  }, [authenticatedUserId]);
+  }, [authenticatedUserId, campRetry]);
   const authenticatedProfileId = profile?.id || null;
   const language = interfaceLanguage(profile?.language_code);
   useFrenchUiTranslation(language);
@@ -266,8 +276,9 @@ export default function App() {
     return (
       <main className="min-h-screen bg-navy px-4 py-10">
         <section className="card mx-auto max-w-md space-y-3 p-5 text-ink" role="alert">
-          <p>Camp access could not be checked.</p>
-          <button className="btn-primary" onClick={() => window.location.reload()}>Retry</button>
+          <p className="font-semibold">Full Circle is having trouble reaching the camp server.</p>
+          <p className="text-sm">You are still signed in. Your account and camp assignment are not lost. Retry the camp check without restarting the whole app.</p>
+          <button className="btn-primary" onClick={() => setCampRetry((value) => value + 1)}>Retry camp access</button>
           <button className="btn-secondary ml-2" onClick={() => void signOut()}>Sign out</button>
         </section>
       </main>
