@@ -21,6 +21,7 @@ import { InterTentChampionshipPanel } from '../../components/InterTentChampionsh
 import { InstructorJourneyReview } from '../../components/InstructorJourneyReview';
 import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
 import { ArenaChallengeGate } from '../../components/ArenaChallengeGate';
 import { RoadHomeGame } from './RoadHomeGame';
 import { JourneyGamePlay } from './JourneyGamePlay';
@@ -2240,6 +2241,10 @@ function ArenaGamePlay({ roomName, roomId, userId, roomQuestionSet, onComplete, 
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
+      <ArenaHeartReaction roomId={roomId} userId={userId} />
+      <ArenaTurnAlert roomId={roomId} userId={userId}
+        activePlayerId={machineMatch ? (turnPhase.startsWith('machine') ? undefined : userId) : activeRealPlayer?.user_id}
+        activePlayerName={waitingName} prompt="Roll the die and answer your question." />
       <div className="flex items-center justify-between gap-2 px-1">
         <button onClick={onForfeit} disabled={forfeiting} className="btn-ghost text-sm text-coral disabled:opacity-50">
           {forfeiting ? <Loader2 size={14} className="animate-spin" /> : <Flag size={14} />} Forfeit
