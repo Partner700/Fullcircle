@@ -510,7 +510,7 @@ export function RoadHomeGame({
   return (
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
       <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
-      <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.phase !== 'GAME_OVER' ? activePlayer?.id : undefined}
+      <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={activePlayer?.id}
         activePlayerName={activePlayer?.name} spectator={spectator}
         prompt={state.phase === 'AWAITING_ROLL' ? 'Roll the dice to take your turn.' : state.phase === 'QUESTION' ? 'Answer your question now.' : 'Make your next move.'} />
       <div className="flex flex-wrap items-center justify-between gap-3">
