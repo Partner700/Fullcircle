@@ -19,8 +19,7 @@ BEGIN
  UPDATE public.arena_participants SET last_active_at=coalesce(NEW.started_at,now()) WHERE room_id=NEW.id AND user_id=ANY(f.player_ids) AND forfeited_at IS NULL;
  UPDATE private.intertent_championships SET status='playing' WHERE id=f.championship_id AND status='scheduled';
  RETURN NEW;
-END; $function$
-
+END; $function$;
 
 CREATE OR REPLACE FUNCTION private.process_intertent_late_penalties()
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $late$
