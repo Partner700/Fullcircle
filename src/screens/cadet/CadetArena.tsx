@@ -948,7 +948,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     const machineMatch = room?.play_mode === 'machine';
     const scheduleReady = !room?.scheduled_start_at || Date.now() >= Date.parse(room.scheduled_start_at);
     const interTentMatch = /\[intertent\]/i.test(room?.room_name || '');
-    const canStart = scheduleReady && (machineMatch || participants.filter((p:any)=>!p.forfeited_at).length >= 2);
+    const activeParticipants = participants.filter((p: any) => !p.forfeited_at);
+    const hasEnteredMatch = activeParticipants.some((p: any) => p.user_id === profile?.id);
+    const canStart = scheduleReady && hasEnteredMatch && activeParticipants.length >= 1;
     const availableInvitees = allInvitees.filter((player) => !participants.some((p: any) => p.user_id === player.user_id));
 
     return (
@@ -969,7 +971,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           <h3 className="mb-3 text-center font-display text-lg font-semibold text-ink">{cleanArenaRoomName(room?.room_name || 'Arena Room')}</h3>
           <div className="mb-3"><ArenaMatchup players={arenaMatchupPlayers(room)} /></div>
           {room?.scheduled_start_at && <ArenaMatchCountdown startsAt={room.scheduled_start_at} />}
-          {interTentMatch && <p className="mb-3 text-xs text-center text-stone">The match starts with any two scheduled players. Other players have five minutes after it begins to join; missing that window incurs a 5,000D penalty.</p>}
+          {interTentMatch && <p className="mb-3 text-xs text-center text-stone">One scheduled player can start the match after the countdown. Other selected players have five minutes after it begins to join; missing that window incurs a 5,000D penalty.</p>}
 
           {!machineMatch && (
             <ArenaRoomChat
@@ -1061,7 +1063,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
             <div className="grid sm:grid-cols-2 gap-2">
               <button onClick={startGame} disabled={!canStart || starting} className="btn-primary w-full disabled:opacity-50">
                 {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                {canStart ? 'Start Game' : !scheduleReady ? 'Countdown running' : 'Waiting for players...'}
+                {canStart ? 'Start Game' : !scheduleReady ? 'Countdown running' : !hasEnteredMatch ? 'Enter match to start' : 'Waiting for players...'}
               </button>
               {!room?.scheduled && <button onClick={closeRoom} disabled={closing} className="btn-secondary w-full text-coral disabled:opacity-50">
                 {closing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
@@ -1069,7 +1071,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
               </button>}
             </div>
           ) : (
-            <p className="text-xs text-stone text-center">{room?.scheduled ? 'The match will start after the countdown when two players are here.' : 'Waiting for the host to start the game...'}</p>
+            <p className="text-xs text-stone text-center">{room?.scheduled ? 'A selected player who has entered can start the match after the countdown.' : 'Waiting for the host to start the game...'}</p>
           )}
           </div>
         </div>
