@@ -1,0 +1,56 @@
+name: Check PartnerTAI FTPS access (read only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-circle-partnertai-ftps-probe
+  cancel-in-progress: false
+
+jobs:
+  check-connection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify the deployment password secret exists
+        env:
+          LFTP_PASSWORD: ${{ secrets.PARTNERTAI_FTP_PASSWORD }}
+        run: |
+          if [ -z "$LFTP_PASSWORD" ]; then
+            echo "::error::Add PARTNERTAI_FTP_PASSWORD under Settings > Secrets and variables > Actions before running this check."
+            exit 1
+          fi
+
+      - name: Install a secure FTP client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+
+      - name: Test encrypted connection without uploading or modifying files
+        env:
+          LFTP_PASSWORD: ${{ secrets.PARTNERTAI_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Credentials are never printed or placed on the command line.
+          # Do not disable certificate verification if the server rejects it.
+          lftp --norc \
+            --env-password \
+            --user 'u148101026.fullcircle.partnertai.com' \
+            -p 21 \
+            -e '
+              set cmd:fail-exit yes
+              set ftp:ssl-force yes
+              set ftp:ssl-protect-data yes
+              set ssl:verify-certificate yes
+              set ftp:passive-mode yes
+              set net:timeout 15
+              set net:max-retries 1
+              cd .
+              pwd
+              bye
+            ' \
+            '194.164.64.145'
+          echo "Encrypted FTP login succeeded. No files were changed."
