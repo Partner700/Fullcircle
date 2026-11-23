@@ -1949,13 +1949,22 @@ export async function fetchVerseInsights(location: string | string[] | BibleChap
   const [readingResult, bibleResult] = await Promise.all([
     insightQuery.order('created_at', { ascending: false }),
     bibleVerseReferences.length
-      ? selectInsights().is('narrative_id', null).eq('is_question', false)
-        .in('verse_reference', bibleVerseReferences).order('created_at', { ascending: false })
+      // Bible and Today's Reading share a verse discussion. A post in either
+      // screen must appear under that verse in both screens, including
+      // scripture questions. Do not filter by narrative_id here.
+      ? selectInsights().in('verse_reference', Array.from(new Set(bibleVerseReferences)))
+        .order('created_at', { ascending: false })
       : null,
   ]);
   if (readingResult.error) console.warn('Verse insights unavailable:', readingResult.error.message);
   if (bibleResult?.error) console.warn('Bible insights unavailable:', bibleResult.error.message);
-  const insights = [...(readingResult.data || []), ...(bibleResult?.data || [])]
+  if (readingResult.error && (!bibleResult || bibleResult.error)) {
+    throw readingResult.error;
+  }
+  // Queries can overlap when a Bible-specific post is also selected by its
+  // verse reference. Avoid displaying duplicate posts or reactions.
+  const byId = new Map([...((readingResult.data || []) as typeof readingResult.data || []), ...(bibleResult?.data || [])].map(insight => [insight.id, insight]));
+  const insights = Array.from(byId.values())
     .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
   if (!insights.length) return [];
   const insightIds = insights.map((insight) => insight.id);
