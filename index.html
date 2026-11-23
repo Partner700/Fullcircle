@@ -248,6 +248,10 @@
       async function verifiedNetworkShell() {
         var appBaseUrl = new URL('%BASE_URL%', window.location.href);
         var probeUrl = new URL('index.html', appBaseUrl);
+        // A recovery probe must bypass even an older installed worker's
+        // cached navigation response; otherwise it can falsely say that an
+        // obsolete app release is still current.
+        probeUrl.searchParams.set('fc-repair', release);
         probeUrl.searchParams.set('fc-connectivity', release);
         probeUrl.searchParams.set('ts', String(Date.now()));
         var response = await Promise.race([
@@ -378,7 +382,7 @@
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
       window.__showFullCircleRecovery();
-    }, 30000);
+    }, 18000);
   </script>
   <script type="module" src="/src/main.tsx" onerror="window.__loadFullCircleMirror(this.src)"></script>
 </body>
