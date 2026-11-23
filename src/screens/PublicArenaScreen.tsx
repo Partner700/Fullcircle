@@ -33,9 +33,12 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [ended, setEnded] = useState(false);
   const roomRef = useRef<PublicArenaRoom | null>(null);
+  const reloadInFlight = useRef(false);
   const guestKey = useMemo(() => arenaGuestKey(roomId), [roomId]);
   const signupHref = `${window.location.pathname}?signup=1`;
   const reload = useCallback(async () => {
+    if (reloadInFlight.current || document.visibilityState === 'hidden') return;
+    reloadInFlight.current = true;
     let following = false;
     try {
       const latest = await fetchPublicArenaRoom(currentRoomId);
@@ -63,6 +66,7 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
     } catch (loadError) {
       if (!roomRef.current) setError(loadError instanceof Error ? loadError.message : 'The Arena could not load.');
     } finally {
+      reloadInFlight.current = false;
       if (!following) setLoading(false);
     }
   }, [currentRoomId]);
@@ -80,17 +84,33 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
     void reload();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void reload();
-    }, 5000);
-    return () => window.clearInterval(interval);
+    }, 15_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void reload(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [ended, reload]);
 
   useEffect(() => {
-    if (!roomRef.current || ended) return;
-    void registerPublicArenaWitness(currentRoomId, guestKey).catch(() => undefined);
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void registerPublicArenaWitness(currentRoomId, guestKey).catch(() => undefined);
-    }, 30_000);
-    return () => window.clearInterval(interval);
+    if (!room?.id || ended) return;
+    let inFlight = false;
+    const renewWitness = async () => {
+      if (document.visibilityState !== 'visible' || inFlight) return;
+      inFlight = true;
+      try { await registerPublicArenaWitness(currentRoomId, guestKey); }
+      catch { /* Keep the current witness view if the network stalls. */ }
+      finally { inFlight = false; }
+    };
+    void renewWitness();
+    const interval = window.setInterval(() => { void renewWitness(); }, 30_000);
+    const onVisible = () => { void renewWitness(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [currentRoomId, ended, guestKey, room?.id]);
 
   useEffect(() => {
