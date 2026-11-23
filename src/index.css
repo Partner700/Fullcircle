@@ -682,6 +682,11 @@
     background-color: color-mix(in srgb, var(--color-sage) 12%, transparent);
     box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-sage) 72%, transparent);
   }
+  .verse-highlight-answered {
+    border-color: color-mix(in srgb, #facc15 62%, transparent);
+    background-color: color-mix(in srgb, #facc15 17%, transparent);
+    box-shadow: inset 3px 0 0 #eab308;
+  }
   .welcome-slide-veil {
     background-color: rgba(7, 18, 38, 0.34);
   }
