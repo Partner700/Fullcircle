@@ -923,6 +923,7 @@ export function CadetNarrative({
         parentCommentId: target?.parentCommentId || null,
       });
       await reloadVerseInsights();
+      window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
       setReplyDrafts((current) => ({ ...current, [insight.id]: '' }));
       setReplyTargets((current) => ({ ...current, [insight.id]: null }));
       setOpenInsightReplies(insight.id);
