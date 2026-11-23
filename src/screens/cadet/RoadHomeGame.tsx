@@ -175,7 +175,10 @@ export function RoadHomeGame({
   const witnessQuestionRef = useRef<{ question: RoadHomeQuestion; player: RoadHomePlayer; questionKey: string } | null>(null);
   const witnessAnswerEventRef = useRef<string | null>(null);
 
+  const loadInFlight = useRef(false);
   const load = useCallback(async () => {
+    if (loadInFlight.current || document.visibilityState === 'hidden') return;
+    loadInFlight.current = true;
     try {
       const response = spectator
         ? await fetchRoadHomeSpectatorState(roomId, publicAccess)
@@ -196,6 +199,7 @@ export function RoadHomeGame({
     } catch (loadError: unknown) {
       if (!hasState.current) setError(roadHomeError(loadError, 'The Road Home board could not load.'));
     } finally {
+      loadInFlight.current = false;
       setLoading(false);
       setInitializing(false);
     }
@@ -217,7 +221,7 @@ export function RoadHomeGame({
     ).subscribe();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void load();
-    }, 15_000);
+    }, spectator ? 25_000 : 15_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
