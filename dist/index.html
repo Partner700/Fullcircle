@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-title" content="Full Circle" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="application-name" content="Full Circle" />
-  <meta name="full-circle-release" content="295" />
+  <meta name="full-circle-release" content="296" />
   <meta name="msapplication-TileColor" content="#0f2037" />
   <meta name="msapplication-TileImage" content="./icons/icon-144.png?v=7" />
   <meta name="msapplication-config" content="./browserconfig.xml" />
@@ -248,6 +248,10 @@
       async function verifiedNetworkShell() {
         var appBaseUrl = new URL('./', window.location.href);
         var probeUrl = new URL('index.html', appBaseUrl);
+        // A recovery probe must bypass even an older installed worker's
+        // cached navigation response; otherwise it can falsely say that an
+        // obsolete app release is still current.
+        probeUrl.searchParams.set('fc-repair', release);
         probeUrl.searchParams.set('fc-connectivity', release);
         probeUrl.searchParams.set('ts', String(Date.now()));
         var response = await Promise.race([
@@ -360,9 +364,9 @@
       }, { once: true });
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-DoFpUL9v.js" onerror="window.__loadFullCircleMirror(this.src)"></script>
+  <script type="module" crossorigin src="./assets/index-CjKAtotx.js" onerror="window.__loadFullCircleMirror(this.src)"></script>
   <link rel="modulepreload" crossorigin href="./assets/app-runtime-BAWKHZq9.js">
-  <link rel="stylesheet" href="./full-circle-release.css?v=295" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">
+  <link rel="stylesheet" href="./full-circle-release.css?v=296" data-full-circle-release-styles="true" onload="window.__markFullCircleStylesReady(this)" onerror="window.__loadFullCircleStyleMirror(this)">
 </head>
 <body>
   <main id="root">
@@ -381,7 +385,7 @@
       var root = document.getElementById('root');
       if (!root || root.dataset.fcAppMounted === 'true') return;
       window.__showFullCircleRecovery();
-    }, 30000);
+    }, 18000);
   </script>
 </body>
 </html>

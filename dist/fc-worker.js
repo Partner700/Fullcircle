@@ -1,8 +1,8 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v295';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v295';
+const CACHE_VERSION = 'full-circle-target-v296';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v296';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
 const RECOVERY_MARKER = CACHE_VERSION.split('-v').pop();
@@ -72,12 +72,16 @@ function isFullCircleCache(cacheName) {
 
 async function clearRetiredFullCircleCaches() {
   const cacheNames = await caches.keys();
-  const retiredCacheNames = cacheNames.filter((cacheName) => (
-    isFullCircleCache(cacheName)
-    && cacheName !== SHELL_CACHE
-    && cacheName !== ASSET_CACHE
-    && !/^full-circle-target-v(?:17[7-9]|18\d|19\d|[2-9]\d{2,})-(?:shell|assets)$/.test(cacheName)
-  ));
+  // Keep only the active release and the immediately preceding release,
+  // which may still be open in another tab. Accumulated older caches can
+  // otherwise exhaust iOS storage and leak outdated CSS into a new install.
+  const previousRelease = Number(RECOVERY_MARKER) - 1;
+  const retiredCacheNames = cacheNames.filter((cacheName) => {
+    if (!isFullCircleCache(cacheName)) return false;
+    if (cacheName === SHELL_CACHE || cacheName === ASSET_CACHE) return false;
+    const match = /^full-circle-target-v(\d+)-(?:shell|assets)$/.exec(cacheName);
+    return !match || Number(match[1]) !== previousRelease;
+  });
   await Promise.all(
     retiredCacheNames.map((cacheName) => caches.delete(cacheName)),
   );
@@ -459,18 +463,15 @@ self.addEventListener('message', (event) => {
 });
 
 async function cachedAppShell() {
+  // A cached document is safe only when its stylesheet and scripts belong to
+  // this same service-worker release. Never serve an old shell from a retired
+  // cache: older index.html can otherwise request missing or mismatched chunks.
   return cacheRead(async () => {
-    const names = await caches.keys();
-    // Older installed workers may have cached this very release in an
-    // earlier namespace. Reuse it only if its actual document is current.
-    for (const name of [SHELL_CACHE, ...names.filter(name => name !== SHELL_CACHE && /^full-circle-target-v\d+-shell$/.test(name))]) {
-      const cache = await caches.open(name);
-      const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
-        || (await cache.match(scopedUrl(''), { ignoreVary: true }));
-      if (!response || !await validReleaseResponse(response, scopedUrl('index.html'), name === SHELL_CACHE ? MINIMUM_SAFE_RELEASE : Number(RECOVERY_MARKER))) continue;
-      return localReleaseResponse(response, scopedUrl('index.html'));
-    }
-    return null;
+    const cache = await caches.open(SHELL_CACHE);
+    const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
+      || (await cache.match(scopedUrl(''), { ignoreVary: true }));
+    if (!response || !await validReleaseResponse(response, scopedUrl('index.html'), Number(RECOVERY_MARKER))) return null;
+    return localReleaseResponse(response, scopedUrl('index.html'));
   });
 }
 
@@ -513,7 +514,13 @@ function emergencyRecoveryResponse() {
 }
 
 async function cacheFirstAsset(request, event) {
-  const cached = await cacheRead(() => caches.match(request, { ignoreSearch: true, ignoreVary: true }));
+  // Look in this release's cache only. Global caches.match() could return
+  // last month's CSS for the stable full-circle-release.css URL; React then
+  // refuses to mount because the release marker does not match.
+  const cached = await cacheRead(async () => {
+    const cache = await caches.open(ASSET_CACHE);
+    return cache.match(request, { ignoreSearch: true, ignoreVary: true });
+  });
   if (cached && await validReleaseResponse(cached, request)) return localReleaseResponse(cached, request);
   const response = await fetchReleaseWithFallback(request);
   keepAlive(event, safeCachePut(ASSET_CACHE, request, response.clone()));
@@ -521,7 +528,10 @@ async function cacheFirstAsset(request, event) {
 }
 
 async function cacheFirstShellFile(request, event) {
-  const cached = await cacheRead(() => caches.match(request, { ignoreSearch: true, ignoreVary: true }));
+  const cached = await cacheRead(async () => {
+    const cache = await caches.open(SHELL_CACHE);
+    return cache.match(request, { ignoreSearch: true, ignoreVary: true });
+  });
   if (cached) return localReleaseResponse(cached, request);
   const response = await fetchReleaseWithFallback(request);
   keepAlive(event, safeCachePut(SHELL_CACHE, request, response.clone()));
