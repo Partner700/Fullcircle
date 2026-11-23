@@ -79,6 +79,7 @@ interface CadetStoreProps {
 export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = [] }: CadetStoreProps) {
   const { profile } = useAuth();
   const [relics, setRelics] = useState<RelicType[]>([]);
+  const [relicView, setRelicView] = useState<'all' | 'owned' | 'unowned'>('all');
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [freezers, setFreezers] = useState<StreakFreezer[]>([]);
   const [denarii, setDenarii] = useState(0);
@@ -797,17 +798,35 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         )}
       </div>
 
-      {/* Relics */}
-      <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-5">
-        <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/82" />
-        <div className="relative z-10 flex items-center gap-2 mb-3">
-          <ShoppingBag size={20} className="text-royal" />
-          <h4 className="font-display font-semibold text-ink">Biblical Relics</h4>
+      {/* Relics — the market artwork stays visible beneath the catalogue. */}
+      <section data-artwork-theme={marketImage?.url ? 'night' : undefined} aria-label="Biblical relic market" className="card relative isolate overflow-hidden p-4 sm:p-5">
+        <PanelImageBackdrop image={marketImage} opacityFallback={16} veilClassName="bg-navy-2/65" />
+        <div className="relative z-10 mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <ShoppingBag size={20} className="shrink-0 text-gold" />
+            <div>
+              <h4 className="font-display font-semibold text-ink">Biblical Relics</h4>
+              <p className="mt-0.5 text-xs text-stone">{relics.length} relics · {relics.filter(relic => (inventory[relic.id] || 0) > 0).length} in your inventory</p>
+            </div>
+          </div>
+          <div role="group" aria-label="Filter biblical relics" className="flex flex-wrap gap-1 rounded-lg border border-border bg-navy-2/45 p-1">
+            {([
+              ['all', 'All'],
+              ['owned', 'Owned'],
+              ['unowned', 'Not owned'],
+            ] as const).map(([view, label]) => (
+              <button key={view} type="button" onClick={() => setRelicView(view)}
+                aria-pressed={relicView === view}
+                className={cn('rounded-md px-3 py-2 text-xs font-semibold transition-colors', relicView === view ? 'bg-gold text-navy-2' : 'text-ink hover:bg-surface/40')}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-        <p className="relative z-10 text-xs text-stone mb-4">Ancient artifacts with powerful effects. Wildly expensive — save your denarii or buy with real money where a cash price exists.</p>
+        <p className="relative z-10 mb-4 max-w-2xl text-xs leading-relaxed text-stone">Browse relic effects, see what you own, and choose between Denarii, cash purchases, and available packs.</p>
 
-        <div className="relative z-10 space-y-3">
-          {relics.map((relic) => {
+        <div className="relative z-10 grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2">
+          {relics.filter(relic => relicView === 'all' || (relicView === 'owned' ? (inventory[relic.id] || 0) > 0 : (inventory[relic.id] || 0) === 0)).map((relic) => {
             const slug = relic.slug || '';
             const color = RELIC_COLORS[slug] || '#C9A227';
             const owned = inventory[relic.id] || 0;
@@ -821,7 +840,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             const gifting = giftRecipientId !== 'self';
 
             return (
-              <div key={relic.id} className="p-4 rounded-lg border border-border bg-surface/65 backdrop-blur-md">
+              <article key={relic.id} className="flex h-full flex-col rounded-xl border border-border bg-navy-2/60 p-4 shadow-sm backdrop-blur-sm">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{ background: `${color}20` }}>
@@ -905,11 +924,14 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                     </div>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })}
+          {relics.length > 0 && relics.every(relic => relicView === 'owned' ? (inventory[relic.id] || 0) === 0 : relicView === 'unowned' ? (inventory[relic.id] || 0) > 0 : false) && (
+            <p className="col-span-full rounded-lg border border-border bg-navy-2/55 p-5 text-center text-sm text-ink">No relics in this category. Choose another filter to continue browsing.</p>
+          )}
         </div>
-      </div>
+      </section>
 
       {fcxConfirmOpen && fcxExperience && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4" onClick={() => { if (!fcxPurchasing) setFcxConfirmOpen(false); }}>
