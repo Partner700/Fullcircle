@@ -1304,23 +1304,28 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         <EmptyState icon={(props) => <Eye {...props} />} title="No live matches" message="Active Arena games will appear here the moment they begin." />
       )}
 
-      {instructorSchedule && rooms.some((room) => room.scheduled && room.status === 'waiting') && <section className="space-y-2">
-        <h3 className="font-display text-sm font-semibold text-ink">Scheduled matches</h3>
+      {instructorSchedule && rooms.some((room) => room.scheduled && room.status === 'waiting') && <details className="group rounded-xl border border-border bg-surface/30">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 [&::-webkit-details-marker]:hidden">
+          <span className="font-display text-sm font-semibold text-ink">Scheduled matches ({rooms.filter(room => room.scheduled && room.status === 'waiting').length})</span>
+          <ChevronDown size={18} className="shrink-0 text-gold transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-2 border-t border-border px-3 pb-3">
         {rooms.filter((room) => room.scheduled && room.status === 'waiting').map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{regionalDateTime(room.scheduled_start_at, profile)} · {(room.scheduled_player_ids || []).length} selected players</p></div>
           <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
           <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>
           <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
         </div>)}
-      </section>}
+        </div>
+      </details>}
 
       {!witnessOnly && <>
       <div className="space-y-2">
         <h4 className="font-display font-semibold text-ink text-sm">Open Rooms</h4>
-        {rooms.filter((r) => r.status === 'waiting').length === 0 ? (
+        {rooms.filter((r) => r.status === 'waiting' && !r.scheduled).length === 0 ? (
           <EmptyState icon={(props) => <Swords {...props} />} title="No open rooms" message="Create a room and invite other players to battle." />
         ) : (
-          rooms.filter((r) => r.status === 'waiting').map((room) => {
+          rooms.filter((r) => r.status === 'waiting' && !r.scheduled).map((room) => {
             const participants = room.arena_participants || [];
             const witnesses = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((p: any) => p.user_id === profile?.id);
