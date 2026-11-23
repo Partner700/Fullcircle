@@ -133,8 +133,9 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
       ? 'text-xs'
       : 'my-2 w-full text-xs'}
       style={floating ? {
-        position: 'fixed', zIndex: 2147483590, right: '0.75rem',
-        bottom: 'max(5rem, env(safe-area-inset-bottom))', width: 'min(26rem, calc(100vw - 1.5rem))',
+        position: 'fixed', zIndex: 2147483590,
+        left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+        width: 'min(52rem, calc(100vw - 1rem))',
         pointerEvents: 'auto',
       } : undefined}
       onClick={floating ? event => event.stopPropagation() : undefined}>
@@ -145,26 +146,26 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
       <div hidden={!open} role={floating ? 'region' : undefined} aria-label={floating ? 'Arena relic market' : undefined}
         data-artwork-theme={marketImage?.url ? 'night' : undefined}
         className={floating
-        ? 'relative isolate max-h-[min(72dvh,calc(100dvh-5.5rem))] w-full overflow-y-auto rounded-xl border border-brass/60 bg-navy-2 p-3 shadow-xl'
-        : 'relative isolate mt-2 overflow-hidden rounded-xl border border-border bg-navy-2 p-3'}>
-        <PanelImageBackdrop image={marketImage} opacityFallback={25} veilClassName="bg-navy-2/65" />
-        <div className="relative z-10 space-y-3">
+        ? 'relative isolate max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain rounded-2xl border-2 border-gold/70 bg-[#0b1730] p-4 text-white shadow-2xl sm:max-h-[85dvh] sm:p-6'
+        : 'relative isolate mt-2 overflow-hidden rounded-xl border border-gold/40 bg-[#0b1730] p-4 text-white'}>
+        <PanelImageBackdrop image={marketImage} opacityOverride={42} veilClassName="bg-[#081329]/65" />
+        <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gold">The Market</p>
-              <h2 className="font-display text-base font-bold text-ink">{label}</h2>
+              <p className="text-xs font-bold uppercase tracking-wider text-amber-300">The Market</p>
+              <h2 className="font-display text-xl font-bold text-white sm:text-2xl">{label}</h2>
             </div>
-            {floating && <button type="button" className="icon-btn shrink-0" aria-label="Close relics" onClick={() => setOpen(false)}><X size={16} /></button>}
+            {floating && <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/40 bg-[#0b1730] text-white" aria-label="Close relics" onClick={() => setOpen(false)}><X size={16} /></button>}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-navy-2/65 px-3 py-2">
-            <span className="text-xs font-medium text-ink">Your relics · {offers?.filter(offer => (owned[offer.id] ?? 0) > 0).length ?? 0} types owned</span>
-            {balance !== null && <span className="text-xs font-semibold text-gold">{formatDenarii(balance)} Ð</span>}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/25 bg-[#081329]/90 px-3 py-3">
+            <span className="text-sm font-semibold text-white">Your relics · {offers?.filter(offer => (owned[offer.id] ?? 0) > 0).length ?? 0} types owned</span>
+            {balance !== null && <span className="text-sm font-bold text-amber-300">{formatDenarii(balance)} Ð</span>}
           </div>
           {timed && <p className="text-[11px] text-stone">The game timer keeps running during checkout.</p>}
-          <div role="group" aria-label="Filter Arena relics" className="grid grid-cols-3 gap-1 rounded-lg bg-navy-2/70 p-1">
+          <div role="group" aria-label="Filter Arena relics" className="grid grid-cols-3 gap-1.5 rounded-lg bg-[#081329]/95 p-1.5">
             {([['all', 'All'], ['owned', 'Owned'], ['available', 'To buy']] as const).map(([value, text]) => (
               <button key={value} type="button" aria-pressed={relicFilter === value} onClick={() => setRelicFilter(value)}
-                className={`rounded-md px-2 py-2 text-[11px] font-semibold ${relicFilter === value ? 'bg-gold text-navy-2' : 'text-ink hover:bg-surface/40'}`}>{text}</button>
+                className={`min-h-10 rounded-md px-2 py-2 text-sm font-bold ${relicFilter === value ? 'bg-amber-300 text-[#081329]' : 'border border-white/25 bg-[#203457] text-white hover:bg-[#30496f]'}`}>{text}</button>
             ))}
           </div>
         {offers === null && !error && <p role="status">Loading relics…</p>}
@@ -174,7 +175,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           </button>
         )}
         {offers?.length === 0 && <p>No relics are available here.</p>}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {offers?.filter(offer => offer.slug && slugs.includes(offer.slug)
           && (relicFilter === 'all' || (relicFilter === 'owned' ? (owned[offer.id] ?? 0) > 0 : (owned[offer.id] ?? 0) === 0))).map(offer => {
           if (!offer.slug) return null;
@@ -185,13 +186,13 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           const hasOwned = showOwned && (owned[offer.id] ?? 0) > 0;
           const showCash = (!hasOwned || showAllPaymentOptions) && (!canBuyWithDenarii || showAllPaymentOptions) && (balance !== null || showAllPaymentOptions);
           return (
-            <article key={offer.id} className="flex h-full flex-col gap-2 rounded-lg border border-brass/25 bg-navy-2/75 p-3 backdrop-blur-sm">
+            <article key={offer.id} className="flex h-full flex-col gap-3 rounded-xl border border-amber-300/40 bg-[#0b1730]/95 p-4 shadow-lg backdrop-blur-md">
               <div className="flex items-start justify-between gap-2">
-                <span className="inline-flex min-w-0 items-start gap-2 font-semibold leading-tight text-ink"><span className="shrink-0 text-gold"><RelicSymbol slug={offer.slug} /></span> {offer.name}</span>
-                {(owned[offer.id] ?? 0) > 0 && <span className="shrink-0 rounded-full bg-gold/15 px-2 py-1 text-[10px] font-bold text-gold">{owned[offer.id]} owned</span>}
+                <span className="inline-flex min-w-0 items-start gap-3 text-base font-bold leading-snug text-white"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-300/15 text-amber-300"><RelicSymbol slug={offer.slug} size={22} /></span><span>{offer.name}</span></span>
+                {(owned[offer.id] ?? 0) > 0 && <span className="shrink-0 rounded-full border border-amber-300/40 bg-amber-300/15 px-2 py-1 text-xs font-bold text-amber-200">{owned[offer.id]} owned</span>}
               </div>
-              {cost > 0 && <span className="text-[11px] text-stone">Market price: {formatDenarii(cost)} Ð</span>}
-              <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
+              {cost > 0 && <span className="text-sm font-medium text-slate-200">Market price: <strong className="text-amber-200">{formatDenarii(cost)} Ð</strong></span>}
+              <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-white/15 pt-3 [&_button]:min-h-10 [&_button]:text-sm">
                 {hasOwned || offer.slug === 'undo' ? (
                   <button type="button" className="btn-secondary text-xs"
                     disabled={!hasOwned || Boolean(busy) || canUseOwned?.(offer.slug) === false} onClick={() => void act(offer, true)}>
@@ -226,7 +227,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
         })}
         {offers && offers.filter(offer => offer.slug && slugs.includes(offer.slug)
           && (relicFilter === 'all' || (relicFilter === 'owned' ? (owned[offer.id] ?? 0) > 0 : (owned[offer.id] ?? 0) === 0))).length === 0 && (
-            <p className="col-span-full rounded-lg border border-border bg-navy-2/65 p-4 text-center text-xs text-ink">No relics in this category. Select another filter to browse.</p>
+            <p className="col-span-full rounded-lg border border-white/25 bg-[#081329]/90 p-5 text-center text-sm text-white">No relics in this category. Select another filter to browse.</p>
           )}
         </div>
         {children}
@@ -237,6 +238,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     </div>
   );
   return floating ? createPortal(<>
+    {open && <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" style={{ zIndex: 2147483589 }} aria-hidden="true" onClick={() => setOpen(false)} />}
     {open && shop}
     <button
       type="button"
