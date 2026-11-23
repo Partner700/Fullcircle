@@ -3,6 +3,8 @@ import { Swords } from 'lucide-react';
 import { arenaPlayerScore } from '../lib/arenaScorecard';
 import { formatPlayerNumber } from '../lib/utils';
 import { UserAvatar } from './UserAvatar';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
+import type { PanelImageSetting } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { groupArenaMatchupSides, shortArenaName, type ArenaMatchupPlayer } from '../lib/arenaMatchup';
 
@@ -62,18 +64,23 @@ function PlayerProfile({ player, leading, playing }: {
   </div>;
 }
 
-export function ArenaMatchup({ players, playing = false, pinned = false }: {
-  players: ArenaMatchupPlayer[]; playing?: boolean; pinned?: boolean;
+export function ArenaMatchup({ players, playing = false, pinned = false, arenaImage }: {
+  players: ArenaMatchupPlayer[]; playing?: boolean; pinned?: boolean; arenaImage?: PanelImageSetting | null;
 }) {
   const scores = players.map(arenaPlayerScore);
   const highest = Math.max(0, ...scores);
   const hasLeader = scores.filter((score) => score === highest).length === 1 && scores.length > 1;
   const sides = groupArenaMatchupSides(players);
   return <div className={pinned
-    ? 'sticky top-[var(--app-header-height,env(safe-area-inset-top,0px))] z-[25] min-w-0 rounded-xl border border-border bg-surface px-2 py-2 shadow-md'
-    : 'min-w-0'}
+    ? 'sticky top-[var(--app-header-height,env(safe-area-inset-top,0px))] z-[25] min-w-0 rounded-xl border border-border bg-[#0b1730] px-2 py-2 shadow-md'
+    : arenaImage?.url ? 'relative isolate min-w-0 rounded-xl border border-border/50 bg-[#0b1730] px-2 py-2' : 'min-w-0'}
+    data-artwork-theme={arenaImage?.url ? 'night' : undefined}
     role={pinned ? 'region' : undefined} aria-label="Arena players and scores"
     aria-live={playing ? 'polite' : 'off'}>
+    {arenaImage?.url && <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl" aria-hidden="true">
+      <PanelImageBackdrop image={arenaImage} opacityOverride={45} veilClassName="bg-[#081329]/70" simple />
+    </div>}
+    <div className="relative z-10">
     {sides.length === 0
       ? <p className="py-2 text-center text-xs text-stone">Waiting for players</p>
       : <div className="min-w-0 overflow-x-auto">
@@ -92,5 +99,6 @@ export function ArenaMatchup({ players, playing = false, pinned = false }: {
           </div>)}
         </div>
       </div>}
+    </div>
   </div>;
 }
