@@ -1304,7 +1304,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         <EmptyState icon={(props) => <Eye {...props} />} title="No live matches" message="Active Arena games will appear here the moment they begin." />
       )}
 
-      {instructorSchedule && rooms.some((room) => room.scheduled && room.status === 'waiting') && <details className="group rounded-xl border border-border bg-surface/30">
+      {rooms.some((room) => room.scheduled && room.status === 'waiting') && <details className="group rounded-xl border border-border bg-surface/30">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 [&::-webkit-details-marker]:hidden">
           <span className="font-display text-sm font-semibold text-ink">Scheduled matches ({rooms.filter(room => room.scheduled && room.status === 'waiting').length})</span>
           <ChevronDown size={18} className="shrink-0 text-gold transition-transform group-open:rotate-180" />
@@ -1314,7 +1314,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{regionalDateTime(room.scheduled_start_at, profile)} · {(room.scheduled_player_ids || []).length} selected players</p></div>
           <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
           <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>
-          <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
+          {room.scheduled_player_ids?.includes(profile?.id) && !(room.arena_participants || []).some((participant: any) => participant.user_id === profile?.id) && (room.arena_participants || []).length < room.max_players && <button type="button" className="btn-primary text-xs" onClick={() => void joinRoom(room.id)}><Play size={14} /> Enter Match</button>}
+          {(room.arena_participants || []).some((participant: any) => participant.user_id === profile?.id) && <button type="button" className="btn-primary text-xs" onClick={() => activateRoom(room.id, 'waiting')}><Play size={14} /> Enter Room</button>}
+          {(instructorSchedule || (sentrySchedule && room.is_sentry_match && room.scheduled_by === profile?.id)) && <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>}
         </div>)}
         </div>
       </details>}
