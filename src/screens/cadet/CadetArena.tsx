@@ -508,9 +508,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     let lastFallbackDetailAt = Date.now();
     let heartbeatInFlight = false;
     const heartbeat = async () => {
-      if (heartbeatInFlight) return;
+      if (heartbeatInFlight || document.visibilityState !== 'visible' || cancelled) return;
       heartbeatInFlight = true;
-      if (document.visibilityState !== 'visible') return;
       try {
         const active = await heartbeatArenaViewer(activeRoomId);
         if (!active && !cancelled) {
@@ -1543,6 +1542,10 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
   const [chatOpen, setChatOpen] = useState(false);
   const [dismissedQuestionKey, setDismissedQuestionKey] = useState<string | null>(null);
   const participants = useMemo(() => room.arena_participants || [], [room.arena_participants]);
+  // Keep the latest player names without tearing down spectator Realtime
+  // subscriptions whenever a room refresh replaces its participant array.
+  const participantsRef = useRef(participants);
+  participantsRef.current = participants;
   const machineMatch = room.play_mode === 'machine';
 
   const refreshFeed = useCallback(async () => {
@@ -1563,7 +1566,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
         { event: 'INSERT', schema: 'public', table: 'arena_trivia_responses', filter: `room_id=eq.${room.id}` },
         (payload) => {
           const response = payload.new as Omit<ArenaTriviaFeedItem, 'display_name' | 'avatar_url'>;
-          const participant = participants.find((item: any) => item.user_id === response.user_id);
+          const participant = participantsRef.current.find((item: any) => item.user_id === response.user_id);
           const nextResponse: ArenaTriviaFeedItem = {
             ...response,
             display_name: participant?.profiles?.display_name || 'Arena player',
@@ -1573,13 +1576,15 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
             nextResponse,
             ...current.filter((item) => item.user_id !== nextResponse.user_id || item.question_index !== nextResponse.question_index),
           ].slice(0, 160));
-          if (machineMatch) void refreshFeed();
+          // Realtime already carries the inserted answer, including for the
+          // machine player. Re-fetching on every insert multiplied work for
+          // each witness watching a match.
         },
       )
       .subscribe();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshFeed();
-    }, 20_000);
+    }, 45_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void refreshFeed(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -1587,7 +1592,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
       document.removeEventListener('visibilitychange', onVisible);
       void supabase.removeChannel(channel);
     };
-  }, [machineMatch, participants, refreshFeed, room.id, userId]);
+  }, [refreshFeed, room.id, userId]);
 
   const refreshLiveQuestion = useCallback(async () => {
     try {
@@ -1599,24 +1604,41 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
   }, [publicAccess, room.id]);
 
   useEffect(() => {
-    void refreshLiveQuestion();
+    let refreshPending = false;
+    let queuedTimer: number | null = null;
+    let lastRefresh = 0;
+    const refreshBounded = () => {
+      if (document.visibilityState !== 'visible' || refreshPending) return;
+      refreshPending = true;
+      lastRefresh = Date.now();
+      void refreshLiveQuestion().finally(() => { refreshPending = false; });
+    };
+    const onRealtime = () => {
+      if (queuedTimer !== null || document.visibilityState !== 'visible') return;
+      queuedTimer = window.setTimeout(() => {
+        queuedTimer = null;
+        refreshBounded();
+      }, Math.max(250, 1500 - (Date.now() - lastRefresh)));
+    };
+    refreshBounded();
     const channel = supabase
       .channel(`arena-live-question-${room.id}-${userId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'arena_live_trivia_states', filter: `room_id=eq.${room.id}` },
-        () => { void refreshLiveQuestion(); },
+        onRealtime,
       )
       .subscribe();
-    const refreshInterval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshLiveQuestion();
-    }, 5000);
+    // Realtime delivers question changes. Keep a slower fallback for mobile
+    // browsers that temporarily lose their websocket connection.
+    const refreshInterval = window.setInterval(refreshBounded, 15_000);
     const clockInterval = window.setInterval(() => setPlaybackNow(Date.now()), 250);
     const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void refreshLiveQuestion();
+      if (document.visibilityState === 'visible') refreshBounded();
     };
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
+      if (queuedTimer !== null) window.clearTimeout(queuedTimer);
       window.clearInterval(refreshInterval);
       window.clearInterval(clockInterval);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
