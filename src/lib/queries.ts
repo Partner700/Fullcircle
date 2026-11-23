@@ -1963,7 +1963,7 @@ export async function fetchVerseInsights(location: string | string[] | BibleChap
   }
   // Queries can overlap when a Bible-specific post is also selected by its
   // verse reference. Avoid displaying duplicate posts or reactions.
-  const byId = new Map([...((readingResult.data || []) as typeof readingResult.data || []), ...(bibleResult?.data || [])].map(insight => [insight.id, insight]));
+  const byId = new Map([...(readingResult.data || []), ...(bibleResult?.data || [])].map(insight => [insight.id, insight]));
   const insights = Array.from(byId.values())
     .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
   if (!insights.length) return [];
