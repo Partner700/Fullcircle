@@ -42,6 +42,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   const [textError, setTextError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [insights, setInsights] = useState<Awaited<ReturnType<typeof fetchVerseInsights>>>([]);
+  const [insightError, setInsightError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [question, setQuestion] = useState<ScriptureQuestionTarget | null>(null);
@@ -77,10 +78,18 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   }, [edition, book.slug, chapter, retry]);
   useEffect(() => {
     let active = true;
-    if (!hasPremiumAccess) { setInsights([]); return; }
-    void fetchVerseInsights({ book: book.slug, chapter }).then(rows => { if (active) setInsights(rows); });
+    if (!text?.verses.length) return;
+    setInsightError('');
+    const references = text.verses.map(verse => `${book.name} ${chapter}:${verse.number}`);
+    // Include insights written in Today's Reading as well as directly in the
+    // Bible. Reading existing discussions must not depend on subscription.
+    void fetchVerseInsights({ book: book.slug, chapter }, profile?.id, references)
+      .then(rows => { if (active) setInsights(rows); })
+      .catch(() => {
+        if (active) setInsightError('Insights could not be loaded. Try again.');
+      });
     return () => { active = false; };
-  }, [book.slug, chapter, hasPremiumAccess, refresh]);
+  }, [book.slug, book.name, chapter, profile?.id, refresh, text]);
 
   const resetThread = () => {
     setDraft('');
@@ -95,6 +104,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
     saveBibleReadingLocation(profile?.id,next);
     setText(null);
     setInsights([]);
+    setInsightError('');
     setOpenVerse(null);
     resetThread();
   };
@@ -222,18 +232,18 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
         {textError && <div role="alert"><p>This chapter could not load.</p><button className="btn-secondary mt-2" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
         {text?.verses.map(verse => {
           const reference = `${book.name} ${chapter}:${verse.number}`;
-          const rows = hasPremiumAccess ? insights.filter(item => item.verse_reference === reference) : [];
+          const rows = insights.filter(item => item.verse_reference === reference);
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className="space-y-2 border-b border-border py-3 last:border-0">
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-ghost text-xs" aria-expanded={openVerse === verse.number} onClick={() => {
-                if (!requirePremiumAccess()) return;
                 setOpenVerse(openVerse === verse.number ? null : verse.number);
                 resetThread();
-              }}><MessageCircle size={14} /> {hasPremiumAccess ? `Insights${rows.length ? ` (${rows.length})` : ''}` : 'Subscribe for insights'}</button>
+              }}><MessageCircle size={14} /> {`Insights${rows.length ? ` (${rows.length})` : ''}`}</button>
               <button type="button" className="btn-ghost text-xs" aria-label={`Ask a question about ${reference}`} onClick={() => ask(reference, verse.number)}><HelpCircle size={16} /> Ask a question</button>
             </div>
-            {hasPremiumAccess && openVerse === verse.number && <div className="space-y-3 rounded-xl border border-border bg-surface p-3">
+            {openVerse === verse.number && <div className="space-y-3 rounded-xl border border-border bg-surface p-3">
+              {insightError && <p role="alert" className="text-xs text-coral">{insightError} <button type="button" className="underline" onClick={() => setRefresh(value => value + 1)}>Retry</button></p>}
               {rows.map(item => <div key={item.id} className="space-y-2 border-b border-border pb-3">
                 <p className="text-sm font-semibold">{(Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.display_name || 'Reader'}{item.is_question ? ' · Question' : ''}</p>
                 <p className="whitespace-pre-wrap text-sm">{item.body}</p>
