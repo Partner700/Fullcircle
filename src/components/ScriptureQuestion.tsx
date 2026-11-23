@@ -1,6 +1,7 @@
 import { type MouseEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { SCRIPTURE_QUESTION_RESOLVED_EVENT } from '../lib/useScriptureVerseMarks';
 import { fetchCampMentionCandidates, fetchPanelImageSetting, type CampMentionCandidate, type BibleChapterLocation } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { PanelImageSetting } from '../lib/types';
@@ -180,6 +181,7 @@ export function ScriptureQuestionInbox() {
     });
     if (failure) setError(failure.message);
     else {
+      window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
       generation.current += 1;
       setQuestion(null);
       await load();
