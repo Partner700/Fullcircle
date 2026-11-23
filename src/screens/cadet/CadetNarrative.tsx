@@ -1,4 +1,5 @@
 import { canonicalBibleVerseReference, parseBibleReadingReference, type BibleReadingLocation } from '../../lib/bibleBooks';
+import { useScriptureVerseMarks, SCRIPTURE_QUESTION_RESOLVED_EVENT } from '../../lib/useScriptureVerseMarks';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
 import { HelpCircle } from 'lucide-react';
 import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
@@ -450,6 +451,8 @@ export function CadetNarrative({
       .filter((reference): reference is string => reference !== null)));
   }, [readerVerses, narrative]);
 
+  const verseMark = useScriptureVerseMarks(profile?.id, bibleVerseReferences);
+
   const reloadVerseInsights = useCallback(async () => {
     if (!hasPremiumAccess || !conversationNarrativeIds.length) {
       setVerseInsights([]);
@@ -893,6 +896,7 @@ export function CadetNarrative({
     setSavingInsight(reference);
     try {
       await saveVerseInsight(sourceNarrativeId || narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
+      window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
       await reloadVerseInsights();
       setOpenUserInsights(reference);
       setMyInsightDrafts((current) => ({ ...current, [reference]: '' }));
@@ -1205,12 +1209,7 @@ export function CadetNarrative({
                 const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
                 const verseReferenceKey = readingVerseChallengeKey(sourceNarrativeId, verse.reference);
                 const hiddenVerseMarker = hiddenVerseMarkers.find((marker) => marker.reference_key === verseReferenceKey);
-                const taggedMe = Boolean(hiddenVerseMarker) || userInsights.some((item: any) =>
-                  (item.mentioned_user_ids || []).includes(profile?.id)
-                  || (item.comments || []).some((comment: any) =>
-                    comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
-                  ),
-                );
+                const personalHighlight = verseMark(verse.reference);
                 const expanded = isSundayRest || openVerse === index;
                 const sundayInsightKey = `${sourceNarrativeId}:${verse.reference}`;
                 const userExpanded = isSundayRest
@@ -1224,7 +1223,10 @@ export function CadetNarrative({
                     data-verse-reference={verse.reference}
                     className={cn(
                       'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300 [overflow-anchor:none]',
-                      taggedMe ? 'verse-highlight-tagged' : sharedByMe ? 'verse-highlight-mine' : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
+                      personalHighlight === 'question-pending' ? 'verse-highlight-tagged'
+                        : personalHighlight === 'question-answered' ? 'verse-highlight-answered'
+                          : personalHighlight === 'insight' || sharedByMe ? 'verse-highlight-mine'
+                            : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
                     )}
                   >
                     <button
