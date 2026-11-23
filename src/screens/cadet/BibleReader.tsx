@@ -271,6 +271,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
                   <button className="btn-secondary text-xs" disabled={busy || !reply.trim()} onClick={() => void updateThread(async () => {
                     if (!profile?.id) return;
                     await addVerseInsightComment({ insightId: item.id, userId: profile.id, body: reply });
+                    window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
                     setReply('');
                     setReplyTarget(null);
                   })}>Send comment</button>
