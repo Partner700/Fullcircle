@@ -103,16 +103,23 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
         <button type="button" className="btn-primary text-xs" disabled={busy||Boolean(editing)||!event.eligibility.length||event.eligibility.some(p=>!p.qualified)} onClick={()=>void activate(event.id)}>Activate and notify players</button>
         <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={()=>editDraft(event)}>Edit draft players and dates</button>
       </div>}
+      {event.fixtures.filter(f => f.room_status === 'playing').map(f => {
+        const participant = !witnessOnly && f.sides.some(side => side.players.some(player => player.id === viewerId));
+        return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage}
+          participant={participant} draft={false} livePlayers={f.room_id ? scores.get(f.room_id) : undefined}
+          onOpen={() => void onOpenRoom(f.room_id!, participant, 'playing')}
+          onShare={onShareRoom && f.room_id ? () => void onShareRoom(f.room_id!) : undefined} />;
+      })}
       <details className="group rounded-xl border border-border bg-surface/30" aria-label={`${event.title} scheduled matches`}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-3 [&::-webkit-details-marker]:hidden">
           <div className="min-w-0">
-            <h5 className="font-display text-sm font-semibold text-ink">Scheduled matches · {event.fixtures.length}</h5>
+            <h5 className="font-display text-sm font-semibold text-ink">Scheduled matches · {event.fixtures.filter(f => f.room_status !== 'playing').length}</h5>
             <p className="mt-0.5 text-xs text-stone">{event.fixtures.filter(f => f.room_status === 'playing').length} live · {event.fixtures.filter(f => Boolean(f.result)).length} completed · Tap to view matches</p>
           </div>
           <ChevronDown size={18} className="shrink-0 text-gold transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="space-y-3 border-t border-border p-3">
-        {event.fixtures.map(f=>{const participant=!witnessOnly&&f.sides.some(s=>s.players.some(p=>p.id===viewerId));return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage} participant={participant} draft={event.status==='draft'} livePlayers={f.room_id?scores.get(f.room_id):undefined} onOpen={()=>void onOpenRoom(f.room_id!,participant,f.room_status as 'waiting'|'playing')} onShare={onShareRoom&&f.room_id?()=>void onShareRoom(f.room_id!):undefined}>
+        {event.fixtures.filter(f => f.room_status !== 'playing').map(f=>{const participant=!witnessOnly&&f.sides.some(s=>s.players.some(p=>p.id===viewerId));return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage} participant={participant} draft={event.status==='draft'} livePlayers={f.room_id?scores.get(f.room_id):undefined} onOpen={()=>void onOpenRoom(f.room_id!,participant,f.room_status as 'waiting'|'playing')} onShare={onShareRoom&&f.room_id?()=>void onShareRoom(f.room_id!):undefined}>
           {event.can_manage && ['scheduled','playing'].includes(event.status) && !f.result && f.sides.length>0 && !['playing'].includes(f.room_status || '') && <div className="flex flex-wrap gap-2 items-end w-full text-xs">
             <label className="text-stone flex-1 min-w-0">New time (Cameroon)<input type="datetime-local" className="input-field mt-1" value={rescheduleTimes[f.id]||''} onChange={e=>setRescheduleTimes(prev=>({...prev,[f.id]:e.target.value}))}/></label>
             <button type="button" className="btn-secondary text-xs" disabled={busy||!rescheduleTimes[f.id]} onClick={()=>void reschedule(f.id)}>Reschedule</button>
