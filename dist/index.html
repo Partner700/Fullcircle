@@ -282,23 +282,10 @@
                 new Promise(function (resolve) { window.setTimeout(resolve, 4000); })
               ]);
               if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-              if (!force && registration.active) registration.active.postMessage({ type: 'CLEAR_RETIRED_CACHES' });
             }
           }
           if (force && !await verifiedNetworkShell()) throw new Error('Full Circle is not reachable yet.');
-          if (force && registration) {
-            var recoveryWorker = registration.active || registration.waiting || registration.installing;
-            if (recoveryWorker) recoveryWorker.postMessage({ type: 'RESET_APP_SHELL' });
-          }
-          if ('caches' in window) {
-            var cacheNames = await window.caches.keys().catch(function () { return []; });
-            await Promise.all(cacheNames.filter(function (cacheName) {
-              return cacheName.indexOf('full-circle-') === 0
-                && (force || cacheName.indexOf(currentCachePrefix) !== 0);
-            }).map(function (cacheName) {
-              return window.caches.delete(cacheName);
-            })).catch(function () {});
-          }
+          // Never discard offline-capable files on a weak connection.
         } catch (error) {
           repairStarted = false;
           if (retryButton) {

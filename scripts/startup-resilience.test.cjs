@@ -170,10 +170,8 @@ async function run() {
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
-    assert.ok(!(await cache.keys()).includes('full-circle-v147-v158-shell'), 'Pre-cutover shells must be deleted.');
-    assert.ok(!(await cache.keys()).includes('full-circle-target-v176-shell'), 'The Release 176 loop must be removed from affected phones.');
-    assert.equal(w.navigation.length, 1, 'A client carrying a pre-cutover shell must be refreshed once.');
-    assert.equal(new URL(w.navigation[0]).searchParams.get('fc-worker'), '295');
+    assert.equal(w.navigation.length, 0, 'An offline worker update must not force an unnecessary refresh.');
+    assert.equal(await w.cachedAppShell(), null, 'Pre-cutover and retired shells must never be selected.');
     assert.notEqual(await (await w.networkFirstNavigation(request(), w.event)).text(), 'restricted-project app');
   }
   {
@@ -289,7 +287,8 @@ async function run() {
     const resetEvent = { data: { type: 'RESET_APP_SHELL' }, jobs: [], waitUntil(promise) { this.jobs.push(promise); } };
     w.handlers.message(resetEvent);
     await Promise.all(resetEvent.jobs);
-    assert.deepEqual(await cache.keys(), [], 'A manual reset must remove the current broken shell as well as retired caches.');
+    assert.ok((await cache.keys()).includes('full-circle-target-v295-shell'), 'A recovery attempt must preserve the working shell.');
+    assert.doesNotMatch(await w.emergencyRecoveryResponse().text(), /caches\.delete/, 'Retry must not delete the working app cache.');
     assert.doesNotMatch(await w.emergencyRecoveryResponse().text(), /location\.reload\(\)/, 'The emergency retry must not repeat an ordinary reload loop.');
   }
   {
