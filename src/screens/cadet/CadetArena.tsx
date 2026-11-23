@@ -505,7 +505,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   useEffect(() => {
     if (!profile || !activeRoomId || !['waiting', 'playing'].includes(phase) || !isSpectating) return;
     let cancelled = false;
+    let lastFallbackDetailAt = Date.now();
+    let heartbeatInFlight = false;
     const heartbeat = async () => {
+      if (heartbeatInFlight) return;
+      heartbeatInFlight = true;
       if (document.visibilityState !== 'visible') return;
       try {
         const active = await heartbeatArenaViewer(activeRoomId);
@@ -529,8 +533,16 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           }
           return;
         }
-        await refreshRoom(activeRoomId);
+        // Heartbeats only keep witness presence alive. Live game updates
+        // already arrive via room Realtime and game-specific state polling;
+        // a complete room refresh fans out to several additional requests.
+        // Keep a slow fallback for browsers with broken Realtime.
+        if (Date.now() - lastFallbackDetailAt >= 90_000) {
+          lastFallbackDetailAt = Date.now();
+          await refreshRoom(activeRoomId);
+        }
       } catch { /* Realtime and the next heartbeat will retry. */ }
+      finally { heartbeatInFlight = false; }
     };
     void heartbeat();
     const interval = window.setInterval(() => { void heartbeat(); }, 25_000);
