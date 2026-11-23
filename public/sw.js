@@ -76,6 +76,7 @@ async function clearRetiredFullCircleCaches() {
     isFullCircleCache(cacheName)
     && cacheName !== SHELL_CACHE
     && cacheName !== ASSET_CACHE
+    && !/^full-circle-target-v(?:17[7-9]|18\d|19\d|[2-9]\d{2,})-(?:shell|assets)$/.test(cacheName)
   ));
   await Promise.all(
     retiredCacheNames.map((cacheName) => caches.delete(cacheName)),
@@ -452,16 +453,21 @@ self.addEventListener('message', (event) => {
 
 async function cachedAppShell() {
   return cacheRead(async () => {
-    const cache = await caches.open(SHELL_CACHE);
-    const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
-      || (await cache.match(scopedUrl(''), { ignoreVary: true }));
-    if (!response || !await validReleaseResponse(response, scopedUrl('index.html'))) return null;
-    return localReleaseResponse(response, scopedUrl('index.html'));
+    const names = await caches.keys();
+    // Older installed workers may have cached this very release in an
+    // earlier namespace. Reuse it only if its actual document is current.
+    for (const name of [SHELL_CACHE, ...names.filter(name => name !== SHELL_CACHE && /^full-circle-target-v\d+-shell$/.test(name))]) {
+      const cache = await caches.open(name);
+      const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
+        || (await cache.match(scopedUrl(''), { ignoreVary: true }));
+      if (!response || !await validReleaseResponse(response, scopedUrl('index.html'), name === SHELL_CACHE ? MINIMUM_SAFE_RELEASE : Number(RECOVERY_MARKER))) continue;
+      return localReleaseResponse(response, scopedUrl('index.html'));
+    }
+    return null;
   });
 }
 
 async function networkFirstNavigation(request, event) {
-  const requestedPath = new URL(request.url).pathname;
   // Recovery timestamps and share parameters are navigation state, not
   // deployment identifiers. A stable URL also works with carrier/CDN caches.
   const releaseRequest = scopedUrl('index.html');

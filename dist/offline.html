@@ -149,18 +149,6 @@
       return release >= Number(RECOVERY_VERSION) && /id=["']root["']/.test(html);
     }
 
-    async function clearBrokenShells(registration) {
-      var worker = registration && (registration.active || registration.waiting || registration.installing);
-      if (worker) worker.postMessage({ type: 'RESET_APP_SHELL' });
-      if (!('caches' in window)) return;
-      var names = await window.caches.keys().catch(function() { return []; });
-      await Promise.all(names.filter(function(name) {
-        return name.indexOf('full-circle-') === 0;
-      }).map(function(name) {
-        return window.caches.delete(name);
-      })).catch(function() {});
-    }
-
     async function recoverFullCircle() {
       if (recoveryInProgress) return;
       recoveryInProgress = true;
@@ -169,7 +157,7 @@
       try {
         var registration = await installRecoveryWorker().catch(function() { return null; });
         var indexUrl = new URL('index.html', window.location.href);
-        var response = await fetch(new URL('index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href), { cache: 'no-store' }).catch(function() { return null; });
+        var response = await fetch(indexUrl, { cache: 'reload' }).catch(function() { return null; });
         var networkReady = await isVerifiedAppShell(response);
         var cachedShell = !networkReady && 'caches' in window
           ? await window.caches.match(indexUrl, { ignoreSearch: true }).catch(function() { return null; })

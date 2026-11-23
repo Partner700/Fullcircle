@@ -176,6 +176,14 @@ async function run() {
   }
   {
     const cache = memoryCaches();
+    await (await cache.open('full-circle-target-v243-shell')).put(scope + 'index.html', appResponse('current release in older cache'));
+    const w = worker(async () => { throw new Error('offline'); }, cache);
+    w.handlers.activate(w.event);
+    await Promise.all(w.event.jobs);
+    assert.match(await (await w.networkFirstNavigation(request(), w.event)).text(), /current release in older cache/);
+  }
+  {
+    const cache = memoryCaches();
     await (await cache.open('full-circle-target-v295-shell')).put(scope + 'index.html', appResponse('current target app'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
