@@ -16,6 +16,7 @@ import { ArenaRoomChat } from '../../components/ArenaRoomChat';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
 import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
+import type { PanelImageSetting } from '../../lib/types';
 import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { fetchArenaFinalScorecard, fetchPublicArenaSuccessor, fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
@@ -30,6 +31,7 @@ type Props = {
   roomName: string;
   userId: string;
   matchupPlayers?: ArenaMatchupPlayer[];
+  arenaImage?: PanelImageSetting | null;
   spectator?: boolean;
   spectatorCanChallenge?: boolean;
   publicAccess?: boolean;
@@ -127,6 +129,7 @@ export function RoadHomeGame({
   roomName,
   userId,
   matchupPlayers = [],
+  arenaImage,
   spectator = false,
   spectatorCanChallenge = true,
   publicAccess = false,
@@ -501,7 +504,7 @@ export function RoadHomeGame({
         <p className="font-display text-base font-bold text-ink">{seriesResolution === 'next' ? 'Opening the next round...' : 'Confirming the match result...'}</p>
       </div>;
     }
-    return <ArenaFinalScorecard roomId={roomId} onExit={onExit} />;
+    return <ArenaFinalScorecard roomId={roomId} onExit={onExit} arenaImage={arenaImage} />;
   }
 
   const witnessQuestionId = spectator
@@ -520,7 +523,7 @@ export function RoadHomeGame({
           tent_house_id: null, correct_count: 0,
         }),
         score: Number(player.stats.correct) || 0,
-      }))} playing pinned />
+      }))} playing pinned arenaImage={arenaImage} />
       <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={activePlayer?.id}
         activePlayerName={activePlayer?.name} spectator={spectator}
         prompt={state.phase === 'AWAITING_ROLL' ? 'Roll the dice to take your turn.' : state.phase === 'QUESTION' ? 'Answer your question now.' : 'Make your next move.'} />
