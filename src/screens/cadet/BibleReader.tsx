@@ -7,6 +7,7 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
 import { BIBLE_BOOKS, validBibleReadingLocation, type BibleReadingLocation } from '../../lib/bibleBooks';
 import { readBibleReadingLocation, saveBibleReadingLocation } from '../../lib/bibleReadingLocation';
+import { useScriptureVerseMarks, SCRIPTURE_QUESTION_RESOLVED_EVENT } from '../../lib/useScriptureVerseMarks';
 import { fetchEditionChapter, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
 import { useReadingPosition } from '../../lib/useReadingPosition';
 import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, toggleVerseInsightReaction } from '../../lib/queries';
@@ -51,6 +52,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const verseMark = useScriptureVerseMarks(profile?.id, text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
 
   useReadingPosition(reader,profile?.id,`bible-${book.slug}-${chapter}`,Boolean(text),Boolean(pendingTarget),true);
   useEffect(()=>{saveBibleReadingLocation(profile?.id,{bookIndex,chapter});},[profile?.id,bookIndex,chapter]);
@@ -161,6 +163,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
       user_id: profile.id, body: draft.trim(),
     });
     if (failure) throw failure;
+    window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
     setDraft('');
   });
   const ask = (reference: string, verse: number) => {
@@ -233,7 +236,11 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
         {text?.verses.map(verse => {
           const reference = `${book.name} ${chapter}:${verse.number}`;
           const rows = insights.filter(item => item.verse_reference === reference);
-          return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className="space-y-2 border-b border-border py-3 last:border-0">
+          const personalHighlight = verseMark(reference);
+          const verseHighlightClass = personalHighlight === 'question-pending' ? 'verse-highlight-tagged'
+            : personalHighlight === 'question-answered' ? 'verse-highlight-answered'
+              : personalHighlight === 'insight' ? 'verse-highlight-mine' : '';
+          return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-ghost text-xs" aria-expanded={openVerse === verse.number} onClick={() => {
