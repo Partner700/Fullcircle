@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { canonicalBibleVerseReference } from './bibleBooks';
 
@@ -13,9 +13,11 @@ type VerseMark = {
 };
 
 export function useScriptureVerseMarks(userId: string | undefined, references: string[]) {
-  const referenceKey = useMemo(() => Array.from(new Set(references.map(
+  // Some readers construct a new references array every render. The stable
+  // string key prevents unnecessary effect resets and Supabase RPC calls.
+  const referenceKey = Array.from(new Set(references.map(
     (reference) => canonicalBibleVerseReference(reference),
-  ).filter((reference): reference is string => Boolean(reference)))).sort().join('|'), [references]);
+  ).filter((reference): reference is string => Boolean(reference)))).sort().join('|');
   const [snapshot, setSnapshot] = useState<{ userId: string; key: string; marks: Map<string, VerseMark> } | null>(null);
 
   useEffect(() => {
