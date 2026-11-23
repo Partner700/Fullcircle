@@ -340,7 +340,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
-    <ArenaMatchup players={visiblePlayers} playing pinned />
+    <ArenaMatchup players={visiblePlayers} playing pinned arenaImage={arenaImage} />
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
       && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
     {pauseRemaining > 0 && <JourneyDialog label="Standstill">
