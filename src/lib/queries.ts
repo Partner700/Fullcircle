@@ -3843,11 +3843,27 @@ export function sendRoadHomeCommand(
   });
 }
 
-async function mergeArenaRoomsWithParticipants(rooms: any[]) {
+async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false) {
   if (rooms.length === 0) return [];
 
-  const roomIds = rooms.map((room) => room.id);
-  const activeRoomIds = rooms.filter((room) => ['waiting', 'playing'].includes(room.status)).map((room) => room.id);
+  // Lobby lists also include completed matches, but their detailed results
+  // load in ArenaRecentResult. Avoid refreshing historical participants,
+  // schedules and witnesses on every lobby poll.
+  const detailRooms = activeOnly ? rooms.filter((room) => ['waiting', 'playing'].includes(room.status)) : rooms;
+  const roomIds = detailRooms.map((room) => room.id);
+  const activeRoomIds = detailRooms.filter((room) => ['waiting', 'playing'].includes(room.status)).map((room) => room.id);
+  if (roomIds.length === 0) return rooms.map((room) => ({
+    ...room,
+    scheduled: false,
+    scheduled_start_at: null,
+    scheduled_player_ids: [],
+    scheduled_by: null,
+    is_sentry_match: false,
+    arena_guest_witness_count: 0,
+    arena_matchup_players: [],
+    arena_participants: [],
+    arena_viewers: [],
+  }));
   const activeViewerCutoff = new Date(Date.now() - 2 * 60_000).toISOString();
   const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }, { data: schedules, error: scheduleError }, { data: guestCounts }, { data: matchups, error: matchupError }] = await Promise.all([
     supabase
@@ -3924,16 +3940,21 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
 
 const ARENA_ROOM_SUMMARY_COLUMNS = 'id,creator_id,room_name,stake_amount,max_players,status,narrative_date,game_type,tagged_user_ids,started_at,completed_at,winner_id,created_at,game_call_fee,expires_at,closed_at,closed_by,question_generated_at,play_mode,machine_score,completion_reason,question_generation_claimed_at,question_generation_claimed_by,direct_challenge_user_id,direct_challenge_source_room_id,direct_challenge_status,restarted_as_room_id';
 
-export async function fetchArenaRooms() {
-  const { data, error } = await supabase
-    .from('arena_rooms')
-    .select(ARENA_ROOM_SUMMARY_COLUMNS)
-    .order('created_at', { ascending: false })
-    .limit(50);
-  if (error) throw error;
-  const rooms = await mergeArenaRoomsWithParticipants(data || []);
-  maintainArenaRoomsInBackground();
-  return rooms;
+export function fetchArenaRooms() {
+  // Concurrent lobby consumers must not independently fan out to the same
+  // seven Arena endpoints. Only share the in-flight request, never a stale
+  // response after a player joins or a match starts.
+  return shareReadRequest('arena-lobby-rooms', async () => {
+    const { data, error } = await supabase
+      .from('arena_rooms')
+      .select(ARENA_ROOM_SUMMARY_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    const rooms = await mergeArenaRoomsWithParticipants(data || [], true);
+    maintainArenaRoomsInBackground();
+    return rooms;
+  });
 }
 
 /** Cheap single-room heartbeat used while waiting to enter a scheduled match.
@@ -3956,16 +3977,21 @@ export async function fetchArenaRoomPulse(roomId: string): Promise<{
   };
 }
 
-export async function fetchArenaRoom(roomId: string, includeQuestions = false) {
-  const { data, error } = await supabase
-    .from('arena_rooms')
-    .select(includeQuestions ? '*' : ARENA_ROOM_SUMMARY_COLUMNS)
-    .eq('id', roomId)
-    .maybeSingle();
-  if (error) throw error;
-  const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
-  maintainArenaRoomsInBackground();
-  return room || null;
+export function fetchArenaRoom(roomId: string, includeQuestions = false) {
+  // Active-match Realtime, heartbeat and UI refresh can arrive together.
+  // Sharing only the pending read avoids duplicate six-endpoint fan-outs,
+  // without caching a room state across moves or score changes.
+  return shareReadRequest(`arena-room-detail:${roomId}:${includeQuestions}`, async () => {
+    const { data, error } = await supabase
+      .from('arena_rooms')
+      .select(includeQuestions ? '*' : ARENA_ROOM_SUMMARY_COLUMNS)
+      .eq('id', roomId)
+      .maybeSingle();
+    if (error) throw error;
+    const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
+    maintainArenaRoomsInBackground();
+    return room || null;
+  });
 }
 
 export async function fetchArenaMatchups(roomIds: string[]) {
