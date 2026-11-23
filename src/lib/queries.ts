@@ -3989,7 +3989,8 @@ export function fetchArenaRoom(roomId: string, includeQuestions = false) {
       .maybeSingle();
     if (error) throw error;
     const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
-    maintainArenaRoomsInBackground();
+    // A per-witness room read must never kick off global room-expiry and
+    // orphan-repair RPCs. The Arena lobby still runs bounded maintenance.
     return room || null;
   });
 }
