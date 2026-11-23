@@ -3991,6 +3991,8 @@ export function fetchArenaRoom(roomId: string, includeQuestions = false) {
     const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
     // A per-witness room read must never kick off global room-expiry and
     // orphan-repair RPCs. The Arena lobby still runs bounded maintenance.
+    // Supabase's matching witness-entry functions are versioned in the
+    // 20261123150000_reduce_arena_witness_presence_request_fanout migration.
     return room || null;
   });
 }
