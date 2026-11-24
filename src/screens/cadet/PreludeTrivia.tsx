@@ -112,7 +112,7 @@ export default function PreludeTrivia({arenaImage,onBack,initialRoomId,onBalance
    {roomId && !game && !error && <p role="status" className="text-center text-sm"><Loader2 className="mx-auto mb-2 animate-spin"/>Opening your table...</p>}
    {game && <>
     {(game.phase==='playing'||game.phase==='question') && profile?.id && <>
-      <ArenaHeartReaction roomId={game.id} userId={profile.id} />
+      <ArenaHeartReaction roomId={game.id} userId={profile.id} spectator={false} />
       <ArenaTurnAlert roomId={game.id} userId={profile.id} activePlayerId={current?.id} activePlayerName={current?.name} prompt={game.phase==='question' ? 'Answer your question now.' : 'Flip a card to take your turn.'} />
     </>}
     {(game.phase==='playing'||game.phase==='question') && game.players.some(player=>player.id===profile?.id) && <div className="rounded-xl border border-white/20 bg-black/50 p-3">
