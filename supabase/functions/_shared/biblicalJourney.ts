@@ -334,6 +334,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
           || journeySameSide(game, player.id, attacker.id)) continue;
       if (offer(player, item, 'Another player landed on your square and will send you back to the start.')) return;
       player.location = main(1);
+      player.completedLaps = 0;
       player.status = 'ACTIVE';
       record(game, player, 'capture:' + attacker.id, 'captured', previous, 'backward', 'applied', 'sent-to-start');
       continue;
@@ -456,6 +457,21 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
       const next = landingEffect(config, player);
       if (next) queue.unshift(next);
     }
+    // A trap, loop exit or bonus move that lands on another player follows
+    // exactly the same capture rules as a successful die roll.
+    const hasMovedToMain = player.location.route === 'main'
+      && (previous.route !== 'main' || previous.space !== player.location.space);
+    if (hasMovedToMain && !isImprisoned(player) && player.status !== 'FINISHED') {
+      const opponentsOnSquare = game.players.filter(other => other.id !== player.id
+        && !journeySameSide(game, player.id, other.id)
+        && other.status !== 'FINISHED' && other.location.route === 'main'
+        && !isImprisoned(other) && other.location.space === player.location.space);
+      queue.unshift(...opponentsOnSquare.map(other => ({
+        playerId: other.id, source: 'capture:' + player.id,
+        effect: { kind: 'capture' as const, attackerId: player.id },
+        key: 'chain-capture:' + game.version + ':' + item.key + ':' + other.id,
+      })));
+    }
   }
 }
 
@@ -490,6 +506,15 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       player.loopEscapes += 1;
       record(game, player, promoted ? 'surprise-card' : 'ordinary-escape', promoted ? 'promotion' : 'escape', from,
         promoted ? 'reveal' : 'forward');
+      const opponentsOnSquare = game.players.filter(other => other.id !== player.id
+        && !journeySameSide(game, player.id, other.id) && other.location.route === 'main'
+        && other.status !== 'FINISHED' && !isImprisoned(other)
+        && other.location.space === player.location.space);
+      if (opponentsOnSquare.length) resolveEffects(game, config, opponentsOnSquare.map(other => ({
+        playerId: other.id, source: 'capture:' + player.id,
+        effect: { kind: 'capture' as const, attackerId: player.id },
+        key: 'escape-capture:' + game.version + ':' + other.id,
+      })), shieldOwners);
     }
   } else {
     const progress = player.location.space - 1 + die;
@@ -605,6 +630,7 @@ export function resolveJourneyShield(original: JourneyGame, actorId: string, dec
     if (attacker && attacker.location.route === 'main') {
       const previous = structuredClone(attacker.location);
       attacker.location = main(1);
+      attacker.completedLaps = 0;
       attacker.status = 'ACTIVE';
       record(game, attacker, 'boomerang:' + actorId, 'boomerang', previous, 'backward', 'applied', 'capture-reflected');
     }
