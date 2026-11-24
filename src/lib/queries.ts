@@ -3875,7 +3875,7 @@ export function sendRoadHomeCommand(
   });
 }
 
-async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false) {
+async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false, compact = false) {
   if (rooms.length === 0) return [];
 
   // Lobby lists also include completed matches, but their detailed results
@@ -3896,6 +3896,9 @@ async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false)
     arena_participants: [],
     arena_viewers: [],
   }));
+  // While a Journey match is running, only roster changes must be refreshed.
+  // Guest counts, matchup graphics and schedules are already in the room cache.
+  // Avoid five extra queries for every participant heartbeat.
   const activeViewerCutoff = new Date(Date.now() - 2 * 60_000).toISOString();
   const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }, { data: schedules, error: scheduleError }, { data: guestCounts }, { data: matchups, error: matchupError }] = await Promise.all([
     supabase
@@ -3903,18 +3906,24 @@ async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false)
       .select('id,room_id,user_id,stake_paid,score,correct_count,finished_at,joined_at,last_active_at,forfeited_at,forfeit_reason')
       .in('room_id', roomIds)
       .order('joined_at', { ascending: true }),
-    supabase
-      .from('arena_viewers')
-      .select('room_id,user_id,joined_at,last_seen_at')
-      .in('room_id', roomIds)
-      .gte('last_seen_at', activeViewerCutoff)
-      .order('joined_at', { ascending: true }),
-    supabase
+    compact
+      ? Promise.resolve({ data: [], error: null })
+      : supabase
+        .from('arena_viewers')
+        .select('room_id,user_id,joined_at,last_seen_at')
+        .in('room_id', roomIds)
+        .gte('last_seen_at', activeViewerCutoff)
+        .order('joined_at', { ascending: true }),
+    compact
+      ? Promise.resolve({ data: [], error: null })
+      : supabase
       .from('arena_scheduled_matches')
       .select('room_id,starts_at,player_ids,scheduled_by,is_sentry_match')
       .in('room_id', roomIds),
-    supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
-    activeRoomIds.length
+    compact
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
+    !compact && activeRoomIds.length
       ? supabase.rpc('get_arena_matchups', { p_room_ids: activeRoomIds })
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -3943,13 +3952,14 @@ async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false)
 
   return rooms.map((room) => ({
     ...room,
-    scheduled: scheduleMap.has(room.id),
-    scheduled_start_at: scheduleMap.get(room.id)?.starts_at || null,
-    scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
-    scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
-    is_sentry_match: scheduleMap.get(room.id)?.is_sentry_match ?? false,
-    arena_guest_witness_count: guestCountMap.get(room.id) || 0,
-    arena_matchup_players: (matchupMap.get(room.id) || []).map((player) => (
+    // Undefined means retain the last full snapshot in the Arena UI.
+    scheduled: compact ? undefined : scheduleMap.has(room.id),
+    scheduled_start_at: compact ? undefined : (scheduleMap.get(room.id)?.starts_at || null),
+    scheduled_player_ids: compact ? undefined : (scheduleMap.get(room.id)?.player_ids || []),
+    scheduled_by: compact ? undefined : (scheduleMap.get(room.id)?.scheduled_by || null),
+    is_sentry_match: compact ? undefined : (scheduleMap.get(room.id)?.is_sentry_match ?? false),
+    arena_guest_witness_count: compact ? undefined : (guestCountMap.get(room.id) || 0),
+    arena_matchup_players: compact ? undefined : (matchupMap.get(room.id) || []).map((player) => (
       room.play_mode === 'machine' && /\[arena:journey\]/i.test(room.room_name || '')
         && player.user_id === JOURNEY_MACHINE_ID
         ? { ...player, correct_count: room.status === 'playing' ? Number(room.machine_score) || 0 : 0 }
@@ -3961,7 +3971,7 @@ async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false)
         ...participant,
         profiles: profileMap.get(participant.user_id) || null,
       })),
-    arena_viewers: (viewers || [])
+    arena_viewers: compact ? undefined : (viewers || [])
       .filter((viewer: any) => viewer.room_id === room.id)
       .map((viewer: any) => ({
         ...viewer,
@@ -4009,18 +4019,18 @@ export async function fetchArenaRoomPulse(roomId: string): Promise<{
   };
 }
 
-export function fetchArenaRoom(roomId: string, includeQuestions = false) {
+export function fetchArenaRoom(roomId: string, includeQuestions = false, compact = false) {
   // Active-match Realtime, heartbeat and UI refresh can arrive together.
   // Sharing only the pending read avoids duplicate six-endpoint fan-outs,
   // without caching a room state across moves or score changes.
-  return shareReadRequest(`arena-room-detail:${roomId}:${includeQuestions}`, async () => {
+  return shareReadRequest(`arena-room-detail:${roomId}:${includeQuestions}:${compact}`, async () => {
     const { data, error } = await supabase
       .from('arena_rooms')
       .select(includeQuestions ? '*' : ARENA_ROOM_SUMMARY_COLUMNS)
       .eq('id', roomId)
       .maybeSingle();
     if (error) throw error;
-    const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
+    const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : [], false, compact);
     // A per-witness room read must never kick off global room-expiry and
     // orphan-repair RPCs. The Arena lobby still runs bounded maintenance.
     // Supabase's matching witness-entry functions are versioned in the
