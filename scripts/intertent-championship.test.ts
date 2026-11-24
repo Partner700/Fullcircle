@@ -28,7 +28,7 @@ assert.equal(interTentMatchLabel({ stage: 'group', sides: [
   {tent_id:'s',tent_name:'Spades',players:[{id:'c',name:'Verouchka'}]},
   {tent_id:'q',tent_name:'Square',players:[{id:'d',name:'Rudy'}]},
 ]}), 'Esther & Chwi vs Verouchka vs Rudy');
-assert.equal(interTentLegLabel({stage:'group',group_key:'A',leg:4}), 'Group A · Series 2 · Away');
+assert.equal(interTentLegLabel({stage:'group',group_key:'A',leg:4}), 'Group A · Series 2 · Leg 4');
 const ordinary = createJourneyGame(['a','b','c']);
 assert.equal(journeySameSide(ordinary,'a','b'), false);
 const teamGame = createJourneyGame(['a','b','c','d'], {a:'laurel',b:'laurel',c:'spades',d:'square'});
