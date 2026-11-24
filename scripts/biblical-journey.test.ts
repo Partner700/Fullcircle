@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   createJourneyGame, LEGACY_JOURNEY_CONFIG as DEFAULT_JOURNEY_CONFIG, DEFAULT_JOURNEY_CONFIG as SMALL_BOARD_CONFIG, JOURNEY_TRAP_LIBRARY,
-  journeyQuestionStage, resolveJourneyAction, resolveJourneyMiss, resolveJourneyRoll, serveJourneyPrisonTurn,
+  journeyQuestionStage, resolveJourneyAction, resolveJourneyMiss, resolveJourneyRoll, resolveJourneyShield, serveJourneyPrisonTurn,
   type JourneyConfig, type JourneyGame, type JourneyLocation,
 } from '../supabase/functions/_shared/biblicalJourney.ts';
 import { LEGACY_JOURNEY_MAIN_POINTS as JOURNEY_MAIN_POINTS, JOURNEY_MAIN_POINTS as SMALL_BOARD_POINTS, JOURNEY_LOOP_POINTS } from '../src/lib/journeyBoardLayout.ts';
@@ -266,3 +266,26 @@ assert.deepEqual(journeyMovementPath(lap45.events.find((event) => event.effectTy
 const sixSteps = resolveJourneyRoll(smaller({ route: 'main', space: 3 }), 'alpha', 6, { ...SMALL_BOARD_CONFIG, traps: {} });
 assert.deepEqual(journeyMovementPath(sixSteps.events[0], 45, 10).map((location) => location.route === 'main' ? location.space : -1), [4, 5, 6, 7, 8, 9]);
 console.log('45-space board, legacy compatibility, Trials scoring and outcome colors passed.');
+
+// Landing on an opponent's space captures them unless they spend Shield of Faith;
+// the Boomerang counter sends the *incoming* player back to the start instead.
+{
+  const setup = () => {
+    const match = createJourneyGame(['alpha', 'beta']);
+    delete match.boardSpaces;
+    match.players[0].location = { route: 'main', space: 3 };
+    match.players[1].location = { route: 'main', space: 5 };
+    return match;
+  };
+  const captured = resolveJourneyRoll(setup(), 'alpha', 2, plain(), []);
+  assert.deepEqual(captured.players[1].location, { route: 'main', space: 1 });
+  const pending = resolveJourneyRoll(setup(), 'alpha', 2, plain(), ['beta']);
+  assert.equal(pending.shieldOffer?.playerId, 'beta');
+  assert.equal(pending.shieldOffer?.attackerId, 'alpha');
+  const shielded = resolveJourneyShield(pending, 'beta', 'use', ['beta'], plain());
+  assert.deepEqual(shielded.players[1].location, { route: 'main', space: 5 });
+  const reflected = resolveJourneyShield(pending, 'beta', 'reflect', ['beta'], plain());
+  assert.deepEqual(reflected.players[0].location, { route: 'main', space: 1 });
+  assert.deepEqual(reflected.players[1].location, { route: 'main', space: 5 });
+  assert.equal(reflected.matchRelicUses?.beta?.boomerang, 1);
+}
