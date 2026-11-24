@@ -8,6 +8,8 @@ import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
+import { ChapterDiscoveryPanel } from '../../components/ChapterDiscoveryPanel';
+import { passageDiscoveryFacts } from '../../lib/chapterDiscoveryFacts';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -1197,6 +1199,13 @@ export function CadetNarrative({
               {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
             </div>}
             <ScrollEdge position="top" className="text-brass mb-4" />
+            {panelVerses.length > 0 && <ChapterDiscoveryPanel
+              title="Did You Know? — Reading discoveries"
+              facts={passageDiscoveryFacts(panelVerses.map(({ verse }) => {
+                const reference = canonicalBibleVerseReference(verse.reference) || verse.reference;
+                return { reference, text: editionContent?.translations.get(verse.reference) || verse.text };
+              }), instructorExtras.facts)}
+            />}
             <div className="space-y-4 sm:space-y-5">
               {panelVerses.length ? panelVerses.map(({ verse, index }) => {
                 const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
