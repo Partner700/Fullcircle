@@ -24,7 +24,21 @@ export type QuarterlyVerseQuest = {
   attempted: boolean;
 };
 
-export type ScriptureDidYouKnow = { reference: string; fact: string; source_note: string };
+export type ScriptureDidYouKnow = {
+  reference: string; fact: string; source_note: string;
+  category?: 'plain_language' | 'ancient_culture' | 'scholarly_agreement' | 'scholarly_debate' |
+    'earliest_evidence' | 'original_language' | 'scripture_detail' | 'textual_connection';
+};
+const FACT_LABELS: Record<NonNullable<ScriptureDidYouKnow['category']>, string> = {
+  plain_language: 'In today\'s words',
+  ancient_culture: 'Life in Bible times',
+  scholarly_agreement: 'What scholars agree on',
+  scholarly_debate: 'What scholars debate',
+  earliest_evidence: 'Earliest discoveries',
+  original_language: 'Original-language clue',
+  scripture_detail: 'A detail worth noticing',
+  textual_connection: 'A surprising connection',
+};
 
 export function useInstructorVerseExtras(references: string[]) {
   // This stable scalar prevents querying again on every verse render.
@@ -51,7 +65,7 @@ export function useInstructorVerseExtras(references: string[]) {
           .eq('edition', 2)
           .in('reference', verseRefs.slice(0, 180)),
         supabase.rpc('get_quarterly_verse_quests', { p_references: verseRefs.slice(0, 180) }),
-        supabase.from('scripture_did_you_know').select('reference,fact,source_note').in('reference', verseRefs.slice(0, 180)),
+        supabase.from('scripture_did_you_know').select('reference,fact,source_note,category').in('reference', verseRefs.slice(0, 180)),
       ]);
       if (!active) return;
       if (contextResult.status === 'fulfilled' && !contextResult.value.error) {
@@ -189,6 +203,7 @@ export function InstructorVerseExtras({ context, fact, quest, onClaimed }: {
           <Lightbulb size={16} className="text-brass" /> Did You Know? <ChevronDown size={15} className="ml-auto" />
         </summary>
         <div className="border-t border-border px-3 py-3">
+          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-brass">{FACT_LABELS[fact.category || 'scripture_detail']}</p>
           <p className="text-sm leading-relaxed text-ink">{fact.fact}</p>
           <p className="mt-2 text-xs text-stone">{fact.source_note}</p>
         </div>
