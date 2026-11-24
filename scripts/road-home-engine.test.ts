@@ -355,3 +355,21 @@ console.log('Road Home engine acceptance tests passed.');
   assert.equal(applyRoadHomeCommand(machine, player.id, { action: 'SHIELD', decision: 'use' }, [], fixed(.1)).matchRelicUses?.[player.id]['shield-of-faith'], 6);
   assert.ok(applyRoadHomeCommand(state, player.id, { action: 'STANDSTILL' }, [], fixed(.1)).pausedUntil);
 }
+
+// Boomerang reflects the Ludo capture; the arriving pawn returns to base.
+{
+  const state = game();
+  const [attacker, defender] = state.players;
+  attacker.pawns[0].progress = 14;
+  defender.pawns[0].progress = 2;
+  makeSelectable(state, 1, attacker.pawns[0].id);
+  const offered = applyRoadHomeCommand(state, attacker.id,
+    { action: 'MOVE', pawnId: attacker.pawns[0].id }, [], fixed(.1), [defender.id]);
+  assert.equal(offered.shieldOffer?.playerId, defender.id);
+  assert.equal(offered.shieldOffer?.attackerId, attacker.id);
+  const reflected = applyRoadHomeCommand(offered, defender.id,
+    { action: 'SHIELD', decision: 'reflect' }, [], fixed(.1), [defender.id]);
+  assert.equal(reflected.players[0].pawns[0].progress, -1);
+  assert.equal(reflected.players[1].pawns[0].progress, 2);
+  assert.equal(reflected.matchRelicUses?.[defender.id]?.boomerang, 1);
+}
