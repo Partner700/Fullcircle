@@ -3,6 +3,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { UserAvatar } from './UserAvatar';
 import { TentHouseSymbol } from './TentHouseSymbol';
+import { ArenaFinalScorecard } from './ArenaFinalScorecard';
 import type { PanelImageSetting } from '../lib/types';
 import { interTentCountdown, interTentLegLabel, interTentMatchLabel, type InterTentFixture } from '../lib/interTentChampionship';
 import { formatPlayerNumber } from '../lib/utils';
@@ -72,6 +73,11 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
           </div>;
         }) : placeholders.map((name, index) => <div className="contents" key={name}>{index > 0 && <Swords size={16} className="shrink-0 self-center text-gold" aria-label="versus" />}<div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border p-3 text-center"><Trophy size={22} className="text-gold"/><span className="break-words text-xs font-bold text-ink">{name}</span></div></div>)}
       </div>
+      {fixture.result && fixture.room_id && !compact && (
+        <div className="mt-3" aria-label="Completed match final scorecard">
+          <ArenaFinalScorecard roomId={fixture.room_id} arenaImage={arenaImage} />
+        </div>
+      )}
       {(canOpen || children) && <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
         {canOpen && onShare && <button type="button" className="btn-ghost h-9 w-9 shrink-0 p-0" title="Share Arena match" aria-label="Share Arena match" onClick={onShare}><Share2 size={15}/></button>}
         {canOpen && <button type="button" className={participant ? 'btn-primary text-xs' : 'btn-secondary text-xs'} onClick={onOpen}>{participant ? <Play size={14}/> : <Eye size={14}/>} {participant ? 'Enter Match' : 'Witness'}</button>}
