@@ -100,6 +100,9 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
       <button type="button" onClick={()=>void refresh()} className="btn-ghost" aria-label="Refresh championship"><RotateCw size={16}/></button>
     </div>
     <p className="text-xs text-stone">Four weeks · 16 group fixtures · Same-tent sides · Highest average points per tent qualifies · Two-leg semifinal · One-leg final.</p>
+    <p className="rounded-lg border border-gold/30 bg-gold/5 p-2.5 text-xs leading-relaxed text-ink">
+      <strong>Match entry:</strong> The first selected player can start after the countdown and keep playing alone. New players join the next turns in arrival order. There is a <strong>15-minute grace period after the match begins</strong>; joining later costs <strong>5,000 Denarii once</strong>, but selected players can still enter while the match is live.
+    </p>
     {instructor && enabled && (editing || !events.some(e=>e.status!=='completed')) && <div className="space-y-3 border-b border-border pb-4">
       <label className="block text-xs font-semibold text-stone">First Tuesday (Cameroon)<input type="date" className="input-field mt-1" value={firstTuesday} onChange={e=>setFirstTuesday(e.target.value)}/></label>
       {groupKeys.map(g=><div key={g}><p className="font-display font-bold text-ink text-sm mb-1">Group {g}</p><div className="grid grid-cols-2 gap-2">{[0,1,2,3].map(i=><AppSelect key={i} ariaLabel={`Group ${g} player ${i+1}`} searchable value={groups[g]?.[i]||''} placeholder="Choose cadet" options={[{value:'',label:'Choose cadet'},...players.map(p=>({value:p.id,label:p.name}))]} onChange={id=>setGroups(prev=>({...prev,[g]:Array.from({length:4},(_,j)=>j===i?id:prev[g]?.[j]||'')}))}/>)}</div></div>)}
