@@ -37,6 +37,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
   const [relicFilter, setRelicFilter] = useState<'all' | 'owned' | 'available'>('all');
   const [offers, setOffers] = useState<RelicOffer[] | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
+  const [balanceVerified, setBalanceVerified] = useState(false);
   const [owned, setOwned] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -59,9 +60,11 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     const validBalance = !wallet.error && wallet.data != null && Number.isFinite(Number(wallet.data));
     setOffers(data || []);
     setBalance(validBalance ? Number(wallet.data) : null);
+    setBalanceVerified(validBalance);
     if (inventory) setOwned(Object.fromEntries(inventory.map(item => [item.relic_type_id, item.quantity])));
-    setError(inventory === null ? 'Your relic inventory is unavailable.'
-      : validBalance ? '' : 'Your Denarii balance is unavailable.');
+    // Display failures must not block purchases. The database checks the real
+    // wallet amount atomically when the user actually purchases a relic.
+    if (inventory === null) setError('Your relic inventory could not be refreshed.');
   }, [showOwned, slugKey, userId]);
 
   useEffect(() => {
@@ -159,7 +162,12 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/25 bg-[#081329]/90 px-3 py-3">
             <span className="text-sm font-semibold text-white">Your relics · {offers?.filter(offer => (owned[offer.id] ?? 0) > 0).length ?? 0} types owned</span>
-            {balance !== null && <span className="text-sm font-bold text-amber-300">{formatDenarii(balance)} Ð</span>}
+            {balanceVerified && balance !== null
+              ? <span className="text-sm font-bold text-amber-300">{formatDenarii(balance)} Ð</span>
+              : <button type="button" className="text-xs font-semibold text-amber-200 underline underline-offset-2"
+                  onClick={() => void refresh().catch(() => undefined)}>
+                  Balance not displayed · Retry
+                </button>}
           </div>
           {timed && <p className="text-[11px] text-stone">The game timer keeps running during checkout.</p>}
           <div role="group" aria-label="Filter Arena relics" className="grid grid-cols-3 gap-1.5 rounded-lg bg-[#081329]/95 p-1.5">
@@ -182,9 +190,11 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
           const cost = Number(offer.denarii_cost || 0);
           const cash = relicMoneyPriceXaf(offer);
           const bundles = relicCashBundles(offer);
-          const canBuyWithDenarii = balance !== null && cost > 0 && balance >= cost;
+          // A temporary balance-read error is not an insufficient-funds result.
+          // Let the actual purchase RPC decide whether funds cover the price.
+          const canBuyWithDenarii = cost > 0 && (!balanceVerified || balance !== null && balance >= cost);
           const hasOwned = showOwned && (owned[offer.id] ?? 0) > 0;
-          const showCash = (!hasOwned || showAllPaymentOptions) && (!canBuyWithDenarii || showAllPaymentOptions) && (balance !== null || showAllPaymentOptions);
+          const showCash = (!hasOwned || showAllPaymentOptions) && (!canBuyWithDenarii || !balanceVerified || showAllPaymentOptions);
           return (
             <article key={offer.id} className="flex flex-col gap-2 rounded-lg border border-amber-300/35 bg-[#0b1730]/95 p-3 shadow-sm backdrop-blur-md">
               <div className="flex items-start justify-between gap-2">
@@ -217,7 +227,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
                     <RelicSymbol slug={offer.slug} size={14} /> Buy · {formatXaf(cash)}
                   </MarketCartCheckout>
                 ) : null}
-                {!hasOwned && !canBuyWithDenarii && cost > 0 && balance !== null
+                {!hasOwned && !canBuyWithDenarii && balanceVerified && cost > 0 && balance !== null
                   && (showAllPaymentOptions || !bundles.length && cash < 100) && (
                     <span className="text-stone">Need {formatDenarii(cost - balance)} Ð more</span>
                   )}
