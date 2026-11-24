@@ -26,9 +26,11 @@ export function useGameActivityPlayers(date = getTodayISODate()) {
     };
 
     const polling = startVisiblePolling(refresh, REFRESH_INTERVAL_MS);
+    window.addEventListener('full-circle:game-activity', refresh);
     return () => {
       active = false;
       polling.stop();
+      window.removeEventListener('full-circle:game-activity', refresh);
     };
   }, [load]);
 

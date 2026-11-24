@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { hasCompleteTopbarStats, mergeConfirmedTopbarStats } from '../../lib/liveStats';
 import { useAuth } from '../../context/AuthContext';
-import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
+import { SubscriptionAccessProvider, subscriptionHasPremiumAccess, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell } from '../../components/AppShell';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { ChiRhoMark } from '../../components/ChiRhoMark';
@@ -9,8 +9,11 @@ import { StreakCelebration } from '../../components/StreakCelebration';
 import { SubscriptionGate, SubscriptionScreen } from '../../components/SubscriptionScreen';
 import { DoveMark } from '../../components/Dove';
 import { DoveNotificationArrival } from '../../components/DoveNotificationArrival';
+import { ResidentWelcomeQuiz } from '../../components/ResidentWelcomeQuiz';
 import { NewcomerGuide } from '../../components/NewcomerGuide';
 import { CadetDashboard } from './CadetDashboard';
+import { BibleReader } from './BibleReader';
+import type { BibleReadingLocation } from '../../lib/bibleBooks';
 import { CadetNarrative } from './CadetNarrative';
 import { CadetGame } from './CadetGame';
 import { DailyGamesHub } from './DailyGamesHub';
@@ -27,6 +30,7 @@ import { supabase } from '../../lib/supabase';
 import {
   getSubscriptionStatus,
   fetchReliableToolbarStats,
+  fetchStrictStreak,
   fetchOwnTentContext,
   fetchUserNotifications,
   markNotificationRead,
@@ -49,16 +53,17 @@ import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNav
 import { isDoveArrival } from '../../lib/notificationArrival';
 import { openAudioCall } from '../../lib/audioCalls';
 import { readContinuedTab } from '../../lib/appContinuity';
+import { signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
 import {
   Home, BookOpen, Gamepad2, FileQuestion, Trophy, Award, Coins, Tent as TentIcon,
   Lock, Settings as SettingsIcon, ShoppingBag, CreditCard,
   Flame, Bell, CheckCircle2, AlertTriangle, MessageCircle, CheckCheck, Contact, PhoneCall,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+type Tab = 'dashboard' | 'narrative' | 'bible' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
-const CADET_TABS: Tab[] = ['dashboard', 'narrative', 'streak', 'games', 'game', 'arena', 'story', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
-const PREMIUM_TABS = new Set<Tab>(['games', 'game', 'arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
+const CADET_TABS: Tab[] = ['dashboard', 'narrative', 'bible', 'streak', 'games', 'game', 'arena', 'story', 'quiz', 'tent', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+const PREMIUM_TABS = new Set<Tab>(['arena', 'story', 'leaderboard', 'awards', 'store']);
 
 type CadetNotificationType = 'info' | 'warning' | 'success';
 
@@ -155,6 +160,7 @@ const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: Home },
   { key: 'profile', label: 'My Profile', icon: Contact },
   { key: 'narrative', label: 'Today\'s Reading', icon: BookOpen },
+  { key: 'bible', label: 'Bible', icon: BookOpen },
   { key: 'streak', label: 'My Streak', icon: Flame },
   { key: 'games', label: 'Daily Games', icon: Gamepad2 },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
@@ -247,9 +253,14 @@ export function CadetApp() {
   const { profile, session } = useAuth();
   const toolbarUserId = session?.user.id || profile?.id || '';
   const [tab, setTab] = useState<Tab>(() => getInitialCadetTab(toolbarUserId));
+  const [bibleTarget,setBibleTarget]=useState<{userId:string;location:BibleReadingLocation}|null>(null);
+  useEffect(()=>{if(tab!=='bible')setBibleTarget(null);},[tab]);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
+  const [canReapplyToTent, setCanReapplyToTent] = useState(false);
+  const tentUnlocked = Boolean(tentInfo.tent) || longestStreak >= 5 || canReapplyToTent;
   const [marksTotal, setMarksTotal] = useState(0);
   const [streakProtection, setStreakProtection] = useState<StreakProtectionState | null>(null);
   const [streakCelebration, setStreakCelebration] = useState<number | null>(null);
@@ -294,6 +305,8 @@ export function CadetApp() {
       marks: cached?.marks || 0,
     };
     setStreakCount(cached?.streak || 0);
+    setLongestStreak(0);
+    setCanReapplyToTent(false);
     setDenariiTotal(cached?.denarii || 0);
     setMarksTotal(cached?.marks || 0);
     setToolbarReady(!!cached);
@@ -763,6 +776,7 @@ export function CadetApp() {
 
   const refreshCadetState = useCallback(async () => {
     const walletRequest = refreshWallet();
+    if (toolbarUserId) void fetchStrictStreak(toolbarUserId).then((streak) => setLongestStreak(streak.longest_streak)).catch(() => undefined);
     void loadNotifications();
     await walletRequest.catch(() => undefined);
     setCadetRefreshKey((key) => key + 1);
@@ -771,7 +785,20 @@ export function CadetApp() {
     window.setTimeout(() => {
       void loadToolbarStats();
     }, 900);
-  }, [refreshWallet, loadNotifications, loadToolbarStats]);
+  }, [refreshWallet, loadNotifications, loadToolbarStats, toolbarUserId]);
+
+  const refreshAfterMeditation = useCallback(async () => {
+    if (profile) {
+      try {
+        const streak = await fetchStrictStreak(profile.id);
+        window.dispatchEvent(new CustomEvent('full-circle-toolbar-stats', {
+          detail: { userId: profile.id, streak: streak.current_streak },
+        }));
+        setCadetRefreshKey((key) => key + 1);
+      } catch { /* The normal dashboard refresh will retry. */ }
+    }
+    void refreshCadetState();
+  }, [profile, refreshCadetState]);
 
   const loadSubStatus = useCallback(async () => {
     if (!profile) return;
@@ -786,10 +813,27 @@ export function CadetApp() {
   useEffect(() => {
     loadTentInfo();
     loadSubStatus();
-  }, [loadTentInfo, loadSubStatus]);
+    let cancelled = false;
+    if (toolbarUserId) void fetchStrictStreak(toolbarUserId).then((streak) => { if (!cancelled) setLongestStreak(streak.longest_streak); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [loadTentInfo, loadSubStatus, toolbarUserId]);
 
   useEffect(() => {
-    if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
+    if (!toolbarUserId || tentInfo.tent || longestStreak >= 5) return;
+    let cancelled = false;
+    // The server also recognizes previous tent membership, including legacy
+    // members whose historical best may be below today's qualification rule.
+    void supabase.rpc('get_tent_join_options').then(({ data, error }) => {
+      if (!cancelled && !error) setCanReapplyToTent(Array.isArray(data) && data.length > 0);
+    });
+    return () => { cancelled = true; };
+  }, [toolbarUserId, tentInfo.tent, longestStreak, cadetRefreshKey]);
+
+  useEffect(() => {
+    if (isExpired && PREMIUM_TABS.has(tab)) {
+      if (tab === 'quiz') signalActiveQuizExitIntent();
+      setTab('subscribe');
+    }
   }, [isExpired, tab]);
 
   useEffect(() => {
@@ -905,6 +949,7 @@ export function CadetApp() {
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Cadet Dashboard',
     narrative: 'Today\'s Reading',
+    bible: 'Bible',
     streak: 'My Streak',
     games: 'Daily Games',
     game: 'Daily Trivia',
@@ -920,6 +965,7 @@ export function CadetApp() {
   };
 
   const handleNavigate = useCallback((k: string) => {
+    if (tab === 'quiz' && k !== 'quiz') signalActiveQuizExitIntent();
     if (k === 'profile') {
       openProfileCv(profile?.id);
       return;
@@ -941,7 +987,7 @@ export function CadetApp() {
       });
     }
     setTab(nextTab);
-  }, [isExpired, notifications, profile?.id]);
+  }, [isExpired, notifications, profile?.id, tab]);
 
   useEffect(() => {
     const navigate = (event: Event) => {
@@ -1047,7 +1093,7 @@ export function CadetApp() {
   }, [showNotifications]);
 
   return (
-    <SubscriptionAccessProvider isExpired={isExpired} onSubscriptionRequired={() => setTab('subscribe')}>
+    <SubscriptionAccessProvider isExpired={isExpired} hasPremiumAccess={subscriptionHasPremiumAccess(subStatus, subscriptionClock)} onSubscriptionRequired={() => setTab('subscribe')}>
     <>
     <AppShell
       navItems={NAV_ITEMS}
@@ -1164,19 +1210,21 @@ export function CadetApp() {
       }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-        {tab === 'narrative' && <CadetNarrative onMeditationSaved={refreshCadetState} streakCount={streakCount} />}
+        {tab === 'bible' && <BibleReader key={toolbarUserId} initialLocation={bibleTarget?.userId===toolbarUserId?bibleTarget.location:null} />}
+        {tab === 'narrative' && <CadetNarrative onOpenBible={(location) => {setBibleTarget(location?{userId:toolbarUserId,location}:null);handleNavigate('bible');}} onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
-        {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
+        {tab === 'games' && (
           <DailyGamesHub
+            onProgress={refreshCadetState}
             onOpenTrivia={() => handleNavigate('game')}
             onOpenArena={() => handleNavigate('arena')}
           />
-        ))}
-        {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
+        )}
+        {tab === 'game' && <CadetGame onRewardEarned={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />}
         {tab === 'arena' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetArena onBalanceChanged={refreshCadetState} onBackToDailyGames={() => handleNavigate('games')} />)}
         {tab === 'story' && <StoryModeUnderDevelopment onBackToDailyGames={() => handleNavigate('games')} />}
-        {tab === 'quiz' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetQuiz onQuizSubmitted={refreshCadetState} />)}
-        {tab === 'tent' && <CadetTent />}
+        {tab === 'quiz' && <CadetQuiz onQuizSubmitted={refreshCadetState} />}
+        {tab === 'tent' && (tentInfo.tent && isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetTent canApply={tentUnlocked} onMembershipChanged={async () => { await Promise.all([refreshCadetState(), loadSubStatus(), loadTentInfo()]); }} />)}
         {tab === 'leaderboard' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetLeaderboard />)}
         {tab === 'awards' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetAwards />)}
         {tab === 'store' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetStore onBalanceChanged={refreshCadetState} refreshKey={walletRefreshKey} />)}
@@ -1192,7 +1240,9 @@ export function CadetApp() {
         )}
     </AppShell>
     <DoveNotificationArrival onNavigate={handleNavigate} />
-    <NewcomerGuide activeTab={tab} onNavigate={handleNavigate} />
+    {tentInfo.tent ? <NewcomerGuide activeTab={tab} onNavigate={handleNavigate} /> : profile && (
+      <ResidentWelcomeQuiz key={profile.id} onReading={() => handleNavigate('narrative')} onGames={() => handleNavigate('games')} />
+    )}
     {toastNotification && (
       <button type="button" onClick={() => { const linked = notifications.find((item) => item.persistedId === toastNotification.id); if (linked) void handleNotificationOpen(linked); else setShowNotifications(true); setToastNotification(null); }} className="fixed bottom-5 left-1/2 z-[160] flex w-[min(92vw,25rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border-bright bg-surface/95 px-3.5 py-3 text-left shadow-2xl backdrop-blur-md animate-slide-up">
         <DoveMark size={28} className="shrink-0" />

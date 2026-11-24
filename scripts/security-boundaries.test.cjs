@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
@@ -82,6 +83,9 @@ const statFirstBoardMovements = read('supabase/migrations/20260822100000_stat_fi
 const saturdayQuizReminders = read('supabase/migrations/20260822110000_saturday_quiz_reminders.sql');
 const weeklyQuizRelease = read('supabase/migrations/20260822120000_weekly_quiz_4pm_release.sql');
 const externalQuestionMetadata = read('supabase/migrations/20260822130000_external_question_import_metadata.sql');
+const atomicGameQuestionImport = read('supabase/migrations/20261007100000_atomic_game_question_import.sql');
+const reliableGameQuestionRefresh = read('supabase/migrations/20261007110000_reliable_game_question_refresh.sql');
+const questionImportPanel = read('src/components/QuestionImportPanel.tsx');
 const quizLifecycle = read('supabase/migrations/20260822140000_quiz_lifecycle_startup_and_streak_repairs.sql');
 const authoritativeStreakLifecycle = read('supabase/migrations/20260823100000_authoritative_streak_lifecycle.sql');
 const verifiedStreakRollForward = read('supabase/migrations/20260823110000_roll_verified_streaks_forward.sql');
@@ -103,6 +107,7 @@ const spadesStreakAdvancement = read('supabase/migrations/20260827104000_advance
 const quizRespondersAndMonthlyWatch = read('supabase/migrations/20260829100000_quiz_responders_and_monthly_vallum_watch.sql');
 const instructorApp = read('src/screens/instructor/InstructorApp.tsx');
 const cadetQuiz = read('src/screens/cadet/CadetQuiz.tsx');
+const quizIntegrity = read('src/lib/quizIntegrity.ts');
 const quizResponders = read('src/components/QuizResponders.tsx');
 const weeklyQuizRankings = read('src/components/WeeklyQuizRankings.tsx');
 const roadHomeGame = read('src/screens/cadet/RoadHomeGame.tsx');
@@ -178,6 +183,8 @@ const bulkInstructorResourceGrants = read('supabase/migrations/20261005090338_bu
 const fortuneAndInstructorCompetition = read('supabase/migrations/20261005120000_fortune_and_instructor_competition.sql');
 const instructorBoardsGrantCelebrationsAndVallum = read('supabase/migrations/20261006162107_instructor_boards_grant_celebrations_and_vallum.sql');
 const guaranteedInstructorCampTotals = read('supabase/migrations/20261006184005_guarantee_current_instructor_camp_totals.sql');
+const fastAuthoritativeInstructorCampTotals = read('supabase/migrations/20261006193000_fast_authoritative_instructor_camp_totals.sql');
+const schemaSafeRoleHelpers = read('supabase/migrations/20261006194500_schema_safe_role_helpers.sql');
 const instructorTreasury = read('src/components/InstructorTreasury.tsx');
 const resilientAccountInheritance = read('supabase/migrations/20260908143000_resilient_account_inheritance.sql');
 const guaranteedTentlessTour = read('supabase/migrations/20260909093000_guarantee_tentless_newcomer_tour.sql');
@@ -405,14 +412,12 @@ assert.match(profilePhotoEditor, /createPortal\(dialog, document\.body\)/);
 assert.match(profilePhotoEditor, /type="range"[\s\S]*aria-label="Profile photo zoom"/);
 assert.match(profilePhotoEditor, /context\.drawImage\(/);
 assert.match(profilePhotoEditor, /await uploadAvatar\(profile\.id, file\)/);
-assert.match(profilePhotoEditor, /fetch\(avatarUrl, \{ cache: 'no-store' \}\)/);
+assert.match(profilePhotoEditor, /readableFetch\(avatarUrl, \{ cache: 'no-store' \}\)/);
 assert.match(profilePhotoEditor, /accept="image\/\*,\.heic,\.heif"/);
 assert.match(profilePhotoEditor, /setSavedAvatarUrl\(uploadedUrl\)/);
 assert.match(profilePhotoEditor, /Crop and adjust current profile photo/);
-assert.match(profilePhotoEditor, /imageFileType\(selected\)/);
-assert.match(profilePhotoEditor, /selected\.size > 25 \* 1024 \* 1024/);
-assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
-assert.doesNotMatch(profilePhotoEditor, /prepareImageUpload\(selected/);
+assert.match(profilePhotoEditor, /setCropFile\(await prepareImageForCropping\(selected\)\)/);
+assert.doesNotMatch(profilePhotoEditor, /setCropFile\(selected\)/);
 assert.match(profilePhotoEditor, /event\.currentTarget\.value = ''/);
 assert.match(profilePhotoEditor, /z-\[2147483645\]/);
 assert.doesNotMatch(profilePhotoEditor, /12 \* 1024 \* 1024/);
@@ -487,37 +492,45 @@ for (const file of sourceFiles(path.join(root, 'src'))) {
   const source = fs.readFileSync(file, 'utf8');
   for (const table of sealedTables) {
     const directWrite = new RegExp(
-      `\\.from\\(['\"]${table}['\"]\\)[\\s\\S]{0,240}?\\.(?:insert|update|upsert|delete)\\(`,
+      `\\.from\\(['\"]${table}['\"]\\)[\\s\\S]{0,242}?\\.(?:insert|update|upsert|delete)\\(`,
     );
     assert.ok(!directWrite.test(source), `Direct write to ${table} in ${path.relative(root, file)}`);
   }
 }
 
 const installHandler = serviceWorker.match(/addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
+const startupRelease = appIndex.match(/name="full-circle-release" content="(\d+)"/)?.[1];
+assert.equal(startupRelease, '270', 'Every startup-shell change must advance the Full Circle release.');
 assert.ok(installHandler.includes('skipWaiting'), 'Service worker must activate the repaired release for the next launch.');
 assert.ok(serviceWorker.includes('self.clients.claim()'), 'The repaired worker must replace legacy phone controllers immediately.');
 assert.ok(!installHandler.includes('cache.addAll'), 'Optional shell assets must not make service-worker installation all-or-nothing.');
-assert.match(serviceWorker, /CACHE_VERSION = 'full-circle-target-v170'/);
-assert.match(serviceWorker, /CACHE_STORAGE_VERSION = 'full-circle-target-v170'/);
+assert.ok(serviceWorker.includes(`CACHE_VERSION = 'full-circle-target-v${startupRelease}'`));
+assert.ok(serviceWorker.includes(`CACHE_STORAGE_VERSION = 'full-circle-target-v${startupRelease}'`));
 assert.doesNotMatch(serviceWorker, /ROLLBACK_CACHE_PREFIXES/);
-assert.match(serviceWorker, /RECOVERY_MARKER = '170'/);
-assert.match(serviceWorker, /RELEASE_DOCUMENT_MARKER = '<meta name="full-circle-release" content="170"'/);
-assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 1_200/);
+assert.ok(serviceWorker.includes(`RECOVERY_MARKER = '${startupRelease}'`));
+assert.ok(serviceWorker.includes('MINIMUM_SAFE_RELEASE = 177'));
+assert.ok(177 <= Number(startupRelease), 'The minimum safe worker release cannot exceed the current release.');
+assert.match(serviceWorker, /function releaseDocumentVersion/);
+assert.match(serviceWorker, /NAVIGATION_FALLBACK_DELAY_MS = 2_500/);
 assert.match(serviceWorker, /MOBILE_DATA_FALLBACK_DELAY_MS = 3_000/);
 assert.match(serviceWorker, /response\.clone\(\)\.arrayBuffer\(\)/);
-assert.match(serviceWorker, /cdn\.jsdelivr\.net\/gh\/TNSorganization\/Full-Circle@gh-pages/);
+assert.match(serviceWorker, /cdn\.jsdelivr\.net\/gh\/Partner700\/Fullcircle@main\/dist/);
 assert.match(serviceWorker, /client\.navigate\(target\.href\)/);
 assert.match(serviceWorker, /FULL_CIRCLE_RECOVERY_READY/);
 assert.match(serviceWorker, /async function networkFirstNavigation/);
 assert.match(serviceWorker, /const releaseRequest = isReleaseAssetPath\(requestedPath\) \? scopedUrl\('index\.html'\) : request/);
 assert.match(serviceWorker, /if \(documentRequest\) \{/);
-assert.match(serviceWorker, /html\.includes\(RELEASE_DOCUMENT_MARKER\)/);
+assert.match(serviceWorker, /releaseDocumentVersion\(html\) >= minimumDocumentRelease/);
 assert.match(serviceWorker, /isReleaseAssetPath\(target\.pathname\)/);
 assert.match(serviceWorker, /Promise\.race\(\[networkRequest, fallbackAfterDelay\]\)/);
-assert.match(serviceWorker, /const cached = await cachedAppShell\(\)/);
-assert.match(serviceWorker, /if \(cached\) return cached/);
+assert.match(serviceWorker, /const forceNetwork = isRecoveryNavigation\(request\.url\)/);
+assert.match(serviceWorker, /const fallbackAfterDelay = forceNetwork/);
+assert.match(serviceWorker, /minimumDocumentRelease: Number\(RECOVERY_MARKER\)/);
+assert.match(serviceWorker, /RESET_APP_SHELL/);
+assert.match(serviceWorker, /clearAllFullCircleCaches/);
+assert.doesNotMatch(serviceWorker, /onclick="location\.reload\(\)"/);
 assert.match(serviceWorker, /function fetchReleaseWithFallback/);
-assert.match(serviceWorker, /fetchReleaseWithFallback\(releaseRequest, \{ cache: 'no-store' \}\)/);
+assert.match(serviceWorker, /fetchReleaseWithFallback\(releaseRequest, \{\s*cache: 'no-store'/);
 assert.doesNotMatch(serviceWorker, /refreshInstalledClient/);
 assert.doesNotMatch(serviceWorker, /if \(!installedLaunch && previousWorker === null\) return/);
 assert.match(serviceWorker, /async function cacheFirstAsset/);
@@ -531,70 +544,92 @@ assert.match(serviceWorker, /release-manifest\.json/);
 assert.ok(serviceWorker.includes("addEventListener('fetch'"), 'The app shell must survive an interrupted phone connection.');
 assert.doesNotMatch(installHandler, /clearRetiredFullCircleCaches/);
 assert.ok(!offlinePage.includes('.unregister('), 'The fallback must not unregister the worker that is rescuing the phone.');
-assert.match(offlinePage, /RECOVERY_VERSION = '170'/);
+assert.ok(offlinePage.includes(`RECOVERY_VERSION = '${startupRelease}'`));
 assert.ok(!offlinePage.includes('waitForCurrentController'), 'A delayed service-worker handoff must not trap an online phone.');
 assert.match(offlinePage, /fetch\(new URL\('index\.html\?fc-connectivity=/);
-assert.match(offlinePage, /window\.caches\.match\(indexUrl\)/);
+assert.match(offlinePage, /window\.caches\.match\(indexUrl/);
 assert.match(offlinePage, /window\.location\.replace\(new URL\('\.\/\?fc-recovered=/);
-assert.match(serviceWorkerRegistration, /register\(`\$\{import\.meta\.env\.BASE_URL\}fc-worker\.js\?v=170`/);
+assert.match(offlinePage, /isVerifiedAppShell/);
+assert.match(offlinePage, /clearBrokenShells/);
+assert.ok(serviceWorkerRegistration.includes(`register(\`${'${import.meta.env.BASE_URL}'}fc-worker.js?v=${startupRelease}\``));
 assert.match(serviceWorkerRegistration, /postMessage\(\{ type: 'WARM_APP_SHELL' \}\)/);
-assert.match(staleBundleRecovery, /RELEASE_MARKER = '170'/);
+assert.ok(staleBundleRecovery.includes(`RELEASE_MARKER = '${startupRelease}'`));
 assert.doesNotMatch(staleBundleRecovery, /void reloadFreshApp\(true\)/);
 assert.doesNotMatch(staleBundleRecovery, /raw\.githack\.com/);
 assert.match(staleBundleRecovery, /window\.caches\.delete/);
 assert.match(staleBundleRecovery, /lastRecoveryInMemory/);
-assert.match(releaseCache, /2026-10-06-target-v170/);
-assert.match(releaseCache, /full-circle-target-v170/);
+assert.ok(releaseCache.includes(`2026-10-29-target-v${startupRelease}`));
+assert.ok(releaseCache.includes(`full-circle-target-v${startupRelease}`));
 assert.doesNotMatch(releaseCache, /full-circle-v147-v15[1-9]/);
 assert.match(releaseCache, /mobile privacy mode blocks storage/);
-assert.match(appIndex, /%BASE_URL%manifest\.webmanifest\?v=170/);
-assert.match(appIndex, /href="https:\/\/nffqohxdelaglrmuzjwb\.supabase\.co" crossorigin/);
+assert.ok(appIndex.includes(`%BASE_URL%manifest.webmanifest?v=${startupRelease}`));
+assert.match(appIndex, /href="https:\/\/ovusyeqbmtvfcrlflrbf\.supabase\.co" crossorigin/);
 assert.doesNotMatch(appIndex, /kckzqsafzemeijxfohuy/);
-assert.match(appIndex, /var release = '170'/);
-assert.match(appIndex, /register\('%BASE_URL%fc-worker\.js\?v=170'/);
+assert.ok(appIndex.includes(`var release = '${startupRelease}'`));
+assert.ok(appIndex.includes(`var currentCachePrefix = 'full-circle-target-v${startupRelease}'`));
+assert.ok(appIndex.includes(`register('%BASE_URL%fc-worker.js?v=${startupRelease}'`));
 assert.equal(legacyServiceWorker, serviceWorker, 'The legacy worker URL must install without a second network request.');
 assert.match(appIndex, /__fullCircleBootWatchdog/);
 assert.match(appIndex, /__repairFullCircleBoot/);
 assert.doesNotMatch(appIndex, /registration\.unregister\(\)/);
 assert.match(appIndex, /window\.caches\.delete/);
+assert.match(appIndex, /verifiedNetworkShell/);
+assert.match(appIndex, /force \|\| cacheName\.indexOf\(currentCachePrefix\) !== 0/);
 assert.match(appIndex, /searchParams\.set\(marker, release\)/);
 assert.match(appIndex, /searchParams\.get\(marker\) === release/);
 assert.match(appIndex, /__fullCircleBootRelease/);
 assert.match(appIndex, /__loadFullCircleMirror/);
-assert.match(appIndex, /raw\.githack\.com/);
+assert.match(appIndex, /tnsorganization\.github\.io\/Full-Circle\//);
 assert.match(appIndex, /cdn\.jsdelivr\.net/);
 assert.match(appIndex, /onerror="window\.__loadFullCircleMirror\(this\.src\)"/);
 assert.match(appIndex, /data-fc-boot-shell/);
-assert.match(appIndex, /name="full-circle-release" content="170"/);
-assert.match(appIndex, /data-full-circle-critical-styles="170"/);
+assert.ok(appIndex.includes(`name="full-circle-release" content="${startupRelease}"`));
+assert.ok(appIndex.includes(`data-full-circle-critical-styles="${startupRelease}"`));
 assert.match(appIndex, /html::before\{content:"Opening Full Circle"/);
 assert.match(appIndex, /__markFullCircleStylesReady/);
 assert.match(appIndex, /__loadFullCircleStyleMirror/);
 assert.match(appIndex, /__showFullCircleRecovery/);
 assert.match(postbuildScript, /data-full-circle-release-styles/);
 assert.match(postbuildScript, /__loadFullCircleMirror/);
-assert.match(builtAppIndex, /<link rel="stylesheet" href="\.\/full-circle-release\.css\?v=170" data-full-circle-release-styles="true"/);
+assert.ok(builtAppIndex.includes(`<link rel="stylesheet" href="./full-circle-release.css?v=${startupRelease}" data-full-circle-release-styles="true"`));
 assert.doesNotMatch(builtAppIndex, /<style data-full-circle-release-styles="true">/);
 assert.ok(Buffer.byteLength(builtAppIndex) < 40_000, 'index.html must stay compact enough for weak mobile connections.');
-assert.match(read('dist/full-circle-release.css'), /--full-circle-release-style:"170"/);
-assert.match(read('src/main.tsx'), /RELEASE_STYLE_MARKER = '170'/);
+assert.ok(read('dist/full-circle-release.css').includes(`--full-circle-release-style:"${startupRelease}"`));
+assert.match(postbuildScript, /relocatedCss/);
+assert.match(read('dist/full-circle-release.css'), /url\(\.\/assets\/nunito-latin-wght-normal-[^)]+\.woff2\)/);
+assert.match(read('dist/full-circle-release.css'), /url\(\.\/assets\/baloo-2-latin-wght-normal-[^)]+\.woff2\)/);
+assert.ok(read('src/main.tsx').includes(`RELEASE_STYLE_MARKER = '${startupRelease}'`));
 assert.match(read('src/main.tsx'), /fullcircle:styles-ready/);
 assert.match(serviceWorker, /await validReleaseResponse\(response, scopedUrl\('index\.html'\)\)/);
 assert.match(serviceWorker, /safeAppNavigationUrl\(urlToOpen\)/);
 assert.match(serviceWorker, /'full-circle-release\.css'/);
-assert.doesNotMatch(appIndex, /rel="preload" as="style" href="https:\/\/fonts\.googleapis\.com/);
-assert.match(appIndex, /data-full-circle-fonts/);
+assert.doesNotMatch(appIndex, /fonts\.(?:googleapis|gstatic)\.com/);
+assert.doesNotMatch(builtAppIndex, /fonts\.(?:googleapis|gstatic)\.com/);
+assert.match(indexCss, /--font-body: 'Nunito'/);
+assert.match(indexCss, /--font-display: 'Baloo 2', 'Nunito'/);
+assert.match(indexCss, /@font-face \{[\s\S]{0,250}?font-family: 'Nunito'[\s\S]{0,250}?nunito-latin-wght-normal\.woff2/);
+assert.match(indexCss, /@font-face \{[\s\S]{0,250}?font-family: 'Baloo 2'[\s\S]{0,250}?baloo-2-latin-wght-normal\.woff2/);
+assert.match(indexCss, /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6[\s\S]{0,120}?font-family: var\(--font-display\)/);
+assert.match(indexCss, /\.font-display \{\s*font-family: var\(--font-display\) !important/);
+assert.equal(fs.readFileSync(path.join(root, 'src/assets/fonts/nunito-latin-wght-normal.woff2')).subarray(0, 4).toString(), 'wOF2');
+assert.equal(fs.readFileSync(path.join(root, 'src/assets/fonts/baloo-2-latin-wght-normal.woff2')).subarray(0, 4).toString(), 'wOF2');
+assert.match(read('src/assets/fonts/OFL.txt'), /SIL OPEN FONT LICENSE Version 1\.1/);
+assert.match(read('public/fonts/OFL.txt'), /SIL OPEN FONT LICENSE Version 1\.1/);
+assert.match(read('dist/fonts/OFL.txt'), /SIL OPEN FONT LICENSE Version 1\.1/);
+assert.match(indexCss, /html \{[\s\S]{0,160}?font-family: var\(--font-body\)/);
+assert.match(read('tailwind.config.js'), /display: \['var\(--font-display\)'\]/);
+assert.match(read('tailwind.config.js'), /sans: \['var\(--font-body\)'\]/);
 assert.match(builtAppIndex, /onerror="window\.__loadFullCircleMirror\(this\.src\)"/);
 assert.match(offlinePage, /failedRecoveryAttempts >= 2/);
 assert.doesNotMatch(offlinePage, /Open Mobile-Data Copy|raw\.githack\.com/);
-assert.match(read('public/manifest.webmanifest'), /"start_url": "\.\/\?fc-launch=170"/);
+assert.ok(read('public/manifest.webmanifest').includes(`"start_url": "./?fc-launch=${startupRelease}"`));
 assert.match(read('public/manifest.webmanifest'), /"prefer_related_applications": false/);
 assert.match(environmentExample, /VITE_SUPABASE_URL=https:\/\/your-project-ref\.supabase\.co/);
 assert.match(environmentExample, /VITE_SUPABASE_ANON_KEY=sb_publishable_your_project_key/);
 assert.doesNotMatch(environmentExample, /kckzqsafzemeijxfohuy|eyJhbGciOi/);
 assert.match(instructorApp, /\$\{supabaseUrl\}\/functions\/v1\/campay-webhook/);
 assert.doesNotMatch(instructorApp, /kckzqsafzemeijxfohuy/);
-assert.match(supabaseClient, /export const supabaseUrl = 'https:\/\/nffqohxdelaglrmuzjwb\.supabase\.co'/);
+assert.match(supabaseClient, /export const supabaseUrl = 'https:\/\/ovusyeqbmtvfcrlflrbf\.supabase\.co'/);
 assert.match(supabaseClient, /export const supabaseAnonKey = 'sb_publishable_/);
 assert.doesNotMatch(supabaseClient, /import\.meta\.env\.VITE_SUPABASE/);
 assert.doesNotMatch(quoteQueries, /import\.meta\.env\.VITE_SUPABASE/);
@@ -644,6 +679,51 @@ assert.match(externalQuestionMetadata, /ADD COLUMN IF NOT EXISTS scripture_refer
 assert.match(externalQuestionMetadata, /public\.is_instructor\(auth\.uid\(\)\)/);
 assert.match(externalQuestionMetadata, /jsonb_array_elements_text\(coalesce\(v_question\.accepted_answers/);
 assert.match(externalQuestionMetadata, /REVOKE ALL ON FUNCTION public\.daily_game_answer_is_correct/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.import_custom_game_questions(p_questions jsonb)',
+  "SET search_path = ''",
+  'FROM public.role_assignments assignment',
+  'jsonb_array_length(p_questions) NOT BETWEEN 1 AND 300',
+  'octet_length(p_questions::text) > 2000000',
+  'pg_advisory_xact_lock',
+  'FROM public.daily_narratives narrative',
+  'FROM public.custom_questions existing',
+  "'external import'",
+  'REVOKE ALL ON FUNCTION public.import_custom_game_questions(jsonb) FROM PUBLIC, anon',
+  'GRANT EXECUTE ON FUNCTION public.import_custom_game_questions(jsonb) TO authenticated',
+]) {
+  assert.ok(atomicGameQuestionImport.includes(required), `Missing atomic game-question import safeguard: ${required}`);
+}
+assert.doesNotMatch(atomicGameQuestionImport, /existing\.instructor_id = v_user_id/);
+assert.equal((atomicGameQuestionImport.match(/\$\$/g) || []).length % 2, 0);
+assert.match(quoteQueries, /supabase\.rpc\('import_custom_game_questions', \{ p_questions: payload \}\)/);
+assert.match(quoteQueries, /importCustomGameQuestions[\s\S]*supabase\.auth\.refreshSession\(\)/);
+assert.doesNotMatch(quoteQueries, /insertCustomQuestions/);
+assert.match(instructorApp, /const importedCount = await importCustomGameQuestions\(rowsToInsert\)/);
+assert.doesNotMatch(instructorApp, /fetchCustomGameQuestionsForNarrative/);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_instructor_custom_game_questions(',
+  'SECURITY INVOKER',
+  "SET search_path = ''",
+  'public.is_instructor(v_user_id)',
+  'p_level NOT BETWEEN 1 AND 7',
+  'FROM public.custom_questions question',
+  'LIMIT 500',
+  'REVOKE ALL ON FUNCTION public.get_instructor_custom_game_questions(integer, date, boolean)',
+  'GRANT EXECUTE ON FUNCTION public.get_instructor_custom_game_questions(integer, date, boolean)',
+]) {
+  assert.ok(reliableGameQuestionRefresh.includes(required), `Missing reliable game-question refresh safeguard: ${required}`);
+}
+assert.match(quoteQueries, /fetchCustomGameQuestions[\s\S]*supabase\.rpc\('get_instructor_custom_game_questions'/);
+assert.match(quoteQueries, /get_instructor_custom_game_questions[\s\S]*supabase\.auth\.refreshSession\(\)/);
+assert.match(instructorApp, /Promise\.allSettled\(\[[\s\S]*fetchNarratives\(60, true\)[\s\S]*fetchCustomGameQuestions/);
+assert.match(instructorApp, /const focusDate = firstQuestion\.narrativeDate \|\| selectedNarrativeDate/);
+assert.match(instructorApp, /setSelectedNarrativeDate\(focusDate\)[\s\S]*setSelectedLevel\(focusLevel\)[\s\S]*setSelectedRound\('all'\)/);
+assert.match(instructorApp, /The questions were saved, but the list could not refresh/);
+assert.match(instructorApp, /rows\.length === 0 && !loadError/);
+assert.match(instructorApp, /Retry list/);
+assert.match(instructorApp, /const load = useCallback\(async \(\) => \{[\s\S]*?Promise\.allSettled[\s\S]*?setLoadError\(errors\.length > 0 \? errors\.join\(' '\) : null\);/);
+assert.match(questionImportPanel, /noticeTone === 'error' \? 'alert' : 'status'/);
 assert.match(orderedAnswersAndMarketContinuity, /CREATE OR REPLACE FUNCTION public\.normalize_order_sequence_answer/);
 assert.match(orderedAnswersAndMarketContinuity, /IF v_type = 'order_sequence'/);
 assert.match(orderedAnswersAndMarketContinuity, /CREATE OR REPLACE FUNCTION public\.quiz_answer_is_correct/);
@@ -689,8 +769,15 @@ for (const required of [
   assert.ok(cadetQuiz.includes(required), `Missing resilient quiz client behavior: ${required}`);
 }
 assert.match(cadetQuiz, /forfeitQuizAttemptOnExit/);
-assert.match(cadetQuiz, /window\.addEventListener\('pagehide', forfeitOnExit\)/);
+assert.match(cadetQuiz, /wakeLock\.request\('screen'\)/);
+assert.match(cadetQuiz, /window\.addEventListener\(ACTIVE_QUIZ_EXIT_INTENT_EVENT, forfeitOnExit\)/);
 assert.match(cadetQuiz, /document\.addEventListener\('visibilitychange', forfeitWhenHidden\)/);
+assert.doesNotMatch(cadetQuiz, /window\.addEventListener\('pagehide', forfeitOnExit\)/);
+assert.doesNotMatch(cadetQuiz, /document\.removeEventListener\('visibilitychange', forfeitWhenHidden\);\s*forfeitOnExit\(\)/);
+assert.match(quizIntegrity, /full-circle:active-quiz-exit-intent/);
+assert.match(appShell, /signalQuizExitFor\(key\)/);
+assert.match(cadetApp, /tab === 'quiz' && k !== 'quiz'/);
+assert.match(sentryApp, /tab === 'quiz' && next !== 'quiz'/);
 assert.match(appErrorBoundary, /window\.addEventListener\('online', this\.retryAfterResume\)/);
 assert.match(appErrorBoundary, /document\.addEventListener\('visibilitychange', this\.retryAfterResume\)/);
 assert.match(authoritativeStreakLifecycle, /CREATE OR REPLACE FUNCTION public\.streak_day_is_restored/);
@@ -817,7 +904,8 @@ assert.match(authContext, /Account creation',/);
 assert.match(authContext, /Account setup',/);
 assert.match(authContext, /Primary account setup failed; trying profile bootstrap/);
 assert.match(authContext, /profileRef\.current\?\.id === userId/);
-assert.match(authContext, /supabase\.auth\.resend\(\{ type: 'signup', email: normalizedEmail \}\)/);
+assert.match(authContext, /supabase\.auth\.resend\(\{/);
+assert.match(authContext, /emailRedirectTo: emailConfirmationRedirectUrl\(\)/);
 assert.match(rootApp, /<AuthScreen[\s\S]*initialMode="signin"/);
 assert.match(authScreen, /initialMode = 'signin'/);
 assert.match(authScreen, /<form[\s\S]*noValidate/);
@@ -830,7 +918,7 @@ assert.match(appContinuity, /fc-app-continuity-/);
 assert.match(appContinuity, /excludedTabs\.includes\(tab\)/);
 assert.match(appShell, /persistContinuedScroll/);
 assert.match(appShell, /document\.visibilityState === 'hidden'/);
-assert.match(cadetNarrative, /readReadingDraft\(profile\.id, activeDate\)/);
+assert.match(cadetNarrative, /readReadingDraft\(profileId, activeDate\)/);
 assert.match(cadetNarrative, /writeReadingDraft\(profile\.id, activeDate, draftSnapshotRef\.current\)/);
 assert.match(cadetNarrative, /document\.addEventListener\('visibilitychange', persistWhenHidden\)/);
 assert.doesNotMatch(cadetNarrative, /drafts\[item\.verse_reference\] = item\.body/);
@@ -865,7 +953,7 @@ assert.match(persistentBoardMovements, /timezone\('Africa\/Douala', now\(\)\)::d
 assert.match(cadetLeaderboard, /get_competitive_board_movements/);
 assert.match(cadetLeaderboard, /rowsFromBoardPayload/);
 assert.match(cadetLeaderboard, /resolveBoardMovement/);
-assert.match(cadetLeaderboard, /useState<BoardTab>\('streak'\)/);
+assert.match(cadetLeaderboard, /useState<BoardTab>\(\(\) => instructorMode \? 'instructor_narratives' : 'streak'\)/);
 assert.match(cadetLeaderboard, /Streak board recovery/);
 assert.match(cadetLeaderboard, /streakRowsWithHistory\.length === 0/);
 assert.match(boardMovementResolver, /if \(current > previous\) return 1/);
@@ -895,7 +983,8 @@ assert.match(scriptureInsightReactions, /REVOKE ALL ON TABLE public\.scripture_i
 assert.ok(!cadetDashboard.includes('setHeroIndex(0)'), 'Cadet background refresh must not reset the slideshow.');
 assert.ok(!sentryApp.includes('setQuoteIndex(0)'), 'Sentry background refresh must not reset the slideshow.');
 assert.ok(!cadetApp.includes('fetchLedgerTotal'), 'Cadet toolbar refresh must not duplicate the reliable balance request.');
-assert.ok(!cadetApp.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
+const cadetToolbarRefresh = cadetApp.slice(cadetApp.indexOf('const loadToolbarStats ='), cadetApp.indexOf('const refreshWallet ='));
+assert.ok(!cadetToolbarRefresh.includes('fetchStrictStreak'), 'Cadet toolbar refresh must not duplicate the reliable streak request.');
 assert.match(cadetApp, /toolbarRequestRef/);
 assert.match(cadetApp, /notificationRefreshQueuedRef/);
 assert.match(cadetDashboard, /fetchNarrative\(today\)\.then\(\(narrative\) =>/);
@@ -963,7 +1052,7 @@ assert.match(directMessageNotifications, /AFTER INSERT ON public\.direct_message
 assert.match(directMessageNotifications, /'direct_message'/);
 assert.match(quoteQueries, /\.from\('daily_quote_comments'\)/);
 assert.match(quoteReactions, /previewLimit = 2/);
-assert.match(quoteReactions, /previewComments = comments\.slice\(0, Math\.max\(0, previewLimit\)\)/);
+assert.match(quoteReactions, /previewComments = scrollableCommentPreview \? comments : comments\.slice\(0, Math\.max\(0, previewLimit\)\)/);
 assert.match(toolbarStats, /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats\(\)/);
 assert.match(read('supabase/migrations/20260816090000_versioned_toolbar_stats.sql'), /CREATE OR REPLACE FUNCTION public\.get_my_toolbar_stats_v2\(\)/);
 assert.match(toolbarStats, /SECURITY DEFINER/);
@@ -1521,11 +1610,19 @@ assert.match(instructorApp, /<DoveNotificationArrival/);
 
 for (const required of [
   "supabase.rpc('get_current_avatar_awards')",
+  "from('awards')",
+  'loadStandingAwardsDirectly',
+  "award_type.ilike.%vallum%",
   'award.cadence === \'monthly\'',
+  'full-circle-standing-avatar-awards',
   'full-circle-standing-avatar-awards-target-v2',
   'hydrateCachedAwards',
   'persistCurrentAwards',
   'mergeVerifiedStandingAwards',
+  'useSyncExternalStore',
+  'window.sessionStorage',
+  'visibilitychange',
+  'Restore the last verified holders before the first avatar is rendered.',
   "(['vallum', 'centurion'] as const)",
   'left-0 top-0',
   '<AwardBadgeGlyph',
@@ -1533,10 +1630,21 @@ for (const required of [
 ]) {
   assert.ok(vallumAvatarBadge.includes(required), `Missing prioritized avatar award badge behavior: ${required}`);
 }
-assert.match(chiRhoMark, /fc-chi-rho-fallback/);
-assert.match(chiRhoMark, /fc-chi-rho-mask/);
+assert.match(chiRhoMark, /fc-chi-rho-glyph/);
+assert.match(chiRhoMark, /viewBox="0 0 160 160"/);
+assert.match(chiRhoMark, /fill="currentColor"/);
+assert.match(chiRhoMark, /fillRule="evenodd"/);
+assert.equal((chiRhoMark.match(/<path\b/g) || []).length, 1, 'The Vallum mark must have one visible glyph.');
+const originalLabarumPath = chiRhoMark.match(/const LABARUM_PATH = \[([\s\S]*?)\]\.join\(''\)/)?.[1];
+assert.ok(originalLabarumPath, 'The original Vallum outline must be bundled with the component.');
+const originalLabarumSegments = [...originalLabarumPath.matchAll(/'([^']*)'/g)].map((match) => match[1]).join('');
+assert.equal(createHash('sha256').update(originalLabarumSegments).digest('hex'), 'ea3bcb2179ca60fa8e6f99f60dc44ddb002820aecc04c5c4b1d817ff9f100f65');
+assert.doesNotMatch(chiRhoMark, /stroke="currentColor"|fc-chi-rho-fallback/);
+assert.doesNotMatch(chiRhoMark, /publicAsset|mask:/);
 assert.match(userAvatar, /<VallumAvatarBadge userId=\{userId\}/);
 assert.match(userAvatar, /showAwardBadge = true/);
+assert.match(indexCss, /\.full-circle-user-avatar-award-enabled \{[\s\S]{0,100}?overflow: visible !important/);
+assert.match(indexCss, /\.full-circle-avatar-award-badge \{[\s\S]{0,180}?visibility: visible !important/);
 assert.match(boardRow, /<MessageAvatar/);
 for (const file of sourceFiles(path.join(root, 'src'))) {
   if (file.endsWith(`${path.sep}UserAvatar.tsx`)) continue;
@@ -1550,7 +1658,7 @@ for (const required of [
   'function ArenaBattleBoard',
   'const rollDie = useCallback',
   '!activeQuestion || !questionOpen',
-  '<ArenaWaitingChat roomId={roomId} userId={userId} compact',
+  '<ArenaRoomChat roomId={roomId} userId={userId} compact',
   'aria-label="Arena question"',
 ]) {
   assert.ok(cadetArena.includes(required), `Missing board-first Arena behavior: ${required}`);
@@ -1617,9 +1725,10 @@ assert.doesNotMatch(fastMemberStats, /get_marks_board_live/);
 assert.match(weekDayReminderLabel, /WHEN 'midday_reminder' THEN 'Week-day reminder'/);
 assert.match(cadetDashboard, /announcement_type === 'midday_reminder' \? 'Week-day reminder'/);
 assert.match(cadetDashboard, /announcement_type === 'midday_reminder' \? 'day'/);
-assert.match(hiddenChallengeStatus, /setPointerCapture/);
+const draggableShortcut = read('src/hooks/useDraggableShortcut.ts');
+assert.match(draggableShortcut, /setPointerCapture/);
 assert.match(hiddenChallengeStatus, /full-circle-hidden-item-position/);
-assert.match(hiddenChallengeStatus, /Math\.hypot\(dx, dy\) > 6/);
+assert.match(draggableShortcut, /Math\.hypot\(dx, dy\) > 6/);
 assert.match(appShell, /className="weekly-app-background fixed z-0"/);
 assert.match(indexCss, /\.weekly-app-background-image \{\s*filter: brightness\(1\.72\)/);
 assert.match(cadetApp, /<ChiRhoMark size=\{14\}/);
@@ -1629,7 +1738,7 @@ assert.match(cadetSettings, /rhudes: live\.rhudes, marks: live\.marks/);
 assert.match(sentryApp, /sentryMarks\.toLocaleString/);
 assert.match(cadetDashboard, /max-h-\[66\.666svh\]/);
 assert.match(cadetDashboard, /previewLimit=\{1\}/);
-assert.match(quoteReactions, /line-clamp-1/);
+assert.match(quoteReactions, /line-clamp-2/);
 assert.match(relativeTime, /formatRelativeActivityTime/);
 assert.match(quoteReactions, /<RelativeTime value=\{comment\.created_at\}/);
 assert.match(cadetNarrative, /<RelativeTime value=\{comment\.created_at\}/);
@@ -1659,7 +1768,7 @@ assert.match(scrollBoundaryFades, /SCROLL_SELECTOR = '\.overflow-y-auto/);
 assert.match(scrollBoundaryFades, /scroll-fade-bottom/);
 assert.match(rootApp, /useScrollBoundaryFades\(\)/);
 assert.doesNotMatch(quoteReactions, /disabled=\{disabled \|\| data\.reacted\}/);
-assert.match(roadHomeGame, /<ArenaMatchChat roomId=\{roomId\} userId=\{userId\} \/>/);
+assert.match(roadHomeGame, /\{spectator && \([\s\S]*?<ArenaWitnessChatDrawer[\s\S]*?allowGameCalls=\{spectatorCanChallenge\}/);
 assert.doesNotMatch(roadHomeGame, /OpponentPlayFeed|function EventLog/);
 assert.match(chiRhoMark, /size \* 0\.34/);
 
@@ -1744,7 +1853,7 @@ for (const required of [
 assert.match(quoteQueries, /sentry_assign_cadet_to_tent/);
 assert.match(quoteQueries, /receipt\.tent_id !== tentId/);
 assert.match(quoteQueries, /get_my_tent_context/);
-assert.match(sentryApp, /sentryAddCadetToTent\(tentId, confirmCadet\.user_id\)/);
+assert.doesNotMatch(sentryApp, /sentryAddCadetToTent|reviewTentJoinRequest/);
 assert.match(cadetApp, /fetchOwnTentContext\(\)/);
 
 for (const required of [
@@ -1835,8 +1944,9 @@ for (const required of [
   assert.ok(accurateAlarmsAndStreakReconciliation.includes(required), `Missing reliable alarm/streak safeguard: ${required}`);
 }
 assert.doesNotMatch(accurateAlarmsAndStreakReconciliation, /UPDATE public\.daily_records/);
-assert.match(quoteReactions, /quote-comments-boundary-fade[\s\S]*?data-no-scroll-fade/);
-assert.match(indexCss, /\.quote-comments-boundary-fade[\s\S]*?mask-image/);
+assert.match(quoteReactions, /max-h-24 overflow-y-auto overscroll-contain/);
+assert.match(quoteReactions, /max-h-\[min\(42svh,22rem\)\]/);
+assert.doesNotMatch(quoteReactions, /quote-comments-boundary-fade/);
 assert.doesNotMatch(cadetTent, /disabled=\{reactingTo === m\.user_id \|\| reacted\}/);
 assert.match(cadetTent, /disabled=\{reactingTo === m\.user_id\}/);
 
@@ -1977,33 +2087,34 @@ assert.doesNotMatch(contextualAllMentions, /TG_TABLE_NAME IN \('direct_messages'
 assert.match(tentMessenger, /<RelativeTime value=\{m\.created_at\}/);
 assert.match(tentMessenger, /<RelativeTime value=\{message\.created_at\}/);
 assert.match(quoteReactions, /Mention everyone in Full Circle/);
-assert.match(quoteReactions, /comments\.length > 0 && 'quote-comments-boundary-fade max-h-72 pb-24'/);
-assert.match(cadetDashboard, /min\(82svh, calc\(100dvh - 7rem\)\)/);
+assert.match(quoteReactions, /commentInputRef/);
+assert.match(cadetDashboard, /scrollableCommentPreview/);
+assert.match(cadetDashboard, /min\(70svh, calc\(100dvh - 7rem\)\)/);
 assert.match(cadetDashboard, /height: conversationOpen \? panelMaxHeight : undefined/);
+assert.match(cadetDashboard, /quote-glass-panel-conversation/);
+assert.match(cadetDashboard, /!conversationOpen && \(/);
+assert.doesNotMatch(cadetDashboard, /conversationOpen && 'min-h-full'/);
+assert.match(quoteReactions, /commentsPanelRef/);
+assert.match(quoteReactions, /scrollIntoView\(\{ block: 'start', inline: 'nearest' \}\)/);
+assert.match(quoteReactions, /aria-expanded=\{showComments\}/);
+assert.match(indexCss, /\.quote-glass-artwork[\s\S]*?z-index: 0/);
+assert.match(indexCss, /\.quote-glass-content[\s\S]*?z-index: 2[\s\S]*?translateZ\(1px\)/);
+assert.match(indexCss, /\.quote-glass-panel-conversation[\s\S]*?transform: none/);
 assert.match(confirmedPresenceStreak, /coalesce\(record\.attendance_status, 'unmarked'\) = 'present'\s+OR EXISTS/);
 assert.match(confirmedPresenceStreak, /v_affected_date date := date '2026-09-08'/);
 assert.match(confirmedPresenceStreak, /AND public\.streak_requirement_met\(v_ph_id, v_affected_date\)/);
 assert.match(confirmedPresenceStreak, /record\.record_date >= date '2026-09-08'/);
 assert.match(confirmedPresenceStreak, /SELECT public\.refresh_all_streak_snapshots\(\)/);
-assert.match(cadetTent, /data-guide-tent-choice=\{joinable \? 'directed' : undefined\}/);
-assert.match(cadetTent, /item\.member_count >= TENT_MEMBER_CAPACITY/);
-assert.match(cadetTent, /\{item\.member_count\}\/\{TENT_MEMBER_CAPACITY\} people/);
-assert.match(cadetTent, /fetchTentJoinDirections\(profile\.id\)/);
-assert.match(cadetTent, /fetchDefaultTentJoinDirection\(\)/);
-assert.match(cadetTent, /tent_join_guidance_settings/);
-assert.match(cadetTent, /directedTentId !== tentId/);
-assert.match(newcomerGuide, /Your instructor selected your available tent/);
-assert.match(instructorApp, /Camp-wide tour tent/);
-assert.match(instructorApp, /setDefaultTentJoinDirection\(tentId\)/);
-assert.match(instructorApp, /setTentJoinDirection\(userId, tentId\)/);
-assert.match(instructorApp, /Personal overrides remain available below/);
+assert.match(cadetTent, /get_tent_join_options/);
+assert.match(cadetTent, /join_eligible_tent/);
+assert.doesNotMatch(cadetTent, /request_to_join_tent|directedTentId/);
+assert.doesNotMatch(newcomerGuide, /Your instructor selected your available tent/);
+assert.doesNotMatch(instructorApp, /setDefaultTentJoinDirection|setTentJoinDirection|TentJoinRequests/);
 assert.match(cadetNarrative, /data-guide="best-verse"/);
 assert.match(cadetNarrative, /data-guide="daily-meditation"/);
 assert.match(cadetNarrative, /data-guide="daily-quote"/);
 assert.match(notificationArrival, /isTentJoinRequestArrival/);
-assert.match(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
-assert.match(doveNotificationArrivalComponent, /\} Accept/);
-assert.match(indexCss, /quote-comments-boundary-fade[\s\S]*?100% - 6rem/);
+assert.doesNotMatch(doveNotificationArrivalComponent, /reviewTentJoinRequest/);
 
 for (const required of [
   'CREATE TABLE IF NOT EXISTS public.streak_forward_baselines',
@@ -2152,10 +2263,46 @@ assert.match(guaranteedInstructorCampTotals, /sum\(component\.total_figs\)/);
 assert.match(guaranteedInstructorCampTotals, /REVOKE ALL ON FUNCTION public\.get_current_instructor_camp_totals\(\) FROM PUBLIC, anon/);
 assert.match(cadetLeaderboard, /get_current_instructor_camp_totals/);
 assert.match(cadetLeaderboard, /buildInstructorFallbackBoards\(fallbackRows, memberRows, profile\)/);
+assert.match(cadetLeaderboard, /useState<BoardAudience>\(\(\) => instructorMode \? 'instructor' : 'cadet'\)/);
+assert.match(cadetLeaderboard, /loadsInFlightRef = useRef<Set<BoardAudience>>\(new Set\(\)\)/);
+assert.match(cadetLeaderboard, /loadsInFlightRef\.current\.has\(requestedAudience\)/);
+assert.match(cadetLeaderboard, /readCachedInstructorBoards\(profile\?\.id\)/);
+assert.match(cadetLeaderboard, /writeCachedInstructorBoards\(profile\?\.id, boards\)/);
+assert.ok(
+  cadetLeaderboard.indexOf("supabase.rpc('get_current_instructor_camp_totals')")
+    < cadetLeaderboard.indexOf('const movementResult = await movementRequest'),
+  'Current instructor totals must render before movement history is awaited.',
+);
+for (const required of [
+  'CREATE OR REPLACE FUNCTION public.get_current_instructor_camp_totals()',
+  'wallet_totals AS MATERIALIZED',
+  'qualifying_denarii_totals AS MATERIALIZED',
+  'streak_totals AS MATERIALIZED',
+  'rhude_totals AS MATERIALIZED',
+  'quiz_attempt_figs AS MATERIALIZED',
+  'fig_totals AS MATERIALIZED',
+  'totals.member_marks + totals.narratives + totals.residents * 5',
+  'REVOKE ALL ON FUNCTION public.get_current_instructor_camp_totals() FROM PUBLIC, anon',
+  'GRANT EXECUTE ON FUNCTION public.get_current_instructor_camp_totals() TO authenticated, service_role',
+]) {
+  assert.ok(fastAuthoritativeInstructorCampTotals.includes(required), `Missing fast instructor-total safeguard: ${required}`);
+}
+assert.doesNotMatch(fastAuthoritativeInstructorCampTotals, /get_member_mark_components/);
+for (const helperName of ['get_user_active_role', 'is_instructor', 'is_sentry', 'get_user_tent_id']) {
+  assert.match(schemaSafeRoleHelpers, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${helperName}\\(`));
+}
+assert.equal(
+  (schemaSafeRoleHelpers.match(/SET search_path = ''/g) || []).length,
+  4,
+  'Every shared role helper must pin an empty search path.',
+);
+assert.match(schemaSafeRoleHelpers, /FROM public\.role_assignments assignment/);
+assert.match(schemaSafeRoleHelpers, /FROM public\.tent_members member/);
+assert.doesNotMatch(schemaSafeRoleHelpers, /FROM role_assignments|FROM tent_members/);
 assert.match(instructorBoardsGrantCelebrationsAndVallum, /GRANT EXECUTE ON FUNCTION public\.get_current_avatar_awards\(\) TO anon, authenticated, service_role/);
 assert.match(calendarUtilities, /FULL_CIRCLE_WHATSAPP_CONTACT = '\+237683081463'/);
 assert.match(fcxExperience, /whatsappUrl\(FULL_CIRCLE_WHATSAPP_CONTACT\)/);
-assert.match(cadetStore, /whatsappUrl\(FULL_CIRCLE_WHATSAPP_CONTACT\)/);
+assert.match(cadetStore, /<FcxFapshiCheckout/);
 assert.doesNotMatch(fcxExperience, /fetchFcxTicketContact/);
 assert.doesNotMatch(cadetStore, /fetchFcxTicketContact/);
 
@@ -2193,7 +2340,7 @@ for (const required of [
 for (const required of [
   'fetchProfileCv(targetId)',
   'Full Circle Profile',
-  'Valediction marks',
+  'Lifetime individual honors earned',
   'Days the Bible has been read consistently',
   'Bible questions answered correctly',
   'Bible duels won',
@@ -2206,7 +2353,9 @@ assert.match(authenticatedOverlays, /<ProfileCvHost\s*\/?>/);
 assert.match(profileCvModal, /profile-cv-overlay[^\n]*items-center justify-center/);
 assert.match(profileCvModal, /icon=\{Flame\} label="Streak"/);
 assert.match(profileCvModal, /icon=\{BadgeCheck\} label="Figs"/);
-assert.match(profileCvModal, /icon=\{ChiRhoMark\} label="Marks"/);
+assert.match(profileCvModal, /<ChiRhoMark size=\{14\}/);
+assert.match(profileCvModal, /icon=\{Award\} label="Awards"/);
+assert.doesNotMatch(profileCvModal, /label="Marks"/);
 assert.match(profileCvModal, /data\.completed_challenges/);
 assert.match(profileCvModal, /fetchPanelImageSetting\('profile'\)/);
 assert.match(instructorApp, /panel_image_profile', label: 'Member Profile'/);
@@ -2404,7 +2553,7 @@ assert.match(birthdayReactions, /searchParams\.set\('share', 'birthday'\)/);
 assert.match(birthdayApi, /get_public_birthday_announcement/);
 assert.match(publicShareScreen, /kind === 'birthday'/);
 assert.match(cadetStore, /Full Circle Experience Ticket/);
-assert.match(cadetStore, /I want to pay for the Full Circle Experience \(FCX\)/);
+assert.match(cadetStore, /ticket_price_xaf\?\.toLocaleString/);
 assert.match(cadetStore, /refreshMutableStoreState/);
 assert.match(cadetStore, /Purchase complete\. Your relic has been added to your inventory\./);
 assert.doesNotMatch(cadetStore, /Payment was not confirmed within 35 seconds\. No relic was added/);
@@ -2421,7 +2570,7 @@ assert.equal((cadetDashboard.match(/loadCommentPreview=\{isDisplayedSlide\}/g) |
 assert.match(nonBlockingErrorBoundary, /reportClientError\(error, errorInfo\.componentStack/);
 assert.match(appErrorBoundary, /reportClientError\(error, errorInfo\.componentStack, 'app-boundary'\)/);
 assert.match(appErrorBoundary, /reloadFreshApp\(\)/);
-assert.match(clientErrorReporting, /CLIENT_RELEASE = '2026-10-06-target-v170'/);
+assert.ok(clientErrorReporting.includes(`CLIENT_RELEASE = '2026-10-29-target-v${startupRelease}'`));
 assert.match(clientErrorReporting, /report_client_error/);
 assert.match(clientErrorReportsMigration, /CREATE TABLE IF NOT EXISTS public\.client_error_reports/);
 assert.match(clientErrorReportsMigration, /public\.is_instructor\(auth\.uid\(\)\)/);
@@ -2536,7 +2685,7 @@ assert.match(instructorApp, /const TENT_CADET_CAPACITY = 10/);
 assert.match(instructorApp, /member\.role === 'cadet'/);
 assert.match(instructorApp, /sentry assigned separately/);
 assert.doesNotMatch(instructorApp, /const TENT_PERSON_CAPACITY/);
-assert.match(quoteReleaseTime, /Africa\/Douala/);
+assert.match(quoteReleaseTime, /regionalDateTime\(quote\.released_at, profile\)/);
 assert.match(quoteReleaseTime, /text-\[8px\]/);
 assert.match(cadetDashboard, /<QuoteReleaseTime quote=\{slide\.quote\}/);
 assert.match(instructorApp, /<QuoteReleaseTime quote=\{featuredQuote\}/);
@@ -2567,9 +2716,8 @@ assert.match(calendarUtilities, /visibleStreakFreezersForCurrentWeek/);
 assert.match(calendarUtilities, /activityDate >= weekStart && activityDate <= today/);
 assert.match(cadetNarrative, /ReadingArchiveBrowser[\s\S]*image=\{readingImage\}/);
 assert.match(cadetNarrative, /No reading published[\s\S]*PanelImageBackdrop/);
-assert.match(fcxExperience, /aria-label="Pay for the Full Circle Experience"/);
-assert.match(fcxExperience, /CircleDollarSign size=\{16\}/);
-assert.match(fcxExperience, />Pay<\/span>/);
+assert.match(read("src/components/FcxFapshiCheckout.tsx"), /Buy FCX ticket for/);
+assert.match(fcxExperience, /ticket_price_xaf\?\.toLocaleString\('en-US'\)\}frs/);
 assert.match(fcxExperience, /aria-label="Ask about the Full Circle Experience"/);
 assert.match(fcxExperience, /MessageCircle size=\{16\}/);
 assert.match(fcxExperience, />Ask<\/span>/);
@@ -2589,7 +2737,7 @@ assert.doesNotMatch(sentryApp, /onActivated=\{async \(status\) => \{[\s\S]{0,180
 assert.match(instructorApp, /extendQuizSession\(selectedSession\.id, extensionMinutes\)/);
 assert.match(instructorApp, /Extend or reopen this quiz/);
 assert.match(profilePhotoEditor, /lastUploadedUrlRef/);
-assert.match(profilePhotoEditor, /setCropFile\(selectedWithType\)/);
+assert.match(profilePhotoEditor, /setCropFile\(await prepareImageForCropping\(selected\)\)/);
 assert.match(storageUploads, /attempt < 3/);
 assert.match(storageUploads, /cacheControl: '31536000'/);
 assert.match(quoteQueries, /export async function fetchDailyQuoteFeed\(limit = 100\)/);

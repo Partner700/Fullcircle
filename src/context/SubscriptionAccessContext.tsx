@@ -9,12 +9,16 @@ export type SubscriptionAccessStatus = {
 type SubscriptionAccessContextValue = {
   hasAccess: boolean;
   isExpired: boolean;
+  hasPremiumAccess: boolean;
+  requirePremiumAccess: () => boolean;
   requireSubscription: () => boolean;
 };
 
 const SubscriptionAccessContext = createContext<SubscriptionAccessContextValue>({
   hasAccess: true,
   isExpired: false,
+  hasPremiumAccess: false,
+  requirePremiumAccess: () => false,
   requireSubscription: () => true,
 });
 
@@ -34,12 +38,20 @@ export function subscriptionIsExpired(
   return false;
 }
 
+export function subscriptionHasPremiumAccess(subscription: SubscriptionAccessStatus | null, nowMs: number) {
+  if (!subscription || subscriptionIsExpired(subscription, nowMs)) return false;
+  return subscription.status === 'active' || subscription.status === 'grace'
+    || (subscription.status === 'trial' && Boolean(subscription.trial_ends_at));
+}
+
 export function SubscriptionAccessProvider({
   isExpired,
+  hasPremiumAccess = false,
   onSubscriptionRequired,
   children,
 }: {
   isExpired: boolean;
+  hasPremiumAccess?: boolean;
   onSubscriptionRequired: () => void;
   children: ReactNode;
 }) {
@@ -49,11 +61,19 @@ export function SubscriptionAccessProvider({
     return false;
   }, [isExpired, onSubscriptionRequired]);
 
+  const requirePremiumAccess = useCallback(() => {
+    if (hasPremiumAccess) return true;
+    onSubscriptionRequired();
+    return false;
+  }, [hasPremiumAccess, onSubscriptionRequired]);
+
   const value = useMemo(() => ({
     hasAccess: !isExpired,
     isExpired,
     requireSubscription,
-  }), [isExpired, requireSubscription]);
+    hasPremiumAccess,
+    requirePremiumAccess,
+  }), [isExpired, requireSubscription, hasPremiumAccess, requirePremiumAccess]);
 
   return (
     <SubscriptionAccessContext.Provider value={value}>

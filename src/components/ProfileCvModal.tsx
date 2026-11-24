@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BadgeCheck, Coins, Flame, Hash, Loader2, Save, Swords, Target, X } from 'lucide-react';
+import { Award, BadgeCheck, Coins, Flame, Hash, Loader2, Save, Swords, Target, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { assignPlayerNumber, fetchPanelImageSetting, fetchProfileCv } from '../lib/queries';
 import { OPEN_PROFILE_CV_EVENT } from '../lib/profileCv';
@@ -174,6 +174,9 @@ export function ProfileCvHost() {
                     {data.tent_house_id && <TentHouseSymbol houseId={data.tent_house_id} size={16} />}
                     {data.tent_name && <span className="min-w-0 break-words text-[10px] font-semibold text-stone">{data.tent_name}</span>}
                   </div>
+                  <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" title="Labarum">
+                    <ChiRhoMark size={14} /><span className="tabular-nums">{data.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                  </div>
                 </div>
               </div>
 
@@ -207,7 +210,7 @@ export function ProfileCvHost() {
                 <ProfileMeasure icon={Swords} label="Rhudes" value={data.rhudes.toLocaleString()} explanation="Bible duels won" accent="#5bad7f" />
                 <ProfileMeasure icon={Coins} label="Denarii" value={formatDenarii(data.total_denarii)} explanation="Coins earned from daily Bible interactions" accent="#f5b731" />
                 <ProfileMeasure icon={Target} label="Challenges" value={data.completed_challenges.toLocaleString()} explanation="Approved real-life challenges putting God's Word into practice" accent="#5bad7f" />
-                <ProfileMeasure icon={ChiRhoMark} label="Marks" value={data.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })} explanation="Valediction marks" accent="#7c8cff" />
+                <ProfileMeasure icon={Award} label="Awards" value={data.awards_count === null ? '—' : data.awards_count.toLocaleString()} explanation="Lifetime individual honors earned" accent="#d6a849" />
               </div>
 
               <p className="profile-cv-footer text-[10px] text-stone">

@@ -1,3 +1,7 @@
+import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
+import { RelicSymbol } from '../../components/RelicSymbol';
+import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
+import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -16,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { QUIZ_LIVE_DURATION_MINUTES, RELIC_SLUGS } from '../../lib/constants';
 import { formatCountdown, formatDate, formatDenarii, getAppDateTimeMs, getTodayISODate, cn } from '../../lib/utils';
 import { setScenarioSound, playSoundEffect } from '../../lib/soundscape';
+import { ACTIVE_QUIZ_EXIT_INTENT_EVENT, signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
 import type {
   QuizSession, GeneratedQuestion, QuizAttempt, QuestionResponse, DailyNarrative,
   PanelImageSetting, WeeklyQuizReleasedResult,
@@ -30,6 +35,64 @@ import type { LucideIcon } from 'lucide-react';
 type Phase = 'not_scheduled' | 'scheduled' | 'countdown' | 'live' | 'closed';
 
 const QUIZ_RETRY_DELAYS_MS = [0, 350, 900];
+
+type QuizWakeLockSentinel = EventTarget & {
+  released: boolean;
+  release: () => Promise<void>;
+};
+
+type QuizWakeLockNavigator = Navigator & {
+  wakeLock?: {
+    request: (type: 'screen') => Promise<QuizWakeLockSentinel>;
+  };
+};
+
+function useQuizScreenWakeLock() {
+  const sentinelRef = useRef<QuizWakeLockSentinel | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer = 0;
+
+    const acquire = async () => {
+      const wakeLock = (navigator as QuizWakeLockNavigator).wakeLock;
+      if (disposed || !wakeLock || document.visibilityState !== 'visible') return;
+      if (sentinelRef.current && !sentinelRef.current.released) return;
+
+      try {
+        const sentinel = await wakeLock.request('screen');
+        if (disposed) {
+          await sentinel.release().catch(() => undefined);
+          return;
+        }
+        sentinelRef.current = sentinel;
+        sentinel.addEventListener('release', () => {
+          if (sentinelRef.current === sentinel) sentinelRef.current = null;
+          if (!disposed && document.visibilityState === 'visible') {
+            retryTimer = window.setTimeout(() => { void acquire(); }, 250);
+          }
+        }, { once: true });
+      } catch (error) {
+        console.info('Quiz screen wake lock is unavailable on this device.', error);
+      }
+    };
+
+    const reacquireWhenVisible = () => {
+      if (document.visibilityState === 'visible') void acquire();
+    };
+
+    void acquire();
+    document.addEventListener('visibilitychange', reacquireWhenVisible);
+    return () => {
+      disposed = true;
+      window.clearTimeout(retryTimer);
+      document.removeEventListener('visibilitychange', reacquireWhenVisible);
+      const sentinel = sentinelRef.current;
+      sentinelRef.current = null;
+      if (sentinel && !sentinel.released) void sentinel.release().catch(() => undefined);
+    };
+  }, []);
+}
 
 function QuizArtworkFrame({ image, className, children }: {
   image: PanelImageSetting | null;
@@ -133,11 +196,6 @@ function localQuizResultsRelease(sessionDate: string) {
   return getAppDateTimeMs(sessionDate, 16, 0);
 }
 
-function hasUsedLazarus(attempt: QuizAttempt | null) {
-  const used = attempt?.relics_used;
-  return Array.isArray(used) && used.some((entry: any) => entry?.slug === RELIC_SLUGS.LAZARUS_COIN);
-}
-
 function looksLikeGeneratorLeak(option: string) {
   const value = option.trim();
   if (!value) return true;
@@ -156,7 +214,71 @@ function cleanQuizOptions(options: unknown, correctAnswer: unknown) {
   return cleaned.slice(0, 4);
 }
 
-export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) {
+type QuizType = 'saturday' | 'fortune' | 'valediction';
+type ValedictionStatus = { eligible: boolean; streak: number; figs: number; is_sentry: boolean; target_role: 'sentry' | 'instructor'; required_streak: number; required_figs: number; passing_percent: number };
+
+export function CadetQuiz({ onQuizSubmitted, sharedSession }: { onQuizSubmitted: () => void; sharedSession?: QuizSession }) {
+  const [quizType, setQuizType] = useState<QuizType>(sharedSession?.quiz_type as QuizType || 'saturday');
+  const { hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
+  const quizUnlocked = quizType === 'saturday' || hasPremiumAccess;
+  const [eligibility, setEligibility] = useState<ValedictionStatus | null>(null);
+  const [eligibilityError, setEligibilityError] = useState<string | null>(null);
+  const [eligibilityRetry, setEligibilityRetry] = useState(0);
+  useEffect(() => {
+    if (!quizUnlocked || quizType !== 'valediction') return;
+    let active = true;
+    setEligibility(null);
+    setEligibilityError(null);
+    void supabase.rpc('get_my_valediction_status').then(({ data, error }) => {
+      if (!active) return;
+      if (error) setEligibilityError(error.message);
+      else setEligibility(data as ValedictionStatus);
+    }, () => { if (active) setEligibilityError('Eligibility could not load. Please retry.'); });
+    return () => { active = false; };
+  }, [quizType, eligibilityRetry, quizUnlocked]);
+  const refresh = () => { onQuizSubmitted(); setEligibilityRetry((value) => value + 1); };
+  return <div className="space-y-4">
+    <div role="group" aria-label="Quiz category" className="flex flex-wrap gap-2">
+      {(['saturday', 'fortune', 'valediction'] as const).map((type) => <button key={type} type="button"
+        className={quizType === type ? 'btn-primary text-xs' : 'btn-secondary text-xs'}
+        onClick={() => { if (quizType !== type) { signalActiveQuizExitIntent(); setQuizType(type); } }}>
+        {type === 'valediction' ? 'Valediction Quiz' : type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}
+      </button>)}
+    </div>
+    {!quizUnlocked && <div className="card p-4 text-sm"><p>Subscribe to play {quizType === 'fortune' ? 'Fortune Quiz' : 'Valediction Quiz'}.</p><button type="button" className="btn-primary mt-3 text-xs" onClick={requirePremiumAccess}>View subscription</button></div>}
+    {quizUnlocked && quizType === 'valediction' && <div className="card p-4 text-sm">
+      <h2 className="font-display font-bold text-ink">{eligibility?.target_role === 'instructor' ? 'Instructor qualification' : 'Earn your Sentry status'}</h2>
+      {eligibility && <><p className="mt-2 text-stone">Qualify with {eligibility.required_streak} verified streak days and {eligibility.required_figs.toLocaleString()} Figs, then score at least {eligibility.passing_percent}% on the Valediction Quiz. Relics cannot be used.</p>
+      <p className="mt-2 text-gold">{eligibility.streak}/{eligibility.required_streak} streak days · {eligibility.figs.toLocaleString()}/{eligibility.required_figs.toLocaleString()} Figs</p></>}
+      {eligibilityError && <><p role="alert" className="mt-2 text-coral">{eligibilityError}</p><button type="button" className="btn-secondary mt-2 text-xs" onClick={() => setEligibilityRetry((value) => value + 1)}>Retry</button></>}
+      {!eligibility && !eligibilityError && <p role="status" className="mt-2 text-stone">Checking eligibility...</p>}
+      {eligibility && !eligibility.eligible && <p className="mt-2 text-stone">Keep building your streak and Figs to unlock this quiz.</p>}
+    </div>}
+    {quizUnlocked && (quizType !== 'valediction' || eligibility?.eligible) && <QuizSessionView key={quizType} quizType={quizType} sharedSession={sharedSession?.quiz_type === quizType ? sharedSession : undefined} onQuizSubmitted={refresh} />}
+  </div>;
+}
+
+function ValedictionResult({ attempt }: { attempt: QuizAttempt }) {
+  const [result, setResult] = useState<{ correct_count: number; question_count: number; passed: boolean; target_role: string; passing_percent: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void supabase.from('valediction_results').select('correct_count,question_count,passed,target_role,passing_percent').eq('attempt_id', attempt.id).single().then(({ data, error: failure }) => {
+      if (!active) return;
+      if (failure) setError('Your result could not load. Reopen the quiz to retry.'); else setResult(data);
+    }, () => { if (active) setError('Your result could not load. Reopen the quiz to retry.'); });
+    return () => { active = false; };
+  }, [attempt.id]);
+  if (attempt.status === 'forfeited') return <div className="card p-5"><h2 className="font-display font-bold">Valediction attempt ended</h2><p className="mt-2 text-stone">This attempt was forfeited. Your role remains unchanged. You can try the next Valediction quiz.</p></div>;
+  return <div className="card p-5"><h2 className="font-display font-bold">Valediction result</h2>
+    {error ? <p role="alert" className="mt-2 text-coral">{error}</p> : !result ? <p role="status">Loading your verified result...</p> : <>
+      <p className="mt-2 text-gold">{result.correct_count}/{result.question_count} correct · {(result.correct_count * 100 / result.question_count).toFixed(1)}%</p>
+      <p className="mt-2 text-stone">{result.passed ? result.target_role === 'instructor' ? 'Passed! Your Instructor exam qualification is recorded. Camp assignment is a separate step.' : 'Passed! You have earned Sentry status. Reopen the app to enter your Sentry workspace.' : `Not passed. You need at least ${result.passing_percent}%. You can try again in the next Valediction quiz.`}</p>
+    </>}
+  </div>;
+}
+
+function QuizSessionView({ onQuizSubmitted, quizType, sharedSession }: { onQuizSubmitted: () => void; quizType: QuizType; sharedSession?: QuizSession }) {
   const { profile } = useAuth();
   const [session, setSession] = useState<QuizSession | null>(null);
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
@@ -204,7 +326,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     setLoadError(null);
     let shellReady = false;
     try {
-      const sess = await withQuizNetworkRetry(fetchLatestQuizSession);
+      const sess = sharedSession || await withQuizNetworkRetry(() => fetchLatestQuizSession(quizType));
       setSession(sess);
       if (sess) {
         const [qs, runtime] = await Promise.allSettled([
@@ -281,7 +403,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     } finally {
       if (!shellReady) setLoading(false);
     }
-  }, [applyRuntimeState, profile]);
+  }, [applyRuntimeState, profile, quizType, sharedSession]);
 
   const syncRuntimeState = useCallback(async () => {
     if (!session?.id) return null;
@@ -360,8 +482,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     return () => clearInterval(interval);
   }, [serverClockOffsetMs]);
 
-  // Mobile browsers may suspend JavaScript while the screen sleeps or another
-  // app is open. Reconcile the same attempt as soon as this screen returns.
+  // Reconcile server time after a network interruption or foreground resume.
+  // A deliberate app switch is handled separately by the exit-forfeit guard.
   useEffect(() => {
     const reconcile = () => {
       if (document.hidden) return;
@@ -421,8 +543,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const lazarusWindowOpen = session.quiz_type === 'saturday'
     && now >= localQuizDayStart(session.session_date)
     && now < lazarusDeadline;
-  const canUseLazarus = lazarusWindowOpen && lazarusCount > 0;
-  const attemptLazarusActive = hasUsedLazarus(attempt) && lazarusWindowOpen;
+  const canUseLazarus = quizType !== 'valediction' && lazarusWindowOpen && lazarusCount > 0;
 
   let phase: Phase;
   if (session.status === 'scheduled') phase = 'scheduled';
@@ -469,14 +590,14 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
   const rankingsAvailableAt = session.quiz_type === 'fortune'
     ? session.live_closes_at
     : new Date(resultsReleaseAt).toISOString();
-  const responderPanel = (
+  const responderPanel = session.quiz_type === 'valediction' ? null : (
     <QuizResponders
       sessionId={session.id}
       quizType={session.quiz_type}
       rankingsAvailableAt={rankingsAvailableAt}
     />
   );
-  const rankingPanel = (
+  const rankingPanel = session.quiz_type === 'valediction' ? null : (
     <WeeklyQuizRankings
       sessionId={session.id}
       quizType={session.quiz_type}
@@ -508,21 +629,35 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
     }
   };
 
+  // Valediction uses its server-graded admission result, never a reward estimate.
+  if (quizType === 'valediction' && attempt && ['submitted', 'timed_out', 'forfeited'].includes(attempt.status)) {
+    return <ValedictionResult attempt={attempt} />;
+  }
+
+  const lazarusShop = quizType !== 'valediction' && lazarusWindowOpen && !lazarusCount && profile && (
+    <ContextRelicShop userId={profile.id} slugs={[RELIC_SLUGS.LAZARUS_COIN]} label="Get Lazarus Coin"
+      onChanged={() => {
+        void fetchRelicInventory(profile.id).then(items => {
+          setLazarusCount(items.find(item => item.relic_types?.slug === RELIC_SLUGS.LAZARUS_COIN)?.quantity ?? 0);
+        }).catch(() => undefined);
+      }} />
+  );
   // If attempt is forfeited or submitted, show the correct terminal view.
   if (attempt?.status === 'forfeited') {
-    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<ForfeitedView attempt={attempt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
   if (attempt && (attempt.status === 'submitted' || attempt.status === 'timed_out')) {
     if (session.quiz_type === 'saturday' && now < resultsReleaseAt) {
-      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+      return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<SubmittedView releaseAt={resultsReleaseAt} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
     }
-    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
+    return <QuizArtworkFrame image={quizImage} className="space-y-5 max-w-2xl mx-auto"><QuizReadingReview archive={readingArchive} verseIndex={reviewVerseIndex} onNext={() => setReviewVerseIndex((index) => index + 1)} />{responderPanel}{rankingPanel}{lazarusShop}<ResultsView attempt={attempt} result={releasedResult} weekly={session.quiz_type === 'saturday'} questions={questions} responses={responses} canUseLazarus={canUseLazarus} lazarusCount={lazarusCount} usingLazarus={usingLazarus} onUseLazarus={startWithLazarus} /></QuizArtworkFrame>;
   }
 
   // In quiz
-  if (inQuiz && (phase === 'live' || lazarusMode || attemptLazarusActive) && attempt?.status === 'in_progress') {
+  if (inQuiz && attempt?.status === 'in_progress') {
     return (
       <QuizPlay
+        allowRelics={quizType !== 'valediction'}
         questions={questions}
         initialResponses={responses}
         attempt={attempt}
@@ -545,7 +680,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
       {/* Quiz card — session header */}
       <div className="card relative overflow-hidden p-4 sm:p-6 animate-slide-up">
         <div className="relative text-center">
-          <div className="eyebrow text-brass mb-3">{session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
+          <div className="eyebrow text-brass mb-3">{session.quiz_type === 'valediction' ? 'Valediction Quiz' : session.quiz_type === 'fortune' ? 'Fortune Quiz' : 'Saturday Quiz'}</div>
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-surface-2 border border-border">
             <FileQuestion size={28} className="text-brass" />
           </div>
@@ -553,7 +688,7 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <p className="text-sm text-stone mt-1">
             {formatDate(session.session_date)}
           </p>
-          <button type="button" className="btn-secondary mt-4 text-xs" onClick={() => void shareQuiz()}>
+          <button type="button" hidden={quizType === 'valediction'} className="btn-secondary mt-4 text-xs" onClick={() => void shareQuiz()}>
             <Share2 size={14} /> Share quiz
           </button>
         </div>
@@ -628,7 +763,8 @@ export function CadetQuiz({ onQuizSubmitted }: { onQuizSubmitted: () => void }) 
           <h3 className="font-display font-medium text-ink mb-1">Quiz Closed</h3>
           <p className="text-sm text-stone">This quiz session has ended. You did not attempt it.</p>
           <p className="text-xs text-roman mt-2">Missing the Saturday quiz breaks your streak.</p>
-          {lazarusWindowOpen && (
+          {lazarusShop}
+          {lazarusWindowOpen && canUseLazarus && (
             <button
               onClick={startWithLazarus}
               disabled={!canUseLazarus || usingLazarus}
@@ -755,7 +891,8 @@ function RuleItem({ icon: Icon, text }: { icon: typeof Clock; text: string }) {
   );
 }
 
-function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, image, verifyDeadline, onSubmit }: {
+function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, userId, liveCloses, serverClockOffsetMs, image, verifyDeadline, onSubmit }: {
+  allowRelics?: boolean;
   questions: GeneratedQuestion[];
   initialResponses: QuestionResponse[];
   attempt: QuizAttempt;
@@ -793,6 +930,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
     Math.max(0, Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000)),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [relicInventoryRevision, setRelicInventoryRevision] = useState(0);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [usingGoliath, setUsingGoliath] = useState(false);
   const [usingQuestionRelic, setUsingQuestionRelic] = useState<string | null>(null);
@@ -800,13 +938,16 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
   const [eliminatedOptions, setEliminatedOptions] = useState<string[]>([]);
   const submissionStartedRef = useRef(false);
   const deadlineCheckRef = useRef(false);
+  const [referencePopup, setReferencePopup] = useState<{ reference: string; passage?: string }>();
+  const [revealedReference, setRevealedReference] = useState<{ questionId: string; reference: string; passage?: string } | null>(null);
+  const [relicClose, setRelicClose] = useState(0);
   const exitForfeitArmedRef = useRef(false);
   const exitForfeitSentRef = useRef(false);
 
+  useQuizScreenWakeLock();
+
   useEffect(() => {
-    // React development mode probes effect cleanup immediately after mount.
-    // Arm after that probe so only a real departure forfeits the attempt.
-    const armTimer = window.setTimeout(() => { exitForfeitArmedRef.current = true; }, 1_000);
+    exitForfeitArmedRef.current = true;
     const forfeitOnExit = () => {
       if (!exitForfeitArmedRef.current || exitForfeitSentRef.current || submissionStartedRef.current) return;
       exitForfeitSentRef.current = true;
@@ -815,15 +956,14 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
       });
     };
     const forfeitWhenHidden = () => { if (document.hidden) forfeitOnExit(); };
-    window.addEventListener('pagehide', forfeitOnExit);
     window.addEventListener('beforeunload', forfeitOnExit);
+    window.addEventListener(ACTIVE_QUIZ_EXIT_INTENT_EVENT, forfeitOnExit);
     document.addEventListener('visibilitychange', forfeitWhenHidden);
     return () => {
-      window.clearTimeout(armTimer);
-      window.removeEventListener('pagehide', forfeitOnExit);
+      exitForfeitArmedRef.current = false;
       window.removeEventListener('beforeunload', forfeitOnExit);
+      window.removeEventListener(ACTIVE_QUIZ_EXIT_INTENT_EVENT, forfeitOnExit);
       document.removeEventListener('visibilitychange', forfeitWhenHidden);
-      forfeitOnExit();
     };
   }, [attempt.id]);
 
@@ -848,7 +988,8 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
     let cancelled = false;
     supabase
       .from('relic_inventory')
-      .select('quantity, relic_types(slug)')
+      .select('quantity, relic_types!inner(slug)')
+      .eq('relic_types.is_active', true)
       .eq('user_id', userId)
       .then(({ data }) => {
         if (cancelled || !data) return;
@@ -860,13 +1001,13 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         setRelicInventory(map);
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, relicInventoryRevision]);
 
   // Display the database-aligned countdown, then ask the database to confirm
   // expiry before submitting a timed-out attempt.
   useEffect(() => {
     const interval = setInterval(() => {
-      const remaining = Math.floor((liveCloses - (Date.now() + serverClockOffsetMs)) / 1000);
+      const remaining = Math.floor((Math.max(liveCloses, relicClose) - (Date.now() + serverClockOffsetMs)) / 1000);
       setTimeLeft(Math.max(0, remaining));
       if (remaining > 0 || deadlineCheckRef.current || submissionStartedRef.current) return;
       deadlineCheckRef.current = true;
@@ -877,7 +1018,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         .finally(() => { deadlineCheckRef.current = false; });
     }, 1000);
     return () => clearInterval(interval);
-  }, [handleSubmit, liveCloses, serverClockOffsetMs, verifyDeadline]);
+  }, [handleSubmit, liveCloses, relicClose, serverClockOffsetMs, verifyDeadline]);
 
   if (questions.length === 0) {
     return (
@@ -963,7 +1104,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
   };
 
   const useGoliathSword = async () => {
-    if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
+    if (submitting || usingGoliath) return;
     setUsingGoliath(true);
     try {
       setRelicInventory((prev) => ({
@@ -979,14 +1120,20 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
   };
 
   const consumeQuestionRelic = async (slug: string) => {
-    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0) return;
+    if (showFeedback || usingQuestionRelic) return false;
     setUsingQuestionRelic(slug);
     try {
       const result = await withQuizNetworkRetry(() => consumeQuizQuestionRelic(attempt.id, q.id, slug));
-      setRelicInventory((previous) => ({
+      if (!result.reused) setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
+      if (result.reference) {
+        setReferencePopup({ reference: result.reference, passage: result.passage });
+        if (slug === RELIC_SLUGS.REVEAL_REFERENCE)
+          setRevealedReference({ questionId: q.id, reference: result.reference, passage: result.passage });
+      }
+      if (result.effective_closes_at) setRelicClose(Date.parse(result.effective_closes_at));
       if (result.notice) setRelicNotice(result.notice);
       if (result.eliminated_options) setEliminatedOptions(result.eliminated_options);
       if (result.skipped || result.auto_answered) {
@@ -994,8 +1141,10 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         setSelectedAnswer(null);
         setShowFeedback(true);
       }
+      return true;
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
+      return false;
     } finally {
       setUsingQuestionRelic(null);
     }
@@ -1024,7 +1173,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
           <span className="text-sm text-stone">Q {currentIdx + 1}/{questions.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          {goliathCount > 0 && (
+          {allowRelics && goliathCount > 0 && (
             <button
               onClick={useGoliathSword}
               disabled={submitting || usingGoliath}
@@ -1052,7 +1201,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         />
       </div>
 
-      {!showFeedback && (
+      {allowRelics && !showFeedback && (
         <div className="flex flex-wrap gap-1.5">
           {( [
             [RELIC_SLUGS.HINT, 'Hint', Lightbulb, useRelicHint, true],
@@ -1061,7 +1210,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
             [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
             [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
             [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
-          ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
+          ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, , onClick, applicable]) => {
             const amount = relicInventory[slug as string] || 0;
             if (!amount || !applicable) return null;
             const isUsing = usingQuestionRelic === slug;
@@ -1074,7 +1223,7 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
                 className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
                 title={`Use ${label} relic`}
               >
-                {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                {isUsing ? <Loader2 size={12} className="animate-spin" /> : <RelicSymbol slug={slug} size={12} />}
                 <span>{label}</span> ({amount})
               </button>
             );
@@ -1082,6 +1231,24 @@ function QuizPlay({ questions, initialResponses, attempt, userId, liveCloses, se
         </div>
       )}
 
+      {allowRelics && <ContextRelicShop userId={userId} floating timed={!showFeedback} label="Use or buy relics"
+        canUseOwned={() => !showFeedback && !submitting && !usingGoliath && !usingQuestionRelic}
+        onUseOwned={(slug) => slug === RELIC_SLUGS.SWORD_GOLIATH ? useGoliathSword() : consumeQuestionRelic(slug)}
+        slugs={[
+          RELIC_SLUGS.HINT, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
+          RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
+          ...(payload.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
+        ]}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
+
+      {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
+      {revealedReference?.questionId === q.id && !referencePopup && !showFeedback && (
+        <button type="button" className="btn-secondary text-xs" onClick={() => {
+          if (revealedReference) setReferencePopup({
+            reference: revealedReference.reference, passage: revealedReference.passage,
+          });
+        }}>View revealed Scripture reference again</button>
+      )}
       {/* Question card with scroll-edge motif */}
       <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
         <ScrollEdge position="top" className="text-stone mb-2" />
@@ -1433,6 +1600,7 @@ function ResultsView({ attempt, result, weekly, questions, responses, canUseLaza
   attempt: QuizAttempt;
   result: WeeklyQuizReleasedResult | null;
   weekly: boolean;
+  allowRelics?: boolean;
   questions: GeneratedQuestion[];
   responses: QuestionResponse[];
   canUseLazarus: boolean;

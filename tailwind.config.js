@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Baloo 2"', 'system-ui', 'sans-serif'],
-        sans: ['Nunito', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)'],
+        sans: ['var(--font-body)'],
       },
       colors: {
         /* Background layers */

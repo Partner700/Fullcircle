@@ -1,3 +1,8 @@
+import { ARENA_MATCH_RELIC_LIMITS, arenaMatchRelicIsMuted, countArenaMatchRelicUse, type ArenaMatchRelic, type ArenaMatchRelicUses } from './arenaMatchRelicLimits.ts';
+import { ROAD_HOME_MARKET_REWARDS, ARENA_STANDSTILL_MS } from './arenaBoardMarket.ts';
+import { createArenaShieldOffer, validateArenaShieldDecision, type ArenaShieldOffer } from './arenaShield.ts';
+import { arenaQuestionFigs, arenaRelicEffect } from './arenaRelics.ts';
+
 export const ROAD_HOME_CONFIG = {
   trackLength: 52,
   homeLaneLength: 6,
@@ -38,6 +43,7 @@ export type RoadHomePhase =
   | 'INHERITED_OFFER'
   | 'PRISON_MANAGEMENT'
   | 'SURPRISE_CARD'
+  | 'SHIELD_DECISION'
   | 'GAME_OVER';
 
 export type RoadHomeQuestion = {
@@ -57,6 +63,7 @@ export type RoadHomePawn = {
   id: string;
   number: number;
   progress: number;
+  earnedCorrect: number;
   prisonRounds: number;
   imprisonedTurn: number | null;
   shielded: boolean;
@@ -78,6 +85,7 @@ export type RoadHomeStats = {
   relicsUsed: number;
   prisonEscapes: number;
   totalMovement: number;
+  questionFigs?: number;
 };
 
 export type RoadHomePlayer = {
@@ -123,12 +131,14 @@ export type RoadHomeSurprise = {
   detail: string;
   reward?: number;
   relic?: string;
+  marketRelicSlug?: string;
 };
 
 type MoveContinuation = 'END_TURN' | 'BONUS_OR_END' | 'CONTINUE_OWN_TURN';
 type QuestionPurpose = 'own' | 'inherited' | 'prison' | 'surprise' | 'verse';
 
 export type RoadHomeState = {
+  questionAid?: import('./arenaRelics.ts').ArenaQuestionAid;
   roomId: string;
   version: number;
   questionPool: RoadHomeQuestion[];
@@ -149,6 +159,11 @@ export type RoadHomeState = {
   activePrisonPawnId: string | null;
   challengeQueue: RoadHomeChallenge[];
   pendingSurprise: RoadHomeSurprise | null;
+  shieldOffer?: ArenaShieldOffer;
+  matchRelicUses?: ArenaMatchRelicUses;
+  pausedUntil?: string;
+  undo?: { playerId: string; before: Omit<RoadHomeState, 'undo'> };
+  shieldLanding?: { movingPawnId: string; penalizedPawnId: string; protectedPawnIds: string[]; usesMatchRelic: boolean };
   usedQuestionIds: string[];
   rankings: string[];
   eventLog: RoadHomeEvent[];
@@ -172,6 +187,9 @@ export type RoadHomeCommand =
   | { action: 'PRISON_ACTION'; pawnId: string; decision: 'question' | 'pay' | 'serve' }
   | { action: 'ACK_SURPRISE' }
   | { action: 'USE_RELIC'; relic: string; pawnId?: string }
+  | { action: 'USE_MARKET_RELIC'; slug: string }
+  | { action: 'UNDO' | 'STANDSTILL' }
+  | { action: 'SHIELD'; decision: 'use' | 'expire' | 'reflect' }
   | { action: 'FORFEIT' };
 
 type RandomFn = () => number;
@@ -403,6 +421,7 @@ function drawQuestion(state: RoadHomeState, questions: RoadHomeQuestion[], diffi
 }
 
 function setQuestion(state: RoadHomeState, question: RoadHomeQuestion, purpose: QuestionPurpose) {
+  state.questionAid = undefined;
   state.currentQuestion = question;
   state.questionPurpose = purpose;
   state.questionAttempts = 0;
@@ -425,6 +444,19 @@ function expireChallengeIfComplete(state: RoadHomeState, challenge: RoadHomeChal
   return true;
 }
 
+function resetToRoll(state: RoadHomeState) {
+  state.phase = 'AWAITING_ROLL';
+  state.diceValue = null;
+  state.currentQuestion = null;
+  state.questionPurpose = null;
+  state.questionDeadline = null;
+  state.questionAid = undefined;
+  state.questionAttempts = 0;
+  state.legalPawnIds = [];
+  state.pendingMoveValue = null;
+  state.moveContinuation = null;
+}
+
 function prepareOwnTurn(state: RoadHomeState) {
   const player = activePlayer(state);
   const imprisoned = player.pawns.find((pawn) => pawn.prisonRounds > 0);
@@ -441,14 +473,7 @@ function prepareOwnTurn(state: RoadHomeState) {
     addEvent(state, 'TURN_STARTED', `${player.name} received an inherited challenge worth ${challenge.rolledValue} spaces.`, player.id);
     return;
   }
-  state.phase = 'AWAITING_ROLL';
-  state.diceValue = null;
-  state.currentQuestion = null;
-  state.questionPurpose = null;
-  state.questionDeadline = null;
-  state.legalPawnIds = [];
-  state.pendingMoveValue = null;
-  state.moveContinuation = null;
+  resetToRoll(state);
   addEvent(state, 'TURN_STARTED', `${player.name}'s turn started.`, player.id);
 }
 
@@ -514,7 +539,12 @@ export function forfeitRoadHomePlayer(stateInput: RoadHomeState, playerId: strin
   if (player.isBot) throw new Error('The machine cannot forfeit this match.');
   if (player.forfeited) return state;
 
+  delete state.undo;
   const wasActive = state.activePlayerIndex === playerIndex;
+  if (wasActive) {
+    delete state.shieldOffer;
+    delete state.shieldLanding;
+  }
   player.forfeited = true;
   state.challengeQueue.forEach((challenge) => {
     challenge.eligiblePlayerIds = challenge.eligiblePlayerIds.filter((id) => id !== playerId);
@@ -531,6 +561,8 @@ export function forfeitRoadHomePlayer(stateInput: RoadHomeState, playerId: strin
       state.rankings.unshift(winner.id);
     }
     state.phase = 'GAME_OVER';
+    delete state.shieldOffer;
+    delete state.shieldLanding;
     state.currentQuestion = null;
     state.questionDeadline = null;
     state.legalPawnIds = [];
@@ -564,9 +596,9 @@ function drawSurprise(random: RandomFn): RoadHomeSurprise {
     const reward = amounts[Math.floor(random() * amounts.length)];
     return { category: 'match_denarii', title: reward >= 80 ? 'Treasury' : reward >= 60 ? 'Abundance' : reward >= 40 ? 'Provision' : 'Small Blessing', detail: `Receive ${reward} Match Denarii.`, reward };
   }
-  const relics = ['Lamp of Guidance', 'Manna Pouch', 'Sandals of Readiness', 'Shield of Faith', 'Key of Deliverance', 'Scroll of Recall', "Shepherd's Staff", "David's Sling", 'Purse of Provision', 'Trumpet of Breakthrough', 'Rod of Passage', 'Crown of Wisdom', 'Golden Scroll', 'Chariot of Fire'];
-  const relic = relics[Math.floor(Math.pow(random(), 1.8) * relics.length)];
-  return { category: 'relic', title: 'Relic Discovery', detail: `You discovered ${relic}.`, relic };
+  const relic = ROAD_HOME_MARKET_REWARDS[Math.floor(random() * ROAD_HOME_MARKET_REWARDS.length)];
+  return { category: 'relic', title: 'Relic Discovery', detail: `You discovered ${relic.name} for your Market inventory.`,
+    relic: relic.name, marketRelicSlug: relic.slug };
 }
 
 function finishMovement(state: RoadHomeState) {
@@ -596,36 +628,69 @@ function finishMovement(state: RoadHomeState) {
   advanceTurn(state);
 }
 
-function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: RoadHomePawn, random: RandomFn) {
+function relicIsMuted(state: RoadHomeState, playerId: string, slug: ArenaMatchRelic) {
+  return arenaMatchRelicIsMuted(state.matchRelicUses, playerId, slug, state.players.some((player) => player.isBot));
+}
+
+function assertRelicIsAvailable(state: RoadHomeState, playerId: string, slug: ArenaMatchRelic) {
+  if (relicIsMuted(state, playerId, slug)) {
+    throw new Error(`You have reached the ${ARENA_MATCH_RELIC_LIMITS[slug]}-use limit for this relic in this match.`);
+  }
+}
+
+function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: RoadHomePawn, random: RandomFn,
+  shieldOwners: readonly string[] | undefined, protectedPawnIds: string[] = [], expiredPawnId?: string) {
+  const offer = (target: RoadHomePlayer, penalizedPawn: RoadHomePawn, consequence: string) => {
+    if (!shieldOwners || target.isBot || target.forfeited || expiredPawnId === penalizedPawn.id
+      || relicIsMuted(state, target.id, 'shield-of-faith')) return false;
+    const usesMatchRelic = target.relics.includes('Shield of Faith');
+    state.shieldOffer = createArenaShieldOffer(target.id, consequence, usesMatchRelic || shieldOwners.includes(target.id));
+    if (target.id !== player.id) state.shieldOffer.attackerId = player.id;
+    state.shieldLanding = { movingPawnId: pawn.id, penalizedPawnId: penalizedPawn.id, protectedPawnIds, usesMatchRelic };
+    state.phase = 'SHIELD_DECISION';
+    return true;
+  };
   if (pawn.progress === ROAD_HOME_CONFIG.finalHome) {
     addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.pawnHome, 'a pawn reached Home');
     addEvent(state, 'PAWN_HOME', `${player.name}'s pawn ${pawn.number} reached Home.`, player.id);
     if (finishGameIfReady(state, player)) return;
   }
   const target = globalPosition(player, pawn);
-  if (target != null && !ROAD_HOME_CONFIG.safeSpaces.includes(target as never) && !ROAD_HOME_CONFIG.prisonSpaces.includes(target as never)) {
+  if (target != null) {
     for (const opponent of state.players.filter((item) => item.id !== player.id)) {
       const victims = opponent.pawns.filter((item) => globalPosition(opponent, item) === target && item.prisonRounds === 0);
-      if (victims.length !== 1) continue;
-      const victim = victims[0];
-      if (victim.shielded) {
+      if (!victims.length) continue;
+      const victim = victims.find(item => !protectedPawnIds.includes(item.id));
+      if (!victim) continue;
+      if (protectedPawnIds.includes(victim.id)) continue;
+      const prearmedShield = victim.shielded && !relicIsMuted(state, opponent.id, 'shield-of-faith');
+      if (!prearmedShield && offer(opponent, victim, `Pawn ${victim.number} is about to be captured and sent back to base.`)) return;
+      if (prearmedShield) {
         victim.shielded = false;
-        victim.progress = Math.max(0, victim.progress - 1);
+        countArenaMatchRelicUse(state, opponent.id, 'shield-of-faith');
+        // Shield of Faith blocks the capture; the protected pawn remains on its square.
         addEvent(state, 'RELIC_USED', `${opponent.name}'s Shield of Faith prevented a capture.`, opponent.id);
       } else {
+        const lostCorrect = Math.max(0, Math.min(opponent.stats.correct, victim.earnedCorrect || 0));
+        opponent.stats.correct -= lostCorrect;
+        victim.earnedCorrect = 0;
         victim.progress = -1;
+        victim.shielded = false;
         victim.prisonRounds = 0;
         opponent.stats.lost += 1;
         player.stats.captured += 1;
         addMatchDenarii(state, player, ROAD_HOME_CONFIG.rewards.capture, 'captured a pawn');
-        addEvent(state, 'PAWN_CAPTURED', `${player.name} captured ${opponent.name}'s pawn ${victim.number}.`, player.id);
+        addEvent(state, 'PAWN_CAPTURED', `${player.name} captured ${opponent.name}'s pawn ${victim.number}${lostCorrect ? ` and erased ${lostCorrect} point${lostCorrect === 1 ? '' : 's'}` : ''}.`, player.id);
       }
     }
   }
   if (target != null && ROAD_HOME_CONFIG.prisonSpaces.includes(target as never)) {
-    pawn.prisonRounds = drawPrisonSentence(random);
-    pawn.imprisonedTurn = state.turnNumber;
-    addEvent(state, 'PAWN_IMPRISONED', `${player.name}'s pawn ${pawn.number} was imprisoned for ${pawn.prisonRounds} round${pawn.prisonRounds === 1 ? '' : 's'}.`, player.id);
+    if (offer(player, pawn, `Pawn ${pawn.number} is about to enter prison.`)) return;
+    if (!protectedPawnIds.includes(pawn.id)) {
+      pawn.prisonRounds = drawPrisonSentence(random);
+      pawn.imprisonedTurn = state.turnNumber;
+      addEvent(state, 'PAWN_IMPRISONED', `${player.name}'s pawn ${pawn.number} was imprisoned for ${pawn.prisonRounds} round${pawn.prisonRounds === 1 ? '' : 's'}.`, player.id);
+    }
   }
   if ((target != null && ROAD_HOME_CONFIG.surpriseSpaces.includes(target as never)) || ROAD_HOME_CONFIG.homeSurpriseProgress.includes(pawn.progress as never)) {
     state.pendingSurprise = drawSurprise(random);
@@ -636,16 +701,17 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
   finishMovement(state);
 }
 
-function movePawn(state: RoadHomeState, pawnId: string, random: RandomFn) {
+function movePawn(state: RoadHomeState, pawnId: string, random: RandomFn, shieldOwners?: readonly string[]) {
   const player = activePlayer(state);
   const pawn = player.pawns.find((item) => item.id === pawnId);
   const value = state.pendingMoveValue || 0;
   if (!pawn || !state.legalPawnIds.includes(pawnId) || !legalPawnIds(state, player.id, value).includes(pawnId)) throw new Error('That pawn cannot use this move.');
   const from = pawn.progress;
+  pawn.earnedCorrect = (pawn.earnedCorrect || 0) + 1;
   pawn.progress = from < 0 ? 0 : from + value;
   player.stats.totalMovement += value;
   addEvent(state, from < 0 ? 'PAWN_DEPLOYED' : 'PAWN_MOVED', from < 0 ? `${player.name} deployed pawn ${pawn.number}.` : `${player.name} moved pawn ${pawn.number} by ${value}.`, player.id);
-  resolveLanding(state, player, pawn, random);
+  resolveLanding(state, player, pawn, random, shieldOwners);
 }
 
 function continueAfterPrison(state: RoadHomeState) {
@@ -666,6 +732,8 @@ function resolveAnswer(state: RoadHomeState, answer: string) {
   if (!question || !purpose) throw new Error('There is no active question.');
   const correct = answerIsCorrect(question, answer);
   state.questionAttempts += 1;
+  player.stats.questionFigs = (player.stats.questionFigs ?? player.stats.correct)
+    + arenaQuestionFigs(correct, state.questionAid);
   if (correct) {
     player.stats.correct += 1;
     addEvent(state, 'QUESTION_CORRECT', `${player.name} chose "${answer}" — correct${question.reference ? ` (${question.reference})` : ''}.`, player.id);
@@ -765,7 +833,7 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
       relics: [],
       finishedRank: null,
       stats: stats(),
-      pawns: Array.from({ length: 4 }, (_, index) => ({ id: `${participant.id}-pawn-${index + 1}`, number: index + 1, progress: -1, prisonRounds: 0, imprisonedTurn: null, shielded: false })),
+      pawns: Array.from({ length: 4 }, (_, index) => ({ id: `${participant.id}-pawn-${index + 1}`, number: index + 1, progress: -1, earnedCorrect: 0, prisonRounds: 0, imprisonedTurn: null, shielded: false })),
     })),
     diceValue: null,
     bonusRollsUsed: 0,
@@ -792,12 +860,105 @@ export function createRoadHomeGame(roomId: string, participants: RoadHomePartici
   return state;
 }
 
-export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random) {
+export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string, command: RoadHomeCommand, questionsInput: unknown[], random: RandomFn = Math.random, shieldOwners?: readonly string[]) {
   if (command.action === 'FORFEIT') return forfeitRoadHomePlayer(stateInput, actorId);
   const state = normalizeRoadHomeEconomyState(stateInput);
   const questions = normalizeQuestions(questionsInput);
   const player = activePlayer(state);
   if (state.phase === 'GAME_OVER') throw new Error('This Road Home match is complete.');
+  const now = Date.now();
+  if (state.pausedUntil && now < Date.parse(state.pausedUntil)) throw new Error('The match is paused by Standstill.');
+  if (command.action === 'UNDO') {
+    assertRelicIsAvailable(state, actorId, 'undo');
+    if (state.phase === 'SHIELD_DECISION' || state.undo?.playerId !== actorId) {
+      throw new Error('Your last move can no longer be undone.');
+    }
+    const restored: RoadHomeState = state.undo.before;
+    restored.eventLog = state.eventLog;
+    restored.matchRelicUses = state.matchRelicUses;
+    countArenaMatchRelicUse(restored, actorId, 'undo');
+    addEvent(restored, 'MOVE_UNDONE', 'Undo restored the board. Choose your move again.', actorId);
+    restored.updatedAt = nowIso();
+    restored.version = state.version + 1;
+    return restored;
+  }
+  const previousUndo = state.undo;
+  const machineMatch = state.players.some(candidate => candidate.isBot);
+  const resolvingSurprise = command.action === 'ACK_SURPRISE' && !state.pendingSurprise?.marketRelicSlug
+    || command.action === 'ANSWER' && ['surprise', 'verse'].includes(state.questionPurpose ?? '');
+  if (!machineMatch || (!player.isBot && !resolvingSurprise)) delete state.undo;
+  if (command.action === 'STANDSTILL') {
+    assertRelicIsAvailable(state, actorId, 'standstill');
+    if (player.id !== actorId || player.isBot || state.phase === 'SHIELD_DECISION') {
+      throw new Error('Standstill is available on your turn, outside Shield decisions.');
+    }
+    if (state.phase === 'QUESTION' && state.questionDeadline && Date.parse(state.questionDeadline) <= now) {
+      throw new Error('The question has already timed out.');
+    }
+    state.undo = previousUndo;
+    countArenaMatchRelicUse(state, actorId, 'standstill');
+    state.pausedUntil = new Date(now + ARENA_STANDSTILL_MS).toISOString();
+    if (state.phase === 'QUESTION' && state.questionDeadline) {
+      state.questionDeadline = new Date(Date.parse(state.questionDeadline) + ARENA_STANDSTILL_MS).toISOString();
+    }
+    addEvent(state, 'MATCH_PAUSED', `${player.name} paused the match for 10 minutes with Standstill.`, actorId);
+    state.version += 1;
+    state.updatedAt = nowIso();
+    return state;
+  }
+  delete state.pausedUntil;
+  if (command.action === 'SHIELD') {
+    const { shieldOffer, shieldLanding } = state;
+    if (state.phase !== 'SHIELD_DECISION' || !shieldOffer || !shieldLanding) throw new Error('There is no pending Shield of Faith choice.');
+    if (!['use', 'expire', 'reflect'].includes(command.decision)) throw new Error('Choose a valid defensive relic action.');
+    validateArenaShieldDecision(shieldOffer, actorId, command.decision);
+    const target = player.pawns.find((pawn) => pawn.id === shieldLanding.movingPawnId);
+    if (!target) throw new Error('The moving pawn could not be found.');
+    delete state.shieldOffer;
+    delete state.shieldLanding;
+    if (command.decision === 'reflect') {
+      if (!shieldOffer.attackerId || shieldOffer.attackerId !== player.id
+          || shieldLanding.penalizedPawnId === shieldLanding.movingPawnId) {
+        throw new Error('Boomerang only reverses a capture by another player.');
+      }
+      assertRelicIsAvailable(state, actorId, 'boomerang');
+      countArenaMatchRelicUse(state, actorId, 'boomerang');
+      const defender = state.players.find(candidate => candidate.id === actorId);
+      if (!defender) throw new Error('Defending player not found.');
+      target.progress = -1;
+      target.prisonRounds = 0;
+      target.imprisonedTurn = null;
+      target.shielded = false;
+      target.earnedCorrect = 0;
+      player.stats.lost += 1;
+      defender.stats.captured += 1;
+      defender.stats.relicsUsed += 1;
+      shieldLanding.protectedPawnIds.push(shieldLanding.penalizedPawnId);
+      addEvent(state, 'BOOMERANG_CAPTURE', `${defender.name}'s Boomerang sent ${player.name}'s incoming pawn back to base.`, actorId);
+    }
+    if (command.decision === 'use') {
+      assertRelicIsAvailable(state, actorId, 'shield-of-faith');
+      countArenaMatchRelicUse(state, actorId, 'shield-of-faith');
+      shieldLanding.protectedPawnIds.push(shieldLanding.penalizedPawnId);
+      const defender = state.players.find((candidate) => candidate.id === actorId)!;
+      if (shieldLanding.usesMatchRelic) {
+        const index = defender.relics.indexOf('Shield of Faith');
+        if (index === -1) throw new Error('You do not own a Shield of Faith in this match.');
+        defender.relics.splice(index, 1);
+      }
+      defender.stats.relicsUsed += 1;
+      addEvent(state, 'RELIC_USED', `${defender.name}'s Shield of Faith prevented the penalty.`, actorId);
+    }
+    // Restore movement before continuing, since some continuations change the active player.
+    state.phase = 'SELECTING_PAWN';
+    resolveLanding(state, player, target, random, shieldOwners, shieldLanding.protectedPawnIds, shieldLanding.penalizedPawnId);
+    if (command.decision === 'expire' && previousUndo && state.phase !== 'GAME_OVER') state.undo = previousUndo;
+    else delete state.undo;
+    state.updatedAt = nowIso();
+    state.version += 1;
+    return state;
+  }
+  if (state.phase === 'SHIELD_DECISION') throw new Error('Wait for the Shield of Faith decision.');
   if (player.id !== actorId) throw new Error(`It is ${player.name}'s turn.`);
 
   if (command.action === 'ROLL') {
@@ -815,10 +976,46 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
     }
   } else if (command.action === 'ANSWER') {
     if (state.phase !== 'QUESTION') throw new Error('There is no question to answer.');
-    resolveAnswer(state, command.answer);
+    const expired = !player.isBot && state.questionDeadline && Date.now() >= Date.parse(state.questionDeadline);
+    if (!expired && state.questionAid?.donkeyActive && state.currentQuestion && !answerIsCorrect(state.currentQuestion, command.answer)) {
+      state.questionAid.donkeyActive = false;
+      state.questionAid.notice = 'That answer was stopped. Choose again before time runs out.';
+    } else resolveAnswer(state, expired ? '' : command.answer);
+  } else if (command.action === 'USE_MARKET_RELIC') {
+    const question = state.currentQuestion;
+    if (state.phase !== 'QUESTION' || !question || player.isBot || !state.questionDeadline
+      || Date.now() >= Date.parse(state.questionDeadline)) throw new Error('Relics are available only during your open question.');
+    const effect = arenaRelicEffect(command.slug, { ...question, options: question.options || [] },
+      state.questionAid, (answer) => answerIsCorrect(question, answer));
+    if (command.slug === 'skip') {
+      player.stats.questionFigs = (player.stats.questionFigs ?? player.stats.correct) + arenaQuestionFigs(false, effect.aid);
+      const challenge = state.challengeQueue.find((item) => item.id === state.activeChallengeId);
+      if (state.questionPurpose === 'inherited' && challenge) {
+        challenge.declinedPlayerIds.push(player.id);
+        expireChallengeIfComplete(state, challenge);
+      }
+      state.activeChallengeId = null;
+      state.activePrisonPawnId = null;
+      state.pendingSurprise = null;
+      state.bonusRollsUsed = 0;
+      resetToRoll(state);
+      addEvent(state, 'MARKET_RELIC_USED', `${player.name} skipped the round, earned 1 Fig, and can roll again.`, player.id);
+    } else {
+      state.questionAid = effect.aid;
+      if (effect.extraSeconds) state.questionDeadline = new Date(Date.parse(state.questionDeadline) + effect.extraSeconds * 1000).toISOString();
+      if (effect.answer !== undefined) resolveAnswer(state, effect.answer);
+      addEvent(state, 'MARKET_RELIC_USED', `${player.name}: ${effect.aid.notice}`, player.id);
+    }
   } else if (command.action === 'MOVE') {
     if (state.phase !== 'SELECTING_PAWN') throw new Error('A pawn cannot be moved now.');
-    movePawn(state, command.pawnId, random);
+    const before = player.isBot ? null : structuredClone(state);
+    movePawn(state, command.pawnId, random, shieldOwners);
+    const usedShield = state.players.some((candidate) =>
+      (before?.matchRelicUses?.[candidate.id]?.['shield-of-faith'] ?? 0)
+      !== (state.matchRelicUses?.[candidate.id]?.['shield-of-faith'] ?? 0));
+    if (before && state.phase !== 'GAME_OVER' && !usedShield) {
+      state.undo = { playerId: actorId, before };
+    }
   } else if (command.action === 'CHALLENGE_DECISION') {
     if (state.phase !== 'INHERITED_OFFER') throw new Error('There is no inherited challenge to decide.');
     const challenge = state.challengeQueue.find((item) => item.id === state.activeChallengeId);
@@ -864,7 +1061,12 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
       state.pendingSurprise = null;
       finishMovement(state);
     } else if (card.category === 'relic') {
-      if (player.relics.length < 3 && card.relic) {
+      if (card.marketRelicSlug) {
+        if (!player.isBot) {
+          player.stats.relicsFound += 1;
+          addEvent(state, 'RELIC_FOUND', `${player.name} earned ${card.relic} for their Market inventory.`, player.id);
+        }
+      } else if (player.relics.length < 3 && card.relic) {
         player.relics.push(card.relic);
         player.stats.relicsFound += 1;
         addEvent(state, 'RELIC_FOUND', `${player.name} found ${card.relic}.`, player.id);
@@ -904,6 +1106,7 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
       state.activeChallengeId = null;
       state.phase = 'AWAITING_ROLL';
     } else if (command.relic === 'Shield of Faith') {
+      assertRelicIsAvailable(state, actorId, 'shield-of-faith');
       const target = player.pawns.find((pawn) => pawn.id === command.pawnId && pawn.progress >= 0 && pawn.progress < ROAD_HOME_CONFIG.trackLength);
       if (!target) throw new Error('Choose an active road pawn for the Shield.');
       target.shielded = true;
@@ -925,10 +1128,12 @@ export function runRoadHomeBots(
   questionsInput: unknown[],
   random: RandomFn = Math.random,
   machineDifficulty: 'easy' | 'medium' | 'hard' = 'medium',
+  shieldOwners?: readonly string[],
 ) {
   let state = normalizeRoadHomeEconomyState(stateInput);
   let guard = 0;
-  while (state.phase !== 'GAME_OVER' && activePlayer(state).isBot && guard < 80) {
+  while ((!state.pausedUntil || Date.now() >= Date.parse(state.pausedUntil))
+    && state.phase !== 'GAME_OVER' && state.phase !== 'SHIELD_DECISION' && activePlayer(state).isBot && guard < 80) {
     guard += 1;
     const bot = activePlayer(state);
     if (state.phase === 'PRISON_MANAGEMENT') {
@@ -949,7 +1154,7 @@ export function runRoadHomeBots(
         const bPawn = pawnById(state, b)?.pawn;
         return (bPawn?.progress || -1) - (aPawn?.progress || -1);
       })[0];
-      state = applyRoadHomeCommand(state, bot.id, { action: 'MOVE', pawnId }, questionsInput, random);
+      state = applyRoadHomeCommand(state, bot.id, { action: 'MOVE', pawnId }, questionsInput, random, shieldOwners);
     } else if (state.phase === 'SURPRISE_CARD') {
       state = applyRoadHomeCommand(state, bot.id, { action: 'ACK_SURPRISE' }, questionsInput, random);
     }
@@ -959,6 +1164,9 @@ export function runRoadHomeBots(
 
 export function publicRoadHomeState(stateInput: RoadHomeState) {
   const state = normalizeRoadHomeEconomyState(stateInput);
+  delete state.shieldLanding;
+  const undoOffer = state.undo && state.phase !== 'SHIELD_DECISION' ? { playerId: state.undo.playerId } : undefined;
+  delete state.undo;
   state.questionPool = [];
   if (state.currentQuestion) {
     state.currentQuestion.correctAnswer = '';
@@ -985,5 +1193,5 @@ export function publicRoadHomeState(stateInput: RoadHomeState) {
       denariiSpent: player.stats.matchDenariiSpent,
     },
   }));
-  return state;
+  return { ...state, undoOffer };
 }

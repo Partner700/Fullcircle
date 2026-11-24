@@ -1,3 +1,5 @@
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../_shared/arenaBoardMarket.ts';
+import { arenaShieldOwners } from '../_shared/arenaShield.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   applyRoadHomeCommand,
@@ -17,6 +19,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, apikey",
+  "X-Full-Circle-Arena-Release": "210",
 };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim() || "";
@@ -40,7 +43,11 @@ async function rest(path: string, init: RequestInit = {}) {
     ...init,
     headers: { ...serviceHeaders(), ...(init.headers || {}) },
   });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    if (/You do not own this relic|Relics are available only|match advanced/i.test(error.message || '')) throw new Error(error.message);
+    throw new Error('The match could not be saved. Please try again shortly.');
+  }
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
@@ -64,24 +71,40 @@ async function roomContext(roomId: string) {
   if (!/\[arena:ludo\]/i.test(room.room_name || "")) throw new Error("This room is not a Road Home match.");
   const participantRows = await rest(`arena_participants?room_id=eq.${roomId}&select=user_id,joined_at,forfeited_at&order=joined_at.asc`);
   const ids = (participantRows || []).map((item: { user_id: string }) => item.user_id);
+  return {
+    room,
+    participantIds: ids,
+    activeParticipantIds: (participantRows || []).filter((item: any) => !item.forfeited_at).map((item: any) => item.user_id),
+    forfeitedIds: (participantRows || []).filter((item: any) => item.forfeited_at).map((item: any) => item.user_id),
+  };
+}
+
+async function questionDeck(roomId: string) {
+  const deckRows = await rest(`arena_question_decks?room_id=eq.${roomId}&select=questions`);
+  return Array.isArray(deckRows?.[0]?.questions) ? deckRows[0].questions : [];
+}
+
+async function gameSetup(context: Awaited<ReturnType<typeof roomContext>>) {
+  const ids = context.activeParticipantIds;
   const profiles = ids.length
     ? await rest(`profiles?id=in.(${ids.join(",")})&select=id,display_name,avatar_url`)
     : [];
   const byId = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
-  const participants: RoadHomeParticipant[] = (participantRows || []).filter((item: any) => !item.forfeited_at).map((item: any) => ({
-    id: item.user_id,
-    name: byId.get(item.user_id)?.display_name || "Cadet",
-    avatarUrl: byId.get(item.user_id)?.avatar_url || null,
+  const participants: RoadHomeParticipant[] = ids.map((id: string) => ({
+    id,
+    name: byId.get(id)?.display_name || "Cadet",
+    avatarUrl: byId.get(id)?.avatar_url || null,
   }));
-  if (room.play_mode === "machine") participants.push({ id: "machine", name: "The Scribe", isBot: true });
-  const deckRows = await rest(`arena_question_decks?room_id=eq.${roomId}&select=questions`);
+  if (context.room.play_mode === "machine") participants.push({ id: "machine", name: "The Scribe", isBot: true });
   return {
-    room,
     participants,
-    participantIds: ids,
-    forfeitedIds: (participantRows || []).filter((item: any) => item.forfeited_at).map((item: any) => item.user_id),
-    questions: Array.isArray(deckRows?.[0]?.questions) ? deckRows[0].questions : [],
+    questions: await questionDeck(context.room.id),
   };
+}
+
+async function publicGame(roomId: string) {
+  const rows = await rest(`arena_ludo_public_states?room_id=eq.${roomId}&select=version,public_state`);
+  return rows?.[0] || null;
 }
 
 async function privateGame(roomId: string) {
@@ -91,6 +114,13 @@ async function privateGame(roomId: string) {
 
 async function commandExists(roomId: string, commandId: string) {
   const rows = await rest(`arena_ludo_commands?room_id=eq.${roomId}&command_id=eq.${commandId}&select=command_id&limit=1`);
+  return Boolean(rows?.length);
+}
+
+async function hasPendingViewerChallenge(roomId: string, playerId: string) {
+  const rows = await rest(
+    `arena_chat_game_calls?source_room_id=eq.${roomId}&challenged_user_id=eq.${playerId}&response_status=eq.pending&select=id&limit=1`,
+  );
   return Boolean(rows?.length);
 }
 
@@ -157,29 +187,16 @@ async function createGame(roomId: string, state: RoadHomeState) {
   return publicState;
 }
 
-async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/arena_ludo_games?room_id=eq.${roomId}&version=eq.${previous.version}`, {
-    method: "PATCH",
-    headers: serviceHeaders("return=representation"),
-    body: JSON.stringify({ version: next.version, private_state: next, updated_at: new Date().toISOString() }),
+async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null, useShield = false, useBoomerang = false, market?: { spend?: string; award?: string }) {
+  const result = await rest(useShield ? 'rpc/commit_arena_shield_turn'
+    : useBoomerang ? 'rpc/commit_arena_boomerang_turn'
+    : market ? 'rpc/commit_arena_board_market_turn' : 'rpc/commit_arena_ludo_turn', {
+    method: 'POST', body: JSON.stringify({ p_room_id: roomId, p_expected_version: previous.version,
+      p_next_state: next, p_public_state: publicRoadHomeState(next), p_command_id: commandId,
+      p_actor_id: actorId, ...(market ? { p_spend_slug: market.spend ?? null, p_award_slug: market.award ?? null }
+        : (useShield || useBoomerang) ? {} : { p_relic_slug: relicSlug }) }),
   });
-  if (!response.ok) throw new Error(await response.text());
-  const rows = await response.json();
-  if (!rows.length) throw new Error("The match advanced on another device. Refreshing the board.");
-
-  const publicState = publicRoadHomeState(next);
-  await rest("arena_ludo_public_states", {
-    method: "POST",
-    headers: serviceHeaders("resolution=merge-duplicates"),
-    body: JSON.stringify({ room_id: roomId, version: next.version, public_state: publicState, updated_at: new Date().toISOString() }),
-  });
-  await rest("arena_ludo_commands", {
-    method: "POST",
-    headers: serviceHeaders("resolution=ignore-duplicates"),
-    body: JSON.stringify({ room_id: roomId, command_id: commandId, actor_id: actorId, state_version: next.version }),
-  });
-  await insertEvents(roomId, new Set(previous.eventLog.map((event) => event.id)), next.eventLog);
-  return publicState;
+  return result.state;
 }
 
 async function finishArenaRoom(room: any, state: RoadHomeState) {
@@ -197,6 +214,7 @@ async function finishArenaRoom(room: any, state: RoadHomeState) {
         user_id: player.id,
         score: player.stats.totalMovement + player.stats.correct,
         correct_count: player.stats.correct,
+        figs_earned: player.stats.questionFigs,
       })),
       p_completion_reason: state.eventLog.some((event) => event.type === "PLAYER_FORFEITED") ? "forfeit" : "finished",
     }),
@@ -251,6 +269,14 @@ Deno.serve(async (request) => {
     if (!context.participantIds.includes(actorId)) return json({ error: "You are not a participant in this room." }, 403);
 
     if (action === "GET") {
+      const snapshot = await publicGame(roomId);
+      if (snapshot?.public_state) {
+        const publicState = snapshot.public_state as RoadHomeState;
+        const pendingForfeit = context.forfeitedIds.some((id: string) =>
+          publicState.players?.some((player) => player.id === id && !player.forfeited));
+        if (!pendingForfeit) return json({ state: publicState, version: snapshot.version });
+      }
+      // Only a missing snapshot or newly forfeited player needs the private game state.
       const existingPrivate = await privateGame(roomId);
       if (!existingPrivate) return json({ state: null, needsInitialization: context.room.status === "playing" });
       const state = await synchronizeForfeits(context, existingPrivate);
@@ -264,8 +290,9 @@ Deno.serve(async (request) => {
         const normalized = normalizeRoadHomeEconomyState(existing.private_state as RoadHomeState);
         return json({ state: publicRoadHomeState(normalized), version: normalized.version });
       }
-      let state = createRoadHomeGame(roomId, context.participants, context.questions, secureRandom);
-      state = runRoadHomeBots(state, context.questions, secureRandom, machineDifficulty(String(context.room.room_name || '')));
+      const setup = await gameSetup(context);
+      let state = createRoadHomeGame(roomId, setup.participants, setup.questions, secureRandom);
+      state = runRoadHomeBots(state, setup.questions, secureRandom, machineDifficulty(String(context.room.room_name || '')));
       const publicState = await createGame(roomId, state);
       return json({ state: publicState, version: state.version });
     }
@@ -274,7 +301,11 @@ Deno.serve(async (request) => {
     if (!existingPrivate) return json({ error: "The Road Home state has not been initialised.", needsInitialization: true }, 409);
     if (await commandExists(roomId, commandId)) {
       const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
+      await finishArenaRoom(context.room, normalized);
       return json({ state: publicRoadHomeState(normalized), version: normalized.version, duplicate: true });
+    }
+    if (action !== "FORFEIT" && action !== "SHIELD" && await hasPendingViewerChallenge(roomId, actorId)) {
+      return json({ error: "Respond to the Arena challenge before playing your next move." }, 409);
     }
     if (body.expectedVersion != null && Number(body.expectedVersion) !== Number(existingPrivate.version)) {
       const normalized = normalizeRoadHomeEconomyState(existingPrivate.private_state as RoadHomeState);
@@ -290,15 +321,22 @@ Deno.serve(async (request) => {
         body: JSON.stringify({ forfeited_at: new Date().toISOString(), forfeit_reason: "manual", finished_at: new Date().toISOString() }),
       });
     }
-    const command = { action, ...(body.payload || {}) } as RoadHomeCommand;
+    const command = { ...(body.payload || {}), action } as RoadHomeCommand;
     let commandState = structuredClone(previous) as RoadHomeState;
     if (action === "ROLL") {
       try { commandState = await replenishQuestionPool(commandState, String(context.room.room_name || "Bible Arena")); } catch { /* Keep the verified current deck if expansion is temporarily unavailable. */ }
     }
-    const questionPool = commandState.questionPool?.length ? commandState.questionPool : context.questions;
-    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom);
-    next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')));
-    const publicState = await saveGame(roomId, previous, next, commandId, actorId);
+    const questionPool = commandState.questionPool?.length ? commandState.questionPool : await questionDeck(roomId);
+    const useShield = command.action === 'SHIELD' && command.decision === 'use' && !previous.shieldLanding?.usesMatchRelic;
+    const useBoomerang = command.action === 'SHIELD' && command.decision === 'reflect';
+    const shieldOwners = body.shieldDecisionV1 === true ? await arenaShieldOwners(rest,
+      context.participantIds.filter((id) => !context.forfeitedIds.includes(id)), useShield ? actorId : undefined) : undefined;
+    const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
+    const award = action === 'ACK_SURPRISE' ? previous.pendingSurprise?.marketRelicSlug : undefined;
+    let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners);
+    next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')), shieldOwners);
+    const publicState = await saveGame(roomId, previous, next, commandId, actorId,
+      command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield, useBoomerang, spend || award ? { spend, award } : undefined);
     await finishArenaRoom(context.room, next);
     return json({ state: publicState, version: next.version });
   } catch (error) {

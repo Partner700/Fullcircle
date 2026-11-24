@@ -1,10 +1,11 @@
+import { useAuth } from '../context/AuthContext';
+import { preferredTimeZone } from '../lib/regionalPreferences';
 import { useEffect, useState } from 'react';
 import { AlarmClock, Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { deletePersonalAlarm, fetchPersonalAlarms, savePersonalAlarm, type PersonalAlarm } from '../lib/scriptureAlarms';
 import { AppSelect } from './AppSelect';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const defaultTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Douala';
 const dateInTimezone = (timezone: string) => {
   const parts = new Intl.DateTimeFormat('en', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-');
@@ -13,12 +14,14 @@ const supportedTimezones = () => {
   const list = (Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
   return list ? list('timeZone') : ['Africa/Douala', 'Africa/Lagos', 'Africa/Accra', 'Africa/Nairobi', 'Europe/London', 'Europe/Paris', 'America/New_York', 'America/Toronto', 'Asia/Dubai'];
 };
-const emptyAlarm = (): Omit<PersonalAlarm, 'id'> & { id?: string } => ({
-  title: '', alarm_time: '07:00', timezone: defaultTimezone(), repeat_days: [1,2,3,4,5,6,7], once_date: null, enabled: true,
+const emptyAlarm = (timeZone: string): Omit<PersonalAlarm, 'id'> & { id?: string } => ({
+  title: '', alarm_time: '07:00', timezone: timeZone, repeat_days: [1,2,3,4,5,6,7], once_date: null, enabled: true,
 });
 const failure = (error: unknown) => error && typeof error === 'object' && 'message' in error ? String(error.message) : 'The alarm could not be saved. Please try again.';
 
 export function PersonalAlarmSettings() {
+  const { profile } = useAuth();
+  const timeZone = preferredTimeZone(profile?.timezone);
   const [alarms, setAlarms] = useState<PersonalAlarm[]>([]);
   const [draft, setDraft] = useState<ReturnType<typeof emptyAlarm> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,12 +33,12 @@ export function PersonalAlarmSettings() {
     setBusy(true); setError('');
     try { await action(); if (close) setDraft(null); await load(); } catch(e) { setError(failure(e)); } finally { setBusy(false); }
   };
-  const timezones = Array.from(new Set([defaultTimezone(), draft?.timezone || '', ...supportedTimezones()].filter(Boolean)));
+  const timezones = Array.from(new Set([timeZone, draft?.timezone || '', ...supportedTimezones()].filter(Boolean)));
   return (
     <section className="mt-5 border-t border-border pt-4" aria-labelledby="personal-alarms-title">
       <div className="flex items-center justify-between gap-2">
         <h4 id="personal-alarms-title" className="flex items-center gap-2 text-sm font-semibold text-ink"><AlarmClock size={17} /> My Alarms</h4>
-        <button type="button" className="icon-btn" disabled={busy} onClick={() => setDraft(emptyAlarm())} aria-label="Add alarm" title="Add alarm"><Plus size={18} /></button>
+        <button type="button" className="icon-btn" disabled={busy} onClick={() => setDraft(emptyAlarm(timeZone))} aria-label="Add alarm" title="Add alarm"><Plus size={18} /></button>
       </div>
       {loading ? <Loader2 size={18} className="my-3 animate-spin" /> : (
         <ul className="divide-y divide-border">

@@ -1,0 +1,464 @@
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../../../supabase/functions/_shared/arenaBoardMarket';
+import { arenaMatchRelicIsMuted } from '../../../supabase/functions/_shared/arenaMatchRelicLimits';
+import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
+import { GamePoints } from '../../components/GamePoints';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ChevronDown, Clock3, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
+import { ArenaMatchup } from '../../components/ArenaMatchup';
+import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
+import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
+import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
+import { JourneyBoard, JourneySquareIcon } from '../../components/JourneyBoard';
+import { JourneyDialog } from '../../components/JourneyDialog';
+import { journeyEffectDescription, journeyEventSquare, type JourneySquare } from '../../lib/journeyPresentation';
+import { journeyMovementPath } from '../../lib/journeyBoardLayout';
+import { userFacingError } from '../../lib/connectionErrors';
+import { supabase } from '../../lib/supabase';
+import { fetchPanelImageSetting } from '../../lib/queries';
+import type { PanelImageSetting } from '../../lib/types';
+import { fetchJourneyState, initializeJourney, sendJourneyCommand, type JourneyServerResponse } from '../../lib/journeyClient';
+import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
+import { machineJourneyMayAct, type JourneyPublicState } from '../../../supabase/functions/_shared/biblicalJourneyRuntime';
+import { DEFAULT_JOURNEY_CONFIG, journeyConfigForGame, journeyScore, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
+
+type Props = {
+  roomId: string;
+  roomName: string;
+  userId: string;
+  players: ArenaMatchupPlayer[];
+  spectator: boolean;
+  machine?: boolean;
+  guestKey?: string;
+  arenaImage?: PanelImageSetting | null;
+  onExit: () => void;
+  onStateChanged?: () => Promise<void> | void;
+};
+
+type Character = { slug: string; displayName: string; narrativeBeats: string[] };
+
+function message(error: unknown) {
+  return userFacingError(error, 'The Journey could not be updated. Please try again.');
+}
+
+function answerFromOrder(question: NonNullable<JourneyPublicState['currentQuestion']>, ordered: number[]) {
+  return ordered.map((index) => {
+    const prefix = question.options[index]?.match(/^([A-Z])\s*[.)]/i)?.[1];
+    return (prefix || String.fromCharCode(65 + index)).toUpperCase();
+  }).join(' ');
+}
+
+export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, machine = false, guestKey, arenaImage: suppliedArenaImage, onExit, onStateChanged }: Props) {
+  const [fetchedArenaImage, setFetchedArenaImage] = useState<PanelImageSetting | null>(null);
+  const arenaImage = suppliedArenaImage === undefined ? fetchedArenaImage : suppliedArenaImage;
+  useEffect(() => {
+    if (suppliedArenaImage !== undefined) return;
+    let active = true;
+    void fetchPanelImageSetting('arena').then((image) => { if (active) setFetchedArenaImage(image); }).catch(() => {});
+    return () => { active = false; };
+  }, [suppliedArenaImage]);
+  const [state, setState] = useState<JourneyPublicState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [botFailures, setBotFailures] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [answer, setAnswer] = useState('');
+  const [order, setOrder] = useState<number[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [questionHidden, setQuestionHidden] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [timeoutRetry, setTimeoutRetry] = useState(0);
+  const [verdictVisible, setVerdictVisible] = useState(false);
+  const [movementPending, setMovementPending] = useState(false);
+  const [revealingRoll, setRevealingRoll] = useState(false);
+  const [rolling, setRolling] = useState(false);
+  const [squareNotices, setSquareNotices] = useState<Array<{ id: number; name: string; square: JourneySquare }>>([]);
+  const eventsCursor = useRef<number | null>(null);
+  const [character, setCharacter] = useState<Character | null>(null);
+  const [publicPlayers, setPublicPlayers] = useState<ArenaMatchupPlayer[] | null>(null);
+  const versionRef = useRef<number | null>(null);
+  const fetchingRef = useRef(false);
+  const initializationRef = useRef(false);
+  const commandRef = useRef<{ signature: string; id: string } | null>(null);
+  const completedRef = useRef(false);
+  const verdictRef = useRef<string | null>(null);
+  const timedOutRef = useRef<string | null>(null);
+  const onStateChangedRef = useRef(onStateChanged);
+  onStateChangedRef.current = onStateChanged;
+
+  const applyResponse = useCallback((response: JourneyServerResponse) => {
+    if (response.unchanged || !response.state) return;
+    const incomingVersion = response.version ?? response.state.game.version;
+    if (versionRef.current !== null && incomingVersion < versionRef.current) return;
+    versionRef.current = incomingVersion;
+    const previousSequence = eventsCursor.current;
+    if (previousSequence !== null) {
+      const config = journeyConfigForGame(response.state.game);
+      setMovementPending(response.state.game.events.some((event) => event.sequence > previousSequence
+        && journeyMovementPath(event, config.finishSpace, config.loopLength).length > 0));
+    }
+    setState(response.state);
+    setError(null);
+    if (response.state.game.status === 'finished' && !completedRef.current) {
+      completedRef.current = true;
+      void onStateChangedRef.current?.();
+    }
+  }, []);
+
+  const load = useCallback(async () => {
+    if (fetchingRef.current || document.visibilityState === 'hidden') return;
+    fetchingRef.current = true;
+    try {
+      const response = await fetchJourneyState(roomId, versionRef.current ?? undefined);
+      if (response.needsInitialization && !spectator && !initializationRef.current) {
+        initializationRef.current = true;
+        try { applyResponse(await initializeJourney(roomId)); }
+        finally { initializationRef.current = false; }
+      } else if (response.needsInitialization) {
+        setError('The Journey board is opening. It will appear here shortly.');
+      } else {
+        applyResponse(response);
+      }
+    } catch (loadError) {
+      if (versionRef.current === null) setError(message(loadError));
+    } finally {
+      fetchingRef.current = false;
+      setLoading(false);
+    }
+  }, [applyResponse, roomId, spectator]);
+
+  useEffect(() => {
+    versionRef.current = null;
+    eventsCursor.current = null;
+    setSquareNotices([]);
+    completedRef.current = false;
+    setState(null);
+    setLoading(true);
+    void load();
+    // The Journey state endpoint accepts a version cursor and returns
+    // unchanged when no move occurred. Witnesses do not need the same
+    // five-second cadence as players actively issuing commands.
+    const interval = window.setInterval(() => void load(), spectator ? 12_000 : 5_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
+  }, [load]);
+
+  useEffect(() => {
+    setAnswer('');
+    setOrder([]);
+    setQuestionHidden(false);
+  }, [state?.currentQuestion?.id]);
+
+  useEffect(() => {
+    if (state?.questionAid?.hiddenOptions.includes(answer)) setAnswer('');
+  }, [answer, state?.questionAid?.hiddenOptions]);
+
+  useEffect(() => {
+    if (!state?.questionDeadline || !state.currentQuestion) { setSecondsLeft(0); return; }
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((Date.parse(state.questionDeadline!) - Date.now()) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [state?.questionDeadline, state?.currentQuestion]);
+
+  useLayoutEffect(() => {
+    if (!state?.pendingDie || !state.questionOpensAt) { setRevealingRoll(false); return; }
+    setRevealingRoll(true);
+    const timer = window.setTimeout(() => setRevealingRoll(false), Math.max(900, Date.parse(state.questionOpensAt) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [state?.pendingDie, state?.questionOpensAt]);
+
+  useLayoutEffect(() => {
+    const verdictKey = state?.lastVerdict ? `${state.lastVerdict.questionId}:${state.game.version}` : null;
+    if (!verdictKey) { setVerdictVisible(false); return; }
+    if (verdictRef.current === verdictKey) return;
+    if (movementPending) return;
+    verdictRef.current = verdictKey;
+    setVerdictVisible(true);
+    const remaining = state?.questionOpensAt ? Date.parse(state.questionOpensAt) - Date.now() : 3200;
+    const timer = window.setTimeout(() => setVerdictVisible(false), Math.max(900, remaining));
+    return () => window.clearTimeout(timer);
+  }, [movementPending, state?.lastVerdict, state?.game.version, state?.questionOpensAt]);
+
+  useEffect(() => {
+    if (!state?.characterSlug) return;
+    let active = true;
+    void supabase.rpc('list_ready_arena_journey_characters').then(({ data }) => {
+      if (active) setCharacter(((data || []) as Character[]).find((item) => item.slug === state.characterSlug) || null);
+    });
+    return () => { active = false; };
+  }, [state?.characterSlug]);
+
+  useEffect(() => {
+    if (!guestKey) return;
+    let active = true;
+    void supabase.rpc('get_public_arena_journey_matchup', { p_room_id: roomId }).then(({ data }) => {
+      if (active && Array.isArray(data)) setPublicPlayers(data as ArenaMatchupPlayer[]);
+    });
+    return () => { active = false; };
+  }, [guestKey, roomId]);
+
+  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL', payload: Record<string, unknown> = {}) => {
+    if (!state || spectator || sending) return false;
+    const version = versionRef.current ?? state.game.version;
+    const signature = JSON.stringify({ version, action, payload });
+    if (commandRef.current?.signature !== signature) commandRef.current = { signature, id: crypto.randomUUID() };
+    setSending(true);
+    setRolling(action === 'ROLL' || action === 'BOT' && Boolean(state.awaitingRoll));
+    setError(null);
+    try {
+      const response = await sendJourneyCommand(roomId, action, version, commandRef.current.id, payload);
+      applyResponse(response);
+      commandRef.current = null;
+      if (action === 'BOT') setBotFailures(0);
+      if (action === 'UNDO') setSquareNotices([]);
+      return true;
+    } catch (sendError) {
+      const conflict = sendError as Error & { state?: JourneyPublicState | null; version?: number };
+      if (conflict.state) {
+        applyResponse({ state: conflict.state, version: conflict.version });
+        commandRef.current = null;
+        return false;
+      }
+      setError(message(sendError));
+      if (action === 'BOT') setBotFailures((count) => Math.min(count + 1, 5));
+      if (action === 'EXPIRE') window.setTimeout(() => {
+        timedOutRef.current = null;
+        setTimeoutRetry((count) => count + 1);
+      }, 2500);
+      return false;
+    } finally {
+      setSending(false);
+      setRolling(false);
+    }
+  }, [applyResponse, roomId, sending, spectator, state]);
+
+  const [relicNow, setRelicNow] = useState(Date.now);
+  const pauseUntil = Date.parse(state?.pausedUntil || '');
+  const pauseRemaining = Math.max(0, Math.ceil((pauseUntil - relicNow) / 1000) || 0);
+  const undoMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_UNDO, machine);
+  const standstillMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_STANDSTILL, machine);
+  const undoAvailable = !spectator && !undoMuted && state?.undoOffer?.playerId === userId;
+  useEffect(() => {
+    if (!Number.isFinite(pauseUntil)) return;
+    const tick = () => setRelicNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [pauseUntil]);
+  const botMayAct = pauseRemaining === 0 && machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && state ? machineJourneyMayAct(state) : false;
+  useEffect(() => {
+    if (!botMayAct || sending) return;
+    let timer: number | undefined;
+    const schedule = () => {
+      if (timer) window.clearTimeout(timer);
+      if (document.visibilityState === 'visible') {
+        const untilOpen = state?.questionOpensAt ? Math.max(0, Date.parse(state.questionOpensAt) - Date.now()) : 0;
+        timer = window.setTimeout(() => void send('BOT'), untilOpen + Math.min(1500 * 2 ** botFailures, 15_000));
+      }
+    };
+    document.addEventListener('visibilitychange', schedule);
+    schedule();
+    return () => { if (timer) window.clearTimeout(timer); document.removeEventListener('visibilitychange', schedule); };
+  }, [botFailures, botMayAct, send, sending, state?.game.version, state?.questionOpensAt]);
+
+  const activePlayer = state?.game.players[state.game.turnIndex];
+  useEffect(() => {
+    if (!state || pauseRemaining > 0 || state.game.shieldOffer || spectator || sending || activePlayer?.id !== userId || activePlayer.prisonTurnsRemaining <= 0) return;
+    void send('SERVE');
+  }, [activePlayer, pauseRemaining, send, sending, spectator, state, userId]);
+  const myTurn = !spectator && state?.game.status === 'playing'
+    && state.currentQuestionPlayerId === userId;
+  const openQuestion = state?.currentQuestion;
+  const waitingForMyAnswer = myTurn && state?.currentQuestionPlayerId === userId;
+  useEffect(() => {
+    if (!state?.currentQuestion || !state.questionDeadline || pauseRemaining > 0 || spectator || sending
+      || Date.now() < Date.parse(state.questionDeadline)
+      || machine && state.currentQuestionPlayerId === JOURNEY_MACHINE_ID) return;
+    const key = `${state.currentQuestion.id}:${state.game.version}`;
+    if (timedOutRef.current === key) return;
+    timedOutRef.current = key;
+    void send('EXPIRE');
+  }, [machine, pauseRemaining, secondsLeft, send, sending, spectator, state, timeoutRetry]);
+  const mayChoose = !spectator && state?.game.pendingAction?.kind === 'choice'
+    && state.game.pendingAction.playerId !== userId
+    && state.game.players.some((player) => player.id === userId);
+  const asking = Boolean(openQuestion && !questionHidden && !movementPending && !verdictVisible && !revealingRoll);
+  const readyAnswer = openQuestion?.type === 'order_sequence'
+    ? order.length === openQuestion.options.length
+    : answer.trim().length > 0;
+  const roster = useMemo(() => {
+    const known = publicPlayers?.length ? publicPlayers : players;
+    return machine && !known.some((player) => player.user_id === JOURNEY_MACHINE_ID)
+      ? [...known, { user_id: JOURNEY_MACHINE_ID, display_name: 'The Scribe', avatar_url: null, tent_house_id: null, correct_count: 0 }]
+      : known;
+  }, [machine, players, publicPlayers]);
+  const visiblePlayers = useMemo(() => roster.map((player) => ({
+    ...player,
+    correct_count: state?.game.players.find((candidate) => candidate.id === player.user_id)?.correctAnswers ?? player.correct_count,
+    score: state?.game.players.find((candidate) => candidate.id === player.user_id)
+      ? journeyScore(state.game.players.find((candidate) => candidate.id === player.user_id)!) : player.score,
+  })), [roster, state?.game.players]);
+  const profiles = useMemo(() => Object.fromEntries(roster.map((player) => [player.user_id, {
+    name: player.display_name, avatarUrl: player.avatar_url,
+  }])), [roster]);
+  const baseConfig = state ? journeyConfigForGame(state.game) : DEFAULT_JOURNEY_CONFIG;
+  const boardConfig = useMemo(() => character?.narrativeBeats?.length === 7 ? {
+    ...baseConfig,
+    milestones: baseConfig.milestones.map((milestone, index) => ({
+      ...milestone, title: character.narrativeBeats[index],
+    })),
+  } : baseConfig, [character, baseConfig]);
+
+  useEffect(() => {
+    if (!state) return;
+    const events = state.game.events;
+    const previous = eventsCursor.current;
+    eventsCursor.current = events[events.length - 1]?.sequence || 0;
+    if (previous === null) return;
+    const notices = events.filter((event) => event.sequence > previous).flatMap((event) => {
+      const square = journeyEventSquare(event, boardConfig);
+      return square ? [{ id: event.sequence, name: profiles[event.targetPlayerId]?.name || 'Player', square }] : [];
+    });
+    if (notices.length) setSquareNotices((current) => [...current, ...notices]);
+  }, [state, boardConfig, profiles]);
+
+  const rollReady = Boolean(pauseRemaining === 0 && state?.awaitingRoll && activePlayer?.id === userId && !spectator && !sending && !movementPending && !verdictVisible && !squareNotices.length);
+  const movementFinished = useCallback(() => setMovementPending(false), []);
+  const squareNotice = squareNotices[0];
+
+  if (loading && !state) return <div className="flex min-h-[20rem] items-center justify-center gap-2 text-sm text-stone"><Loader2 size={18} className="animate-spin text-brass" /> Opening the Journey...</div>;
+  if (!state) return <div className="flex min-h-[20rem] flex-col items-center justify-center gap-3 text-center text-sm text-stone">
+    <p>{error || 'The Journey has not started yet.'}</p>
+    <button type="button" className="btn-secondary text-xs" onClick={() => void load()}><RotateCw size={15} /> Try again</button>
+    <button type="button" className="btn-ghost text-xs" onClick={onExit}>Back to Arena</button>
+  </div>;
+  if (state.game.status === 'finished') return <ArenaFinalScorecard roomId={roomId} onExit={onExit} arenaImage={arenaImage} />;
+
+  const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
+    && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
+  return <div className="space-y-4">
+    <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
+    <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
+      activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
+      spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
+    <ArenaMatchup players={visiblePlayers} playing pinned arenaImage={arenaImage} />
+    {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
+      && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
+    {pauseRemaining > 0 && <JourneyDialog label="Standstill">
+      <h2 className="font-display text-lg font-bold text-ink">Standstill</h2>
+      <p className="mt-2 text-sm text-stone">The match will resume automatically.</p>
+      <p className="mt-3 font-display text-3xl tabular-nums text-gold">{Math.floor(pauseRemaining / 60)}:{String(pauseRemaining % 60).padStart(2, '0')}</p>
+      <button type="button" className="btn-secondary mt-4 text-xs" onClick={onExit}>Leave match view</button>
+    </JourneyDialog>}
+    {!spectator && (undoMuted || standstillMuted) && <p role="status" className="text-xs text-stone">
+      Match limits reached: {[undoMuted && 'Undo (3)', standstillMuted && 'Standstill (1)'].filter(Boolean).join(', ')}.
+    </p>}
+    {!spectator && <ArenaMarketRelics
+      userId={userId} questionType={openQuestion?.type || ''} aid={state.questionAid}
+      disabled={pauseRemaining > 0 || Boolean(state.game.shieldOffer) || !waitingForMyAnswer || !asking || sending || secondsLeft <= 0}
+      timed={Boolean(waitingForMyAnswer && asking)} onUse={(slug) => send('RELIC', { slug })}
+      boardRelics={[
+        { slug: ARENA_UNDO, usable: Boolean(undoAvailable && !sending && pauseRemaining === 0 && !state.game.shieldOffer), use: () => send('UNDO') },
+        { slug: ARENA_STANDSTILL, usable: standstillAvailable && !sending && (!asking || secondsLeft > 0), use: () => send('STANDSTILL') },
+        { slug: 'shield-of-faith', usable: false, use: async () => false },
+      ]} />}
+    {state.game.shieldOffer && <ArenaShieldDecision key={state.game.version} offer={state.game.shieldOffer}
+      viewerId={spectator ? undefined : userId} sending={sending}
+      onDecide={(decision) => send('SHIELD', { decision })} />}
+    <div className="border-b border-border pb-3">
+      <p className="eyebrow text-brass">{character?.displayName || 'Biblical Journey'}</p>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-base font-semibold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2>
+        <div className="flex items-center gap-1">
+          <button type="button" className="btn-ghost text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={15} /> Chat</button>
+          <button type="button" className="btn-ghost text-xs" onClick={onExit}>Back to Arena</button>
+        </div>
+      </div>
+    </div>
+    {error && <p className="rounded-md border border-coral/40 bg-coral-soft p-3 text-xs text-coral" role="alert">{error}</p>}
+    <div className="space-y-3">
+      {state.game.tentSides && <div className="rounded-md border border-border p-3 text-xs text-stone">
+        <p className="eyebrow text-brass">Inter-Tent Championship · Competing sides</p>
+        <p className="mt-1 font-semibold text-ink">{Array.from(new Set(Object.values(state.game.tentSides))).map(side =>
+          state.game.players.filter(player => state.game.tentSides?.[player.id] === side)
+            .map(player => profiles[player.id]?.name || 'Player').join(' & ')).join(' vs ')}</p>
+        <p className="mt-1">Your tent teammates share tournament points. Competitive swaps and transferred penalties exclude teammates.</p>
+      </div>}
+      <GamePoints game="journey" players={roster} />
+      <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
+        dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
+        onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
+      <div className="min-w-0 space-y-3">
+        {pauseRemaining === 0 && !state.game.shieldOffer && verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
+          <div className="flex items-center gap-2">
+            {state.lastVerdict.correct ? <CheckCircle2 size={24} className="text-sage" /> : <XCircle size={24} className="text-coral" />}
+            <h3 className="font-display text-lg font-bold text-ink">{state.lastVerdict.correct ? 'Correct answer' : state.lastVerdict.selectedAnswer === 'Time expired' ? 'Time is up' : 'Not quite'}</h3>
+            {state.lastVerdict.die && <span className="ml-auto flex items-center gap-1 font-display text-xl font-bold text-brass"><Dices size={20} /> {state.lastVerdict.die}</span>}
+          </div>
+          <p className="mt-2 text-xs text-stone">{profiles[state.lastVerdict.playerId]?.name || 'Player'} · {state.lastVerdict.question}</p>
+          <p className="mt-3 text-sm text-ink">Selected: <strong>{state.lastVerdict.selectedAnswer}</strong></p>
+          <p className="mt-1 text-sm text-ink">Answer: <strong>{state.lastVerdict.correctAnswer}</strong></p>
+          {state.lastVerdict.explanation && <p className="mt-2 text-xs text-stone">{state.lastVerdict.explanation}</p>}
+          {state.lastVerdict.reference && <p className="mt-1 text-xs text-brass">{state.lastVerdict.reference}</p>}
+          <button type="button" className="btn-secondary mt-3 w-full justify-center" onClick={() => setVerdictVisible(false)}>Continue</button>
+        </div></JourneyDialog> : null}
+
+        {pauseRemaining === 0 && openQuestion && asking && !chatOpen && state.game.status === 'playing' && <JourneyDialog label="Biblical Journey question" onClose={!waitingForMyAnswer ? () => setQuestionHidden(true) : undefined}><section className="min-w-0" aria-label="Biblical Journey question">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0"><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s turn</h3></div>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className={`flex items-center gap-1 font-display text-sm font-bold tabular-nums ${secondsLeft <= 5 ? 'text-coral' : 'text-brass'}`} aria-live="off"><Clock3 size={15} /> {secondsLeft}s</span>
+              {!waitingForMyAnswer && <button type="button" title="Hide question" aria-label="Hide question" className="icon-btn h-8 w-8" onClick={() => setQuestionHidden(true)}><X size={17} /></button>}
+            </div>
+          </div>
+          {state.game.pendingAction?.kind === 'trial' && <p className="mt-3 border-l-2 border-gold pl-3 text-xs leading-relaxed text-brass">{journeyEffectDescription({ kind: 'trial', success: state.game.pendingAction.choices[0], failure: state.game.pendingAction.choices[1] })}</p>}
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={secondsLeft} aria-valuemin={0} aria-valuemax={state.questionAid?.used.includes('freeze-timer') ? 90 : 30} aria-label="Question time remaining">
+            <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / (state.questionAid?.used.includes('freeze-timer') ? 90 : 30) * 100)}%` }} />
+          </div>
+          <p className="mt-4 whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">{openQuestion.question}</p>
+          {waitingForMyAnswer && <div className="mt-4 max-h-[48dvh] space-y-2 overflow-y-auto pr-1">
+            {openQuestion.type === 'true_false' && <div className="grid grid-cols-2 gap-2">
+              {['true', 'false'].map((value) => <button type="button" key={value} className={answer === value ? 'btn-primary justify-center' : 'btn-secondary justify-center'} onClick={() => setAnswer(value)}>{value === 'true' ? 'True' : 'False'}</button>)}
+            </div>}
+            {(openQuestion.type === 'multiple_choice' || openQuestion.type === 'odd_one') && openQuestion.options.map((option, index) => state.questionAid?.hiddenOptions.includes(option) ? null :
+              <button type="button" key={`${index}-${option}`} className={answer === option ? 'btn-primary w-full justify-start text-left' : 'btn-secondary w-full justify-start text-left'} onClick={() => setAnswer(option)}><span className="mr-2 font-display font-bold">{String.fromCharCode(65 + index)}.</span>{option}</button>)}
+            {openQuestion.type === 'fill_blank' && <input className="input-field" value={answer} onChange={(event) => setAnswer(event.target.value)} autoComplete="off" placeholder="Your answer" aria-label="Your answer" />}
+            {openQuestion.type === 'order_sequence' && <>
+              <p className="text-xs text-stone">Tap events in their order.</p>
+              {order.length > 0 && <div className="flex flex-wrap gap-1">{order.map((index, position) => <button type="button" key={index} className="btn-secondary text-xs" onClick={() => setOrder((current) => current.filter((value) => value !== index))}>{position + 1}. {openQuestion.options[index]} <X size={12} /></button>)}</div>}
+              {openQuestion.options.map((option, index) => <button type="button" key={index} className="btn-secondary w-full justify-start text-left text-xs" disabled={order.includes(index)} onClick={() => setOrder((current) => [...current, index])}>{option}</button>)}
+            </>}
+            <button type="button" className="btn-primary mt-3 w-full justify-center" disabled={!readyAnswer || sending || secondsLeft === 0} onClick={() => void send('ANSWER', {
+              answer: openQuestion.type === 'order_sequence' ? answerFromOrder(openQuestion, order) : answer.trim(),
+            })}>{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit answer</button>
+          </div>}
+          {error && <p className="mt-2 text-xs text-coral" role="alert">{error}</p>}
+          {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
+          <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>
+        </section></JourneyDialog>}
+        {openQuestion && questionHidden && !verdictVisible && <div className="flex gap-2"><button type="button" className="btn-secondary flex-1 justify-center text-xs" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Show question</button><button type="button" className="btn-secondary justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Chat</button></div>}
+        {!openQuestion && !verdictVisible && !state.awaitingRoll && <p className="border-t border-border pt-3 text-sm text-stone">Waiting for the next move.</p>}
+      </div>
+    </div>
+
+    {mayChoose && <div className="border-t border-border pt-3">
+      <p className="mb-2 text-sm font-semibold text-ink">Choose your rival's penalty</p>
+      <div className="flex flex-wrap gap-2">
+        {state.game.pendingAction?.choices.map((effect, choice) => <button key={choice} type="button" className="btn-secondary text-xs" disabled={sending} onClick={() => void send('CHOOSE', { choice })}>
+          {journeyEffectDescription(effect)}
+        </button>)}
+      </div>
+    </div>}
+
+    {pauseRemaining === 0 && !state.game.shieldOffer && squareNotice && !movementPending && !verdictVisible && !asking && !chatOpen && <JourneyDialog label={squareNotice.square.title} tone={squareNotice.square.tone === 'red' ? 'bad' : 'good'} onClose={() => setSquareNotices((current) => current.slice(1))}>
+      <div className={`flex items-center gap-3 ${squareNotice.square.tone === 'red' ? 'text-coral' : 'text-brass'}`}><JourneySquareIcon square={squareNotice.square} size={32} /><div><p className="text-xs text-stone">{squareNotice.name}</p><h3 className="font-display text-xl font-bold">{squareNotice.square.title}</h3></div></div>
+      <p className="mt-4 text-sm leading-relaxed text-ink">{squareNotice.square.description}</p>
+      <button type="button" className={`mt-4 flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-bold ${squareNotice.square.tone === 'red' ? 'border border-coral bg-coral-soft text-coral' : 'btn-primary'}`} onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>
+    </JourneyDialog>}
+    <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher
+      onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}
+      challengeTargets={spectator && !guestKey ? players.filter((player) => player.user_id !== JOURNEY_MACHINE_ID).map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
+  </div>;
+}

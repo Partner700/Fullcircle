@@ -1,3 +1,7 @@
+import { ScriptureRelicPopup } from '../../components/ScriptureRelicPopup';
+import { RelicSymbol } from '../../components/RelicSymbol';
+import { GamePoints } from '../../components/GamePoints';
+import { ContextRelicShop } from '../../components/ContextRelicShop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -71,9 +75,10 @@ type RoundTimeout = {
   nextIndex: number | null;
 };
 
-export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
+export function CadetGame({ onRewardEarned, onBackToDailyGames, initialDate }: {
   onRewardEarned: () => void;
   onBackToDailyGames?: () => void;
+  initialDate?: string;
 }) {
   const { profile } = useAuth();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
@@ -87,8 +92,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
   const today = getTodayISODate();
   const isQuizDay = getDayType(today) === 'saturday';
   const isSunday = getDayType(today) === 'sunday';
-  const isWeeklyNarrativeDay = isQuizDay || isSunday;
-  const [gameDate, setGameDate] = useState(today);
+  const isWeeklyNarrativeDay = !initialDate && (isQuizDay || isSunday);
+  const [gameDate, setGameDate] = useState(initialDate || today);
   const [sundayGames, setSundayGames] = useState<DailyNarrative[]>([]);
 
   useEffect(() => {
@@ -110,8 +115,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
       ? playable[0]?.narrative_date || gameDate
       : gameDate;
     const [narr, atts, balance, image] = await Promise.all([
-      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(today),
-      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : today),
+      isWeeklyNarrativeDay ? Promise.resolve(playable.find((item) => item.narrative_date === effectiveDate) || null) : fetchNarrative(initialDate || today),
+      fetchGameAttempts(profile.id, isWeeklyNarrativeDay ? effectiveDate : initialDate || today),
       fetchLedgerTotal(profile.id),
       fetchPanelImageSetting('game').catch(() => null),
     ]);
@@ -124,7 +129,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     setDenariiBalance(balance);
     setGameImage(image);
     setLoading(false);
-  }, [gameDate, isSunday, isWeeklyNarrativeDay, profile, today]);
+  }, [gameDate, initialDate, isSunday, isWeeklyNarrativeDay, profile, today]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -151,7 +156,8 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
     const url = `${window.location.origin}${window.location.pathname}?share=game&date=${today}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Full Circle Daily Trivia · Level 1', url });
-      else await navigator.clipboard?.writeText(url);
+      else if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+      else { window.prompt('Copy this game link:', url); return; }
       await recordExternalShare('game', today).catch(() => undefined);
     } catch (error: any) {
       if (error?.name !== 'AbortError') alert('Could not share this game.');
@@ -238,6 +244,7 @@ export function CadetGame({ onRewardEarned, onBackToDailyGames }: {
           <ArrowLeft size={15} /> Back to Daily Games
         </button>
       )}
+      <GamePoints game="daily_game" showCurrentPlayer />
       {sundayGamePicker}
       <div className="card p-5 relative overflow-hidden animate-slide-up">
         <div className="relative z-10 flex items-center justify-between gap-3">
@@ -349,6 +356,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
   const [runId, setRunId] = useState<string | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
+  const [relicInventoryRevision, setRelicInventoryRevision] = useState(0);
   const [relicInventory, setRelicInventory] = useState<Record<string, number>>({});
   const [localDenarii, setLocalDenarii] = useState(denariiBalance);
   const [hintShown, setHintShown] = useState(false);
@@ -364,6 +372,10 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
   const [showFeedback, setShowFeedback] = useState(false);
   const [answerCorrect, setAnswerCorrect] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [referencePopup, setReferencePopup] = useState<{ reference: string; passage?: string }>();
+  const [revealedReference, setRevealedReference] = useState<{ questionId: string; reference: string; passage?: string } | null>(null);
+  const referenceOpen = Boolean(referencePopup);
+  const referencePaused = referenceOpen || usingQuestionRelic === RELIC_SLUGS.REVEAL_REFERENCE;
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(getLevelTimer(level));
   const [roundCorrect, setRoundCorrect] = useState(0);
@@ -417,10 +429,15 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
           setQuestionsLoading(false);
         }
       });
-    // Fetch relic inventory
+    return () => { cancelled = true; };
+  }, [narrative.narrative_date, level, mode, userId]);
+
+  useEffect(() => {
+    let cancelled = false;
     supabase
       .from('relic_inventory')
-      .select('quantity, relic_types(slug)')
+      .select('quantity, relic_types!inner(slug)')
+      .eq('relic_types.is_active', true)
       .eq('user_id', userId)
       .then(({ data }) => {
         if (cancelled || !data) return;
@@ -432,7 +449,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         setRelicInventory(map);
     });
     return () => { cancelled = true; };
-  }, [narrative.narrative_date, level, mode, userId]);
+  }, [userId, relicInventoryRevision]);
 
   const applyAnswerResult = useCallback((result: DailyGameAnswerResult, submittedAnswer: string | null) => {
     if (result.protected) {
@@ -459,7 +476,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
 
   const handleAnswer = useCallback(async (answer: string | null) => {
     const question = questions[currentQ];
-    if (showFeedback || submittingAnswer || !runId || !question?.id) return;
+    if (showFeedback || submittingAnswer || referencePaused || usingQuestionRelic || !runId || !question?.id) return;
     setSubmittingAnswer(true);
     try {
       const result = await submitDailyGameAnswer(runId, question.id, answer);
@@ -469,11 +486,11 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
     } finally {
       setSubmittingAnswer(false);
     }
-  }, [applyAnswerResult, currentQ, questions, runId, showFeedback, submittingAnswer]);
+  }, [applyAnswerResult, currentQ, questions, runId, showFeedback, submittingAnswer, referencePaused, usingQuestionRelic]);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (showFeedback || roundTimeout || passageIntroRound !== null) return;
+    if (showFeedback || roundTimeout || passageIntroRound !== null || referencePaused) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
@@ -489,13 +506,13 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
       });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [currentQ, passageIntroRound, questions, roundCorrect, roundTimeout, showFeedback]);
+  }, [currentQ, passageIntroRound, questions, roundCorrect, roundTimeout, showFeedback, referencePaused]);
 
   useEffect(() => {
-    if (timeLeft > 0 && timeLeft <= 10 && !roundTimeout && passageIntroRound === null) {
+    if (timeLeft > 0 && timeLeft <= 10 && !roundTimeout && passageIntroRound === null && !referencePaused) {
       playRoundWarningBeep();
     }
-  }, [timeLeft, roundTimeout, passageIntroRound]);
+  }, [timeLeft, roundTimeout, passageIntroRound, referencePaused]);
 
   useEffect(() => {
     if (passageTimerRef.current) clearInterval(passageTimerRef.current);
@@ -544,11 +561,11 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
 
   const consumeQuestionRelic = async (slug: string) => {
     const question = questions[currentQ];
-    if (showFeedback || usingQuestionRelic || (relicInventory[slug] || 0) <= 0 || !runId || !question?.id) return;
+    if (showFeedback || usingQuestionRelic || !runId || !question?.id) return false;
     setUsingQuestionRelic(slug);
     try {
       const result = await applyDailyGameQuestionAid(runId, question.id, slug);
-      setRelicInventory((previous) => ({
+      if (!result.reused) setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
@@ -558,6 +575,13 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
           ? 'sound_relic_reveal'
           : 'sound_relic_deploy',
       );
+      if (slug === RELIC_SLUGS.REVEAL_REFERENCE) {
+        const restored = result.reference
+          ? { reference: result.reference }
+          : { reference: narrative.scripture_reference, passage: narrative.main_text };
+        setReferencePopup(restored);
+        setRevealedReference({ questionId: question.id, ...restored });
+      }
       if (result.hint) {
         setHintShown(true);
         setHintText(result.hint);
@@ -573,8 +597,10 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         if (result.auto_answered) setAnswerRevealed(true);
       }
       window.setTimeout(() => setRelicBurst(null), 650);
+      return true;
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
+      return false;
     } finally {
       setUsingQuestionRelic(null);
     }
@@ -611,7 +637,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
   };
 
   const useGoliathSword = async () => {
-    if (submitting || usingGoliath || (relicInventory[RELIC_SLUGS.SWORD_GOLIATH] || 0) <= 0) return;
+    if (submitting || usingGoliath) return;
     setUsingGoliath(true);
     try {
       setRelicInventory((prev) => ({
@@ -811,6 +837,25 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         <span>Round {currentRound} of {totalRounds} · need {Math.ceil(questions.length * PASS_THRESHOLD)} to pass</span>
       </div>
 
+      {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
+      {revealedReference?.questionId === q.id && !referencePopup && !showFeedback && (
+        <button type="button" className="btn-secondary text-xs" onClick={() => {
+          if (revealedReference) setReferencePopup({
+            reference: revealedReference.reference, passage: revealedReference.passage,
+          });
+        }}>View revealed Scripture reference again</button>
+      )}
+      <GamePoints game="daily_game" showCurrentPlayer />
+
+      <ContextRelicShop userId={userId} floating timed={!showFeedback} label="Use or buy relics"
+        canUseOwned={() => !showFeedback && !answerRevealed && !submitting && !usingGoliath && !usingQuestionRelic}
+        onUseOwned={(slug) => slug === RELIC_SLUGS.SWORD_GOLIATH ? useGoliathSword() : consumeQuestionRelic(slug)}
+        slugs={[
+          RELIC_SLUGS.HINT, RELIC_SLUGS.FREEZE_TIMER, RELIC_SLUGS.SKIP, RELIC_SLUGS.REVEAL_REFERENCE,
+          RELIC_SLUGS.TALKING_DONKEY, RELIC_SLUGS.WITCH_BALL, RELIC_SLUGS.SWORD_GOLIATH,
+          ...(q.options?.length ? [RELIC_SLUGS.ELIMINATE] : []),
+        ]}
+        onChanged={() => setRelicInventoryRevision(value => value + 1)} />
       <div key={`${q.id || currentQ}-${currentQ}`} className={cn('card p-4 sm:p-5', relicBurst && 'animate-pulse')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow mb-0">R{currentRound} · Q{currentQ + 1}/{questions.length}</p>
@@ -855,7 +900,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
               [RELIC_SLUGS.REVEAL_REFERENCE, 'Reference', BookOpen, useReference, true],
               [RELIC_SLUGS.TALKING_DONKEY, 'Donkey', Volume2, useTalkingDonkey, true],
               [RELIC_SLUGS.WITCH_BALL, 'Answer', Eye, useWitchBall, true],
-            ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, Icon, onClick, applicable]) => {
+            ] as Array<[string, string, LucideIcon, () => void, boolean]>).map(([slug, label, , onClick, applicable]) => {
               const amount = relicInventory[slug as string] || 0;
               if (!amount || !applicable) return null;
               const isUsing = usingQuestionRelic === slug;
@@ -868,7 +913,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
                   className="flex items-center gap-1 rounded-full border border-royal/25 bg-royal-soft px-2 py-1 text-[10px] font-medium text-royal transition-colors hover:bg-royal/10 disabled:opacity-45"
                   title={`Use ${label} relic`}
                 >
-                  {isUsing ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
+                  {isUsing ? <Loader2 size={12} className="animate-spin" /> : <RelicSymbol slug={slug} size={12} />}
                   <span>{label}</span> ({amount})
                 </button>
               );

@@ -37,6 +37,10 @@ async function testUploads() {
   assert.equal(reduced.extension, 'png', 'Canvas fallback must match real output MIME');
   assert.equal(reduced.file.type, 'image/png');
   assert.equal(canvas.width, 1600); assert.equal(canvas.height, 1067); assert.equal(closed, 2);
+  const largePhonePhoto = new File([new Uint8Array(26 * 1024 * 1024)], 'phone.jpg', { type: 'image/jpeg' });
+  const cropReady = await uploads.prepareImageForCropping(largePhonePhoto);
+  assert.ok(cropReady.size <= 1024 * 1024, 'Reduce large phone photos before opening the cropper');
+  assert.equal(canvas.width, 2048); assert.equal(closed, 3);
   await assert.rejects(uploads.prepareImageUpload(new File(['bad'], 'photo.svg', { type: 'image/svg+xml' })), /Choose a JPEG/);
   await assert.rejects(uploads.prepareImageUpload(new File([], 'empty.jpg')), /between 1 byte/);
   await assert.rejects(uploads.prepareImageUpload(photo, { maxBytes: 2 }), /between 1 byte/);

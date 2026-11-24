@@ -1,17 +1,19 @@
+import { ContextRelicShop } from '../../components/ContextRelicShop';
+import { regionalDateTime } from '../../lib/regionalPreferences';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { LaurelWreath, MeanderBorder } from '../../components/AncientMotifs';
 import { supabase } from '../../lib/supabase';
 import { fetchDailyRecords, fetchStrictStreak } from '../../lib/queries';
-import { getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
+import { getAppDateTimeMs, getRemovalState, getDayType, getTodayISODate, getAppClock, getDateDaysAgoISO, formatShortDate, cn, isWeekdayValid, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import type { DailyRecord, RemovalState, StreakInfo } from '../../lib/types';
 import {
   Flame, Calendar, TrendingUp, AlertTriangle, ShieldCheck, XCircle,
   CheckCircle2, MinusCircle, Award, Snowflake, Loader2, Coins,
 } from 'lucide-react';
 import { fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer } from '../../lib/queries';
-import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST } from '../../lib/constants';
+import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import type { StreakFreezer } from '../../lib/types';
 
 const REMOVAL_STATE_INFO: Record<
@@ -79,9 +81,9 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
   const [purchasing, setPurchasing] = useState<'daily' | 'weekly' | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showLoading = true) => {
     if (!profile) { setLoading(false); return; }
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const [recs, frz, bal, strict] = await Promise.allSettled([
         fetchDailyRecords(profile.id),
@@ -168,6 +170,10 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {profile && <ContextRelicShop userId={profile.id} activateOwned label="Streak relics"
+        slugs={[RELIC_SLUGS.SIMONS_PURSE, RELIC_SLUGS.THIEVES_REQUEST, RELIC_SLUGS.REDEMPTION_COIN]}
+        onChanged={() => void load(false)} />}
+
       {/* ── Removal state banner ── */}
       <div
         className="card p-4 flex items-start gap-4"
@@ -406,8 +412,8 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
 	            />
 	            <p>
 	              <strong className="text-ink">Weekday Rhythm:</strong> A weekday
-	              counts only when your sentry marks you present for the morning
-	              call and you submit your daily devotion.
+	              counts when you submit your meditation and pass Level 1 of Daily Trivia.
+	              If you’re in a Tent or have a subscription, a recorded morning call can count in place of Level 1.
 	            </p>
 	          </div>
 	          <div className="flex gap-3">
@@ -428,7 +434,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
             />
             <p>
               <strong className="text-ink">Sundays:</strong> Open Today&apos;s
-              Reading before 9:00 PM to receive the Sunday streak. No meditation
+              Reading before {regionalDateTime(getAppDateTimeMs(todayISO, 21), profile)} to receive the Sunday streak. No meditation
               or attendance is required.
             </p>
           </div>
@@ -440,7 +446,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
             <p>
               <strong className="text-ink">Freezers:</strong> A daily freezer
               (500 denarii) or weekly freezer (real money) protects your streak
-              after an absent day. Simon's Purse relic (from the store) protects
+              after an absent day. Simon's Purse protects
               your streak for 5 days of absence and supersedes freezers.
             </p>
           </div>
@@ -513,9 +519,7 @@ export function CadetStreak({ refreshKey = 0 }: { refreshKey?: number }) {
         <EmptyState
           icon={Award}
           title="No Records Yet"
-          message={role === 'sentry'
-            ? 'Your personal streak records will appear here once you submit meditations or complete streak-valid activities.'
-            : 'Your daily streak records will appear here once your sentry begins marking attendance.'}
+          message="Your streak records will appear here once you complete streak activities."
         />
       )}
     </div>

@@ -9,12 +9,17 @@ import { supabase } from '../../lib/supabase';
 import { fetchBoardAvatars, fetchQuizScoreboard, fetchStreakboardSnapshots, fetchLeaderboardSnapshots, fetchRhudeBoard, fetchMarksBoard, fetchPanelImageSetting, fetchFullCircleEconomyRules } from '../../lib/queries';
 import { formatDenarii, cn, formatShortDate, getTodayISODate } from '../../lib/utils';
 import { resolveBoardMovement } from '../../lib/boardMovement';
+import { boardCategory } from '../../lib/boardCategories';
+import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
+import { ChallengeBoardPanel } from '../../components/ChallengeBoardPanel';
+import { ChallengeBoardMovementSummary } from '../../components/ChallengeBoardMovementSummary';
+import { RegionalChallengeBoard } from '../../components/RegionalChallengeBoard';
 import type { StreakboardSnapshot, LeaderboardWeeklySnapshot, QuizScoreboardRow, RhudeBoardRow, MarksBoardRow, FullCircleEconomyRules } from '../../lib/types';
 import { Trophy, Clock, Crown, Tent as TentIcon, Flame, Shield, Coins, BadgeCheck, ArrowDown, ArrowUp, Sparkles, Info, BookOpen, Users } from 'lucide-react';
 import { ChiRhoMark, GrandVallumMark, VallumText } from '../../components/ChiRhoMark';
 
 type InstructorBoardTab = 'instructor_narratives' | 'instructor_residents' | 'instructor_marks' | 'instructor_denarii' | 'instructor_figs';
-type BoardTab = 'leader' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | InstructorBoardTab;
+type BoardTab = 'leader' | 'rite' | 'streak' | 'quiz' | 'rhude' | 'marks' | 'tent_house' | 'regional' | InstructorBoardTab;
 type BoardAudience = 'cadet' | 'sentry' | 'instructor';
 
 type InstructorBoardRow = {
@@ -47,6 +52,8 @@ const emptyInstructorBoards = (): InstructorBoardRows => ({
   instructor_denarii: [],
   instructor_figs: [],
 });
+
+const INSTRUCTOR_BOARD_CACHE_PREFIX = 'full-circle-instructor-camp-boards';
 
 type TentLeaderboardRow = {
   tent_id: string;
@@ -294,6 +301,31 @@ function buildInstructorBoards(rows: InstructorBoardRow[]): InstructorBoardRows 
   };
 }
 
+function hasCompleteInstructorBoards(boards: InstructorBoardRows): boolean {
+  return INSTRUCTOR_BOARD_KEYS.every((boardKey) => boards[boardKey].length > 0);
+}
+
+function readCachedInstructorBoards(userId: string | undefined): InstructorBoardRows | null {
+  if (!userId || typeof window === 'undefined') return null;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(`${INSTRUCTOR_BOARD_CACHE_PREFIX}-${userId}`) || 'null');
+    if (!value || typeof value !== 'object') return null;
+    const boards = value as InstructorBoardRows;
+    return hasCompleteInstructorBoards(boards) ? boards : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedInstructorBoards(userId: string | undefined, boards: InstructorBoardRows) {
+  if (!userId || typeof window === 'undefined' || !hasCompleteInstructorBoards(boards)) return;
+  try {
+    window.localStorage.setItem(`${INSTRUCTOR_BOARD_CACHE_PREFIX}-${userId}`, JSON.stringify(boards));
+  } catch {
+    // Private browsing can deny storage; the live board remains available.
+  }
+}
+
 function buildInstructorFallbackBoards(
   fallbackRows: InstructorBoardRow[],
   memberRows: MarksBoardRow[],
@@ -337,55 +369,74 @@ function BoardMovementSummary({ rows, valueForRow }: { rows: CompetitiveRow[]; v
   const up = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) > 0).length;
   const down = rows.filter((row) => Number(rankMovement(row, valueForRow?.(row))) < 0).length;
   const records = rows.filter((row) => isNewRecord(row, valueForRow?.(row))).length;
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      <div className="rounded-lg border border-sage/25 bg-sage/10 px-3 py-2">
-        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-sage"><ArrowUp size={12} /> Rising</p>
-        <p className="mt-1 font-display text-xl font-black text-ink">{up}</p>
-      </div>
-      <div className="rounded-lg border border-coral/25 bg-coral/10 px-3 py-2">
-        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-coral"><ArrowDown size={12} /> Falling</p>
-        <p className="mt-1 font-display text-xl font-black text-ink">{down}</p>
-      </div>
-      <div className="rounded-lg border border-gold/25 bg-gold/10 px-3 py-2">
-        <p className="flex items-center gap-1 text-[10px] font-black uppercase text-gold"><Sparkles size={12} /> Records</p>
-        <p className="mt-1 font-display text-xl font-black text-ink">{records}</p>
-      </div>
-    </div>
-  );
+  return <ChallengeBoardMovementSummary rising={up} falling={down} records={records} />;
 }
 
 export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch = false }: { instructorMode?: boolean; allowAudienceSwitch?: boolean } = {}) {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<BoardTab>('streak');
-  const [audience, setAudience] = useState<BoardAudience>('cadet');
-  const [streakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
-  const [leaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
-  const [liveRows, setLiveRows] = useState<LiveLeaderboardRow[]>([]);
-  const [tentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
-  const [quizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
-  const [rhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
-  const [marksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [tab, setTab] = useState<BoardTab>(() => instructorMode ? 'instructor_narratives' : 'streak');
+  const [audience, setAudience] = useState<BoardAudience>(() => instructorMode ? 'instructor' : allowAudienceSwitch ? 'sentry' : 'cadet');
+  const [allStreakRows, setStreakRows] = useState<StreakLeaderboardRow[]>([]);
+  const [allLeaderRows, setLeaderRows] = useState<(LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url?: string | null } })[]>([]);
+  const [allLiveRows, setLiveRows] = useState<LiveLeaderboardRow[]>([]);
+  const [allTentRows, setTentRows] = useState<TentLeaderboardRow[]>([]);
+  const [allQuizRows, setQuizRows] = useState<QuizScoreboardRow[]>([]);
+  const [allRhudeRows, setRhudeRows] = useState<RhudeBoardRow[]>([]);
+  const [allMarksRows, setMarksRows] = useState<MarksBoardRow[]>([]);
+  const [ownTentId, setOwnTentId] = useState<string | null>(null);
   const [economyRules, setEconomyRules] = useState<FullCircleEconomyRules | null>(null);
   const [marksInfoOpen, setMarksInfoOpen] = useState(false);
   const [instructorBoards, setInstructorBoards] = useState<InstructorBoardRows>(emptyInstructorBoards);
   const [boardImage, setBoardImage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const loadInFlightRef = useRef(false);
+  const loadsInFlightRef = useRef<Set<BoardAudience>>(new Set());
+  const lastInstructorBoardsRef = useRef<InstructorBoardRows | null>(null);
   const lastStreakRowsRef = useRef<StreakLeaderboardRow[]>([]);
 
   const load = useCallback(async (silent = false) => {
     if (silent && typeof document !== 'undefined' && document.body.dataset.fullCircleMessengerOpen === 'true') return;
-    if (loadInFlightRef.current) return;
-    loadInFlightRef.current = true;
+    const requestedAudience = audience;
+    if (loadsInFlightRef.current.has(requestedAudience)) return;
+    loadsInFlightRef.current.add(requestedAudience);
     if (!silent) setLoading(true);
     try {
-      if (audience === 'instructor') {
-        const movementResult = await withBoardTimeout(
-          supabase.rpc('get_instructor_competitive_boards'),
-          'Instructor boards',
+      if (requestedAudience === 'instructor') {
+        const applyInstructorBoards = (boards: InstructorBoardRows) => {
+          if (!hasCompleteInstructorBoards(boards)) return false;
+          lastInstructorBoardsRef.current = boards;
+          setInstructorBoards(boards);
+          writeCachedInstructorBoards(profile?.id, boards);
+          setLastUpdatedAt(new Date());
+          setLoading(false);
+          return true;
+        };
+
+        // The current camp total is the small, authoritative request. Show it
+        // first; movement history must never hold the board UI hostage.
+        const currentTotalsResult = await withBoardTimeout(
+          supabase.rpc('get_current_instructor_camp_totals'),
+          'Current instructor camp totals',
+          7_000,
         ).catch(() => null);
+        const currentTotals = currentTotalsResult && !currentTotalsResult.error
+          ? (currentTotalsResult.data || []) as InstructorBoardRow[]
+          : [];
+        let hasDisplayedTotals = currentTotals.length > 0
+          ? applyInstructorBoards(buildInstructorBoards(currentTotals))
+          : false;
+
+        if (!hasDisplayedTotals) {
+          const retainedBoards = lastInstructorBoardsRef.current || readCachedInstructorBoards(profile?.id);
+          if (retainedBoards) hasDisplayedTotals = applyInstructorBoards(retainedBoards);
+        }
+
+        const movementRequest = withBoardTimeout(
+          supabase.rpc('get_instructor_competitive_boards'),
+          'Instructor board movement history',
+          12_000,
+        ).catch(() => null);
+        const movementResult = await movementRequest;
         const movements = movementResult && !movementResult.error
           ? (movementResult.data || []) as BoardMovementRow[]
           : [];
@@ -396,39 +447,38 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           instructor_denarii: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_denarii'),
           instructor_figs: rowsFromBoardPayload<InstructorBoardRow>(movements, 'instructor_figs'),
         };
-        if (INSTRUCTOR_BOARD_KEYS.every((boardKey) => movementBoards[boardKey].length > 0)) {
-          setInstructorBoards(movementBoards);
-        } else {
-          const [currentTotalsResult, challengeResult, marksResult] = await Promise.allSettled([
-            withBoardTimeout(supabase.rpc('get_current_instructor_camp_totals'), 'Current instructor camp totals'),
+        if (applyInstructorBoards(movementBoards)) {
+          hasDisplayedTotals = true;
+        } else if (!hasDisplayedTotals) {
+          const [challengeResult, marksResult] = await Promise.allSettled([
             withBoardTimeout(supabase.rpc('get_instructor_challenge_board_live'), 'Instructor board fallback'),
             withBoardTimeout(fetchMarksBoard(), 'Instructor camp totals fallback'),
           ]);
-          const currentTotalsResponse = currentTotalsResult.status === 'fulfilled' ? currentTotalsResult.value : null;
-          const currentTotals = currentTotalsResponse && !currentTotalsResponse.error
-            ? (currentTotalsResponse.data || []) as InstructorBoardRow[]
-            : [];
           const challengeResponse = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
           const fallbackRows = challengeResponse && !challengeResponse.error
             ? (challengeResponse.data || []) as InstructorBoardRow[]
             : [];
           const memberRows = marksResult.status === 'fulfilled' ? marksResult.value : [];
-          setInstructorBoards(currentTotals.length > 0
-            ? buildInstructorBoards(currentTotals)
-            : buildInstructorFallbackBoards(fallbackRows, memberRows, profile));
+          applyInstructorBoards(buildInstructorFallbackBoards(fallbackRows, memberRows, profile));
         }
         setStreakRows([]); setLeaderRows([]); setLiveRows([]); setQuizRows([]); setRhudeRows([]); setMarksRows([]);
         setLastUpdatedAt(new Date());
         return;
       }
 
-      const [leaders, boardMovements, independentStreaks] = await Promise.allSettled([
+      const memberAudience: Exclude<BoardAudience, 'instructor'> = requestedAudience;
+
+      const [leaders, boardMovements, independentStreaks, ownMembership] = await Promise.allSettled([
         withBoardTimeout(fetchLeaderboardSnapshots(), 'Weekly board'),
-        withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: audience }), 'Challenge boards'),
+        withBoardTimeout(supabase.rpc('get_competitive_board_movements', { p_audience: memberAudience }), 'Challenge boards'),
         // The streak board has its own quick, published feed so a slow
         // movement query can never hide it from sentries.
-        withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board', 5_500),
+        withBoardTimeout(fetchStreakboardSnapshots(memberAudience), 'Streak board', 5_500),
+        profile?.id ? withBoardTimeout(supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(), 'Your tent') : Promise.resolve(null),
       ]);
+      if (ownMembership.status === 'fulfilled' && ownMembership.value && !ownMembership.value.error) {
+        setOwnTentId(ownMembership.value.data?.tent_id ?? null);
+      }
       const leaderRowsRaw = leaders.status === 'fulfilled' ? leaders.value : [];
       setLeaderRows(leaderRowsRaw as any);
 
@@ -446,7 +496,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       let quizRowsWithHistory: (QuizScoreboardRow & CompetitiveRow)[];
       let rhudeRowsWithHistory: (RhudeBoardRow & CompetitiveRow)[];
       let marksRowsWithHistory: (MarksBoardRow & CompetitiveRow)[];
-      const historyPrefix = `full-circle-board-history-${audience}`;
+      const historyPrefix = `full-circle-board-history-${memberAudience}`;
 
       if (authoritativeMovements.length > 0) {
         streakRowsWithHistory = rowsFromBoardPayload<StreakLeaderboardRow>(authoritativeMovements, 'streak');
@@ -471,7 +521,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           || streakRowsWithHistory.some((row) => !row.user_id || !row.profiles?.display_name)
         ) {
           const streakFallback = await Promise.allSettled([
-            withBoardTimeout(fetchStreakboardSnapshots(audience), 'Streak board recovery'),
+            withBoardTimeout(fetchStreakboardSnapshots(memberAudience), 'Streak board recovery'),
           ]);
           const streakRowsRaw = streakFallback[0].status === 'fulfilled' ? streakFallback[0].value : [];
           if (streakRowsRaw.length > 0) {
@@ -487,19 +537,19 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
         // Keep the existing board RPCs as a rollout fallback until the new
         // migration reaches production. Once deployed, phones use one payload.
         const [live, tents, quizBoard, rhudes, marks] = await Promise.allSettled([
-          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: audience }), 'Denarii board fallback'),
+          withBoardTimeout(supabase.rpc('get_leaderboard_live_for_role', { p_role: memberAudience }), 'Denarii board fallback'),
           withBoardTimeout(supabase.rpc('get_tent_leaderboard'), 'Tent board fallback'),
-          withBoardTimeout(fetchQuizScoreboard(audience), 'Fig board fallback'),
+          withBoardTimeout(fetchQuizScoreboard(memberAudience), 'Fig board fallback'),
           withBoardTimeout(fetchRhudeBoard(), 'Valley board fallback'),
           withBoardTimeout(fetchMarksBoard(), 'Marks board fallback'),
         ]);
         const liveResult = live.status === 'fulfilled' ? live.value as { data?: unknown } : null;
         const tentResult = tents.status === 'fulfilled' ? tents.value as { data?: unknown } : null;
-        const liveRowsRaw = ((liveResult?.data || []) as typeof liveRows);
+        const liveRowsRaw = ((liveResult?.data || []) as LiveLeaderboardRow[]);
         const tentRowsRaw = (tentResult?.data || []) as TentLeaderboardRow[];
-        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === audience);
-        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === audience);
-        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === audience);
+        const quizRowsRaw = (quizBoard.status === 'fulfilled' ? quizBoard.value : []).filter((row: any) => !row.role || row.role === memberAudience);
+        const rhudeRowsRaw = (rhudes.status === 'fulfilled' ? rhudes.value : []).filter((row: any) => row.role === memberAudience);
+        const marksRowsRaw = (marks.status === 'fulfilled' ? marks.value : []).filter((row: any) => row.role === memberAudience);
         streakRowsWithHistory = hydrateBoardHistory(independentStreakRows, `${historyPrefix}-streak`, (row) => row.user_id, (row) => Number(row.current_streak ?? row.consistency ?? 0));
         liveRowsWithHistory = hydrateBoardHistory(liveRowsRaw, `${historyPrefix}-denarii`, (row) => row.user_id, (row) => Number(row.total_denarii ?? 0));
         tentRowsWithHistory = hydrateBoardHistory(tentRowsRaw, 'full-circle-board-history-tent', (row) => row.tent_id, (row) => Number(row.combined_score ?? 0));
@@ -550,10 +600,19 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           .catch(() => undefined);
     } catch (e) { console.error('Leaderboard load error:', e); }
     finally {
-      loadInFlightRef.current = false;
+      loadsInFlightRef.current.delete(requestedAudience);
       setLoading(false);
     }
       }, [audience, profile]);
+
+  useEffect(() => {
+    if (!instructorMode || audience !== 'instructor') return;
+    const cached = readCachedInstructorBoards(profile?.id);
+    if (!cached) return;
+    lastInstructorBoardsRef.current = cached;
+    setInstructorBoards((current) => hasCompleteInstructorBoards(current) ? current : cached);
+    setLoading(false);
+  }, [audience, instructorMode, profile?.id]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -573,16 +632,20 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   }, [instructorMode]);
   useEffect(() => {
     const refreshWhenAvailable = () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) void load(true);
+      if (document.visibilityState === 'visible') void load(true);
     };
     const interval = window.setInterval(() => {
       refreshWhenAvailable();
     }, 60_000);
     window.addEventListener('online', refreshWhenAvailable);
+    window.addEventListener('focus', refreshWhenAvailable);
+    window.addEventListener('pageshow', refreshWhenAvailable);
     document.addEventListener('visibilitychange', refreshWhenAvailable);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('online', refreshWhenAvailable);
+      window.removeEventListener('focus', refreshWhenAvailable);
+      window.removeEventListener('pageshow', refreshWhenAvailable);
       document.removeEventListener('visibilitychange', refreshWhenAvailable);
     };
   }, [load]);
@@ -603,24 +666,43 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
     { key: 'instructor_figs', label: 'Figs', title: 'Camp Fig Board', description: 'The overall lifetime Figs earned across the instructor\'s camp.', valueKey: 'total_figs', valueLabel: 'Camp Figs', icon: <BadgeCheck size={16} /> },
   ];
   const activeInstructorBoard = instructorTabs.find((item) => item.key === tab) || instructorTabs[0];
-  const activeInstructorRows = instructorBoards[activeInstructorBoard.key];
+  const userId = profile?.id;
+  const userKey = (row: { user_id: string }) => row.user_id;
+  const instructorGroup = boardCategory(instructorBoards[activeInstructorBoard.key], userId, userKey, (row) => row[activeInstructorBoard.valueKey]);
+  const streakGroup = boardCategory(allStreakRows, userId, userKey, (row) => row.current_streak ?? row.consistency ?? 0);
+  const leaderGroup = boardCategory(allLeaderRows, userId, userKey, (row) => row.total_denarii);
+  const liveGroup = boardCategory(allLiveRows, userId, userKey, (row) => row.total_denarii);
+  const quizGroup = boardCategory(allQuizRows, userId, userKey, (row) => row.total_score);
+  const rhudeGroup = boardCategory(allRhudeRows, userId, userKey, (row) => row.rhudes);
+  const marksGroup = boardCategory(allMarksRows, userId, userKey, (row) => row.marks);
+  const tentGroup = boardCategory(allTentRows, ownTentId, (row) => row.tent_id, (row) => row.combined_score);
+  const { rows: activeInstructorRows } = instructorGroup;
+  const { rows: streakRows } = streakGroup;
+  const { rows: leaderRows } = leaderGroup;
+  const { rows: liveRows } = liveGroup;
+  const { rows: quizRows } = quizGroup;
+  const { rows: rhudeRows } = rhudeGroup;
+  const { rows: marksRows } = marksGroup;
+  const { rows: tentRows } = tentGroup;
+  const activeGroup = audience === 'instructor' ? instructorGroup : {
+    streak: streakGroup, leader: audience === 'sentry' ? undefined : liveGroup, rite: undefined, regional: undefined, quiz: quizGroup, rhude: rhudeGroup, marks: marksGroup, tent_house: tentGroup,
+  }[tab as Exclude<BoardTab, InstructorBoardTab>];
 
   const tabs: Array<{ key: BoardTab; label: string; icon: React.ReactNode }> = audience === 'instructor'
     ? instructorTabs
     : [
       { key: 'streak', label: 'Streak Board', icon: <Flame size={16} /> },
-      { key: 'leader', label: 'Denarii Board', icon: <Coins size={16} /> },
+      { key: 'leader', label: audience === 'sentry' ? 'Command Board' : 'Denarii Board', icon: audience === 'sentry' ? <Users size={16} /> : <Coins size={16} /> },
+      ...(audience === 'sentry' ? [{ key: 'rite' as BoardTab, label: 'Rite Board', icon: <BadgeCheck size={16} /> }] : []),
       { key: 'quiz', label: 'Fig Board', icon: <BadgeCheck size={16} /> },
       { key: 'rhude', label: 'Valley Board', icon: <Shield size={16} /> },
       ...(instructorMode ? [{ key: 'marks' as BoardTab, label: 'Leaderboard', icon: <ChiRhoMark size={16} /> }] : []),
       { key: 'tent_house', label: 'Tent Board', icon: <TentIcon size={16} /> },
+      { key: 'regional', label: 'Regional', icon: <Users size={16} /> },
     ];
 
   const BoardPanel = ({ children, className = 'p-4' }: { children: ReactNode; className?: string }) => (
-    <div data-artwork-theme={(boardImage)?.url ? 'night' : undefined} className={cn('card relative overflow-hidden', className)}>
-      <PanelImageBackdrop image={boardImage} opacityFallback={100} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
-      <div className="relative z-10">{children}</div>
-    </div>
+    <ChallengeBoardPanel image={boardImage} className={className}>{children}</ChallengeBoardPanel>
   );
 
   const boardNavigation = (
@@ -647,6 +729,11 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
           <BoardTabButton key={item.key} active={tab === item.key} onClick={() => setTab(item.key)} icon={item.icon} label={item.label} />
         ))}
       </div>
+      {activeGroup && activeGroup.rows.length > 0 && (
+        <p className="relative z-10 mt-2 text-xs font-semibold text-stone">
+          {activeGroup.observer ? 'Viewing: ' : 'Your category: '}{activeGroup.label}
+        </p>
+      )}
     </div>
   );
 
@@ -662,6 +749,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
   return (
     <div className="space-y-5 animate-fade-in">
       {boardNavigation}
+
+      {tab === 'regional' && audience !== 'instructor' && profile && <RegionalChallengeBoard key={audience} viewerId={profile.id} audience={audience} image={boardImage} initialCountry={profile.country_code} />}
 
       {instructorMode && audience === 'instructor' && (
         <div className="space-y-4">
@@ -709,7 +798,8 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
       )}
 
       {/* Denarii Leaderboard (live) */}
-      {audience !== 'instructor' && tab === 'leader' && (
+      {audience === 'sentry' && (tab === 'leader' || tab === 'rite') && <SentryLeadershipBoard kind={tab === 'leader' ? 'command' : 'rite'} viewerId={profile?.id} boardImage={boardImage} houseIds={Object.fromEntries(allLiveRows.map(row=>[row.user_id,row.tent_house_id]))} />}
+      {audience === 'cadet' && tab === 'leader' && (
         <div className="space-y-4">
           <BoardPanel>
             <div className="flex items-center gap-2 mb-1">
@@ -795,6 +885,7 @@ export function CadetLeaderboard({ instructorMode = false, allowAudienceSwitch =
                   title="Last Week's Result"
                   subtitle={`Frozen at Saturday 6 PM · Week ending ${formatShortDate(leaderRows[0].week_ending)}`}
                 />
+                <p className="mb-2 text-xs font-semibold text-stone">{leaderGroup.observer ? 'Viewing: ' : 'Your category: '}{leaderGroup.label}</p>
                 <BoardList>
                   {leaderRows.map((row) => (
                     <BoardRow

@@ -1,0 +1,98 @@
+# Re-run verified app build after Instructor Insights and first-finder reward corrections.
+# Restore the verified in-app Direct Pay build; remove hosted checkout fallback.
+# Publish emergency opt-in Fapshi hosted Market checkout fallback.
+# Rebuild source after Market payment, Treasure Mine, and Arena scorecard fixes.
+name: Build and publish Full Circle app assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'supabase/functions/_shared/**'
+      - 'scripts/road-home-engine.test.ts'
+      - 'scripts/biblical-journey.test.ts'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'scripts/copy-hostinger-fallback.cjs'
+      - 'scripts/network-request-timeout.test.ts'
+      - '.github/workflows/build-publish-dist.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: full-circle-build-assets
+  cancel-in-progress: false
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check types
+        run: npm run typecheck
+      - name: Test network timeouts
+        run: node --experimental-strip-types scripts/network-request-timeout.test.ts
+      - name: Test camp access recovery
+        run: node --experimental-strip-types scripts/camp-access-recovery.test.ts
+      - name: Verify Ludo capture and Boomerang
+        run: node --experimental-strip-types scripts/road-home-engine.test.ts
+      - name: Verify Journey capture, Shield and Boomerang
+        run: node --experimental-strip-types scripts/biblical-journey.test.ts
+      - name: Build current app
+        run: npm run build
+      - name: Restore relative URLs for subpath and standalone installations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('index.html', '404.html'):
+              path = Path('dist') / name
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              for asset in ('game-soundtrack-v1.js', 'arena-engagement-v1.js'):
+                  text = text.replace('src="/' + asset + '"', 'src="./' + asset + '"')
+              path.write_text(text)
+          PY
+      - name: Record exact source commit
+        run: git rev-parse HEAD > dist/.fullcircle-source-sha
+      - name: Commit verified build output
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f --ignore-removal dist
+          if git diff --cached --quiet; then
+            echo "No asset changes"
+            exit 0
+          fi
+          git commit -m "Publish verified Full Circle Arena match build [skip ci]"
+          # Keep older hashed assets in the repository for open installed clients.
+          # They are intentionally not staged, so restore their worktree copies
+          # before rebasing onto a main branch updated during the build.
+          git reset --hard HEAD
+          git fetch origin main
+          # Do not rebase a generated release over a newer build. That can
+          # mix an old index with newer hashed chunks and strand mobile PWAs.
+          # A newer source push already queued its own build.
+          if [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD^)" ]; then
+            echo "Another commit reached main during this build; do not publish stale assets."
+            exit 0
+          fi
+          git push origin HEAD:main

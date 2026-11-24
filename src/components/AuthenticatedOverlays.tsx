@@ -1,3 +1,4 @@
+import { ScriptureQuestionInbox } from './ScriptureQuestion';
 import { useEffect, useState } from 'react';
 import { AudioCallManager } from './AudioCallManager';
 import { BackgroundAlertPrompt } from './BackgroundAlertPrompt';
@@ -28,6 +29,7 @@ export function AuthenticatedOverlays() {
       <AudioCallManager />
       <ScriptureAlarmOverlay />
       <DoveQuestionOverlay />
+      <ScriptureQuestionInbox />
       <ProfileCvHost />
       {secondaryReady && (
         <>

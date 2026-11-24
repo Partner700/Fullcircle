@@ -1,5 +1,13 @@
+import { canonicalBibleVerseReference, parseBibleReadingReference, type BibleReadingLocation } from '../../lib/bibleBooks';
+import { useScriptureVerseMarks, SCRIPTURE_QUESTION_RESOLVED_EVENT } from '../../lib/useScriptureVerseMarks';
+import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
+import { HelpCircle } from 'lucide-react';
+import { fetchEditionVerses, readScriptureEdition, saveScriptureEdition, SCRIPTURE_EDITIONS } from '../../lib/scriptureEditions';
+import { MeditationExtension } from '../../components/MeditationExtension';
+import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -16,6 +24,7 @@ import type { DailyNarrative, ChallengeSubmission, ChallengeProofFormat, PanelIm
 import type { CampMentionCandidate, VerseInsightReactionType } from '../../lib/queries';
 import { clearScriptureTarget, readScriptureTarget, type ScriptureNavigationTarget } from '../../lib/scriptureNavigation';
 import { emptyReadingDraft, readReadingDraft, readingDraftStorageKey, writeReadingDraft, type ReadingDraft, type ReadingReplyTarget } from '../../lib/readingDrafts';
+import { useReadingPosition } from '../../lib/useReadingPosition';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import {
   fetchPendingHiddenVerseMarkers,
@@ -28,7 +37,7 @@ import {
   ScrollText, Sun, Link2, Image as ImageIcon,
   AlertCircle, RefreshCw, FileText,
   MessageCircle, Reply, Send, Pencil, Check, ArrowLeft, CalendarDays, ChevronRight, ChevronDown,
-  Lock, Share2,
+  Lock, Share2, FileQuestion,
 } from 'lucide-react';
 
 function splitScriptureVerses(text: string) {
@@ -41,6 +50,7 @@ function splitScriptureVerses(text: string) {
 }
 
 type ScriptureVerse = {
+  passageIndex?: number;
   reference: string;
   text: string;
   meditation: string;
@@ -294,19 +304,30 @@ function ReadingArchiveBrowser({
 
 export function CadetNarrative({
   onMeditationSaved,
+  onOpenWeeklyQuiz,
+  onOpenBible,
   streakCount = 0,
+  initialDate,
 }: {
   onMeditationSaved?: () => Promise<void> | void;
+  onOpenWeeklyQuiz?: () => void;
+  onOpenBible?: (location: BibleReadingLocation | null) => void;
   streakCount?: number;
+  initialDate?: string;
 }) {
   const { profile } = useAuth();
-  const { hasAccess, requireSubscription } = useSubscriptionAccess();
+  const [scriptureQuestion, setScriptureQuestion] = useState<ScriptureQuestionTarget | null>(null);
+  const profileId = profile?.id;
+  const { hasAccess, requireSubscription, hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [loading, setLoading] = useState(true);
   const [meditation, setMeditation] = useState('');
   const [bestVerse, setBestVerse] = useState('');
   const [dailyQuote, setDailyQuote] = useState('');
   const [savedMeditation, setSavedMeditation] = useState(false);
+  const [meditationExtensionActive,setMeditationExtensionActive]=useState(false);
+  const [,refreshMeditationClock]=useState(0);
+  useEffect(()=>{const timer=window.setInterval(()=>refreshMeditationClock(value=>value+1),15000);return()=>window.clearInterval(timer);},[]);
   const [meditationPublic, setMeditationPublic] = useState(false);
   const [challenge, setChallenge] = useState<ChallengeSubmission | null>(null);
   const [challengeText, setChallengeText] = useState('');
@@ -319,6 +340,19 @@ export function CadetNarrative({
   const [meditationImage, setMeditationImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
+  const storedEdition = useMemo(() => readScriptureEdition(profile?.id, profile?.language_code), [profile?.id, profile?.language_code]);
+  const [editionSelection, setEditionSelection] = useState<{ userId?: string; value: string } | null>(null);
+  const edition = editionSelection && editionSelection.userId === profile?.id
+    ? editionSelection.value
+    : storedEdition;
+  const selectedEdition = SCRIPTURE_EDITIONS.find((item) => item.value === edition);
+  const [editionResult, setEditionResult] = useState<{
+    edition: string; verses: ScriptureVerse[];
+    result: Awaited<ReturnType<typeof fetchEditionVerses>>;
+  } | null>(null);
+  const editionContent = editionResult?.edition === edition && editionResult.verses === readerVerses
+    ? editionResult.result : null;
+
   const [verseInsights, setVerseInsights] = useState<any[]>([]);
   const [hiddenVerseMarkers, setHiddenVerseMarkers] = useState<HiddenVerseChallengeMarker[]>([]);
   const [openUserInsights, setOpenUserInsights] = useState<string | null>(null);
@@ -344,9 +378,11 @@ export function CadetNarrative({
   const historyPending = useRef(false);
   const historyOwner = useRef(profile?.id);
   historyOwner.current = profile?.id;
-  const [archiveDate, setArchiveDate] = useState<string | null>(null);
+  const [archiveDate, setArchiveDate] = useState<string | null>(initialDate || null);
   const [navigationTarget, setNavigationTarget] = useState<ScriptureNavigationTarget | null>(() => readScriptureTarget());
   const verseRefs = useRef<Record<string, HTMLElement | null>>({});
+  const readingRootRef = useRef<HTMLDivElement>(null);
+  const readingRequestRef = useRef(0);
   const draftHydratedKeyRef = useRef<string | null>(null);
   const draftSnapshotRef = useRef<ReadingDraft>(emptyReadingDraft());
   const sundayEngagementRef = useRef<string | null>(null);
@@ -357,6 +393,9 @@ export function CadetNarrative({
   const dayType = getDayType(new Date(`${activeDate}T12:00:00`));
   const isSundayRest = dayType === 'sunday';
   const draftStorageKey = profile ? readingDraftStorageKey(profile.id, activeDate) : null;
+  const cancelReadingRestore = useReadingPosition(
+    readingRootRef, profileId, activeDate, !loading && narrative?.narrative_date === activeDate, Boolean(navigationTarget),
+  );
 
   useEffect(() => {
     if (!profile || !narrative || isHistoricalReading) return;
@@ -407,15 +446,24 @@ export function CadetNarrative({
     return narrative?.id ? [narrative.id] : [];
   }, [narrative]);
 
+  const bibleVerseReferences = useMemo(() => {
+    const verses = readerVerses.length ? readerVerses : narrative?.highlighted_verses || [];
+    return Array.from(new Set(verses.map(({ reference }) => canonicalBibleVerseReference(reference))
+      .filter((reference): reference is string => reference !== null)));
+  }, [readerVerses, narrative]);
+
+  const verseMark = useScriptureVerseMarks(profile?.id, bibleVerseReferences);
+  const instructorExtras = useInstructorVerseExtras(bibleVerseReferences);
+
   const reloadVerseInsights = useCallback(async () => {
-    if (!conversationNarrativeIds.length) {
+    if (!hasPremiumAccess || !conversationNarrativeIds.length) {
       setVerseInsights([]);
       return [];
     }
-    const items = await fetchVerseInsights(conversationNarrativeIds, profile?.id);
+    const items = await fetchVerseInsights(conversationNarrativeIds, profile?.id, bibleVerseReferences);
     setVerseInsights(items);
     return items;
-  }, [conversationNarrativeIds, profile?.id]);
+  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess, bibleVerseReferences]);
 
   const reloadHiddenVerseMarkers = useCallback(async () => {
     if (!profile?.id || !conversationNarrativeIds.length) {
@@ -458,9 +506,10 @@ export function CadetNarrative({
   };
 
   const load = useCallback(async () => {
-    if (!profile) { setLoading(false); return; }
-    const expectedDraftKey = readingDraftStorageKey(profile.id, activeDate);
-    const localDraft = readReadingDraft(profile.id, activeDate);
+    if (!profileId) { setLoading(false); return; }
+    const request = ++readingRequestRef.current;
+    const expectedDraftKey = readingDraftStorageKey(profileId, activeDate);
+    const localDraft = readReadingDraft(profileId, activeDate);
     draftHydratedKeyRef.current = null;
     setLoading(true);
     setReaderVerses([]);
@@ -485,13 +534,14 @@ export function CadetNarrative({
     try {
       const [narr, chal, panelImage, scripturePanelImage, legacyVersePanelImage, challengePanelImage, meditationPanelImage] = await Promise.all([
         fetchNarrative(activeDate),
-        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profile.id, activeDate),
+        isHistoricalReading ? Promise.resolve(null) : fetchChallengeSubmission(profileId, activeDate),
         fetchPanelImageSetting('reading').catch(() => null),
         fetchPanelImageSetting('scripture').catch(() => null),
         fetchPanelImageSetting('verse_day_tr').catch(() => null),
         fetchPanelImageSetting('challenge').catch(() => null),
         fetchPanelImageSetting('meditation').catch(() => null),
       ]);
+      if (request !== readingRequestRef.current) return;
       setNarrative(narr);
       setChallenge(chal);
       setReadingImage(panelImage);
@@ -506,21 +556,24 @@ export function CadetNarrative({
       const { data: record } = await supabase
         .from('daily_records')
         .select('meditation_text, meditation_submitted, meditation_public, best_verse, daily_quote')
-        .eq('user_id', profile.id)
+        .eq('user_id', profileId)
         .eq('record_date', activeDate)
         .maybeSingle();
+      if (request !== readingRequestRef.current) return;
       if (record?.meditation_text) setMeditation(record.meditation_text);
       if (record?.best_verse) setBestVerse(record.best_verse);
       if (record?.daily_quote) setDailyQuote(record.daily_quote);
       setMeditationPublic(Boolean(record?.meditation_public));
       setSavedMeditation(Boolean(record?.meditation_submitted));
     } catch (e) { console.error('Narrative load error:', e); }
+    if (request !== readingRequestRef.current) return;
     draftHydratedKeyRef.current = expectedDraftKey;
     setLoading(false);
-  }, [activeDate, isHistoricalReading, profile]);
+  }, [activeDate, isHistoricalReading, profileId]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => { readingRequestRef.current++; };
   }, [load]);
 
   useEffect(() => {
@@ -559,7 +612,7 @@ export function CadetNarrative({
   }, []);
 
   const recordSundayEngagement = useCallback(() => {
-    if (!profile || !hasAccess || !isSundayRest || isHistoricalReading) return;
+    if (!profile || !narrative || narrative.narrative_date !== activeDate || !isSundayRest || isHistoricalReading) return;
     const engagementKey = `${profile.id}:${activeDate}`;
     if (sundayEngagementRef.current === engagementKey) return;
     sundayEngagementRef.current = engagementKey;
@@ -569,7 +622,9 @@ export function CadetNarrative({
         sundayEngagementRef.current = null;
         console.error('Sunday reading streak credit failed:', error);
       });
-  }, [activeDate, hasAccess, isHistoricalReading, isSundayRest, onMeditationSaved, profile]);
+  }, [activeDate, isHistoricalReading, isSundayRest, narrative, onMeditationSaved, profile]);
+
+  useEffect(() => { recordSundayEngagement(); }, [recordSundayEngagement]);
 
   useEffect(() => {
     setReadingHistory([]);
@@ -607,7 +662,8 @@ export function CadetNarrative({
         main_text: narrative.main_text,
         highlighted_verses: narrative.highlighted_verses || [],
       }];
-    const savedVerses = passages.flatMap((passage) => (passage.highlighted_verses || []).map((verse) => ({
+    const savedVerses = passages.flatMap((passage, passageIndex) => (passage.highlighted_verses || []).map((verse) => ({
+      passageIndex,
       ...verse,
       sourceNarrativeId: verse.source_narrative_id || passage.source_narrative_id || narrative.id,
       sourceNarrativeDate: verse.source_narrative_date || passage.source_narrative_date || narrative.narrative_date,
@@ -620,7 +676,7 @@ export function CadetNarrative({
     let cancelled = false;
     const fetchFullPassage = async () => {
       try {
-        const response = await fetch(`https://bible-api.com/${encodeURIComponent(narrative.scripture_reference)}?translation=${narrative.translation || 'web'}`);
+        const response = await readableFetch(`https://bible-api.com/${encodeURIComponent(narrative.scripture_reference)}?translation=${narrative.translation || 'web'}`);
         const data = await response.json();
         if (!response.ok || !Array.isArray(data.verses) || data.verses.length === 0) throw new Error('No verses');
         const notesByReference = new Map(savedVerses.map((verse) => [verse.reference, verse.meditation]));
@@ -644,15 +700,32 @@ export function CadetNarrative({
   }, [narrative]);
 
   useEffect(() => {
-    if (!conversationNarrativeIds.length) return;
+    if (edition === 'published' || !readerVerses.length) return;
     let cancelled = false;
-    fetchVerseInsights(conversationNarrativeIds, profile?.id).then((items) => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9_000);
+    void fetchEditionVerses(edition, readerVerses.map((verse) => verse.reference), controller.signal)
+      .then((result) => {
+        if (!cancelled) setEditionResult({ edition, verses: readerVerses, result });
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [edition, readerVerses]);
+
+  useEffect(() => {
+    if (!hasPremiumAccess || !conversationNarrativeIds.length) { setVerseInsights([]); return; }
+    let cancelled = false;
+    fetchVerseInsights(conversationNarrativeIds, profile?.id, bibleVerseReferences).then((items) => {
       if (!cancelled) {
         setVerseInsights(items);
       }
     });
     return () => { cancelled = true; };
-  }, [conversationNarrativeIds, profile?.id]);
+  }, [conversationNarrativeIds, profile?.id, hasPremiumAccess, bibleVerseReferences]);
 
   useEffect(() => {
     if (!profile?.id || !conversationNarrativeIds.length) {
@@ -680,7 +753,7 @@ export function CadetNarrative({
 
   const visibleInsightIds = useMemo(() => verseInsights.map(insight => String(insight.id)).sort().join(','), [verseInsights]);
   useEffect(() => {
-    if (!narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
+    if (!hasPremiumAccess || !narrative?.id || !profile?.id || !conversationNarrativeIds.length) return;
     let refreshTimer: number | null = null;
 
     const refreshInsights = () => {
@@ -695,6 +768,11 @@ export function CadetNarrative({
     conversationNarrativeIds.forEach((narrativeId) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `narrative_id=eq.${narrativeId}` }, refreshInsights);
     });
+    const bibleBooks = new Set(bibleVerseReferences.map((reference) =>
+      reference.slice(0, reference.lastIndexOf(' ')).toLowerCase().replace(/ /g, '-')));
+    bibleBooks.forEach((book) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'scripture_verse_insights', filter: `bible_book=eq.${book}` }, refreshInsights);
+    });
     subscribeToScopedChanges(channel, 'scripture_insight_comments', 'insight_id', visibleInsightIds.split(','), refreshInsights);
     subscribeToScopedChanges(channel, 'scripture_insight_reactions', 'insight_id', visibleInsightIds.split(','), refreshInsights);
     channel.subscribe();
@@ -705,7 +783,7 @@ export function CadetNarrative({
       document.removeEventListener('visibilitychange', refreshInsights);
       void supabase.removeChannel(channel);
     };
-  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds]);
+  }, [conversationNarrativeIds, narrative?.id, profile?.id, reloadVerseInsights, visibleInsightIds, hasPremiumAccess, bibleVerseReferences]);
 
   useEffect(() => {
     const receiveTarget = (event: Event) => setNavigationTarget((event as CustomEvent<ScriptureNavigationTarget>).detail);
@@ -737,6 +815,7 @@ export function CadetNarrative({
     if (!reference) return;
     const index = readerVerses.findIndex((verse) => verse.reference.toLowerCase() === reference.toLowerCase());
     if (index < 0) return;
+    cancelReadingRestore.current?.();
     const targetSourceNarrativeId = readerVerses[index].sourceNarrativeId || narrative.id;
     setOpenVerse(index);
     setOpenUserInsights(reference);
@@ -745,7 +824,7 @@ export function CadetNarrative({
     window.setTimeout(() => verseRefs.current[reference]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
     clearScriptureTarget();
     setNavigationTarget(null);
-  }, [navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
+  }, [cancelReadingRestore, navigationTarget, narrative?.id, openHiddenVerseChallenge, readerVerses, verseInsights]);
 
   const meditationWordCount = meditation.trim() ? meditation.trim().split(/\s+/).length : 0;
   const quoteWordCount = dailyQuote.trim() ? dailyQuote.trim().split(/\s+/).length : 0;
@@ -754,16 +833,14 @@ export function CadetNarrative({
     appClock.hour > MEDITATION_CUTOFF_HOUR ||
     (appClock.hour === MEDITATION_CUTOFF_HOUR && appClock.minute >= MEDITATION_CUTOFF_MINUTE);
   const canSubmitMeditation =
-    hasAccess &&
     !isHistoricalReading &&
-    !afterMeditationCutoff &&
+    (!afterMeditationCutoff || meditationExtensionActive) &&
     bestVerse.trim().length > 0 &&
     meditationWordCount >= 50 &&
     quoteWordCount > 0 &&
     quoteWordCount <= 10;
 
   const saveMeditation = async () => {
-    if (!requireSubscription()) return;
     if (!profile || isHistoricalReading || !canSubmitMeditation) return;
     setSaving(true);
     const { error } = await supabase.rpc('submit_daily_meditation', {
@@ -814,13 +891,14 @@ export function CadetNarrative({
   };
 
   const submitVerseInsight = async (reference: string, sourceNarrativeId?: string) => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!profile || !narrative?.id) return;
     const body = (myInsightDrafts[reference] || '').trim();
     if (!body) return;
     setSavingInsight(reference);
     try {
       await saveVerseInsight(sourceNarrativeId || narrative.id, profile.id, reference, body, mentionedUserIds(body, campMentionCandidates));
+      window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
       await reloadVerseInsights();
       setOpenUserInsights(reference);
       setMyInsightDrafts((current) => ({ ...current, [reference]: '' }));
@@ -831,7 +909,7 @@ export function CadetNarrative({
   };
 
   const submitInsightReply = async (insight: any) => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!profile || !narrative?.id) return;
     const body = (replyDrafts[insight.id] || '').trim();
     if (!body) return;
@@ -847,6 +925,7 @@ export function CadetNarrative({
         parentCommentId: target?.parentCommentId || null,
       });
       await reloadVerseInsights();
+      window.dispatchEvent(new Event(SCRIPTURE_QUESTION_RESOLVED_EVENT));
       setReplyDrafts((current) => ({ ...current, [insight.id]: '' }));
       setReplyTargets((current) => ({ ...current, [insight.id]: null }));
       setOpenInsightReplies(insight.id);
@@ -857,7 +936,7 @@ export function CadetNarrative({
   };
 
   const submitInsightEdit = async () => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!editingInsightId || !editingInsightBody.trim() || !narrative?.id) return;
     try {
       await editVerseInsight(editingInsightId, editingInsightBody.trim());
@@ -868,7 +947,7 @@ export function CadetNarrative({
   };
 
   const submitInsightCommentEdit = async () => {
-    if (!requireSubscription()) return;
+    if (!requirePremiumAccess()) return;
     if (!editingCommentId || !editingCommentBody.trim() || !narrative?.id) return;
     try {
       await editVerseInsightComment(editingCommentId, editingCommentBody.trim());
@@ -879,6 +958,7 @@ export function CadetNarrative({
   };
 
   const reactToInsight = async (insightId: string, reactionType: VerseInsightReactionType) => {
+    if (!requirePremiumAccess()) return;
     if (!profile || reactionPendingKey) return;
     const pendingKey = `${insightId}:${reactionType}`;
     const insight = verseInsights.find((item: any) => item.id === insightId);
@@ -925,17 +1005,33 @@ export function CadetNarrative({
     );
   }
 
+  const bibleLink = onOpenBible && <button type="button" className="btn-secondary w-full justify-center" onClick={()=>onOpenBible(parseBibleReadingReference(narrative?.scripture_passages?.[0]?.reference || narrative?.scripture_reference) || parseBibleReadingReference(readerVerses[0]?.reference))}>
+    <BookOpen size={17} /> Open the Bible <ChevronRight size={16} />
+  </button>;
+
   if (!narrative) {
+    const showQuizPrompt = activeDate === today && dayType === 'saturday' && Boolean(onOpenWeeklyQuiz);
+    const EmptyStateIcon = showQuizPrompt ? FileQuestion : BookOpen;
+
     return (
       <div className="space-y-5 max-w-3xl mx-auto">
         <section data-artwork-theme={readingImage?.url ? 'night' : undefined} className="card relative isolate overflow-hidden p-8 text-center">
           <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
           <div className="relative z-10">
             <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-navy-3/80 backdrop-blur-md">
-              <BookOpen size={24} className="text-peri-dim" />
+              <EmptyStateIcon size={24} className="text-peri-dim" />
             </div>
-            <h3 className="font-display font-bold text-peri mb-1">No reading published</h3>
-            <p className="mx-auto max-w-sm text-sm text-peri-dim">This date has no published reading. Your previous readings remain available below.</p>
+            <h3 className="font-display font-bold text-peri mb-1">{showQuizPrompt ? 'Saturday Quiz' : 'No reading published'}</h3>
+            <p className="mx-auto max-w-sm text-sm text-peri-dim">
+              {showQuizPrompt
+                ? 'Open Weekly Quiz to take the Saturday Quiz or check its status.'
+                : 'This date has no published reading. Your previous readings remain available below.'}
+            </p>
+            {showQuizPrompt && (
+              <button type="button" className="btn-primary mt-4" onClick={onOpenWeeklyQuiz}>
+                Open Weekly Quiz <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </section>
         {isHistoricalReading && (
@@ -952,8 +1048,9 @@ export function CadetNarrative({
           onLoadMore={() => void loadHistory()}
           image={readingImage}
           onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
-          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
         />
+        {bibleLink}
       </div>
     );
   }
@@ -967,10 +1064,21 @@ export function CadetNarrative({
     sourceNarrativeDate: verse.source_narrative_date || narrative.narrative_date,
   }));
   const verseChoices = displayVerses.map((verse) => ({ value: verse.reference, label: verse.reference }));
-  const fetchedVerses = splitScriptureVerses(narrative.main_text || '');
+  const scripturePanels = narrative.scripture_passages?.length
+    ? narrative.scripture_passages
+    : [{ reference: narrative.scripture_reference, main_text: narrative.main_text }];
+  const comparableText = (value: string) => value.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
+  const featuredText = comparableText(narrative.verse_of_day || '');
+  const featuredVerse = featuredText ? displayVerses.find((verse) => comparableText(verse.text) === featuredText) : undefined;
+  const featuredTranslation = featuredVerse ? editionContent?.translations.get(featuredVerse.reference) : undefined;
+  const hasEditionFallback = edition !== 'published' && (
+    !readerVerses.length || (editionContent && displayVerses.some((verse) => !editionContent.translations.has(verse.reference)))
+  );
+
 
   return (
     <div
+      ref={readingRootRef}
       className="today-reading-screen space-y-5 animate-fade-in max-w-3xl mx-auto"
       onPointerDownCapture={recordSundayEngagement}
       onScrollCapture={recordSundayEngagement}
@@ -984,7 +1092,7 @@ export function CadetNarrative({
               {new Date(`${activeDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
-          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => { setArchiveDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+          <button type="button" className="btn-secondary flex-shrink-0 text-xs" onClick={() => setArchiveDate(null)}>
             <ArrowLeft size={14} /> Today
           </button>
         </div>
@@ -1040,267 +1148,316 @@ export function CadetNarrative({
             'font-display text-ink',
             isSundayRest ? 'max-h-[calc(60svh-7.5rem)] overflow-y-auto pr-1 text-base leading-relaxed sm:text-lg' : 'text-xl leading-snug',
           )}>
-            &ldquo;{narrative.verse_of_day}&rdquo;
+            <span data-no-translate lang={featuredTranslation ? selectedEdition?.language : undefined}>&ldquo;{featuredTranslation || narrative.verse_of_day}&rdquo;</span>
           </p>
+          {edition !== 'published' && !featuredTranslation && (
+            <p className="mt-1 text-xs text-stone">Featured verse in the published edition</p>
+          )}
           <ScrollEdge position="bottom" className={cn('text-brass', isSundayRest ? 'mt-2' : 'mt-3')} />
           </div>
         </div>
       )}
 
       {/* ── Scripture text ── */}
-      <div data-artwork-theme={(scriptureImage)?.url ? 'night' : undefined}
-        className="card reading-glass-panel relative isolate overflow-hidden p-5 animate-slide-up border-border"
-        style={{
-          backdropFilter: 'blur(26px) saturate(1.22)',
-        }}
-      >
-        <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
-        <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-3">
-          <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
-          <span className="eyebrow text-stone">Scripture</span>
-        </div>
-        <ScrollEdge position="top" className="text-brass mb-4" />
-        <div className="space-y-4 sm:space-y-5">
-          {displayVerses.length ? displayVerses.map((verse, index) => {
-            const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
-            const userInsights = verseInsights.filter((item: any) => (
-              item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
-            ));
-            const hasInsight = Boolean(verse.meditation?.trim());
-            const hasReaderInsight = userInsights.length > 0;
-            const participants = insightParticipants(userInsights);
-            const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
-            const verseReferenceKey = readingVerseChallengeKey(sourceNarrativeId, verse.reference);
-            const hiddenVerseMarker = hiddenVerseMarkers.find((marker) => marker.reference_key === verseReferenceKey);
-            const taggedMe = Boolean(hiddenVerseMarker) || userInsights.some((item: any) =>
-              (item.mentioned_user_ids || []).includes(profile?.id)
-              || (item.comments || []).some((comment: any) =>
-                comment.mentioned_user_id === profile?.id || (comment.mentioned_user_ids || []).includes(profile?.id),
-              ),
-            );
-            const expanded = isSundayRest || openVerse === index;
-            const sundayInsightKey = `${sourceNarrativeId}:${verse.reference}`;
-            const userExpanded = isSundayRest
-              ? !closedSundayInsights.includes(sundayInsightKey)
-              : openUserInsights === verse.reference;
-            const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
-            return (
-              <article
-                key={`${verse.reference}-${index}`}
-                ref={(element) => { verseRefs.current[verse.reference] = element; }}
-                data-verse-reference={verse.reference}
-                className={cn(
-                  'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300 [overflow-anchor:none]',
-                  taggedMe ? 'verse-highlight-tagged' : sharedByMe ? 'verse-highlight-mine' : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => !isSundayRest && hasInsight && setOpenVerse(expanded ? null : index)}
-                  className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
-                  aria-expanded={hasInsight ? expanded : undefined}
-                >
-                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
-                  <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
-                    {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
-                  </span>
-                </button>
-                {hasInsight && expanded && (
-                  <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
-                    <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
-                  </div>
-                )}
-                <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
-                    <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
-                      if (isSundayRest) {
-                        if (userExpanded) {
-                          setClosedSundayInsights((current) => current.includes(sundayInsightKey) ? current : [...current, sundayInsightKey]);
-                          return;
-                        }
-                        if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
-                        setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
-                        openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
-                        return;
-                      }
-                      if (!userExpanded && userInsights.length === 0 && !requireSubscription()) return;
-                      setOpenUserInsights(userExpanded ? null : verse.reference);
-                      if (!userExpanded) {
-                        openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
-                      }
-                    }}>
-                      {userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
-                    </button>
-                  </div>
-                  {!userExpanded && participants.length > 0 && (
-                    <div
-                      className="mt-3 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1"
-                      aria-label={`${participants.length} reader insight participant${participants.length === 1 ? '' : 's'}`}
+      {scripturePanels.map((passage, passageIndex) => {
+        const panelVerses = displayVerses
+          .map((verse, index) => ({ verse, index }))
+          .filter(({ verse }) => (verse.passageIndex ?? 0) === passageIndex);
+        return (
+          <section key={`${passage.reference}-${passageIndex}`} aria-label={passage.reference} data-artwork-theme={(scriptureImage)?.url ? 'night' : undefined}
+            className="card reading-glass-panel relative isolate overflow-hidden p-5 animate-slide-up border-border"
+            style={{
+              backdropFilter: 'blur(26px) saturate(1.22)',
+            }}
+          >
+            <PanelImageBackdrop image={scriptureImage} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
+            <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-3">
+              <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
+              <h2 className="eyebrow text-stone">{passage.reference || 'Scripture'}</h2>
+            </div>
+            {passageIndex === 0 && <div className="mb-3 max-w-sm">
+              <p className="mb-1 text-xs font-semibold text-stone">Bible edition</p>
+              <AppSelect
+                ariaLabel="Bible edition"
+                value={edition}
+                onChange={(value) => {
+                  saveScriptureEdition(value, profile?.id);
+                  setEditionSelection({ userId: profile?.id, value });
+                }}
+                options={SCRIPTURE_EDITIONS.map((item) => ({
+                  value: item.value,
+                  label: item.value === 'published' ? `Published edition (${narrative.translation || 'WEB'})` : item.label,
+                }))}
+              />
+              {edition !== 'published' && readerVerses.length > 0 && !editionContent && (
+                <p className="mt-1 text-xs text-stone" role="status">Loading selected Bible edition…</p>
+              )}
+              {hasEditionFallback && <p className="mt-1 text-xs text-stone">Verses unavailable in this edition use the published text.</p>}
+              {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
+            </div>}
+            <ScrollEdge position="top" className="text-brass mb-4" />
+            <div className="space-y-4 sm:space-y-5">
+              {panelVerses.length ? panelVerses.map(({ verse, index }) => {
+                const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
+                const bibleReference = canonicalBibleVerseReference(verse.reference);
+                const userInsights = (hasPremiumAccess ? verseInsights : []).filter((item) => (
+                  item.narrative_id === null
+                    ? !item.is_question && item.verse_reference === bibleReference
+                    : item.narrative_id === sourceNarrativeId && item.verse_reference === verse.reference
+                ));
+                const hasInsight = Boolean(verse.meditation?.trim());
+                const hasReaderInsight = userInsights.length > 0;
+                const participants = insightParticipants(userInsights);
+                const sharedByMe = userInsights.some((item: any) => item.user_id === profile?.id);
+                const verseReferenceKey = readingVerseChallengeKey(sourceNarrativeId, verse.reference);
+                const hiddenVerseMarker = hiddenVerseMarkers.find((marker) => marker.reference_key === verseReferenceKey);
+                const personalHighlight = verseMark(verse.reference);
+                const expanded = isSundayRest || openVerse === index;
+                const sundayInsightKey = `${sourceNarrativeId}:${verse.reference}`;
+                const userExpanded = isSundayRest
+                  ? !closedSundayInsights.includes(sundayInsightKey)
+                  : openUserInsights === verse.reference;
+                const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
+                return (
+                  <article
+                    key={`${verse.reference}-${index}`}
+                    ref={(element) => { verseRefs.current[verse.reference] = element; }}
+                    data-verse-reference={verse.reference}
+                    className={cn(
+                      'scroll-mt-28 overflow-hidden rounded-xl border border-transparent px-2 py-2 transition-colors duration-300 [overflow-anchor:none]',
+                      personalHighlight === 'question-pending' ? 'verse-highlight-tagged'
+                        : personalHighlight === 'question-answered' ? 'verse-highlight-answered'
+                          : personalHighlight === 'insight' || sharedByMe ? 'verse-highlight-mine'
+                            : (hasInsight || hasReaderInsight) ? 'verse-highlight-insight' : '',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => !isSundayRest && hasInsight && setOpenVerse(expanded ? null : index)}
+                      className={cn('w-full px-1 py-1 text-left transition-colors', !isSundayRest && hasInsight ? 'hover:bg-peri-soft cursor-pointer' : 'cursor-default')}
+                      aria-expanded={hasInsight ? expanded : undefined}
                     >
-                      {participants.map((participant) => participant.isGuest ? (
-                        <span
-                          key={participant.userId}
-                          title="Guest reader"
-                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft text-peri"
+                      <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span><span data-no-translate lang={editionContent?.translations.has(verse.reference) ? selectedEdition?.language : undefined}>{editionContent?.translations.get(verse.reference) || verse.text}</span></p>
+                      <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
+                        {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
+                      </span>
+                    </button>
+                    {hasInsight && expanded && (
+                      <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
+                        <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
+                      </div>
+                    )}
+                    {(instructorExtras.contexts[bibleReference || verse.reference]
+                      || instructorExtras.facts[bibleReference || verse.reference]
+                      || instructorExtras.quests[bibleReference || verse.reference]) && (
+                      <InstructorVerseExtras context={instructorExtras.contexts[bibleReference || verse.reference]}
+                        fact={instructorExtras.facts[bibleReference || verse.reference]}
+                        quest={instructorExtras.quests[bibleReference || verse.reference]}
+                        onClaimed={instructorExtras.refresh} />
+                    )}
+                    {narrative.narrative_date === '2026-12-25' &&
+                      new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Douala' }) >= '2026-12-25' &&
+                      index < 3 && <ChristmasHiddenNote secret={index} />}
+                    <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="mr-auto text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
+                        <button type="button" className="btn-ghost px-2 py-1 text-[10px]" title="Ask a question" aria-label={`Ask a question about ${verse.reference}`}
+                          onClick={() => { if (sourceNarrativeId && requirePremiumAccess()) setScriptureQuestion({ reference: verse.reference, narrativeId: sourceNarrativeId }); }}>
+                          <HelpCircle size={15} />
+                        </button>
+                        <button type="button" className="btn-ghost px-2 py-1 text-[10px]" onClick={() => {
+                          if (!hasPremiumAccess) {
+                            if (hiddenVerseMarker) openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
+                            else requirePremiumAccess();
+                            return;
+                          }
+                          if (isSundayRest) {
+                            if (userExpanded) {
+                              setClosedSundayInsights((current) => current.includes(sundayInsightKey) ? current : [...current, sundayInsightKey]);
+                              return;
+                            }
+                            setClosedSundayInsights((current) => current.filter((key) => key !== sundayInsightKey));
+                            openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
+                            return;
+                          }
+                          setOpenUserInsights(userExpanded ? null : verse.reference);
+                          if (!userExpanded) {
+                            openHiddenVerseChallenge(sourceNarrativeId, verse.reference);
+                          }
+                        }}>
+                          {hiddenVerseMarker && !hasPremiumAccess ? 'Open tag' : !hasPremiumAccess ? 'Subscribe' : userExpanded ? 'Close' : hiddenVerseMarker ? 'Open tag' : userInsights.length ? `Open ${userInsights.length}` : 'Add yours'}
+                        </button>
+                      </div>
+                      {!userExpanded && participants.length > 0 && (
+                        <div
+                          className="mt-3 flex max-w-full items-center gap-1.5 overflow-x-auto pb-1"
+                          aria-label={`${participants.length} reader insight participant${participants.length === 1 ? '' : 's'}`}
                         >
-                          <Dove size={14} />
-                        </span>
-                      ) : (
-                        <MessageAvatar
-                          key={participant.userId}
-                          profile={messageProfile(participant.userId, participant.displayName, participant.avatarUrl)}
-                          currentUserId={profile?.id}
-                          size="xs"
-                          className="shrink-0"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {userExpanded && (
-                    <div className="mt-3 space-y-3">
-                      {userInsights.map((item: any) => {
-                        const authorName = item.profiles?.display_name || 'Reader';
-                        const comments = item.comments || [];
-                        const repliesOpen = openInsightReplies === item.id;
-                        const commentsVisible = isSundayRest || repliesOpen;
-                        return (
-                          <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
-                            <div className="flex items-start gap-2.5">
-                              <MessageAvatar
-                                profile={messageProfile(item.user_id, authorName, item.profiles?.avatar_url)}
-                                currentUserId={profile?.id}
-                                size="sm"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-ink">
-                                  {authorName}{item.user_id === profile?.id ? ' · You' : ''}{' '}
-                                  <RelativeTime value={item.created_at} className="font-medium text-stone-dim" />
-                                </p>
-                                {editingInsightId === item.id ? (
-                                  <div className="mt-1 flex items-end gap-2">
-                                    <textarea value={editingInsightBody} onChange={(event) => setEditingInsightBody(event.target.value)} className="input-field min-h-16 flex-1 text-xs" autoFocus />
-                                    <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
+                          {participants.map((participant) => participant.isGuest ? (
+                            <span
+                              key={participant.userId}
+                              title="Guest reader"
+                              className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-peri-soft text-peri"
+                            >
+                              <Dove size={14} />
+                            </span>
+                          ) : (
+                            <MessageAvatar
+                              key={participant.userId}
+                              profile={messageProfile(participant.userId, participant.displayName, participant.avatarUrl)}
+                              currentUserId={profile?.id}
+                              size="xs"
+                              className="shrink-0"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {hasPremiumAccess && userExpanded && (
+                        <div className="mt-3 space-y-3">
+                          {userInsights.map((item: any) => {
+                            const authorName = item.profiles?.display_name || 'Reader';
+                            const comments = item.comments || [];
+                            const repliesOpen = openInsightReplies === item.id;
+                            const commentsVisible = isSundayRest || repliesOpen;
+                            return (
+                              <div key={item.id} className="rounded-xl border border-border bg-surface-2 p-3">
+                                <div className="flex items-start gap-2.5">
+                                  <MessageAvatar
+                                    profile={messageProfile(item.user_id, authorName, item.profiles?.avatar_url)}
+                                    currentUserId={profile?.id}
+                                    size="sm"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-ink">
+                                      {authorName}{item.is_question ? ' · Question' : ''}{item.user_id === profile?.id ? ' · You' : ''}{' '}
+                                      <RelativeTime value={item.created_at} className="font-medium text-stone-dim" />
+                                    </p>
+                                    {editingInsightId === item.id ? (
+                                      <div className="mt-1 flex items-end gap-2">
+                                        <textarea value={editingInsightBody} onChange={(event) => setEditingInsightBody(event.target.value)} className="input-field min-h-16 flex-1 text-xs" autoFocus />
+                                        <button type="button" onClick={() => void submitInsightEdit()} className="icon-btn" aria-label="Save insight"><Check size={13} /></button>
+                                      </div>
+                                    ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
+                                    {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requirePremiumAccess()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
                                   </div>
-                                ) : <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{item.body}</p>}
-                                {item.user_id === profile?.id && editingInsightId !== item.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingInsightId(item.id); setEditingInsightBody(item.body); }}><Pencil size={10} /> Edit</button>}
-                              </div>
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
-                              {INSIGHT_REACTIONS.map(({ type, label, icon: ReactionIcon }) => {
-                                const reaction = item.reactions?.[type] || { count: 0, reacted: false };
-                                const pending = reactionPendingKey === `${item.id}:${type}`;
-                                return (
-                                  <button
-                                    key={type}
-                                    type="button"
-                                    disabled={Boolean(reactionPendingKey)}
-                                    onClick={() => void reactToInsight(item.id, type)}
-                                    className={cn(
-                                      'inline-flex h-7 min-w-9 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors disabled:opacity-60',
-                                      reaction.reacted
-                                        ? type === 'heart'
-                                          ? 'border-coral/50 bg-coral-soft text-coral'
-                                          : 'border-gold/50 bg-gold-soft text-gold'
-                                        : 'border-border bg-surface text-stone hover:border-border-bright hover:text-ink',
-                                      pending && 'animate-pulse',
-                                    )}
-                                    title={label}
-                                    aria-label={`${label}: ${reaction.count}`}
-                                    aria-pressed={reaction.reacted}
-                                    aria-busy={pending}
-                                  >
-                                    <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
-                                    <span>{reaction.count}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {(() => {
-                              const actors = Array.from(new Map(
-                                INSIGHT_REACTIONS.flatMap(({ type }) => item.reactions?.[type]?.actors || [])
-                                  .map((actor: any) => [actor.user_id, actor]),
-                              ).values()).slice(0, 5);
-                              if (!actors.length) return null;
-                              return (
-                                <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
-                                  {actors.map((actor: any) => actor.is_guest ? (
-                                    <span
-                                      key={actor.user_id}
-                                      title="Guest reader"
-                                      className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-peri shadow-sm"
-                                    >
-                                      <Dove size={14} />
-                                    </span>
-                                  ) : (
-                                    <MessageAvatar
-                                      key={actor.user_id}
-                                      profile={messageProfile(actor.user_id, actor.display_name, actor.avatar_url)}
-                                      currentUserId={profile?.id}
-                                      size="xs"
-                                    />
-                                  ))}
                                 </div>
-                              );
-                            })()}
-                            <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
-                              if (!requireSubscription()) return;
-                              setOpenInsightReplies(repliesOpen ? null : item.id);
-                              setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
-                              setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
-                            }}>
-                              <MessageCircle size={13} /> {comments.length ? `${comments.length} ${comments.length === 1 ? 'reply' : 'replies'}` : 'Reply'}
-                            </button>
-                            {commentsVisible && (comments.length > 0 || repliesOpen) && (
-                              <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
-                                {comments.map((comment: any) => (
-                                  <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
-                                    <div className="flex items-start gap-2.5">
-                                      <MessageAvatar
-                                        profile={messageProfile(comment.user_id, comment.profile?.display_name || 'Reader', comment.profile?.avatar_url)}
-                                        currentUserId={profile?.id}
-                                        size="sm"
-                                      />
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
-                                        {editingCommentId === comment.id ? (
-                                          <div className="mt-1 flex items-end gap-2">
-                                            <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
-                                            <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
+                                  {INSIGHT_REACTIONS.map(({ type, label, icon: ReactionIcon }) => {
+                                    const reaction = item.reactions?.[type] || { count: 0, reacted: false };
+                                    const pending = reactionPendingKey === `${item.id}:${type}`;
+                                    return (
+                                      <button
+                                        key={type}
+                                        type="button"
+                                        disabled={Boolean(reactionPendingKey)}
+                                        onClick={() => void reactToInsight(item.id, type)}
+                                        className={cn(
+                                          'inline-flex h-7 min-w-9 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors disabled:opacity-60',
+                                          reaction.reacted
+                                            ? type === 'heart'
+                                              ? 'border-coral/50 bg-coral-soft text-coral'
+                                              : 'border-gold/50 bg-gold-soft text-gold'
+                                            : 'border-border bg-surface text-stone hover:border-border-bright hover:text-ink',
+                                          pending && 'animate-pulse',
+                                        )}
+                                        title={label}
+                                        aria-label={`${label}: ${reaction.count}`}
+                                        aria-pressed={reaction.reacted}
+                                        aria-busy={pending}
+                                      >
+                                        <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
+                                        <span>{reaction.count}</span>
+                                      </button>
+                                    );
+                                  })}
+                                  <button type="button" className="btn-ghost px-2 py-1 text-[10px]" aria-label="Ask a question" title="Ask a question"
+                                    onClick={() => { if (sourceNarrativeId && requirePremiumAccess()) setScriptureQuestion({ reference: verse.reference, narrativeId: sourceNarrativeId }); }}>
+                                    <HelpCircle size={15} />
+                                  </button>
+                                </div>
+                                {(() => {
+                                  const actors = Array.from(new Map(
+                                    INSIGHT_REACTIONS.flatMap(({ type }) => item.reactions?.[type]?.actors || [])
+                                      .map((actor: any) => [actor.user_id, actor]),
+                                  ).values()).slice(0, 5);
+                                  if (!actors.length) return null;
+                                  return (
+                                    <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp member${actors.length === 1 ? '' : 's'} reacted`}>
+                                      {actors.map((actor: any) => actor.is_guest ? (
+                                        <span
+                                          key={actor.user_id}
+                                          title="Guest reader"
+                                          className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-surface-2 bg-peri-soft text-peri shadow-sm"
+                                        >
+                                          <Dove size={14} />
+                                        </span>
+                                      ) : (
+                                        <MessageAvatar
+                                          key={actor.user_id}
+                                          profile={messageProfile(actor.user_id, actor.display_name, actor.avatar_url)}
+                                          currentUserId={profile?.id}
+                                          size="xs"
+                                        />
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                                <button type="button" className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri" onClick={() => {
+                                  if (!requirePremiumAccess()) return;
+                                  setOpenInsightReplies(repliesOpen ? null : item.id);
+                                  setReplyTargets((current) => ({ ...current, [item.id]: { userId: item.user_id, displayName: authorName } }));
+                                  setReplyDrafts((current) => ({ ...current, [item.id]: current[item.id] || `@${authorName} ` }));
+                                }}>
+                                  <MessageCircle size={13} /> {comments.length ? `${comments.length} ${comments.length === 1 ? 'reply' : 'replies'}` : 'Reply'}
+                                </button>
+                                {commentsVisible && (comments.length > 0 || repliesOpen) && (
+                                  <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
+                                    {comments.map((comment: any) => (
+                                      <div key={comment.id} className="rounded-lg bg-surface/75 p-2">
+                                        <div className="flex items-start gap-2.5">
+                                          <MessageAvatar
+                                            profile={messageProfile(comment.user_id, comment.profile?.display_name || 'Reader', comment.profile?.avatar_url)}
+                                            currentUserId={profile?.id}
+                                            size="sm"
+                                          />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-[11px] font-bold text-ink">{comment.profile?.display_name || 'Reader'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
+                                            {editingCommentId === comment.id ? (
+                                              <div className="mt-1 flex items-end gap-2">
+                                                <textarea value={editingCommentBody} onChange={(event) => setEditingCommentBody(event.target.value)} className="input-field min-h-14 flex-1 text-xs" autoFocus />
+                                                <button type="button" onClick={() => void submitInsightCommentEdit()} className="icon-btn" aria-label="Save reply"><Check size={12} /></button>
+                                              </div>
+                                            ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
+                                            {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requirePremiumAccess()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
+                                            <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
+                                              if (!requirePremiumAccess()) return;
+                                              const displayName = comment.profile?.display_name || 'Reader';
+                                              setOpenInsightReplies(item.id);
+                                              setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
+                                              setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
+                                            }}><Reply size={11} /> Reply</button>
                                           </div>
-                                        ) : <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>}
-                                        {comment.user_id === profile?.id && editingCommentId !== comment.id && <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => { if (!requireSubscription()) return; setEditingCommentId(comment.id); setEditingCommentBody(comment.body); }}><Pencil size={10} /> Edit</button>}
-                                        <button type="button" className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-peri" onClick={() => {
-                                          if (!requireSubscription()) return;
-                                          const displayName = comment.profile?.display_name || 'Reader';
-                                          setOpenInsightReplies(item.id);
-                                          setReplyTargets((current) => ({ ...current, [item.id]: { userId: comment.user_id, displayName, parentCommentId: comment.id } }));
-                                          setReplyDrafts((current) => ({ ...current, [item.id]: `@${displayName} ` }));
-                                        }}><Reply size={11} /> Reply</button>
+                                        </div>
                                       </div>
-                                    </div>
+                                    ))}
+                                    {repliesOpen && (
+                                      <>
+                                        {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
+                                        <div className="flex items-end gap-2">
+                                          <div className="min-w-0 flex-1">
+                                            <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
+                                          </div>
+                                          <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
-                                ))}
-                                {repliesOpen && (
-                                  <>
-                                    {replyTargets[item.id] && <p className="text-[10px] font-semibold text-peri">Replying to @{replyTargets[item.id]?.displayName}</p>}
-                                    <div className="flex items-end gap-2">
-                                      <div className="min-w-0 flex-1">
-                                        <MentionTextarea className="input-field min-h-[4rem] w-full text-xs" value={replyDrafts[item.id] || ''} onChange={(value) => setReplyDrafts((current) => ({ ...current, [item.id]: value }))} candidates={campMentionCandidates} placeholder={`Respond to @${authorName}...`} />
-                                      </div>
-                                      <button type="button" className="icon-btn mb-1" aria-label="Post reply" disabled={savingReply === item.id || !(replyDrafts[item.id] || '').trim()} onClick={() => void submitInsightReply(item)}><Send size={15} /></button>
-                                    </div>
-                                  </>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {hasAccess ? (
-                        <>
+                            );
+                          })}
                           <MentionTextarea
                             className="input-field min-h-[5.5rem] w-full text-sm"
                             value={myInsightDrafts[verse.reference] || ''}
@@ -1311,26 +1468,22 @@ export function CadetNarrative({
                           <button type="button" className="btn-secondary text-xs" disabled={savingInsight === verse.reference || !(myInsightDrafts[verse.reference] || '').trim()} onClick={() => submitVerseInsight(verse.reference, sourceNarrativeId)}>
                             {savingInsight === verse.reference ? 'Saving...' : 'Save my insight'}
                           </button>
-                        </>
-                      ) : (
-                        <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={() => requireSubscription()}>
-                          <Lock size={13} /> Subscribe to write an insight
-                        </button>
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </article>
-            );
-          }) : fetchedVerses.map((verse, index) => (
-            <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
-              <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
-            </article>
-          ))}
-        </div>
-        <ScrollEdge position="bottom" className="text-brass mt-4" />
-        </div>
-      </div>
+                  </article>
+                );
+              }) : splitScriptureVerses(passage.main_text || '').map((verse, index) => (
+                <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
+                  <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span><span data-no-translate>{verse.text}</span></p>
+                </article>
+              ))}
+            </div>
+            <ScrollEdge position="bottom" className="text-brass mt-4" />
+            </div>
+          </section>
+        );
+      })}
 
       {/* ── Reflection prompts ── */}
       {!isSundayRest && narrative.reflection_prompts && narrative.reflection_prompts.length > 0 && (
@@ -1353,18 +1506,6 @@ export function CadetNarrative({
       {/* ── Meditation submission — three sections ── */}
       {!isSundayRest && !isHistoricalReading && <div data-artwork-theme={(meditationImage)?.url ? 'night' : undefined}
         className="card relative isolate overflow-hidden border-border bg-surface-2 p-5 animate-slide-up"
-        aria-disabled={!hasAccess}
-        onClickCapture={(event) => {
-          if (hasAccess || !(event.target as HTMLElement).closest('button,input,textarea,[role="button"],label')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          requireSubscription();
-        }}
-        onFocusCapture={(event) => {
-          if (hasAccess) return;
-          (event.target as HTMLElement).blur();
-          requireSubscription();
-        }}
       >
         <PanelImageBackdrop
           image={meditationImage}
@@ -1381,10 +1522,8 @@ export function CadetNarrative({
               <FlameIcon size={10} className="mr-1" /> Streak {streakCount}
             </span>
           </div>
-          {afterMeditationCutoff && !savedMeditation && (
-            <div className="mt-3 mb-3 p-3 rounded-lg bg-roman/10 border border-roman/25 text-xs text-roman">
-              Streak submissions close at 9:00 PM. You can read and draft, but today can no longer be registered for the streak.
-            </div>
+          {afterMeditationCutoff && !savedMeditation && !isHistoricalReading && profile && (
+            <MeditationExtension userId={profile.id} date={activeDate} onWindowChange={setMeditationExtensionActive}/>
           )}
           <div className="flex items-center gap-2 mt-3 mb-3">
             <ScrollText size={18} className="text-brass" strokeWidth={1.5} />
@@ -1489,7 +1628,7 @@ export function CadetNarrative({
         onLoadMore={() => void loadHistory()}
         image={readingImage}
         onToggle={() => { const next = !showHistory; setShowHistory(next); if (next && !readingHistory.length) void loadHistory(); }}
-        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onOpenReading={(date) => { setArchiveDate(date); setShowHistory(false); }}
       />
 
       {/* ── Challenge — format-aware + reject/resubmit flow ── */}
@@ -1643,6 +1782,13 @@ export function CadetNarrative({
           </div>
         </div>
       )}
+      {bibleLink}
+      {scriptureQuestion && <ScriptureQuestionComposer target={scriptureQuestion} close={() => setScriptureQuestion(null)}
+        onPosted={() => {
+          setOpenUserInsights(scriptureQuestion.reference);
+          setClosedSundayInsights(keys => keys.filter(key => key !== `${scriptureQuestion.narrativeId}:${scriptureQuestion.reference}`));
+          void reloadVerseInsights();
+        }} />}
     </div>
   );
 }
@@ -1660,4 +1806,26 @@ function proofFormatLabel(format: ChallengeProofFormat): string {
 
 function FlameIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
   return <span className={className} style={{ fontSize: size, display: 'inline-block' }}>&#128293;</span>;
+}
+
+
+/** Three quiet, reader-discovered surprises belonging only to the 2026 Christmas meditation. */
+function ChristmasHiddenNote({ secret }: { secret: number }) {
+  const [opened, setOpened] = useState(false);
+  const surprises = [
+    { clue: 'A quiet light', text: 'A Christmas discovery: read Luke 2:10–11, then share one reason you have hope with another reader today.' },
+    { clue: 'A small kindness', text: 'A hidden Christmas challenge: encourage someone in your tent privately before this day ends.' },
+    { clue: 'An unexpected name', text: 'The name Immanuel means “God with us” (Matthew 1:23; from Hebrew ʿimmānû ʾēl). Reflect on what that means for someone who feels alone.' },
+  ] as const;
+  const item = surprises[secret];
+  return <div className="my-2 text-right">
+    <button type="button" onClick={() => setOpened(value => !value)}
+      aria-label={opened ? 'Close Christmas discovery' : 'Discover a hidden Christmas detail'}
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-brass/25 bg-brass/10 text-[10px] text-brass/65 hover:bg-brass/25"
+      title="Something is hidden here">✦</button>
+    {opened && <div className="mt-2 rounded-lg border border-brass/35 bg-brass-soft px-3 py-3 text-left">
+      <p className="text-xs font-bold text-brass">{item.clue}</p>
+      <p className="mt-1 text-sm leading-relaxed text-ink">{item.text}</p>
+    </div>}
+  </div>;
 }

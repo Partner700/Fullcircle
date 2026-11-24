@@ -1,10 +1,12 @@
+import { interfaceLanguage, preferredTimeZone } from '../../lib/regionalPreferences';
+import { ProfileTimeZoneSelect } from '../../components/ProfileTimeZoneSelect';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader } from '../../components/AppShell';
 import { PasswordUpdateFlow } from '../../components/PasswordUpdateFlow';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { supabase } from '../../lib/supabase';
-import { fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
+import { fetchPersonalAwards, fetchUserLiveStats, getSubscriptionStatus } from '../../lib/queries';
 import { cn, formatDenarii } from '../../lib/utils';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -39,7 +41,8 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
-  const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [language, setLanguage] = useState<string>(() => interfaceLanguage(profile?.language_code));
+  const [timeZone, setTimeZone] = useState(() => preferredTimeZone(profile?.timezone));
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({
@@ -65,16 +68,17 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
           }));
         }),
         getSubscriptionStatus(profile.id).then(setSubStatus),
-        ...(['game_attempts', 'quiz_attempts', 'daily_records', 'awards'] as const).map(async (table, index) => {
+        fetchPersonalAwards(profile.id).then(awards => setStats(previous => ({ ...previous, awardsCount: awards.length }))),
+        ...(['game_attempts', 'quiz_attempts', 'daily_records'] as const).map(async (table, index) => {
           let query = supabase.from(table).select('*', { count: 'exact', head: true }).eq('user_id', profile.id);
           if (table === 'daily_records') query = query.eq('meditation_submitted', true);
           const { count, error } = await query;
           if (error) throw error;
-          const key = (['gamesPlayed', 'quizzesTaken', 'narrativesRead', 'awardsCount'] as const)[index];
+          const key = (['gamesPlayed', 'quizzesTaken', 'narrativesRead'] as const)[index];
           setStats((previous) => ({ ...previous, [key]: count ?? 0 }));
         }),
         (async () => {
-          const { data, error } = await supabase.from('relic_inventory').select('quantity').eq('user_id', profile.id);
+          const { data, error } = await supabase.from('relic_inventory').select('quantity,relic_types!inner(is_active)').eq('relic_types.is_active',true).eq('user_id', profile.id);
           if (error) throw error;
           setStats((previous) => ({ ...previous, relicsOwned: (data || []).reduce((sum, row) => sum + row.quantity, 0) }));
         })(),
@@ -96,6 +100,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
         whatsappNumber: phoneNumberForCountry(whatsapp, country),
         countryCode: country,
         languageCode: language,
+        timeZone,
         birthMonth: parsedBirthday.month,
         birthDay: parsedBirthday.day,
       });
@@ -118,7 +123,6 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
     { label: 'Denarii', value: formatDenarii(stats.denarii), icon: Coins, color: 'text-gold' },
     { label: 'Figs', value: stats.figs.toLocaleString(), icon: BadgeCheck, color: 'text-sage' },
     { label: 'Rhudes', value: stats.rhudes.toLocaleString(), icon: Shield, color: 'text-royal' },
-    { label: 'Marks', value: stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 }), icon: ChiRhoMark, color: 'text-peri-2' },
     { label: 'Current Streak', value: `${stats.currentStreak} days`, icon: Flame, color: 'text-brass' },
     { label: 'Longest Streak', value: `${stats.longestStreak} days`, icon: TrendingUp, color: 'text-roman' },
     { label: 'Awards', value: stats.awardsCount, icon: Award, color: 'text-royal' },
@@ -142,6 +146,7 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
             <p className="font-display font-semibold text-ink text-lg">{profile?.display_name}</p>
             <p className="text-sm text-stone">{profile?.email}</p>
             <p className="text-xs text-stone mt-1">Role: Cadet</p>
+            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-peri" title="Labarum"><ChiRhoMark size={14} />{stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
@@ -160,9 +165,10 @@ export function CadetSettings({ refreshKey = 0 }: CadetSettingsProps) {
               <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name, description: item.timezone }))} />
             </label>
             <label className="block text-xs text-stone">
-              <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+              <span className="mb-1 flex items-center gap-1"><Languages size={12} /> App language</span>
               <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
             </label>
+          <ProfileTimeZoneSelect value={timeZone} onChange={setTimeZone} />
             <label className="block text-xs text-stone">
               <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
               <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />

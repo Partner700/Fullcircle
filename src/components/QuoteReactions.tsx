@@ -39,6 +39,7 @@ export function QuoteReactions({
   guideScope,
   loadCommentPreview = true,
   previewLimit = 2,
+  scrollableCommentPreview = false,
   commentsTitle = 'Quote Comments',
   commentPlaceholder = 'Comment on this quote...',
   commentButtonLabel = 'Comments',
@@ -59,6 +60,7 @@ export function QuoteReactions({
   guideScope?: QuoteReactionGuideScope;
   loadCommentPreview?: boolean;
   previewLimit?: number;
+  scrollableCommentPreview?: boolean;
   commentsTitle?: string;
   commentPlaceholder?: string;
   commentButtonLabel?: string;
@@ -75,6 +77,8 @@ export function QuoteReactions({
   const [editingBody, setEditingBody] = useState('');
   const fetchCommentsRef = useRef(fetchComments);
   const loadedCommentsKeyRef = useRef<string | null>(null);
+  const commentsPanelRef = useRef<HTMLDivElement | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
   const commentsEnabled = Boolean(quoteUserId && quoteRecordDate && fetchComments && onComment && currentUserId);
   const commentsPanelOpen = commentsEnabled && (showComments || Boolean(replyTarget));
   const commentsKey = quoteUserId && quoteRecordDate ? `${quoteUserId}:${quoteRecordDate}` : null;
@@ -87,6 +91,23 @@ export function QuoteReactions({
        component must not close or unpause that messenger. */
     if (commentsPanelOpen) onCommentOpenChange?.(true);
   }, [commentsPanelOpen, onCommentOpenChange]);
+
+  useEffect(() => {
+    if (!showComments) return;
+    const reveal = () => commentsPanelRef.current?.scrollIntoView({ block: 'start', inline: 'nearest' });
+    const frame = window.requestAnimationFrame(reveal);
+    const afterResize = window.setTimeout(reveal, 320);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(afterResize);
+    };
+  }, [showComments]);
+
+  useEffect(() => {
+    if (!showComments || !replyTarget) return;
+    const frame = window.requestAnimationFrame(() => commentInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [replyTarget, showComments]);
 
   useEffect(() => {
     fetchCommentsRef.current = fetchComments;
@@ -165,7 +186,7 @@ export function QuoteReactions({
   };
 
   const commentTotal = Math.max(Number(state?.comments?.count || 0), comments.length);
-  const previewComments = comments.slice(0, Math.max(0, previewLimit));
+  const previewComments = scrollableCommentPreview ? comments : comments.slice(0, Math.max(0, previewLimit));
   const topLevelComments = comments.filter((comment) => !comment.parent_comment_id);
   const repliesByParent = comments.reduce<Record<string, DailyQuoteComment[]>>((map, comment) => {
     if (comment.parent_comment_id) {
@@ -225,6 +246,7 @@ export function QuoteReactions({
             className={cn(reactionButtonClass, 'border-border bg-surface-2 text-stone hover:border-royal/40 hover:text-royal')}
             title={commentButtonLabel}
             aria-label={`${commentTotal} ${commentButtonLabel.toLowerCase()}`}
+            aria-expanded={showComments}
           >
             <MessageCircle size={12} /> <span className="text-[10px] opacity-85">{commentTotal}</span>
           </button>
@@ -254,8 +276,14 @@ export function QuoteReactions({
         </div>
       )}
 
-      {commentsEnabled && previewComments.length > 0 && (
-        <div className="space-y-1.5">
+      {commentsEnabled && !showComments && previewComments.length > 0 && (
+        <div
+          className={cn('space-y-1.5', scrollableCommentPreview && 'max-h-24 overflow-y-auto overscroll-contain pr-1')}
+          style={scrollableCommentPreview ? { WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' } : undefined}
+          role={scrollableCommentPreview ? 'region' : undefined}
+          aria-label={scrollableCommentPreview ? commentsTitle : undefined}
+          data-no-scroll-fade
+        >
           {previewComments.map((comment) => (
             <div key={comment.id} className="flex items-start gap-2 rounded-xl border border-border bg-surface-2/90 px-2.5 py-2">
               <MessageAvatar
@@ -273,17 +301,33 @@ export function QuoteReactions({
                 size="sm"
                 onOpenChange={onMessageOpenChange || onCommentOpenChange}
               />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-extrabold text-ink">{comment.display_name || 'User'} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
-                <p className="line-clamp-1 text-xs leading-snug text-stone">{comment.body}</p>
+                <p className="line-clamp-2 text-xs leading-snug text-stone">{comment.body}</p>
               </div>
+              {scrollableCommentPreview && !comment.parent_comment_id && <button
+                type="button"
+                className="icon-btn h-7 w-7 shrink-0 p-0"
+                title={`Reply to ${comment.display_name || 'User'}`}
+                aria-label={`Reply to ${comment.display_name || 'User'}`}
+                onClick={() => {
+                  setReplyTarget(comment);
+                  setBody(`@${comment.display_name || 'User'} `);
+                  setShowComments(true);
+                }}
+              ><Reply size={13} /></button>}
             </div>
           ))}
         </div>
       )}
 
       {commentsEnabled && showComments && (
-        <div className="mt-3 rounded-2xl border border-royal/25 bg-surface/95 p-4 shadow-sm animate-slide-up">
+        <div
+          ref={commentsPanelRef}
+          className="mt-3 rounded-2xl border border-royal/25 bg-surface/95 p-4 shadow-sm animate-slide-up"
+          onTouchStart={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => event.stopPropagation()}
+        >
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h3 className="font-display text-base font-semibold text-ink">{commentsTitle}</h3>
@@ -302,13 +346,41 @@ export function QuoteReactions({
               Hide
             </button>
           </div>
-          <div
-            className={cn(
-              'space-y-2 overflow-y-auto overscroll-contain pr-1',
-              comments.length > 0 && 'quote-comments-boundary-fade max-h-72 pb-24',
-            )}
-            data-no-scroll-fade
-          >
+          {replyTarget && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-peri/25 bg-peri-soft px-3 py-2">
+              <p className="min-w-0 truncate text-[11px] font-semibold text-peri">Replying to @{replyTarget.display_name || 'User'}</p>
+              <button type="button" className="text-[10px] font-bold text-stone hover:text-ink" onClick={() => { setReplyTarget(null); setBody(''); }}>
+                Cancel
+              </button>
+            </div>
+          )}
+          <div className="mb-3 flex min-w-0 items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setBody((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
+              className="icon-btn mb-1 h-9 w-9 flex-shrink-0 p-0"
+              aria-label="Mention everyone in Full Circle"
+              title="Mention everyone in Full Circle"
+            >
+              <AtSign size={15} />
+            </button>
+            <textarea
+              ref={commentInputRef}
+              rows={2}
+              className="input-field max-h-28 min-h-16 min-w-0 flex-1 resize-y overflow-y-auto py-2 text-base sm:text-sm"
+              maxLength={500}
+              placeholder={replyTarget ? `Reply to ${replyTarget.display_name || 'this comment'}...` : commentPlaceholder}
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitComment(); } }}
+              data-guide={guideScope ? `${guideScope}-comment-input` : undefined}
+            />
+            <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary h-10 min-w-10 flex-shrink-0 px-2" aria-label={replyTarget ? 'Send reply' : 'Post comment'} data-guide={guideScope ? `${guideScope}-comment-submit` : undefined}>
+              {commenting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            </button>
+          </div>
+          {commentError && <p className="mb-2 text-xs text-coral">{commentError}</p>}
+          <div className="max-h-[min(42svh,22rem)] space-y-2 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }} data-no-scroll-fade>
             {loadingComments && <p className="text-xs text-stone flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Loading comments...</p>}
             {!loadingComments && comments.length === 0 && <p className="text-xs text-stone">{emptyCommentsText}</p>}
             {topLevelComments.map((comment) => (
@@ -384,39 +456,6 @@ export function QuoteReactions({
               </div>
             ))}
           </div>
-          {replyTarget && (
-            <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-peri/25 bg-peri-soft px-3 py-2">
-              <p className="min-w-0 truncate text-[11px] font-semibold text-peri">Replying to @{replyTarget.display_name || 'User'}</p>
-              <button type="button" className="text-[10px] font-bold text-stone hover:text-ink" onClick={() => { setReplyTarget(null); setBody(''); }}>
-                Cancel
-              </button>
-            </div>
-          )}
-          <div className={cn('flex items-end gap-2', comments.length > 0 ? 'mt-4' : 'mt-1')}>
-            <button
-              type="button"
-              onClick={() => setBody((current) => /(^|\s)@all(?:\s|$)/i.test(current) ? current : `${current}${current && !/\s$/.test(current) ? ' ' : ''}@all `)}
-              className="icon-btn mb-1 flex-shrink-0"
-              aria-label="Mention everyone in Full Circle"
-              title="Mention everyone in Full Circle"
-            >
-              <AtSign size={15} />
-            </button>
-            <textarea
-              rows={2}
-              className="input-field max-h-28 min-h-16 flex-1 resize-none overflow-y-auto py-2 text-sm"
-              maxLength={500}
-              placeholder={replyTarget ? `Reply to ${replyTarget.display_name || 'this comment'}...` : commentPlaceholder}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitComment(); } }}
-              data-guide={guideScope ? `${guideScope}-comment-input` : undefined}
-            />
-            <button type="button" onClick={submitComment} disabled={!body.trim() || commenting} className="btn-primary px-3" data-guide={guideScope ? `${guideScope}-comment-submit` : undefined}>
-              {commenting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            </button>
-          </div>
-          {commentError && <p className="mt-2 text-[10px] text-coral">{commentError}</p>}
         </div>
       )}
     </div>

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, BookMarked, Bookmark, Cake, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, MessageCircle, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
+import { Award, BookMarked, Bookmark, Cake, CheckCircle2, ChevronLeft, ChevronRight, Flame, Lightbulb, Loader2, Lock, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
 import { AwardBadgeGlyph } from '../components/VallumAvatarBadge';
-import { RelativeTime } from '../components/RelativeTime';
 import { QuoteReleaseTime } from '../components/QuoteReleaseTime';
 import { TentHouseSymbol } from '../components/TentHouseSymbol';
 import { UserAvatar } from '../components/UserAvatar';
@@ -15,13 +14,9 @@ import {
   fetchSharedReading,
   fetchPublicDailyQuotes,
   saveSharedQuizAnswer,
-  toggleSharedInsightReaction,
-  addSharedInsight,
   fetchPublicRestDayAwards,
   type PublicRestDayAward,
   type SharedReading,
-  type SharedReadingInsight,
-  type VerseInsightReactionType,
 } from '../lib/queries';
 import { cn } from '../lib/utils';
 import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
@@ -51,7 +46,7 @@ function PublicRestDayAwards({ readingDate }: { readingDate: string }) {
         {awards.map((award) => (
           <div key={award.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
             <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-gold-soft text-gold">
-              <UserAvatar userId={award.user_id} name={award.display_name} avatarUrl={award.avatar_url} className="h-full w-full" />
+              <UserAvatar userId={award.user_id} name={award.display_name} avatarUrl={award.avatar_url} className="h-full w-full" showAwardBadge={false} />
               <span className="absolute -bottom-1 -right-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/80 bg-navy-2 text-gold">
                 <AwardBadgeGlyph awardType={award.award_type} title={award.title} size={9} />
               </span>
@@ -95,13 +90,13 @@ type SharedVerse = {
   meditation?: string;
 };
 
-function readingVerses(reading: SharedReading): SharedVerse[] {
+function readingPanels(reading: SharedReading): Array<{ reference: string; verses: SharedVerse[] }> {
   if (reading.weekly_highlights?.length) {
-    return reading.weekly_highlights.map((highlight) => ({
+    return [{ reference: 'Scripture', verses: reading.weekly_highlights.map((highlight) => ({
       narrativeId: highlight.narrative_id,
       reference: highlight.reference,
       text: highlight.text,
-    }));
+    })) }];
   }
 
   const passages = reading.scripture_passages?.length
@@ -113,123 +108,17 @@ function readingVerses(reading: SharedReading): SharedVerse[] {
       source_narrative_id: undefined,
     }];
 
-  return passages.flatMap((passage) => {
+  return passages.map((passage) => {
     const verses = passage.highlighted_verses?.length
       ? passage.highlighted_verses
       : [{ reference: passage.reference, text: passage.main_text, meditation: '', source_narrative_id: undefined }];
-    return verses.map((verse) => ({
+    return { reference: passage.reference, verses: verses.map((verse) => ({
       narrativeId: verse.source_narrative_id || passage.source_narrative_id || reading.id,
       reference: verse.reference || passage.reference,
       text: verse.text,
       meditation: verse.meditation,
-    }));
+    })) };
   });
-}
-
-const PUBLIC_INSIGHT_REACTIONS: Array<{
-  type: VerseInsightReactionType;
-  label: string;
-  icon: typeof Heart;
-}> = [
-  { type: 'heart', label: 'Love this insight', icon: Heart },
-  { type: 'lightbulb', label: 'This gave me an idea', icon: Lightbulb },
-];
-
-function InsightThread({
-  insight,
-  signupHref,
-  pending,
-  onReact,
-}: {
-  insight: SharedReadingInsight;
-  signupHref: string;
-  pending: string | null;
-  onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
-}) {
-  const authorName = insight.profiles?.display_name || 'Reader';
-  return (
-    <div className="rounded-xl border border-border bg-surface-2 p-3">
-      <div className="flex items-start gap-2.5">
-        <span className="relative flex h-8 w-8 flex-shrink-0"><UserAvatar userId={insight.user_id} name={authorName} avatarUrl={insight.profiles?.avatar_url} className="h-full w-full border border-border" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-ink">
-            {authorName}{' '}<RelativeTime value={insight.created_at} className="font-medium text-stone-dim" />
-          </p>
-          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-stone">{insight.body}</p>
-        </div>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label={`Reactions to ${authorName}'s insight`}>
-        {PUBLIC_INSIGHT_REACTIONS.map(({ type, label, icon: ReactionIcon }) => {
-          const reaction = insight.reactions?.[type] || { count: 0, reacted: false, actors: [] };
-          const isPending = pending === `${insight.id}:${type}`;
-          return (
-            <button
-              key={type}
-              type="button"
-              disabled={Boolean(pending)}
-              onClick={() => onReact(insight.id, type)}
-              className={cn(
-                'inline-flex h-7 min-w-9 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-bold transition-colors disabled:opacity-60',
-                reaction.reacted
-                  ? type === 'heart'
-                    ? 'border-coral/50 bg-coral-soft text-coral'
-                    : 'border-gold/50 bg-gold-soft text-gold'
-                  : 'border-border bg-surface text-stone hover:border-border-bright hover:text-ink',
-                isPending && 'animate-pulse',
-              )}
-              title={label}
-              aria-label={`${label}: ${reaction.count}`}
-              aria-pressed={reaction.reacted}
-            >
-              <ReactionIcon size={13} fill={reaction.reacted ? 'currentColor' : 'none'} />
-              <span>{reaction.count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {(() => {
-        const actors = Array.from(new Map(
-          PUBLIC_INSIGHT_REACTIONS.flatMap(({ type }) => insight.reactions?.[type]?.actors || [])
-            .map((actor) => [actor.user_id, actor]),
-        ).values()).slice(0, 5);
-        if (!actors.length) return null;
-        return (
-          <div className="mt-2 flex items-center -space-x-2" aria-label={`${actors.length} camp members reacted`}>
-            {actors.map((actor) => (
-              <span key={actor.user_id} title={actor.display_name} className="relative inline-flex h-4 w-4"><UserAvatar userId={actor.user_id} name={actor.display_name} avatarUrl={actor.is_guest ? null : actor.avatar_url} className="h-full w-full border border-surface-2 shadow-sm" /></span>
-            ))}
-          </div>
-        );
-      })()}
-
-      {insight.comments?.length > 0 && (
-        <div className="mt-3 space-y-2 border-l-2 border-peri/25 pl-3">
-          <p className="flex items-center gap-1 text-[10px] font-bold uppercase text-stone">
-            <MessageCircle size={11} /> {insight.comments.length} {insight.comments.length === 1 ? 'reply' : 'replies'}
-          </p>
-          {insight.comments.map((comment) => {
-            const commenterName = comment.profile?.display_name || 'Reader';
-            return (
-              <div key={comment.id} className={cn('rounded-lg bg-surface/75 p-2', comment.parent_comment_id && 'ml-3')}>
-                <div className="flex items-start gap-2">
-                  <span className="relative inline-flex h-8 w-8 shrink-0"><UserAvatar userId={comment.user_id} name={commenterName} avatarUrl={comment.profile?.avatar_url} className="h-full w-full border border-border" /></span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold text-ink">{commenterName} <RelativeTime value={comment.created_at} className="font-medium text-stone-dim" /></p>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-stone">{comment.body}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <a href={signupHref} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-peri">
-        <MessageCircle size={13} /> Reply
-      </a>
-    </div>
-  );
 }
 
 function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuoteFeedItem[]; signupHref: string; image?: PanelImageSetting | null }) {
@@ -284,20 +173,12 @@ function SharedReadingView({
   reading,
   quotes,
   signupHref,
-  pendingReaction,
-  onReact,
-  onAddInsight,
 }: {
   reading: SharedReading;
   quotes: DailyQuoteFeedItem[];
   signupHref: string;
-  pendingReaction: string | null;
-  onReact: (insightId: string, reactionType: VerseInsightReactionType) => void;
-  onAddInsight: (narrativeId: string, verseReference: string, body: string) => Promise<void>;
 }) {
-  const verses = readingVerses(reading);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savingVerse, setSavingVerse] = useState<string | null>(null);
+  const panels = readingPanels(reading);
   const isSundayReading = new Date(`${reading.narrative_date}T12:00:00`).getDay() === 0;
   return (
     <article className="today-reading-screen space-y-5">
@@ -330,74 +211,35 @@ function SharedReadingView({
         </section>
       )}
 
-      <section data-artwork-theme={(reading.panel_images?.scripture)?.url ? 'night' : undefined} className="card reading-glass-panel relative isolate overflow-hidden border-border p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
-        <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
-        <div className="relative z-10">
-          <div className="mb-3 flex items-center gap-2"><ScrollText size={18} className="text-brass" strokeWidth={1.5} /><span className="eyebrow text-stone">Scripture</span></div>
-          <ScrollEdge position="top" className="mb-4 text-brass" />
-          <div className="space-y-4 sm:space-y-5">
-            {verses.map((verse, index) => {
-              const insights = (reading.insights || []).filter((insight) => (
-                insight.narrative_id === verse.narrativeId && insight.verse_reference === verse.reference
-              ));
-              const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
-              return (
-                <section key={`${verse.narrativeId}:${verse.reference}:${index}`} className={cn('rounded-xl border border-transparent px-2 py-2', insights.length > 0 && 'verse-highlight-insight')}>
-                  <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
-                  <p className="mt-2 text-[10px] font-bold uppercase text-brass">
-                    {verse.reference}{verse.meditation?.trim() ? ' · Instructor annotation available' : ''}{insights.length ? ` · ${insights.length} reader insight${insights.length === 1 ? '' : 's'}` : ''}
-                  </p>
-                  {verse.meditation?.trim() && (
-                    <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase text-brass">Instructor insight</p>
-                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{verse.meditation}</p>
-                    </div>
-                  )}
-                  <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-bold uppercase text-stone">Reader insights</p>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-stone"><Lightbulb size={12} /> Add insight</span>
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <textarea
-                        value={drafts[verse.reference] || ''}
-                        onChange={(event) => setDrafts((current) => ({ ...current, [verse.reference]: event.target.value }))}
-                        className="input-field min-h-16 flex-1 resize-y text-xs"
-                        placeholder="Share what this verse gave you..."
-                        maxLength={3000}
-                      />
-                      <button
-                        type="button"
-                        className="btn-primary self-end px-3 text-xs"
-                        disabled={!drafts[verse.reference]?.trim() || savingVerse === verse.reference}
-                        onClick={() => {
-                          const body = drafts[verse.reference]?.trim();
-                          if (!body) return;
-                          setSavingVerse(verse.reference);
-                          void onAddInsight(verse.narrativeId, verse.reference, body)
-                            .then(() => setDrafts((current) => ({ ...current, [verse.reference]: '' })))
-                            .finally(() => setSavingVerse(null));
-                        }}
-                      >
-                        {savingVerse === verse.reference ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                        <span className="sr-only">Share insight</span>
-                      </button>
-                    </div>
-                    {insights.length ? (
-                      <div className="mt-3 space-y-3">
-                        {insights.map((insight) => <InsightThread key={insight.id} insight={insight} signupHref={signupHref} pending={pendingReaction} onReact={onReact} />)}
+      {panels.map((panel, panelIndex) => (
+        <section key={`${panel.reference}-${panelIndex}`} aria-label={panel.reference} data-artwork-theme={(reading.panel_images?.scripture)?.url ? 'night' : undefined} className="card reading-glass-panel relative isolate overflow-hidden border-border p-5 animate-slide-up" style={{ backdropFilter: 'blur(26px) saturate(1.22)' }}>
+          <PanelImageBackdrop image={reading.panel_images?.scripture} opacityFallback={100} imageClassName="quote-glass-image" veilClassName="quote-picture-veil" modeFilter={false} textGradient={false} simple />
+          <div className="relative z-10">
+            <div className="mb-3 flex items-center gap-2"><ScrollText size={18} className="text-brass" strokeWidth={1.5} /><h2 className="eyebrow text-stone">{panel.reference || 'Scripture'}</h2></div>
+            <ScrollEdge position="top" className="mb-4 text-brass" />
+            <div className="space-y-4 sm:space-y-5">
+              {panel.verses.map((verse, index) => {
+                const verseNumber = verse.reference.match(/:(\d+)(?:\D|$)/)?.[1] || String(index + 1);
+                return (
+                  <section key={`${verse.narrativeId}:${verse.reference}:${index}`} className="rounded-xl border border-transparent px-2 py-2">
+                    <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span>{verse.text}</p>
+                    <p className="mt-2 text-[10px] font-bold uppercase text-brass">
+                      {verse.reference}{verse.meditation?.trim() ? ' · Instructor annotation available' : ''}
+                    </p>
+                    {verse.meditation?.trim() && (
+                      <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase text-brass">Instructor insight</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{verse.meditation}</p>
                       </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-stone">No reader insight has been shared on this verse yet.</p>
                     )}
-                  </div>
-                </section>
-              );
-            })}
+                  </section>
+                );
+              })}
+            </div>
+            <ScrollEdge position="bottom" className="mt-4 text-brass" />
           </div>
-          <ScrollEdge position="bottom" className="mt-4 text-brass" />
-        </div>
-      </section>
+        </section>
+      ))}
 
       {!isSundayReading && reading.reflection_prompts?.length > 0 && (
         <section className="card border-border bg-surface p-5 animate-slide-up">
@@ -450,8 +292,6 @@ export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; valu
   const [savingQuestion, setSavingQuestion] = useState<string | null>(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [pendingReaction, setPendingReaction] = useState<string | null>(null);
-  const [savingInsight, setSavingInsight] = useState(false);
 
   const signupHref = useMemo(() => {
     const search = new URLSearchParams({ signup: '1' });
@@ -483,7 +323,7 @@ export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; valu
     void load
       .then((data) => {
         if (cancelled) return;
-        if (!data) throw new Error('This shared item is no longer available.');
+        if (!data) throw new Error(kind === 'quiz' ? 'Open Full Circle to check access to this quiz.' : 'This shared item is no longer available.');
         if (kind === 'reading') {
           setReading(data as SharedReading);
           void fetchPublicDailyQuotes(value).then(setPublicQuotes).catch(() => setPublicQuotes([]));
@@ -496,73 +336,6 @@ export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; valu
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [date, kind, readingGuestKey, value]);
-
-  const reactToSharedInsight = async (insightId: string, reactionType: VerseInsightReactionType) => {
-    if (!reading || pendingReaction) return;
-    const key = `${insightId}:${reactionType}`;
-    const selectedInsight = reading.insights.find((insight) => insight.id === insightId);
-    const startingReaction = selectedInsight?.reactions?.[reactionType] || { count: 0, reacted: false, actors: [] };
-    const optimisticReacted = !startingReaction.reacted;
-    const guestActor = {
-      user_id: `guest:${readingGuestKey.slice(0, 16)}`,
-      display_name: 'Guest reader',
-      avatar_url: null,
-      is_guest: true,
-      is_current_guest: true,
-    };
-    const applyReaction = (reacted: boolean) => {
-      setReading((current) => current ? {
-        ...current,
-        insights: current.insights.map((insight) => {
-          if (insight.id !== insightId) return insight;
-          const previous = insight.reactions?.[reactionType] || { count: 0, reacted: false, actors: [] };
-          if (previous.reacted === reacted) return insight;
-          return {
-            ...insight,
-            reactions: {
-              ...insight.reactions,
-              [reactionType]: {
-                ...previous,
-                reacted,
-                count: Math.max(0, previous.count + (reacted ? 1 : -1)),
-                actors: reacted
-                  ? previous.actors.some((actor) => actor.user_id === guestActor.user_id)
-                    ? previous.actors
-                    : [guestActor, ...previous.actors]
-                  : previous.actors.filter((actor) => !actor.is_current_guest && actor.user_id !== guestActor.user_id),
-              },
-            },
-          };
-        }),
-      } : current);
-    };
-
-    setPendingReaction(key);
-    applyReaction(optimisticReacted);
-    try {
-      const reacted = await toggleSharedInsightReaction(insightId, readingGuestKey, reactionType);
-      if (reacted !== optimisticReacted) applyReaction(reacted);
-    } catch (reactionError: any) {
-      applyReaction(startingReaction.reacted);
-      setError(reactionError?.message || 'Your reaction could not be saved.');
-    } finally {
-      setPendingReaction(null);
-    }
-  };
-
-  const addInsightToSharedReading = async (narrativeId: string, verseReference: string, body: string) => {
-    if (!reading || savingInsight) return;
-    setSavingInsight(true);
-    try {
-      await addSharedInsight(narrativeId, verseReference, body, readingGuestKey);
-      const refreshed = await fetchSharedReading(value, readingGuestKey);
-      if (refreshed) setReading(refreshed);
-    } catch (saveError: any) {
-      setError(saveError?.message || 'Your insight could not be shared.');
-    } finally {
-      setSavingInsight(false);
-    }
-  };
 
   const saveAnswer = async (questionId: string, answer: string) => {
     if (!quiz?.session?.id) return;
@@ -618,9 +391,6 @@ export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; valu
             reading={reading}
             quotes={publicQuotes}
             signupHref={signupHref}
-            pendingReaction={pendingReaction}
-            onReact={(insightId, reactionType) => void reactToSharedInsight(insightId, reactionType)}
-            onAddInsight={addInsightToSharedReading}
           />
         )}
 

@@ -3,8 +3,9 @@ import { ChevronDown, ChevronUp, Loader2, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { UserAvatar } from './UserAvatar';
 import { VallumText } from './ChiRhoMark';
+import { BethelStoneIcon } from './TentAwardIcons';
 
-const MONTHLY_AWARDS = ['Vallum', 'Messenger Award (Nuncio)', 'Monthly Scribe', 'Monthly Valley Champion', 'Muralis', 'Centurion', 'Bethel Stone'];
+const MONTHLY_AWARDS = ['Vallum', 'Messenger Award (Nuncio)', 'Monthly Scribe', 'Monthly Valley Champion', 'Muralis', 'Century Award (Centurion)', 'Bethel Stone'];
 type Nominee = {
   award_title: string;
   target_type: 'cadet' | 'sentry' | 'tent';
@@ -37,7 +38,7 @@ export function MonthlyAwardNominees({ month, onMonthChange, onSelect }: {
       inFlight = true;
       setLoading(true);
       try {
-        const { data, error: queryError } = await supabase.rpc('get_monthly_award_nominees', { p_month: `${month}-01` });
+        const { data, error: queryError } = await supabase.rpc('get_monthly_award_nominees_v2', { p_month: `${month}-01` });
         if (queryError) throw queryError;
         if (!cancelled) { setResult({ month, rows: data || [] }); setError(''); }
       } catch (e) {
@@ -70,7 +71,7 @@ export function MonthlyAwardNominees({ month, onMonthChange, onSelect }: {
           const candidates = rows?.filter((row) => row.award_title === title) || [];
           const open = expanded.has(title);
           return <section key={title} className="border-t border-border-bright pt-3" aria-label={title}>
-            <h5 className="text-sm font-semibold text-brass"><VallumText text={title} size={13} /></h5>
+            <h5 className="flex items-center gap-1.5 text-sm font-semibold text-brass">{title === 'Bethel Stone' && <BethelStoneIcon size={22} />}<VallumText text={title} size={13} /></h5>
             {rows === null ? <p className="mt-3 text-xs text-stone">{loading ? 'Loading nominees...' : 'Nominees unavailable.'}</p>
               : candidates.length === 0 ? <p className="mt-3 text-xs text-stone">{title === 'Muralis' ? 'No eligible registered cadets found for the latest completed FCX.' : 'No qualifying activity recorded for this month.'}</p>
               : <ul className="mt-3 space-y-3">{(open ? candidates : candidates.slice(0, 4)).map((candidate) => <li key={candidate.target_id} className="flex items-start gap-2.5">

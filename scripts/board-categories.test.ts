@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { boardCategory } from '../src/lib/boardCategories.ts';
+
+const rows = Array.from({ length: 46 }, (_, i) => ({ id: String(i + 1), rank: i + 1, score: Math.max(0, 26 - i) }));
+const category = (id: string, input = rows) => boardCategory(input, id, (r) => r.id, (r) => r.score);
+assert.deepEqual(category('10').rows.map(r => r.id), rows.slice(0, 10).map(r => r.id));
+assert.deepEqual(category('11').rows.map(r => r.id), rows.slice(10, 20).map(r => r.id));
+assert.equal(category('25').rows.length, 6);
+assert.equal(category('27').rows.length, 20);
+assert.equal(category('46').label, 'Zero-score category');
+assert.equal(category('27').rows.some(r => r.score !== 0), false);
+assert.equal(category('unknown').observer, true);
+assert.equal(category('unknown').rows.length, 10);
+assert.equal(category('1', []).rows.length, 0);
+const moved = rows.map(r => r.id === '1' ? { ...r, score: 10 } : r);
+assert.equal(category('1', moved).label, 'Positions 11–20');
+const tied = rows.slice(0, 25).map(r => ({ ...r, score: 1, rank: 1 }));
+assert.equal(category('20', tied).rows.length, 10);
+assert.deepEqual(category('20', tied).rows, category('20', [...tied].reverse()).rows);
+assert.equal(rows[0].score, 26);
+console.log('Board categories: ten-person groups, live movement, ties and unlimited zero scores passed.');

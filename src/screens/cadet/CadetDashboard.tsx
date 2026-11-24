@@ -1,3 +1,5 @@
+import { GamePoints } from '../../components/GamePoints';
+import { regionalDateTime } from '../../lib/regionalPreferences';
 import { useState, useEffect, useCallback, useRef, type ReactNode, type TouchEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
@@ -12,12 +14,14 @@ import { VallumText } from '../../components/ChiRhoMark';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { FcxExperienceSlide } from '../../components/FcxExperience';
+import { useInterTentWelcomeSlide } from '../../components/InterTentWelcomeSlide';
+import { interTentWelcomeArtwork } from '../../lib/panelImages';
 import { QuizResponders } from '../../components/QuizResponders';
 import { CurrentUserAvatarMarker } from '../../components/CurrentUserAvatarMarker';
 import { UserAvatar } from '../../components/UserAvatar';
 import { useAutoAdvance } from '../../hooks/useAutoAdvance';
 import { fetchNarrative, fetchDailyRecords, fetchLedgerEntries, fetchGameAttempts, fetchChallengeSubmission, fetchStrictStreak, fetchDailyQuoteFeed, fetchAnnouncements, fetchPanelImageSettings, fetchDailyQuoteReactions, reactToDailyQuote, fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchDailyVerseReactions, reactToDailyVerse, fetchDailyVerseComments, commentOnDailyVerse, editDailyVerseComment, fetchActiveFcxExperience, fetchAwards, fetchLatestWeeklyQuizRankings } from '../../lib/queries';
-import { getRemovalState, formatDenarii, formatNumericDate, getDayType, getTodayISODate, cn } from '../../lib/utils';
+import { getAppDateTimeMs, getRemovalState, formatDenarii, formatNumericDate, getDayType, getTodayISODate, cn } from '../../lib/utils';
 import { publicAsset } from '../../lib/publicAsset';
 import { updateReactionOptimistically } from '../../lib/reactionState';
 import { openProfileCv } from '../../lib/profileCv';
@@ -36,7 +40,7 @@ import {
   Quote, Megaphone, Tent as TentIcon, ShoppingBag, Award, Contact,
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'narrative' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
+type Tab = 'dashboard' | 'narrative' | 'bible' | 'streak' | 'games' | 'game' | 'arena' | 'story' | 'quiz' | 'tent' | 'leaderboard' | 'awards' | 'store';
 const fetchVerseCommentsForWelcome = (_quoteUserId: string, quoteRecordDate: string) => fetchDailyVerseComments(quoteRecordDate);
 
 export type DashboardHeroSlide =
@@ -75,6 +79,7 @@ interface Props {
 
 export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNavigate, refreshKey = 0, notificationBadges = {} }: Props) {
   const { profile } = useAuth();
+  const championshipSlide=useInterTentWelcomeSlide(profile?.id,()=>onNavigate('arena'));
   const [narrative, setNarrative] = useState<DailyNarrative | null>(null);
   const [records, setRecords] = useState<DailyRecord[]>([]);
   const [ledger, setLedger] = useState<DenariiLedgerEntry[]>([]);
@@ -94,6 +99,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
+  const [heroDialogOpen, setHeroDialogOpen] = useState(false);
   const [heroGuidePaused, setHeroGuidePaused] = useState(false);
   const hasLoadedRef = useRef(false);
   const loadRequestRef = useRef<Promise<void> | null>(null);
@@ -128,8 +134,8 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           }
         }),
         fetchPanelImageSettings([
-          'welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
-          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release', 'birthday',
+          'welcome', 'arena', 'intertent_welcome', 'fcx', 'honors', 'verse', 'quiz', 'announcement', 'quote', 'meditation', 'progress', 'reading', 'recent_denarii', 'quick_links',
+          'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder', 'quote_of_day', 'streakboard_release',
         ]).then(setPanelImages),
       ]);
 
@@ -142,10 +148,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         fetchAnnouncements().then(setAnnouncements),
         fetchActiveFcxExperience().then(setFcxExperience),
         fetchLatestWeeklyQuizRankings(undefined, 'cadet').then(setQuizPodium),
-        fetchAwards().then((awards) => {
-          const currentMonth = today.slice(0, 7);
-          setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === currentMonth).slice(0, 10));
-        }),
+        fetchAwards(undefined, today.slice(0, 7)).then((awards) => setMonthlyHonors(awards.slice(0, 10))),
       ]);
       hasLoadedRef.current = true;
     })().catch((error) => {
@@ -226,6 +229,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   }));
   const standardHeroSlides: DashboardHeroSlide[] = [
     { id: 'welcome', kind: 'welcome' },
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena,panelImages.intertent_welcome),veilClassName:'intertent-welcome-veil'}]:[]),
     ...(quizPodium.length ? [{ id: `quiz-podium-cadets-${quizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: quizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
     ...(monthlyHonors.length ? [{ id: `honors-${today.slice(0, 7)}`, kind: 'honors' as const, awards: monthlyHonors }] : []),
@@ -266,7 +270,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
     return () => window.removeEventListener(NEWCOMER_GUIDANCE_HERO_EVENT, followGuide);
   }, [guideQuoteSlideIndex, guideVerseSlideIndex]);
 
-  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld && !heroGuidePaused, () => {
+  useAutoAdvance(heroSlideCount > 1 && !heroPaused && !heroHeld && !heroDialogOpen && !heroGuidePaused, () => {
     setHeroIndex((index) => index + 1);
   });
 
@@ -361,6 +365,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
         onNext={() => setHeroIndex((idx) => idx + 1)}
         onCommentOpenChange={setHeroPaused}
         onHoldChange={setHeroHeld}
+        onDialogOpenChange={setHeroDialogOpen}
       />
 
       <RecentAwardsPanel onOpen={() => onNavigate('awards')} />
@@ -388,7 +393,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
             />
             <TodayCheckItem
               icon={Moon}
-              label="Meditation submitted (before 9:00 PM)"
+              label={`Meditation submitted (before ${regionalDateTime(getAppDateTimeMs(today, 21), profile)})`}
               done={todayRecord?.meditation_submitted === true}
               n_a={dayType !== 'weekday'}
               note={dayType !== 'weekday' ? 'Meditation is only required on weekdays' : undefined}
@@ -441,6 +446,12 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
           </div>
         </div>
 
+        <button type="button" onClick={() => onNavigate('bible')} className="card card-hover flex min-h-32 flex-col items-start gap-2 p-4 text-left">
+          <BookOpen size={20} className="text-brass" />
+          <span className="font-display text-lg font-bold text-ink">Bible</span>
+          <span className="text-sm text-stone">Browse all books and chapters</span>
+        </button>
+
         <div data-artwork-theme={(panelImages.recent_denarii)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
           <PanelImageBackdrop image={panelImages.recent_denarii} />
           <div className="relative">
@@ -485,7 +496,7 @@ export function CadetDashboard({ denariiTotal, currentStreak, tentInfo, onNaviga
   );
 }
 
-export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange }: {
+export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate, tentHouseId, currentUserId, count, index, panelImages, quoteReactions, verseReactions, reactingQuote, reactingVerse, onReactQuote, onReactVerse, onPrev, onNext, onCommentOpenChange, onHoldChange, onDialogOpenChange }: {
   slides: DashboardHeroSlide[];
   profileName: string;
   dayType: string;
@@ -505,6 +516,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   onNext: () => void;
   onCommentOpenChange: (open: boolean) => void;
   onHoldChange: (held: boolean) => void;
+  onDialogOpenChange: (open: boolean) => void;
 }) {
   const isWeekend = dayType === 'saturday' || dayType === 'sunday';
   const welcomeScriptures = [
@@ -521,10 +533,22 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
   const [withTransition, setWithTransition] = useState(true);
   const [scriptureIndex, setScriptureIndex] = useState(0);
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [dialogSlideKey, setDialogSlideKey] = useState<string | null>(null);
+  const handleDialogChange = (key: string, open: boolean) => {
+    setDialogSlideKey(open ? key : null);
+    onDialogOpenChange(open);
+  };
+  useEffect(() => {
+    if (dialogSlideKey && !slides.some((slide) => `${slide.id}-original` === dialogSlideKey)
+      && !(count > 1 && `${slides[0]?.id}-loop` === dialogSlideKey)) {
+      setDialogSlideKey(null);
+      onDialogOpenChange(false);
+    }
+  }, [count, dialogSlideKey, onDialogOpenChange, slides]);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const counterIndex = count > 0 ? ((displayIndex % count) + count) % count : 0;
   const panelMaxHeight = conversationOpen
-    ? 'min(82svh, calc(100dvh - 7rem))'
+    ? 'min(70svh, calc(100dvh - 7rem))'
     : '66.666svh';
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -540,7 +564,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
     touchStartRef.current = null;
     onHoldChange(false);
     const touch = event.changedTouches[0];
-    if (!start || !touch || count <= 1) return;
+    if (!start || !touch || count <= 1 || conversationOpen || dialogSlideKey) return;
 
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
@@ -596,10 +620,11 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
             || logicalSlideIndex === previousSlideIndex
             || isLogicalActiveSlide
             || logicalSlideIndex === nextSlideIndex;
-          if (!isNearbySlide) {
+          const slideKey = `${slide.id}-${slideIndex < count ? 'original' : 'loop'}`;
+          if (!isNearbySlide && dialogSlideKey !== slideKey) {
             return (
               <div
-                key={`${slide.id}-${slideIndex}`}
+                key={slideKey}
                 aria-hidden="true"
                 className="min-w-full"
               />
@@ -615,14 +640,16 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
             : slide.kind === 'custom'
               ? slide.image
             : slide.kind === 'announcement'
-              ? panelImages[slide.announcement.announcement_type] || panelImages.announcement
+              ? slide.announcement.announcement_type === 'birthday'
+                ? panelImages.announcement
+                : panelImages[slide.announcement.announcement_type] || panelImages.announcement
               : slide.kind === 'quiz_podium'
                 ? panelImages.quiz || panelImages.weekly_quiz_reminder
               : panelImages[slide.kind];
 
           return (
             <div data-artwork-theme={slide.kind === 'announcement' && slide.announcement.announcement_type === 'midday_reminder' ? 'day' : slide.kind !== 'quote' && slideImage?.url ? 'night' : undefined}
-              key={`${slide.id}-${slideIndex}`}
+              key={slideKey}
               data-guide-slide-active={displayIndex === slideIndex ? 'true' : 'false'}
               data-guide-slide-kind={slide.kind === 'quote' && slide.quote.user_id !== currentUserId ? 'other_quote' : slide.kind}
               className="relative max-h-[66.666svh] min-h-[220px] min-w-full overflow-x-hidden overflow-y-auto p-4 pb-16 sm:min-h-[190px] sm:p-5 sm:pb-16"
@@ -657,6 +684,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                     <FcxExperienceSlide
                       experience={slide.experience}
                       active={displayIndex === slideIndex}
+                      onCheckoutOpenChange={(open) => handleDialogChange(slideKey, open)}
                     />
                   )}
 
@@ -745,6 +773,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                         currentUserId={currentUserId || undefined}
                         fetchComments={fetchVerseCommentsForWelcome}
                         loadCommentPreview={isDisplayedSlide}
+                        scrollableCommentPreview
                         onComment={async (body) => {
                           if (!currentUserId) throw new Error('Sign in to comment.');
                           await commentOnDailyVerse(slide.narrative.narrative_date, currentUserId, body);
@@ -770,6 +799,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                       )}
                       <h2 className="font-display text-2xl font-semibold text-ink leading-snug">Hey Everyone</h2>
                       <p className={cn('mt-2 max-h-32 max-w-2xl overflow-y-auto whitespace-pre-wrap leading-relaxed text-stone', slide.announcement.content.length > 320 ? 'text-xs' : 'text-sm')}>{slide.announcement.content}</p>
+                      {slide.announcement.announcement_type === 'daily_game_reminder' && <GamePoints limit={3} className="mt-3" />}
                       {slide.announcement.announcement_type === 'weekly_quiz_reminder' && (
                         <QuizResponders
                           variant="slide"
@@ -791,19 +821,24 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                   )}
 
                   {slide.kind === 'quote' && (
-                    <div className={cn('quote-glass-panel relative w-full max-w-2xl rounded-2xl p-4 ring-1 ring-black/5', conversationOpen && 'min-h-full')}>
-                      <PanelImageBackdrop
-                        image={slideImage}
-                        opacityOverride={100}
-                        veilClassName=""
-                        modeFilter={false}
-                        textGradient={false}
-                        simple
-                        imageClassName="quote-glass-image"
-                        eager={isDisplayedSlide}
-                      />
-                      <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
-                      <div className="relative z-10">
+                    <div className={cn('quote-glass-panel relative w-full max-w-2xl rounded-2xl p-4 ring-1 ring-black/5', conversationOpen && 'quote-glass-panel-conversation')}>
+                      {!conversationOpen && (
+                        <>
+                          <PanelImageBackdrop
+                            image={slideImage}
+                            className="quote-glass-artwork"
+                            opacityOverride={100}
+                            veilClassName=""
+                            modeFilter={false}
+                            textGradient={false}
+                            simple
+                            imageClassName="quote-glass-image"
+                            eager={isDisplayedSlide}
+                          />
+                          <div className="panel-veil-layer quote-glass-tint pointer-events-none absolute" aria-hidden="true" />
+                        </>
+                      )}
+                      <div className="quote-glass-content relative">
                         <div className="mb-1 flex items-start justify-between gap-3">
                           <p className="eyebrow flex items-center gap-1.5"><Quote size={14} /> {isWeekend ? (slide.featured ? 'Quote of the Week' : 'Weekly Quote Highlight') : 'Quotes From Daily Meditations'}</p>
                           <div className="flex shrink-0 items-start gap-2">
@@ -817,7 +852,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                             )}
                           </div>
                         </div>
-                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} /><QuoteReleaseTime quote={slide.quote} /></p>
+                        <p className={cn('mt-3 font-display font-semibold italic text-ink leading-snug', slide.quote.daily_quote.length > 220 ? 'text-[13px]' : slide.quote.daily_quote.length > 120 ? 'text-[15px]' : 'text-[19px]')}>&ldquo;{slide.quote.daily_quote}&rdquo;<QuoteMeditationButton quote={slide.quote} image={panelImages.meditation} onOpenChange={(open) => handleDialogChange(slideKey, open)} /><QuoteReleaseTime quote={slide.quote} /></p>
                         <QuoteAuthorStats quote={slide.quote} currentUserId={currentUserId} onMessageOpenChange={onCommentOpenChange} />
                         <QuoteReactions
                           state={quoteReactions[`${slide.quote.user_id}:${slide.quote.record_date}`]}
@@ -829,6 +864,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
                           currentUserId={currentUserId || undefined}
                           fetchComments={fetchDailyQuoteComments}
                           loadCommentPreview={isDisplayedSlide}
+                          scrollableCommentPreview
                           onComment={(body) => currentUserId
                             ? commentOnDailyQuote(slide.quote.user_id, slide.quote.record_date, currentUserId, body)
                             : Promise.reject(new Error('Sign in to comment.'))}
@@ -863,7 +899,7 @@ export function DashboardHeroSlideshow({ slides, profileName, dayType, todayDate
 
       <div className="absolute left-5 right-5 bottom-4 flex items-center justify-between gap-3">
         <ScrollEdge position="bottom" className="text-brass flex-1" />
-        {count > 1 && (
+        {count > 1 && !conversationOpen && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={() => { onPrev(); announceNewcomerGuidanceAction('welcome_swiped'); }} className="btn-ghost text-xs px-2 py-1">Prev</button>
             <span className="text-[10px] text-stone">{counterIndex + 1}/{count}</span>

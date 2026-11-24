@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createEgressDiagnostics } from './egressDiagnostics';
+import { connectionError, readableFetch } from './connectionErrors';
+import { isSlowArenaRead, networkAttemptTimeout } from './networkRequestTimeout';
 
 const diagnostics = import.meta.env.DEV ? createEgressDiagnostics() : null;
 if (diagnostics && typeof window !== 'undefined') {
@@ -9,11 +11,10 @@ if (diagnostics && typeof window !== 'undefined') {
 // These are public browser credentials, not service-role secrets. Pinning the
 // production project here prevents a stale hosting environment variable from
 // ever rebuilding Full Circle against the retired, quota-restricted project.
-export const supabaseUrl = 'https://nffqohxdelaglrmuzjwb.supabase.co';
-export const supabaseAnonKey = 'sb_publishable_sRypQ222Tr1j9ocjRYqw5g_deLrtax-';
+export const supabaseUrl = 'https://ovusyeqbmtvfcrlflrbf.supabase.co';
+export const supabaseAnonKey = 'sb_publishable_HeGFIazo0kNZ53gf1eKuRA_bpfKORje';
 export const supabaseConfigError: string | null = null;
 
-const NETWORK_ATTEMPT_TIMEOUT_MS = 10_000;
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
 
 function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
@@ -44,7 +45,8 @@ async function waitForApiBody(response: Response, method: string) {
 async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const method = requestMethod(input, init);
   const canRetry = method === 'GET' || method === 'HEAD';
-  const attempts = canRetry ? 2 : 1;
+  // An extra slow Arena GET doubles traffic when the gateway is already overloaded.
+  const attempts = isSlowArenaRead(input, method) ? 1 : canRetry ? 2 : 1;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -56,12 +58,12 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
     if (upstreamSignal?.aborted) relayAbort();
     else upstreamSignal?.addEventListener('abort', relayAbort, { once: true });
 
-    const timeout = window.setTimeout(() => controller.abort(), NETWORK_ATTEMPT_TIMEOUT_MS);
+    const timeout = window.setTimeout(() => controller.abort(), networkAttemptTimeout(input, method));
     try {
       const requestInput = typeof Request !== 'undefined' && input instanceof Request
         ? input.clone()
         : input;
-      const response = await fetch(requestInput, { ...init, signal: controller.signal });
+      const response = await readableFetch(requestInput, { ...init, signal: controller.signal });
       await waitForApiBody(response, method);
       void diagnostics?.record(input, method, response, Date.now() - startedAt).catch(() => undefined);
       if (canRetry && attempt === 0 && RETRYABLE_RESPONSE_STATUSES.has(response.status)) {
@@ -72,7 +74,9 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
     } catch (error) {
       void diagnostics?.record(input, method, null, Date.now() - startedAt).catch(() => undefined);
       lastError = error;
-      if (!canRetry || attempt === attempts - 1 || upstreamSignal?.aborted) throw error;
+      if (!canRetry || attempt === attempts - 1 || upstreamSignal?.aborted) {
+        throw connectionError(error, { timedOut: controller.signal.aborted && !upstreamSignal?.aborted });
+      }
       await pause(350);
     } finally {
       window.clearTimeout(timeout);

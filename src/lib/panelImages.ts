@@ -146,3 +146,20 @@ export function panelImageOpacity(image: PanelImageSetting | null | undefined, f
   const opacity = image?.adjustments?.opacity ?? fallback;
   return Math.max(0, Math.min(100, opacity)) / 100;
 }
+
+// Prefer dedicated tournament artwork, preserving the original Arena-based
+// presentation as a fallback until an instructor saves a custom setting.
+export function interTentWelcomeArtwork(image: PanelImageSetting | null | undefined, dedicated?: PanelImageSetting | null): PanelImageSetting | null {
+  if (dedicated) return dedicated;
+  if (!image) return null;
+  const adjustments = normaliseAdjustments(image.adjustments);
+  return {
+    ...image,
+    adjustments: normaliseAdjustments({
+      ...adjustments,
+      brightness: adjustments.brightness - 3,
+      blackPoint: adjustments.blackPoint + 3,
+      whitePoint: adjustments.whitePoint - 3,
+    }),
+  };
+}

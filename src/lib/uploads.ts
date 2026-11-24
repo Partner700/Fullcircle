@@ -8,6 +8,7 @@ const IMAGE_TYPES: Record<string, string> = {
 type ImageUploadOptions = { maxDimension?: number; maxBytes?: number; quality?: number; outputMaxBytes?: number };
 
 export const AVATAR_UPLOAD_OPTIONS = { maxDimension: 640, outputMaxBytes: 160 * 1024 };
+export const PHOTO_INPUT_MAX_BYTES = 75 * 1024 * 1024;
 
 export function imageFileType(file: Pick<File, 'name' | 'type'>) {
   const supplied = file.type.toLowerCase();
@@ -47,7 +48,7 @@ async function decodeImage(file: File) {
 
 export async function prepareImageUpload(file: File, options: ImageUploadOptions = {}) {
   const maxDimension = options.maxDimension ?? 1600;
-  const maxBytes = options.maxBytes ?? 25 * 1024 * 1024;
+  const maxBytes = options.maxBytes ?? PHOTO_INPUT_MAX_BYTES;
   const quality = options.quality ?? 0.82;
   const outputMaxBytes = options.outputMaxBytes ?? 512 * 1024;
   if (maxDimension <= 0 || outputMaxBytes <= 0) throw new Error('Invalid image size limit.');
@@ -86,4 +87,12 @@ export async function prepareImageUpload(file: File, options: ImageUploadOptions
     }
     throw new Error('The photo could not be reduced for upload. Choose a smaller JPEG copy.');
   } finally { decoded.close(); }
+}
+
+export async function prepareImageForCropping(file: File): Promise<File> {
+  const prepared = await prepareImageUpload(file, {
+    maxDimension: 2048,
+    outputMaxBytes: 1024 * 1024,
+  });
+  return prepared.file;
 }
