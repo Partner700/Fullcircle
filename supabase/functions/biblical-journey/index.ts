@@ -242,9 +242,10 @@ Deno.serve(async (request) => {
       && original.game.pendingAction?.playerId === JOURNEY_MACHINE_ID;
     if (!['UNDO', 'SHIELD', 'STANDSTILL', 'BOT'].includes(action) && !resolvingMachineChoice) delete previous.undo;
     const decision = body.decision;
-    if (action === 'SHIELD' && decision !== 'use' && decision !== 'expire') return json({ error: 'Choose a valid Shield of Faith action.' }, 400);
+    if (action === 'SHIELD' && decision !== 'use' && decision !== 'expire' && decision !== 'reflect') return json({ error: 'Choose a valid Shield of Faith action.' }, 400);
     if (previous.game.shieldOffer && action !== 'SHIELD') return json({ error: 'Wait for the Shield of Faith decision.' }, 409);
     const useShield = action === 'SHIELD' && decision === 'use';
+    const useBoomerang = action === 'SHIELD' && decision === 'reflect';
     const shieldOwners = body.shieldDecisionV1 === true && ['ANSWER', 'EXPIRE', 'CHOOSE', 'BOT', 'RELIC', 'SHIELD'].includes(action)
       ? await arenaShieldOwners(rest, activePlayers.map((player) => player.user_id), useShield ? actorId : undefined) : undefined;
     const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
@@ -277,11 +278,11 @@ Deno.serve(async (request) => {
       next = await serveJourneySentence(previous, actorId, approvedQuestion, secureRandom);
     }
     const result = await rest(spend ? 'rpc/commit_arena_board_market_turn'
-      : useShield ? 'rpc/commit_arena_shield_turn' : 'rpc/commit_arena_journey_turn', {
+      : useShield ? 'rpc/commit_arena_shield_turn' : useBoomerang ? 'rpc/commit_arena_boomerang_turn' : 'rpc/commit_arena_journey_turn', {
       method: 'POST', body: JSON.stringify({
         p_room_id: roomId, p_expected_version: current.version,
         p_next_state: next, p_command_id: commandId, p_actor_id: actorId,
-        ...(spend ? { p_spend_slug: spend, p_award_slug: null, p_public_state: null } : useShield ? {} : { p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null }),
+        ...(spend ? { p_spend_slug: spend, p_award_slug: null, p_public_state: null } : (useShield || useBoomerang) ? {} : { p_relic_slug: action === 'RELIC' ? String(body.slug || '') : null }),
       }),
     }) as { duplicate: boolean; state: JourneyRuntime };
     return json({ state: publicJourneyRuntime(result.state), version: result.state.game.version,
