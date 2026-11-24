@@ -48,7 +48,7 @@ export function AuthScreen({
     const timeout = window.setTimeout(() => {
       setLoading(false);
       setError('The portal took too long to open. Please check your internet connection and try again.');
-    }, 30_000);
+    }, 45_000);
     return () => window.clearTimeout(timeout);
   }, [loading]);
 
