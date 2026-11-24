@@ -16,6 +16,7 @@ type HeartProps = {
 type FlyingHeart = { id: number; size: number; drift: number; delay: number; left: number };
 
 export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false, players = [] }: HeartProps) {
+  const canSend = spectator && (!userId || !players.some(player => player.user_id === userId));
   const [hearts, setHearts] = useState<FlyingHeart[]>([]);
   const [glowing, setGlowing] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -52,7 +53,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
       setHearts(previous => previous.filter(heart => !ids.some(item => item.id === heart.id)));
     }, 1600);
     timers.current.push(timeout);
-    if (spectator) {
+    if (canSend) {
       setGlowing(targetId || 'heart');
       if (glowTimer.current !== null) window.clearTimeout(glowTimer.current);
       glowTimer.current = window.setTimeout(() => setGlowing(null), 1050);
@@ -104,7 +105,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
 
   const sendHeart = async (targetId = '') => {
     // Only witnesses may send: participants see the floating hearts, not controls.
-    if (!spectator || pending.current || Date.now() - lastSent.current < 850) return;
+    if (!canSend || pending.current || Date.now() - lastSent.current < 850) return;
     if (!guestKey && !userId) return;
     pending.current = true;
     lastSent.current = Date.now();
@@ -132,7 +133,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
         .fc-yellow-heart-float { animation-duration: .25s; }
       }
     `}</style>
-    {spectator && <div className="fixed left-3 z-[2147483011] flex max-w-[min(92vw,390px)] items-end gap-2 rounded-xl border border-white/15 bg-[#0b1730]/90 p-2 shadow-2xl"
+    {canSend && <div className="fixed left-3 z-[2147483011] flex max-w-[min(92vw,390px)] items-end gap-2 rounded-xl border border-white/15 bg-[#0b1730]/90 p-2 shadow-2xl"
       style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }} aria-label="Witness reactions">
       <button type="button" onClick={() => void sendHeart()} aria-label="Send yellow hearts to the match"
         title="Cheer for the match" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 transition-all active:scale-90 ${glowing === 'heart' ? 'border-yellow-300 bg-yellow-300/20 text-yellow-300 shadow-[0_0_22px_6px_rgba(250,204,21,.8)]' : 'border-white/70 bg-white/10 text-white'}`}>
