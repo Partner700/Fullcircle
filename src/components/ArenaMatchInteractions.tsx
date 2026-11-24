@@ -81,8 +81,10 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
   useEffect(() => {
     let active = true;
     let initialized = false;
+    let inFlight = false;
     const sync = async () => {
-      if (document.visibilityState === 'hidden') return;
+      if (!active || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
       try {
         const recent = await fetchArenaRoomMessages(roomId);
         if (!active) return;
@@ -97,9 +99,10 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
         }
         initialized = true;
       } catch { /* Realtime remains the primary path. */ }
+      finally { inFlight = false; }
     };
     void sync();
-    const timer = window.setInterval(() => void sync(), 6000);
+    const timer = window.setInterval(() => void sync(), 16_000);
     return () => { active = false; window.clearInterval(timer); };
   }, [roomId, userId]);
 
