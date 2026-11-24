@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpenText, ChevronDown, Gift, Landmark, Lightbulb, Sparkles, X } from 'lucide-react';
+import { BookOpenText, ChevronDown, Gift, Landmark, Lightbulb, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export type InstructorVerseContext = {
