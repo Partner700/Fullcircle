@@ -817,6 +817,7 @@ export async function consumeQuizQuestionRelic(attemptId: string, questionId: st
   if (error) throw error;
   return data as {
     success: boolean;
+    reused?: boolean;
     reference?: string;
     passage?: string;
     effective_closes_at?: string;
@@ -2203,6 +2204,7 @@ export async function applyDailyGameQuestionAid(runId: string, questionId: strin
     skipped?: boolean;
     donkey_active?: boolean;
     reference?: string;
+    reused?: boolean;
     cost?: number;
   };
 }
