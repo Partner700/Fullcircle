@@ -244,6 +244,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
               : personalHighlight === 'insight' ? 'verse-highlight-mine' : '';
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
+            {instructorExtras.facts[reference] && <p className="inline-flex items-center rounded-full border border-sky-500/45 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-brass">Did You Know? · Open the fact below</p>}
             {(instructorExtras.contexts[reference] || instructorExtras.facts[reference] || instructorExtras.quests[reference]) && (
               <InstructorVerseExtras context={instructorExtras.contexts[reference]}
                 fact={instructorExtras.facts[reference]}
