@@ -1695,7 +1695,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
-      <ArenaHeartReaction roomId={room.id} userId={userId} guestKey={guestKey} />
+      <ArenaHeartReaction roomId={room.id} userId={userId} guestKey={guestKey} spectator players={participants.map((p: any) => ({ user_id: p.user_id, display_name: p.profiles?.display_name || 'Arena player', avatar_url: p.profiles?.avatar_url || null }))} />
       <div className="flex items-center justify-between gap-3 px-1">
         <button type="button" onClick={onExit} className="btn-ghost text-sm"><ArrowLeft size={14} /> Arena</button>
         <span className="badge badge-gold"><Eye size={12} /> Witnessing Live</span>
@@ -2316,7 +2316,7 @@ function ArenaGamePlay({ roomName, roomId, userId, matchupPlayers, arenaImage, r
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
-      <ArenaHeartReaction roomId={roomId} userId={userId} />
+      <ArenaHeartReaction roomId={roomId} userId={userId} spectator={false} />
       <ArenaMatchup players={matchupPlayers.map((player) => ({
         ...player,
         score: machineMatch && player.user_id === '00000000-0000-0000-0000-000000000000'
