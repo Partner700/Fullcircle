@@ -428,12 +428,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // erase the new session after a successful login on slower devices.
       const { data, error } = await waitFor(
         supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
-        20_000,
+        35_000,
         'Sign-in',
       );
       if (error) return { error: /email not confirmed|confirm your email/i.test(error.message)
         ? 'Your email is not confirmed yet. Open the newest confirmation link or request a new one below.'
-        : error.message };
+        : /connection is taking too long|timed out|service.*slow/i.test(error.message)
+          ? 'The Full Circle sign-in service is responding too slowly. Please try again shortly.'
+          : error.message };
 
       const signedInSession = data.session;
       if (!signedInSession) {
@@ -459,7 +461,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const message = signInError instanceof Error ? signInError.message : '';
       return {
         error: /timed out/i.test(message)
-          ? 'The connection took too long. Check your internet connection and try again.'
+          ? 'The Full Circle sign-in service is responding too slowly. Please try again shortly.'
           : 'Your account could not finish signing in. Please try again.',
       };
     } finally {
