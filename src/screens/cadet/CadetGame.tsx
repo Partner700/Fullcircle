@@ -373,6 +373,7 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
   const [answerCorrect, setAnswerCorrect] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [referencePopup, setReferencePopup] = useState<{ reference: string; passage?: string }>();
+  const [revealedReference, setRevealedReference] = useState<{ questionId: string; reference: string; passage?: string } | null>(null);
   const referenceOpen = Boolean(referencePopup);
   const referencePaused = referenceOpen || usingQuestionRelic === RELIC_SLUGS.REVEAL_REFERENCE;
   const [score, setScore] = useState(0);
@@ -560,11 +561,11 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
 
   const consumeQuestionRelic = async (slug: string) => {
     const question = questions[currentQ];
-    if (showFeedback || usingQuestionRelic || !runId || !question?.id) return;
+    if (showFeedback || usingQuestionRelic || !runId || !question?.id) return false;
     setUsingQuestionRelic(slug);
     try {
       const result = await applyDailyGameQuestionAid(runId, question.id, slug);
-      setRelicInventory((previous) => ({
+      if (!result.reused) setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
@@ -574,9 +575,13 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
           ? 'sound_relic_reveal'
           : 'sound_relic_deploy',
       );
-      if (slug === RELIC_SLUGS.REVEAL_REFERENCE) setReferencePopup(result.reference
-        ? { reference: result.reference }
-        : { reference: narrative.scripture_reference, passage: narrative.main_text });
+      if (slug === RELIC_SLUGS.REVEAL_REFERENCE) {
+        const restored = result.reference
+          ? { reference: result.reference }
+          : { reference: narrative.scripture_reference, passage: narrative.main_text };
+        setReferencePopup(restored);
+        setRevealedReference({ questionId: question.id, ...restored });
+      }
       if (result.hint) {
         setHintShown(true);
         setHintText(result.hint);
@@ -592,8 +597,10 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
         if (result.auto_answered) setAnswerRevealed(true);
       }
       window.setTimeout(() => setRelicBurst(null), 650);
+      return true;
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
+      return false;
     } finally {
       setUsingQuestionRelic(null);
     }
@@ -831,6 +838,11 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
       </div>
 
       {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
+      {revealedReference?.questionId === q.id && !referencePopup && !showFeedback && (
+        <button type="button" className="btn-secondary text-xs" onClick={() => setReferencePopup({
+          reference: revealedReference.reference, passage: revealedReference.passage,
+        })}>View revealed Scripture reference again</button>
+      )}
       <GamePoints game="daily_game" showCurrentPlayer />
 
       <ContextRelicShop userId={userId} floating timed={!showFeedback} label="Use or buy relics"
