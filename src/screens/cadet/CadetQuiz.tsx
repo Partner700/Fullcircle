@@ -1243,9 +1243,11 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
 
       {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
       {revealedReference?.questionId === q.id && !referencePopup && !showFeedback && (
-        <button type="button" className="btn-secondary text-xs" onClick={() => setReferencePopup({
-          reference: revealedReference.reference, passage: revealedReference.passage,
-        })}>View revealed Scripture reference again</button>
+        <button type="button" className="btn-secondary text-xs" onClick={() => {
+          if (revealedReference) setReferencePopup({
+            reference: revealedReference.reference, passage: revealedReference.passage,
+          });
+        }}>View revealed Scripture reference again</button>
       )}
       {/* Question card with scroll-edge motif */}
       <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
