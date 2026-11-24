@@ -277,7 +277,7 @@ console.log('45-space board, legacy compatibility, Trials scoring and outcome co
     match.players[1].location = { route: 'main', space: 5 };
     return match;
   };
-  const captured = resolveJourneyRoll(setup(), 'alpha', 2, plain(), []);
+  const captured = resolveJourneyRoll(setup(), 'alpha', 2, plain());
   assert.deepEqual(captured.players[1].location, { route: 'main', space: 1 });
   const pending = resolveJourneyRoll(setup(), 'alpha', 2, plain(), ['beta']);
   assert.equal(pending.shieldOffer?.playerId, 'beta');
