@@ -20,6 +20,7 @@ export type JourneyEffect =
   | { kind: 'choice'; choices: [JourneyEffect, JourneyEffect] }
   | { kind: 'trial'; success: JourneyEffect; failure: JourneyEffect }
   | { kind: 'extend_prison'; turns: number }
+  | { kind: 'capture'; attackerId: string }
   | { kind: 'no_op' };
 
 export type JourneyTrap = { id: string; name: string; effect: JourneyEffect };
@@ -307,8 +308,9 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
   const machineMatch = game.players.some((player) => player.id === JOURNEY_MACHINE_ID);
   const offer = (target: JourneyPlayer, item: QueuedEffect, consequence: string) => {
     if (!shieldOwners || target.id === JOURNEY_MACHINE_ID || item.skipShield
-      || arenaMatchRelicIsMuted(game.matchRelicUses, target.id, 'shield-of-faith', machineMatch)) return false;
+      || (item.effect.kind !== 'capture' && arenaMatchRelicIsMuted(game.matchRelicUses, target.id, 'shield-of-faith', machineMatch))) return false;
     game.shieldOffer = createArenaShieldOffer(target.id, consequence, shieldOwners.includes(target.id));
+    if (item.effect.kind === 'capture') game.shieldOffer.attackerId = item.effect.attackerId;
     game.shieldContinuation = { queue: [item, ...queue], seen: [...seen], depth, after: resume?.after };
     return true;
   };
@@ -324,6 +326,18 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
     }
     const previous = structuredClone(player.location);
     const effect = item.effect;
+    if (effect.kind === 'capture') {
+      const attacker = game.players.find(candidate => candidate.id === effect.attackerId);
+      if (!attacker || player.location.route !== 'main' || attacker.location.route !== 'main'
+          || player.location.space !== attacker.location.space
+          || isImprisoned(player) || isImprisoned(attacker)
+          || journeySameSide(game, player.id, attacker.id)) continue;
+      if (offer(player, item, 'Another player landed on your square and will send you back to the start.')) return;
+      player.location = main(1);
+      player.status = 'ACTIVE';
+      record(game, player, 'capture:' + attacker.id, 'captured', previous, 'backward', 'applied', 'sent-to-start');
+      continue;
+    }
     const onMain = previous.route === 'main' && !isImprisoned(player);
     const routeEnd = config.finalChallengeSpace - 1;
     const moveTarget = effect.kind === 'move' && previous.route === 'main'
@@ -494,8 +508,18 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       game.version += 1;
       return game;
     }
+    const collisions = game.players.filter(other => other.id !== player.id
+      && other.status !== 'FINISHED' && !journeySameSide(game, player.id, other.id)
+      && other.location.route === 'main' && !isImprisoned(other)
+      && other.location.space === player.location.space)
+      .map(other => ({
+        playerId: other.id, source: 'capture:' + player.id,
+        effect: { kind: 'capture' as const, attackerId: player.id },
+        key: 'capture:' + game.version + ':' + player.id + ':' + other.id,
+      }));
     const effect = landingEffect(config, player);
-    if (effect) resolveEffects(game, config, [effect], shieldOwners);
+    if (collisions.length || effect) resolveEffects(game, config,
+      [...collisions, ...(effect ? [effect] : [])], shieldOwners);
   }
   if (game.shieldContinuation && dueEffects.length) {
     game.shieldContinuation.after = dueEffects.map((effect, index) => ({ playerId, source: 'delayed-penalty', effect, key: `delayed:${index}` }));
@@ -559,7 +583,7 @@ export function resolveJourneyAction(original: JourneyGame, actorId: string, cho
   return game;
 }
 
-export function resolveJourneyShield(original: JourneyGame, actorId: string, decision: 'use' | 'expire',
+export function resolveJourneyShield(original: JourneyGame, actorId: string, decision: 'use' | 'expire' | 'reflect',
   shieldOwners: readonly string[] | undefined, config = journeyConfigForGame(original)): JourneyGame {
   const { shieldOffer, shieldContinuation } = original;
   if (!shieldOffer || !shieldContinuation) throw new Error('There is no pending Shield of Faith choice.');
@@ -568,6 +592,23 @@ export function resolveJourneyShield(original: JourneyGame, actorId: string, dec
   delete game.shieldOffer;
   delete game.shieldContinuation;
   const [penalty, ...remaining] = shieldContinuation.queue;
+  if (decision === 'reflect') {
+    if (penalty.effect.kind !== 'capture' || shieldOffer.attackerId !== penalty.effect.attackerId) {
+      throw new Error('Boomerang can only reverse an incoming capture.');
+    }
+    const machineMatch = game.players.some(player => player.id === JOURNEY_MACHINE_ID);
+    if (arenaMatchRelicIsMuted(game.matchRelicUses, actorId, 'boomerang', machineMatch)) {
+      throw new Error('You have reached the Boomerang limit in this match.');
+    }
+    countArenaMatchRelicUse(game, actorId, 'boomerang');
+    const attacker = game.players.find(player => player.id === penalty.effect.attackerId);
+    if (attacker && attacker.location.route === 'main') {
+      const previous = structuredClone(attacker.location);
+      attacker.location = main(1);
+      attacker.status = 'ACTIVE';
+      record(game, attacker, 'boomerang:' + actorId, 'boomerang', previous, 'backward', 'applied', 'capture-reflected');
+    }
+  }
   if (decision === 'use') {
     const machineMatch = game.players.some((player) => player.id === JOURNEY_MACHINE_ID);
     if (arenaMatchRelicIsMuted(game.matchRelicUses, actorId, 'shield-of-faith', machineMatch)) {
@@ -577,7 +618,7 @@ export function resolveJourneyShield(original: JourneyGame, actorId: string, dec
     const player = game.players.find((candidate) => candidate.id === actorId)!;
     record(game, player, penalty.source, 'shield-of-faith', player.location, 'reveal', 'applied', 'penalty-prevented');
   }
-  const queue = decision === 'use' ? remaining : [{ ...penalty, skipShield: true }, ...remaining];
+  const queue = decision === 'use' || decision === 'reflect' ? remaining : [{ ...penalty, skipShield: true }, ...remaining];
   resolveEffects(game, config, queue, shieldOwners, shieldContinuation);
   if (!game.shieldOffer && shieldContinuation.after?.length) {
     const player = game.players[game.turnIndex];
