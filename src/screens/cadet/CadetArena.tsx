@@ -113,6 +113,17 @@ interface CadetArenaProps {
 }
 
 export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId, witnessOnly = false, instructorSchedule = false, sentrySchedule }: CadetArenaProps) {
+  // The home-slide Witness button hands the selected room to this Arena instance.
+  // Consume it once so a later Arena visit does not reopen an older match.
+  const [welcomeRoomId] = useState<string | undefined>(() => {
+    try {
+      const value = window.sessionStorage.getItem('full-circle-welcome-match-room') || undefined;
+      window.sessionStorage.removeItem('full-circle-welcome-match-room');
+      return value;
+    } catch { return undefined; }
+  });
+  const requestedRoomId = initialRoomId || welcomeRoomId;
+
   const { profile } = useAuth();
   const [phase, setPhase] = useState<ArenaPhase>('lobby');
   const [preludeOpen,setPreludeOpen] = useState(false);
@@ -167,12 +178,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
 
   useEffect(() => {
     if (!profile) return;
-    if (initialRoomId) return;
+    if (requestedRoomId) return;
     const savedRoomId = safeStorageGet('local', activeArenaRoomStorageKey(profile.id));
     const dismissed = new Set(safeJsonStorageGet<string[]>('local', dismissedArenaRoomsKey(profile.id), []));
     if (savedRoomId && !dismissed.has(savedRoomId)) setActiveRoomId(savedRoomId);
     if (savedRoomId && dismissed.has(savedRoomId)) safeStorageRemove('local', activeArenaRoomStorageKey(profile.id));
-  }, [profile, initialRoomId]);
+  }, [profile, requestedRoomId]);
 
   useEffect(() => {
     if (!profile || !activeRoomId || isSpectating) return;
@@ -251,19 +262,19 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
 
   const openedShareRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialRoomId || !profile || openedShareRef.current === initialRoomId) return;
-    openedShareRef.current = initialRoomId;
+    if (!requestedRoomId || !profile || openedShareRef.current === requestedRoomId) return;
+    openedShareRef.current = requestedRoomId;
     void (async () => {
-      const room = await refreshRoom(initialRoomId);
+      const room = await refreshRoom(requestedRoomId);
       if (room?.status === 'completed') {
-        setIsSpectating(true); setActiveRoomId(initialRoomId); setPhase('finished');
+        setIsSpectating(true); setActiveRoomId(requestedRoomId); setPhase('finished');
       } else if (room?.arena_participants?.some((person: { user_id: string; forfeited_at?: string | null }) => person.user_id === profile.id && !person.forfeited_at)) {
-        activateRoom(initialRoomId, room.status === 'completed' ? 'finished' : room.status === 'waiting' ? 'waiting' : 'playing');
+        activateRoom(requestedRoomId, room.status === 'completed' ? 'finished' : room.status === 'waiting' ? 'waiting' : 'playing');
       } else {
-        await watchRoom(initialRoomId);
+        await watchRoom(requestedRoomId);
       }
     })();
-  }, [activateRoom, initialRoomId, profile, refreshRoom, watchRoom]);
+  }, [activateRoom, requestedRoomId, profile, refreshRoom, watchRoom]);
 
 
   const load = useCallback(async () => {
@@ -798,7 +809,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   };
 
   const preludeRoom=rooms.find(room=>room.id===activeRoomId && parseArenaGameType(room.room_name || '')==='prelude');
-  if(preludeOpen || preludeRoom) return <PreludeTrivia arenaImage={arenaImage} initialRoomId={preludeRoom?.id} onBack={()=>{setPreludeOpen(false);if(preludeRoom)clearActiveRoom(false);void onBalanceChanged?.();}} onBalanceChanged={()=>void onBalanceChanged?.()}/>;
+  if(preludeOpen || preludeRoom) return <PreludeTrivia arenaImage={arenaImage} requestedRoomId={preludeRoom?.id} onBack={()=>{setPreludeOpen(false);if(preludeRoom)clearActiveRoom(false);void onBalanceChanged?.();}} onBalanceChanged={()=>void onBalanceChanged?.()}/>;
   if (puzzleOpen) return <PuzzleTrivia arenaImage={arenaImage} onBack={() => {setPuzzleOpen(false);void onBalanceChanged?.();}} />;
 
   if (loading && phase === 'lobby') return (
