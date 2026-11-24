@@ -9,6 +9,9 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'supabase/functions/_shared/**'
+      - 'scripts/road-home-engine.test.ts'
+      - 'scripts/biblical-journey.test.ts'
       - 'public/**'
       - 'index.html'
       - 'package.json'
