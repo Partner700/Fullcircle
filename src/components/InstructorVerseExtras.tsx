@@ -6,6 +6,9 @@ import { supabase } from '../lib/supabase';
 export type InstructorVerseContext = {
   reference: string;
   historical_context: string;
+  lexical_note?: string | null;
+  evidence_note?: string | null;
+  source_titles?: string[] | null;
   spiritual_context: string;
   present_day_context: string;
   research_note: string;
@@ -40,7 +43,8 @@ export function useInstructorVerseExtras(references: string[]) {
     void (async () => {
       const [contextResult, questResult] = await Promise.allSettled([
         supabase.from('instructor_verse_contexts')
-          .select('reference,historical_context,spiritual_context,present_day_context,research_note,source_links')
+          .select('reference,historical_context,lexical_note,evidence_note,source_titles,spiritual_context,present_day_context,research_note,source_links')
+          .eq('edition', 2)
           .in('reference', verseRefs.slice(0, 180)),
         supabase.rpc('get_quarterly_verse_quests', { p_references: verseRefs.slice(0, 180) }),
       ]);
@@ -120,6 +124,14 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
             <div className="border-t border-border px-3 py-3">
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{content}</p>
               {title === 'Historical context' && <>
+                {context.lexical_note && <section className="mt-3 rounded-lg border border-brass/30 bg-surface p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-brass">Original language • Hebrew / Greek / Latin</p>
+                  <p className="mt-1 text-sm leading-relaxed text-ink">{context.lexical_note}</p>
+                </section>}
+                {context.evidence_note && <section className="mt-3 rounded-lg border border-border bg-surface/70 p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-brass">What the evidence establishes</p>
+                  <p className="mt-1 text-xs leading-relaxed text-stone">{context.evidence_note}</p>
+                </section>}
                 <p className="mt-3 text-xs leading-relaxed text-stone">{context.research_note}</p>
                 {Array.isArray(context.source_links) && context.source_links.length > 0 && (
                   <p className="mt-2 text-xs text-stone">Further background: {context.source_links.slice(0, 3).map((link, index) => (
@@ -128,6 +140,15 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
                   ))}</p>
                 )}
               </>}
+              {title === 'Spiritual context' && Array.isArray(context.source_titles) && context.source_titles.length > 0 && (
+                <div className="mt-3 border-t border-border pt-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-brass">Related reading</p>
+                  <ul className="mt-1 space-y-1 text-xs leading-relaxed text-stone">
+                    {context.source_titles.map(source => <li key={source}>{source}</li>)}
+                  </ul>
+                  <p className="mt-2 text-xs italic text-stone">Original Instructor synthesis; not a quotation from these authors.</p>
+                </div>
+              )}
             </div>
           </details>
         ))}
