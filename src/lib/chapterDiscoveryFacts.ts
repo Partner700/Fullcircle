@@ -179,7 +179,7 @@ export function passageDiscoveryFacts(
 ): ScriptureDidYouKnow[] {
   const grouped = new Map<string, { book: string; chapter: number; verses: ChapterDiscoveryVerse[] }>();
   for (const verse of verses) {
-    const match = verse.reference.match(/^(.+?) (\\d+):(\\d+)$/);
+    const match = verse.reference.match(/^(.+?) (\d+):(\d+)$/);
     if (!match || !removeMarkup(verse.text)) continue;
     const book = match[1];
     const chapter = Number(match[2]);
