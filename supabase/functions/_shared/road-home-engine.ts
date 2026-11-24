@@ -189,7 +189,7 @@ export type RoadHomeCommand =
   | { action: 'USE_RELIC'; relic: string; pawnId?: string }
   | { action: 'USE_MARKET_RELIC'; slug: string }
   | { action: 'UNDO' | 'STANDSTILL' }
-  | { action: 'SHIELD'; decision: 'use' | 'expire' }
+  | { action: 'SHIELD'; decision: 'use' | 'expire' | 'reflect' }
   | { action: 'FORFEIT' };
 
 type RandomFn = () => number;
@@ -645,6 +645,7 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
       || relicIsMuted(state, target.id, 'shield-of-faith')) return false;
     const usesMatchRelic = target.relics.includes('Shield of Faith');
     state.shieldOffer = createArenaShieldOffer(target.id, consequence, usesMatchRelic || shieldOwners.includes(target.id));
+    if (target.id !== player.id) state.shieldOffer.attackerId = player.id;
     state.shieldLanding = { movingPawnId: pawn.id, penalizedPawnId: penalizedPawn.id, protectedPawnIds, usesMatchRelic };
     state.phase = 'SHIELD_DECISION';
     return true;
@@ -655,18 +656,19 @@ function resolveLanding(state: RoadHomeState, player: RoadHomePlayer, pawn: Road
     if (finishGameIfReady(state, player)) return;
   }
   const target = globalPosition(player, pawn);
-  if (target != null && !ROAD_HOME_CONFIG.safeSpaces.includes(target as never) && !ROAD_HOME_CONFIG.prisonSpaces.includes(target as never)) {
+  if (target != null) {
     for (const opponent of state.players.filter((item) => item.id !== player.id)) {
       const victims = opponent.pawns.filter((item) => globalPosition(opponent, item) === target && item.prisonRounds === 0);
-      if (victims.length !== 1) continue;
-      const victim = victims[0];
+      if (!victims.length) continue;
+      const victim = victims.find(item => !protectedPawnIds.includes(item.id));
+      if (!victim) continue;
       if (protectedPawnIds.includes(victim.id)) continue;
       const prearmedShield = victim.shielded && !relicIsMuted(state, opponent.id, 'shield-of-faith');
       if (!prearmedShield && offer(opponent, victim, `Pawn ${victim.number} is about to be captured and sent back to base.`)) return;
       if (prearmedShield) {
         victim.shielded = false;
         countArenaMatchRelicUse(state, opponent.id, 'shield-of-faith');
-        victim.progress = Math.max(0, victim.progress - 1);
+        // Shield of Faith blocks the capture; the protected pawn remains on its square.
         addEvent(state, 'RELIC_USED', `${opponent.name}'s Shield of Faith prevented a capture.`, opponent.id);
       } else {
         const lostCorrect = Math.max(0, Math.min(opponent.stats.correct, victim.earnedCorrect || 0));
@@ -908,12 +910,32 @@ export function applyRoadHomeCommand(stateInput: RoadHomeState, actorId: string,
   if (command.action === 'SHIELD') {
     const { shieldOffer, shieldLanding } = state;
     if (state.phase !== 'SHIELD_DECISION' || !shieldOffer || !shieldLanding) throw new Error('There is no pending Shield of Faith choice.');
-    if (command.decision !== 'use' && command.decision !== 'expire') throw new Error('Choose a valid Shield of Faith action.');
+    if (!['use', 'expire', 'reflect'].includes(command.decision)) throw new Error('Choose a valid defensive relic action.');
     validateArenaShieldDecision(shieldOffer, actorId, command.decision);
     const target = player.pawns.find((pawn) => pawn.id === shieldLanding.movingPawnId);
     if (!target) throw new Error('The moving pawn could not be found.');
     delete state.shieldOffer;
     delete state.shieldLanding;
+    if (command.decision === 'reflect') {
+      if (!shieldOffer.attackerId || shieldOffer.attackerId !== player.id
+          || shieldLanding.penalizedPawnId === shieldLanding.movingPawnId) {
+        throw new Error('Boomerang only reverses a capture by another player.');
+      }
+      assertRelicIsAvailable(state, actorId, 'boomerang');
+      countArenaMatchRelicUse(state, actorId, 'boomerang');
+      const defender = state.players.find(candidate => candidate.id === actorId);
+      if (!defender) throw new Error('Defending player not found.');
+      target.progress = -1;
+      target.prisonRounds = 0;
+      target.imprisonedTurn = null;
+      target.shielded = false;
+      target.earnedCorrect = 0;
+      player.stats.lost += 1;
+      defender.stats.captured += 1;
+      defender.stats.relicsUsed += 1;
+      shieldLanding.protectedPawnIds.push(shieldLanding.penalizedPawnId);
+      addEvent(state, 'BOOMERANG_CAPTURE', `${defender.name}'s Boomerang sent ${player.name}'s incoming pawn back to base.`, actorId);
+    }
     if (command.decision === 'use') {
       assertRelicIsAvailable(state, actorId, 'shield-of-faith');
       countArenaMatchRelicUse(state, actorId, 'shield-of-faith');
