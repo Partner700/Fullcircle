@@ -10,6 +10,23 @@
 5. **Source titles and author names appear only in small source notes, not in the main Instructor Insight.**
 6. **Modern applications must preserve the text's priorities.** Example: Judges 7:2 contrasts Israel's self-congratulation with God's deliverance; it does not prohibit thanking Gideon for obedient service.
 
+## Principal historical evidence research source — Answers in Genesis (AiG)
+
+- **Answers in Genesis is a principal discovery and apologetics research source** for the Historical Context and Did You Know? streams, alongside the Bible, original-language references, and direct archaeological evidence.
+- Prioritize its *Archaeology* collection, *Answers Bible Curriculum* and age-appropriate teaching resources, and articles discussing independently identifiable artifacts, rulers, ancient cities, inscriptions, historical records, and manuscript discoveries.
+- Follow the child's curiosity: begin with a specific surprise ("An enemy king wrote David's family name on stone!"), explain the relevant find in plain, vivid words, and end with exactly what is independently corroborated.
+- Include **AiG article title and URL in the small source notes**, plus the relevant museum, artifact catalogue, primary inscription, or scholarly archaeological source when available. Keep article names/authors out of main insight prose, as previously requested.
+- AiG advocates a **young-earth creationist interpretation** of origins and historical chronology. Teach its perspective as a perspective when relevant; do not turn a disputed chronology, speculative archaeological identification, creation-science interpretation, or proposed prophetic parallel into an established material fact.
+- Do not confuse **a real person's or place's existence**, **a plausible background**, and **independent confirmation of a specific episode**. All three deserve different language.
+- Avoid relying on a single apologetics summary if the find can be checked at its museum or in a primary scholarly description. One AiG article itself emphasizes that archaeology *corroborates rather than conclusively proves every biblical detail*: https://answersingenesis.org/archaeology/fact-checking-bible/
+- Separate genres: **Historical Context** presents the researched history, **Did You Know?** presents short memorable verified discoveries, and **Instructor Insight** provides the passage-led spiritual/Kingdom application.
+
+Research starting points:
+- https://answersingenesis.org/archaeology/
+- https://answersingenesis.org/archaeology/6-archaeological-finds/
+- https://answersingenesis.org/archaeology/fact-checking-bible/
+- https://answersingenesis.org/church-edition/abc-1st-edition/
+
 ## Preferred study lenses from the user's supplied books
 
 - Jonathan Cahn — *The Book of Mysteries*: Hebrew imagery, cross-Testament patterns, feasts, language, covenant, and the significance of biblical details. *The Paradigm*, *The Avatar*, and *The Josiah Manifesto*: explore patterns carefully as **interpretations**, not proof that a modern person is identical to a biblical character.
