@@ -101,7 +101,7 @@ async function run() {
     const asset = request('assets/screen-abc.js');
     const cache = memoryCaches();
     const foreignUrl = 'https://raw.githack.com/TNSorganization/Full-Circle/gh-pages/assets/screen-abc.js';
-    if (cached) await (await cache.open('full-circle-v147-v155-assets')).put(asset.url, mirrorResponse(foreignUrl));
+    if (cached) await (await cache.open(`full-circle-target-v${currentRelease}-assets`)).put(asset.url, mirrorResponse(foreignUrl));
     const w = worker(async (url) => {
       if (url.startsWith(scope)) throw new Error('Carrier failed');
       return mirrorResponse(url);
