@@ -84,7 +84,7 @@ export function PublicArenaScreen({ roomId }: { roomId: string }) {
     void reload();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void reload();
-    }, 15_000);
+    }, 25_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void reload(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
