@@ -63,8 +63,10 @@ function bootstrapDailyRemindersInBackground() {
 }
 
 function maintainArenaRoomsInBackground() {
+  // Global cleanup should not be triggered by every active client's lobby polling.
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
   const now = Date.now();
-  if (now - lastArenaMaintenanceAt < 60_000) return;
+  if (now - lastArenaMaintenanceAt < 5 * 60_000) return;
   lastArenaMaintenanceAt = now;
   void shareReadRequest('arena-room-maintenance', async () => {
     const { error: expiryError } = await supabase.rpc('expire_stale_arena_rooms');
