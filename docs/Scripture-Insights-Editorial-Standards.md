@@ -68,6 +68,12 @@ For technical terms, spell out what the event or object would look like *today*,
 - Present day: a tightly anchored application that does **not contradict the passage**.
 - Avoid duplicated information across neighboring verses, formulaic applications, naming authors in main text, and inflated certainty.
 
+## Immediate all-chapter accessibility
+
+The Bible reader and Today's Reading render two **text-derived chapter discoveries** anywhere fewer than two researched `Did You Know?` entries are available. These are generated from the verses of the selected Bible edition, are explicitly marked as direct reading observations, and must not be presented as historical proof, original-language research, or scholarly consensus. Researched and reviewed entries override the temporary observations; no unverified data is written to `scripture_did_you_know` simply to inflate counts.
+
+All 66 books and 1,189 chapters must remain covered in the *reader UI*, including the chapters still awaiting standalone curated historical, cultural, lexical, manuscript, or scholarly facts. The regression test `scripts/chapter-discovery-coverage.test.ts` checks this reading fallback, including one-verse excerpts.
+
 ## Publishing requirements
 - Before deploying new facts, check exact references, edition availability, duplicates, RLS read access, and canonical chapter coverage.
 - Historical notes should be verified against trustworthy primary archaeological collections or scholarship when relevant.
