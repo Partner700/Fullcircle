@@ -939,6 +939,7 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
   const submissionStartedRef = useRef(false);
   const deadlineCheckRef = useRef(false);
   const [referencePopup, setReferencePopup] = useState<{ reference: string; passage?: string }>();
+  const [revealedReference, setRevealedReference] = useState<{ questionId: string; reference: string; passage?: string } | null>(null);
   const [relicClose, setRelicClose] = useState(0);
   const exitForfeitArmedRef = useRef(false);
   const exitForfeitSentRef = useRef(false);
@@ -1119,15 +1120,19 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
   };
 
   const consumeQuestionRelic = async (slug: string) => {
-    if (showFeedback || usingQuestionRelic) return;
+    if (showFeedback || usingQuestionRelic) return false;
     setUsingQuestionRelic(slug);
     try {
       const result = await withQuizNetworkRetry(() => consumeQuizQuestionRelic(attempt.id, q.id, slug));
-      setRelicInventory((previous) => ({
+      if (!result.reused) setRelicInventory((previous) => ({
         ...previous,
         [slug]: Math.max(0, (previous[slug] || 0) - 1),
       }));
-      if (result.reference) setReferencePopup({ reference: result.reference, passage: result.passage });
+      if (result.reference) {
+        setReferencePopup({ reference: result.reference, passage: result.passage });
+        if (slug === RELIC_SLUGS.REVEAL_REFERENCE)
+          setRevealedReference({ questionId: q.id, reference: result.reference, passage: result.passage });
+      }
       if (result.effective_closes_at) setRelicClose(Date.parse(result.effective_closes_at));
       if (result.notice) setRelicNotice(result.notice);
       if (result.eliminated_options) setEliminatedOptions(result.eliminated_options);
@@ -1136,8 +1141,10 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         setSelectedAnswer(null);
         setShowFeedback(true);
       }
+      return true;
     } catch (error: any) {
       setRelicNotice(error.message || 'This relic could not be used.');
+      return false;
     } finally {
       setUsingQuestionRelic(null);
     }
@@ -1235,6 +1242,11 @@ function QuizPlay({ allowRelics = true, questions, initialResponses, attempt, us
         onChanged={() => setRelicInventoryRevision(value => value + 1)} />}
 
       {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
+      {revealedReference?.questionId === q.id && !referencePopup && !showFeedback && (
+        <button type="button" className="btn-secondary text-xs" onClick={() => setReferencePopup({
+          reference: revealedReference.reference, passage: revealedReference.passage,
+        })}>View revealed Scripture reference again</button>
+      )}
       {/* Question card with scroll-edge motif */}
       <div key={`${q.id}-${currentIdx}`} className="card p-5 relative animate-slide-up">
         <ScrollEdge position="top" className="text-stone mb-2" />
