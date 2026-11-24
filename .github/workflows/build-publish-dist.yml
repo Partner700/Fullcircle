@@ -1,3 +1,4 @@
+# Re-run verified app build after Instructor Insights and first-finder reward corrections.
 # Restore the verified in-app Direct Pay build; remove hosted checkout fallback.
 # Publish emergency opt-in Fapshi hosted Market checkout fallback.
 # Rebuild source after Market payment, Treasure Mine, and Arena scorecard fixes.
