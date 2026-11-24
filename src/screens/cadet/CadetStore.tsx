@@ -16,7 +16,7 @@ import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { setMarketVisibility } from '../../lib/marketVisibility';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, startMarketCartCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
+import { fetchMarketBalance, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, startMarketCartCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
@@ -162,7 +162,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       const [relicData, invData, balance, frz, marketPanelImage] = await Promise.all([
         supabase.from('relic_types').select('*').eq('is_active', true).order('denarii_cost', { ascending: true }),
         supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
-        fetchLedgerTotal(profile.id),
+        fetchMarketBalance(profile.id),
         fetchStreakFreezers(profile.id),
         fetchPanelImageSetting('market').catch(() => null),
       ]);
@@ -194,7 +194,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
     if (!profile) return null;
     const [invData, balance, frz] = await Promise.all([
       supabase.from('relic_inventory').select('relic_type_id, quantity').eq('user_id', profile.id),
-      fetchLedgerTotal(profile.id),
+      fetchMarketBalance(profile.id),
       fetchStreakFreezers(profile.id),
     ]);
     if (invData.error) throw invData.error;
