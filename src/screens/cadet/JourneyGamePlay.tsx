@@ -355,7 +355,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
   return <div className="space-y-4">
-    <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} spectator={spectator} players={players} />
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
@@ -473,6 +472,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       <p className="mt-4 text-sm leading-relaxed text-ink">{squareNotice.square.description}</p>
       <button type="button" className={`mt-4 flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-bold ${squareNotice.square.tone === 'red' ? 'border border-coral bg-coral-soft text-coral' : 'btn-primary'}`} onClick={() => setSquareNotices((current) => current.slice(1))}>{squareNotices.length > 1 ? 'Next effect' : 'Continue'}</button>
     </JourneyDialog>}
+    <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} spectator={spectator} players={players} />
     <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher
       onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}
       challengeTargets={spectator && !guestKey ? players.filter((player) => player.user_id !== JOURNEY_MACHINE_ID).map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
