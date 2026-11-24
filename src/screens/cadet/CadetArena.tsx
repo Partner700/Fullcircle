@@ -746,7 +746,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       const selectedRoom = rooms.find((room) => room.id === roomId);
       if (selectedRoom?.scheduled) await joinInstructorArenaMatch(roomId);
       else await joinArenaRoom(roomId, profile.id);
-      activateRoom(roomId, 'waiting');
+      activateRoom(roomId, selectedRoom?.status === 'playing' ? 'playing' : 'waiting');
       await load();
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to join room'); }
@@ -1291,6 +1291,11 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
             const participants = room.arena_participants || [];
             const witnesses = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((participant: any) => participant.user_id === profile?.id && !participant.forfeited_at);
+            const canJoinLate = !witnessOnly && room.scheduled
+              && room.room_name.includes('[intertent]')
+              && room.scheduled_player_ids?.includes(profile?.id)
+              && !isParticipant
+              && room.started_at && Date.now() < Date.parse(room.started_at) + 5 * 60 * 1000;
             return (
               <div data-artwork-theme={arenaImage?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={20} veilClassName="arena-panel-veil" />
@@ -1310,6 +1315,12 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
                   <div className="flex items-center justify-between gap-3 sm:justify-end">
                     <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
                     <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena match" aria-label="Share Arena match" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
+                    {canJoinLate && (
+                      <button type="button" className="btn-secondary text-xs"
+                        onClick={() => void joinRoom(room.id)}>
+                        <Play size={14} /> Join live match
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => !witnessOnly && isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
