@@ -2,6 +2,7 @@ export const ARENA_MATCH_RELIC_LIMITS = {
   standstill: 1,
   undo: 3,
   'shield-of-faith': 5,
+  boomerang: 5,
 } as const;
 
 export type ArenaMatchRelic = keyof typeof ARENA_MATCH_RELIC_LIMITS;
