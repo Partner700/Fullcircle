@@ -1,9 +1,10 @@
-import { RotateCcw, ContextRelicShop } from './ContextRelicShop';
+import { ContextRelicShop } from './ContextRelicShop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CheckCircle2,
   Coins,
+  RotateCcw,
   Eye,
   Gift,
   Lightbulb,
