@@ -47,6 +47,10 @@ jobs:
         run: node --experimental-strip-types scripts/network-request-timeout.test.ts
       - name: Test camp access recovery
         run: node --experimental-strip-types scripts/camp-access-recovery.test.ts
+      - name: Verify Ludo capture and Boomerang
+        run: node --experimental-strip-types scripts/road-home-engine.test.ts
+      - name: Verify Journey capture, Shield and Boomerang
+        run: node --experimental-strip-types scripts/biblical-journey.test.ts
       - name: Build current app
         run: npm run build
       - name: Restore relative URLs for subpath and standalone installations
