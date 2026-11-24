@@ -34,7 +34,7 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
       byTent.set(person.tent_id, prior);
     }
     return [...byTent.values()].map(row => ({ ...row, average: row.matches ? row.points / row.matches : 0 }))
-      .sort((a, b) => b.average - a.average || b.points - a.points || a.name.localeCompare(b.name));
+      .sort((a, b) => b.points - a.points || b.average - a.average || a.name.localeCompare(b.name));
   };
   const fixturePlayerIds = [...new Set(events.flatMap(e=>e.fixtures.flatMap(f=>f.sides.flatMap(s=>s.players.map(p=>p.id)))))].sort().join(',');
   useEffect(() => {
@@ -140,7 +140,7 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
         </InterTentMatchCard>})}
         </div>
       </details>
-      {event.standings.length>0 && <><h4 className="font-display font-bold text-ink">Group standings</h4><p className="text-xs text-stone">Average points per played match; ties use average correct answers, then average game score.</p><div className="divide-y divide-border">{tentStandings(event.standings).map((tent, index)=><div key={tent.tent_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{index + 1}. {tent.name}</p><p className="text-stone">{tent.matches} resident match appearances · {tent.points} total points</p></div><p className="text-gold font-bold">{tent.average.toFixed(2)}</p></div>)}</div></>}
+      {event.standings.length>0 && <><h4 className="font-display font-bold text-ink">Group standings</h4><p className="text-xs text-stone">Tents ranked by total championship points from every resident who represented them. Average is shown separately.</p><div className="divide-y divide-border">{tentStandings(event.standings).map((tent, index)=><div key={tent.tent_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{index + 1}. {tent.name}</p><p className="text-stone">{tent.matches} resident match appearances · {tent.points} total points</p></div><div className="text-right"><p className="text-gold font-bold">{tent.points} pts</p><p className="text-[10px] text-stone">Avg {tent.average.toFixed(2)}</p></div></div>)}</div></>}
       {event.semifinal_standings?.length>0&&<><h4 className="font-display font-bold text-ink">Semifinal standings</h4><p className="text-xs text-stone">Two-leg combined points. The two highest advance.</p><div className="divide-y divide-border">{event.semifinal_standings.map(p=><div key={p.user_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{p.name}</p><p className="text-stone">{p.tent_name} · {p.matches}/2 legs played</p></div><p className="text-gold font-bold">{p.points} pts</p></div>)}</div></>}
     </div>)}
     {message&&<p role="status" className="text-xs text-stone">{message}</p>}
