@@ -249,3 +249,43 @@ as grp(refs jsonb,historical_context text,spiritual_context text,present_day_con
 cross join lateral jsonb_array_elements_text(grp.refs) verse(value)
 on conflict(reference) do update set historical_context=excluded.historical_context,spiritual_context=excluded.spiritual_context,
  present_day_context=excluded.present_day_context,research_note=excluded.research_note,source_links=excluded.source_links,updated_at=now();
+
+
+-- When a future FCX event becomes available, convert the oldest earned
+-- Scripture ticket vouchers into genuine registrations, respecting capacity.
+create or replace function public.assign_quarterly_scripture_fcx_tickets()
+returns trigger language plpgsql security definer set search_path=''
+as $fn$
+declare
+ v_award public.quarterly_verse_fcx_awards%rowtype;
+ v_count integer;
+begin
+ if not new.is_active or new.event_date < (now() at time zone 'Africa/Douala')::date
+ then return new; end if;
+ for v_award in
+   select * from public.quarterly_verse_fcx_awards
+   where status='awaiting_event'
+   order by created_at,quest_id for update skip locked
+ loop
+   select count(*) into v_count from public.fcx_registrations where event_id=new.id;
+   if v_count>=new.capacity then exit; end if;
+   if exists (select 1 from public.fcx_registrations
+              where event_id=new.id and user_id=v_award.user_id)
+   then continue; end if;
+   insert into public.fcx_registrations(event_id,user_id,payment_source,added_by)
+     values(new.id,v_award.user_id,'app',v_award.user_id);
+   update public.quarterly_verse_fcx_awards
+     set event_id=new.id,status='registered'
+     where quest_id=v_award.quest_id and status='awaiting_event';
+   perform public.notify_user(v_award.user_id,null,'fcx',
+     'Your free FCX ticket is ready',
+     'Your Scripture discovery prize has been registered for the upcoming Full Circle Experience.',
+     'fcx',jsonb_build_object('event_id',new.id,'quest_id',v_award.quest_id));
+ end loop;
+ return new;
+end $fn$;
+revoke all on function public.assign_quarterly_scripture_fcx_tickets() from public,anon,authenticated;
+drop trigger if exists apply_scripture_fcx_vouchers_on_event on public.fcx_events;
+create trigger apply_scripture_fcx_vouchers_on_event
+after insert or update of is_active,event_date,capacity on public.fcx_events
+for each row execute function public.assign_quarterly_scripture_fcx_tickets();
