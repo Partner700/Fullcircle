@@ -16,6 +16,7 @@ export function journeyEffectDescription(effect: JourneyEffect): string {
     case 'transfer_delayed': return 'Pass your waiting penalty to the leading rival.';
     case 'choice': return `A rival chooses your outcome: ${effect.choices.map(journeyEffectDescription).join(' Or: ')}`;
     case 'trial': return `Answer the challenge correctly. ${effect.success.kind === 'no_op' ? 'Pass and stay here, near the end of this lap.' : journeyEffectDescription(effect.success)} If you miss: ${journeyEffectDescription(effect.failure)}`;
+    case 'capture': return 'A rival landing on your square sends you to Start unless Shield of Faith or Boomerang protects you.';
     case 'extend_prison': return `Add ${effect.turns} turns to the prison sentence.`;
     case 'no_op': return 'Stay on your current square.';
   }
