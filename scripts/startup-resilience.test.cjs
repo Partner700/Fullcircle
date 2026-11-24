@@ -8,7 +8,7 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const root = path.resolve(__dirname, '..');
 const scope = 'https://example.test/Full-Circle/';
 const workerSource = fs.readFileSync(path.join(root, 'public/fc-worker.js'), 'utf8');
-const currentRelease = workerSource.match(/const CACHE_VERSION = 'full-circle-target-v(\\d+)'/)?.[1];
+const currentRelease = workerSource.match(/const CACHE_VERSION = 'full-circle-target-v(\d+)'/)?.[1];
 assert.ok(currentRelease, 'The service worker must declare a target release version.');
 
 const flush = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
