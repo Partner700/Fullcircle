@@ -1,0 +1,19 @@
+-- Additional Bible reader discoveries for the November Gideon readings.
+insert into public.scripture_did_you_know(reference,fact,source_note) values
+('Judges 6:11','Gideon was threshing wheat in a winepress when the angel found him. A winepress was normally used for grapes, so the hiding place tells us how afraid the Israelites were of raiders.','Judges 6:11; compare typical ancient grain threshing floors and winepresses.'),
+('Judges 6:12','The angel calls Gideon a mighty man of valor while Gideon is hiding his wheat. The contrast between the greeting and his circumstances is part of the story.','Judges 6:11–12.'),
+('Judges 6:15','Gideon tells the Lord that his family is the least in Manasseh and that he is the youngest in his father''s house. He begins with a list of reasons he feels unqualified.','Judges 6:15.'),
+('Judges 6:24','The altar Gideon builds is called Yahweh Shalom, ''The LORD is Peace''. The name comes after a frightening encounter, which makes the declaration more striking.','Judges 6:22–24; Hebrew יהוה שלום.'),
+('Judges 6:32','Gideon receives another name, Jerubbaal, after destroying Baal''s altar. Judges itself explains the name with the challenge, ''Let Baal contend''.','Judges 6:25–32; see Judges 7:1 for the other name.'),
+('Judges 6:39','Gideon asks for a second sign with the fleece—but this time he reverses the first request. The fleece should stay dry while dew wets the surrounding ground.','Judges 6:36–40.'),
+('Judges 7:1','Judges opens this chapter with two names for the same man: Jerubbaal and Gideon. The previous chapter explains how he received the name Jerubbaal.','Judges 6:32; 7:1.'),
+('Judges 7:2','Gideon''s army began with 32,000 men and was reduced to only 300. That is fewer than one in every hundred of the original force.','Judges 7:3,6–7; 22,000 departed, 10,000 remained, and 300 were selected.'),
+('Judges 7:3','When the fearful were told they could leave, 22,000 men went home and 10,000 remained. The first reduction alone removed more than two-thirds of Gideon''s force.','Judges 7:3; figures in the text.'),
+('Judges 7:6','The text counts 300 men who lapped water. It does not say they were automatically braver, stronger, or better fighters because of how they drank.','Judges 7:4–7; distinguish narrated selection from later speculation.'),
+('Judges 7:9','Before asking Gideon to go down against the enemy, the Lord first allows him to go with his servant Purah and listen. The story includes reassurance, not just an order.','Judges 7:9–11.'),
+('Judges 7:13','The enemy soldier''s dream was not about a lion or a sword. He dreamed of a loaf of barley bread rolling into camp and overturning a tent.','Judges 7:13–14; a striking detail preserved in the narrative.'),
+('Judges 7:15','Gideon worships immediately after hearing a dream explained inside the enemy camp. Only then does he return to rally the three hundred men.','Judges 7:13–15.'),
+('Judges 7:16','The men are given trumpets, empty jars, and torches for the opening maneuver. These are not the usual weapons you would expect in an army''s first attack.','Judges 7:16–20.'),
+('Judges 7:19','The attack begins at the opening of the middle watch of the night, just after the guards have changed. The narrator pays attention to the exact moment.','Judges 7:19.'),
+('Judges 7:22','The account says the enemy soldiers turned their swords against one another. The victory is not described as three hundred Israelites overpowering thousands in ordinary hand-to-hand combat.','Judges 7:22.')
+on conflict(reference) do update set fact=excluded.fact, source_note=excluded.source_note;
