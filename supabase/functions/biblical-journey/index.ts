@@ -147,6 +147,30 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
   return await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom, tentSides);
 }
 
+// A scheduled inter-tent room is allowed to switch to "playing" with one
+// attendee. Create its actual board on the first read so witnesses and the
+// first participant never stare at a permanent uninitialized shell.
+// The existing database initializer enforces room, roster and question safety.
+async function ensureInterTentBoard(roomId: string, context: Awaited<ReturnType<typeof roomContext>>) {
+  if (context.room.status !== 'playing' || !/\\[intertent\\]/i.test(String(context.room.room_name))) return null;
+  const active = (await participants(roomId)).filter(player => !player.forfeited_at);
+  if (active.length < 1 || active.length > 4) return null;
+  const machine = context.room.play_mode === 'machine';
+  if (machine) return null;
+  const prepared = await initialRuntime(roomId, context.characterSlug,
+    active.map(player => player.user_id), String(context.room.room_name));
+  // The current release has a 45-square board; do not fall back to the
+  // retired 51-square topology when a witness initializes a scheduled match.
+  const stored = await rest('rpc/initialize_arena_journey_game', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_room_id: roomId, p_character_slug: context.characterSlug, p_state: prepared,
+    }),
+  }) as JourneyRuntime;
+  const game = await gameRow(roomId);
+  return { state: publicJourneyRuntime(stored), version: game?.version ?? stored.game.version };
+}
+
 async function pendingViewerChallenge(roomId: string, playerId: string) {
   const rows = await rest(`arena_chat_game_calls?source_room_id=eq.${roomId}&challenged_user_id=eq.${playerId}&response_status=eq.pending&select=id&limit=1`);
   return Boolean(rows?.length);
@@ -176,8 +200,17 @@ Deno.serve(async (request) => {
     if (action === 'GET') {
       if (!['playing', 'completed'].includes(context.room.status)) return json({ error: 'That match is no longer live.' }, 410);
       const versionRow = await gameRow(roomId, 'version');
-      if (!versionRow) return context.room.status === 'playing'
-        ? json({ state: null, needsInitialization: true }) : json({ error: 'That match is no longer live.' }, 410);
+      if (!versionRow) {
+        if (context.room.status !== 'playing') return json({ error: 'That match is no longer live.' }, 410);
+        const initialized = await ensureInterTentBoard(roomId, context);
+        if (initialized) return json(initialized);
+        const joined = (await participants(roomId)).filter(player => !player.forfeited_at).length;
+        return json({
+          state: null, needsInitialization: true,
+          waitingForPlayers: joined === 0,
+          joinedPlayers: joined,
+        });
+      }
       if (body.knownVersion != null && Number(body.knownVersion) === Number(versionRow.version)) {
         return json({ unchanged: true, version: versionRow.version });
       }
@@ -199,7 +232,9 @@ Deno.serve(async (request) => {
       const existing = await gameRow(roomId);
       if (existing) return json({ state: publicJourneyRuntime(existing.state as JourneyRuntime), version: existing.version });
       const machine = context.room.play_mode === 'machine';
-      if (machine ? activePlayers.length !== 1 : activePlayers.length < 2 || activePlayers.length > 4) {
+      const interTent = /\\[intertent\\]/i.test(String(context.room.room_name));
+      if (machine ? activePlayers.length !== 1
+        : activePlayers.length < (interTent ? 1 : 2) || activePlayers.length > 4) {
         return json({ error: 'This Journey room has the wrong number of players.' }, 409);
       }
       const prepared = await initialRuntime(roomId, context.characterSlug,
