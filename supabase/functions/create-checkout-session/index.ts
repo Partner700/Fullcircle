@@ -545,7 +545,7 @@ async function startFcxCheckout(
 
 async function startCartCheckout(
   userId: string, method: unknown, customerPhone: unknown, amount: unknown,
-  relics: unknown, eventId: unknown, ticketQuantity: unknown, attendeeKind?: unknown, attendeeId?: unknown,
+  relics: unknown, eventId: unknown, ticketQuantity: unknown, attendeeKind?: unknown, attendeeId?: unknown, giftRecipientId?: unknown,
 ): Promise<Response> {
   const phone = normalizeCampayPhone(customerPhone);
   if (!useFapshiDirect) {
@@ -580,6 +580,7 @@ async function startCartCheckout(
       p_user_id: userId, p_reference: reference, p_phone: phone, p_method: method,
       p_displayed_amount: amount, p_relics: relics.map(({ slug, quantity, pack_size }) => ({ slug, quantity, pack_size })),
       p_event_id: quantity ? eventId : null, p_ticket_quantity: quantity, p_xaf_per_usd: xafPerUsdForLegacy(),
+      p_gift_recipient_id: giftRecipientId === undefined || giftRecipientId === null ? null : giftRecipientId,
       ...(attendeeSelected ? { p_attendee_kind: attendeeKind, p_attendee_id: attendeeKind === "member" ? attendeeId : null } : {}),
     }),
   });
@@ -613,7 +614,7 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity, attendee_kind, attendee_id,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity, attendee_kind, attendee_id, gift_recipient_id,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
@@ -636,7 +637,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (purchase_kind === "cart") {
-      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity, attendee_kind, attendee_id);
+      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity, attendee_kind, attendee_id, gift_recipient_id);
     }
 
     if (purchase_kind === "fcx_ticket") {
@@ -652,6 +653,23 @@ Deno.serve(async (req: Request) => {
       : await fetchRelicProduct(String(relic_slug));
     const amountXaf = product.amountXaf;
     const amountUsd = product.amountUsd;
+    // Validate the target on the server before creating a charge.
+    // The buyer remains the authenticated payment owner; only the purchased
+    // relic is delivered to the chosen cadet after verification.
+    let giftRecipientId: string | null = null;
+    if (gift_recipient_id !== undefined && gift_recipient_id !== null && gift_recipient_id !== '' && gift_recipient_id !== user_id) {
+      if (purchaseKind !== 'relic' || typeof gift_recipient_id !== 'string' ||
+          !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(gift_recipient_id)) {
+        return Response.json({ error: 'Choose a valid cadet recipient for a relic gift.' }, { status: 400, headers: corsHeaders });
+      }
+      const permission = await fetch(`${supabaseUrl}/rest/v1/rpc/assert_cash_gift_recipient`, {
+        method: 'POST',
+        headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_buyer: user_id, p_recipient: gift_recipient_id }),
+      });
+      if (!permission.ok) return Response.json({ error: 'This cadet is not eligible to receive your gift.' }, { status: 403, headers: corsHeaders });
+      giftRecipientId = gift_recipient_id;
+    }
 
     if (quote_only === true) {
       if (product.purchaseKind !== "subscription") {
@@ -751,7 +769,7 @@ Deno.serve(async (req: Request) => {
         relic_slug: product.slug,
         relic_name: product.name,
         purchase_kind: product.purchaseKind,
-        purchase_metadata: product.metadata,
+        purchase_metadata: giftRecipientId ? { ...product.metadata, gift_recipient_id: giftRecipientId } : product.metadata,
         amount_usd: amountUsd,
         amount_local: amountXaf,
         currency_code: checkoutCurrency,
@@ -837,7 +855,7 @@ Deno.serve(async (req: Request) => {
         relic_slug: product.slug,
         relic_name: product.name,
         purchase_kind: product.purchaseKind,
-        purchase_metadata: product.metadata,
+        purchase_metadata: giftRecipientId ? { ...product.metadata, gift_recipient_id: giftRecipientId } : product.metadata,
         amount_usd: amountUsd,
         amount_local: amountXaf,
         currency_code: checkoutCurrency,
