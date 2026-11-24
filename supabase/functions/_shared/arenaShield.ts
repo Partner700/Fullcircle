@@ -5,15 +5,16 @@ export type ArenaShieldOffer = {
   deadline: string;
   consequence: string;
   ownsShield: boolean;
+  attackerId?: string;
 };
 
 export function createArenaShieldOffer(playerId: string, consequence: string, ownsShield: boolean): ArenaShieldOffer {
   return { playerId, consequence, ownsShield, deadline: new Date(Date.now() + 10_000).toISOString() };
 }
 
-export function validateArenaShieldDecision(offer: ArenaShieldOffer, actorId: string, decision: 'use' | 'expire') {
+export function validateArenaShieldDecision(offer: ArenaShieldOffer, actorId: string, decision: 'use' | 'expire' | 'reflect') {
   const expired = Date.now() >= Date.parse(offer.deadline);
-  if (decision === 'use' && (expired || offer.playerId !== actorId)) {
+  if ((decision === 'use' || decision === 'reflect') && (expired || offer.playerId !== actorId || (decision === 'reflect' && !offer.attackerId))) {
     throw new Error('Only the affected player may use the Shield of Faith before time runs out.');
   }
   if (decision === 'expire' && !expired) throw new Error('The Shield of Faith window has not expired.');
