@@ -112,6 +112,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [giftRecipientId, setGiftRecipientId] = useState('self');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
   const [fcxExperience, setFcxExperience] = useState<FcxExperience | null>(null);
   const [fcxLoadError, setFcxLoadError] = useState(false);
@@ -207,6 +208,13 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   }, [profile]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshMutableStoreState().catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, [refreshMutableStoreState]);
 
   useEffect(() => {
     if (!profile) {
@@ -236,6 +244,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const buyWithDenarii = async (slug: string) => {
     if (!profile) return;
     setPurchasing(slug);
+    setPurchaseError(null);
     try {
       if (giftRecipientId !== 'self') {
         await purchaseRelicForCadet(profile.id, giftRecipientId, slug);
@@ -243,8 +252,12 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         await purchaseRelic(profile.id, slug, 'denarii');
       }
       await refreshPurchaseState();
-    } catch (e: any) { alert(e.message || 'Failed to purchase'); }
-    setPurchasing(null);
+    } catch (e: any) {
+      setPurchaseError(e?.message || 'The purchase was not completed. Refresh your balance and try again.');
+      await refreshMutableStoreState().catch(() => undefined);
+    } finally {
+      setPurchasing(null);
+    }
   };
 
   const activateOwnedRelic = async (slug: string) => {
@@ -591,6 +604,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl mx-auto">
       <SectionHeader title="The Market" subtitle="Buy freezers and biblical relics to protect your streak and aid your games" />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface/60 px-3 py-2 text-sm">
+        <span className="text-ink">Available Denarii: <strong className="tabular-nums text-gold">{formatDenarii(denarii)} Ð</strong></span>
+        <button type="button" className="btn-secondary text-xs" onClick={() => void refreshMutableStoreState().catch(error => setPurchaseError(error instanceof Error ? error.message : 'Balance refresh failed.'))}>Refresh balance</button>
+      </div>
+      {purchaseError && <p role="alert" className="rounded-lg border border-coral/30 bg-coral/10 px-3 py-2 text-xs text-coral">{purchaseError}</p>}
 
       {createPortal(
         <>
