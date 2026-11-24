@@ -2878,8 +2878,10 @@ export function startMarketCartCheckout(
   userId: string, amount: number, method: 'mtn_momo' | 'orange_money', phone: string,
   relics: { slug: string; quantity: number; pack_size?: number }[], eventId?: string, ticketQuantity = 0,
   attendee?: { kind: 'self' | 'member' | 'guest'; id?: string },
+  giftRecipientId?: string,
 ) {
   return requestCampayCheckout({
+    gift_recipient_id: giftRecipientId,
     purchase_kind: 'cart',
     user_id: userId,
     displayed_amount_xaf: amount,
@@ -2926,8 +2928,10 @@ export async function startCampayCheckout(
   otherProvider?: string,
   paymentNote?: string,
   displayedAmountXaf?: number,
+  giftRecipientId?: string,
 ): Promise<CampayPaymentResult> {
   return requestCampayCheckout({
+    gift_recipient_id: giftRecipientId,
     purchase_kind: 'relic',
     relic_slug: relicSlug,
     user_id: userId,
