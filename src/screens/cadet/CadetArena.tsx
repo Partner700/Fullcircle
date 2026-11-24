@@ -539,6 +539,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         const active = await heartbeatArenaViewer(activeRoomId);
         if (!active && !cancelled) {
           const freshRoom = await refreshRoom(activeRoomId);
+          if (freshRoom?.arena_participants?.some((player: any) => player.user_id === profile.id && !player.forfeited_at)) {
+            activateRoom(activeRoomId, freshRoom.status === 'waiting' ? 'waiting' : 'playing');
+            return;
+          }
           if (freshRoom?.status === 'completed') {
             if (!freshRoom.restarted_as_room_id) setPhase('finished');
             setError(null);
@@ -577,7 +581,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile, refreshRoom]);
+  }, [activeRoomId, activateRoom, clearActiveRoom, isSpectating, phase, profile, refreshRoom]);
 
   useEffect(() => {
     if (!activeRoomId || !isSpectating) return;
@@ -850,6 +854,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     }
     if (isSpectating && !activeRoom) {
       return <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3"><Loader2 size={24} className="animate-spin text-brass" /><p className="text-sm text-stone">Opening the live Arena...</p></div>;
+    }
+    if (isSpectating && activeRoom?.scheduled_player_ids?.includes(profile?.id)) {
+      return <div className="card mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
+        <p className="text-sm font-semibold text-ink">You are selected to play this match, not witness it.</p>
+        <button className="btn-primary" type="button" onClick={() => void joinRoom(activeRoomId)}>
+          <Play size={16} /> Enter Game
+        </button>
+        {error && <p role="alert" className="text-xs text-coral">{error}</p>}
+      </div>;
     }
     if (parseArenaGameType(activeRoomName) === 'journey') {
       return <div className="space-y-4">
