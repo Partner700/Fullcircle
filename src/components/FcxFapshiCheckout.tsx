@@ -36,7 +36,7 @@ export function FcxFapshiCheckout({ experience, className, children, onConfirmed
     quantityLimit={available} attendeeEventId={experience.id} onOpenChange={onOpenChange}>{children}</MarketCartCheckout>;
 }
 
-export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity, onPendingChange, aboveOverlay, onOpenChange, attendeeEventId }: {
+export function MarketCartCheckout({ lines, className, children, onConfirmed, quantityLimit, onQuantity, onPendingChange, aboveOverlay, onOpenChange, attendeeEventId, giftRecipientId }: {
   lines: MarketCartLine[];
   className: string;
   children: ReactNode;
@@ -44,6 +44,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
   onPendingChange?: (pending: boolean) => void;
   aboveOverlay?: boolean;
   attendeeEventId?: string;
+  giftRecipientId?: string | null;
   onOpenChange?: (open: boolean) => void;
   quantityLimit?: number;
   onQuantity?: (quantity: number) => void;
@@ -242,7 +243,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
       const result = provider === 'fapshi' && ticket?.eventId
         ? await startFcxFapshiCheckout(ticket.eventId, userId, orderAmount, 'fapshi_hosted')
         : await startMarketCartCheckout(userId, orderAmount, method, phone, relics, ticket?.eventId, ticket?.quantity,
-          attendeeKind ? { kind: attendeeKind, id: attendeeId || undefined } : undefined);
+          attendeeKind ? { kind: attendeeKind, id: attendeeId || undefined } : undefined, giftRecipientId || undefined);
       purchasedLines.current = order;
       setConfirmed(false);
       pendingAttempts.current.set(result.reference, { payment: result, lines: order });
@@ -303,6 +304,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
               {!withinCapacity && !payment && !confirmed && <p className="text-xs text-stone">
                 {quantityLimit ? `Only ${quantityLimit} FCX spots are available.` : 'No FCX spots are available.'}
               </p>}
+              {giftRecipientId && !displayedLines.some(line => line.eventId) && <p className="text-xs font-semibold text-sage">This purchase will be delivered as a gift to the selected cadet after payment is confirmed.</p>}
               <p className="text-sm font-semibold text-gold">Total {displayedAmount.toLocaleString('en-US')} FCFA</p>
             </div>
             {guestPaymentId ? (
