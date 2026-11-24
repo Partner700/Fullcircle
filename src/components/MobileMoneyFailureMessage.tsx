@@ -4,31 +4,25 @@ export function MobileMoneyFailureMessage({ reason, approvalStartedAt }: {
   reason?: string | null;
   approvalStartedAt?: string;
 }) {
-  const insufficientFunds = /\binsufficient (?:funds|balance)\b|\bnot enough (?:funds|balance)\b/i.test(reason ?? '');
-  const approvalAge = Date.now() - Date.parse(approvalStartedAt ?? '');
-  if (reason === 'Payment approval expired.') {
-    return 'Your USSD prompt expired before you approved the payment. Try again and enter your PIN on the new prompt as soon as it appears.';
+  const message = reason?.trim() ?? '';
+  const insufficientFunds = /\binsufficient (?:funds|balance)\b|\bnot enough (?:funds|balance)\b/i.test(message);
+  const startedAt = approvalStartedAt ? Date.parse(approvalStartedAt) : NaN;
+  const approvalAge = Number.isFinite(startedAt) ? Date.now() - startedAt : NaN;
+
+  if (message === 'Payment approval expired.') {
+    return 'The USSD request expired before approval. Check your phone for the next prompt and enter your PIN promptly.';
   }
-  if (reason === 'The checkout link expired.') {
+  if (message === 'The checkout link expired.') {
     return 'The checkout link expired. Start a new payment to get a fresh link.';
   }
-  if (reason?.startsWith('Fapshi did not create a payment request.')) {
-    return 'No payment approval request was sent. Try starting the payment again.';
+  if (message.startsWith('Fapshi did not create a payment request.')) {
+    return 'The provider did not send a payment request. No payment was confirmed. Check the number and request a new prompt.';
   }
-
-  if (insufficientFunds || approvalAge < MOBILE_MONEY_APPROVAL_MS) {
-    return (
-      <>
-        {insufficientFunds ? 'Your mobile money balance is too low for this purchase.' : 'The payment didn’t go through.'}{' '}
-        <strong className="rounded bg-gold-soft px-0.5 font-bold text-ink">
-          Check that your MTN MoMo or Orange Money balance covers the amount,
-        </strong>
-        {' '}then try again.
-      </>
-    );
+  if (insufficientFunds) {
+    return 'The mobile money provider reported insufficient funds for this transaction. Full Circle cannot inspect your wallet balance. Check the total and the selected mobile money number, then try a fresh payment prompt or another number.';
   }
-  if (approvalAge >= MOBILE_MONEY_APPROVAL_MS) {
-    return `The payment was unsuccessful. If the USSD prompt closed before you entered your PIN, try again and approve the new prompt within ${MOBILE_MONEY_APPROVAL_SECONDS} seconds.`;
+  if (Number.isFinite(approvalAge) && approvalAge >= MOBILE_MONEY_APPROVAL_MS) {
+    return `The payment was not confirmed. This does not mean your balance is low. If the USSD prompt closed, request a fresh prompt and approve it within ${MOBILE_MONEY_APPROVAL_SECONDS} seconds.`;
   }
-  return 'The payment was unsuccessful. Try again and approve the new prompt as soon as it appears.';
+  return 'The payment was not completed. Your wallet balance has not been verified. Check the selected number and network, then request a fresh mobile money prompt. You will only receive your purchase after the provider confirms payment.';
 }
