@@ -146,24 +146,31 @@ export default function App() {
   useEffect(() => {
     if (!session || profile || loading) return;
     let active = true;
+    let inFlight = false;
 
     const recover = async () => {
-      if (!active) return;
+      // During an outage, retries must never stack or run in background tabs.
+      if (!active || inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
       setProfileRecoveryBusy(true);
       try {
         await refreshProfile();
       } catch (error) {
         console.warn('Account profile recovery is still pending:', error);
       } finally {
+        inFlight = false;
         if (active) setProfileRecoveryBusy(false);
       }
     };
 
     void recover();
-    const interval = window.setInterval(() => { void recover(); }, 6_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void recover(); };
+    const interval = window.setInterval(() => { void recover(); }, 30_000);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       active = false;
       window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [loading, profile, refreshProfile, session]);
 
