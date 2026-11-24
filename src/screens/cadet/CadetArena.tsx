@@ -442,7 +442,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       refreshInFlight = true;
       try { await refreshRooms(); } finally { refreshInFlight = false; }
     };
-    const interval = window.setInterval(() => { void refreshLobby(); }, hasLiveRooms ? 30_000 : 60_000);
+    const interval = window.setInterval(() => { void refreshLobby(); }, hasLiveRooms ? 55_000 : 90_000);
     const onVisible = () => { void refreshLobby(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -678,7 +678,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       }
     };
     void refreshActiveRoom();
-    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshActiveRoom(); }, isSpectating ? 12_000 : 5_000);
+    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshActiveRoom(); }, isSpectating ? 22_000 : 10_000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
