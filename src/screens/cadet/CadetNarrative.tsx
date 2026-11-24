@@ -1249,9 +1249,12 @@ export function CadetNarrative({
                         <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
                       </div>
                     )}
-                    <InstructorVerseExtras context={instructorExtras.contexts[bibleReference || verse.reference]}
-                      quest={instructorExtras.quests[bibleReference || verse.reference]}
-                      onClaimed={instructorExtras.refresh} />
+                    {(instructorExtras.contexts[bibleReference || verse.reference]
+                      || instructorExtras.quests[bibleReference || verse.reference]) && (
+                      <InstructorVerseExtras context={instructorExtras.contexts[bibleReference || verse.reference]}
+                        quest={instructorExtras.quests[bibleReference || verse.reference]}
+                        onClaimed={instructorExtras.refresh} />
+                    )}
                     <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="mr-auto text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
