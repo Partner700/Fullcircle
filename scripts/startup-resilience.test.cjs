@@ -180,11 +180,11 @@ async function run() {
   }
   {
     const cache = memoryCaches();
-    await (await cache.open('full-circle-target-v243-shell')).put(scope + 'index.html', appResponse('current release in older cache'));
+    await (await cache.open(`full-circle-target-v${Number(currentRelease) - 1}-shell`)).put(scope + 'index.html', appResponse('previous safe release in cache', String(Number(currentRelease) - 1)));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
-    assert.match(await (await w.networkFirstNavigation(request(), w.event)).text(), /current release in older cache/);
+    assert.match(await (await w.networkFirstNavigation(request(), w.event)).text(), /previous safe release in cache/);
   }
   {
     const cache = memoryCaches();
