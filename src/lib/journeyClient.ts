@@ -7,6 +7,8 @@ export type JourneyServerResponse = {
   version?: number;
   unchanged?: boolean;
   needsInitialization?: boolean;
+  waitingForPlayers?: boolean;
+  joinedPlayers?: number;
   duplicate?: boolean;
   characters?: JourneyCharacter[];
 };
