@@ -184,7 +184,9 @@ async function run() {
     const w = worker(async () => { throw new Error('offline'); }, cache);
     w.handlers.activate(w.event);
     await Promise.all(w.event.jobs);
-    assert.match(await (await w.networkFirstNavigation(request(), w.event)).text(), /previous safe release in cache/);
+    const fallback = await w.networkFirstNavigation(request(), w.event);
+    assert.equal(fallback.status, 503, 'An older cached shell must not be used with the current service worker.');
+    assert.match(await fallback.text(), /Full Circle is reconnecting/, 'Offline recovery must remain available without mixing release assets.');
   }
   {
     const cache = memoryCaches();
