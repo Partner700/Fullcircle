@@ -7,6 +7,7 @@ import { MeditationExtension } from '../../components/MeditationExtension';
 import { readableFetch } from "../../lib/connectionErrors";
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
@@ -452,6 +453,7 @@ export function CadetNarrative({
   }, [readerVerses, narrative]);
 
   const verseMark = useScriptureVerseMarks(profile?.id, bibleVerseReferences);
+  const instructorExtras = useInstructorVerseExtras(bibleVerseReferences);
 
   const reloadVerseInsights = useCallback(async () => {
     if (!hasPremiumAccess || !conversationNarrativeIds.length) {
@@ -1247,6 +1249,9 @@ export function CadetNarrative({
                         <p className="mt-1 text-sm leading-relaxed text-ink whitespace-pre-wrap">{verse.meditation}</p>
                       </div>
                     )}
+                    <InstructorVerseExtras context={instructorExtras.contexts[bibleReference || verse.reference]}
+                      quest={instructorExtras.quests[bibleReference || verse.reference]}
+                      onClaimed={instructorExtras.refresh} />
                     <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="mr-auto text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
