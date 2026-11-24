@@ -167,6 +167,21 @@ assert.equal(laps.status, 'playing');
 laps.players[0].location = { route: 'main', space: 51 };
 const finished = resolveJourneyRoll(laps, 'alpha', 6);
 assert.equal(finished.winnerId, 'alpha');
+// Course completion ends a game, but the highest accumulated points determine
+// the winner. In particular, an automated opponent must not defeat a
+// higher-scoring human just because the machine reaches its final lap.
+const scoreLeader = located({ route: 'main', space: 51 }, ['alpha', 'beta']);
+scoreLeader.players[0].completedLaps = 2;
+scoreLeader.players[0].score = 7;
+scoreLeader.players[1].score = 24;
+const scoreLeaderFinish = resolveJourneyRoll(scoreLeader, 'alpha', 1, plain());
+assert.equal(scoreLeaderFinish.status, 'finished');
+assert.equal(scoreLeaderFinish.winnerId, 'beta', 'The player with 24 points must win over the finisher with 8.');
+const tiedFinish = located({ route: 'main', space: 51 }, ['alpha', 'beta']);
+tiedFinish.players[0].completedLaps = 2;
+tiedFinish.players[0].score = 7;
+tiedFinish.players[1].score = 8;
+assert.equal(resolveJourneyRoll(tiedFinish, 'alpha', 1, plain()).winnerId, 'alpha', 'Finishing a lap breaks a points tie.');
 assert.equal(finished.players[0].status, 'FINISHED');
 assert.equal(finished.players[0].completedLaps, 3);
 assert.deepEqual(space(finished), { route: 'main', space: 1 });
