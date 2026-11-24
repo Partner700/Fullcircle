@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { DAVID_GROUPS, davidFixturePlan, interTentMatchLabel, interTentLegLabel, interTentCountdown, currentInterTentFixture, type InterTentChampionship, type InterTentFixture } from '../src/lib/interTentChampionship.ts';
-import { createJourneyGame, journeySameSide, resolveJourneyRoll, LEGACY_JOURNEY_CONFIG } from '../supabase/functions/_shared/biblicalJourney.ts';
+import { createJourneyGame, journeySameSide, resolveJourneyRoll, resolveJourneyMiss, LEGACY_JOURNEY_CONFIG } from '../supabase/functions/_shared/biblicalJourney.ts';
 
 const plan = davidFixturePlan();
 assert.equal(plan.length, 16);
@@ -44,4 +44,23 @@ const swapped=resolveJourneyRoll(teamGame,'a',1,LEGACY_JOURNEY_CONFIG);
 assert.deepEqual(swapped.players[0].location,{route:'main',space:35});
 assert.deepEqual(swapped.players[1].location,{route:'main',space:40});
 assert.deepEqual(swapped.players[2].location,{route:'main',space:26});
+// One player starts immediately and keeps the turn until another selected player joins.
+const solo = createJourneyGame(['first'], { first: 'laurels' });
+assert.equal(solo.players.length, 1);
+const soloAfterMiss = resolveJourneyMiss(solo, 'first');
+assert.equal(soloAfterMiss.players[soloAfterMiss.turnIndex].id, 'first');
+assert.equal(soloAfterMiss.status, 'playing');
+// The database appends late entrants to the end of the Journey players array.
+const joinedSecond = structuredClone(soloAfterMiss);
+joinedSecond.players.push({ ...structuredClone(solo.players[0]), id: 'second' });
+joinedSecond.tentSides = { ...joinedSecond.tentSides, second: 'spades' };
+const secondTurn = resolveJourneyMiss(joinedSecond, 'first');
+assert.equal(secondTurn.players[secondTurn.turnIndex].id, 'second');
+const joinedThird = structuredClone(secondTurn);
+joinedThird.players.push({ ...structuredClone(solo.players[0]), id: 'third' });
+joinedThird.tentSides = { ...joinedThird.tentSides, third: 'squares' };
+assert.equal(resolveJourneyMiss(joinedThird, 'second').players[2].id, 'third');
+assert.equal(resolveJourneyMiss(joinedThird, 'second').players[resolveJourneyMiss(joinedThird, 'second').turnIndex].id, 'third');
+assert.equal(resolveJourneyMiss(resolveJourneyMiss(joinedThird,'second'),'third').players[0].id, 'first');
+
 console.log('Inter-tent fixtures and Journey side checks passed.');
