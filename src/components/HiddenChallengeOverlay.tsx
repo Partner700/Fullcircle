@@ -1,4 +1,4 @@
-import { ContextRelicShop } from './ContextRelicShop';
+import { RotateCcw, ContextRelicShop } from './ContextRelicShop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -573,7 +573,8 @@ export function HiddenChallengeOverlay() {
                 <div className="rounded-md border border-border bg-surface-2 p-2.5">
                   <div className="flex flex-wrap gap-1.5">
                     {relics.filter(relic=>!['hint','eliminate','talking-donkey','simons-coin'].includes(relic.slug||'')).map((relic) => {
-                      const Icon = relic.slug === 'shield-of-faith' ? Shield
+                      const Icon = relic.slug === 'boomerang' ? RotateCcw
+                        : relic.slug === 'shield-of-faith' ? Shield
                         : relic.slug === 'hint' ? Lightbulb
                           : relic.slug === 'eliminate' ? ListFilter
                             : relic.slug === 'skip' ? SkipForward
