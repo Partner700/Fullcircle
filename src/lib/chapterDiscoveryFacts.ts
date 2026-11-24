@@ -171,3 +171,24 @@ export function chapterDiscoveryFacts(
   }
   return selected.slice(0, needed).map(({ score: _score, anchor: _anchor, ...item }) => item);
 }
+
+/** Daily Reading can span several chapters; give each represented chapter coverage. */
+export function passageDiscoveryFacts(
+  verses: Array<{ reference: string; text: string }>,
+  researched: Record<string, ScriptureDidYouKnow> = {},
+): ScriptureDidYouKnow[] {
+  const grouped = new Map<string, { book: string; chapter: number; verses: ChapterDiscoveryVerse[] }>();
+  for (const verse of verses) {
+    const match = verse.reference.match(/^(.+?) (\\d+):(\\d+)$/);
+    if (!match || !removeMarkup(verse.text)) continue;
+    const book = match[1];
+    const chapter = Number(match[2]);
+    const verseNumber = Number(match[3]);
+    const groupKey = `${book} ${chapter}`;
+    const group = grouped.get(groupKey) ?? { book, chapter, verses: [] };
+    group.verses.push({ number: verseNumber, text: verse.text });
+    grouped.set(groupKey, group);
+  }
+  return [...grouped.values()].flatMap(group =>
+    chapterDiscoveryFacts(group.book, group.chapter, group.verses, researched));
+}
