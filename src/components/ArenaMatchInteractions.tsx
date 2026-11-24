@@ -13,12 +13,12 @@ type HeartProps = {
   spectator?: boolean;
   players?: ReactionPlayer[];
 };
-type FlyingHeart = { id: number; size: number; drift: number; delay: number; left: number };
+type FlyingHeart = { id: number; size: number; drift: number; delay: number };
 
 export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false, players = [] }: HeartProps) {
   const canSend = spectator && (!userId || !players.some(player => player.user_id === userId));
   const [hearts, setHearts] = useState<FlyingHeart[]>([]);
-  const [glowing, setGlowing] = useState<string | null>(null);
+  const [glowing, setGlowing] = useState(false);
   const [error, setError] = useState('');
   const counter = useRef(0);
   const lastSent = useRef(0);
@@ -29,7 +29,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
 
   useEffect(() => {
     setHearts([]);
-    setGlowing(null);
+    setGlowing(false);
     seenHeartIds.current.clear();
     return () => {
       timers.current.forEach(id => window.clearTimeout(id));
@@ -38,25 +38,20 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
     };
   }, [roomId]);
 
-  const burst = (targetId = '') => {
-    const index = players.findIndex(p => p.user_id === targetId);
-    const origin = index < 0 ? 22 : 78 + (index * 44);
+  const burst = () => {
     const ids: FlyingHeart[] = Array.from({ length: 3 + Math.floor(Math.random() * 2) }, (_, i) => ({
-      id: ++counter.current,
-      size: [13, 22, 17, 27][i],
-      drift: [-19, 14, -8, 24][i],
-      delay: i * 65,
-      left: origin,
+      id: ++counter.current, size: [13, 22, 17, 27][i],
+      drift: [-23, 16, -10, 28][i], delay: i * 65,
     }));
-    setHearts(previous => [...previous.slice(-32), ...ids]);
+    setHearts(previous => [...previous.slice(-24), ...ids]);
     const timeout = window.setTimeout(() => {
       setHearts(previous => previous.filter(heart => !ids.some(item => item.id === heart.id)));
     }, 1600);
     timers.current.push(timeout);
     if (canSend) {
-      setGlowing(targetId || 'heart');
+      setGlowing(true);
       if (glowTimer.current !== null) window.clearTimeout(glowTimer.current);
-      glowTimer.current = window.setTimeout(() => setGlowing(null), 1050);
+      glowTimer.current = window.setTimeout(() => setGlowing(false), 1050);
     }
   };
 
@@ -75,9 +70,6 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
     return () => { void supabase.removeChannel(channel); };
   }, [roomId, userId]);
 
-  // Guest and registered witness reactions share the public chat history,
-  // but only registered room messages are reliably delivered by the existing
-  // Postgres-change channel. This bounded fallback includes guest reactions.
   useEffect(() => {
     let active = true;
     let initialized = false;
@@ -98,7 +90,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
           burst();
         }
         initialized = true;
-      } catch { /* Realtime remains the primary path. */ }
+      } catch { /* Realtime is the primary path. */ }
       finally { inFlight = false; }
     };
     void sync();
@@ -106,14 +98,13 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
     return () => { active = false; window.clearInterval(timer); };
   }, [roomId, userId]);
 
-  const sendHeart = async (targetId = '') => {
-    // Only witnesses may send: participants see the floating hearts, not controls.
+  const sendHeart = async () => {
     if (!canSend || pending.current || Date.now() - lastSent.current < (guestKey ? 8200 : 850)) return;
     if (!guestKey && !userId) return;
     pending.current = true;
     lastSent.current = Date.now();
     setError('');
-    burst(targetId);
+    burst();
     try {
       if (guestKey) await postPublicArenaComment(roomId, guestKey, HEART_MESSAGE);
       else await sendArenaRoomMessage(roomId, userId, HEART_MESSAGE);
@@ -136,28 +127,24 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
         .fc-yellow-heart-float { animation-duration: .25s; }
       }
     `}</style>
-    {canSend && <div className="fixed left-3 z-[2147483011] flex max-w-[min(92vw,390px)] items-end gap-2 rounded-xl border border-white/15 bg-[#0b1730]/90 p-2 shadow-2xl"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }} aria-label="Witness reactions">
-      <button type="button" onClick={() => void sendHeart()} aria-label="Send yellow hearts to the match"
-        title="Cheer for the match" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 transition-all active:scale-90 ${glowing === 'heart' ? 'border-yellow-300 bg-yellow-300/20 text-yellow-300 shadow-[0_0_22px_6px_rgba(250,204,21,.8)]' : 'border-white/70 bg-white/10 text-white'}`}>
-        <Heart size={25} fill="currentColor" aria-hidden="true"/>
-      </button>
-      <div className="flex min-w-0 gap-2 overflow-x-auto" aria-label="Cheer for a specific player">
-        {players.filter(p => p.user_id !== '00000000-0000-0000-0000-000000000000' && p.user_id !== 'arena-machine').map(player => (
-          <button type="button" key={player.user_id} onClick={() => void sendHeart(player.user_id)} title={`Cheer for ${player.display_name}`}
-            aria-label={`Send hearts for ${player.display_name}`}
-            className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-full border-2 bg-[#142849] text-white transition-all active:scale-90 ${glowing === player.user_id ? 'border-yellow-300 shadow-[0_0_22px_5px_rgba(250,204,21,.75)]' : 'border-white/50'}`}>
-            {player.avatar_url ? <img src={player.avatar_url} alt="" className="h-full w-full object-cover"/> : <span className="flex h-full w-full items-center justify-center text-sm font-black">{player.display_name.slice(0,1).toUpperCase()}</span>}
-          </button>
-        ))}
+    <div className="relative mt-5 flex min-h-[58px] w-full items-center justify-center border-t border-border/50 pt-3 pb-1"
+      aria-label="Arena heart reactions">
+      {canSend && <button type="button" onClick={() => void sendHeart()}
+        title="Cheer for the match" aria-label="Send yellow hearts"
+        className={`relative z-10 flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all active:scale-90 ${glowing
+          ? 'border-yellow-300 bg-yellow-300/20 text-yellow-300 shadow-[0_0_22px_6px_rgba(250,204,21,.8)]'
+          : 'border-white/70 bg-[#142849] text-white'}`}>
+        <Heart size={25} fill="currentColor" aria-hidden="true" />
+      </button>}
+      <div aria-hidden="true" className="pointer-events-none absolute bottom-10 left-1/2 z-20 h-36 w-0 overflow-visible">
+        {hearts.map(heart => <Heart key={heart.id} fill="#facc15" stroke="#fde047"
+          className="fc-yellow-heart-float absolute bottom-0"
+          style={{
+            left: -heart.size / 2, width: heart.size, height: heart.size,
+            '--fc-drift': `${heart.drift}px`, animationDelay: `${heart.delay}ms`,
+          } as React.CSSProperties}/>)}
       </div>
-      {error && <span role="alert" className="absolute bottom-full left-0 mb-2 rounded-md bg-[#401b1b] p-2 text-xs text-white">{error}</span>}
-    </div>}
-    <div aria-hidden="true" className="pointer-events-none fixed bottom-16 left-3 z-[2147483012] h-52 w-[min(92vw,390px)] overflow-visible">
-      {hearts.map(heart => <Heart key={heart.id} fill="#facc15" stroke="#fde047" className="fc-yellow-heart-float absolute bottom-0"
-        style={{ left: heart.left, width: heart.size, height: heart.size,
-          '--fc-drift': `${heart.drift}px`, animationDelay: `${heart.delay}ms`,
-        } as React.CSSProperties}/>)}
+      {error && <span role="alert" className="absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-md bg-[#401b1b] p-2 text-xs text-white">{error}</span>}
     </div>
   </>);
 }
