@@ -20,15 +20,18 @@ export type QuarterlyVerseQuest = {
   reference: string;
   question: string;
   choices: string[];
-  prize_label: string;
+  prize_label?: string;
   attempted: boolean;
 };
+
+export type ScriptureDidYouKnow = { reference: string; fact: string; source_note: string };
 
 export function useInstructorVerseExtras(references: string[]) {
   // This stable scalar prevents querying again on every verse render.
   const key = references.filter(Boolean).join('|');
   const [version, setVersion] = useState(0);
   const [contexts, setContexts] = useState<Record<string, InstructorVerseContext>>({});
+  const [facts, setFacts] = useState<Record<string, ScriptureDidYouKnow>>({});
   const [quests, setQuests] = useState<Record<string, QuarterlyVerseQuest>>({});
   const [error, setError] = useState('');
   const refresh = useCallback(() => setVersion(value => value + 1), []);
@@ -37,16 +40,18 @@ export function useInstructorVerseExtras(references: string[]) {
   useEffect(() => {
     let active = true;
     setContexts({});
+    setFacts({});
     setQuests({});
     setError('');
     if (!verseRefs.length) return () => { active = false; };
     void (async () => {
-      const [contextResult, questResult] = await Promise.allSettled([
+      const [contextResult, questResult, factsResult] = await Promise.allSettled([
         supabase.from('instructor_verse_contexts')
           .select('reference,historical_context,lexical_note,evidence_note,source_titles,spiritual_context,present_day_context,research_note,source_links')
           .eq('edition', 2)
           .in('reference', verseRefs.slice(0, 180)),
         supabase.rpc('get_quarterly_verse_quests', { p_references: verseRefs.slice(0, 180) }),
+        supabase.from('scripture_did_you_know').select('reference,fact,source_note').in('reference', verseRefs.slice(0, 180)),
       ]);
       if (!active) return;
       if (contextResult.status === 'fulfilled' && !contextResult.value.error) {
@@ -55,6 +60,9 @@ export function useInstructorVerseExtras(references: string[]) {
       } else {
         setError('Instructor insights are temporarily unavailable.');
       }
+      if (factsResult.status === 'fulfilled' && !factsResult.value.error) {
+        setFacts(Object.fromEntries(((factsResult.value.data || []) as ScriptureDidYouKnow[]).map(item => [item.reference, item])));
+      }
       if (questResult.status === 'fulfilled' && !questResult.value.error) {
         setQuests(Object.fromEntries(((questResult.value.data || []) as QuarterlyVerseQuest[])
           .map(item => [item.reference, item])));
@@ -62,11 +70,12 @@ export function useInstructorVerseExtras(references: string[]) {
     })();
     return () => { active = false; };
   }, [verseRefs, version]);
-  return { contexts, quests, refresh, error };
+  return { contexts, facts, quests, refresh, error };
 }
 
-export function InstructorVerseExtras({ context, quest, onClaimed }: {
+export function InstructorVerseExtras({ context, fact, quest, onClaimed }: {
   context?: InstructorVerseContext;
+  fact?: ScriptureDidYouKnow;
   quest?: QuarterlyVerseQuest;
   onClaimed?: () => void;
 }) {
@@ -99,7 +108,7 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
     }
   };
 
-  if (!context && !quest) return null;
+  if (!context && !fact && !quest) return null;
   return <>
     <div className="my-3 space-y-2 rounded-xl border border-amber-400/40 bg-surface/95 p-3">
       {context && <details className="group/insights rounded-lg border border-amber-400/40 bg-surface-2">
@@ -157,9 +166,18 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
         ))}
         </div>
       </details>}
+      {fact && <details className="rounded-lg border border-sky-500/40 bg-surface-2">
+        <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-bold text-ink">
+          <Lightbulb size={16} className="text-brass" /> Did You Know? <ChevronDown size={15} className="ml-auto" />
+        </summary>
+        <div className="border-t border-border px-3 py-3">
+          <p className="text-sm leading-relaxed text-ink">{fact.fact}</p>
+          <p className="mt-2 text-xs text-stone">{fact.source_note}</p>
+        </div>
+      </details>}
       {quest && <section className="rounded-lg border-2 border-yellow-500 bg-amber-100 p-3 text-slate-950">
         <div className="flex items-center gap-2 text-sm font-black"><Gift size={18} /> Hidden Scripture Discovery</div>
-        <p className="mt-1 text-xs font-semibold">First correct answer wins: {quest.prize_label}.</p>
+        <p className="mt-1 text-xs font-semibold">One attempt. The reward remains a mystery until the first correct answer.</p>
         {!showQuestion && !quest.attempted && <button type="button" className="mt-3 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-yellow-200"
           onClick={() => setShowQuestion(true)}>Open the discovery</button>}
         {quest.attempted && <p className="mt-2 text-xs">You already used your attempt for this discovery.</p>}
