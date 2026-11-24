@@ -9,6 +9,7 @@ import { requestHiddenChallengeComposer } from '../lib/hiddenChallenges';
 import { requestAppNavigation } from '../lib/appNavigation';
 import type { HiddenChallengeCreatorStatus } from '../lib/types';
 import { cn, formatDenarii } from '../lib/utils';
+import { useDraggableShortcut } from '../hooks/useDraggableShortcut';
 
 const PLACEMENT_LABELS: Record<HiddenChallengeCreatorStatus['placement'], string> = {
   direct_message: 'Direct message',
@@ -104,6 +105,7 @@ export function HiddenChallengeStatus() {
   };
 
   const openStatus = () => { setOpen(true); void load(true); };
+  const floatingShortcut = useDraggableShortcut(`full-circle-hidden-items-position:${profile?.id || ''}`, openStatus);
 
   useEffect(() => {
     if (gameRelicsActive || marketOpen) setOpen(false);
@@ -115,9 +117,9 @@ export function HiddenChallengeStatus() {
     <>
       <button
         type="button"
-        onClick={openStatus}
-        className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl active:scale-95 md:bottom-6 md:right-6"
-        title="Open Treasures and Mines"
+        {...floatingShortcut}
+        className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 cursor-grab select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl active:cursor-grabbing md:bottom-6 md:right-6"
+        title="Open Treasures and Mines (drag to move)"
         aria-label="Open hidden item status"
       >
         <PackageSearch size={20} />
