@@ -54,6 +54,13 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
   }, [userId, retry, floating]);
   const use = async (slug: ArenaRelicSlug) => {
     if (busy.current || disabled) return false;
+    // An already-paid Reveal Reference can be opened repeatedly without
+    // invoking the purchase/consume RPC or decrementing relic inventory.
+    if (slug === 'reveal-reference' && aid?.used.includes('reveal-reference') && aid.scriptureReference) {
+      setError(null);
+      setShowReference(true);
+      return true;
+    }
     busy.current = true;
     setUsing(slug);
     try {
@@ -67,7 +74,13 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
       return false;
     } finally { busy.current = false; setUsing(null); }
   };
+  const canReopenReference = aid?.used.includes('reveal-reference') && Boolean(aid?.scriptureReference);
+  const reopenReference = canReopenReference && <button type="button"
+    className="btn-secondary text-xs" disabled={disabled} onClick={() => { setError(null); setShowReference(true); }}>
+    <BookOpen size={14} /> View revealed reference again
+  </button>;
   if (boardRelics) return <>
+    {reopenReference}
     <ContextRelicShop userId={userId} timed={timed} label={boardRelics.some(item => item.slug === "undo" && item.usable) ? "Relics · Undo available" : "Relics"} floating showAllPaymentOptions
       slugs={[...boardRelics.map(item => item.slug), ...relics.filter(({ slug }) => !allowedSlugs || allowedSlugs.includes(slug)).map(item => item.slug)]}
       canUseOwned={slug => boardRelics.find(item => item.slug === slug)?.usable ?? questionRelicUsable(slug)}
@@ -78,6 +91,7 @@ export function ArenaMarketRelics({ userId, questionType, aid, disabled, onUse, 
     {error && <p className="text-xs text-coral" role="alert">{error}</p>}
   </>;
   return <div className="mt-3 border-t border-border pt-3" aria-label="Owned Arena relics">
+    {reopenReference}
     <div className="flex flex-wrap gap-2">{relics.filter(({ slug }) => inventory[slug] > 0 && (!allowedSlugs || allowedSlugs.includes(slug))).map(({ slug, name }) =>
       <button key={slug} type="button" title={`${name} (${inventory[slug]})`} aria-label={`Use ${name} (${inventory[slug]} owned)`}
         disabled={disabled || !!using || aid?.used.includes(slug) || slug === 'eliminate' && !['multiple_choice', 'odd_one'].includes(questionType)}
