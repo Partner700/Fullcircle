@@ -839,9 +839,11 @@ function GamePlay({ level, mode, narrative, userId, denariiBalance, onExit, onCo
 
       {referencePopup && <ScriptureRelicPopup {...referencePopup} onClose={() => setReferencePopup(undefined)} />}
       {revealedReference?.questionId === q.id && !referencePopup && !showFeedback && (
-        <button type="button" className="btn-secondary text-xs" onClick={() => setReferencePopup({
-          reference: revealedReference.reference, passage: revealedReference.passage,
-        })}>View revealed Scripture reference again</button>
+        <button type="button" className="btn-secondary text-xs" onClick={() => {
+          if (revealedReference) setReferencePopup({
+            reference: revealedReference.reference, passage: revealedReference.passage,
+          });
+        }}>View revealed Scripture reference again</button>
       )}
       <GamePoints game="daily_game" showCurrentPlayer />
 
