@@ -1257,6 +1257,9 @@ export function CadetNarrative({
                         quest={instructorExtras.quests[bibleReference || verse.reference]}
                         onClaimed={instructorExtras.refresh} />
                     )}
+                    {narrative.narrative_date === '2026-12-25' &&
+                      new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Douala' }) >= '2026-12-25' &&
+                      index < 3 && <ChristmasHiddenNote secret={index} />}
                     <div className="mt-3 rounded-xl border border-border bg-surface/70 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="mr-auto text-[10px] font-bold uppercase tracking-widest text-stone">Reader insights</p>
@@ -1803,4 +1806,26 @@ function proofFormatLabel(format: ChallengeProofFormat): string {
 
 function FlameIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
   return <span className={className} style={{ fontSize: size, display: 'inline-block' }}>&#128293;</span>;
+}
+
+
+/** Three quiet, reader-discovered surprises belonging only to the 2026 Christmas meditation. */
+function ChristmasHiddenNote({ secret }: { secret: number }) {
+  const [opened, setOpened] = useState(false);
+  const surprises = [
+    { clue: 'A quiet light', text: 'A Christmas discovery: read Luke 2:10–11, then share one reason you have hope with another reader today.' },
+    { clue: 'A small kindness', text: 'A hidden Christmas challenge: encourage someone in your tent privately before this day ends.' },
+    { clue: 'An unexpected name', text: 'The name Immanuel means “God with us” (Matthew 1:23; from Hebrew ʿimmānû ʾēl). Reflect on what that means for someone who feels alone.' },
+  ] as const;
+  const item = surprises[secret];
+  return <div className="my-2 text-right">
+    <button type="button" onClick={() => setOpened(value => !value)}
+      aria-label={opened ? 'Close Christmas discovery' : 'Discover a hidden Christmas detail'}
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-brass/25 bg-brass/10 text-[10px] text-brass/65 hover:bg-brass/25"
+      title="Something is hidden here">✦</button>
+    {opened && <div className="mt-2 rounded-lg border border-brass/35 bg-brass-soft px-3 py-3 text-left">
+      <p className="text-xs font-bold text-brass">{item.clue}</p>
+      <p className="mt-1 text-sm leading-relaxed text-ink">{item.text}</p>
+    </div>}
+  </div>;
 }
