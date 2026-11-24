@@ -545,7 +545,7 @@ async function startFcxCheckout(
 
 async function startCartCheckout(
   userId: string, method: unknown, customerPhone: unknown, amount: unknown,
-  relics: unknown, eventId: unknown, ticketQuantity: unknown, attendeeKind?: unknown, attendeeId?: unknown, hostedFallback = false,
+  relics: unknown, eventId: unknown, ticketQuantity: unknown, attendeeKind?: unknown, attendeeId?: unknown,
 ): Promise<Response> {
   const phone = normalizeCampayPhone(customerPhone);
   if (!useFapshiDirect) {
@@ -590,32 +590,17 @@ async function startCartCheckout(
     });
   }
   const payment = await reservation.json() as { id: string; amount: number };
-  if (hostedFallback) {
-    // Keep the same reserved cart, but let Fapshi conduct its own payment
-    // checkout instead of submitting another silent-failing Direct Pay request.
-    await updatePaymentRecord(payment.id, { payment_method: "fapshi_hosted" });
-  }
   const result = await startFapshiPayment({
-    amount: payment.amount, reference, name: "Market cart",
-    mobileMoney: hostedFallback ? undefined : { phone: phone.slice(3), method },
+    amount: payment.amount, reference, name: "Market cart", mobileMoney: { phone: phone.slice(3), method },
   });
-  if (hostedFallback && (!result.transId || !result.checkoutUrl)) {
-    await rejectPayment(payment.id, result.transId ?? null, "Fapshi did not create a secure checkout link.", {});
-    return Response.json({ error: "Secure checkout is temporarily unavailable. No payment was taken." }, { status: 502, headers: corsHeaders });
-  }
   if (result.declined) {
     await rejectPayment(payment.id, result.transId ?? null, result.reason ?? "Fapshi could not start this payment.", {});
     return Response.json({ error: result.reason ?? "The payment prompt could not be sent. Try again." }, { status: 502, headers: corsHeaders });
   }
   const approvalStartedAt = result.transId ? new Date().toISOString() : undefined;
-  if (result.transId) await updatePaymentRecord(payment.id, {
-    provider_reference: result.transId,
-    ...(hostedFallback ? { fapshi_checkout_url: result.checkoutUrl } : {}),
-  }).catch(() => {});
+  if (result.transId) await updatePaymentRecord(payment.id, { provider_reference: result.transId }).catch(() => {});
   return Response.json({
-    status: "pending", reference, payment_id: payment.id,
-    payment_method: hostedFallback ? "fapshi_hosted" : method, provider: "Fapshi",
-    ...(hostedFallback ? { checkout_url: result.checkoutUrl } : {}),
+    status: "pending", reference, payment_id: payment.id, payment_method: method, provider: "Fapshi",
     amount_local: payment.amount, currency_code: "XAF", approval_started_at: approvalStartedAt,
   }, { headers: corsHeaders });
 }
@@ -628,7 +613,7 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       relic_slug, user_id, payment_method, customer_phone, other_provider, payment_note,
-      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity, attendee_kind, attendee_id, hosted_fallback,
+      displayed_amount_xaf, purchase_kind, subscription_plan_id, quote_only, provider_only, fcx_event_id, cart_relics, ticket_quantity, attendee_kind, attendee_id,
     } = await req.json();
 
     const purchaseKind: "relic" | "subscription" = purchase_kind === "subscription"
@@ -651,7 +636,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (purchase_kind === "cart") {
-      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity, attendee_kind, attendee_id, hosted_fallback === true);
+      return await startCartCheckout(user_id, payment_method, customer_phone, displayed_amount_xaf, cart_relics, fcx_event_id, ticket_quantity, attendee_kind, attendee_id);
     }
 
     if (purchase_kind === "fcx_ticket") {
