@@ -1,6 +1,6 @@
 import {
   BookOpen, Clock3, Coins, Cross, Eye, Lightbulb, ListFilter, MessageSquare, Pause,
-  Shield, SkipForward, Sparkles, Swords, TimerReset, Trophy, Undo2, Wallet,
+  Shield, RotateCcw, SkipForward, Sparkles, Swords, TimerReset, Trophy, Undo2, Wallet,
 } from 'lucide-react';
 
 const symbols = {
@@ -17,6 +17,7 @@ const symbols = {
   'redemption-coin': Coins,
   'simons-coin': Wallet,
   'shield-of-faith': Shield,
+  boomerang: RotateCcw,
   undo: Undo2,
   standstill: Pause,
   hint: Lightbulb,
