@@ -13,6 +13,8 @@ import { useReadingPosition } from '../../lib/useReadingPosition';
 import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, toggleVerseInsightReaction } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
+import { ChapterDiscoveryPanel } from '../../components/ChapterDiscoveryPanel';
+import { chapterDiscoveryFacts } from '../../lib/chapterDiscoveryFacts';
 import type { PanelImageSetting } from '../../lib/types';
 
 const books = BIBLE_BOOKS.map((book, index) => ({
@@ -233,6 +235,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
       onTouchCancel={() => { swipeStart.current = null; }}>
       <div className="relative z-10">
         <h2 className="mb-3 font-display text-xl font-bold text-peri">{book.name} {chapter}</h2>
+        {text?.verses.length ? <ChapterDiscoveryPanel facts={chapterDiscoveryFacts(book.name, chapter, text.verses, instructorExtras.facts)} /> : null}
         {!text && !textError && <p role="status">Loading chapter…</p>}
         {textError && <div role="alert"><p>This chapter could not load.</p><button className="btn-secondary mt-2" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
         {text?.verses.map(verse => {
