@@ -111,6 +111,24 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [giftRecipientId, setGiftRecipientId] = useState('self');
+  const [cashGiftRecipients, setCashGiftRecipients] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    void supabase.rpc('cash_gift_recipients').then(({ data, error }) => {
+      if (cancelled || error) return;
+      setCashGiftRecipients((data || []).map((item: { id: string; display_name: string }) => ({
+        id: item.id, name: item.display_name,
+      })));
+    });
+    return () => { cancelled = true; };
+  }, [profile?.id]);
+  const eligibleRecipients = Array.from(new Map(
+    [...giftRecipients, ...cashGiftRecipients].map(recipient => [recipient.id, recipient])
+  ).values());
+  const selectedRecipient = eligibleRecipients.find(item => item.id === giftRecipientId);
+  const cashGiftId = selectedRecipient?.id;
+
   const [loadError, setLoadError] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [marketImage, setMarketImage] = useState<PanelImageSetting | null>(null);
@@ -326,7 +344,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
       const phone = phoneNumberForCountry(payPhone, profile.country_code);
       const result = checkoutProvider === 'fapshi_direct' && relicPaymentQuantity > 1
         ? await startMarketCartCheckout(profile.id, displayedAmountXaf * relicPaymentQuantity, method, phone,
-            [{ slug, quantity: relicPaymentQuantity }])
+            [{ slug, quantity: relicPaymentQuantity }], undefined, undefined, undefined, cashGiftId)
         : await startCampayCheckout(
         slug,
         profile.id,
@@ -337,6 +355,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         otherProvider || undefined,
         verificationNote || undefined,
         displayedAmountXaf,
+        cashGiftId,
       );
       if (checkoutProvider === 'fapshi_direct' && result.status === 'pending') {
         rememberMobileMoneyNumber(profile.id, paymentMethod, payPhone);
@@ -653,7 +672,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                 </div>
               ))}
               {!cart.length && <p className="text-xs text-stone">Your cart is empty.</p>}
-              <MarketCartCheckout lines={cart} className="btn-primary text-sm" onConfirmed={confirmCart} onPendingChange={setCartPaymentPending}>
+              <MarketCartCheckout lines={cart} giftRecipientId={cashGiftId} className="btn-primary text-sm" onConfirmed={confirmCart} onPendingChange={setCartPaymentPending}>
                 {cart.length ? `Checkout · ${formatXaf(cart.reduce((total, line) => total + line.unitPrice * line.quantity, 0))}` : 'View payment'}
               </MarketCartCheckout>
             </section>
@@ -667,7 +686,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
         </div>
       )}
 
-      {giftRecipients.length > 0 && (
+      {eligibleRecipients.length > 0 && (
         <div data-artwork-theme={(marketImage)?.url ? 'night' : undefined} className="card relative overflow-hidden p-4">
           <PanelImageBackdrop image={marketImage} opacityFallback={18} veilClassName="bg-navy-2/80" />
           <label className="relative z-10 text-xs text-stone block mb-1">Buy for</label>
@@ -675,11 +694,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
           <AppSelect
             value={giftRecipientId}
             onChange={setGiftRecipientId}
-            options={[{ value: 'self', label: 'Myself' }, ...giftRecipients.map((recipient) => ({ value: recipient.id, label: recipient.name }))]}
+            options={[{ value: 'self', label: 'Myself' }, ...eligibleRecipients.map((recipient) => ({ value: recipient.id, label: recipient.name }))]}
           />
           {giftRecipientId !== 'self' && (
             <p className="text-xs text-sage mt-2">
-              You pay with your denarii; the item is added to this cadet's account.
+              Real-money purchases will be delivered to this cadet only after payment is verified. Sentry Denarii gifts remain available within assigned tents.
             </p>
           )}
           </div>
