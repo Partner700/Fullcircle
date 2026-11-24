@@ -244,8 +244,10 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
               : personalHighlight === 'insight' ? 'verse-highlight-mine' : '';
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
-            <InstructorVerseExtras context={instructorExtras.contexts[reference]}
-              quest={instructorExtras.quests[reference]} onClaimed={instructorExtras.refresh} />
+            {(instructorExtras.contexts[reference] || instructorExtras.quests[reference]) && (
+              <InstructorVerseExtras context={instructorExtras.contexts[reference]}
+                quest={instructorExtras.quests[reference]} onClaimed={instructorExtras.refresh} />
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-ghost text-xs" aria-expanded={openVerse === verse.number} onClick={() => {
                 setOpenVerse(openVerse === verse.number ? null : verse.number);
