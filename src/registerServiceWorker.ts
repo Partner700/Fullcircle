@@ -24,17 +24,24 @@ export function registerServiceWorker() {
     return;
   }
 
+  const release = document.querySelector<HTMLMetaElement>('meta[name="full-circle-release"]')?.content;
   const register = () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=170`, { updateViaCache: 'none' })
+      .register(`${import.meta.env.BASE_URL}fc-worker.js?v=${release ?? 'current'}`, { updateViaCache: 'none' })
       .then((registration) => {
-        // Activate updates without interrupting an open screen or draft.
-        void registration.update().catch(() => undefined);
-
-        // Periodically check for updates (every hour)
-        setInterval(() => {
+        let lastUpdateCheck = 0;
+        const checkForUpdate = () => {
+          lastUpdateCheck = Date.now();
           void registration.update().catch(() => undefined);
-        }, 60 * 60 * 1000);
+        };
+        checkForUpdate();
+        window.setInterval(checkForUpdate, 60 * 60 * 1000);
+        window.addEventListener('online', checkForUpdate);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && Date.now() - lastUpdateCheck >= 30_000) {
+            checkForUpdate();
+          }
+        });
 
         const warmRelease = () => {
           window.setTimeout(() => {
@@ -92,6 +99,6 @@ export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegis
 export async function clearAllCaches(): Promise<void> {
   const registration = await getServiceWorkerRegistration();
   if (registration?.active) {
-    registration.active.postMessage({ type: 'CLEAR_CACHES' });
+    registration.active.postMessage({ type: 'RESET_APP_SHELL' });
   }
 }

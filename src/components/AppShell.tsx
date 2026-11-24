@@ -1,4 +1,4 @@
-import { type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { type CSSProperties, type ElementType, type ReactNode, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { cn, formatPlayerNumber } from '../lib/utils';
 import { DoveMark } from './Dove';
@@ -17,9 +17,11 @@ import {
   persistContinuedTab,
   readContinuedScroll,
 } from '../lib/appContinuity';
+import { signalActiveQuizExitIntent } from '../lib/quizIntegrity';
 
 type Theme = 'night' | 'day';
 const CONTINUITY_EXCLUDED_TABS = ['quiz'] as const;
+const SCROLL_CONTINUITY_EXCLUDED_TABS: readonly string[] = ['quiz', 'narrative', 'reading', 'bible'];
 
 function tabUrl(tab: string) {
   const url = new URL(window.location.href);
@@ -107,6 +109,8 @@ interface NavItem {
   key: string;
   label: string;
   icon: ElementType;
+  disabled?: boolean;
+  title?: string;
 }
 
 interface ShellProps {
@@ -136,13 +140,22 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
   useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
 
+  const signalQuizExitFor = useCallback((destination?: string) => {
+    if (activeKeyRef.current === 'quiz' && destination !== 'quiz') signalActiveQuizExitIntent();
+  }, []);
+
+  const handleSignOut = useCallback(() => {
+    signalQuizExitFor();
+    void signOut();
+  }, [signOut, signalQuizExitFor]);
+
   useEffect(() => {
     if (!profile?.id || !role) return;
     persistContinuedTab(profile.id, role, activeKey, CONTINUITY_EXCLUDED_TABS);
   }, [activeKey, profile?.id, role]);
 
   useEffect(() => {
-    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    if (!profile?.id || !role || SCROLL_CONTINUITY_EXCLUDED_TABS.includes(activeKey)) return;
     const target = readContinuedScroll(profile.id, role, activeKey);
     if (target === null) return;
 
@@ -171,7 +184,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, [activeKey, profile?.id, role]);
 
   useEffect(() => {
-    if (!profile?.id || !role || CONTINUITY_EXCLUDED_TABS.includes(activeKey as 'quiz')) return;
+    if (!profile?.id || !role || SCROLL_CONTINUITY_EXCLUDED_TABS.includes(activeKey)) return;
     let animationFrame = 0;
     const save = () => persistContinuedScroll(
       profile.id,
@@ -241,21 +254,24 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
       if (mobileNavOpen) {
         setMobileNavOpen(false);
         if (typeof previousTab === 'string' && previousTab !== activeKeyRef.current) {
+          signalQuizExitFor(previousTab);
           handlingPopStateRef.current = true;
           onNavigateRef.current(previousTab);
         }
         return;
       }
       if (typeof previousTab === 'string' && previousTab !== activeKeyRef.current) {
+        signalQuizExitFor(previousTab);
         handlingPopStateRef.current = true;
         onNavigateRef.current(previousTab);
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [mobileNavOpen]);
+  }, [mobileNavOpen, signalQuizExitFor]);
 
   const navigate = (key: string) => {
+    signalQuizExitFor(key);
     onNavigate(key);
     setMobileNavOpen(false);
   };
@@ -332,7 +348,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
   }, []);
 
   return (
-    <div className="relative min-h-screen flex overflow-x-hidden bg-navy">
+    <div className="relative min-h-screen flex overflow-x-clip bg-navy">
       {weeklyBackground && (
         <PanelImageBackdrop
           image={weeklyBackground}
@@ -360,10 +376,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
             <button
               key={item.key}
               data-guide-nav={item.key}
+              disabled={item.disabled}
+              title={item.title}
               onClick={() => navigate(item.key)}
               aria-current={navActiveKey === item.key ? 'page' : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 disabled:opacity-45',
                 navActiveKey === item.key
                   ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                   : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
@@ -391,7 +409,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               <p className="text-xs text-peri-dim truncate">{profile?.email}</p>
             </div>
           </button>
-          <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-peri-dim hover:bg-navy-3 hover:text-peri transition-colors font-bold">
+          <button onClick={handleSignOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-peri-dim hover:bg-navy-3 hover:text-peri transition-colors font-bold">
             <LogOut size={16} /> Sign Out
           </button>
         </div>
@@ -423,7 +441,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 <ThemeToggle />
                 {showTopSignOut && (
                   <button
-                    onClick={signOut}
+                    onClick={handleSignOut}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:bg-coral-soft hover:text-coral"
                     title="Sign out"
                   >
@@ -444,7 +462,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
               </div>
               {showTopSignOut && (
                 <button
-                  onClick={signOut}
+                  onClick={handleSignOut}
                   className="hidden h-9 w-9 items-center justify-center rounded-xl border border-border bg-navy-3 text-peri-dim transition-all hover:border-border-bright hover:bg-coral-soft hover:text-coral md:inline-flex"
                   title="Sign out"
                 >
@@ -507,10 +525,12 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
                 <button
                   key={item.key}
                   data-guide-nav={item.key}
+                  disabled={item.disabled}
+                  title={item.title}
                   onClick={() => navigate(item.key)}
                   aria-current={navActiveKey === item.key ? 'page' : undefined}
                   className={cn(
-                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all',
+                    'relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all disabled:opacity-45',
                     navActiveKey === item.key
                       ? 'bg-navy-4 text-peri border border-border-bright shadow-sm'
                       : 'text-peri-dim hover:bg-navy-3 hover:text-peri',
@@ -542,7 +562,7 @@ export function AppShell({ children, navItems, activeKey, navActiveKey = activeK
           </aside>
         </div>
 
-        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6">{children}</main>
+        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-4 sm:px-4 md:p-6" style={{ '--app-header-height': `${headerHeight}px` } as CSSProperties}>{children}</main>
       </div>
     </div>
   );

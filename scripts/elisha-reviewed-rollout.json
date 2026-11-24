@@ -1,0 +1,47 @@
+{
+  "character": "elisha",
+  "sourcePayloadSha256": "d5552d8ed266063cba37716a242a9d8f9e78f8a5417a3f04d48fbb33039ebc35",
+  "approvedSourceRanges": [[8, 14], [52, 60], [109, 124], [177, 193], [201, 235]],
+  "supplements": [
+    {
+      "source_number": 236,
+      "stage": 1,
+      "type": "multiple_choice",
+      "question": "Who was Elisha's father?",
+      "options": ["Shaphat", "Nimshi", "Ahab", "Gehazi"],
+      "correct_answer": "Shaphat",
+      "reference": "1 Kings 19:16, 19",
+      "source_url": "https://ebible.org/eng-web/1KI19.htm"
+    },
+    {
+      "source_number": 237,
+      "stage": 1,
+      "type": "multiple_choice",
+      "question": "From which place was Elisha called to succeed Elijah?",
+      "options": ["Abel Meholah", "Jericho", "Damascus", "Mount Carmel"],
+      "correct_answer": "Abel Meholah",
+      "reference": "1 Kings 19:16",
+      "source_url": "https://ebible.org/eng-web/1KI19.htm"
+    },
+    {
+      "source_number": 238,
+      "stage": 1,
+      "type": "multiple_choice",
+      "question": "What did Elisha do with the meat after cooking the oxen?",
+      "options": ["Gave it to the people to eat", "Sold it to the king", "Buried it in the field", "Took it to Damascus"],
+      "correct_answer": "Gave it to the people to eat",
+      "reference": "1 Kings 19:21",
+      "source_url": "https://ebible.org/eng-web/1KI19.htm"
+    },
+    {
+      "source_number": 239,
+      "stage": 2,
+      "type": "multiple_choice",
+      "question": "How did Elijah and Elisha cross the Jordan after its waters divided?",
+      "options": ["On dry ground", "By boat", "On a bridge", "By swimming"],
+      "correct_answer": "On dry ground",
+      "reference": "2 Kings 2:8",
+      "source_url": "https://ebible.org/eng-web/2KI02.htm"
+    }
+  ]
+}

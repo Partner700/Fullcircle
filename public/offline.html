@@ -49,8 +49,8 @@
       gap: 0.5rem;
       padding: 0.75rem 1.5rem;
       border-radius: 1rem;
-      border: 1.5px solid rgba(221, 227, 255, 0.22);
-      background: rgba(221, 227, 255, 0.10);
+      border: 1.5px solid rgba(221, 231, 255, 0.22);
+      background: rgba(221, 231, 255, 0.10);
       color: #DDE3FF;
       font-family: 'Nunito', sans-serif;
       font-size: 0.9rem;
@@ -59,8 +59,8 @@
       transition: all 0.2s;
     }
     .retry-btn:hover {
-      background: rgba(221, 227, 255, 0.20);
-      border-color: rgba(221, 227, 255, 0.34);
+      background: rgba(221, 231, 255, 0.20);
+      border-color: rgba(221, 231, 255, 0.34);
     }
     .status-dot {
       display: inline-block;
@@ -91,33 +91,34 @@
       <ellipse cx="342" cy="145" rx="53" ry="34" fill="#B5C0D8"/>
       <ellipse cx="304" cy="160" rx="34" ry="23" fill="#B5C0D8"/>
       <ellipse cx="378" cy="163" rx="27" ry="20" fill="#B5C0D8"/>
-      <path d="M269 267C310 250 344 266 353 301C361 343 326 373 288 363C258 351 239 314 269 267Z" fill="#4A6B9E"/>
-      <path d="M289 287C312 276 335 291 337 315C340 338 318 354 294 346C275 338 269 308 289 287Z" fill="#3A5680" opacity="0.6"/>
-      <ellipse cx="252" cy="315" rx="86" ry="70" fill="white"/>
-      <circle cx="191" cy="225" r="55" fill="white"/>
+      <path d="M270 270C310 255 344 270 353 301C361 343 326 373 288 363C258 351 239 314 270 270Z" fill="#4A6B9E"/>
+      <path d="M289 287C312 276 335 291 337 315C340 338 318 354 294 346C275 338 270 308 289 287Z" fill="#3A5680" opacity="0.6"/>
+      <ellipse cx="255" cy="315" rx="86" ry="70" fill="white"/>
+      <circle cx="191" cy="232" r="55" fill="white"/>
       <path d="M183 203C206 203 207 222 198 232C189 241 171 235 171 219C171 209 176 203 183 203Z" fill="#1A2438"/>
       <circle cx="195" cy="214" r="6" fill="white"/>
-      <path d="M143 232L99 248L143 264Z" fill="#D4A05A"/>
-      <path d="M143 232L99 248L143 264Z" stroke="#B88540" stroke-width="3"/>
-      <path d="M211 263C226 200 281 190 310 217C321 233 313 256 288 267C250 283 211 285 211 263Z" fill="white"/>
-      <path d="M225 263C244 221 281 207 300 231" stroke="#D0D8E8" stroke-width="6" stroke-linecap="round"/>
+      <path d="M143 232L99 255L143 264Z" fill="#D4A05A"/>
+      <path d="M143 232L99 255L143 264Z" stroke="#B88540" stroke-width="3"/>
+      <path d="M211 263C231 200 281 190 310 218C321 233 313 256 288 270C255 283 211 285 211 263Z" fill="white"/>
+      <path d="M231 263C255 221 281 207 300 231" stroke="#D0D8E8" stroke-width="6" stroke-linecap="round"/>
       <ellipse cx="274" cy="340" rx="54" ry="39" fill="#E8EDF5" opacity="0.6"/>
       <rect x="239" y="373" width="17" height="34" rx="5" fill="#4A6B9E"/>
-      <path d="M231 407H264L247 418Z" fill="#3A5680"/>
+      <path d="M231 407H264L255 418Z" fill="#3A5680"/>
       <ellipse cx="286" cy="389" rx="14" ry="9" fill="#3A5680" opacity="0.4"/>
     </svg>
-    <h1>You're Offline</h1>
-    <p>Full Circle needs an internet connection to load. Check your connection and try again.</p>
+    <h1>Full Circle is reconnecting</h1>
+    <p>The app could not load its latest files. Your connection may still be working. Reconnect here or use the independent Full Circle app.</p>
     <button class="retry-btn" onclick="recoverFullCircle()">
       <span class="status-dot"></span>
       Retry Connection
     </button>
+    <p style="margin-top: 1rem;"><a href="https://tnsorganization.github.io/Full-Circle/" style="display:inline-block;border:1px solid #8896CC;border-radius:12px;padding:12px 16px;color:#DDE3FF;text-decoration:none;font-weight:700;">Open Full Circle backup app</a></p>
     <p style="margin-top: 1rem; font-size: 0.8rem; color: #8896CC;">
       Some previously loaded content may still be available.
     </p>
   </div>
   <script>
-    var RECOVERY_VERSION = '170';
+    var RECOVERY_VERSION = '295';
     var recoveryInProgress = false;
 
     async function installRecoveryWorker() {
@@ -132,17 +133,40 @@
 
     var failedRecoveryAttempts = 0;
 
+    async function isVerifiedAppShell(response) {
+      if (!response || !response.ok) return false;
+      var contentType = response.headers.get('content-type') || '';
+      if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return false;
+      var html = await response.clone().text().catch(function() { return ''; });
+      var tags = html.match(/<meta\b[^>]*>/gi) || [];
+      var release = 0;
+      for (var index = 0; index < tags.length; index += 1) {
+        if (!/\bname=["']full-circle-release["']/i.test(tags[index])) continue;
+        var match = tags[index].match(/\bcontent=["'](\d+)["']/i);
+        release = match ? Number(match[1]) : 0;
+        break;
+      }
+      return release >= Number(RECOVERY_VERSION) && /id=["']root["']/.test(html);
+    }
+
     async function recoverFullCircle() {
       if (recoveryInProgress) return;
       recoveryInProgress = true;
       var button = document.querySelector('.retry-btn');
       button.innerHTML = '<span class="status-dot online"></span> Reconnecting...';
       try {
-        await installRecoveryWorker().catch(function() {});
+        var registration = await installRecoveryWorker().catch(function() { return null; });
         var indexUrl = new URL('index.html', window.location.href);
-        var response = await fetch(new URL('index.html?fc-connectivity=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href), { cache: 'no-store' }).catch(function() { return null; });
-        var cachedShell = (!response || !response.ok) && 'caches' in window ? await window.caches.match(indexUrl) : null;
-        if ((!response || !response.ok) && !cachedShell) throw new Error('Full Circle is not reachable yet.');
+        var response = await fetch(indexUrl, { cache: 'reload' }).catch(function() { return null; });
+        var networkReady = await isVerifiedAppShell(response);
+        var cachedShell = !networkReady && 'caches' in window
+          ? await window.caches.match(indexUrl, { ignoreSearch: true }).catch(function() { return null; })
+          : null;
+        var cachedReady = await isVerifiedAppShell(cachedShell);
+        if (!networkReady && !cachedReady) throw new Error('Full Circle is not reachable yet.');
+        // Do not purge healthy cached app files during a temporary mobile-data blip.
+        // Hashed bundles can coexist; a forced purge stranded members mid-game.
+        if (networkReady) registration?.active?.postMessage({ type: 'WARM_APP_SHELL' });
         failedRecoveryAttempts = 0;
         window.location.replace(new URL('./?fc-recovered=' + RECOVERY_VERSION + '&ts=' + Date.now(), window.location.href));
       } catch (error) {

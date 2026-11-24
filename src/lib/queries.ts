@@ -1,3 +1,4 @@
+import { readableFetch } from "./connectionErrors";
 import { supabase, supabaseAnonKey, supabaseUrl } from '../lib/supabase';
 import type {
   Profile, RoleAssignment, Tent, TentMember, DailyRecord, DailyNarrative,
@@ -22,6 +23,8 @@ import { parseLiveStats, type UserLiveStats } from './liveStats';
 import { createReadCache } from './readCache';
 import { MESSAGE_PAGE_SIZE, messageCursorFilter, type ChatMessage, type MessagePage, type MessagePageOptions } from './messagePages';
 import { expandQuoteReactionSummary, type CompactQuoteReactionSummary } from './quoteReactionSummary';
+import { JOURNEY_MACHINE_ID } from '../../supabase/functions/_shared/biblicalJourney';
+import { isPersonalAward } from './awardCollection';
 
 const sharedReadRequests = new Map<string, Promise<unknown>>();
 const panelImageReads = createReadCache<Record<string, PanelImageSetting>>(60_000);
@@ -34,6 +37,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 let lastReminderBootstrapAt = 0;
+let lastArenaMaintenanceAt = 0;
 
 function shareReadRequest<T>(key: string, factory: () => Promise<T>): Promise<T> {
   const existing = sharedReadRequests.get(key) as Promise<T> | undefined;
@@ -55,6 +59,20 @@ function bootstrapDailyRemindersInBackground() {
     if (error) throw error;
   }).catch(() => {
     // Scheduled reminders remain server-driven; this is only a client fallback.
+  });
+}
+
+function maintainArenaRoomsInBackground() {
+  const now = Date.now();
+  if (now - lastArenaMaintenanceAt < 60_000) return;
+  lastArenaMaintenanceAt = now;
+  void shareReadRequest('arena-room-maintenance', async () => {
+    const { error: expiryError } = await supabase.rpc('expire_stale_arena_rooms');
+    if (expiryError) throw expiryError;
+    const { error: repairError } = await supabase.rpc('repair_orphaned_arena_matches');
+    if (repairError) throw repairError;
+  }).catch(() => {
+    // Room reads must remain available when optional cleanup is slow.
   });
 }
 
@@ -101,7 +119,9 @@ export async function fetchBoardAvatars(userIds: string[]) {
 }
 
 export async function fetchAllRoleAssignments() {
-  const { data, error } = await supabase.from('role_assignments').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('role_assignments')
+    .select('*, recipient_profile:profiles!role_assignments_user_id_fkey(display_name)')
+    .order('created_at', { ascending: false });
   if (error) throw error;
   return data as RoleAssignment[];
 }
@@ -305,6 +325,8 @@ export async function setTentJoinDirection(userId: string, tentId: string | null
 
 export type TentAssignmentReceipt = {
   success: boolean;
+  invited: boolean;
+  invitation_id: string;
   user_id: string;
   tent_id: string;
   tent_name: string;
@@ -319,8 +341,8 @@ export async function sentryAddCadetToTent(tentId: string, cadetId: string) {
   });
   if (error) throw error;
   const receipt = data as TentAssignmentReceipt | null;
-  if (!receipt?.success || receipt.user_id !== cadetId || receipt.tent_id !== tentId) {
-    throw new Error('The tent assignment could not be verified. Please try again.');
+  if (!receipt?.success || !receipt.invited || !receipt.invitation_id || receipt.user_id !== cadetId || receipt.tent_id !== tentId) {
+    throw new Error('The tent invitation could not be verified. Please try again.');
   }
   return receipt;
 }
@@ -523,14 +545,15 @@ export async function fetchQuizSessions() {
   return data as QuizSession[];
 }
 
-export async function fetchLatestQuizSession() {
-  const rpcResult = await supabase.rpc('get_current_quiz_session');
+export async function fetchLatestQuizSession(quizType: 'saturday' | 'fortune' | 'valediction' = 'saturday') {
+  const rpcResult = await supabase.rpc('get_current_quiz_session_for_type', { p_quiz_type: quizType });
   if (!rpcResult.error) return rpcResult.data as QuizSession | null;
 
   // Keep older deployments usable while the lifecycle migration rolls out.
   const { data, error } = await supabase
     .from('quiz_sessions')
     .select('*')
+    .eq('quiz_type', quizType)
     .order('session_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1).maybeSingle();
@@ -794,6 +817,10 @@ export async function consumeQuizQuestionRelic(attemptId: string, questionId: st
   if (error) throw error;
   return data as {
     success: boolean;
+    reused?: boolean;
+    reference?: string;
+    passage?: string;
+    effective_closes_at?: string;
     notice?: string;
     eliminated_options?: string[];
     skipped?: boolean;
@@ -919,8 +946,14 @@ export async function fetchMonthlyMessengerAwardMetrics(monthStart?: string) {
   return (data || []) as import('./types').MonthlyMessengerAwardMetric[];
 }
 
+export async function fetchWeeklyAngelAwardMetrics(weekStart?: string) {
+  const { data, error } = await supabase.rpc('get_weekly_angel_award_metrics', { p_week_start: weekStart || null });
+  if (error) throw error;
+  return (data || []) as import('./types').WeeklyAngelAwardMetric[];
+}
+
 export async function recordExternalShare(
-  shareKind: 'reading' | 'quiz' | 'game' | 'meditation',
+  shareKind: 'reading' | 'quiz' | 'game' | 'meditation' | 'arena' | 'birthday',
   referenceKey: string,
 ) {
   const { data, error } = await supabase.rpc('record_external_share', {
@@ -1011,6 +1044,23 @@ export async function fetchLedgerTotal(userId: string): Promise<number> {
   }
 }
 
+export async function fetchMarketBalance(userId: string): Promise<number> {
+  // Prefer the authoritative balance used by purchases. If one RPC endpoint
+  // fails on a slow connection, retry through the authenticated self-only RPC.
+  // Never replace an unreadable balance with a guessed 0 or stale cached value.
+  const primary = await Promise.resolve(supabase.rpc('get_user_denarii_total', { p_user_id: userId }))
+    .catch((error: unknown) => ({ data: null, error }));
+  if (!primary.error && primary.data !== null && Number.isFinite(Number(primary.data))) {
+    return Number(primary.data);
+  }
+  const fallback = await Promise.resolve(supabase.rpc('get_my_market_denarii_balance'))
+    .catch((error: unknown) => ({ data: null, error }));
+  if (!fallback.error && fallback.data !== null && Number.isFinite(Number(fallback.data))) {
+    return Number(fallback.data);
+  }
+  throw new Error('Unable to refresh Denarii balance. Your funds are safe; retry the balance lookup or try the purchase, which verifies the balance directly.');
+}
+
 export type { UserLiveStats } from './liveStats';
 export type ToolbarStats = UserLiveStats;
 
@@ -1031,7 +1081,9 @@ export async function fetchProfileCv(userId: string) {
   if (error) throw error;
   if (!data || typeof data !== 'object') throw new Error('This Full Circle profile is unavailable.');
   const row = data as any;
+  const awardsCount = await fetchPersonalAwards(String(row.user_id || userId)).then(awards => awards.length).catch(() => null);
   return {
+    awards_count: awardsCount,
     user_id: String(row.user_id || userId),
     display_name: String(row.display_name || 'Full Circle member'),
     avatar_url: row.avatar_url ? String(row.avatar_url) : null,
@@ -1147,6 +1199,13 @@ export async function fetchGameAttemptsForDate(userId: string, date: string) {
   return fetchGameAttempts(userId, date);
 }
 
+// One server-dated activity row per member/day; this never changes scores or rewards.
+export async function recordPuzzleTriviaPlay(userId: string) {
+  const { error } = await supabase.from('puzzle_trivia_activity').insert({ user_id: userId });
+  if (error && error.code !== '23505') throw error;
+  window.dispatchEvent(new Event('full-circle:game-activity'));
+}
+
 export async function fetchGameActivityPlayers(activityDate: string) {
   return shareReadRequest(`game-activity:${activityDate}`, async () => {
     const { data, error } = await supabase.rpc('get_game_activity_players', {
@@ -1212,7 +1271,7 @@ export async function fetchWeeklyVerseHighlights() {
 }
 
 export async function fetchRelicTypes() {
-  const { data, error } = await supabase.from('relic_types').select('*');
+  const { data, error } = await supabase.from('relic_types').select('*').eq('is_active', true);
   if (error) throw error;
   return data as RelicType[];
 }
@@ -1220,7 +1279,8 @@ export async function fetchRelicTypes() {
 export async function fetchRelicInventory(userId: string) {
   const { data, error } = await supabase
     .from('relic_inventory')
-    .select('*, relic_types(*)')
+    .select('*, relic_types!inner(*)')
+    .eq('relic_types.is_active', true)
     .eq('user_id', userId);
   if (error) throw error;
   return data as (RelicInventory & { relic_types: RelicType })[];
@@ -1351,12 +1411,34 @@ export async function fetchLeaderboardSnapshots() {
   return rows as (LeaderboardWeeklySnapshot & { profiles: { display_name: string; avatar_url: string | null } })[];
 }
 
-export async function fetchAwards(createdSince?: string): Promise<AwardWithRecipient[]> {
+export async function fetchPersonalAwards(userId: string): Promise<Award[]> {
+  if (!userId) return [];
+  const awards: Award[] = [];
+  const pageSize = 200;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from('awards').select('*')
+      .or(`user_id.eq.${userId},award_target_id.eq.${userId}`)
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = (data || []) as Award[];
+    awards.push(...page.filter(award => isPersonalAward(award, userId)));
+    if (page.length < pageSize) break;
+  }
+  return Array.from(new Map(awards.map(award => [award.id, award])).values());
+}
+
+export async function fetchAwards(createdSince?: string, monthPrefix?: string, recipientIds?: string[]): Promise<AwardWithRecipient[]> {
   let query = supabase
     .from('awards')
     .select('*, profiles(display_name, avatar_url)')
     .order('created_at', { ascending: false });
   if (createdSince) query = query.gte('created_at', createdSince);
+  if (monthPrefix) query = query.like('award_month', `${monthPrefix}%`);
+  if (recipientIds?.length) {
+    const ids = Array.from(new Set(recipientIds)).join(',');
+    query = query.or(`user_id.in.(${ids}),award_target_id.in.(${ids})`);
+  }
   const { data, error } = await query;
   if (error) throw error;
   const awards = data as AwardWithRecipient[];
@@ -1669,6 +1751,31 @@ export async function addFcxRegistration(input: {
   return data as string;
 }
 
+export async function addFcxExternalAttendee(eventId: string, guestName: string) {
+  const { data, error } = await supabase.rpc('add_fcx_external_attendee', {
+    p_event_id: eventId,
+    p_guest_name: guestName.trim(),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function setFcxExternalAttendeePhoto(registrationId: string, avatarUrl: string) {
+  const { error } = await supabase.rpc('set_fcx_external_attendee_photo', {
+    p_registration_id: registrationId,
+    p_avatar_url: avatarUrl,
+  });
+  if (error) throw error;
+}
+
+export async function purchaseFcxTicket(eventId: string) {
+  const { data, error } = await supabase.rpc('purchase_fcx_ticket', {
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  return data as { registration_id: string; already_registered: boolean; cost: number };
+}
+
 export async function removeFcxRegistration(registrationId: string) {
   const { error } = await supabase.rpc('remove_fcx_registration', {
     p_registration_id: registrationId,
@@ -1840,23 +1947,44 @@ function emptyVerseInsightReactionState(): VerseInsightReactionState {
   };
 }
 
-export async function fetchVerseInsights(narrativeId: string | string[], reactorUserId?: string) {
+export type BibleChapterLocation = { book: string; chapter: number };
+
+export async function fetchVerseInsights(location: string | string[] | BibleChapterLocation, reactorUserId?: string, bibleVerseReferences: string[] = []) {
   void reactorUserId;
-  const narrativeIds = Array.from(new Set((Array.isArray(narrativeId) ? narrativeId : [narrativeId]).filter(Boolean)));
-  if (!narrativeIds.length) return [];
-  let insightQuery = supabase
+  const selectInsights = () => supabase
     .from('scripture_verse_insights')
-    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)');
-  insightQuery = narrativeIds.length === 1
-    ? insightQuery.eq('narrative_id', narrativeIds[0])
-    : insightQuery.in('narrative_id', narrativeIds);
-  const { data, error } = await insightQuery.order('created_at', { ascending: false });
-  if (error) {
-    console.warn('Verse insights unavailable:', error.message);
-    return [];
+    .select('id,narrative_id,verse_reference,body,mentioned_user_ids,created_at,user_id,is_question,profiles!scripture_verse_insights_user_id_fkey(display_name,avatar_url)');
+  let insightQuery = selectInsights();
+  if (typeof location === 'object' && !Array.isArray(location)) {
+    insightQuery = insightQuery.is('narrative_id', null).eq('bible_book', location.book).eq('bible_chapter', location.chapter);
+  } else {
+    const narrativeIds = Array.from(new Set((Array.isArray(location) ? location : [location]).filter(Boolean)));
+    if (!narrativeIds.length) return [];
+    insightQuery = narrativeIds.length === 1
+      ? insightQuery.eq('narrative_id', narrativeIds[0])
+      : insightQuery.in('narrative_id', narrativeIds);
   }
-  const insights = data || [];
-  if (!insights.length) return insights;
+  const [readingResult, bibleResult] = await Promise.all([
+    insightQuery.order('created_at', { ascending: false }),
+    bibleVerseReferences.length
+      // Bible and Today's Reading share a verse discussion. A post in either
+      // screen must appear under that verse in both screens, including
+      // scripture questions. Do not filter by narrative_id here.
+      ? selectInsights().in('verse_reference', Array.from(new Set(bibleVerseReferences)))
+        .order('created_at', { ascending: false })
+      : null,
+  ]);
+  if (readingResult.error) console.warn('Verse insights unavailable:', readingResult.error.message);
+  if (bibleResult?.error) console.warn('Bible insights unavailable:', bibleResult.error.message);
+  if (readingResult.error && (!bibleResult || bibleResult.error)) {
+    throw readingResult.error;
+  }
+  // Queries can overlap when a Bible-specific post is also selected by its
+  // verse reference. Avoid displaying duplicate posts or reactions.
+  const byId = new Map([...(readingResult.data || []), ...(bibleResult?.data || [])].map(insight => [insight.id, insight]));
+  const insights = Array.from(byId.values())
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+  if (!insights.length) return [];
   const insightIds = insights.map((insight) => insight.id);
   const [commentResult, reactionResult] = await Promise.all([
     supabase
@@ -1930,7 +2058,7 @@ export async function fetchCampMentionCandidates() {
 
 export async function saveVerseInsight(
   narrativeId: string,
-  userId: string,
+  _userId: string,
   verseReference: string,
   body: string,
   mentionedUserIds: string[] = [],
@@ -1941,18 +2069,7 @@ export async function saveVerseInsight(
     p_body: body.trim(),
     p_mentioned_user_ids: mentionedUserIds,
   });
-  if (!rpcError) return;
-  const { error } = await supabase
-    .from('scripture_verse_insights')
-    .upsert({
-      narrative_id: narrativeId,
-      user_id: userId,
-      verse_reference: verseReference,
-      body: body.trim(),
-      mentioned_user_ids: mentionedUserIds,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'narrative_id,user_id,verse_reference' });
-  if (error) throw error;
+  if (rpcError) throw rpcError;
 }
 
 export async function editVerseInsight(insightId: string, body: string) {
@@ -2095,6 +2212,7 @@ export async function applyDailyGameQuestionAid(runId: string, questionId: strin
     skipped?: boolean;
     donkey_active?: boolean;
     reference?: string;
+    reused?: boolean;
     cost?: number;
   };
 }
@@ -2204,7 +2322,9 @@ export async function purchaseDailyFreezerForCadet(sentryId: string, cadetId: st
 }
 
 export async function useRelic(userId: string, slug: string) {
-  const { data, error } = slug === 'simons-coin'
+  const { data, error } = slug === 'hezekiahs-sundial'
+    ? await supabase.rpc('use_meditation_extension')
+    : slug === 'simons-coin'
     ? await supabase.rpc('use_simons_coin', { p_user_id: userId })
     : await supabase.rpc('use_relic', { p_user_id: userId, p_relic_slug: slug });
   if (error) throw error;
@@ -2271,10 +2391,47 @@ export async function insertCustomQuestion(q: Partial<import('./types').CustomQu
   if (error) throw error;
 }
 
-export async function insertCustomQuestions(questions: Partial<import('./types').CustomQuestion>[]) {
-  if (questions.length === 0) return;
-  const { error } = await supabase.from('custom_questions').insert(questions);
-  if (error) throw error;
+export async function importCustomGameQuestions(questions: Partial<import('./types').CustomQuestion>[]) {
+  if (questions.length === 0) return 0;
+
+  const payload = questions.map((question) => ({
+    game_level: question.game_level,
+    narrative_date: question.narrative_date,
+    game_round: question.game_round,
+    round_timer_seconds: question.round_timer_seconds,
+    passage_display_seconds: question.passage_display_seconds,
+    is_bonus: Boolean(question.is_bonus),
+    use_for_quiz: Boolean(question.use_for_quiz),
+    question_text: question.question_text,
+    question_type: question.question_type,
+    options: question.options ?? null,
+    correct_answer: question.correct_answer,
+    accepted_answers: question.accepted_answers ?? [],
+    explanation: question.explanation ?? null,
+    scripture_reference: question.scripture_reference ?? null,
+    passage: question.passage ?? null,
+    difficulty_tag: question.difficulty_tag,
+  }));
+
+  const save = () => supabase.rpc('import_custom_game_questions', { p_questions: payload });
+  let result = await save();
+  if (result.error && /jwt|token.*expired|invalid.*token/i.test(result.error.message || '')) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) throw refreshed.error;
+    result = await save();
+  }
+  if (result.error) {
+    if (result.error.code === 'PGRST202' || /schema cache|could not find the function/i.test(result.error.message || '')) {
+      throw new Error('The question importer is still updating. Please wait a moment and press Import again.');
+    }
+    throw new Error(result.error.message || 'The validated questions could not be saved.');
+  }
+
+  const imported = Number(result.data);
+  if (!Number.isInteger(imported) || imported < 0) {
+    throw new Error('The question importer returned an invalid result. Nothing was removed from your validated set.');
+  }
+  return imported;
 }
 
 export async function updateCustomQuestion(id: string, patch: Partial<import('./types').CustomQuestion>) {
@@ -2288,17 +2445,28 @@ export async function deleteCustomQuestion(id: string) {
 }
 
 export async function fetchCustomGameQuestions(level: number, narrativeDate?: string, approvedOnly = false) {
-  let query = supabase
-    .from('custom_questions')
-    .select('*')
-    .not('game_level', 'is', null)
-    .eq('game_level', level)
-    .order('question_index');
-  if (narrativeDate) query = query.eq('narrative_date', narrativeDate);
-  if (approvedOnly) query = query.eq('is_approved', true);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data as import('./types').CustomQuestion[];
+  const request = () => supabase.rpc('get_instructor_custom_game_questions', {
+    p_level: level,
+    p_narrative_date: narrativeDate || null,
+    p_approved_only: approvedOnly,
+  });
+
+  let result = await request();
+  if (result.error && /jwt|token.*expired|invalid.*token/i.test(result.error.message || '')) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) throw refreshed.error;
+    result = await request();
+  }
+  if (result.error) {
+    if (result.error.code === 'PGRST202' || /schema cache|could not find the function/i.test(result.error.message || '')) {
+      throw new Error('The saved question list is still updating. Please wait a moment and retry.');
+    }
+    throw new Error(result.error.message || 'The saved game questions could not be loaded.');
+  }
+  if (!Array.isArray(result.data)) {
+    throw new Error('The saved game question list returned an invalid response.');
+  }
+  return result.data as import('./types').CustomQuestion[];
 }
 
 export async function fetchCustomGameQuestionsForNarrative(narrativeDate: string) {
@@ -2652,6 +2820,8 @@ export async function fetchInstructorMobileMoneyPayments(limit = 100): Promise<(
 }
 
 export type CampayPaymentResult = {
+  approval_started_at?: string;
+  checkout_url?: string | null;
   status: string;
   reference: string;
   payment_id?: string;
@@ -2666,6 +2836,12 @@ export type CampayPaymentResult = {
   message?: string;
 };
 
+export type CheckoutProvider = 'campay' | 'fapshi' | 'fapshi_direct';
+
+function normalizeCheckoutProvider(value: unknown): CheckoutProvider {
+  return value === 'fapshi' || value === 'fapshi_direct' ? value : 'campay';
+}
+
 export type SubscriptionPlan = {
   id: string;
   name: string;
@@ -2673,6 +2849,7 @@ export type SubscriptionPlan = {
   duration_days: number;
   is_active: boolean;
   checkout_mode: 'demo' | 'live';
+  payment_provider: CheckoutProvider;
 };
 
 async function requestCampayCheckout(payload: Record<string, unknown>): Promise<CampayPaymentResult> {
@@ -2681,7 +2858,7 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) throw new Error('You must be signed in to start checkout.');
 
-  const res = await fetch(fnUrl, {
+  const res = await readableFetch(fnUrl, {
     method: 'POST',
     headers: {
       apikey: supabaseAnonKey,
@@ -2707,6 +2884,50 @@ async function requestCampayCheckout(payload: Record<string, unknown>): Promise<
   } as CampayPaymentResult;
 }
 
+export function startMarketCartCheckout(
+  userId: string, amount: number, method: 'mtn_momo' | 'orange_money', phone: string,
+  relics: { slug: string; quantity: number; pack_size?: number }[], eventId?: string, ticketQuantity = 0,
+  attendee?: { kind: 'self' | 'member' | 'guest'; id?: string },
+  giftRecipientId?: string,
+) {
+  return requestCampayCheckout({
+    gift_recipient_id: giftRecipientId,
+    purchase_kind: 'cart',
+    user_id: userId,
+    displayed_amount_xaf: amount,
+    payment_method: method,
+    customer_phone: phone,
+    cart_relics: relics,
+    fcx_event_id: eventId,
+    ticket_quantity: ticketQuantity,
+    attendee_kind: attendee?.kind,
+    attendee_id: attendee?.id,
+  });
+}
+
+export function startFcxFapshiCheckout(
+  eventId: string, userId: string, amount: number,
+  paymentMethod: 'fapshi_hosted' | 'mtn_momo' | 'orange_money',
+  customerPhone?: string,
+) {
+  return requestCampayCheckout({
+    purchase_kind: 'fcx_ticket',
+    fcx_event_id: eventId,
+    user_id: userId,
+    payment_method: paymentMethod,
+    customer_phone: customerPhone,
+    displayed_amount_xaf: amount,
+  });
+}
+
+export async function fetchCheckoutProvider(userId: string): Promise<CheckoutProvider> {
+  const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+    body: { user_id: userId, provider_only: true },
+  });
+  if (error) throw error;
+  return normalizeCheckoutProvider(data?.payment_provider);
+}
+
 export async function startCampayCheckout(
   relicSlug: string,
   userId: string,
@@ -2717,8 +2938,10 @@ export async function startCampayCheckout(
   otherProvider?: string,
   paymentNote?: string,
   displayedAmountXaf?: number,
+  giftRecipientId?: string,
 ): Promise<CampayPaymentResult> {
   return requestCampayCheckout({
+    gift_recipient_id: giftRecipientId,
     purchase_kind: 'relic',
     relic_slug: relicSlug,
     user_id: userId,
@@ -2740,7 +2963,7 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
   const userId = sessionData.session?.user.id;
   if (!accessToken || !userId) throw new Error('You must be signed in to view subscription checkout.');
 
-  const response = await fetch(fnUrl, {
+  const response = await readableFetch(fnUrl, {
     method: 'POST',
     headers: {
       apikey: supabaseAnonKey,
@@ -2771,13 +2994,14 @@ export async function fetchActiveSubscriptionPlan(): Promise<SubscriptionPlan> {
     duration_days: Number(data.duration_days),
     is_active: true,
     checkout_mode: data.checkout_mode === 'demo' ? 'demo' : 'live',
+    payment_provider: normalizeCheckoutProvider(data.payment_provider),
   };
 }
 
 export async function startSubscriptionCheckout(
   planId: string,
   userId: string,
-  paymentMethod: 'mtn_momo' | 'orange_money',
+  paymentMethod: 'mtn_momo' | 'orange_money' | 'fapshi_hosted',
   customerPhone: string,
   displayedAmountXaf: number,
   customerEmail?: string,
@@ -2800,7 +3024,7 @@ export async function verifyCampayPayment(reference: string) {
   const fnUrl = `${supabaseUrl}/functions/v1/campay-webhook`;
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
-  const res = await fetch(fnUrl, {
+  const res = await readableFetch(fnUrl, {
     method: 'POST',
     headers: {
       apikey: supabaseAnonKey,
@@ -3009,29 +3233,19 @@ export async function uploadFcxGuestAvatar(eventId: string, file: File) {
   if (authError) throw authError;
   if (!authData.user) throw new Error('Sign in before adding an FCX participant photo.');
 
-  const prepared = await prepareImageUpload(file, { ...AVATAR_UPLOAD_OPTIONS, maxBytes: 8 * 1024 * 1024 });
+  const prepared = await prepareImageUpload(file, AVATAR_UPLOAD_OPTIONS);
   const version = Date.now();
   const path = `${authData.user.id}/fcx/${eventId}/guest-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
-    upsert: false,
-    contentType: prepared.file.type,
-    cacheControl: '31536000',
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  return `${data.publicUrl}?v=${version}`;
+  const url = await uploadAppFile(path, prepared.file);
+  return `${url}?v=${version}`;
 }
 
 export async function uploadTentProfileImage(userId: string, tentId: string, file: File) {
-  const prepared = await prepareImageUpload(file, { maxDimension: 1600, maxBytes: 10 * 1024 * 1024 });
+  const prepared = await prepareImageUpload(file, { maxDimension: 1600 });
   const version = Date.now();
   const path = `${userId}/tents/${tentId}/profile-${version}.${prepared.extension}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, prepared.file, {
-    upsert: true, contentType: prepared.file.type, cacheControl: '31536000',
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  const publicUrl = `${data.publicUrl}?v=${version}`;
+  const url = await uploadAppFile(path, prepared.file);
+  const publicUrl = `${url}?v=${version}`;
   const { error: updateError } = await supabase.rpc('update_tent_profile_image', {
     p_tent_id: tentId,
     p_sentry_id: userId,
@@ -3147,26 +3361,280 @@ export type ArenaTriviaFeedItem = {
   created_at: string;
 };
 
+export type ArenaViewer = {
+  room_id: string;
+  user_id: string;
+  joined_at: string;
+  last_seen_at: string;
+  profiles: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+};
+
+export type ArenaLiveTriviaState = {
+  room_id: string;
+  question_index: number;
+  actor_kind: 'player' | 'machine';
+  player_id: string | null;
+  actor_name: string;
+  actor_avatar_url: string | null;
+  phase: 'question' | 'verdict';
+  question: QuestionPayload;
+  selected_answer: string | null;
+  is_correct: boolean | null;
+  opened_at: string;
+  answered_at: string | null;
+  updated_at: string;
+};
+
 export async function fetchArenaTriviaFeed(roomId: string) {
   const { data, error } = await supabase.rpc('get_arena_trivia_feed', { p_room_id: roomId });
   if (error) throw error;
   return (data || []) as ArenaTriviaFeedItem[];
 }
 
-export async function fetchArenaRoomMessages(roomId: string) {
-  const { data, error } = await supabase
-    .from('arena_room_messages')
-    .select('id,room_id,sender_id,body,created_at')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: true })
-    .limit(100);
+export async function publishArenaTriviaState(
+  roomId: string,
+  questionIndex: number,
+  phase: 'question' | 'verdict',
+  actorKind: 'player' | 'machine' = 'player',
+) {
+  const retryDelays = [0, 250, 700, 1_400, 2_800];
+  let lastError: unknown = new Error('The Arena live turn was not accepted.');
+
+  for (const delay of retryDelays) {
+    if (delay > 0) await new Promise((resolve) => window.setTimeout(resolve, delay));
+    const { data, error } = await supabase.rpc('publish_arena_trivia_state', {
+      p_room_id: roomId,
+      p_question_index: questionIndex,
+      p_phase: phase,
+      p_actor_kind: actorKind,
+    });
+    if (!error && data === true) return true;
+    lastError = error || lastError;
+  }
+
+  throw lastError;
+}
+
+export async function fetchArenaLiveTriviaState(roomId: string) {
+  const { data, error } = await supabase.rpc('get_arena_live_trivia_state', { p_room_id: roomId });
   if (error) throw error;
-  const senderIds = Array.from(new Set((data || []).map((message: any) => message.sender_id)));
-  const { data: profiles } = senderIds.length
-    ? await supabase.from('profiles').select('id,display_name,avatar_url').in('id', senderIds)
-    : { data: [] as any[] };
-  const byId = new Map((profiles || []).map((item: any) => [item.id, item]));
-  return (data || []).map((message: any) => ({ ...message, sender: byId.get(message.sender_id) || null }));
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? row as ArenaLiveTriviaState : null;
+}
+
+export async function watchArenaRoom(roomId: string) {
+  const { data, error } = await supabase.rpc('watch_arena_room', { p_room_id: roomId });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function heartbeatArenaViewer(roomId: string) {
+  const { data, error } = await supabase.rpc('heartbeat_arena_viewer', { p_room_id: roomId });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function leaveArenaRoomView(roomId: string) {
+  const { error } = await supabase.rpc('leave_arena_room_view', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function fetchArenaRoomMessages(roomId: string) {
+  const { data, error } = await supabase.rpc('get_public_arena_chat', { p_room_id: roomId });
+  if (error) throw error;
+  return (data || []) as Array<{
+    id: string; room_id: string; sender_id: string | null; body: string; created_at: string;
+    sender: { id: string | null; display_name: string; avatar_url: string | null };
+  }>;
+}
+
+export type PublicArenaRoom = {
+  id: string;
+  room_name: string;
+  status: 'waiting' | 'playing';
+  game_type: 'standard' | 'ludo';
+  play_mode: 'machine' | 'versus' | null;
+  max_players: number;
+  started_at: string | null;
+  created_at: string;
+  starts_at: string | null;
+  scheduled: boolean;
+  witness_count: number;
+  participants: Array<{ user_id: string; display_name: string; avatar_url: string | null; score: number; joined_at: string }>;
+  selected_players: Array<{ user_id: string; display_name: string; avatar_url: string | null }>;
+};
+
+export async function fetchPublicArenaRoom(roomId: string): Promise<PublicArenaRoom | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_room', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? data as PublicArenaRoom : null;
+}
+
+export async function fetchPublicArenaSuccessor(roomId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_successor', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? String(data) : null;
+}
+
+export type ArenaFinalScorecard = {
+  id: string;
+  room_name: string;
+  game_type: 'standard' | 'ludo' | 'journey' | 'prelude';
+  completed_at: string | null;
+  winner_id: string | null;
+  players: Array<{
+    user_id: string;
+    display_name: string;
+    avatar_url: string | null;
+    tent_id: string | null;
+    tent_house_id: string | null;
+    tent_name: string | null;
+    correct_count: number;
+    score?: number;
+  }>;
+};
+
+export async function fetchArenaFinalScorecard(roomId: string): Promise<ArenaFinalScorecard | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_final_scorecard', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? data as ArenaFinalScorecard : null;
+}
+
+export async function registerPublicArenaWitness(roomId: string, guestKey: string) {
+  const { data, error } = await supabase.rpc('watch_public_arena_room', { p_room_id: roomId, p_guest_key: guestKey });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function postPublicArenaComment(roomId: string, guestKey: string, body: string) {
+  const { error } = await supabase.rpc('post_public_arena_comment', {
+    p_room_id: roomId, p_guest_key: guestKey, p_body: body,
+  });
+  if (error) throw error;
+}
+
+export async function scheduleInstructorArenaMatch(payload: {
+  roomName: string; gameType: 'standard' | 'ludo'; playerIds: string[]; startsAt: string;
+}) {
+  const { data, error } = await supabase.rpc('schedule_instructor_arena_match', {
+    p_room_name: payload.roomName, p_game_type: payload.gameType,
+    p_player_ids: payload.playerIds, p_starts_at: payload.startsAt,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export type ArenaTournament = {
+  id: string;
+  title: string;
+  game_type: 'standard' | 'ludo' | 'journey' | 'prelude';
+  journey_character_slug?: string | null;
+  journey_character_name?: string | null;
+  has_group_stage: boolean;
+  bracket_size: number;
+  status: 'scheduled' | 'playing' | 'completed' | 'cancelled';
+  created_by: string;
+  champion_id: string | null;
+  players: Array<{ id: string; display_name: string; avatar_url: string | null }>;
+  games: Array<{
+    id: string;
+    round_number: number;
+    match_number: number;
+    planned_at: string | null;
+    starts_at: string | null;
+    room_id: string | null;
+    room_status: string | null;
+    left_player_id: string | null;
+    right_player_id: string | null;
+    automatic_left_player_id: string | null;
+    automatic_right_player_id: string | null;
+    left_override_id: string | null;
+    right_override_id: string | null;
+    third_player_id: string | null;
+    fourth_player_id: string | null;
+    player_ids: string[];
+    can_edit_players: boolean;
+    winner_id: string | null;
+  }>;
+};
+
+export async function fetchArenaTournaments(): Promise<ArenaTournament[]> {
+  const { data, error } = await supabase.rpc('get_arena_tournaments');
+  if (error) throw error;
+  return (data || []) as ArenaTournament[];
+}
+
+export async function createInstructorArenaTournament(payload: {
+  title: string; gameType: 'standard' | 'ludo' | 'journey' | 'prelude'; playerIds: string[]; gameTimes: Array<string | null>; hasGroups: boolean;
+  journeyCharacterSlug?: string | null;
+  gamePlayers: string[][]; bracketSize: number;
+}) {
+  const { data, error } = await supabase.rpc('create_instructor_arena_tournament_lineups', {
+    p_title: payload.title,
+    p_game_type: payload.gameType,
+    p_player_ids: payload.playerIds,
+    p_game_times: payload.gameTimes,
+    p_has_group_stage: payload.hasGroups,
+    p_game_players: payload.gamePlayers.map((pair) => pair.map((id) => id || null)),
+    p_bracket_size: payload.bracketSize,
+    ...(payload.gameType === 'journey' ? { p_journey_character_slug: payload.journeyCharacterSlug || null } : {}),
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export async function cancelInstructorArenaTournament(tournamentId: string) {
+  const { error } = await supabase.rpc('cancel_instructor_arena_tournament', { p_tournament_id: tournamentId });
+  if (error) throw error;
+}
+
+export async function rescheduleArenaTournamentGame(gameId: string, startsAt: string) {
+  const { error } = await supabase.rpc('reschedule_arena_tournament_game', {
+    p_game_id: gameId, p_starts_at: startsAt,
+  });
+  if (error) throw error;
+}
+
+export async function setArenaTournamentGamePlayers(
+  tournamentId: string,
+  changes: Array<{ game_id: string; player_ids: string[] }>,
+) {
+  const { error } = await supabase.rpc('set_arena_tournament_game_players', {
+    p_tournament_id: tournamentId,
+    p_changes: changes.map((change) => ({ ...change, player_ids: change.player_ids.map((id) => id || null) })),
+  });
+  if (error) throw error;
+}
+
+export async function joinInstructorArenaMatch(roomId: string) {
+  const { error } = await supabase.rpc('join_instructor_arena_match', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function startScheduledArenaMatch(roomId: string) {
+  const { error } = await supabase.rpc('start_scheduled_arena_match', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function cancelInstructorArenaMatch(roomId: string) {
+  const { error } = await supabase.rpc('cancel_instructor_arena_match', { p_room_id: roomId });
+  if (error) throw error;
+}
+
+export async function fetchPublicArenaTriviaFeed(roomId: string): Promise<ArenaTriviaFeedItem[]> {
+  const { data, error } = await supabase.rpc('get_public_arena_trivia_feed', { p_room_id: roomId });
+  if (error) throw error;
+  return (data || []) as ArenaTriviaFeedItem[];
+}
+
+export async function fetchPublicArenaLiveState(roomId: string): Promise<ArenaLiveTriviaState | null> {
+  const { data, error } = await supabase.rpc('get_public_arena_live_state', { p_room_id: roomId });
+  if (error) throw error;
+  return data ? data as ArenaLiveTriviaState : null;
 }
 
 export async function sendArenaRoomMessage(roomId: string, senderId: string, body: string) {
@@ -3176,6 +3644,81 @@ export async function sendArenaRoomMessage(roomId: string, senderId: string, bod
     body: body.trim(),
   });
   if (error) throw error;
+}
+
+export type ArenaChatGameCall = {
+  id: string;
+  source_room_id: string;
+  target_room_id: string;
+  creator_id: string;
+  creator_name: string;
+  creator_avatar_url: string | null;
+  challenged_user_id: string | null;
+  challenged_user_name: string | null;
+  challenged_user_avatar_url: string | null;
+  challenge_status: 'pending' | 'accepted' | 'declined' | 'scheduled';
+  source_play_mode: 'machine' | 'versus' | null;
+  game_type: 'standard' | 'ludo';
+  room_name: string;
+  stake_amount: number;
+  max_players: number;
+  participant_count: number;
+  participant_ids: string[];
+  room_status: 'waiting' | 'playing' | 'completed' | 'cancelled' | 'expired';
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchArenaChatGameCalls(roomId: string): Promise<ArenaChatGameCall[]> {
+  const { data, error } = await supabase.rpc('get_arena_chat_game_calls', {
+    p_source_room_id: roomId,
+  });
+  if (error) throw error;
+  return (data || []).map((value: unknown) => {
+    const gameCall = value as Record<string, unknown>;
+    return {
+      ...gameCall,
+      stake_amount: Number(gameCall.stake_amount) || 0,
+      max_players: Number(gameCall.max_players) || 0,
+      participant_count: Number(gameCall.participant_count) || 0,
+      participant_ids: Array.isArray(gameCall.participant_ids)
+        ? gameCall.participant_ids.filter((id): id is string => typeof id === 'string')
+        : [],
+    } as ArenaChatGameCall;
+  });
+}
+
+export async function createArenaChatGameCall(payload: {
+  sourceRoomId: string;
+  gameType: 'standard' | 'ludo';
+  stakeAmount: number;
+  maxPlayers: number;
+  challengedUserId?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('create_arena_chat_game_call', {
+    p_source_room_id: payload.sourceRoomId,
+    p_game_type: payload.gameType,
+    p_stake_amount: payload.stakeAmount,
+    p_max_players: payload.maxPlayers,
+    p_challenged_user_id: payload.challengedUserId || null,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export type ArenaChallengeResponse = 'accept' | 'decline' | 'schedule';
+
+export async function respondArenaChatChallenge(
+  targetRoomId: string,
+  response: ArenaChallengeResponse,
+) {
+  const { data, error } = await supabase.rpc('respond_arena_chat_challenge', {
+    p_target_room_id: targetRoomId,
+    p_response: response,
+  });
+  if (error) throw error;
+  return String(data);
 }
 
 export async function fetchQuizWaitingMessages(sessionId: string) {
@@ -3199,7 +3742,7 @@ export async function prepareArenaQuestionDeck(payload: {
   const token = sessionData.session?.access_token;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before preparing the Arena.');
 
-  const res = await fetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
+  const res = await readableFetch(`${supabaseUrl}/functions/v1/generate-arena-questions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -3229,7 +3772,7 @@ export async function generateInstructorQuestionsWithAI(payload: {
   const token = sessionData.session?.access_token;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again before generating questions.');
   try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
+    const response = await readableFetch(`${supabaseUrl}/functions/v1/generate-instructor-questions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -3261,7 +3804,7 @@ async function callRoadHomeServer(body: Record<string, unknown>): Promise<RoadHo
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token || !supabaseUrl || !supabaseAnonKey) throw new Error('Sign in again to continue The Road Home.');
-  const response = await fetch(`${supabaseUrl}/functions/v1/road-home-game`, {
+  const response = await readableFetch(`${supabaseUrl}/functions/v1/road-home-game`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -3287,6 +3830,29 @@ export function fetchRoadHomeState(roomId: string) {
   return callRoadHomeServer({ roomId, action: 'GET' });
 }
 
+export async function fetchRoadHomeSpectatorState(roomId: string, publicAccess = false): Promise<RoadHomeResponse> {
+  if (publicAccess) {
+    const { data, error } = await supabase.rpc('get_public_arena_ludo_state', { p_room_id: roomId });
+    if (error) throw error;
+    return {
+      state: data?.public_state || null,
+      version: data?.version == null ? undefined : Number(data.version),
+      needsInitialization: !data,
+    } as RoadHomeResponse;
+  }
+  const { data, error } = await supabase
+    .from('arena_ludo_public_states')
+    .select('version,public_state')
+    .eq('room_id', roomId)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    state: data?.public_state || null,
+    version: data?.version == null ? undefined : Number(data.version),
+    needsInitialization: !data,
+  } as RoadHomeResponse;
+}
+
 export function initializeRoadHome(roomId: string) {
   return callRoadHomeServer({ roomId, action: 'INIT', commandId: crypto.randomUUID() });
 }
@@ -3296,28 +3862,76 @@ export function sendRoadHomeCommand(
   action: string,
   payload: Record<string, unknown>,
   expectedVersion: number,
+  commandId: string = crypto.randomUUID(),
 ) {
   return callRoadHomeServer({
     roomId,
     action,
     payload,
     expectedVersion,
-    commandId: crypto.randomUUID(),
+    commandId,
+    shieldDecisionV1: true,
+    ludoMarketRelicsV1: true,
   });
 }
 
-async function mergeArenaRoomsWithParticipants(rooms: any[]) {
+async function mergeArenaRoomsWithParticipants(rooms: any[], activeOnly = false) {
   if (rooms.length === 0) return [];
 
-  const roomIds = rooms.map((room) => room.id);
-  const { data: participants, error: participantError } = await supabase
-    .from('arena_participants')
-    .select('*')
-    .in('room_id', roomIds)
-    .order('joined_at', { ascending: true });
+  // Lobby lists also include completed matches, but their detailed results
+  // load in ArenaRecentResult. Avoid refreshing historical participants,
+  // schedules and witnesses on every lobby poll.
+  const detailRooms = activeOnly ? rooms.filter((room) => ['waiting', 'playing'].includes(room.status)) : rooms;
+  const roomIds = detailRooms.map((room) => room.id);
+  const activeRoomIds = detailRooms.filter((room) => ['waiting', 'playing'].includes(room.status)).map((room) => room.id);
+  if (roomIds.length === 0) return rooms.map((room) => ({
+    ...room,
+    scheduled: false,
+    scheduled_start_at: null,
+    scheduled_player_ids: [],
+    scheduled_by: null,
+    is_sentry_match: false,
+    arena_guest_witness_count: 0,
+    arena_matchup_players: [],
+    arena_participants: [],
+    arena_viewers: [],
+  }));
+  const activeViewerCutoff = new Date(Date.now() - 2 * 60_000).toISOString();
+  const [{ data: participants, error: participantError }, { data: viewers, error: viewerError }, { data: schedules, error: scheduleError }, { data: guestCounts }, { data: matchups, error: matchupError }] = await Promise.all([
+    supabase
+      .from('arena_participants')
+      .select('id,room_id,user_id,stake_paid,score,correct_count,finished_at,joined_at,last_active_at,forfeited_at,forfeit_reason')
+      .in('room_id', roomIds)
+      .order('joined_at', { ascending: true }),
+    supabase
+      .from('arena_viewers')
+      .select('room_id,user_id,joined_at,last_seen_at')
+      .in('room_id', roomIds)
+      .gte('last_seen_at', activeViewerCutoff)
+      .order('joined_at', { ascending: true }),
+    supabase
+      .from('arena_scheduled_matches')
+      .select('room_id,starts_at,player_ids,scheduled_by,is_sentry_match')
+      .in('room_id', roomIds),
+    supabase.rpc('get_arena_guest_witness_counts', { p_room_ids: roomIds }),
+    activeRoomIds.length
+      ? supabase.rpc('get_arena_matchups', { p_room_ids: activeRoomIds })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   if (participantError) throw participantError;
+  if (viewerError && viewerError.code !== '42P01' && viewerError.code !== 'PGRST205') throw viewerError;
+  if (scheduleError && scheduleError.code !== '42P01' && scheduleError.code !== 'PGRST205') throw scheduleError;
+  if (matchupError && matchupError.code !== '42883' && matchupError.code !== 'PGRST202') console.warn('Arena matchup refresh failed:', matchupError);
+  const scheduleMap = new Map((schedules || []).map((schedule) => [schedule.room_id, schedule]));
+  const guestCountMap = new Map((guestCounts || []).map((entry: { room_id: string; guest_count: number }) => [entry.room_id, Number(entry.guest_count) || 0]));
+  const matchupMap = new Map<string, import('./arenaMatchup').ArenaMatchupPlayer[]>((matchups || []).map(
+    (entry: { room_id: string; players: import('./arenaMatchup').ArenaMatchupPlayer[] }) => [entry.room_id, entry.players],
+  ));
 
-  const userIds = Array.from(new Set((participants || []).map((participant: any) => participant.user_id).filter(Boolean)));
+  const userIds = Array.from(new Set([
+    ...(participants || []).map((participant: any) => participant.user_id),
+    ...(viewers || []).map((viewer: any) => viewer.user_id),
+  ].filter(Boolean)));
   const profileMap = new Map<string, any>();
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
@@ -3329,42 +3943,98 @@ async function mergeArenaRoomsWithParticipants(rooms: any[]) {
 
   return rooms.map((room) => ({
     ...room,
+    scheduled: scheduleMap.has(room.id),
+    scheduled_start_at: scheduleMap.get(room.id)?.starts_at || null,
+    scheduled_player_ids: scheduleMap.get(room.id)?.player_ids || [],
+    scheduled_by: scheduleMap.get(room.id)?.scheduled_by || null,
+    is_sentry_match: scheduleMap.get(room.id)?.is_sentry_match ?? false,
+    arena_guest_witness_count: guestCountMap.get(room.id) || 0,
+    arena_matchup_players: (matchupMap.get(room.id) || []).map((player) => (
+      room.play_mode === 'machine' && /\[arena:journey\]/i.test(room.room_name || '')
+        && player.user_id === JOURNEY_MACHINE_ID
+        ? { ...player, correct_count: room.status === 'playing' ? Number(room.machine_score) || 0 : 0 }
+        : player
+    )),
     arena_participants: (participants || [])
       .filter((participant: any) => participant.room_id === room.id)
       .map((participant: any) => ({
         ...participant,
         profiles: profileMap.get(participant.user_id) || null,
       })),
+    arena_viewers: (viewers || [])
+      .filter((viewer: any) => viewer.room_id === room.id)
+      .map((viewer: any) => ({
+        ...viewer,
+        profiles: profileMap.get(viewer.user_id) || null,
+      })) as ArenaViewer[],
   }));
 }
 
-export async function fetchArenaRooms() {
-  try {
-    await supabase.rpc('expire_stale_arena_rooms');
-  } catch {}
+const ARENA_ROOM_SUMMARY_COLUMNS = 'id,creator_id,room_name,stake_amount,max_players,status,narrative_date,game_type,tagged_user_ids,started_at,completed_at,winner_id,created_at,game_call_fee,expires_at,closed_at,closed_by,question_generated_at,play_mode,machine_score,completion_reason,question_generation_claimed_at,question_generation_claimed_by,direct_challenge_user_id,direct_challenge_source_room_id,direct_challenge_status,restarted_as_room_id';
 
-  const { data, error } = await supabase
-    .from('arena_rooms')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50);
-  if (error) throw error;
-  return mergeArenaRoomsWithParticipants(data || []);
+export function fetchArenaRooms() {
+  // Concurrent lobby consumers must not independently fan out to the same
+  // seven Arena endpoints. Only share the in-flight request, never a stale
+  // response after a player joins or a match starts.
+  return shareReadRequest('arena-lobby-rooms', async () => {
+    const { data, error } = await supabase
+      .from('arena_rooms')
+      .select(ARENA_ROOM_SUMMARY_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    const rooms = await mergeArenaRoomsWithParticipants(data || [], true);
+    maintainArenaRoomsInBackground();
+    return rooms;
+  });
 }
 
-export async function fetchArenaRoom(roomId: string) {
-  try {
-    await supabase.rpc('expire_stale_arena_rooms');
-  } catch {}
+/** Cheap single-room heartbeat used while waiting to enter a scheduled match.
+ * Avoid the much heavier roster, audience and scoreboard fan-out on each tick.
+ */
+export async function fetchArenaRoomPulse(roomId: string): Promise<{
+  status: string;
+  active_player_ids: string[];
+} | null> {
+  const [room, participants] = await Promise.all([
+    supabase.from('arena_rooms').select('id,status').eq('id', roomId).maybeSingle(),
+    supabase.from('arena_participants').select('user_id').eq('room_id', roomId).is('forfeited_at', null),
+  ]);
+  if (room.error) throw room.error;
+  if (participants.error) throw participants.error;
+  if (!room.data) return null;
+  return {
+    status: String(room.data.status),
+    active_player_ids: (participants.data || []).map((row) => row.user_id),
+  };
+}
 
-  const { data, error } = await supabase
-    .from('arena_rooms')
-    .select('*')
-    .eq('id', roomId)
-    .maybeSingle();
+export function fetchArenaRoom(roomId: string, includeQuestions = false) {
+  // Active-match Realtime, heartbeat and UI refresh can arrive together.
+  // Sharing only the pending read avoids duplicate six-endpoint fan-outs,
+  // without caching a room state across moves or score changes.
+  return shareReadRequest(`arena-room-detail:${roomId}:${includeQuestions}`, async () => {
+    const { data, error } = await supabase
+      .from('arena_rooms')
+      .select(includeQuestions ? '*' : ARENA_ROOM_SUMMARY_COLUMNS)
+      .eq('id', roomId)
+      .maybeSingle();
+    if (error) throw error;
+    const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
+    // A per-witness room read must never kick off global room-expiry and
+    // orphan-repair RPCs. The Arena lobby still runs bounded maintenance.
+    // Supabase's matching witness-entry functions are versioned in the
+    // 20261123150000_reduce_arena_witness_presence_request_fanout migration.
+    return room || null;
+  });
+}
+
+export async function fetchArenaMatchups(roomIds: string[]) {
+  const ids = Array.from(new Set(roomIds)).slice(0, 50);
+  if (ids.length === 0) return new Map<string, import('./arenaMatchup').ArenaMatchupPlayer[]>();
+  const { data, error } = await supabase.rpc('get_arena_matchups', { p_room_ids: ids });
   if (error) throw error;
-  const [room] = await mergeArenaRoomsWithParticipants(data ? [data] : []);
-  return room || null;
+  return new Map((data || []).map((row: { room_id: string; players: import('./arenaMatchup').ArenaMatchupPlayer[] }) => [row.room_id, row.players]));
 }
 
 // ── Strict streak ──

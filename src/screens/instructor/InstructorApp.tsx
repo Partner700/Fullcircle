@@ -1,3 +1,6 @@
+import { interfaceLanguage, preferredTimeZone } from '../../lib/regionalPreferences';
+import { ProfileTimeZoneSelect } from '../../components/ProfileTimeZoneSelect';
+import { generateValedictionDraft, fetchValedictionDraftReview, validateValedictionDraft, type ValedictionDraftReview } from '../../lib/valedictionDrafts';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell, SectionHeader, EmptyState } from '../../components/AppShell';
@@ -9,6 +12,8 @@ import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
 import { BrowserNotificationSettings } from '../../components/BrowserNotificationSettings';
 import { MeditationHistoryPanel } from '../../components/MeditationHistoryPanel';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
+import { SentryLeadershipBoard } from '../../components/SentryLeadershipBoard';
+import { CadetArena } from '../cadet/CadetArena';
 import { invalidateSoundAsset } from '../../lib/soundscape';
 import { phoneNumberForCountry, PROFILE_COUNTRIES, PROFILE_LANGUAGES } from '../../lib/profileOptions';
 import { formatBirthdayInput, formatBirthdayTyping, parseBirthdayInput, saveOwnProfilePreferences } from '../../lib/profilePreferences';
@@ -20,11 +25,13 @@ import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { QuestionImportPanel } from '../../components/QuestionImportPanel';
+import { InstructorJourneyReview } from '../../components/InstructorJourneyReview';
 import { FcxExperienceManager } from '../../components/FcxExperience';
 import { ProfilePhotoEditor } from '../../components/ProfilePhotoEditor';
 import { DoveQuestionManager } from '../../components/DoveQuestionManager';
 import { CampTreasury } from '../../components/InstructorTreasury';
 import { VallumText } from '../../components/ChiRhoMark';
+import { AwardBadgeGlyph } from '../../components/VallumAvatarBadge';
 import { UserAvatar } from '../../components/UserAvatar';
 import { GameActivityProfiles } from '../../components/GameActivityProfiles';
 import { AwardReleasePlanner } from '../../components/AwardReleasePlanner';
@@ -44,11 +51,10 @@ import {
   fetchTents, fetchTentMembers, fetchAllProfiles, fetchAllRoleAssignments,
   fetchAllNarratives, fetchAwards,
   fetchQuizSessions, createQuizSession, launchQuizSession, extendQuizSession, deleteQuizSession, fetchQuestionsForSession, insertQuestions, fetchNarratives,
-  fetchUnassignedUsers, isSaturdayQuizScheduled, assignCadetToTent, generateInstructorQuestionsWithAI,
-  fetchDefaultTentJoinDirection, fetchTentJoinDirections, setDefaultTentJoinDirection, setTentJoinDirection,
+  fetchUnassignedUsers, isSaturdayQuizScheduled, generateInstructorQuestionsWithAI,
 } from '../../lib/queries';
 import { cn, whatsappUrl, formatShortDate, formatNumericDate, getDayType, getTodayISODate, getAppClock, getAppDateTimeMs, shiftISODate, formatXaf } from '../../lib/utils';
-import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
+import { DEFAULT_PANEL_IMAGE_ADJUSTMENTS, interTentWelcomeArtwork, normaliseAdjustments, panelImageFromAnnouncement, selectPanelImageAnnouncement, serializePanelImageSetting } from '../../lib/panelImages';
 import { prepareImageUpload } from '../../lib/uploads';
 import { uploadAppFile } from '../../lib/storageUploads';
 import type { Tent, TentMember, Profile, RoleAssignment, DailyNarrative, AwardWithRecipient, QuizSession, GeneratedQuestion, CustomQuestion, QuestionPayload, MobileMoneySettings, MobileMoneyPayment, ScheduledAnnouncement, DailyQuoteFeedItem, PanelImageAdjustments } from '../../lib/types';
@@ -57,7 +63,7 @@ import { DeleteAccountSection } from '../../components/DeleteAccountSection';
 import {
   Home, Users, BookOpen, FileQuestion, Tent as TentIcon, Trophy, Award as AwardIcon,
   Shield, Plus, Save, Loader2, Crown, Coins, Trash2, UserMinus, MessageCircle,
-  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck,
+  Flame, ArrowUpCircle, KeyRound, Target, CheckCircle2, XCircle, Gamepad2, Smartphone, Rocket, UserPlus, UserCheck, Swords,
   RotateCcw, ChevronDown, Check, CreditCard, LogOut, Megaphone, Eye,
   Globe2, Image as ImageIcon, Upload, X, Move, Volume2, Music2, Clock, Languages,
   Cake, Aperture, Blend, CircleDot, Contrast, Droplets, EyeOff, Focus, Gauge,
@@ -69,17 +75,17 @@ import { customQuestionToPayload, GAME_TYPE_LABELS } from '../../lib/gameEngines
 import { importedQuestionToPayload, questionImportKey, type ImportedQuestion } from '../../lib/questionImport';
 import {
   fetchAllChallengeSubmissions, reviewChallengeSubmission, promoteCadetToSentry, promoteSentryToInstructor,
-  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, insertCustomQuestions, updateCustomQuestion, deleteCustomQuestion,
-  fetchCustomGameQuestions, fetchCustomGameQuestionsForNarrative, fetchQuizTaggedGameQuestions,
+  giveAwardRPC, awardTent, fetchCustomQuestions, insertCustomQuestion, importCustomGameQuestions, updateCustomQuestion, deleteCustomQuestion,
+  fetchCustomGameQuestions, fetchQuizTaggedGameQuestions,
   fetchMobileMoneySettings, saveMobileMoneySettings, fetchInstructorMobileMoneyPayments,
   fetchAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   deleteQuestionsForSession, updateGeneratedQuestion,
   fetchQuizAnswerSheets, fetchDailyQuoteFeed, fetchDailyQuoteReactions, reactToDailyQuote,
   fetchDailyQuoteComments, commentOnDailyQuote, editDailyQuoteComment, fetchStrictStreak, savePanelImageSetting, fetchPanelImageSetting,
-  fetchMarksBoard, fetchWeeklyAwardMetrics,
+  fetchMarksBoard, fetchWeeklyAwardMetrics, fetchWeeklyAngelAwardMetrics,
 } from '../../lib/queries';
 
-type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
+type Tab = 'dashboard' | 'narratives' | 'announcements' | 'dove_questions' | 'quiz' | 'game_questions' | 'journey_questions' | 'arena' | 'tents' | 'cadets' | 'sentries' | 'unassigned' | 'treasury' | 'leaderboard' | 'matricules' | 'awards' | 'challenges' | 'mobile_money' | 'store' | 'subscribe' | 'settings';
 
 type AwardCatalogTarget = 'cadet' | 'sentry' | 'tent';
 type NarrativeSelection = DailyNarrative | null | 'new' | { mode: 'republish'; narrative: DailyNarrative };
@@ -130,6 +136,7 @@ function AwardCheckboxList({ selected, onToggle, target = 'cadet' }: { selected:
                     checked ? 'border-peri bg-peri/5' : 'border-border-bright bg-surface-2 hover:border-stone/30')}>
                   <input type="checkbox" checked={checked} onChange={() => onToggle(award.title)}
                     className="mt-0.5 accent-peri flex-shrink-0" />
+                  {award.forTent && <span className="shrink-0 text-brass"><AwardBadgeGlyph awardType="tent" title={award.title} size={24} /></span>}
                   <div>
                     <p className="text-xs font-semibold text-ink leading-tight"><VallumText text={award.title} size={11} /></p>
                     <p className="text-[11px] text-stone mt-0.5"><VallumText text={award.description} size={10} /></p>
@@ -199,6 +206,8 @@ const NAV_ITEMS = [
   { key: 'dove_questions', label: 'Dove Questions', icon: MessageCircle },
   { key: 'quiz', label: 'Quiz Builder', icon: FileQuestion },
   { key: 'game_questions', label: 'Game Questions', icon: Gamepad2 },
+  { key: 'journey_questions', label: 'Journey Questions', icon: BookOpen },
+  { key: 'arena', label: 'Arena Witness', icon: Swords },
   { key: 'tents', label: 'Tents', icon: TentIcon },
   { key: 'cadets', label: 'Cadets', icon: Users },
   { key: 'sentries', label: 'Sentries', icon: Shield },
@@ -282,7 +291,12 @@ export function InstructorApp() {
 
   // The landing dashboard does not need every profile or historical award.
   // Defer those larger management datasets until a management screen is opened.
-  useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
+  useEffect(() => { void loadDashboardData(); }, [loadDashboardData]);
+  useEffect(() => {
+    if (['tents', 'cadets', 'sentries', 'awards', 'treasury'].includes(tab)) {
+      void loadAll();
+    }
+  }, [tab, loadAll]);
   useEffect(() => {
     const refreshWhenVisible = () => {
       if (document.visibilityState !== 'visible') return;
@@ -305,7 +319,7 @@ export function InstructorApp() {
 
   const tabLabels: Record<Tab, string> = {
     dashboard: 'Instructor Dashboard', narratives: 'Narrative Editor', announcements: 'Announcements', dove_questions: 'Dove Questions', quiz: 'Quiz Builder',
-    game_questions: 'Game Questions', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
+    game_questions: 'Game Questions', journey_questions: 'Journey Questions', arena: 'Arena Witness', tents: 'Tent Management', cadets: 'Cadet Management', sentries: 'Sentry Management', treasury: 'Camp Treasury',
     leaderboard: 'Challenge Boards', matricules: 'Sentry Matricules', awards: 'Awards Hub',
     challenges: 'Challenges', mobile_money: 'Mobile Money', store: 'The Market', subscribe: 'Subscription', settings: 'Settings',
     unassigned: 'Unassigned Users',
@@ -316,8 +330,7 @@ export function InstructorApp() {
     if (!NAV_ITEMS.some((item) => item.key === key)) return;
     setTab(key as Tab);
     if (key === 'narratives') setEditingNarrative('new');
-    if (['tents', 'cadets', 'sentries', 'awards', 'treasury'].includes(key) && profiles.length === 0) void loadAll();
-  }, [loadAll, profiles.length]);
+  }, []);
 
   useEffect(() => {
     const navigate = (event: Event) => {
@@ -349,7 +362,7 @@ export function InstructorApp() {
       )}
       {tab === 'announcements' && <AnnouncementManager />}
       {tab === 'dove_questions' && <DoveQuestionManager />}
-      {tab === 'tents' && <><TentJoinRequests onRefresh={loadAll} /><TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} /></>}
+      {tab === 'tents' && <TentManagement tents={tents} members={members} profiles={profiles} roles={roles} onRefresh={loadAll} loading={loading} />}
       {tab === 'cadets' && <CadetManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'sentries' && <SentryManagement profiles={profiles} roles={roles} members={members} tents={tents} awards={awards} onRefresh={loadAll} instructorId={profile?.id || ''} />}
       {tab === 'unassigned' && <UnassignedUsers onRefresh={loadAll} />}
@@ -358,7 +371,9 @@ export function InstructorApp() {
       {tab === 'matricules' && <MatriculesManagement />}
       {tab === 'awards' && <AwardsManagement awards={awards} profiles={profiles} roles={roles} tents={tents} members={members} onRefresh={loadAll} />}
       {tab === 'quiz' && <QuizBuilder />}
-      {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} />}
+      {tab === 'game_questions' && profile && <GameQuestionsEditor profile={profile} onOpenJourney={() => navigateFromAction('journey_questions')} />}
+      {tab === 'journey_questions' && <InstructorJourneyReview defaultOpen />}
+      {tab === 'arena' && <CadetArena witnessOnly instructorSchedule />}
       {tab === 'challenges' && <ChallengeReview instructorId={profile?.id || ''} onRefresh={loadAll} />}
       {tab === 'mobile_money' && <MobileMoneyManager />}
       {tab === 'store' && <CadetStore />}
@@ -444,6 +459,7 @@ const PANEL_IMAGE_SLOTS = [
   { type: 'panel_image_daily_game_reminder', label: 'Daily Trivia Reminder', audience: 'all' },
   { type: 'panel_image_weekly_quiz_reminder', label: 'Weekly Quiz Reminder', audience: 'all' },
   { type: 'panel_image_arena', label: 'Arena', audience: 'all' },
+  { type: 'panel_image_intertent_welcome', label: 'Tournament Welcome Slide', audience: 'all' },
   { type: 'panel_image_story_mode', label: 'Story Mode', audience: 'all' },
   { type: 'panel_image_tent', label: 'Tent Panel', audience: 'all' },
   { type: 'panel_image_leaderboard', label: 'Boards', audience: 'all' },
@@ -681,13 +697,17 @@ function AnnouncementManager() {
     }
   };
 
-  const activeImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
+  const savedImageSettings = PANEL_IMAGE_SLOTS.map((slot) => ({
     ...slot,
     item: selectPanelImageAnnouncement(announcements, slot.type, slot.audience),
   })).map((setting) => ({
     ...setting,
     image: setting.item ? panelImageFromAnnouncement(setting.item) : null,
   }));
+  const arenaArtwork = savedImageSettings.find((setting) => setting.type === 'panel_image_arena')?.image;
+  const activeImageSettings = savedImageSettings.map((setting) => setting.type === 'panel_image_intertent_welcome'
+    ? { ...setting, image: interTentWelcomeArtwork(arenaArtwork, setting.image) }
+    : setting);
 
   const editingImageSetting = activeImageSettings.find((setting) => setting.type === editingImageType) || null;
   const profileArtworkSetting = activeImageSettings.find((setting) => setting.type === 'panel_image_profile') || null;
@@ -712,8 +732,8 @@ function AnnouncementManager() {
   const openImageEditor = (type: string) => {
     const setting = activeImageSettings.find((candidate) => candidate.type === type);
     setEditingImageType(type);
-    setImagePositionX(Number(setting?.item?.image_position_x ?? 50));
-    setImagePositionY(Number(setting?.item?.image_position_y ?? 50));
+    setImagePositionX(Number(setting?.image?.positionX ?? 50));
+    setImagePositionY(Number(setting?.image?.positionY ?? 50));
     setImageAdjustments(normaliseAdjustments(setting?.image?.adjustments));
     setActiveImageAdjustment('brightness');
   };
@@ -804,15 +824,19 @@ function AnnouncementManager() {
   };
 
   const saveImageFraming = async () => {
-    if (!editingImageSetting?.item) return;
+    if (!editingImageSetting?.image) return;
     setSavingImagePosition(true);
     try {
-      await updateAnnouncement(editingImageSetting.item.id, {
-        content: serializePanelImageSetting(editingImageSetting.image?.url || '', imageAdjustments),
-        image_position_x: imagePositionX,
-        image_position_y: imagePositionY,
-      });
-      await load();
+      if (!editingImageSetting.item) {
+        await publishImageSetting(editingImageSetting.type, editingImageSetting.image.url, editingImageSetting.audience, imagePositionX, imagePositionY, imageAdjustments);
+      } else {
+        await updateAnnouncement(editingImageSetting.item.id, {
+          content: serializePanelImageSetting(editingImageSetting.image.url, imageAdjustments),
+          image_position_x: imagePositionX,
+          image_position_y: imagePositionY,
+        });
+        await load();
+      }
       setEditingImageType(null);
     } catch (e: any) {
       alert(e.message || 'Failed to save image framing');
@@ -1030,7 +1054,7 @@ function AnnouncementManager() {
                   <div className="flex items-center justify-between gap-2 p-3">
                     <span className="text-xs font-semibold text-ink">{setting.label}</span>
                     <span className="text-[10px] font-semibold text-brass">
-                      {setting.item ? 'Edit image' : 'Add image'}
+                      {setting.item ? 'Edit image' : setting.image ? 'Customize image' : 'Add image'}
                     </span>
                   </div>
                 </button>
@@ -1220,7 +1244,10 @@ function AnnouncementManager() {
                 )}
               </div>
 
-              {editingImageSetting.item && (
+              {editingImageSetting.image && !editingImageSetting.item && (
+                <p className="text-xs text-stone">Currently using the Arena artwork. Save your adjustments here to customize the tournament welcome slide independently.</p>
+              )}
+              {editingImageSetting.image && (
                 <div className="space-y-4 rounded-lg border border-border bg-surface-2 p-3">
                   <div className="flex items-center gap-2">
                     <Move size={15} className="text-brass" />
@@ -1310,7 +1337,7 @@ function AnnouncementManager() {
                     )}
                   >
                     {uploadingImageType === editingImageSetting.type ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                    {editingImageSetting.item ? 'Replace image' : 'Add image'}
+                    {editingImageSetting.image ? 'Replace image' : 'Add image'}
                     <input
                       type="file"
                       accept="image/*"
@@ -1333,7 +1360,7 @@ function AnnouncementManager() {
                     </button>
                   )}
                 </div>
-                {editingImageSetting.item && (
+                {editingImageSetting.image && (
                   <button
                     type="button"
                     onClick={saveImageFraming}
@@ -1737,36 +1764,6 @@ function StatBox({ icon: Icon, label, value, tint }: { icon: any; label: string;
   );
 }
 
-function TentJoinRequests({ onRefresh }: { onRefresh: () => void }) {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [reviewing, setReviewing] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.from('tent_join_requests')
-      .select('id,created_at,user_id,tent_id,profiles(display_name,avatar_url),tents(name)')
-      .eq('status', 'pending').order('created_at');
-    if (!error) setRequests(data || []);
-  }, []);
-  useEffect(() => { void load(); }, [load]);
-  const review = async (id: string, approve: boolean) => {
-    setReviewing(id);
-    const { error } = await supabase.rpc('review_tent_join_request', { p_request_id: id, p_approve: approve });
-    setReviewing(null);
-    if (error) return alert(error.message);
-    await load();
-    onRefresh();
-  };
-  if (requests.length === 0) return null;
-  return <section className="card mb-5 p-5">
-    <SectionHeader title="Tent Join Requests" subtitle="Approve the instructor-directed tent while it has fewer than ten cadets. The sentry has a separate place." />
-    <div className="mt-4 space-y-2">{requests.map((request) => <div key={request.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
-      <span className="relative flex h-9 w-9 items-center justify-center font-bold text-ink"><UserAvatar userId={request.user_id} name={request.profiles?.display_name} avatarUrl={request.profiles?.avatar_url} className="h-full w-full" /></span>
-      <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{request.profiles?.display_name}</p><p className="text-xs text-stone">requests {request.tents?.name}</p></div>
-      <button type="button" onClick={() => void review(request.id, true)} disabled={reviewing === request.id} className="icon-btn text-sage" title="Approve"><Check size={16} /></button>
-      <button type="button" onClick={() => void review(request.id, false)} disabled={reviewing === request.id} className="icon-btn text-coral" title="Reject"><X size={16} /></button>
-    </div>)}</div>
-  </section>;
-}
-
 const TENT_CADET_CAPACITY = 10;
 
 function TentManagement({ tents, members, profiles, roles, onRefresh, loading }: {
@@ -1785,14 +1782,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [tentActionMessage, setTentActionMessage] = useState<string | null>(null);
   const [tentActionError, setTentActionError] = useState<string | null>(null);
-  const [directions, setDirections] = useState<Record<string, string>>({});
-  const [directionDrafts, setDirectionDrafts] = useState<Record<string, string>>({});
-  const [directionSavingId, setDirectionSavingId] = useState<string | null>(null);
-  const [directionsLoading, setDirectionsLoading] = useState(true);
-  const [defaultTentId, setDefaultTentId] = useState('');
-  const [defaultTentDraft, setDefaultTentDraft] = useState('');
-  const [defaultTentSaving, setDefaultTentSaving] = useState(false);
-
   const tentCadetsById = useMemo(() => {
     const counts = new Map<string, number>();
     tents.forEach((tent) => {
@@ -1805,83 +1794,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
     });
     return counts;
   }, [members, tents]);
-
-  const tentlessCadets = useMemo(() => {
-    const assignedUserIds = new Set(members.map((member) => member.user_id));
-    const activeCadetIds = new Set(roles
-      .filter((assignment) => assignment.role === 'cadet' && (assignment.status === 'active' || assignment.status === 'approved'))
-      .map((assignment) => assignment.user_id));
-    return profiles
-      .filter((candidate) => activeCadetIds.has(candidate.id) && !assignedUserIds.has(candidate.id))
-      .sort((left, right) => left.display_name.localeCompare(right.display_name));
-  }, [members, profiles, roles]);
-
-  const loadDirections = useCallback(async () => {
-    setDirectionsLoading(true);
-    try {
-      const [rows, campDefaultTentId] = await Promise.all([
-        fetchTentJoinDirections(),
-        fetchDefaultTentJoinDirection(),
-      ]);
-      const next = Object.fromEntries(rows.map((row) => [row.user_id, row.tent_id]));
-      setDirections(next);
-      setDirectionDrafts(next);
-      setDefaultTentId(campDefaultTentId || '');
-      setDefaultTentDraft(campDefaultTentId || '');
-    } catch (error) {
-      setTentActionError(error instanceof Error ? error.message : 'Tent directions could not be loaded.');
-    } finally {
-      setDirectionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void loadDirections(); }, [loadDirections]);
-
-  const saveDefaultDirection = async () => {
-    const tentId = defaultTentDraft || null;
-    setDefaultTentSaving(true);
-    setTentActionMessage(null);
-    setTentActionError(null);
-    try {
-      await setDefaultTentJoinDirection(tentId);
-      setDefaultTentId(tentId || '');
-      const tentName = tents.find((tent) => tent.id === tentId)?.name;
-      setTentActionMessage(tentName
-        ? `The tour hand now directs every new or tentless cadet to ${tentName}.`
-        : 'The camp-wide tour tent was cleared. Tents remain muted unless a personal direction exists.');
-    } catch (error) {
-      setTentActionError(error instanceof Error ? error.message : 'The camp-wide tour tent could not be saved.');
-      await loadDirections();
-    } finally {
-      setDefaultTentSaving(false);
-    }
-  };
-
-  const saveDirection = async (userId: string) => {
-    const tentId = directionDrafts[userId] || null;
-    setDirectionSavingId(userId);
-    setTentActionMessage(null);
-    setTentActionError(null);
-    try {
-      await setTentJoinDirection(userId, tentId);
-      setDirections((current) => {
-        const next = { ...current };
-        if (tentId) next[userId] = tentId;
-        else delete next[userId];
-        return next;
-      });
-      const cadetName = profiles.find((candidate) => candidate.id === userId)?.display_name || 'The cadet';
-      const tentName = tents.find((tent) => tent.id === tentId)?.name;
-      setTentActionMessage(tentName
-        ? `${cadetName} was directed to ${tentName}. The hand now points only there.`
-        : `${cadetName}'s tent direction was cleared.`);
-    } catch (error) {
-      setTentActionError(error instanceof Error ? error.message : 'The tent direction could not be saved.');
-      await loadDirections();
-    } finally {
-      setDirectionSavingId(null);
-    }
-  };
 
   const availableSentries = roles
     .filter((r) => r.role === 'sentry' && r.status === 'active')
@@ -1924,7 +1836,7 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
-        <SectionHeader title="Tent Management" subtitle="Create tents, assign sentries, add cadets" />
+        <SectionHeader title="Tent Management" subtitle="Create tents and assign Sentries" />
         <button onClick={() => setShowCreate(!showCreate)} className="btn-primary text-sm">
           <Plus size={16} /> New Tent
         </button>
@@ -1971,107 +1883,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
         </div>
       )}
 
-      <section className="card p-4">
-        <SectionHeader
-          title="Tour Tent Direction"
-          subtitle="Choose the tent the hand points to for every new or tentless cadet. Personal overrides remain available below."
-        />
-        {directionsLoading ? (
-          <div className="flex items-center justify-center py-6 text-sm text-stone"><Loader2 size={16} className="mr-2 animate-spin" /> Loading directions…</div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-3 rounded-lg border border-gold/25 bg-gold-soft/35 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
-              <div>
-                <p className="text-sm font-bold text-ink">Camp-wide tour tent</p>
-                <p className="text-xs text-stone">This is the default for every new and tentless cadet.</p>
-              </div>
-              <AppSelect
-                value={defaultTentDraft}
-                onChange={setDefaultTentDraft}
-                options={[
-                  { value: '', label: 'No camp-wide direction', description: 'All tents stay muted unless a personal override exists.' },
-                  ...tents
-                    .filter((tent) => (tentCadetsById.get(tent.id) || 0) < TENT_CADET_CAPACITY || defaultTentId === tent.id)
-                    .map((tent) => {
-                      const count = tentCadetsById.get(tent.id) || 0;
-                      return {
-                        value: tent.id,
-                        label: `${tent.name} · ${count}/${TENT_CADET_CAPACITY} cadets`,
-                        description: count >= TENT_CADET_CAPACITY ? 'Full — choose another tent' : `${TENT_CADET_CAPACITY - count} cadet place${TENT_CADET_CAPACITY - count === 1 ? '' : 's'} available`,
-                      };
-                    }),
-                ]}
-                buttonClassName="text-sm"
-                disabled={defaultTentSaving}
-              />
-              <button
-                type="button"
-                onClick={() => void saveDefaultDirection()}
-                disabled={defaultTentSaving || defaultTentDraft === defaultTentId}
-                className="btn-primary min-w-24 justify-center text-xs"
-              >
-                {defaultTentSaving ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
-                Save
-              </button>
-            </div>
-
-            <div>
-              <p className="text-xs font-extrabold uppercase text-stone">Optional personal overrides</p>
-              {tentlessCadets.length === 0 ? (
-                <p className="mt-2 text-sm text-stone">Every active cadet currently belongs to a tent.</p>
-              ) : (
-                <div className="mt-2 divide-y divide-border rounded-lg border border-border">
-                  {tentlessCadets.map((cadet) => {
-                    const currentTentId = directions[cadet.id] || '';
-                    const draftTentId = directionDrafts[cadet.id] ?? currentTentId;
-                    const options = [
-                      {
-                        value: '',
-                        label: defaultTentId ? `Use camp-wide direction · ${tents.find((tent) => tent.id === defaultTentId)?.name || 'selected tent'}` : 'No personal direction',
-                        description: defaultTentId ? 'The tour follows the camp-wide tent.' : 'All tents remain muted for this cadet.',
-                      },
-                      ...tents
-                        .filter((tent) => (tentCadetsById.get(tent.id) || 0) < TENT_CADET_CAPACITY || currentTentId === tent.id)
-                        .map((tent) => {
-                          const count = tentCadetsById.get(tent.id) || 0;
-                          const full = count >= TENT_CADET_CAPACITY;
-                          return {
-                            value: tent.id,
-                            label: `${tent.name} · ${count}/${TENT_CADET_CAPACITY} cadets`,
-                            description: full ? 'Full — choose another tent' : `${TENT_CADET_CAPACITY - count} cadet place${TENT_CADET_CAPACITY - count === 1 ? '' : 's'} available`,
-                          };
-                        }),
-                    ];
-                    return <div key={cadet.id} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,1fr)_auto] sm:items-center">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <UserAvatar userId={cadet.id} name={cadet.display_name} avatarUrl={cadet.avatar_url} className="h-10 w-10 flex-shrink-0" />
-                        <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{cadet.display_name}</p><p className="text-xs text-stone">Tentless cadet</p></div>
-                      </div>
-                      <AppSelect
-                        value={draftTentId}
-                        onChange={(value) => setDirectionDrafts((current) => ({ ...current, [cadet.id]: value }))}
-                        options={options}
-                        buttonClassName="text-sm"
-                        disabled={directionSavingId === cadet.id}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void saveDirection(cadet.id)}
-                        disabled={directionSavingId === cadet.id || draftTentId === currentTentId}
-                        className="btn-primary min-w-24 justify-center text-xs"
-                      >
-                        {directionSavingId === cadet.id ? <Loader2 size={13} className="animate-spin" /> : <Target size={13} />}
-                        {currentTentId ? 'Update' : 'Direct'}
-                      </button>
-                    </div>;
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
       {tents.length === 0 ? (
         <EmptyState icon={TentIcon} title="No tents yet" message="Create a tent and assign a sentry to get started." />
       ) : (
@@ -2081,10 +1892,6 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
             const sentry = tentMembers.find((m) => m.role === 'sentry');
             const cadets = tentMembers.filter((m) => m.role === 'cadet');
             const cadetCount = tentCadetsById.get(t.id) || 0;
-            const availableCadets = roles
-              .filter((r) => r.role === 'cadet' && (r.status === 'active' || r.status === 'approved'))
-              .filter((r) => !members.some((m) => m.user_id === r.user_id));
-
             return (
               <div key={t.id} className="card p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -2144,53 +1951,11 @@ function TentManagement({ tents, members, profiles, roles, onRefresh, loading }:
                   ))}
                 </div>
 
-                {cadetCount < TENT_CADET_CAPACITY && availableCadets.length > 0 && (
-                  <AddCadetRow tentId={t.id} availableCadets={availableCadets} profiles={profiles} onRefresh={onRefresh} />
-                )}
               </div>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function AddCadetRow({ tentId, availableCadets, profiles, onRefresh }: {
-  tentId: string; availableCadets: RoleAssignment[]; profiles: Profile[]; onRefresh: () => void;
-}) {
-  const [selected, setSelected] = useState('');
-  const [adding, setAdding] = useState(false);
-
-  const addCadet = async () => {
-    if (!selected) return;
-    setAdding(true);
-    try {
-      await assignCadetToTent(tentId, selected);
-      setSelected('');
-      onRefresh();
-    } catch (e: any) {
-      alert(e.message || 'Failed to add cadet');
-    }
-    setAdding(false);
-  };
-
-  return (
-    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-      <AppSelect
-        className="flex-1"
-        buttonClassName="text-sm"
-        value={selected}
-        onChange={setSelected}
-        placeholder="Add cadet..."
-        options={availableCadets.map((r) => {
-          const p = profiles.find((p) => p.id === r.user_id);
-          return { value: r.user_id, label: p?.display_name || 'Cadet' };
-        })}
-      />
-      <button onClick={addCadet} disabled={adding || !selected} className="btn-primary text-xs">
-        {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
-      </button>
     </div>
   );
 }
@@ -2485,6 +2250,9 @@ function SentryManagement({ profiles, roles, members, tents, awards, onRefresh, 
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Sentry Management" subtitle="View, promote, award, replace, or remove sentries" />
+      <p className="text-xs text-stone">Consider Command and Rite performance when selecting Sentry award winners.</p>
+      <SentryLeadershipBoard kind="command" viewerId={instructorId} houseIds={Object.fromEntries(tents.filter(tent=>tent.sentry_id).map(tent=>[tent.sentry_id!,tent.tent_house_id]))} />
+      <SentryLeadershipBoard kind="rite" viewerId={instructorId} houseIds={Object.fromEntries(tents.filter(tent=>tent.sentry_id).map(tent=>[tent.sentry_id!,tent.tent_house_id]))} />
       <input className="input-field" placeholder="Search sentries…" value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="space-y-3">
         {filtered.map((r) => {
@@ -2720,7 +2488,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'weekly',
     awards: [
       { title: 'Rhetoric Award (Orator)', description: 'Most reactions and comments received across quotes and scripture insights during the week' },
-      { title: 'Angel Award (Angelos)', description: 'Weekly leader in insight likes, public meditations, and external shares' },
+      { title: 'Angel Award (Angelos)', description: 'Most insights published, meditations made public, and app links shared during the week' },
       { title: 'Rumor Award', description: 'Weekly Vallum: the cadet leading the Marks table' },
       { title: 'Scribe Award', description: 'Highest total figs earned during the week' },
       { title: 'The Sprout', description: 'Most Improved Cadet of the Week' },
@@ -2733,7 +2501,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Weekly Tent',
     cadence: 'weekly',
     awards: [
-      { title: "The Lord's Secret", description: 'Best Performing Tent', forTent: true },
+      { title: 'Temple', description: 'Best Performing Tent of the Week', forTent: true },
     ],
   },
   {
@@ -2741,11 +2509,11 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     cadence: 'monthly',
     awards: [
       { title: 'Vallum', description: 'Overall Best Cadet of the Month by Marks' },
-      { title: 'Messenger Award (Nuncio)', description: 'Monthly leader in insight likes, public meditations, and external shares' },
+      { title: 'Messenger Award (Nuncio)', description: 'Most insights published, meditations made public, and app links shared during the month' },
       { title: 'Monthly Scribe', description: 'Highest Monthly Fig Total' },
       { title: 'Monthly Valley Champion', description: 'Most Monthly Arena Victories' },
       { title: 'Muralis', description: 'Winner of the previous Full Circle Experience' },
-      { title: 'Centurion', description: 'Best Sentry of the Month', forSentry: true },
+      { title: 'Century Award (Centurion)', description: 'Best Sentry of the Month by attendance and daily meditation submissions', forSentry: true },
     ],
   },
   {
@@ -2769,7 +2537,7 @@ const AWARD_CATALOG: { group: string; cadence: string; awards: AwardDef[] }[] = 
     group: 'Annual Tent',
     cadence: 'annual',
     awards: [
-      { title: 'Temple Mount', description: 'Overall Best Tent of the Year', forTent: true },
+      { title: 'Lumen Domus', description: 'Overall Best Tent of the Year', forTent: true },
     ],
   },
 ];
@@ -2810,7 +2578,19 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
   const sentries = useMemo(() => roles.filter((r) => r.role === 'sentry' && (r.status === 'active' || r.status === 'approved')), [roles]);
   const cadetIds = useMemo(() => cadets.map((r) => r.user_id), [cadets]);
   const sentryIds = useMemo(() => sentries.map((r) => r.user_id), [sentries]);
-  const profileName = useCallback((userId: string) => profiles.find((p) => p.id === userId)?.display_name || 'Unknown cadet', [profiles]);
+  const recipientNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const role of roles) {
+      const name = role.recipient_profile?.display_name?.trim();
+      if (name) names.set(role.user_id, name);
+    }
+    for (const profile of profiles) {
+      const name = profile.display_name?.trim();
+      if (name) names.set(profile.id, name);
+    }
+    return names;
+  }, [profiles, roles]);
+  const profileName = useCallback((userId: string) => recipientNames.get(userId) || 'Name unavailable', [recipientNames]);
 
 
   useEffect(() => {
@@ -2824,7 +2604,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
       setLoadingRecommendations(true);
       const next: AwardRecommendation[] = [];
       try {
-        const [{ data: dailyRecords }, { data: quizAttempts }, weeklyAwardMetricsResult, { data: arenaWins }, marksBoardResult] = await Promise.all([
+        const [{ data: dailyRecords }, { data: quizAttempts }, weeklyAwardMetricsResult, { data: arenaWins }, marksBoardResult, angelMetrics] = await Promise.all([
           supabase
             .from('daily_records')
             .select('user_id,record_date,streak_valid,meditation_submitted,attendance_status')
@@ -2845,6 +2625,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
               .gte('completed_at', `${AWARD_MEASUREMENT_START}T00:00:00`)
             : Promise.resolve({ data: [], error: null }),
           fetchMarksBoard().then((data) => ({ data })).catch(() => ({ data: [] })),
+          fetchWeeklyAngelAwardMetrics().catch(() => []),
         ]);
 
         const todayIso = getTodayISODate();
@@ -2999,18 +2780,18 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           });
         }
 
-        const messengerRanking = [...cadetWeeklyMetrics]
-          .filter((metric) => Number(metric.messenger_score) > 0)
+        const messengerRanking = angelMetrics
+          .filter((metric) => cadetIds.includes(metric.user_id) && Number(metric.angel_score) > 0)
           .sort((left, right) => (
-            Number(right.messenger_score) - Number(left.messenger_score)
-            || Number(right.insight_likes) - Number(left.insight_likes)
+            Number(right.angel_score) - Number(left.angel_score)
+            || Number(right.insights_published) - Number(left.insights_published)
             || Number(right.public_meditations) - Number(left.public_meditations)
             || Number(right.external_shares) - Number(left.external_shares)
             || left.display_name.localeCompare(right.display_name)
           ))
           .slice(0, 4);
         const messengerDetail = (metric: typeof messengerRanking[number]) => (
-          `${Number(metric.insight_likes)} insight like(s) · ${Number(metric.public_meditations)} public meditation(s) · ${Number(metric.external_shares)} external share(s)`
+          `${Number(metric.insights_published)} insight(s) published · ${Number(metric.public_meditations)} public meditation(s) · ${Number(metric.external_shares)} app link share(s)`
         );
         const topMessenger = messengerRanking[0];
         if (topMessenger) {
@@ -3039,7 +2820,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
         const topTent = tentRanking[0];
         if (topTent) {
           next.push({
-            title: "The Lord's Secret",
+            title: 'Temple',
             candidate: tents.find((tent) => tent.id === topTent[0])?.name || 'Leading tent',
             candidateId: topTent[0],
             detail: `${topTent[1]} aggregate daily action(s). Tent awards are given to tents, not tent houses.`,
@@ -3228,10 +3009,9 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
           <MultiSelectDropdown
             label={`Select ${targetType === 'cadet' ? 'Cadet(s)' : 'Sentry(s)'}`}
             placeholder={`Choose ${targetType}s…`}
-            options={(targetType === 'cadet' ? cadets : sentries).map((r) => {
-              const p = profiles.find((p) => p.id === r.user_id);
-              return { id: r.user_id, label: p?.display_name || 'Unknown' };
-            })}
+            options={(targetType === 'cadet' ? cadets : sentries).map((r) => ({
+              id: r.user_id, label: profileName(r.user_id),
+            }))}
             selected={selectedUserIds}
             onToggle={toggleUserId}
           />
@@ -3257,6 +3037,7 @@ function AwardsManagement({ awards, profiles, roles, tents, members, onRefresh }
                           checked ? 'border-peri bg-peri/5' : 'border-border-bright bg-surface-2 hover:border-stone/30')}>
                         <input type="checkbox" checked={checked} onChange={() => toggleAward(award.title)}
                           className="mt-0.5 accent-peri flex-shrink-0" />
+                        {award.forTent && <span className="shrink-0 text-brass"><AwardBadgeGlyph awardType="tent" title={award.title} size={28} /></span>}
                         <div>
                           <p className="text-sm font-semibold text-ink leading-tight"><VallumText text={award.title} size={13} /></p>
                           <p className="text-xs text-stone mt-0.5"><VallumText text={award.description} size={11} /></p>
@@ -3389,7 +3170,10 @@ function QuizBuilder() {
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(getTodayISODate());
   const [newStartTime, setNewStartTime] = useState('09:00');
-  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune'>('saturday');
+  const [valedictionCount, setValedictionCount] = useState(50);
+  const [draftReview, setDraftReview] = useState<ValedictionDraftReview | null>(null);
+  const [reviewError, setReviewError] = useState('');
+  const [newQuizType, setNewQuizType] = useState<'saturday' | 'fortune' | 'valediction'>('saturday');
   const [quizDuration, setQuizDuration] = useState(30);
   const [selectedSession, setSelectedSession] = useState<QuizSession | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
@@ -3399,7 +3183,7 @@ function QuizBuilder() {
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(getTodayISODate());
   const [sessionStartTime, setSessionStartTime] = useState('09:00');
-  const [sessionType, setSessionType] = useState<'saturday' | 'fortune'>('saturday');
+  const [sessionType, setSessionType] = useState<'saturday' | 'fortune' | 'valediction'>('saturday');
   const [savingSessionDetails, setSavingSessionDetails] = useState(false);
   const [launchingSessionId, setLaunchingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -3421,11 +3205,20 @@ function QuizBuilder() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    setDraftReview(null); setReviewError('');
+    if (selectedSession?.quiz_type !== 'valediction') return;
+    void fetchValedictionDraftReview(selectedSession.id).then((review) => { if (active) setDraftReview(review); },
+      () => { if (active) setReviewError('Draft review status could not load. Reopen this quiz to retry.'); });
+    return () => { active = false; };
+  }, [selectedSession?.id, selectedSession?.quiz_type, generatedQuestions]);
+
   const createSession = async () => {
     if (!newTitle.trim()) return;
     try {
       const schedule = buildQuizSchedule(newDate, newStartTime, quizDuration);
-      await createQuizSession({
+      const created = await createQuizSession({
         session_date: newDate,
         title: newTitle,
         scheduled_start_time: schedule.scheduledStart,
@@ -3434,9 +3227,13 @@ function QuizBuilder() {
         live_closes_at: schedule.liveCloses,
         status: 'scheduled',
         quiz_type: newQuizType,
-        reward_perfect: newQuizType === 'fortune' ? 6000 : 6000,
-        reward_partial: newQuizType === 'fortune' ? 1000 : 1000,
+        reward_perfect: newQuizType === 'valediction' ? 0 : 6000,
+        reward_partial: newQuizType === 'valediction' ? 0 : 1000,
       } as any);
+      if (newQuizType === 'valediction') {
+        setShowCreate(false);
+        await openSession(created);
+      }
     } catch (e: any) {
       alert(e.message || 'Failed to create quiz session');
       return;
@@ -3472,6 +3269,10 @@ function QuizBuilder() {
         return;
       }
 
+      if (session.quiz_type === 'valediction') {
+        if (!window.confirm(`I have reviewed all ${questions.length} Valediction questions and their answers. Validate and launch this quiz?`)) return;
+        setDraftReview(await validateValedictionDraft(session.id));
+      }
       await launchQuizSession(session.id);
       await load();
     } catch (error: any) {
@@ -3539,6 +3340,17 @@ function QuizBuilder() {
   };
 
   const generateQuestions = async (session: QuizSession) => {
+    if (session.quiz_type === 'valediction') {
+      if (generatedQuestions.length && !window.confirm('Replace this draft with a new set? Instructor validation will be required again.')) return;
+      setGenerating(true);
+      try {
+        await generateValedictionDraft(session.id, valedictionCount);
+        setGeneratedQuestions(await fetchQuestionsForSession(session.id));
+        await markRelaunchReady(session);
+      } catch (failure) { alert(failure instanceof Error ? failure.message : 'The Valediction draft could not be prepared.'); }
+      finally { setGenerating(false); }
+      return;
+    }
     setGenerating(true);
     try {
       const day = new Date(`${session.session_date}T12:00:00.000Z`).getUTCDay();
@@ -3651,6 +3463,15 @@ function QuizBuilder() {
     if (durationMinutes > 0) setQuizDuration(durationMinutes);
     const qs = await fetchQuestionsForSession(session.id);
     setGeneratedQuestions(qs);
+    if (session.quiz_type === 'valediction' && session.status === 'scheduled' && qs.length === 0) {
+      setGenerating(true);
+      try {
+        await generateValedictionDraft(session.id, valedictionCount);
+        setGeneratedQuestions(await fetchQuestionsForSession(session.id));
+      } catch (failure) {
+        setReviewError(failure instanceof Error ? failure.message : 'The Valediction draft could not be prepared. Use Auto-assemble to retry.');
+      } finally { setGenerating(false); }
+    }
   };
 
   const saveSessionDetails = async () => {
@@ -3745,11 +3566,11 @@ function QuizBuilder() {
               <FileQuestion size={14} /> Edit Quiz
             </button>
             <button onClick={() => launchQuiz(selectedSession)} disabled={generating || launchingSessionId === selectedSession.id || (selectedIsRelaunch && !selectedSession.relaunch_ready)} className="btn-primary text-sm">
-              {launchingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />} {selectedIsRelaunch ? 'Relaunch' : 'Launch'}
+              {launchingSessionId === selectedSession.id ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />} {selectedSession.quiz_type === 'valediction' ? 'Validate & launch' : selectedIsRelaunch ? 'Relaunch' : 'Launch'}
             </button>
             <button onClick={() => generateQuestions(selectedSession)} disabled={generating} className="btn-primary text-sm">
               {generating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              {generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
+              {selectedSession.quiz_type === 'valediction' ? 'Auto-assemble Valediction' : generatedQuestions.length > 0 ? 'Regenerate Questions' : 'Generate Questions'}
             </button>
             <button onClick={() => syncTaggedQuestions(selectedSession)} disabled={generating} className="btn-secondary text-sm">
               {generating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
@@ -3770,6 +3591,14 @@ function QuizBuilder() {
           </button>
           <span className="text-xs text-stone">{generatedQuestions.length} questions</span>
         </div>
+
+        {selectedSession.quiz_type === 'valediction' && <section className="card space-y-2 p-4">
+          <h3 className="font-display font-bold text-ink">Automatically prepared · instructor validated</h3>
+          <p className="text-xs text-stone">Draws suitable questions from all available app banks, removes duplicates, and balances the sources. Review the questions and answers below, then validate and launch. Any question edit requires fresh validation.</p>
+          {selectedEditable && <label className="block text-xs text-stone">Questions in a new draft<input type="number" min={10} max={100} value={valedictionCount} onChange={(event) => setValedictionCount(Math.min(100, Math.max(10, Number(event.target.value) || 50)))} className="input-field mt-1 max-w-28" /></label>}
+          {draftReview && <p className="text-xs text-stone">{draftReview.validated ? 'Instructor validated' : 'Awaiting instructor validation'}{Object.entries(draftReview.sources).length ? ` · ${Object.entries(draftReview.sources).map(([source, count]) => `${source}: ${count}`).join(' · ')}` : ''}</p>}
+          {reviewError && <p role="alert" className="text-xs text-coral">{reviewError}</p>}
+        </section>}
 
         {selectedIsRelaunch && selectedEditable && !selectedSession.relaunch_ready && (
           <p className="rounded-lg border border-gold/35 bg-gold-soft px-3 py-2 text-xs text-stone">Review the quiz and save an edit. Relaunch becomes available immediately after it is saved.</p>
@@ -3827,9 +3656,10 @@ function QuizBuilder() {
               </div>
               <div>
                 <label className="text-xs text-stone block mb-1">Quiz Type</label>
-                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune')} options={[
+                <AppSelect value={sessionType} onChange={(value) => setSessionType(value as 'saturday' | 'fortune' | 'valediction')} options={[
                   { value: 'saturday', label: 'Saturday Quiz' },
                   { value: 'fortune', label: 'Fortune Quiz' },
+                  { value: 'valediction', label: 'Valediction Quiz (80% Sentry · 95% Instructor)' },
                 ]} />
               </div>
               <div>
@@ -3900,9 +3730,10 @@ function QuizBuilder() {
         <div className="card p-4 space-y-3 bg-surface-2">
           <div>
             <label className="text-xs text-stone block mb-1">Quiz Type</label>
-            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune')} options={[
+            <AppSelect value={newQuizType} onChange={(value) => setNewQuizType(value as 'saturday' | 'fortune' | 'valediction')} options={[
               { value: 'saturday', label: 'Saturday Quiz', description: 'Scheduled, streak-critical' },
               { value: 'fortune', label: 'Fortune Quiz', description: 'Random bonus rewards' },
+              { value: 'valediction', label: 'Valediction Quiz', description: 'Qualifying cadets: 80% for Sentry; qualifying Sentries: 95% for Instructor exam' },
             ]} />
           </div>
           <div>
@@ -3949,7 +3780,7 @@ function QuizBuilder() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{s.title}</p>
                 <p className="text-xs text-stone">
-                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
+                  {formatShortDate(s.session_date)} at {quizLocalTime(s.live_opens_at)} · {s.status} · {s.quiz_type === 'valediction' ? 'Valediction' : s.quiz_type === 'fortune' ? 'Fortune' : 'Saturday'}
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
@@ -3999,7 +3830,8 @@ function InstructorSettings({ profile, tents, members }: {
   const { signOut, refreshProfile } = useAuth();
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
-  const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [language, setLanguage] = useState<string>(() => interfaceLanguage(profile?.language_code));
+  const [timeZone, setTimeZone] = useState(() => preferredTimeZone(profile?.timezone));
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [mmSettings, setMmSettings] = useState<MobileMoneySettings | null>(null);
@@ -4048,6 +3880,7 @@ function InstructorSettings({ profile, tents, members }: {
         whatsappNumber: phoneNumberForCountry(whatsapp, country),
         countryCode: country,
         languageCode: language,
+        timeZone,
         birthMonth: parsedBirthday.month,
         birthDay: parsedBirthday.day,
       });
@@ -4103,9 +3936,10 @@ function InstructorSettings({ profile, tents, members }: {
             <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name }))} />
           </label>
           <label className="block text-xs text-stone">
-            <span className="mb-1 flex items-center gap-1"><Languages size={12} /> Language</span>
+            <span className="mb-1 flex items-center gap-1"><Languages size={12} /> App language</span>
             <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
           </label>
+          <ProfileTimeZoneSelect value={timeZone} onChange={setTimeZone} />
           <label className="block text-xs text-stone">
             <span className="mb-1 flex items-center gap-1"><Cake size={12} /> Birthday</span>
             <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
@@ -4232,7 +4066,7 @@ function InstructorSettings({ profile, tents, members }: {
           <h4 className="font-display font-semibold text-ink">CamPay Payments</h4>
         </div>
         <p className="text-xs text-stone">
-          Real-money relic purchases are processed through CamPay in the backend. Cadets stay in the platform
+          For relic purchases routed through CamPay, cadets stay in the platform
           while MTN MoMo and Orange Money prompts are initiated.
           Configure your CamPay credentials and webhook key in your project secrets.
         </p>
@@ -4679,15 +4513,18 @@ function CustomQuestionsEditor({ sessionId }: { sessionId: string }) {
 }
 
 // ── Game Questions Editor ──
-function GameQuestionsEditor({ profile }: { profile: Profile }) {
+function GameQuestionsEditor({ profile, onOpenJourney }: { profile: Profile; onOpenJourney: () => void }) {
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [selectedRound, setSelectedRound] = useState<number | 'all'>(1);
   const [narratives, setNarratives] = useState<DailyNarrative[]>([]);
   const [selectedNarrativeDate, setSelectedNarrativeDate] = useState('');
   const [questions, setQuestions] = useState<CustomQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const loadRequestRef = useRef(0);
+  const questionsSectionRef = useRef<HTMLDivElement>(null);
   const [levelQuestionType, setLevelQuestionType] = useState('true_false');
   const [roundQuestionTypes, setRoundQuestionTypes] = useState<Record<number, string>>({ 1: 'comprehension', 2: 'multiple_choice', 3: 'standard_text' });
   const [roundTimers, setRoundTimers] = useState<Record<number, number>>({
@@ -4715,16 +4552,35 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
   });
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
-    try {
-      const [narrs, data] = await Promise.all([
-        fetchNarratives(60, true),
-        selectedNarrativeDate ? fetchCustomGameQuestions(selectedLevel, selectedNarrativeDate) : Promise.resolve([]),
-      ]);
-      setNarratives(narrs || []);
+    setLoadError(null);
+    const [narrativeResult, questionResult] = await Promise.allSettled([
+      fetchNarratives(60, true),
+      selectedNarrativeDate ? fetchCustomGameQuestions(selectedLevel, selectedNarrativeDate) : Promise.resolve([]),
+    ]);
+    if (requestId !== loadRequestRef.current) return;
+
+    const errors: string[] = [];
+    if (narrativeResult.status === 'fulfilled') {
+      const narrs = narrativeResult.value || [];
+      setNarratives(narrs);
       if (!selectedNarrativeDate && narrs.length > 0) setSelectedNarrativeDate(narrs[0].narrative_date);
-      setQuestions(data || []);
-    } catch {}
+    } else {
+      console.warn('Game question Narrative Days could not load:', narrativeResult.reason);
+      errors.push('The Narrative Day selector could not refresh.');
+    }
+
+    if (questionResult.status === 'fulfilled') {
+      setQuestions(questionResult.value || []);
+    } else {
+      console.warn('Saved game questions could not load:', questionResult.reason);
+      setQuestions([]);
+      errors.push(questionResult.reason instanceof Error
+        ? questionResult.reason.message
+        : 'The saved questions could not refresh.');
+    }
+    setLoadError(errors.length > 0 ? errors.join(' ') : null);
     setLoading(false);
   }, [selectedLevel, selectedNarrativeDate]);
 
@@ -4832,53 +4688,21 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
     const incoming = imported.filter((question) => question.destination === 'game');
     if (incoming.length === 0) return { imported: 0, skipped: imported.length, message: 'No Daily Trivia questions were found in this set.' };
 
-    const narrativeByDate = new Map(narratives.map((narrative) => [narrative.narrative_date, narrative]));
-    const targetDates = Array.from(new Set(incoming.map((question) => question.narrativeDate || selectedNarrativeDate).filter(Boolean))) as string[];
-    const missingDates = targetDates.filter((date) => !narrativeByDate.has(date));
-    if (missingDates.length > 0) {
-      throw new Error(`No published Daily Reading exists for ${missingDates.join(', ')}. Select an existing Narrative Day or correct narrative_date in the file.`);
-    }
-
-    const existingByDate = await Promise.all(targetDates.map((date) => fetchCustomGameQuestionsForNarrative(date)));
-    const existing = existingByDate.flat();
-    const existingKeys = new Set(existing.map((question) => questionImportKey(question.question_text)));
-    const additions = incoming.filter((question) => !existingKeys.has(questionImportKey(question.question)));
-    if (additions.length === 0) {
-      return { imported: 0, skipped: incoming.length, message: 'Every question already exists in the selected Daily Trivia bank.' };
-    }
-
-    const nextIndexBySegment = new Map<string, number>();
-    existing.forEach((question) => {
-      const key = `${question.narrative_date}|${question.game_level}|${question.game_round || 1}`;
-      nextIndexBySegment.set(key, Math.max(nextIndexBySegment.get(key) || 0, question.question_index + 1));
-    });
-
-    const rowsToInsert = additions.map((question) => {
+    const rowsToInsert = incoming.map((question) => {
       const narrativeDate = question.narrativeDate || selectedNarrativeDate;
-      const narrative = narrativeByDate.get(narrativeDate);
-      if (!narrative) throw new Error(`No published Daily Reading exists for ${narrativeDate}.`);
       const level = question.level || selectedLevel;
       const round = question.round || (selectedRound === 'all' ? 1 : selectedRound);
-      const segmentKey = `${narrativeDate}|${level}|${round}`;
-      const questionIndex = nextIndexBySegment.get(segmentKey) || 0;
-      nextIndexBySegment.set(segmentKey, questionIndex + 1);
       const baseTimer = LEVEL_TIMERS[level - 1] || 60;
       const defaultTimer = round === 1 ? baseTimer : Math.max(baseTimer - (round - 1) * 5, 20);
 
       return {
-        instructor_id: profile.id,
-        quiz_session_id: null,
         game_level: level,
         narrative_date: narrativeDate,
-        narrative_title: narrative.title,
-        narrative_theme: narrative.theme,
         game_round: round,
         round_timer_seconds: question.roundTimerSeconds || defaultTimer,
         passage_display_seconds: question.passageDisplaySeconds || DEFAULT_PASSAGE_DISPLAY_SECONDS,
         is_bonus: question.isBonus,
         use_for_quiz: question.useForQuiz,
-        generated_from_packet: false,
-        packet_section: 'external import',
         question_text: question.question,
         question_type: question.type,
         options: question.options.length > 0 ? question.options : null,
@@ -4888,17 +4712,45 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
         scripture_reference: question.reference || null,
         passage: question.passage || null,
         difficulty_tag: question.difficulty,
-        question_index: questionIndex,
-        is_approved: true,
       };
     });
 
-    await insertCustomQuestions(rowsToInsert);
-    await load();
+    const importedCount = await importCustomGameQuestions(rowsToInsert);
+    const firstQuestion = incoming[0];
+    const focusDate = firstQuestion.narrativeDate || selectedNarrativeDate;
+    const focusLevel = firstQuestion.level || selectedLevel;
+    if (!focusDate) {
+      throw new Error('The questions were saved, but no Narrative Day was available to display them.');
+    }
+
+    let refreshedQuestions: CustomQuestion[];
+    try {
+      refreshedQuestions = await fetchCustomGameQuestions(focusLevel, focusDate);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'The saved question list could not refresh.';
+      setLoadError(detail);
+      throw new Error(`The questions were saved, but the list could not refresh. ${detail}`);
+    }
+    if (refreshedQuestions.length === 0) {
+      const detail = `No saved questions were returned for ${focusDate}, Level ${focusLevel}.`;
+      setLoadError(detail);
+      throw new Error(`The import completed, but the list could not confirm it. ${detail}`);
+    }
+
+    setSelectedNarrativeDate(focusDate);
+    setSelectedLevel(focusLevel);
+    setSelectedRound('all');
+    setQuestions(refreshedQuestions);
+    setLoadError(null);
+    window.setTimeout(() => {
+      questionsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
     return {
-      imported: rowsToInsert.length,
-      skipped: incoming.length - rowsToInsert.length,
-      message: `${rowsToInsert.length} questions segmented into their Daily Trivia levels and rounds.`,
+      imported: importedCount,
+      skipped: incoming.length - importedCount,
+      message: importedCount > 0
+        ? `${importedCount} questions imported. Showing ${focusDate}, Level ${focusLevel}, all rounds below.`
+        : `Every validated question already exists. Showing ${focusDate}, Level ${focusLevel}, all rounds below.`,
     };
   };
 
@@ -5074,6 +4926,10 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Game Questions" subtitle="Generate editable questions from each narrative's Game Content Packet, then add, edit, delete, or tag them for quiz." />
+
+      <button type="button" className="btn-secondary w-full justify-center text-sm sm:w-auto" onClick={onOpenJourney}>
+        <BookOpen size={16} className="shrink-0" /> Biblical Journey Questions
+      </button>
 
       <div className="card p-4 grid md:grid-cols-3 gap-3">
         <div>
@@ -5301,11 +5157,13 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
       </div>
 
       {/* Existing questions */}
-      <div className="card p-5">
+      <div ref={questionsSectionRef} className="card p-5 scroll-mt-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h4 className="font-display font-semibold text-ink">
-              {selectedNarrative ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}` : 'Questions'} · Level {selectedLevel} ({rows.length})
+              {selectedNarrative
+                ? `${selectedNarrative.narrative_date} · ${selectedNarrative.title}`
+                : selectedNarrativeDate || 'Questions'} · Level {selectedLevel} ({rows.length})
             </h4>
             <p className="mt-1 text-xs text-stone">Only approved questions are available to cadets in Daily Trivia.</p>
           </div>
@@ -5313,11 +5171,19 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
             <CheckCircle2 size={12} /> Approve visible
           </button>
         </div>
+        {loadError && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-coral/35 bg-coral-soft p-3" role="alert">
+            <p className="text-xs font-semibold text-coral">{loadError}</p>
+            <button type="button" onClick={() => void load()} className="btn-secondary text-xs">
+              <RotateCcw size={12} /> Retry list
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-brass" /></div>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && !loadError ? (
           <p className="text-sm text-stone text-center py-6">No questions yet. Sync from the packet or add questions manually.</p>
-        ) : (
+        ) : rows.length > 0 ? (
           <div className="space-y-2">
             {rows.map((q, i) => (
               <div key={q.id} className="p-3 rounded-lg border border-border-bright bg-surface-2 flex items-start gap-3">
@@ -5350,7 +5216,7 @@ function GameQuestionsEditor({ profile }: { profile: Profile }) {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -5390,18 +5256,14 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
         p_new_role: role,
       });
       if (roleError) throw roleError;
-      if (tentId) {
-        if (role === 'cadet') {
-          await assignCadetToTent(tentId, userId);
-        } else {
-          const { error: memberError } = await supabase.from('tent_members').insert({
-            user_id: userId,
-            tent_id: tentId,
-            role,
-          });
-          if (memberError) throw memberError;
-          await supabase.from('tents').update({ sentry_id: userId }).eq('id', tentId);
-        }
+      if (role === 'sentry' && tentId) {
+        const { error: memberError } = await supabase.from('tent_members').insert({
+          user_id: userId,
+          tent_id: tentId,
+          role,
+        });
+        if (memberError) throw memberError;
+        await supabase.from('tents').update({ sentry_id: userId }).eq('id', tentId);
       }
       await load();
       onRefresh();
@@ -5413,7 +5275,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Unassigned Users" subtitle="New accounts that haven't been assigned a role yet. Assign them as cadet or sentry and optionally place them in a tent." />
+      <SectionHeader title="Unassigned Users" subtitle="New accounts that haven't been assigned a role yet. Assign a Resident or Sentry role. Residents choose their own tent after qualifying." />
 
       {users.length === 0 ? (
         <EmptyState icon={UserPlus} title="Everyone is assigned" message="All users have active role assignments. New signups will appear here." />
@@ -5438,6 +5300,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
                     { value: 'sentry', label: 'Sentry' },
                   ]} />
                 </div>
+                {assignRole[u.user_id] === 'sentry' && (
                 <div>
                   <label className="text-xs text-stone block mb-1">Tent (optional)</label>
                   <AppSelect
@@ -5447,6 +5310,7 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
                     options={[{ value: '', label: 'No tent' }, ...tents.map((t) => ({ value: t.id, label: t.name }))]}
                   />
                 </div>
+                )}
                 <button onClick={() => assign(u.user_id)} disabled={assigning === u.user_id} className="btn-primary text-sm">
                   {assigning === u.user_id ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Assign
                 </button>
@@ -5463,6 +5327,21 @@ function UnassignedUsers({ onRefresh }: { onRefresh: () => void }) {
 function MobileMoneyManager() {
   const [payments, setPayments] = useState<(MobileMoneyPayment & { profiles: { display_name: string; email: string } | null })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<{ service: string; balance: number } | null>(null);
+  const [balanceStatus, setBalanceStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+
+  const loadBalance = useCallback(async () => {
+    setBalanceStatus('loading');
+    try {
+      const { data, error } = await supabase.functions.invoke('fapshi-service-balance');
+      if (error || !data) throw error ?? new Error('Balance unavailable');
+      setBalance(data);
+      setBalanceStatus('ready');
+    } catch {
+      setBalance(null);
+      setBalanceStatus('unavailable');
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -5474,15 +5353,30 @@ function MobileMoneyManager() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { void loadBalance(); }, [loadBalance]);
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Mobile Money Payments" subtitle="Review payments the app has confirmed or rejected. Confirmation is automatic through CamPay." />
+      <SectionHeader title="Mobile Money Payments" subtitle="Review confirmed and unsuccessful Mobile Money payments. The app checks each payment with its provider." />
+
+      <section className="card flex flex-wrap items-center justify-between gap-3 p-4" aria-label="Fapshi collection balance">
+        <div>
+          <h4 className="font-display font-semibold text-ink">Fapshi collection balance</h4>
+          <p className="mt-1 text-sm text-stone" role="status">
+            {balanceStatus === 'loading' ? 'Checking Fapshi…' : balanceStatus === 'ready' && balance
+              ? `${formatXaf(balance.balance)} · ${balance.service}`
+              : 'Balance unavailable from Fapshi.'}
+          </p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => void loadBalance()} disabled={balanceStatus === 'loading'}>
+          Refresh balance
+        </button>
+      </section>
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-brass" /></div>
       ) : payments.length === 0 ? (
-        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="When the app confirms or rejects a payment through CamPay, it will appear here." />
+        <EmptyState icon={Smartphone} title="No confirmed or rejected payments yet" message="Payments appear here once their provider reports a final status." />
       ) : (
         <div className="space-y-3">
           {payments.map((pay) => {

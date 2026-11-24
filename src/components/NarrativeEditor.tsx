@@ -1,3 +1,4 @@
+import { readableFetch } from "../lib/connectionErrors";
 import { useState, useCallback } from 'react';
 import { upsertNarrative } from '../lib/queries';
 import { AppSelect } from './AppSelect';
@@ -298,7 +299,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
     setFetchError(null);
     try {
       const url = `https://bible-api.com/${encodeURIComponent(ref)}?translation=${form.translation}`;
-      const res = await fetch(url);
+      const res = await readableFetch(url);
       if (!res.ok) {
         throw new Error(`The Bible API returned ${res.status}. Check the reference and try again.`);
       }
@@ -342,7 +343,7 @@ export function NarrativeEditor({ narrative, republishMode = false, onDone }: Na
     setAddingPassage(true);
     setFetchError(null);
     try {
-      const response = await fetch(`https://bible-api.com/${encodeURIComponent(reference)}?translation=${form.translation}`);
+      const response = await readableFetch(`https://bible-api.com/${encodeURIComponent(reference)}?translation=${form.translation}`);
       const data: BibleApiResponse = await response.json();
       if (!response.ok || data.error || !Array.isArray(data.verses) || data.verses.length === 0) {
         throw new Error(data.error || 'No verses were found for that reference.');

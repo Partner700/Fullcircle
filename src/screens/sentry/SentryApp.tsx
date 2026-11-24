@@ -1,6 +1,8 @@
+import { TentPositionBadges, TentPositionControls } from '../../components/TentPositions';
+import { useTentPositions } from '../../lib/tentPositions';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { SubscriptionAccessProvider, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
+import { SubscriptionAccessProvider, subscriptionHasPremiumAccess, subscriptionIsExpired } from '../../context/SubscriptionAccessContext';
 import { AppShell, StatCard, SectionHeader, EmptyState } from '../../components/AppShell';
 import { TentHouseSymbol } from '../../components/TentHouseSymbol';
 import { SettingsScreen } from '../../components/SettingsScreen';
@@ -12,11 +14,9 @@ import { SealBullet } from '../../components/AncientMotifs';
 import type { QuoteReactionState } from '../../components/QuoteReactions';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { RecentAwardsPanel } from '../../components/RecentAwardsPanel';
-import { AppSelect } from '../../components/AppSelect';
 import { StreakStatusIcon } from '../../components/StreakStatusIcon';
 import { StreakCelebration } from '../../components/StreakCelebration';
 import { ChiRhoMark } from '../../components/ChiRhoMark';
-import { UserAvatar } from '../../components/UserAvatar';
 import { SubscriptionGate, SubscriptionScreen, type SubscriptionStatusView } from '../../components/SubscriptionScreen';
 import {
   DashboardIcon, CadetIcon, CalendarIcon, SettingsIcon,
@@ -25,12 +25,12 @@ import { supabase } from '../../lib/supabase';
 import {
   fetchPanelImageSettings, fetchDailyQuoteFeed, fetchLedgerEntries, fetchReliableToolbarStats, fetchPublicStreakDetails, uploadTentProfileImage,
   fetchDailyQuoteReactions, reactToDailyQuote, fetchAnnouncements,
-  fetchAllChallengeSubmissions, reviewChallengeSubmission, fetchSentryAddableCadets, sentryAddCadetToTent,
-  fetchTentJoinRequests, reviewTentJoinRequest, fetchSentryCadetContacts, type TentJoinRequestSummary,
+  fetchAllChallengeSubmissions, reviewChallengeSubmission,
+  fetchSentryCadetContacts, fetchTentJoinRequests, reviewTentJoinRequest, fetchSentryAddableCadets, sentryAddCadetToTent, type TentJoinRequestSummary,
   fetchStreakProtectionState, fetchNarrative, fetchActiveFcxExperience, fetchDailyVerseReactions,
   reactToDailyVerse, getSubscriptionStatus, fetchAwards, fetchLatestWeeklyQuizRankings,
 } from '../../lib/queries';
-import { computeStreak, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
+import { computeStreak, getDateDaysAgoISO, getDayType, getTodayISODate, getAppClock, cn, formatShortDate, getRemovalState, isAttendanceOnTime, whatsappUrl, formatDenarii } from '../../lib/utils';
 import { ATTENDANCE_CUTOFF_HOUR } from '../../lib/constants';
 import type { Tent, TentMember, Profile, DailyRecord, DailyQuoteFeedItem, StreakInfo, PanelImageSetting, ScheduledAnnouncement, DenariiLedgerEntry, StreakProtectionState, DailyNarrative, FcxExperience, AwardWithRecipient, WeeklyQuizRanking } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
@@ -42,10 +42,14 @@ import { APP_NAVIGATION_EVENT, type AppNavigationDetail } from '../../lib/appNav
 import { openProfileCv } from '../../lib/profileCv';
 import { subscribeToScopedChanges } from '../../lib/scopedRealtime';
 import { readContinuedTab } from '../../lib/appContinuity';
+import { signalActiveQuizExitIntent } from '../../lib/quizIntegrity';
+import { mergeTentDailyRecords } from '../../lib/tentRecordRefresh';
 import { CadetGame } from '../cadet/CadetGame';
 import { DailyGamesHub } from '../cadet/DailyGamesHub';
 import { StoryModeUnderDevelopment } from '../cadet/story-mode/StoryModeUnderDevelopment';
 import { CadetStreak } from '../cadet/CadetStreak';
+import { BibleReader } from '../cadet/BibleReader';
+import type { BibleReadingLocation } from '../../lib/bibleBooks';
 import { CadetNarrative } from '../cadet/CadetNarrative';
 import { CadetStore } from '../cadet/CadetStore';
 import { CadetLeaderboard } from '../cadet/CadetLeaderboard';
@@ -53,11 +57,13 @@ import { CadetArena } from '../cadet/CadetArena';
 import { CadetQuiz } from '../cadet/CadetQuiz';
 import { CadetAwards } from '../cadet/CadetAwards';
 import { DashboardHeroSlideshow, type DashboardHeroSlide } from '../cadet/CadetDashboard';
+import { useInterTentWelcomeSlide } from '../../components/InterTentWelcomeSlide';
+import { interTentWelcomeArtwork } from '../../lib/panelImages';
 import {
   AlertTriangle, CheckCircle2, XCircle, Clock, ClipboardCheck,
   UserCheck, Loader2, Sunrise, Tent as TentIcon, MessageCircle, Users, Shield, GamepadIcon,
   Camera, ShoppingBag, FileQuestion, Award, Trophy,
-  Swords, Coins, Target, UserPlus, X, Eye, CreditCard, Lock, Contact,
+  Swords, Coins, Target, Eye, CreditCard, Lock, Contact,
 } from 'lucide-react';
 
 const SENTRY_LEADERSHIP_SCRIPTURES = [
@@ -68,10 +74,10 @@ const SENTRY_LEADERSHIP_SCRIPTURES = [
   { text: 'Do not fear, for I am with you; do not be dismayed, for I am your God.', reference: 'Isaiah 41:10' },
 ];
 
-type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
+type Tab = 'overview' | 'attendance' | 'cadets' | 'challenges' | 'games' | 'game' | 'arena' | 'story' | 'reading' | 'bible' | 'streak' | 'quiz' | 'leaderboard' | 'awards' | 'store' | 'settings' | 'subscribe';
 
-const SENTRY_TABS: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'games', 'game', 'arena', 'story', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
-const PREMIUM_TABS = new Set<Tab>(['games', 'game', 'arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
+const SENTRY_TABS: Tab[] = ['overview', 'attendance', 'cadets', 'challenges', 'reading', 'bible', 'games', 'game', 'arena', 'story', 'streak', 'quiz', 'leaderboard', 'awards', 'store', 'settings', 'subscribe'];
+const PREMIUM_TABS = new Set<Tab>(['arena', 'story', 'quiz', 'leaderboard', 'awards', 'store']);
 
 type StrictStreakData = {
   current_streak: number;
@@ -86,6 +92,7 @@ const NAV_ITEMS = [
   { key: 'cadets', label: 'My Cadets', icon: CadetIcon },
   { key: 'challenges', label: 'Challenges', icon: Target },
   { key: 'reading', label: "Today's Reading", icon: CadetIcon },
+  { key: 'bible', label: "Bible", icon: CadetIcon },
   { key: 'games', label: 'Daily Games', icon: GamepadIcon },
   { key: 'streak', label: 'My Streak', icon: Shield },
   { key: 'quiz', label: 'Weekly Quiz', icon: FileQuestion },
@@ -126,6 +133,8 @@ function streakForMember(
 export function SentryApp() {
   const { profile, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>(() => getInitialSentryTab(profile?.id || ''));
+  const [bibleTarget,setBibleTarget]=useState<{userId:string;location:BibleReadingLocation}|null>(null);
+  useEffect(()=>{if(tab!=='bible')setBibleTarget(null);},[tab]);
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [allRecords, setAllRecords] = useState<Record<string, DailyRecord[]>>({});
@@ -225,16 +234,20 @@ export function SentryApp() {
         return;
       }
 
+      const needsHistory = memberIds.some((id) => !Object.prototype.hasOwnProperty.call(recordsRef.current, id));
+      let recordsQuery = supabase.from('daily_records')
+        .select('user_id, record_date, day_type, attendance_status, attendance_marked_at, attendance_late, meditation_submitted, streak_valid, quiz_attempt_id')
+        .in('user_id', memberIds);
+      if (!needsHistory) recordsQuery = recordsQuery.gte('record_date', getDateDaysAgoISO(2));
       const [recordsResult, streakResult] = await Promise.allSettled([
-        supabase.from('daily_records').select('*').in('user_id', memberIds).order('record_date', { ascending: true }),
+        recordsQuery.order('record_date', { ascending: true }),
         fetchPublicStreakDetails(memberIds),
       ]);
       let recordsMap: Record<string, DailyRecord[]> = Object.fromEntries(
         memberIds.map((id) => [id, recordsRef.current[id] || []]),
       );
       if (recordsResult.status === 'fulfilled' && !recordsResult.value.error) {
-        recordsMap = Object.fromEntries(memberIds.map((id) => [id, []]));
-        for (const record of (recordsResult.value.data || []) as DailyRecord[]) recordsMap[record.user_id]?.push(record);
+        recordsMap = mergeTentDailyRecords(recordsMap, memberIds, (recordsResult.value.data || []) as unknown as DailyRecord[], needsHistory);
         recordsRef.current = recordsMap;
         setAllRecords(recordsMap);
       }
@@ -297,7 +310,7 @@ export function SentryApp() {
       getSubscriptionStatus(profile.id),
       fetchAnnouncements(['all', 'cadets', 'sentries']),
       fetchPanelImageSettings([
-        'welcome', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
+        'welcome', 'arena', 'intertent_welcome', 'fcx', 'honors', 'verse', 'quiz', 'quote', 'sentry_overview', 'recent_denarii', 'announcement',
         'morning_call', 'midday_reminder', 'evening_reminder', 'daily_game_reminder', 'weekly_quiz_reminder',
       ], ['all', 'cadets', 'sentries']),
     ]);
@@ -393,8 +406,9 @@ export function SentryApp() {
     return () => window.clearInterval(interval);
   }, []);
   const handleNavigate = useCallback((next: Tab) => {
+    if (tab === 'quiz' && next !== 'quiz') signalActiveQuizExitIntent();
     setTab(isExpired && PREMIUM_TABS.has(next) ? 'subscribe' : next);
-  }, [isExpired]);
+  }, [isExpired, tab]);
   const navigateFromAction = useCallback((key: string) => {
     const destination: Record<string, Tab> = { dashboard: 'overview', narrative: 'reading', game: 'game', arena: 'arena', quiz: 'quiz', streak: 'streak', leaderboard: 'leaderboard', awards: 'awards', store: 'store', tent: 'cadets', challenges: 'challenges', subscribe: 'subscribe' };
     if (destination[key]) handleNavigate(destination[key]);
@@ -408,7 +422,10 @@ export function SentryApp() {
     return () => window.removeEventListener(APP_NAVIGATION_EVENT, navigate);
   }, [navigateFromAction]);
   useEffect(() => {
-    if (isExpired && PREMIUM_TABS.has(tab)) setTab('subscribe');
+    if (isExpired && PREMIUM_TABS.has(tab)) {
+      if (tab === 'quiz') signalActiveQuizExitIntent();
+      setTab('subscribe');
+    }
   }, [isExpired, tab]);
   useEffect(() => {
     if (!profile) return;
@@ -520,6 +537,7 @@ export function SentryApp() {
     cadets: 'My Cadets',
     challenges: 'Challenge Review',
     reading: "Today's Reading",
+    bible: 'Bible',
     games: 'Daily Games',
     game: 'Daily Trivia',
     arena: 'Arena',
@@ -534,7 +552,7 @@ export function SentryApp() {
   };
 
   return (
-    <SubscriptionAccessProvider isExpired={isExpired} onSubscriptionRequired={() => setTab('subscribe')}>
+    <SubscriptionAccessProvider isExpired={isExpired} hasPremiumAccess={subscriptionHasPremiumAccess(subStatus, subscriptionClock)} onSubscriptionRequired={() => setTab('subscribe')}>
     <>
     <AppShell
       navItems={NAV_ITEMS}
@@ -640,19 +658,22 @@ export function SentryApp() {
         />
       )}
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
-      {tent && tab === 'cadets' && <SentryCadets members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} onChanged={load} />}
+      {tent && tab === 'cadets' && <SentryCadets onChanged={load} cadetLimit={Math.max(tent.max_cadets ?? 10, 10)} members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
-      {tab === 'reading' && <CadetNarrative onMeditationSaved={load} />}
-      {tab === 'games' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
+      {tab === 'bible' && <BibleReader key={profile?.id} initialLocation={bibleTarget&&bibleTarget.userId===profile?.id?bibleTarget.location:null} />}
+      {tab === 'reading' && <CadetNarrative onOpenBible={(location) => {setBibleTarget(location&&profile?.id?{userId:profile.id,location}:null);handleNavigate('bible');}} onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
+      {tab === 'games' && (
         <DailyGamesHub
+          onProgress={load}
           onOpenTrivia={() => handleNavigate('game')}
           onOpenArena={() => handleNavigate('arena')}
         />
-      ))}
-      {tab === 'game' && (isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />)}
+      )}
+      {tab === 'game' && <CadetGame onRewardEarned={load} onBackToDailyGames={() => handleNavigate('games')} />}
       {tab === 'arena' && (
         isExpired ? <SubscriptionGate onSubscribe={() => setTab('subscribe')} /> : (
-          <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')} />
+          <CadetArena onBalanceChanged={load} onBackToDailyGames={() => handleNavigate('games')}
+            sentrySchedule={tent ? { tentId: tent.id, members } : undefined} />
         )
       )}
       {tab === 'story' && <StoryModeUnderDevelopment onBackToDailyGames={() => handleNavigate('games')} />}
@@ -714,6 +735,7 @@ function UnassignedSentryState({ activeTab, onNavigate }: {
         <button onClick={() => onNavigate('reading')} className="btn-secondary">
           <CadetIcon size={18} /> Reading
         </button>
+        <button onClick={() => onNavigate('bible')} className="btn-secondary"><CadetIcon size={16} /> Bible</button>
         <button onClick={() => onNavigate('games')} className="btn-secondary">
           <GamepadIcon size={18} /> Daily Games
         </button>
@@ -760,11 +782,13 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
   onUploadTentPhoto: (file: File) => Promise<void>;
   uploadingTentPhoto: boolean;
 }) {
+  const championshipSlide=useInterTentWelcomeSlide(currentUserId||undefined,()=>onNavigate('arena'));
   const [showTentChat, setShowTentChat] = useState(false);
   const [tentUnreadCount, setTentUnreadCount] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroHeld, setHeroHeld] = useState(false);
+  const [heroDialogOpen, setHeroDialogOpen] = useState(false);
   const [monthlyHonors, setMonthlyHonors] = useState<AwardWithRecipient[]>([]);
   const [cadetQuizPodium, setCadetQuizPodium] = useState<WeeklyQuizRanking[]>([]);
   const [sentryQuizPodium, setSentryQuizPodium] = useState<WeeklyQuizRanking[]>([]);
@@ -812,9 +836,9 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
 
   useEffect(() => {
     let cancelled = false;
-    void fetchAwards()
+    void fetchAwards(undefined, today.slice(0, 7))
       .then((awards) => {
-        if (!cancelled) setMonthlyHonors(awards.filter((award) => award.award_month.slice(0, 7) === today.slice(0, 7)).slice(0, 10));
+        if (!cancelled) setMonthlyHonors(awards.slice(0, 10));
       })
       .catch(() => { if (!cancelled) setMonthlyHonors([]); });
     return () => { cancelled = true; };
@@ -902,6 +926,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
       image: panelImages.sentry_overview || null,
       veilClassName: 'welcome-first-slide-veil',
     },
+    ...(championshipSlide?[{id:'intertent-current',kind:'custom' as const,content:championshipSlide,image:interTentWelcomeArtwork(panelImages.arena,panelImages.intertent_welcome),veilClassName:'intertent-welcome-veil'}]:[]),
     ...(cadetQuizPodium.length ? [{ id: `quiz-podium-cadets-${cadetQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: cadetQuizPodium.slice(0, 3), division: 'Cadets' as const }] : []),
     ...(sentryQuizPodium.length ? [{ id: `quiz-podium-sentries-${sentryQuizPodium[0].quiz_session_id}`, kind: 'quiz_podium' as const, rankings: sentryQuizPodium.slice(0, 3), division: 'Sentries' as const }] : []),
     ...(fcxExperience ? [{ id: `fcx-${fcxExperience.id}`, kind: 'fcx' as const, experience: fcxExperience }] : []),
@@ -924,7 +949,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
     ...standardHeroSlides.slice(quoteStartIndex),
   ];
 
-  useAutoAdvance(heroSlides.length > 1 && !heroPaused && !heroHeld, () => {
+  useAutoAdvance(heroSlides.length > 1 && !heroPaused && !heroHeld && !heroDialogOpen, () => {
     setHeroIndex((index) => index + 1);
   });
 
@@ -950,6 +975,7 @@ function SentryOverview({ tent, members, allRecords, strictStreaks, atRiskCount,
         onNext={() => setHeroIndex((index) => index + 1)}
         onCommentOpenChange={setHeroPaused}
         onHoldChange={setHeroHeld}
+        onDialogOpenChange={setHeroDialogOpen}
       />
       <input
         ref={tentPhotoInputRef}
@@ -1194,155 +1220,95 @@ function SentryAttendance({ members, allRecords, strictStreaks, today, dayType, 
   );
 }
 
-function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId, onChanged }: {
+function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentId, cadetLimit, onChanged }: {
+  cadetLimit: number;
+  onChanged: () => Promise<void>;
   members: (TentMember & { profiles: Profile })[];
   allRecords: Record<string, DailyRecord[]>;
   strictStreaks: Record<string, StrictStreakData>;
   currentUserId: string;
   tentId: string;
-  onChanged: () => void;
 }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [unassigned, setUnassigned] = useState<{ user_id: string; display_name: string; avatar_url: string | null }[]>([]);
-  const [selectedCadet, setSelectedCadet] = useState('');
-  const [confirmCadet, setConfirmCadet] = useState<{ user_id: string; display_name: string; avatar_url: string | null } | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [joinRequests, setJoinRequests] = useState<TentJoinRequestSummary[]>([]);
-  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
-
-  const loadUnassigned = useCallback(async () => {
-    const users = await fetchSentryAddableCadets(currentUserId).catch(() => []);
-    setUnassigned(users);
-    setSelectedCadet('');
-    setConfirmCadet(null);
-  }, [currentUserId]);
-
-  useEffect(() => {
-    if (showAdd) void loadUnassigned();
-  }, [loadUnassigned, showAdd]);
-
-  const loadJoinRequests = useCallback(async () => {
-    setJoinRequests(await fetchTentJoinRequests(tentId).catch(() => []));
+  const positions = useTentPositions(tentId, members.length);
+  const [applications, setApplications] = useState<TentJoinRequestSummary[]>([]);
+  const [requestError, setRequestError] = useState('');
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<{ user_id: string; display_name: string }[]>([]);
+  const [sentInvites, setSentInvites] = useState<{ recipient_id: string; display_name: string }[]>([]);
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [inviting, setInviting] = useState<string | null>(null);
+  const full = members.filter(member => member.role === 'cadet').length >= cadetLimit;
+  const refreshApplications = useCallback(async () => {
+    setApplications(await fetchTentJoinRequests(tentId));
   }, [tentId]);
-
+  const refreshInvites = useCallback(async () => {
+    const [residents, result] = await Promise.all([fetchSentryAddableCadets(currentUserId), supabase.rpc('get_sent_tent_invitations', { p_tent_id: tentId })]);
+    if (result.error) throw result.error;
+    setCandidates(residents);
+    setSentInvites(result.data ?? []);
+  }, [currentUserId, tentId]);
   useEffect(() => {
-    void loadJoinRequests();
-    const interval = window.setInterval(() => { void loadJoinRequests(); }, 20_000);
-    return () => window.clearInterval(interval);
-  }, [loadJoinRequests]);
+    const refresh = () => { void refreshApplications().catch(() => setRequestError('Could not load tent requests.')); };
+    refresh();
+    const timer = window.setInterval(refresh, 20_000);
+    return () => window.clearInterval(timer);
+  }, [refreshApplications]);
+  useEffect(() => {
+    const refresh = () => { void refreshInvites().catch(() => setRequestError('Could not load tent invitations.')); };
+    refresh();
+    const timer = window.setInterval(refresh, 20_000);
+    return () => window.clearInterval(timer);
+  }, [refreshInvites]);
+  const inviteResident = async (id: string) => {
+    setInviting(id);
+    setRequestError('');
+    try {
+      await sentryAddCadetToTent(tentId, id);
+      await refreshInvites();
+    } catch (error) {
+      setRequestError((error as { message?: string })?.message || 'Could not send invitation.');
+    } finally { setInviting(null); }
+  };
 
-  const reviewRequest = async (requestId: string, approve: boolean) => {
-    setReviewingRequestId(requestId);
+  const review = async (requestId: string, approve: boolean) => {
+    setReviewing(requestId);
+    setRequestError('');
     try {
       await reviewTentJoinRequest(requestId, approve);
-      await Promise.all([loadJoinRequests(), onChanged()]);
-    } catch (error: any) {
-      alert(error.message || 'Could not review this tent application.');
+      await Promise.all([refreshApplications(), onChanged()]);
+    } catch (error) {
+      setRequestError((error as { message?: string })?.message || 'Could not review this request.');
+      void onChanged();
     } finally {
-      setReviewingRequestId(null);
+      setReviewing(null);
     }
   };
-
-  const addCadet = async () => {
-    if (!confirmCadet) return;
-    setAdding(true);
-    try {
-      await sentryAddCadetToTent(tentId, confirmCadet.user_id);
-      setShowAdd(false);
-      setSelectedCadet('');
-      setConfirmCadet(null);
-      await onChanged();
-    } catch (error: any) {
-      alert(error.message || 'Could not add cadet to your tent.');
-    }
-    setAdding(false);
-  };
-
   return (
     <div className="space-y-3 animate-fade-in">
-      {joinRequests.length > 0 && (
-        <section className="card border-sage/35 bg-surface p-4">
-          <div className="mb-3">
-            <p className="font-display font-semibold text-ink">Tent Applications</p>
-            <p className="text-xs text-stone">Accept or decline cadets who asked to join your tent.</p>
-          </div>
-          <div className="space-y-2">
-            {joinRequests.map((request) => (
-              <div key={request.request_id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-2.5">
-                <UserAvatar userId={request.user_id} name={request.display_name} avatarUrl={request.avatar_url} className="h-9 w-9 shrink-0 border border-sage/35" />
-                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{request.display_name}</p>
-                <button type="button" className="btn-ghost px-2 py-1.5 text-xs text-coral" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, false)}>
-                  <X size={14} /> Deny
-                </button>
-                <button type="button" className="btn-primary px-2 py-1.5 text-xs" disabled={!!reviewingRequestId} onClick={() => void reviewRequest(request.request_id, true)}>
-                  {reviewingRequestId === request.request_id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Accept
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      <div className="card p-4 bg-surface-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-display font-semibold text-ink">Tent Cadets</p>
-            <p className="text-xs text-stone">Sentries can add unassigned cadets. Only the instructor can remove or move cadets.</p>
-          </div>
-          <button onClick={() => {
-            setShowAdd((value) => !value);
-            setSelectedCadet('');
-            setConfirmCadet(null);
-          }} className="btn-secondary text-xs">
-            {showAdd ? <X size={14} /> : <UserPlus size={14} />}
-            {showAdd ? 'Close' : 'Add Cadet'}
-          </button>
-        </div>
-        {showAdd && (
-          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-            <AppSelect
-              value={selectedCadet}
-              onChange={setSelectedCadet}
-              placeholder={unassigned.length === 0 ? 'No unassigned cadets available' : 'Choose cadet'}
-              disabled={unassigned.length === 0}
-              buttonClassName="bg-surface text-xs shadow-sm"
-              options={unassigned.map((cadet) => ({ value: cadet.user_id, label: cadet.display_name }))}
-            />
-            <button
-              onClick={() => setConfirmCadet(unassigned.find((cadet) => cadet.user_id === selectedCadet) || null)}
-              disabled={!selectedCadet || adding}
-              className="btn-primary text-xs disabled:opacity-50"
-            >
-              <UserPlus size={14} />
-              Add
-            </button>
-          </div>
-        )}
-      </div>
-      {confirmCadet && (
-        <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/50 px-4 animate-fade-in" onClick={() => !adding && setConfirmCadet(null)}>
-          <div className="relative z-[2147483001] w-full max-w-sm rounded-2xl border border-border bg-bg p-5 shadow-2xl animate-scale-in" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start gap-3">
-              <span className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center text-sm font-bold text-brass">
-                <UserAvatar userId={confirmCadet.user_id} name={confirmCadet.display_name} avatarUrl={confirmCadet.avatar_url} className="h-full w-full border border-brass/30" />
-
-              </span>
-              <div className="min-w-0">
-                <h3 className="font-display text-base font-semibold text-ink">Add {confirmCadet.display_name}?</h3>
-                <p className="mt-1 text-sm leading-relaxed text-stone">This will add the cadet to your tent. Only the instructor can undo this or move them later.</p>
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" className="btn-secondary justify-center text-xs" disabled={adding} onClick={() => setConfirmCadet(null)}>
-                Cancel
-              </button>
-              <button type="button" className="btn-primary justify-center text-xs" disabled={adding} onClick={addCadet}>
-                {adding ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {members.map((m) => {
+      <section className="card space-y-3 p-4">
+        <h2 className="font-display font-semibold">Invite residents</h2>
+        <p className="text-xs text-stone">Send an invitation even before a resident qualifies. They join only when they accept after reaching five streaks.</p>
+        {sentInvites.map(invite => <div key={invite.recipient_id} className="flex justify-between gap-2 text-sm"><span>{invite.display_name}</span><span className="text-xs text-stone">Invitation pending</span></div>)}
+        <input className="input w-full" placeholder="Search residents to invite" value={inviteSearch} onChange={e => setInviteSearch(e.target.value)} />
+        {inviteSearch.trim() && candidates.filter(c => c.display_name.toLowerCase().includes(inviteSearch.trim().toLowerCase()) && !sentInvites.some(i => i.recipient_id === c.user_id)).slice(0,20).map(c => <div key={c.user_id} className="flex items-center justify-between gap-2 border-t border-border pt-2">
+          <span className="text-sm">{c.display_name}</span><button className="btn-secondary text-xs" disabled={inviting !== null} onClick={() => void inviteResident(c.user_id)}>{inviting === c.user_id ? 'Sending…' : 'Invite'}</button>
+        </div>)}
+      </section>
+      <section className="card space-y-3 p-4">
+        <h2 className="font-display font-semibold">Tent requests</h2>
+        {full && <p className="text-xs text-stone">The tent is full. Accept requests when a place opens.</p>}
+        {requestError && <p role="alert" className="text-xs text-coral">{requestError}</p>}
+        {!requestError && applications.length === 0 && <p className="text-xs text-stone">No pending requests.</p>}
+        {applications.map(application => <div key={application.request_id} className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+          <span className="flex-1 text-sm font-semibold">{application.display_name}</span>
+          <button type="button" className="btn-primary text-xs" disabled={full || reviewing !== null}
+            onClick={() => void review(application.request_id, true)}>Accept</button>
+          <button type="button" className="btn-secondary text-xs" disabled={reviewing !== null}
+            onClick={() => void review(application.request_id, false)}>Decline</button>
+        </div>)}
+      </section>
+      {members.length > 0 && <TentPositionControls {...positions} />}
+      {[...members].sort(positions.compare).map((m) => {
         const streak = streakForMember(m.user_id, allRecords, strictStreaks);
         const stateColor = streak.removal_state === 'active' ? '#6B8E5A' : streak.removal_state === 'at_risk' ? '#C9A227' : '#B8553E';
         const StateIcon = streak.removal_state === 'active' ? Shield : AlertTriangle;
@@ -1356,6 +1322,7 @@ function SentryCadets({ members, allRecords, strictStreaks, currentUserId, tentI
                   <SealBullet className="text-stone flex-shrink-0" />
                   {m.profiles.display_name}
                 </h4>
+                <TentPositionBadges position={positions.byId.get(m.user_id)} />
               </div>
               <span className={cn('badge text-xs', streak.removal_state === 'flagged' ? 'badge-roman' : streak.removal_state === 'at_risk' ? 'badge-brass' : 'badge-moss')}>
                 <StateIcon size={12} /> {streak.removal_state.replace('_', ' ')}

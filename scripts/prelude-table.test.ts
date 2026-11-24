@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { PRELUDE_RING,preludeStacks } from '../src/lib/preludeTable.ts';
+const cards=Array.from({length:104},(_,slot)=>({slot}));
+const stacks=preludeStacks(cards);
+assert.equal(stacks.length,8);assert.ok(stacks.every(stack=>stack.length===13));
+assert.ok(PRELUDE_RING.every(position=>position.row!==1||position.col!==1));
+assert.equal(new Set(PRELUDE_RING.map(position=>`${position.row},${position.col}`)).size,8);
+const remaining=cards.filter(card=>![0,8,16,31,42].includes(card.slot));
+const next=preludeStacks(remaining);
+assert.deepEqual(next.flat().map(card=>card.slot).sort((a,b)=>a-b),remaining.map(card=>card.slot));
+for(const pile of next)assert.ok(pile.every(card=>card.slot%8===pile[0].slot%8));
+assert.equal(preludeStacks([]).flat().length,0);
+console.log('Prelude table passed: one eight-position ring, stable stacks, used cards removed, no duplicate or missing cards.');

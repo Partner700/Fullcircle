@@ -1,7 +1,9 @@
+import { interfaceLanguage, preferredTimeZone } from '../lib/regionalPreferences';
+import { ProfileTimeZoneSelect } from './ProfileTimeZoneSelect';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { fetchRelicInventory, fetchAwards, fetchUserLiveStats } from '../lib/queries';
+import { fetchRelicInventory, fetchPersonalAwards, fetchUserLiveStats } from '../lib/queries';
 import { formatDenarii, formatDate } from '../lib/utils';
 import { Dove } from './Dove';
 import { PasswordUpdateFlow } from './PasswordUpdateFlow';
@@ -25,7 +27,8 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [whatsapp, setWhatsapp] = useState(profile?.whatsapp_number || '');
   const [country, setCountry] = useState(profile?.country_code || 'CM');
-  const [language, setLanguage] = useState(profile?.language_code || 'en');
+  const [language, setLanguage] = useState<string>(() => interfaceLanguage(profile?.language_code));
+  const [timeZone, setTimeZone] = useState(() => preferredTimeZone(profile?.timezone));
   const [birthday, setBirthday] = useState(formatBirthdayInput(profile?.birth_month, profile?.birth_day));
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -43,7 +46,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
     try {
     const [liveStats, awards, relics, memberData, sentryTentData] = await Promise.allSettled([
       fetchUserLiveStats(profile.id),
-      fetchAwards(),
+      fetchPersonalAwards(profile.id),
       fetchRelicInventory(profile.id),
       supabase.from('tent_members').select('*, tents(*, tent_houses(*))').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('tents').select('*, tent_houses(*)').eq('sentry_id', profile.id).maybeSingle(),
@@ -52,12 +55,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
     const memberRow = memberData.status === 'fulfilled' ? memberData.value.data : null;
     const sentryTentRow = sentryTentData.status === 'fulfilled' ? sentryTentData.value.data : null;
     const awardsList = awards.status === 'fulfilled' ? awards.value : [];
-    const ownTentId = (memberRow as any)?.tent_id || (sentryTentRow as any)?.id || null;
-    const myAwards = awardsList.filter((award) => (
-      award.award_target_type === 'tent'
-        ? !!ownTentId && award.award_target_id === ownTentId
-        : award.user_id === profile.id
-    ));
+    const myAwards = awardsList;
 
     let tent: { name: string; houseId: string; sentryName?: string } | null = null;
     const tentRow = (memberRow as any)?.tents || sentryTentRow;
@@ -98,6 +96,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         whatsappNumber: phoneNumberForCountry(whatsapp, country) || null,
         countryCode: country,
         languageCode: language,
+        timeZone,
         birthMonth: parsedBirthday.month,
         birthDay: parsedBirthday.day,
       });
@@ -139,6 +138,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
             <div className="flex items-center gap-2 mt-1.5">
               <span className="badge badge-peri capitalize">{role}</span>
               {tentInfo && <TentHouseBadge houseId={tentInfo.houseId} size="sm" />}
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-peri" title="Labarum"><ChiRhoMark size={14} />{stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
@@ -171,9 +171,10 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
               <AppSelect value={country} onChange={setCountry} options={PROFILE_COUNTRIES.map((item) => ({ value: item.code, label: item.name, description: item.timezone }))} />
             </label>
             <label className="block text-xs font-bold text-peri">
-              <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> Language</span>
+              <span className="mb-1.5 flex items-center gap-1"><Languages size={13} /> App language</span>
               <AppSelect value={language} onChange={setLanguage} options={PROFILE_LANGUAGES.map((item) => ({ value: item.code, label: item.name }))} />
             </label>
+          <ProfileTimeZoneSelect value={timeZone} onChange={setTimeZone} />
             <label className="block text-xs font-bold text-peri">
               <span className="mb-1.5 flex items-center gap-1"><Cake size={13} /> Birthday</span>
               <input className="input-field" value={birthday} onChange={(event) => setBirthday(formatBirthdayTyping(event.target.value))} placeholder="MM/DD" inputMode="numeric" />
@@ -221,12 +222,6 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         <StatCard icon={FlameIcon} label="Streak" value={stats.streak} sublabel={`Best: ${stats.longestStreak}`} color="#E05252" />
         <StatCard icon={BadgeCheck} label="Figs" value={stats.figs} color="#7C8CFF" />
         <StatCard icon={Shield} label="Rhudes" value={stats.rhudes} color="#5BAD7F" />
-        <StatCard
-          icon={ChiRhoMark}
-          label="Marks"
-          value={stats.marks.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          color="#DDE3FF"
-        />
         <StatCard icon={AwardIcon} label="Awards" value={stats.awards.length} color="#D6A849" />
         <StatCard icon={TrophyIcon} label="Relics" value={stats.relics} color="#A7B0C6" />
       </div>

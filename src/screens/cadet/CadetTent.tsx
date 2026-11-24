@@ -1,3 +1,5 @@
+import { TentPositionBadges, TentPositionControls } from '../../components/TentPositions';
+import { useTentPositions } from '../../lib/tentPositions';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { SectionHeader, EmptyState } from '../../components/AppShell';
@@ -6,14 +8,13 @@ import { supabase } from '../../lib/supabase';
 import { cn, whatsappUrl, formatDenarii } from '../../lib/utils';
 import type { AwardWithRecipient, Tent, TentMember, Profile } from '../../lib/types';
 import { TentAvatar, TentGroupMessenger } from '../../components/TentMessenger';
-import { fetchAwards, fetchDefaultTentJoinDirection, fetchPanelImageSetting, fetchTentJoinDirections } from '../../lib/queries';
+import { fetchAwards, fetchPanelImageSetting, fetchPublicStreakDetails } from '../../lib/queries';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { VallumText } from '../../components/ChiRhoMark';
 import { UserAvatar } from '../../components/UserAvatar';
 import type { PanelImageSetting } from '../../lib/types';
 import { Award, MessageCircle, Users, Trophy, Flame, Coins, Heart, Zap, Star, ThumbsUp, Tent as TentIcon, Loader2, UserPlus } from 'lucide-react';
-import { completeNewcomerGuidanceStep } from '../../lib/newcomerGuidance';
 
 const REACTIONS = [
   { type: 'fire', icon: Zap, color: '#E8B958', label: 'Fire' },
@@ -49,109 +50,115 @@ type TentJoinOption = {
   id: string;
   name: string;
   profile_image_url: string | null;
-  sentry_id: string | null;
-  tent_houses?: { name?: string | null } | null;
-  member_count: number;
+  cadet_count: number;
+  cadet_limit: number;
+  requested: boolean;
 };
-type TentJoinRow = Omit<TentJoinOption, 'member_count'>;
 
-const TENT_MEMBER_CAPACITY = 10;
+type TentInvitation = { invitation_id: string; tent_name: string; sentry_name: string; longest_streak: number; has_space: boolean; can_accept: boolean };
 
-export function CadetTent() {
+export function CadetTent({ onMembershipChanged, canApply }: { onMembershipChanged: () => Promise<void>; canApply: boolean }) {
   const { profile } = useAuth();
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
-  const [denariiMap, setDenariiMap] = useState<Record<string, number>>({});
-  const [streakMap, setStreakMap] = useState<Record<string, number>>({});
+  const [denariiMap, setDenariiMap] = useState<Record<string, number | null>>({});
+  const [streakMap, setStreakMap] = useState<Record<string, number | null>>({});
   const [unreadBySender, setUnreadBySender] = useState<Record<string, number>>({});
   const [tentAwards, setTentAwards] = useState<AwardWithRecipient[]>([]);
   const [awardsImage, setAwardsImage] = useState<PanelImageSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
   const [availableTents, setAvailableTents] = useState<TentJoinOption[]>([]);
-  const [directedTentId, setDirectedTentId] = useState<string | null>(null);
-  const [pendingTentId, setPendingTentId] = useState<string | null>(null);
+  const [invitations, setInvitations] = useState<TentInvitation[]>([]);
+  const [responding, setResponding] = useState(false);
+  const [joinError, setJoinError] = useState('');
+  const [optionsError, setOptionsError] = useState(false);
   const [requestingTentId, setRequestingTentId] = useState<string | null>(null);
   const [awardView, setAwardView] = useState('week');
   const [showTentChat, setShowTentChat] = useState(false);
+  const positions = useTentPositions(tent?.id, members.length);
   const hasLoadedRef = useRef(false);
+  const lastTentId = useRef<string | null | undefined>(undefined);
+  const membershipChanged = useRef(onMembershipChanged);
+  membershipChanged.current = onMembershipChanged;
 
   const load = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
     if (!hasLoadedRef.current) setLoading(true);
     try {
-      const { data: member } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
+      const { data: member, error: memberError } = await supabase.from('tent_members').select('tent_id').eq('user_id', profile.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
+      if (memberError) throw memberError;
+      setOptionsError(false);
+      const nextTentId = member?.tent_id ?? null;
+      if (lastTentId.current !== undefined && lastTentId.current !== nextTentId) {
+        void membershipChanged.current();
+      }
+      lastTentId.current = nextTentId;
       if (!member) {
         setTent(null);
         setMembers([]);
-        const [tentOptionsResult, requestResult, memberOptionsResult, directions, defaultTentId] = await Promise.all([
-          supabase.from('tents').select('id,name,profile_image_url,sentry_id,tent_houses(name)').order('name'),
-          supabase.from('tent_join_requests').select('tent_id').eq('user_id', profile.id).eq('status', 'pending').maybeSingle(),
-          supabase.from('tent_members').select('tent_id,user_id'),
-          fetchTentJoinDirections(profile.id),
-          fetchDefaultTentJoinDirection(),
-        ]);
-        if (tentOptionsResult.error) throw tentOptionsResult.error;
-        if (requestResult.error) throw requestResult.error;
-        if (memberOptionsResult.error) throw memberOptionsResult.error;
-        const tentRows = (tentOptionsResult.data || []) as unknown as TentJoinRow[];
-        const requestRow = requestResult.data;
-        const memberRows = memberOptionsResult.data || [];
-        const membersByTent = new Map<string, Set<string>>();
-        memberRows.forEach((member: { tent_id: string; user_id: string }) => {
-          const people = membersByTent.get(member.tent_id) || new Set<string>();
-          people.add(member.user_id);
-          membersByTent.set(member.tent_id, people);
-        });
-        const tentsWithCounts = tentRows.map((row) => {
-          const people = membersByTent.get(row.id) || new Set<string>();
-          if (row.sentry_id) people.add(row.sentry_id);
-          return { ...row, member_count: people.size } as TentJoinOption;
-        });
-        setAvailableTents(tentsWithCounts);
-        setDirectedTentId(directions[0]?.tent_id || defaultTentId);
-        setPendingTentId(requestRow?.tent_id || null);
+        const [{ data, error }, invites] = await Promise.all([supabase.rpc('get_tent_join_options'), supabase.rpc('get_my_tent_invitations')]);
+        if (invites.error) throw invites.error;
+        setInvitations((invites.data ?? []) as TentInvitation[]);
+        if (error) throw error;
+        setAvailableTents((data ?? []) as TentJoinOption[]);
         return;
       }
 
-      setDirectedTentId(null);
-
-      const [tentResult, membersResult, reactionsResult, unreadResult, awardsResult, awardsImageResult] = await Promise.all([
+      const [tentResult, membersResult, reactionsResult, unreadResult] = await Promise.all([
         supabase.from('tents').select('*, tent_houses(*)').eq('id', member.tent_id).maybeSingle(),
         supabase.from('tent_members').select('*, profiles(id,display_name,avatar_url,created_at)').eq('tent_id', member.tent_id).order('joined_at'),
         supabase.from('tent_reactions').select('*').eq('tent_id', member.tent_id).order('created_at', { ascending: false }).limit(50),
         supabase.from('user_notifications').select('actor_id').eq('recipient_id', profile.id).is('read_at', null).eq('action_key', 'tent'),
-        fetchAwards(),
-        fetchPanelImageSetting('recent_awards'),
       ]);
       setTent(tentResult.data as any);
       setMembers((membersResult.data || []) as any);
       setReactions((reactionsResult.data || []) as any);
       const tentMemberIds = new Set((membersResult.data || []).map((m: any) => m.user_id));
       if (tentResult.data?.sentry_id) tentMemberIds.add(tentResult.data.sentry_id);
-      setTentAwards(awardsResult.filter((award) => (
-        award.award_target_type === 'tent'
-          ? award.award_target_id === member.tent_id
-          : tentMemberIds.has(award.user_id) || (!!award.award_target_id && tentMemberIds.has(award.award_target_id))
-      )));
-      setAwardsImage(awardsImageResult);
-
       const memberIds = (membersResult.data || []).map((m: any) => m.user_id);
-      const [denariiResults, streakResults] = await Promise.all([
-        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('get_user_denarii_total', { p_user_id: uid })).data }))),
-        Promise.all(memberIds.map(async (uid: string) => ({ uid, data: (await supabase.rpc('compute_strict_streak', { p_user_id: uid })).data }))),
-      ]);
-      setDenariiMap(Object.fromEntries(denariiResults.map(({ uid, data }) => [uid, Number(data) || 0])));
-      setStreakMap(Object.fromEntries(streakResults.flatMap(({ uid, data }: any) => data?.[0] ? [[uid, data[0].current_streak]] : [])));
-
       const unreadMap: Record<string, number> = {};
       (unreadResult.data || []).forEach((n: any) => {
         if (n.actor_id) unreadMap[n.actor_id] = (unreadMap[n.actor_id] || 0) + 1;
       });
       setUnreadBySender(unreadMap);
+      hasLoadedRef.current = true;
+      setLoading(false);
+
+      void fetchAwards(undefined, undefined, [...tentMemberIds, member.tent_id]).then((awards) => {
+        setTentAwards(awards.filter((award) => (
+          award.award_target_type === 'tent'
+            ? award.award_target_id === member.tent_id
+            : tentMemberIds.has(award.user_id) || (!!award.award_target_id && tentMemberIds.has(award.award_target_id))
+        )));
+      }).catch(() => undefined);
+      void fetchPanelImageSetting('recent_awards').then(setAwardsImage).catch(() => undefined);
+      void fetchPublicStreakDetails(memberIds).then((streaks) => {
+        setStreakMap(Object.fromEntries(memberIds.map((uid: string) => [uid, streaks[uid]?.current_streak ?? null])));
+      }).catch(() => setStreakMap((current) => Object.fromEntries(memberIds.map((uid: string) => [uid, current[uid] ?? null]))));
+      void (async () => {
+        for (let index = 0; index < memberIds.length; index += 3) {
+          const batchIds = memberIds.slice(index, index + 3) as string[];
+          const batch = await Promise.allSettled(batchIds.map(async (uid: string) => {
+            const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: uid });
+            if (error) throw error;
+            return Number(data) || 0;
+          }));
+          setDenariiMap((current) => {
+            const next = { ...current };
+            batch.forEach((result, offset) => {
+              const uid = batchIds[offset];
+              if (result.status === 'fulfilled') next[uid] = result.value;
+              else if (next[uid] === undefined) next[uid] = null;
+            });
+            return next;
+          });
+        }
+      })();
     } catch (error) {
       console.error('Tent load error:', error);
+      setOptionsError(true);
       setTent(null);
     } finally {
       hasLoadedRef.current = true;
@@ -166,41 +173,48 @@ export function CadetTent() {
     const channel = supabase
       .channel(`cadet-tent-membership-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_members', filter: `user_id=eq.${profile.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_requests', filter: `user_id=eq.${profile.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_directions', filter: `user_id=eq.${profile.id}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tent_join_guidance_settings' }, refresh)
       .subscribe();
-    const interval = window.setInterval(refresh, 20_000);
+    const interval = window.setInterval(refresh, tent?.id ? 120_000 : 20_000);
     return () => {
       window.clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [load, profile]);
+  }, [load, profile, tent?.id]);
 
-  const requestTent = async (tentId: string) => {
-    const selectedTent = availableTents.find((item) => item.id === tentId);
-    if (!directedTentId || directedTentId !== tentId) {
-      alert('Your instructor has not directed you to this tent. Follow the hand to the selected tent.');
-      await load();
-      return;
-    }
-    if (!selectedTent || selectedTent.member_count >= TENT_MEMBER_CAPACITY) {
-      alert('The selected tent already has 10 people. Your instructor must direct you to another available tent.');
-      await load();
-      return;
-    }
-    setRequestingTentId(tentId);
+  const joinTent = async (item: TentJoinOption) => {
+    if (requestingTentId || item.requested) return;
+    if (!window.confirm(`Request to join ${item.name}?`)) return;
+    setRequestingTentId(item.id);
+    setJoinError('');
     try {
-      const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: tentId });
-      if (error) throw error;
-      setPendingTentId(tentId);
-      await completeNewcomerGuidanceStep('choose_tent').catch(() => undefined);
-    } catch (error: unknown) {
+      const { error } = await supabase.rpc('request_to_join_tent', { p_tent_id: item.id });
+      if (error) {
+        setJoinError(error.message);
+        await load();
+        return;
+      }
       await load();
-      alert(error instanceof Error ? error.message : 'This tent cannot accept another request right now.');
+    } catch {
+      setJoinError('Could not confirm your request. Check its status before retrying.');
+      await load();
     } finally {
       setRequestingTentId(null);
     }
+  };
+
+  const respond = async (invite: TentInvitation, accept: boolean) => {
+    if (responding || (accept && !invite.can_accept)) return;
+    if (!window.confirm(accept ? `Join ${invite.tent_name}?` : `Decline the invitation from ${invite.tent_name}?`)) return;
+    setResponding(true);
+    setJoinError('');
+    try {
+      const { error } = await supabase.rpc('respond_to_tent_invitation', { p_invitation_id: invite.invitation_id, p_accept: accept });
+      if (error) throw error;
+      await load();
+    } catch (error) {
+      setJoinError((error as { message?: string }).message || 'Could not respond to the invitation.');
+      await load();
+    } finally { setResponding(false); }
   };
 
   const sendReaction = async (targetUserId: string, reactionType: string, targetType: string, ref?: string) => {
@@ -247,35 +261,44 @@ export function CadetTent() {
   if (!tent) {
     return (
       <div className="space-y-5 animate-fade-in">
+        <section className="card p-4 space-y-3">
+          <h2 className="font-display font-semibold">Tent invitations</h2>
+          <p className="text-xs text-stone">A Sentry can invite you before you qualify. You decide whether to join.</p>
+          {!invitations.length && <p className="text-xs text-stone">No pending invitations.</p>}
+          {invitations.map(invite => <article key={invite.invitation_id} className="border-t border-border pt-3 space-y-2">
+            <p className="font-semibold text-ink">{invite.tent_name}</p>
+            <p className="text-xs text-stone">Invited by {invite.sentry_name}</p>
+            {invite.longest_streak < 5 && <p className="text-xs text-gold">Reach a 5-day streak to accept ({invite.longest_streak}/5).</p>}
+            {!invite.has_space && <p className="text-xs text-stone">Tent is full. Your invitation will remain pending.</p>}
+            <div className="flex gap-2">
+              <button className="btn-primary text-xs" disabled={responding || !invite.can_accept} onClick={() => void respond(invite, true)}>Accept invitation</button>
+              <button className="btn-secondary text-xs" disabled={responding} onClick={() => void respond(invite, false)}>Decline</button>
+            </div>
+          </article>)}
+        </section>
         <EmptyState
           icon={Users}
-          title="You're not in a tent yet"
-          message={directedTentId
-            ? 'Your instructor selected your tent. Follow the hand and send your request.'
-            : 'Your instructor will direct you to an available tent. The choices stay muted until then.'}
+          title="Request a tent"
+          message="There’s always room for a fresh start. Feel free to request as many tents as you like, even if a tent is currently full. You can join when a Sentry accepts your request and a place opens."
         />
+        <p className="card p-4 text-xs text-stone">If you have previously left a tent, you are welcome to apply again. Once you are accepted into one tent, your other requests will close automatically. Your free first month starts with your first membership; returning members need an active subscription to join.</p>
+        {joinError && <p className="card p-4 text-coral" role="alert">{joinError}</p>}
+        {optionsError ? (
+          <button type="button" className="btn-secondary" onClick={() => void load()}>Retry loading tents</button>
+        ) : !canApply ? <p className="card p-4 text-stone">Reach a 5-day streak to apply for a tent. Your first month is free when you join.</p> : availableTents.length === 0 && <p className="card p-4 text-stone">There are no tents available to join right now.</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           {availableTents.map((item) => {
-            const full = item.member_count >= TENT_MEMBER_CAPACITY;
-            const directed = directedTentId === item.id;
-            const joinable = directed && !full;
-            const pending = pendingTentId === item.id;
-            return <article
-              key={item.id}
-              data-guide-tent-choice={joinable ? 'directed' : undefined}
-              aria-disabled={!joinable || undefined}
-              className={cn('card flex items-center gap-3 p-4 transition-opacity', !joinable && 'opacity-50 saturate-50')}
-            >
+            const full = item.cadet_count >= item.cadet_limit;
+            return <article key={item.id} className="card flex items-center gap-3 p-4">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
                 {item.profile_image_url ? <img src={item.profile_image_url} alt="" className="h-full w-full object-cover" /> : <TentIcon size={22} className="text-gold" />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-ink">{item.name}</p>
-                <p className="text-xs text-stone">{item.tent_houses?.name} · {item.member_count}/{TENT_MEMBER_CAPACITY} people</p>
-                {directed && <p className="mt-1 text-[10px] font-bold uppercase text-gold">Instructor selected</p>}
+                <p className="text-xs text-stone">{item.cadet_count}/{item.cadet_limit} cadet places taken{full ? ' · Full' : ''}</p>
               </div>
-              <button type="button" disabled={!joinable || pending || !!requestingTentId} onClick={() => void requestTent(item.id)} className="btn-secondary px-3 text-xs">
-                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : pending ? 'Pending' : full ? 'Full' : !directed ? 'Muted' : <><UserPlus size={14} /> Join</>}
+              <button type="button" disabled={item.requested || !!requestingTentId} onClick={() => void joinTent(item)} className="btn-secondary px-3 text-xs">
+                {requestingTentId === item.id ? <Loader2 size={14} className="animate-spin" /> : item.requested ? 'Requested' : <><UserPlus size={14} /> Request</>}
               </button>
             </article>;
           })}
@@ -285,8 +308,8 @@ export function CadetTent() {
   }
 
   const sentry = members.find((m) => m.role === 'sentry');
-  const cadets = members.filter((m) => m.role === 'cadet');
-  const visibleMembers = [...(sentry ? [sentry] : []), ...cadets];
+  const cadets = members.filter((m) => m.role === 'cadet').sort(positions.compare);
+  const visibleMembers = [...cadets, ...(sentry ? [sentry] : [])];
   const memberById = new Map(visibleMembers.map((m) => [m.user_id, m]));
   const visibleTentAwards = awardView === 'week' ? weeklyPublishedAwards(tentAwards) : tentAwards;
 
@@ -408,14 +431,15 @@ export function CadetTent() {
       </section>
 
       {/* Tent members */}
-      <SectionHeader title="Your Tent" subtitle="React to your sentry and tent mates" />
+      <SectionHeader title="Your Tent" subtitle="See your tent mates’ positions" />
+      {cadets.length > 0 && <TentPositionControls {...positions} />}
 
       <div className="space-y-3">
         {visibleMembers.map((m) => {
           const isMe = m.user_id === profile?.id;
           const isSentry = m.role === 'sentry';
-          const den = denariiMap[m.user_id] || 0;
-          const streak = streakMap[m.user_id] || 0;
+          const den = denariiMap[m.user_id];
+          const streak = streakMap[m.user_id];
           const myReactions = reactions.filter((r) => r.target_user_id === m.user_id);
 
           return (
@@ -438,12 +462,13 @@ export function CadetTent() {
                     {isSentry && <span className="badge badge-royal text-[9px]">Sentry</span>}
                     {tent.tent_houses && <TentHouseSymbol houseId={tent.tent_houses.id} size={16} />}
                   </div>
+                  {!isSentry && <TentPositionBadges position={positions.byId.get(m.user_id)} />}
                   <div className="flex items-center gap-3 text-xs text-stone">
                     <span className="flex items-center gap-1">
-                      <Coins size={12} className="text-gold" /> {formatDenarii(den)}
+                      <Coins size={12} className="text-gold" /> {den === undefined ? '...' : den === null ? '-' : formatDenarii(den)}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Flame size={12} className="text-roman" /> {streak} day streak
+                      <Flame size={12} className="text-roman" /> {streak === undefined ? '...' : streak === null ? '-' : `${streak} day streak`}
                     </span>
                   </div>
                 </div>

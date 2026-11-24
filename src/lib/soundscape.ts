@@ -19,6 +19,15 @@ const DASHBOARD_VOLUME = 0.22;
 const DASHBOARD_FADE_MS = 850;
 const SOUND_STATE_EVENT = 'full-circle-sound-state';
 
+// Reuse existing instructor-uploaded audio until Arena-specific slots are configured.
+// Do not synthesize or download music, and do not override the user's sound setting.
+const soundFallbacks: Record<string, string> = {
+  sound_arena_lobby: 'sound_quiz_waiting',
+  sound_game_lobby: 'sound_quiz_waiting',
+  sound_game_level_1: 'sound_quiz_waiting',
+  sound_arena_start: 'sound_game_start',
+};
+
 const moodSoundSlots: Partial<Record<SoundMood, string>> = {
   instructor_overview: 'sound_instructor_overview',
   sentry_overview: 'sound_dashboard',
@@ -116,8 +125,11 @@ async function getSoundAsset(type: string): Promise<SoundAsset | null> {
       start: Math.max(0, Number(preferred?.audio_start_seconds) || 0),
       end: preferred?.audio_end_seconds == null ? null : Math.max(0, Number(preferred.audio_end_seconds) || 0),
     } : null;
-    assetCache.set(cacheKey, asset);
-    return asset;
+    // The older Arena music slots have no active uploads in this camp.
+    // Use the actual uploaded quiz music instead of leaving all Arena games silent.
+    const resolved = asset || (soundFallbacks[type] ? await getSoundAsset(soundFallbacks[type]) : null);
+    if (resolved) assetCache.set(cacheKey, resolved);
+    return resolved;
   } catch {
     return null;
   }

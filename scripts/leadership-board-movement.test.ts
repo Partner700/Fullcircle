@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { updateLeadershipHistory } from '../src/lib/leadershipBoardMovement.ts';
+const score=(row:{score:number})=>row.score;
+const first=updateLeadershipHistory([{user_id:'a',rank:1,score:3},{user_id:'b',rank:2,score:2}],score,{},'2026-11-21');
+assert.deepEqual(first.rows.map(r=>r.movement),[0,0]);
+assert.ok(first.rows.every(r=>!r.isRecord));
+const second=updateLeadershipHistory([{user_id:'b',rank:1,score:4},{user_id:'a',rank:2,score:1}],score,first.history,'2026-11-21');
+assert.deepEqual(second.rows.map(r=>r.movement),[1,-1]);
+assert.deepEqual(second.rows.map(r=>r.isRecord),[true,false]);
+const refresh=updateLeadershipHistory(second.rows,score,second.history,'2026-11-21');
+assert.deepEqual(refresh.rows.map(r=>r.movement),[1,-1]);
+assert.equal(refresh.rows[0].isRecord,true);
+const tomorrow=updateLeadershipHistory(second.rows,score,refresh.history,'2026-11-22');
+assert.deepEqual(tomorrow.rows.map(r=>r.movement),[0,0]);
+assert.equal(tomorrow.rows[0].isRecord,false);
+const rankChange=updateLeadershipHistory([{user_id:'a',rank:1,score:1}],score,tomorrow.history,'2026-11-22');
+assert.equal(rankChange.rows[0].movement,1);
+console.log('Leadership board movement, stable daily baseline, records and rank changes passed.');

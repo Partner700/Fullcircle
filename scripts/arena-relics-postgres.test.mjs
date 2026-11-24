@@ -1,0 +1,104 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+if (!process.env.PGLITE_MODULE) throw new Error('Set PGLITE_MODULE to a test-only PGlite installation.');
+const { PGlite } = await import(process.env.PGLITE_MODULE);
+const db = new PGlite();
+const migration = (name) => readFile(new URL(`../supabase/migrations/${name}.sql`, import.meta.url),'utf8');
+const scalar = async (sql, args=[]) => (await db.query(sql,args)).rows[0]?.value;
+const human='10000000-0000-4000-8000-000000000001', other='10000000-0000-4000-8000-000000000002';
+const room='20000000-0000-4000-8000-000000000001', ludo='20000000-0000-4000-8000-000000000002';
+const machine='00000000-0000-0000-0000-000000000000';
+const command=(n)=>`30000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const state = (version=0) => ({characterSlug:'elisha',game:{version,status:'playing',turnIndex:0,players:[{id:human,correctAnswers:3,score:-4},{id:machine,correctAnswers:2,score:-2}]},currentQuestion:null,currentQuestionPlayerId:human,questionDeadline:new Date(Date.now()+900000).toISOString(),questionOpensAt:new Date(Date.now()-1000).toISOString(),awaitingRoll:false});
+try {
+  await db.exec(`
+    CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+    CREATE SCHEMA auth; CREATE SCHEMA journey_private;
+    REVOKE ALL ON SCHEMA journey_private FROM PUBLIC;
+    CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$ SELECT current_setting('request.jwt.claim.role',true) $$;
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    CREATE TABLE auth.users(id uuid PRIMARY KEY);
+    INSERT INTO auth.users VALUES ('${human}'),('${other}');
+    CREATE TABLE role_assignments(user_id uuid,role text,status text);
+    CREATE TABLE arena_rooms(id uuid PRIMARY KEY,room_name text,status text,play_mode text,creator_id uuid,machine_score integer,stake_amount integer DEFAULT 0,winner_id uuid,completed_at timestamptz,completion_reason text,restarted_as_room_id uuid);
+    CREATE TABLE arena_participants(room_id uuid,user_id uuid,score integer DEFAULT 0,correct_count integer DEFAULT 0,forfeited_at timestamptz,finished_at timestamptz,joined_at timestamptz DEFAULT now(),PRIMARY KEY(room_id,user_id));
+    CREATE TABLE relic_types(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),slug text UNIQUE);
+    CREATE TABLE relic_inventory(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid,relic_type_id uuid,quantity integer CHECK(quantity>=0),UNIQUE(user_id,relic_type_id));
+    CREATE TABLE relic_usage_log(user_id uuid,relic_type_id uuid,effect_applied text);
+    CREATE TABLE profiles(id uuid,display_name text);
+    CREATE TABLE denarii_ledger_entries(user_id uuid,amount integer,source_type text,source_reference text,description text);
+    CREATE FUNCTION notify_user(uuid,uuid,text,text,text,text,jsonb) RETURNS void LANGUAGE sql AS $$ SELECT $$;
+    CREATE FUNCTION get_public_arena_final_scorecard(p_room_id uuid) RETURNS jsonb LANGUAGE sql AS $$
+      SELECT CASE WHEN status='completed' THEN jsonb_build_object('players',jsonb_build_array(jsonb_build_object('user_id','${human}','correct_count',3))) END FROM public.arena_rooms WHERE id=p_room_id $$;
+    CREATE FUNCTION get_public_arena_journey_matchup(p_room_id uuid) RETURNS jsonb LANGUAGE sql AS $$
+      SELECT jsonb_build_array(jsonb_build_object('user_id','${human}','correct_count',3)) $$;
+    CREATE FUNCTION get_arena_matchups(p_room_ids uuid[]) RETURNS TABLE(room_id uuid,players jsonb) LANGUAGE plpgsql AS $$ BEGIN
+      IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Sign in'; END IF;
+      RETURN QUERY SELECT id,jsonb_build_array(jsonb_build_object('user_id','${human}','correct_count',3)) FROM public.arena_rooms WHERE id=ANY(p_room_ids); END $$;
+    CREATE PUBLICATION supabase_realtime;
+  `);
+  await db.exec(await migration('20261017171726_biblical_journey_runtime'));
+  await db.exec(await migration('20261018130000_arena_journey_atomic_commands'));
+  await db.exec((await migration('20261019120000_arena_journey_machine')).split('CREATE OR REPLACE FUNCTION public.get_public_arena_journey_matchup')[0]);
+  await db.exec(await migration('20260801143000_road_home_authoritative_state'));
+  await db.exec(await migration('20261022152313_arena_journey_turns_and_relics'));
+  await db.exec(`
+    INSERT INTO arena_rooms(id,room_name,status,play_mode,creator_id) VALUES ('${room}','[arena:journey]','playing','machine','${human}'),('${ludo}','[arena:ludo]','playing','human','${human}');
+    INSERT INTO arena_participants(room_id,user_id) VALUES ('${room}','${human}'),('${ludo}','${human}'),('${ludo}','${other}');
+    INSERT INTO arena_journey_characters(slug,display_name,narrative_beats,ready) VALUES ('elisha','Elisha','["1","2","3","4","5","6","7"]',true);
+    INSERT INTO relic_types(slug) VALUES ('hint'),('freeze-timer');
+    INSERT INTO relic_inventory(user_id,relic_type_id,quantity) SELECT '${human}',id,2 FROM relic_types;
+    SET request.jwt.claim.role='service_role';
+  `);
+  await db.query('INSERT INTO arena_journey_games(room_id,character_slug,state,version) VALUES($1,$2,$3,0)',[room,'elisha',JSON.stringify(state())]);
+  const commit=async (version,next,id,slug=null,actor=human)=>scalar('SELECT commit_arena_journey_turn($1,$2,$3,$4,$5,$6) AS value',[room,version,JSON.stringify(next),command(id),actor,slug]);
+  const quantity=()=>scalar("SELECT quantity AS value FROM relic_inventory JOIN relic_types ON relic_types.id=relic_type_id WHERE slug='hint'");
+  let next=state(1); next.questionAid={used:['hint']};
+  await commit(0,next,1,'hint');
+  assert.equal(await quantity(),1);
+  assert.equal(await scalar('SELECT score AS value FROM arena_participants WHERE room_id=$1',[room]),-4);
+  assert.equal(await scalar('SELECT correct_count AS value FROM arena_participants WHERE room_id=$1',[room]),3);
+  assert.equal(await scalar('SELECT machine_score AS value FROM arena_rooms WHERE id=$1',[room]),-2);
+  assert.equal((await commit(0,next,1,'hint')).duplicate,true);
+  assert.equal(await quantity(),1);
+  await assert.rejects(()=>commit(1,state(2),2,'hint'),/only during/);
+  await assert.rejects(()=>commit(0,state(1),3),/advanced/);
+  await assert.rejects(()=>commit(1,state(2),4,null,other),/Only the active/);
+  const noAid=state(2);
+  await commit(1,noAid,5);
+  await db.exec("UPDATE relic_inventory SET quantity=0");
+  await assert.rejects(()=>commit(2,state(3),6,'hint'),/do not own/);
+  assert.equal(await scalar('SELECT version AS value FROM arena_journey_games WHERE room_id=$1',[room]),2,'no-inventory rollback includes state');
+  assert.equal(await scalar('SELECT count(*)::int AS value FROM arena_journey_commands'),2);
+  assert.equal(await scalar('SELECT count(*)::int AS value FROM relic_usage_log'),1);
+  await db.exec("SET request.jwt.claim.role='authenticated'");
+  await assert.rejects(()=>commit(2,state(3),7),/server-only/);
+  await db.exec("SET request.jwt.claim.role='service_role'");
+  const final=state(3); final.game.status='finished';final.game.winnerId=human; final.currentQuestionPlayerId=null;
+  await commit(2,final,8);
+  assert.equal(await scalar('SELECT get_public_arena_final_scorecard($1)->\'players\'->0->>\'score\' AS value',[room]),'-4');
+  assert.equal(await scalar('SELECT get_public_arena_journey_matchup($1)->0->>\'score\' AS value',[room]),'-4');
+  assert.equal(await scalar("SELECT has_function_privilege('anon','public.commit_arena_journey_turn(uuid,integer,jsonb,uuid,uuid,text)','EXECUTE') AS value"),false);
+  assert.equal(await scalar("SELECT has_schema_privilege('authenticated','journey_private','USAGE') AS value"),false);
+
+  let ludoState={roomId:ludo,version:1,phase:'QUESTION',activePlayerIndex:0,players:[{id:human},{id:other}],questionDeadline:new Date(Date.now()+900000).toISOString(),eventLog:[]};
+  await db.query('INSERT INTO arena_ludo_games(room_id,version,private_state) VALUES($1,1,$2)',[ludo,JSON.stringify(ludoState)]);
+  await db.exec('UPDATE relic_inventory SET quantity=1');
+  const ludoNext={...ludoState,version:2,questionAid:{used:['hint']},eventLog:[{id:'event-custom-id',type:'MARKET_RELIC_USED',playerId:human,message:'Hint applied',createdAt:new Date().toISOString()}]};
+  const commitLudo=(expected,next,id,actor=human,slug='hint')=>scalar('SELECT commit_arena_ludo_turn($1,$2,$3,$3,$4,$5,$6) AS value',[ludo,expected,JSON.stringify(next),command(id),actor,slug]);
+  await commitLudo(1,ludoNext,20);
+  assert.equal(await quantity(),0);
+  assert.equal((await commitLudo(1,ludoNext,20)).duplicate,true);
+  assert.equal(await scalar('SELECT count(*)::int AS value FROM arena_ludo_events'),1);
+  await assert.rejects(()=>commitLudo(2,{...ludoNext,version:3},21,other),/only during/);
+  await assert.rejects(()=>commitLudo(1,ludoNext,22),/advanced/);
+  await commitLudo(2,{...ludoState,version:3},23,human,null);
+  await assert.rejects(()=>commitLudo(3,{...ludoState,version:4},24),/do not own/);
+  assert.equal(await scalar('SELECT version::int AS value FROM arena_ludo_games'),3);
+  assert.equal(await scalar('SELECT version::int AS value FROM arena_ludo_public_states'),3);
+  assert.equal(await scalar("SELECT has_function_privilege('authenticated','public.commit_arena_ludo_turn(uuid,integer,jsonb,jsonb,uuid,uuid,text)','EXECUTE') AS value"),false);
+  console.log('PostgreSQL Arena tests passed: real commits, atomic inventory, retry deduplication, stale turns, rollback, signed scores, public cards and permissions.');
+} catch(error) {
+  console.error(error.message, error.where || '', error.detail || '');
+  process.exitCode=1;
+} finally { await db.close(); }

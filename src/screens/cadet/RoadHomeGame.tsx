@@ -1,24 +1,47 @@
+import { ARENA_MATCH_RELIC_LIMITS, arenaMatchRelicIsMuted, type ArenaMatchRelic } from '../../../supabase/functions/_shared/arenaMatchRelicLimits';
+import { JourneyDialog } from '../../components/JourneyDialog';
+import { ARENA_STANDSTILL, ARENA_UNDO } from '../../../supabase/functions/_shared/arenaBoardMarket';
+import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
+import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign, Clock, Crown, Dices, Gift, Loader2,
-  Flag, LockKeyhole, MessageCircle, RotateCw, Send, Shield, Sparkles, Trophy, X,
+  Eye, Flag, LockKeyhole, MessageCircle, RotateCw, Shield, Sparkles, X,
 } from 'lucide-react';
 import { Dove } from '../../components/Dove';
 import { UserAvatar } from '../../components/UserAvatar';
+import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaDieButton } from '../../components/ArenaDieButton';
-import { fetchArenaRoomMessages, fetchRoadHomeState, initializeRoadHome, sendArenaRoomMessage, sendRoadHomeCommand } from '../../lib/queries';
+import { ArenaRoomChat } from '../../components/ArenaRoomChat';
+import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
+import { ArenaMatchup } from '../../components/ArenaMatchup';
+import type { ArenaMatchupPlayer } from '../../lib/arenaMatchup';
+import type { PanelImageSetting } from '../../lib/types';
+import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
+import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
+import { fetchArenaFinalScorecard, fetchPublicArenaSuccessor, fetchRoadHomeSpectatorState, fetchRoadHomeState, initializeRoadHome, sendRoadHomeCommand } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
-import type { RoadHomePawn, RoadHomePlayer, RoadHomeState } from '../../lib/roadHomeTypes';
+import type { ArenaChatGameCall } from '../../lib/queries';
+import type { RoadHomePawn, RoadHomePlayer, RoadHomeQuestion, RoadHomeState } from '../../lib/roadHomeTypes';
 import { playRoundWarningBeep, playSoundEffect } from '../../lib/soundscape';
 
 type Props = {
   roomId: string;
   roomName: string;
   userId: string;
+  matchupPlayers?: ArenaMatchupPlayer[];
+  arenaImage?: PanelImageSetting | null;
+  spectator?: boolean;
+  spectatorCanChallenge?: boolean;
+  publicAccess?: boolean;
+  awaitSeriesResult?: boolean;
+  guestKey?: string;
   prepareQuestions?: () => Promise<void>;
   onExit: () => void;
   onStateChanged?: () => Promise<void> | void;
+  onGameCallCreated?: (gameCall: ArenaChatGameCall) => Promise<void> | void;
+  onGameCallAction?: (gameCall: ArenaChatGameCall) => Promise<void> | void;
 };
 
 type Coordinate = readonly [number, number];
@@ -90,6 +113,7 @@ function baseOwner(row: number, col: number) {
 function formatPhase(state: RoadHomeState, mine: boolean) {
   const active = state.players[state.activePlayerIndex];
   if (state.phase === 'GAME_OVER') return 'The road is complete';
+  if (state.phase === 'SHIELD_DECISION') return 'Shield of Faith decision';
   if (!mine) return `${active?.name || 'A player'} is taking a turn`;
   if (state.phase === 'AWAITING_ROLL') return 'Roll the dice';
   if (state.phase === 'QUESTION') return state.questionPurpose === 'inherited' ? 'Answer the inherited challenge' : state.questionPurpose === 'prison' ? 'Answer for freedom' : 'Answer to earn your move';
@@ -100,49 +124,86 @@ function formatPhase(state: RoadHomeState, mine: boolean) {
   return 'The Road Home';
 }
 
-export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExit, onStateChanged }: Props) {
+export function RoadHomeGame({
+  roomId,
+  roomName,
+  userId,
+  matchupPlayers = [],
+  arenaImage,
+  spectator = false,
+  spectatorCanChallenge = true,
+  publicAccess = false,
+  awaitSeriesResult = false,
+  guestKey,
+  prepareQuestions,
+  onExit,
+  onStateChanged,
+  onGameCallCreated,
+  onGameCallAction,
+}: Props) {
   const [state, setState] = useState<RoadHomeState | null>(null);
+  const [seriesResolution, setSeriesResolution] = useState<'checking' | 'next' | 'final'>('checking');
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [relicClock, setRelicClock] = useState(Date.now);
   const [rollOutcome, setRollOutcome] = useState<RollOutcome | null>(null);
   const [rollReveal, setRollReveal] = useState<RollReveal | null>(null);
   const [diceRolling, setDiceRolling] = useState(false);
   const [visualPawnProgress, setVisualPawnProgress] = useState<Record<string, number>>({});
   const [movingPawnIds, setMovingPawnIds] = useState<Set<string>>(new Set());
   const timedOutVersion = useRef<number | null>(null);
+  const commandRef = useRef<{ signature: string; id: string } | null>(null);
   const finishedNotified = useRef(false);
   const hasState = useRef(false);
   const visualPawnProgressRef = useRef<Record<string, number>>({});
   const pawnAnimationTimers = useRef<number[]>([]);
   const [homeCelebration, setHomeCelebration] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [dismissedQuestionId, setDismissedQuestionId] = useState<string | null>(null);
+  const [witnessVerdict, setWitnessVerdict] = useState<{
+    question: RoadHomeQuestion;
+    player: RoadHomePlayer;
+    questionKey: string;
+    selectedAnswer: string;
+    correct: boolean;
+  } | null>(null);
   const previousHomeCountsRef = useRef<Record<string, number>>({});
+  const witnessQuestionRef = useRef<{ question: RoadHomeQuestion; player: RoadHomePlayer; questionKey: string } | null>(null);
+  const witnessAnswerEventRef = useRef<string | null>(null);
 
+  const loadInFlight = useRef(false);
   const load = useCallback(async () => {
+    if (loadInFlight.current || document.visibilityState === 'hidden') return;
+    loadInFlight.current = true;
     try {
-      const response = await fetchRoadHomeState(roomId);
+      const response = spectator
+        ? await fetchRoadHomeSpectatorState(roomId, publicAccess)
+        : await fetchRoadHomeState(roomId);
       if (response.state) {
         hasState.current = true;
         setState(response.state);
         setError(null);
-      } else if (response.needsInitialization) {
+      } else if (response.needsInitialization && !spectator) {
         setInitializing(true);
         try { await prepareQuestions?.(); } catch { /* The server has a verified local question pool. */ }
         const initialized = await initializeRoadHome(roomId);
         hasState.current = Boolean(initialized.state);
         setState(initialized.state);
+      } else if (response.needsInitialization) {
+        setError('The live board is being prepared. It will appear here automatically.');
       }
     } catch (loadError: unknown) {
       if (!hasState.current) setError(roadHomeError(loadError, 'The Road Home board could not load.'));
     } finally {
+      loadInFlight.current = false;
       setLoading(false);
       setInitializing(false);
     }
-  }, [prepareQuestions, roomId]);
+  }, [prepareQuestions, publicAccess, roomId, spectator]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -160,12 +221,20 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     ).subscribe();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void load();
-    }, 5000);
-    return () => { window.clearInterval(interval); void supabase.removeChannel(channel); };
+    }, spectator ? 25_000 : 15_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      void supabase.removeChannel(channel);
+    };
   }, [load, roomId]);
 
   const send = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
-    if (!state || sending) return false;
+    if (spectator || !state || sending) return false;
+    const signature = JSON.stringify({ version: state.version, action, payload });
+    if (commandRef.current?.signature !== signature) commandRef.current = { signature, id: crypto.randomUUID() };
     const rollStartedAt = action === 'ROLL' ? performance.now() : 0;
     setSending(true);
     setError(null);
@@ -175,7 +244,8 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       setDiceRolling(true);
     }
     try {
-      const response = await sendRoadHomeCommand(roomId, action, payload, state.version);
+      const response = await sendRoadHomeCommand(roomId, action, payload, state.version, commandRef.current.id);
+      commandRef.current = null;
       if (action === 'ROLL') {
         const remainingSpin = Math.max(0, 900 - (performance.now() - rollStartedAt));
         if (remainingSpin > 0) {
@@ -207,7 +277,8 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
           }
         }
       }
-      setTypedAnswer('');
+      if (action !== 'USE_MARKET_RELIC' || response.state?.phase !== 'QUESTION'
+        || response.state?.currentQuestion?.id !== state.currentQuestion?.id) setTypedAnswer('');
       return true;
     } catch (commandError: unknown) {
       const typedError = commandError as RoadHomeCommandError;
@@ -220,10 +291,25 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
       if (action === 'ROLL') setDiceRolling(false);
       setSending(false);
     }
-  }, [load, roomId, sending, state, userId]);
+  }, [load, roomId, sending, spectator, state, userId]);
 
   const activePlayer = state?.players[state.activePlayerIndex] || null;
   const myTurn = activePlayer?.id === userId;
+  const pauseRemaining = Math.max(0, Math.ceil((Date.parse(state?.pausedUntil || '') - relicClock) / 1000) || 0);
+  const machineMatch = Boolean(state?.players.some((player) => player.isBot));
+  const relicMuted = (slug: ArenaMatchRelic) => arenaMatchRelicIsMuted(state?.matchRelicUses, userId, slug, machineMatch);
+  const undoMuted = relicMuted(ARENA_UNDO);
+  const standstillMuted = relicMuted(ARENA_STANDSTILL);
+  const shieldMuted = relicMuted('shield-of-faith');
+  const canUndo = !undoMuted && state?.undoOffer?.playerId === userId;
+  useEffect(() => {
+    if (!state?.pausedUntil) return;
+    const tick = () => setRelicClock(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [state?.pausedUntil]);
+
   const me = state?.players.find((player) => player.id === userId) || null;
   const activeChallenge = state?.challengeQueue.find((challenge) => challenge.id === state.activeChallengeId) || null;
 
@@ -314,15 +400,47 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }, [state]);
 
   useEffect(() => {
-    if (!state || !myTurn || state.phase !== 'QUESTION' || !state.questionDeadline || timedOutVersion.current === state.version) return;
+    if (!state || !myTurn || state.phase !== 'QUESTION' || pauseRemaining || !state.questionDeadline || timedOutVersion.current === state.version) return;
     if (new Date(state.questionDeadline).getTime() > Date.now()) return;
     timedOutVersion.current = state.version;
     void send('ANSWER', { answer: '' });
-  }, [myTurn, secondsLeft, send, state]);
+  }, [myTurn, pauseRemaining, secondsLeft, send, state]);
 
   useEffect(() => {
     if (secondsLeft > 0 && secondsLeft <= 5 && state?.phase === 'QUESTION') playRoundWarningBeep();
   }, [secondsLeft, state?.phase]);
+
+  useEffect(() => {
+    if (!spectator || !state) return;
+    const turnPlayer = state.players[state.activePlayerIndex];
+    if (state.phase === 'QUESTION' && state.currentQuestion && turnPlayer) {
+      witnessQuestionRef.current = {
+        question: state.currentQuestion,
+        player: turnPlayer,
+        questionKey: `${roomId}:${state.currentQuestion.id}:${state.questionDeadline || state.turnNumber}`,
+      };
+      setWitnessVerdict(null);
+    }
+
+    const answerEvent = [...state.eventLog].reverse().find((event) => (
+      event.type === 'QUESTION_CORRECT' || event.type === 'QUESTION_INCORRECT'
+    ));
+    if (!answerEvent) return;
+    if (witnessAnswerEventRef.current == null) {
+      witnessAnswerEventRef.current = answerEvent.id;
+      return;
+    }
+    if (witnessAnswerEventRef.current === answerEvent.id || !witnessQuestionRef.current) return;
+    witnessAnswerEventRef.current = answerEvent.id;
+    const selectedAnswer = answerEvent.message.match(/chose\s+"([\s\S]*?)"\s+[—-]/i)?.[1] || 'No answer';
+    setWitnessVerdict({
+      ...witnessQuestionRef.current,
+      selectedAnswer,
+      correct: answerEvent.type === 'QUESTION_CORRECT',
+    });
+    const timer = window.setTimeout(() => setWitnessVerdict(null), 2800);
+    return () => window.clearTimeout(timer);
+  }, [roomId, spectator, state]);
 
   useEffect(() => {
     if (!rollReveal) return;
@@ -344,6 +462,32 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
     }
   }, [onStateChanged, state?.phase]);
 
+  useEffect(() => {
+    if (!awaitSeriesResult || state?.phase !== 'GAME_OVER') return;
+    let active = true;
+    let timer: number | undefined;
+    setSeriesResolution('checking');
+    const check = async () => {
+      try {
+        const successor = await fetchPublicArenaSuccessor(roomId);
+        if (!active) return;
+        if (successor) {
+          setSeriesResolution('next');
+          return;
+        }
+        if (await fetchArenaFinalScorecard(roomId)) {
+          if (active) setSeriesResolution('final');
+          return;
+        }
+      } catch {
+        // Settlement or connectivity can still be in flight; keep checking.
+      }
+      if (active) timer = window.setTimeout(() => void check(), 1500);
+    };
+    void check();
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
+  }, [awaitSeriesResult, roomId, state?.phase]);
+
   if (loading || initializing) {
     return (
       <div className="flex min-h-[28rem] flex-col items-center justify-center gap-4 text-center">
@@ -358,23 +502,61 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
   }
 
   if (state.phase === 'GAME_OVER') {
-    return <RoadHomeResults state={state} userId={userId} onExit={onExit} />;
+    if (awaitSeriesResult && seriesResolution !== 'final') {
+      return <div className="flex min-h-[18rem] flex-col items-center justify-center gap-3 text-center">
+        <Loader2 size={22} className="animate-spin text-gold" />
+        <p className="font-display text-base font-bold text-ink">{seriesResolution === 'next' ? 'Opening the next round...' : 'Confirming the match result...'}</p>
+      </div>;
+    }
+    return <ArenaFinalScorecard roomId={roomId} onExit={onExit} arenaImage={arenaImage} />;
   }
+
+  const witnessQuestionId = spectator
+    ? state.phase === 'QUESTION' && state.currentQuestion
+      ? `${roomId}:${state.currentQuestion.id}:${state.questionDeadline || state.turnNumber}`
+      : witnessVerdict?.questionKey ?? null
+    : null;
+  const showWitnessQuestion = Boolean(witnessQuestionId && dismissedQuestionId !== witnessQuestionId && !chatOpen);
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
+      <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
+      <ArenaMatchup players={state.players.map((player) => ({
+        ...(matchupPlayers.find((match) => match.user_id === player.id) ?? {
+          user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl || null,
+          tent_house_id: null, correct_count: 0,
+        }),
+        score: Number(player.stats.correct) || 0,
+      }))} playing pinned arenaImage={arenaImage} />
+      <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={activePlayer?.id}
+        activePlayerName={activePlayer?.name} spectator={spectator}
+        prompt={state.phase === 'AWAITING_ROLL' ? 'Roll the dice to take your turn.' : state.phase === 'QUESTION' ? 'Answer your question now.' : 'Make your next move.'} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><p className="eyebrow">Full Circle: The Road Home</p><h2 className="truncate font-display text-xl font-bold text-ink">{roomName.replace(/\s*\[.*?\]/g, '')}</h2></div>
         <div className="flex items-center gap-2">
-          <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>
+          {spectator
+            ? <span className="badge badge-gold"><Eye size={12} /> Witnessing Live</span>
+            : <button onClick={() => void forfeitMatch()} disabled={sending} className="btn-ghost px-3 py-2 text-xs text-coral disabled:opacity-50"><Flag size={14} /> Forfeit</button>}
           <button onClick={onExit} className="btn-ghost h-9 w-9 p-0" title="Leave this view"><X size={17} /></button>
         </div>
       </div>
 
+      {pauseRemaining > 0 && <JourneyDialog label="Standstill">
+        <h2 className="font-display text-lg font-bold text-ink">Standstill</h2>
+        <p className="mt-2 text-sm text-stone">The match will resume automatically.</p>
+        <p className="mt-3 font-display text-3xl tabular-nums text-gold">{Math.floor(pauseRemaining / 60)}:{String(pauseRemaining % 60).padStart(2, '0')}</p>
+        <button type="button" className="btn-secondary mt-4 text-xs" onClick={onExit}>Leave match view</button>
+      </JourneyDialog>}
+      {state.shieldOffer && <ArenaShieldDecision key={state.version} offer={state.shieldOffer}
+        viewerId={spectator ? undefined : userId} sending={sending}
+        onDecide={(decision) => send('SHIELD', { decision })} />}
       {error && <div className="flex items-center justify-between gap-3 rounded-lg border border-coral/35 bg-coral-soft px-3 py-2 text-xs text-coral"><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button></div>}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <main className="space-y-3">
+          <GamePoints game="ludo" players={state.players.filter(player => !player.isBot).map(player => ({
+            user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl,
+          }))} />
           <PlayerStrip state={state} userId={userId} />
           <div className="relative mx-auto w-full max-w-[52rem] overflow-hidden rounded-lg border border-border-bright bg-surface/92 p-2 shadow-xl sm:p-3">
             {homeCelebration && <RoadHomeConfetti />}
@@ -428,17 +610,25 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
               <div className="min-w-0"><p className="text-[10px] font-bold uppercase text-stone">Turn {state.turnNumber}</p><p className="truncate text-sm font-bold text-ink">{formatPhase(state, myTurn)}</p></div>
             </div>
           </div>
-          <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
+          {!spectator && <button type="button" onClick={() => setChatOpen((value) => !value)} className="btn-secondary w-full justify-center text-xs">
             <MessageCircle size={15} /> Match Chat
-          </button>
-          {chatOpen && <ArenaMatchChat roomId={roomId} userId={userId} />}
-          {me && <RelicTray player={me} state={state} sending={sending} send={send} />}
+          </button>}
+          {!spectator && chatOpen && (
+            <ArenaRoomChat
+              roomId={roomId}
+              userId={userId}
+            />
+          )}
+          {!spectator && (undoMuted || standstillMuted || shieldMuted) && <p className="text-xs text-stone" role="status">
+            Match limits reached: {[undoMuted && `Undo (${ARENA_MATCH_RELIC_LIMITS.undo})`, standstillMuted && 'Standstill (1)', shieldMuted && 'Shield of Faith (5)'].filter(Boolean).join(', ')}.
+          </p>}
         </aside>
       </div>
 
-      {myTurn && state.phase === 'QUESTION' && me && !diceRolling && !rollReveal && (
+      {myTurn && state.phase === 'QUESTION' && pauseRemaining === 0 && me && !diceRolling && !rollReveal && (
         <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Ludo Trivia question">
-          <div className="w-full max-w-lg animate-scale-in">
+          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto animate-scale-in">
+            {error && <p className="mb-2 rounded-md bg-surface p-3 text-xs text-coral" role="alert">{error}</p>}
             <TurnControls
               state={state}
               me={me}
@@ -453,56 +643,102 @@ export function RoadHomeGame({ roomId, roomName, userId, prepareQuestions, onExi
           </div>
         </div>
       )}
+      {!spectator && (
+        <ArenaMarketRelics userId={userId} questionType={state.currentQuestion?.type || ''}
+          aid={state.questionAid} timed={state.phase === 'QUESTION'}
+          disabled={pauseRemaining > 0 || !myTurn || state.phase !== 'QUESTION' || sending || diceRolling || Boolean(rollReveal) || secondsLeft <= 0}
+          onUse={(slug) => send('USE_MARKET_RELIC', { slug })}
+          boardRelics={[
+            { slug: ARENA_UNDO, usable: Boolean(canUndo && !sending && pauseRemaining === 0 && state.phase !== 'SHIELD_DECISION'), use: () => send('UNDO') },
+            { slug: ARENA_STANDSTILL, usable: myTurn && pauseRemaining === 0 && state.phase !== 'SHIELD_DECISION' && !sending && !standstillMuted && (state.phase !== 'QUESTION' || secondsLeft > 0), use: () => send('STANDSTILL') },
+            { slug: 'shield-of-faith', usable: false, use: async () => false },
+          ]}>
+          {me?.relics.length ? <RelicTray player={me} state={state} sending={sending || !myTurn || pauseRemaining > 0 || state.phase === 'SHIELD_DECISION'} send={send} /> : null}
+        </ArenaMarketRelics>
+      )}
+      {spectator && (
+        <ArenaWitnessChatDrawer
+          roomId={roomId}
+          userId={userId}
+          guestKey={guestKey}
+          open={chatOpen}
+          showLauncher={!showWitnessQuestion}
+          onOpenChange={setChatOpen}
+          allowGameCalls={spectatorCanChallenge}
+          challengeTargets={spectatorCanChallenge ? state.players
+            .filter((player) => !player.isBot)
+            .map((player) => ({ userId: player.id, name: player.name, avatarUrl: player.avatarUrl || null })) : []}
+          onGameCallCreated={spectatorCanChallenge ? onGameCallCreated : undefined}
+          onGameCallAction={spectatorCanChallenge ? onGameCallAction : undefined}
+        />
+      )}
+      {showWitnessQuestion && spectator && state.phase === 'QUESTION' && state.currentQuestion && activePlayer && (
+        <RoadHomeWitnessQuestion
+          question={state.currentQuestion}
+          player={activePlayer}
+          secondsLeft={secondsLeft}
+          onClose={() => setDismissedQuestionId(witnessQuestionId)}
+          onOpenChat={() => setChatOpen(true)}
+        />
+      )}
+      {showWitnessQuestion && spectator && witnessVerdict && state.phase !== 'QUESTION' && (
+        <RoadHomeWitnessQuestion
+          question={witnessVerdict.question}
+          player={witnessVerdict.player}
+          secondsLeft={0}
+          selectedAnswer={witnessVerdict.selectedAnswer}
+          correct={witnessVerdict.correct}
+          onClose={() => setDismissedQuestionId(witnessVerdict.questionKey)}
+          onOpenChat={() => setChatOpen(true)}
+        />
+      )}
     </div>
   );
 }
 
-function ArenaMatchChat({ roomId, userId }: { roomId: string; userId: string }) {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
-  const loadMessages = useCallback(async () => {
-    try { setMessages(await fetchArenaRoomMessages(roomId)); } catch (error) { console.error('Arena match chat load failed', error); }
-  }, [roomId]);
-
-  useEffect(() => {
-    void loadMessages();
-    const channel = supabase.channel(`road-home-chat-${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}` }, () => void loadMessages())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [loadMessages, roomId]);
-
-  const submit = async () => {
-    if (!body.trim() || sending) return;
-    setSending(true);
-    try {
-      await sendArenaRoomMessage(roomId, userId, body);
-      setBody('');
-      await loadMessages();
-    } catch (error) {
-      console.error('Arena match chat send failed', error);
-    }
-    setSending(false);
-  };
-
+function RoadHomeWitnessQuestion({ question, player, secondsLeft, selectedAnswer, correct, onClose, onOpenChat }: {
+  question: RoadHomeQuestion;
+  player: RoadHomePlayer;
+  secondsLeft: number;
+  selectedAnswer?: string;
+  correct?: boolean;
+  onClose: () => void;
+  onOpenChat: () => void;
+}) {
+  const verdictVisible = typeof correct === 'boolean';
+  const options = question.type === 'true_false' ? ['True', 'False'] : question.options || [];
   return (
-    <div className="rounded-lg border border-border bg-surface/95 p-3 animate-slide-up">
-      <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-        {messages.length === 0 ? <p className="py-3 text-center text-xs text-stone">Talk during the match.</p> : messages.slice(-8).map((message) => {
-          const mine = message.sender_id === userId;
-          return (
-            <div key={message.id} className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start')}>
-              <p className={cn('max-w-[84%] rounded-lg px-2.5 py-1.5 text-xs', mine ? 'bg-brass/15 text-ink' : 'bg-surface-2 text-ink')}>
-                <span className="mr-1 font-bold">{mine ? 'You' : message.sender?.display_name || 'Player'}</span>{message.body}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-3 flex gap-2">
-        <input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void submit(); } }} className="input-field min-w-0 flex-1 text-sm" placeholder="Send a match message..." />
-        <button type="button" onClick={() => void submit()} disabled={!body.trim() || sending} className="btn-primary px-3" aria-label="Send match message">{sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button>
+    <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-gold/45 bg-bg p-5 shadow-2xl animate-scale-in" role="dialog" aria-modal="true" aria-label="Live Ludo Trivia question">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 bg-bg pb-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <PlayerAvatar player={player} size="lg" />
+            <div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="eyebrow mt-0.5">Ludo Trivia · Witness view</p></div>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            {!verdictVisible && <span className={cn('mr-1 flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span>}
+            <button type="button" onClick={onOpenChat} className="icon-btn h-8 w-8" title="Open match chat" aria-label="Open match chat"><MessageCircle size={16} /></button>
+            <button type="button" onClick={onClose} className="icon-btn h-8 w-8" title="Close question" aria-label="Close question"><X size={17} /></button>
+          </div>
+        </div>
+        <h3 className="mt-4 text-base font-bold leading-snug text-ink">{question.prompt}</h3>
+        {verdictVisible && (
+          <div className={cn('mt-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold', correct ? 'border-sage/40 bg-sage-soft text-sage' : 'border-coral/40 bg-coral-soft text-coral')}>
+            {correct ? 'Right answer' : 'Wrong answer'}
+          </div>
+        )}
+        {options.length > 0 ? (
+          <div className={cn('mt-4 grid gap-2', question.type === 'true_false' && 'grid-cols-2')}>
+            {options.map((option) => {
+              const chosen = verdictVisible && option.trim().toLowerCase() === (selectedAnswer || '').trim().toLowerCase();
+              return <div key={option} className={cn('rounded-lg border p-3 text-xs font-semibold text-ink', chosen && correct && 'border-sage bg-sage-soft text-sage', chosen && !correct && 'border-coral bg-coral-soft text-coral', !chosen && 'border-border bg-surface-2')}>{option}{chosen && <span className="ml-2 text-[9px] uppercase">Selected</span>}</div>;
+            })}
+          </div>
+        ) : verdictVisible ? (
+          <div className={cn('mt-4 rounded-lg border px-4 py-3 text-sm font-semibold', correct ? 'border-sage bg-sage-soft text-sage' : 'border-coral bg-coral-soft text-coral')}>{selectedAnswer || 'No answer'} <span className="ml-2 text-[9px] uppercase">Selected</span></div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-stone">The player is typing an answer.</div>
+        )}
       </div>
     </div>
   );
@@ -567,17 +803,21 @@ function RoadHomeBoard({ state, userId, sending, visualPawnProgress, movingPawnI
       {centre && row === 7 && col === 7 && <Crown size={18} className="text-peri/80" />}
       {tokens.map(({ player, pawn }, tokenIndex) => {
         const legal = player.id === userId && state.legalPawnIds.includes(pawn.id) && state.phase === 'SELECTING_PAWN';
-        return <button key={pawn.id} type="button" disabled={!legal || sending} onClick={() => onMove(pawn.id)} title={`${player.name} pawn ${pawn.number}${pawn.prisonRounds ? ` · prison ${pawn.prisonRounds}` : ''}`} className={cn(
-          'absolute z-10 flex h-[72%] w-[72%] max-h-8 max-w-8 items-center justify-center rounded-full border-2 text-[clamp(7px,1.4vw,11px)] font-black shadow-md transition-all',
+        return <button key={pawn.id} type="button" disabled={!legal || sending} onClick={() => onMove(pawn.id)} aria-label={`${player.name} pawn ${pawn.number}${pawn.prisonRounds ? ` · prison ${pawn.prisonRounds}` : ''}`} title={`${player.name} pawn ${pawn.number}`} className={cn(
+          'absolute z-10 flex w-[88%] max-w-8 aspect-square items-center justify-center rounded-full border shadow-md transition-all',
           COLOUR_CLASS[player.colour],
           tokens.length > 1 && tokenIndex === 0 && '-translate-x-[18%] -translate-y-[18%]',
           tokens.length > 1 && tokenIndex === 1 && 'translate-x-[18%] translate-y-[18%]',
           tokens.length > 2 && tokenIndex === 2 && 'translate-x-[18%] -translate-y-[18%]',
           tokens.length > 3 && tokenIndex === 3 && '-translate-x-[18%] translate-y-[18%]',
           legal && 'animate-pulse cursor-pointer ring-2 ring-white ring-offset-1 ring-offset-gold hover:scale-110',
-          pawn.progress === 58 && 'opacity-45 grayscale saturate-50',
+          pawn.progress === 58 && 'opacity-75',
           movingPawnIds.has(pawn.id) && 'z-20 animate-bounce ring-2 ring-white/80',
-        )}>{pawn.prisonRounds ? <LockKeyhole size={10} /> : pawn.progress === 58 ? <Crown size={10} /> : pawn.number}</button>;
+        )}><UserAvatar name={player.name} userId={player.id} avatarUrl={player.avatarUrl} showAwardBadge={false} loading="eager" className="!absolute inset-0" />
+          {pawn.prisonRounds > 0 || pawn.progress === 58 ? <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface text-ink">
+            {pawn.prisonRounds ? <LockKeyhole size={9} /> : <Crown size={9} />}
+          </span> : null}
+        </button>;
       })}
     </div>;
   })}</div>;
@@ -635,23 +875,14 @@ function TurnControls({ state, me, challenge, secondsLeft, typedAnswer, setTyped
 
   if (state.phase === 'QUESTION' && state.currentQuestion) {
     const question = state.currentQuestion;
-    return <div className="rounded-lg border border-royal/45 bg-surface/95 p-4"><div className="flex items-center justify-between gap-2"><span className="badge badge-brass text-[9px]">{state.questionPurpose === 'inherited' ? 'Inherited' : state.questionPurpose === 'prison' ? 'Prison' : state.questionPurpose === 'verse' ? 'Verse Card' : state.questionPurpose === 'surprise' ? 'Surprise' : question.difficulty.replace('_', ' ')}</span><span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span></div><h3 className="mt-3 text-base font-bold leading-snug text-ink">{question.prompt}</h3>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.map((option) => <button key={option} disabled={sending} onClick={() => void send('ANSWER', { answer: option })} className="w-full rounded-lg border border-border bg-surface-2 p-3 text-left text-xs font-semibold text-ink transition-colors hover:border-gold">{option}</button>)}</div> : <form className="mt-4 space-y-2" onSubmit={(event) => { event.preventDefault(); if (typedAnswer.trim()) void send('ANSWER', { answer: typedAnswer.trim() }); }}><input className="input-field" autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} placeholder="Type your answer" /><button disabled={sending || !typedAnswer.trim()} className="btn-primary w-full text-xs">Submit Answer</button></form>}</div>;
+    return <div className="rounded-lg border border-royal/45 bg-surface/95 p-4"><div className="flex items-center justify-between gap-2"><span className="badge badge-brass text-[9px]">{state.questionPurpose === 'inherited' ? 'Inherited' : state.questionPurpose === 'prison' ? 'Prison' : state.questionPurpose === 'verse' ? 'Verse Card' : state.questionPurpose === 'surprise' ? 'Surprise' : question.difficulty.replace('_', ' ')}</span><span className={cn('flex items-center gap-1 text-xs font-bold', secondsLeft <= 5 ? 'text-coral' : 'text-gold')}><Clock size={13} /> {secondsLeft}s</span></div><h3 className="mt-3 text-base font-bold leading-snug text-ink">{question.prompt}</h3>{question.options?.length ? <div className="mt-4 space-y-2">{question.options.filter((option) => !state.questionAid?.hiddenOptions.includes(option)).map((option) => <button key={option} disabled={sending} onClick={() => void send('ANSWER', { answer: option })} className="w-full rounded-lg border border-border bg-surface-2 p-3 text-left text-xs font-semibold text-ink transition-colors hover:border-gold">{option}</button>)}</div> : <form className="mt-4 space-y-2" onSubmit={(event) => { event.preventDefault(); if (typedAnswer.trim()) void send('ANSWER', { answer: typedAnswer.trim() }); }}><input className="input-field" autoFocus value={typedAnswer} onChange={(event) => setTypedAnswer(event.target.value)} placeholder="Type your answer" /><button disabled={sending || !typedAnswer.trim()} className="btn-primary w-full text-xs">Submit Answer</button></form>}</div>;
   }
   return null;
 }
 
 function RelicTray({ player, state, sending, send }: { player: RoadHomePlayer; state: RoadHomeState; sending: boolean; send: SendCommand }) {
-  if (!player.relics.length) return <div className="rounded-lg border border-border bg-surface/90 p-3"><p className="text-xs font-bold text-ink">Relics · 0/3</p><p className="mt-1 text-[11px] text-stone">Surprise spaces can reveal match relics.</p></div>;
   const usable = (relic: string) => relic === 'Manna Pouch' || (relic === 'Key of Deliverance' && state.phase === 'PRISON_MANAGEMENT') || (relic === 'Lamp of Guidance' && state.phase === 'QUESTION' && state.currentQuestion?.type === 'multiple_choice') || (relic === 'Scroll of Recall' && state.phase === 'QUESTION') || (relic === 'Golden Scroll' && state.phase === 'QUESTION' && state.questionPurpose === 'own') || (relic === "Shepherd's Staff" && state.phase === 'INHERITED_OFFER');
-  return <div className="rounded-lg border border-border bg-surface/90 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Relics</p><span className="text-[10px] text-stone">{player.relics.length}/3</span></div><div className="space-y-1.5">{player.relics.map((relic, index) => <button key={`${relic}-${index}`} disabled={sending || !usable(relic)} onClick={() => void send('USE_RELIC', { relic })} className="flex w-full items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-2 text-left text-[11px] font-semibold text-ink disabled:opacity-55"><Sparkles size={13} className="text-gold" /><span className="min-w-0 flex-1 truncate">{relic}</span>{usable(relic) && <span className="text-[9px] text-sage">Use</span>}</button>)}</div></div>;
-}
-
-function RoadHomeResults({ state, userId, onExit }: { state: RoadHomeState; userId: string; onExit: () => void }) {
-  const ranking = state.rankings.map((id) => state.players.find((player) => player.id === id)).filter(Boolean) as RoadHomePlayer[];
-  const winner = ranking[0];
-  const knowledgeable = [...state.players].sort((a, b) => b.stats.correct - a.stats.correct)[0];
-  const strategic = [...state.players].sort((a, b) => (b.stats.captured + b.stats.inheritedClaimed) - (a.stats.captured + a.stats.inheritedClaimed))[0];
-  return <div className="mx-auto max-w-3xl space-y-4 animate-scale-in"><div className="card relative overflow-hidden border-gold/40 p-6 text-center"><RoadHomeConfetti /><Trophy size={48} className="relative z-10 mx-auto text-gold" /><p className="eyebrow relative z-10 mt-3">The Road Home</p><h2 className="relative z-10 mt-1 font-display text-2xl font-bold text-ink">{winner?.id === userId ? 'You reached Home first' : `${winner?.name || 'The victor'} reached Home first`}</h2><p className="relative z-10 mt-2 text-sm text-stone">The four-pawn race is complete and the tenfold Arena reward has been settled.</p></div><div className="grid gap-3 sm:grid-cols-2">{ranking.map((player, index) => <div key={player.id} className="card flex items-center gap-3 p-4"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-soft font-display font-bold text-gold">{index + 1}</span><PlayerAvatar player={player} size="lg" /><div className="min-w-0"><p className="truncate text-sm font-bold text-ink">{player.name}</p><p className="text-[10px] text-stone">{index === 0 ? 'The Victor' : index === 1 ? 'The Finisher' : index === 2 ? 'The Traveller' : 'The Sojourner'} · {player.stats.correct} correct</p></div></div>)}</div><div className="grid gap-3 sm:grid-cols-2"><div className="card p-4"><p className="eyebrow">Most Knowledgeable</p><p className="mt-1 font-bold text-ink">{knowledgeable?.name}</p><p className="text-xs text-stone">{knowledgeable?.stats.correct} correct answers</p></div><div className="card p-4"><p className="eyebrow">Most Strategic</p><p className="mt-1 font-bold text-ink">{strategic?.name}</p><p className="text-xs text-stone">{strategic?.stats.captured} captures · {strategic?.stats.inheritedClaimed} inherited claims</p></div></div><button onClick={onExit} className="btn-primary w-full">Back to Arena</button></div>;
+  return <div className="rounded-lg border border-border bg-surface/90 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">Match inventory</p><span className="text-[10px] text-stone">{player.relics.length}/3</span></div><div className="space-y-1.5">{player.relics.map((relic, index) => <button key={`${relic}-${index}`} disabled={sending || !usable(relic)} onClick={() => void send('USE_RELIC', { relic })} className="flex w-full items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-2 text-left text-[11px] font-semibold text-ink disabled:opacity-55"><Sparkles size={13} className="text-gold" /><span className="min-w-0 flex-1 truncate">{relic}</span>{usable(relic) && <span className="text-[9px] text-sage">Use</span>}</button>)}</div></div>;
 }
 
 function RoadHomeConfetti() {

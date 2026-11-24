@@ -1,3 +1,4 @@
+import { interfaceLanguage } from './lib/regionalPreferences';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useScrollBoundaryFades } from './lib/useScrollBoundaryFades';
@@ -10,13 +11,22 @@ import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { useFrenchUiTranslation } from './lib/frenchUi';
 import { importWithRetry } from './lib/importWithRetry';
 import { LogOut, RefreshCw } from 'lucide-react';
+import { isInstalledApp } from './lib/appDisplayMode';
+import { readShareDestination, shareDestinationMode, openShareInAppUrl, closeShareUrl } from './lib/shareDestination';
+import { supabase } from './lib/supabase';
+import type { CampAccess } from './screens/admin/CampWorkspace';
+import { readVerifiedMemberCamp, rememberVerifiedMemberCamp } from './lib/campAccessRecovery';
 import { NonBlockingErrorBoundary } from './components/NonBlockingErrorBoundary';
 
 const CadetApp = lazy(() => importWithRetry(() => import('./screens/cadet/CadetApp').then((module) => ({ default: module.CadetApp }))));
 const SentryApp = lazy(() => importWithRetry(() => import('./screens/sentry/SentryApp').then((module) => ({ default: module.SentryApp }))));
+const CampWorkspace = lazy(() => importWithRetry(() => import('./screens/admin/CampWorkspace').then(({ CampWorkspace }) => ({ default: CampWorkspace }))));
 const InstructorApp = lazy(() => importWithRetry(() => import('./screens/instructor/InstructorApp').then((module) => ({ default: module.InstructorApp }))));
 const PublicShareScreen = lazy(() => importWithRetry(() => import('./screens/PublicShareScreen').then((module) => ({ default: module.PublicShareScreen }))));
+const PublicArenaScreen = lazy(() => importWithRetry(() => import('./screens/PublicArenaScreen').then((module) => ({ default: module.PublicArenaScreen }))));
 const AuthenticatedOverlays = lazy(() => importWithRetry(() => import('./components/AuthenticatedOverlays').then((module) => ({ default: module.AuthenticatedOverlays }))));
+
+const MemberShareDestination = lazy(() => importWithRetry(() => import('./screens/MemberShareDestination').then((module) => ({ default: module.MemberShareDestination }))));
 
 const SCRIPTURE_FACTS = [
   'The word "disciple" comes from the Latin discere — to learn.',
@@ -49,13 +59,49 @@ function isPasswordRecoveryUrl() {
 
 export default function App() {
   useScrollBoundaryFades();
-  const { session, profile, role, configError, loading, refreshProfile, signOut } = useAuth();
+  const { session, profile, role, configError, loading, confirmationFeedback, refreshProfile, signOut } = useAuth();
   const [factIndex, setFactIndex] = useState(0);
+  const [shareDismissed, setShareDismissed] = useState(false);
+  const shareTarget = shareDismissed ? null : readShareDestination(window.location.search);
+  const shareMode = shareDestinationMode(Boolean(session), isInstalledApp(), new URLSearchParams(window.location.search).get('fc-open-app') === '1');
+  const closeSharedDestination = () => { window.history.replaceState(null, '', closeShareUrl(window.location.href)); setShareDismissed(true); };
   const [profileRecoveryBusy, setProfileRecoveryBusy] = useState(false);
   const [authenticatedOverlaysReady, setAuthenticatedOverlaysReady] = useState(false);
   const authenticatedUserId = session?.user.id || null;
+  const [campLookup, setCampLookup] = useState<{ userId: string; access?: CampAccess } | null>(null);
+  const [campRetry, setCampRetry] = useState(0);
+  useEffect(() => {
+    if (!authenticatedUserId) {
+      setCampLookup(null);
+      return;
+    }
+    // A successful prior 'none' response only permits the ordinary member UI.
+    // Staff access is never cached; it must be verified on every session.
+    const verifiedMember = readVerifiedMemberCamp(authenticatedUserId);
+    if (verifiedMember) setCampLookup({ userId: authenticatedUserId, access: verifiedMember });
+    let active = true;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_camp_workspace');
+        if (!active) return;
+        if (error?.code === 'PGRST202') {
+          // Backward compatibility with a missing RPC on older installations.
+          setCampLookup({ userId: authenticatedUserId, access: { role: 'none' } });
+        } else if (error || !data || !['none', 'admin', 'instructor'].includes(data.role)) {
+          if (!verifiedMember) setCampLookup({ userId: authenticatedUserId });
+        } else {
+          rememberVerifiedMemberCamp(authenticatedUserId, data.role);
+          setCampLookup({ userId: authenticatedUserId, access: data as CampAccess });
+        }
+      } catch {
+        if (active && !verifiedMember) setCampLookup({ userId: authenticatedUserId });
+      }
+    })();
+    return () => { active = false; };
+  }, [authenticatedUserId, campRetry]);
   const authenticatedProfileId = profile?.id || null;
-  useFrenchUiTranslation(profile?.language_code);
+  const language = interfaceLanguage(profile?.language_code);
+  useFrenchUiTranslation(language);
   const passwordRecovery = useMemo(() => {
     return isPasswordRecoveryUrl();
   }, []);
@@ -69,6 +115,10 @@ export default function App() {
     return null;
   }, []);
   const signupRequested = useMemo(() => new URLSearchParams(window.location.search).get('signup') === '1', []);
+  const publicArenaRoomId = useMemo(() => {
+    const search = new URLSearchParams(window.location.search);
+    return search.get('share') === 'arena' ? search.get('id') : null;
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -79,8 +129,8 @@ export default function App() {
   }, [loading]);
 
   useEffect(() => {
-    document.documentElement.lang = profile?.language_code || 'en';
-  }, [profile?.language_code]);
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     if (!authenticatedUserId || !authenticatedProfileId) {
@@ -129,8 +179,16 @@ export default function App() {
     )}
   </>;
 
-  if (publicShare && !configError) {
-    return <>{overlays}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;
+  const visitorAppLink = <div className="bg-navy px-4 py-3 text-center text-sm text-peri"><a href={openShareInAppUrl(window.location.href)} className="underline">Already use Full Circle? Open in app</a></div>;
+
+  if (shareTarget && loading) return <ScreenLoader label="Opening shared Full Circle page" />;
+
+  if (publicArenaRoomId && !configError && shareMode === 'visitor' && !shareDismissed) {
+    return <>{overlays}{visitorAppLink}<Suspense fallback={<ScreenLoader label="Opening Arena witness room" />}><PublicArenaScreen roomId={publicArenaRoomId} /></Suspense></>;
+  }
+
+  if (publicShare && !configError && shareMode === 'visitor' && !shareDismissed) {
+    return <>{overlays}{visitorAppLink}<Suspense fallback={<ScreenLoader label="Opening shared Full Circle page" />}><PublicShareScreen kind={publicShare.kind} value={publicShare.value} date={'date' in publicShare ? publicShare.date : undefined} /></Suspense></>;
   }
 
   if (loading) {
@@ -198,16 +256,36 @@ export default function App() {
         {signupRequested ? (
           <AuthScreen
             initialMode="signup"
-            initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+            initialNotice={confirmationFeedback?.kind === 'success' ? confirmationFeedback.message : (passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined)}
+            initialError={confirmationFeedback?.kind === 'error' ? confirmationFeedback.message : undefined}
           />
         ) : (
           <AuthScreen
             initialMode="signin"
-            initialNotice={passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined}
+            initialNotice={confirmationFeedback?.kind === 'success' ? confirmationFeedback.message : (passwordRecovery ? 'Open the reset link from your email. If it has already opened, sign in here with your new password.' : undefined)}
+            initialError={confirmationFeedback?.kind === 'error' ? confirmationFeedback.message : undefined}
           />
         )}
       </>
     );
+  }
+
+  // Resolve staff access before rendering any member onboarding or guide.
+  if (campLookup?.userId !== session.user.id) return <ScreenLoader label="Checking camp access" />;
+  if (!campLookup.access) {
+    return (
+      <main className="min-h-screen bg-navy px-4 py-10">
+        <section className="card mx-auto max-w-md space-y-3 p-5 text-ink" role="alert">
+          <p className="font-semibold">Full Circle is having trouble reaching the camp server.</p>
+          <p className="text-sm">You are still signed in. Your account and camp assignment are not lost. Retry the camp check without restarting the whole app.</p>
+          <button className="btn-primary" onClick={() => setCampRetry((value) => value + 1)}>Retry camp access</button>
+          <button className="btn-secondary ml-2" onClick={() => void signOut()}>Sign out</button>
+        </section>
+      </main>
+    );
+  }
+  if (campLookup.access.role !== 'none') {
+    return <Suspense fallback={<ScreenLoader label="Opening camp workspace" />}><CampWorkspace key={session.user.id} initial={campLookup.access} /></Suspense>;
   }
 
   if (!profile) {
@@ -245,6 +323,8 @@ export default function App() {
   if (!profileSetupComplete) {
     return <>{overlays}<ProfileOnboarding /></>;
   }
+
+  if (shareTarget) return <>{overlays}<Suspense fallback={<ScreenLoader />}><MemberShareDestination target={shareTarget} onHome={closeSharedDestination} /></Suspense></>;
 
   const app = role === 'instructor'
     ? <InstructorApp />

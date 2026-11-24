@@ -1,0 +1,22 @@
+/* Independently versioned presentation layer. No game or account logic. */
+[data-fc-leadership="sentry"], [data-fc-leadership-summary="sentry"], [data-fc-leadership-profile="sentry"] { --fc-lead-metal: #c5d5e9; --fc-lead-trim: #859fbf; --fc-lead-glow: #496b91; --fc-lead-base: #172b45; --fc-lead-name: 'Sentry'; }
+[data-fc-leadership="instructor"], [data-fc-leadership-summary="instructor"], [data-fc-leadership-profile="instructor"], [data-fc-leadership-camp="instructor"] { --fc-lead-metal: #f5d68b; --fc-lead-trim: #b9904a; --fc-lead-glow: #83572c; --fc-lead-base: #24283e; --fc-lead-name: 'Instructor'; }
+[data-fc-leadership] .app-safe-header { border-bottom-color: var(--fc-lead-trim); box-shadow: 0 3px 16px #101a2b25; }
+[data-fc-leadership="instructor"] .app-safe-header { border-bottom: 2px solid var(--fc-lead-trim); }
+[data-fc-leadership] aside { border-right-color: var(--fc-lead-trim); }
+[data-fc-leadership] aside nav button[aria-current="page"] { border: 1px solid var(--fc-lead-trim); box-shadow: inset 3px 0 0 var(--fc-lead-trim); }
+[data-fc-leadership] .app-safe-header h2::after { content: var(--fc-lead-name); display: block; width: fit-content; margin-top: .2rem; padding: .18rem .4rem; border: 1px solid var(--fc-lead-trim); border-radius: .3rem; background: #152238; color: var(--fc-lead-metal); font-size: .58rem; font-weight: 800; letter-spacing: .12em; line-height: 1.25; text-transform: uppercase; }
+[data-fc-leadership-summary] { position: relative; isolation: isolate; overflow: hidden; padding: clamp(.8rem, 3vw, 1.6rem); border: 1px solid var(--fc-lead-trim); border-radius: 1.25rem; background: radial-gradient(ellipse at 90% 0%, var(--fc-lead-glow), transparent 65%), linear-gradient(125deg, #101d31, var(--fc-lead-base)); box-shadow: 0 12px 28px #0a142c36; }
+[data-fc-leadership-summary="instructor"] { border: 3px double var(--fc-lead-trim); }
+[data-fc-leadership-summary]::before { content: 'TENT COMMAND CENTRE'; grid-column: 1 / -1; color: var(--fc-lead-metal); font-size: clamp(.8rem, 3vw, 1.05rem); font-weight: 800; letter-spacing: .13em; padding: .45rem 0 .6rem; border-bottom: 1px solid var(--fc-lead-trim); }
+[data-fc-leadership-summary="instructor"]::before { content: 'CAMP COMMAND CENTRE'; }
+[data-fc-leadership-summary] > .card { min-width: 0; background: #101b2ed9; border: 1px solid #ffffff33; box-shadow: inset 0 1px 0 #ffffff12; padding: .8rem; }
+[data-fc-leadership-summary] > .card .eyebrow, [data-fc-leadership-summary] > .card .text-stone, [data-fc-leadership-summary] > .card .text-peri-dim { color: #cbd7e7; }
+[data-fc-leadership-summary] > .card .font-display { color: var(--fc-lead-metal); overflow-wrap: anywhere; }
+[data-fc-leadership-summary] > .card svg { color: var(--fc-lead-metal); }
+[data-fc-leadership-summary] > .card .w-10 { width: 1.8rem; height: 1.8rem; }
+[data-fc-leadership-profile][data-guide="profile-details"], [data-fc-leadership-camp] { border-color: var(--fc-lead-trim); box-shadow: inset 0 3px 0 var(--fc-lead-trim); }
+.profile-cv-identity[data-fc-leadership-profile] .profile-cv-avatar { outline: 2px solid var(--fc-lead-trim); outline-offset: 3px; }
+.profile-cv-identity[data-fc-leadership-profile="instructor"] .profile-cv-avatar { outline: 4px double var(--fc-lead-trim); }
+.profile-cv-identity[data-fc-leadership-profile] .profile-cv-name + p { display: inline-block; padding: .2rem .45rem; border: 1px solid var(--fc-lead-trim); border-radius: .35rem; background: #152238; color: var(--fc-lead-metal); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+@media (max-width: 360px) { [data-fc-leadership-summary] > .card { padding: .65rem; } [data-fc-leadership-summary] > .card .w-10 { display: none; } }

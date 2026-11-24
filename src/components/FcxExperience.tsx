@@ -1,8 +1,12 @@
+import { useAuth } from '../context/AuthContext';
+import { regionalDateTime } from '../lib/regionalPreferences';
+import { FcxFapshiCheckout } from './FcxFapshiCheckout';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Camera, CircleDollarSign, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { CalendarDays, Camera, Clock3, Image as ImageIcon, Loader2, MessageCircle, Ticket, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { AvatarCropDialog } from './ProfilePhotoEditor';
 import {
+  addFcxExternalAttendee,
   addFcxRegistration,
   fetchActiveFcxExperience,
   fetchAwards,
@@ -10,6 +14,7 @@ import {
   fetchPreviousMuralis,
   removeFcxRegistration,
   saveFcxExperience,
+  setFcxExternalAttendeePhoto,
   uploadFcxGuestAvatar,
 } from '../lib/queries';
 import { cn, formatXaf, FULL_CIRCLE_WHATSAPP_CONTACT, getAppDateTimeMs, getTodayISODate, whatsappUrl } from '../lib/utils';
@@ -17,6 +22,7 @@ import { publicAsset } from '../lib/publicAsset';
 import type { AwardWithRecipient, FcxExperience, Profile } from '../lib/types';
 import { TentHouseSymbol } from './TentHouseSymbol';
 import { UserAvatar } from './UserAvatar';
+import { prepareImageForCropping } from '../lib/uploads';
 
 const FCX_START_HOUR = 12;
 
@@ -50,7 +56,8 @@ function countdownParts(targetDate: string, nowMs: number) {
   ];
 }
 
-export function FcxExperienceSlide({ experience, active }: { experience: FcxExperience; active: boolean }) {
+export function FcxExperienceSlide({ experience, active, onCheckoutOpenChange }: { experience: FcxExperience; active: boolean; onCheckoutOpenChange?: (open: boolean) => void }) {
+  const { profile } = useAuth();
   const [visibleExperience, setVisibleExperience] = useState(experience);
   const [animatedPercent, setAnimatedPercent] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
@@ -68,9 +75,11 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
     [countdownDate, countdownNow],
   );
   const paymentBase = whatsappUrl(FULL_CIRCLE_WHATSAPP_CONTACT);
-  const paymentHref = paymentBase
-    ? `${paymentBase}?text=${encodeURIComponent('Hello, I want to pay for the Full Circle Experience (FCX).')}`
-    : null;
+  const refreshRegistrations = useCallback(() => {
+    void fetchActiveFcxExperience().then((updated) => {
+      if (updated?.id === experience.id) setVisibleExperience(updated);
+    }).catch(() => undefined);
+  }, [experience.id]);
   const askHref = paymentBase
     ? `${paymentBase}?text=${encodeURIComponent('Hello, I have a question about the Full Circle Experience (FCX).')}`
     : null;
@@ -154,7 +163,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             alt=""
             className="h-8 w-8 shrink-0 object-contain drop-shadow-sm"
           />
-          <span className="max-w-[11rem] text-left text-[11px] font-black uppercase leading-snug text-ink">
+          <span className="max-w-[11rem] text-left font-display text-[11px] font-black uppercase leading-snug text-ink">
             {displayTitle} <span className="whitespace-nowrap text-[#ffd400] drop-shadow-sm">(FCX)</span>
           </span>
         </div>
@@ -167,7 +176,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
       <div className="mt-4 min-w-0">
         <p className="eyebrow flex items-center gap-1.5"><Ticket size={14} /> Monthly Experience</p>
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold text-stone">
-          <CalendarDays size={13} /> {eventDateLabel(visibleExperience)}
+          <CalendarDays size={13} /> {visibleExperience.event_date ? regionalDateTime(getAppDateTimeMs(countdownDate, FCX_START_HOUR), profile) : eventDateLabel(visibleExperience)}
           <span>· 12:00 PM</span>
           {visibleExperience.ticket_price_xaf != null && <span>· {formatXaf(visibleExperience.ticket_price_xaf)}</span>}
         </p>
@@ -204,19 +213,10 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
             <span className="text-[8px] font-black uppercase leading-none">Ask</span>
           </a>
         )}
-        {paymentHref && (
-          <a
-            href={paymentHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="fcx-action-button fcx-line flex h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] active:shadow-[0_0_16px_rgba(255,216,77,0.72)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffd84d]/80"
-            aria-label="Pay for the Full Circle Experience"
-            title="Pay for FCX"
-          >
-            <CircleDollarSign size={16} strokeWidth={2.4} />
-            <span className="text-[8px] font-black uppercase leading-none">Pay</span>
-          </a>
-        )}
+        <FcxFapshiCheckout key={visibleExperience.id} experience={visibleExperience} onConfirmed={refreshRegistrations} onOpenChange={onCheckoutOpenChange}
+          className="fcx-action-button fcx-line flex h-12 shrink-0 items-center justify-center px-2 rounded-lg border border-[#ffe889] bg-[#ffd84d] text-[#07182b] shadow-sm transition hover:bg-[#ffe477] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffe477]/80">
+          <span className="text-xs font-black leading-none">{visibleExperience.ticket_price_xaf?.toLocaleString('en-US')}frs</span>
+        </FcxFapshiCheckout>
       </div>
 
       <div
@@ -238,7 +238,7 @@ export function FcxExperienceSlide({ experience, active }: { experience: FcxExpe
         {seats.map((registration, index) => (
           <div
             key={registration?.id || `open-${index}`}
-            title={registration ? `${registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
+            title={registration ? `${/^Paid FCX spot [0-9a-f-]+ \/ \d+$/i.test(registration.display_name) ? 'Participant details pending' : registration.display_name} · paid ${registration.payment_source === 'app' ? 'in app' : 'externally'}` : 'Open FCX space'}
             className={cn(
               'fcx-seat-line relative flex h-6 w-6 items-center justify-center rounded-full',
               registration
@@ -292,27 +292,36 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
   const [guestPhoto, setGuestPhoto] = useState<File | null>(null);
   const [guestPhotoPreview, setGuestPhotoPreview] = useState('');
   const [guestCropFile, setGuestCropFile] = useState<File | null>(null);
-  const [guestPhotoTarget, setGuestPhotoTarget] = useState<{ kind: 'new' } | { kind: 'existing'; guestName: string } | null>(null);
+  const [guestPhotoTarget, setGuestPhotoTarget] = useState<{ kind: 'new' } | { kind: 'existing'; registrationId: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [active, allProfiles] = await Promise.all([
-        fetchActiveFcxExperience(),
-        fetchAllProfiles(),
-      ]);
+    setLoadError(null);
+    const [eventResult, profilesResult] = await Promise.allSettled([
+      fetchActiveFcxExperience(),
+      fetchAllProfiles(),
+    ]);
+    if (eventResult.status === 'fulfilled') {
+      const active = eventResult.value;
       setExperience(active);
-      setProfiles(allProfiles);
       if (active) {
         setTitle(active.title);
         setEventMonth(active.event_month.slice(0, 7));
         setEventDate(active.event_date || '');
         setTicketPrice(active.ticket_price_xaf == null ? '' : String(active.ticket_price_xaf));
       }
-    } catch (error) {
-      console.error('FCX manager load error:', error);
+    } else {
+      console.error('FCX event load error:', eventResult.reason);
+      setLoadError('FCX details could not load. Try again before adding attendees.');
+    }
+    if (profilesResult.status === 'fulfilled') {
+      setProfiles(profilesResult.value);
+    } else {
+      console.error('FCX member directory load error:', profilesResult.reason);
+      setLoadError((current) => current || 'The member directory could not load. External attendees can still be added.');
     }
     setLoading(false);
   }, []);
@@ -381,25 +390,27 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
     if (!experience || !guestName.trim()) return;
     setSaving(true);
     try {
-      const guestAvatarUrl = guestPhoto
-        ? await uploadFcxGuestAvatar(experience.id, guestPhoto)
-        : null;
-      await addFcxRegistration({
-        eventId: experience.id,
-        guestName: guestName.trim(),
-        guestAvatarUrl,
-        paymentSource: 'external',
-      });
+      const registrationId = await addFcxExternalAttendee(experience.id, guestName);
+      let photoError: unknown = null;
+      if (guestPhoto) {
+        try {
+          const guestAvatarUrl = await uploadFcxGuestAvatar(experience.id, guestPhoto);
+          await setFcxExternalAttendeePhoto(registrationId, guestAvatarUrl);
+        } catch (error) {
+          photoError = error;
+        }
+      }
       setGuestName('');
       setGuestPhoto(null);
       await load();
+      if (photoError) alert(`Attendee added, but the photo could not be saved. You can retry it from the attendee list. ${readableError(photoError, '')}`);
     } catch (error: unknown) {
       alert(readableError(error, 'Could not add this external attendee.'));
     }
     setSaving(false);
   };
 
-  const chooseGuestPhoto = (target: { kind: 'new' } | { kind: 'existing'; guestName: string }) => {
+  const chooseGuestPhoto = (target: { kind: 'new' } | { kind: 'existing'; registrationId: string }) => {
     setGuestPhotoTarget(target);
     guestPhotoInputRef.current?.click();
   };
@@ -416,15 +427,12 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
     setSaving(true);
     try {
       const guestAvatarUrl = await uploadFcxGuestAvatar(experience.id, file);
-      await addFcxRegistration({
-        eventId: experience.id,
-        guestName: guestPhotoTarget.guestName,
-        guestAvatarUrl,
-        paymentSource: 'external',
-      });
+      await setFcxExternalAttendeePhoto(guestPhotoTarget.registrationId, guestAvatarUrl);
       setGuestCropFile(null);
       setGuestPhotoTarget(null);
       await load();
+    } catch (error: unknown) {
+      alert(readableError(error, 'Could not save this attendee photo.'));
     } finally {
       setSaving(false);
     }
@@ -466,6 +474,12 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
         <div className="flex justify-center py-5"><Loader2 size={20} className="animate-spin text-brass" /></div>
       ) : (
         <>
+          {loadError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-coral/30 bg-coral-soft p-3 text-sm text-coral">
+              <span>{loadError}</span>
+              <button type="button" onClick={() => void load()} className="btn-secondary text-xs">Try again</button>
+            </div>
+          )}
           <div className="grid gap-3 md:grid-cols-4">
             <label className="md:col-span-2">
               <span className="mb-1 block text-xs text-stone">Event title</span>
@@ -521,7 +535,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
 
               <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
                 <div className="flex items-center gap-2"><UserPlus size={16} className="text-brass" /><p className="text-sm font-semibold text-ink">Unregistered cadet or guest</p></div>
-                <input className="input-field" value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Full name" />
+                <input className="input-field" value={guestName} maxLength={120} onChange={(event) => setGuestName(event.target.value)} placeholder="Full name" />
                 <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/40 bg-navy text-gold">
                     {guestPhotoPreview
@@ -538,7 +552,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
                   )}
                 </div>
                 <p className="text-xs text-stone">Use this for someone who paid externally but does not have an app account.</p>
-                <button type="button" onClick={addGuest} disabled={saving || !guestName.trim()} className="btn-secondary w-full">
+                <button type="button" onClick={addGuest} disabled={saving || !guestName.trim() || occupied >= experience.capacity} className="btn-secondary w-full">
                   <UserPlus size={15} /> Add External Attendee
                 </button>
               </div>
@@ -557,7 +571,7 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
                   ) : (
                     <button
                       type="button"
-                      onClick={() => chooseGuestPhoto({ kind: 'existing', guestName: registration.display_name })}
+                      onClick={() => chooseGuestPhoto({ kind: 'existing', registrationId: registration.id })}
                       disabled={saving}
                       className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-brass/35 bg-navy text-xs font-bold text-gold"
                       title="Add or adjust participant photo"
@@ -585,17 +599,15 @@ export function FcxExperienceManager({ onEditArtwork }: { onEditArtwork: () => v
       <input
         ref={guestPhotoInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/avif"
+        accept="image/*,.heic,.heif"
         className="hidden"
         onChange={(event) => {
           const selected = event.target.files?.[0];
           event.target.value = '';
           if (!selected) return;
-          if (selected.size > 12 * 1024 * 1024) {
-            alert('Choose a participant photo smaller than 12 MB.');
-            return;
-          }
-          setGuestCropFile(selected);
+          void prepareImageForCropping(selected).then(setGuestCropFile).catch((error: unknown) => {
+            alert(readableError(error, 'The participant photo could not be opened.'));
+          });
         }}
       />
       {guestCropFile && (
