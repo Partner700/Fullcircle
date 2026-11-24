@@ -96,10 +96,16 @@ function preserveDetailedArenaRooms(current: any[], latest: any[], activeRoomId:
 
 function upsertArenaRoom(current: any[], freshRoom: any) {
   const prior = current.find((room) => room.id === freshRoom.id);
-  const room = prior && Object.prototype.hasOwnProperty.call(prior, 'question_set')
-    && !Object.prototype.hasOwnProperty.call(freshRoom, 'question_set')
-    ? { ...freshRoom, question_set: prior.question_set }
-    : freshRoom;
+  const room = prior ? { ...prior, ...freshRoom } : { ...freshRoom };
+  // A compact live Journey refresh deliberately omits expensive audience and
+  // matchup data; keep the last full snapshot until the next lobby refresh.
+  if (prior) {
+    for (const key of ['scheduled', 'scheduled_start_at', 'scheduled_player_ids',
+      'scheduled_by', 'is_sentry_match', 'arena_guest_witness_count',
+      'arena_matchup_players', 'arena_viewers', 'question_set']) {
+      if (freshRoom[key] === undefined && prior[key] !== undefined) room[key] = prior[key];
+    }
+  }
   return [room, ...current.filter((item) => item.id !== freshRoom.id)];
 }
 
@@ -229,9 +235,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     } catch (refreshError) { console.error('Arena room refresh failed:', refreshError); }
   }, []);
 
-  const refreshRoom = useCallback(async (roomId: string) => {
+  const refreshRoom = useCallback(async (roomId: string, compact = false) => {
     try {
-      const freshRoom = await fetchArenaRoom(roomId);
+      const freshRoom = await fetchArenaRoom(roomId, false, compact);
       if (!freshRoom) return null;
       setRooms((current) => upsertArenaRoom(current, freshRoom));
       return freshRoom;
@@ -470,20 +476,46 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     if (!activeRoomId) return;
     let roomRefreshTimer: number | null = null;
     let lastRoomRefreshAt = 0;
+    // A participant heartbeat updates last_active_at, but does not change the
+    // roster, score or forfeiture. Ignore these events rather than issuing 6-8
+    // unrelated database requests on every phone's heartbeat.
+    const signatures = new Map<string, string>();
+    const fingerprint = (p: any) => [
+      p.user_id, p.joined_at, p.finished_at, p.forfeited_at, p.forfeit_reason,
+      p.score, p.correct_count, p.stake_paid,
+    ].map(value => String(value ?? '')).join('|');
+    for (const p of roomsRef.current.find(r => r.id === activeRoomId)?.arena_participants || []) {
+      signatures.set(String(p.user_id), fingerprint(p));
+    }
     const queueRoomRefresh = () => {
       if (document.visibilityState !== 'visible' || roomRefreshTimer !== null) return;
       roomRefreshTimer = window.setTimeout(() => {
         roomRefreshTimer = null;
         lastRoomRefreshAt = Date.now();
-        void refreshRoom(activeRoomId);
-      }, Math.max(350, 4500 - (Date.now() - lastRoomRefreshAt)));
+        const current = roomsRef.current.find(r => r.id === activeRoomId);
+        const compact = current?.status === 'playing'
+          && /\[arena:journey\]/i.test(current.room_name || '');
+        void refreshRoom(activeRoomId, compact);
+      }, Math.max(350, 6500 - (Date.now() - lastRoomRefreshAt)));
+    };
+    const onParticipant = (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+      if (payload.eventType === 'UPDATE' && payload.new?.user_id) {
+        const id = String(payload.new.user_id);
+        const next = fingerprint(payload.new);
+        const old = signatures.get(id);
+        signatures.set(id, next);
+        if (old === next) return;
+      } else if (payload.eventType === 'INSERT' && payload.new?.user_id) {
+        signatures.set(String(payload.new.user_id), fingerprint(payload.new));
+      } else if (payload.eventType === 'DELETE' && payload.old?.user_id) {
+        signatures.delete(String(payload.old.user_id));
+      }
+      queueRoomRefresh();
     };
     const channel = supabase
       .channel(`arena_room_${activeRoomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_participants', filter: `room_id=eq.${activeRoomId}` },
-        queueRoomRefresh)
-      // Spectator heartbeats update arena_viewers often; those updates should
-      // not trigger a full multi-query room reload for every watching client.
+        onParticipant)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'arena_rooms', filter: `id=eq.${activeRoomId}` },
         queueRoomRefresh)
       .subscribe();
@@ -496,8 +528,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   useEffect(() => {
     if (!profile || !activeRoomId || phase !== 'playing' || isSpectating) return;
     let cancelled = false;
+    let heartbeatInFlight = false;
     const heartbeat = async () => {
-      if (document.visibilityState !== 'visible') return;
+      if (cancelled || heartbeatInFlight || document.visibilityState !== 'visible') return;
+      heartbeatInFlight = true;
       try {
         const active = await heartbeatArenaParticipant(activeRoomId, profile.id);
         if (!active && !cancelled) {
@@ -515,9 +549,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           clearActiveRoom(true);
         }
       } catch { /* Realtime room state handles matches that have just completed. */ }
+      finally { heartbeatInFlight = false; }
     };
     void heartbeat();
-    const interval = window.setInterval(() => { void heartbeat(); }, 20_000);
+    const room = roomsRef.current.find(r => r.id === activeRoomId);
+    const isIntertentJourney = /\[arena:journey\]/i.test(room?.room_name || '')
+      && /\[intertent\]/i.test(room?.room_name || '');
+    // The database exempts inter-tent Journey from inactivity forfeits.
+    // Keep presence fresh, but do not flood the DB every twenty seconds.
+    const interval = window.setInterval(() => { void heartbeat(); }, isIntertentJourney ? 45_000 : 20_000);
     const onVisibility = () => { if (document.visibilityState === 'visible') void heartbeat(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
