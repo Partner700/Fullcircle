@@ -1048,12 +1048,12 @@ export async function fetchMarketBalance(userId: string): Promise<number> {
   // Prefer the authoritative balance used by purchases. If one RPC endpoint
   // fails on a slow connection, retry through the authenticated self-only RPC.
   // Never replace an unreadable balance with a guessed 0 or stale cached value.
-  const primary = await supabase.rpc('get_user_denarii_total', { p_user_id: userId })
+  const primary = await Promise.resolve(supabase.rpc('get_user_denarii_total', { p_user_id: userId }))
     .catch((error: unknown) => ({ data: null, error }));
   if (!primary.error && primary.data !== null && Number.isFinite(Number(primary.data))) {
     return Number(primary.data);
   }
-  const fallback = await supabase.rpc('get_my_market_denarii_balance')
+  const fallback = await Promise.resolve(supabase.rpc('get_my_market_denarii_balance'))
     .catch((error: unknown) => ({ data: null, error }));
   if (!fallback.error && fallback.data !== null && Number.isFinite(Number(fallback.data))) {
     return Number(fallback.data);
