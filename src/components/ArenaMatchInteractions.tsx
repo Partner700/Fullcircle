@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BellRing, Heart, UserRound } from 'lucide-react';
-import { postPublicArenaComment, sendArenaRoomMessage } from '../lib/queries';
+import { fetchArenaRoomMessages, postPublicArenaComment, sendArenaRoomMessage } from '../lib/queries';
 import { playSoundEffect } from '../lib/soundscape';
 import { supabase } from '../lib/supabase';
 
@@ -22,12 +22,14 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
   const counter = useRef(0);
   const lastSent = useRef(0);
   const pending = useRef(false);
+  const seenHeartIds = useRef(new Set<string>());
   const timers = useRef<number[]>([]);
   const glowTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setHearts([]);
     setGlowing(null);
+    seenHeartIds.current.clear();
     return () => {
       timers.current.forEach(id => window.clearTimeout(id));
       timers.current = [];
@@ -62,12 +64,42 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}`,
       }, payload => {
-        const message = payload.new as { body?: string; sender_id?: string | null };
+        const message = payload.new as { id?: string; body?: string; sender_id?: string | null };
         if (message.body !== HEART_MESSAGE) return;
+        if (message.id && seenHeartIds.current.has(message.id)) return;
+        if (message.id) seenHeartIds.current.add(message.id);
         if (message.sender_id === userId && Date.now() - lastSent.current < 4000) return;
         burst();
       }).subscribe();
     return () => { void supabase.removeChannel(channel); };
+  }, [roomId, userId]);
+
+  // Guest and registered witness reactions share the public chat history,
+  // but only registered room messages are reliably delivered by the existing
+  // Postgres-change channel. This bounded fallback includes guest reactions.
+  useEffect(() => {
+    let active = true;
+    let initialized = false;
+    const sync = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const recent = await fetchArenaRoomMessages(roomId);
+        if (!active) return;
+        const now = Date.now();
+        for (const entry of recent) {
+          if (entry.body.trim() !== HEART_MESSAGE) continue;
+          const known = seenHeartIds.current.has(entry.id);
+          seenHeartIds.current.add(entry.id);
+          if (!initialized || known || now - new Date(entry.created_at).getTime() > 12000) continue;
+          if (entry.sender_id === userId && now - lastSent.current < 4000) continue;
+          burst();
+        }
+        initialized = true;
+      } catch { /* Realtime remains the primary path. */ }
+    };
+    void sync();
+    const timer = window.setInterval(() => void sync(), 6000);
+    return () => { active = false; window.clearInterval(timer); };
   }, [roomId, userId]);
 
   const sendHeart = async (targetId = '') => {
