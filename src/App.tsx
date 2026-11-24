@@ -137,9 +137,9 @@ export default function App() {
       setAuthenticatedOverlaysReady(false);
       return;
     }
-    // Let the selected workspace paint and begin its essential reads before
-    // optional global services load their code and fallback polling.
-    const timer = window.setTimeout(() => setAuthenticatedOverlaysReady(true), 2_500);
+    // Let authentication and the dashboard settle before nonessential global
+    // services start their additional RPCs during peak database contention.
+    const timer = window.setTimeout(() => setAuthenticatedOverlaysReady(true), 15_000);
     return () => window.clearTimeout(timer);
   }, [authenticatedProfileId, authenticatedUserId]);
 
