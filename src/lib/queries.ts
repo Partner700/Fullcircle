@@ -1019,28 +1019,14 @@ export async function fetchLedgerEntries(userId: string, limit?: number) {
 }
 
 export async function fetchLedgerTotal(userId: string): Promise<number> {
-  const liveStats = await fetchUserLiveStats(userId).catch(() => null);
-  if (liveStats && liveStats.total_denarii !== 0) return liveStats.total_denarii;
-
-  const ledgerFallback = async () => {
-    const entries = await fetchLedgerEntries(userId);
-    return entries.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  };
-  try {
-    const { data, error } = await supabase
-      .rpc('get_user_denarii_total', { p_user_id: userId });
-    if (error) throw error;
-    const rpcTotal = Number(data) || 0;
-    if (rpcTotal !== 0) return rpcTotal;
-    const ledgerTotal = await ledgerFallback().catch(() => 0);
-    return ledgerTotal || liveStats?.total_denarii || rpcTotal;
-  } catch {
-    try {
-      return await ledgerFallback() || liveStats?.total_denarii || 0;
-    } catch {
-      return liveStats?.total_denarii || 0;
-    }
-  }
+  // Purchases are debited from denarii_ledger_entries in PostgreSQL. Always use
+  // that same authoritative calculation, including a genuine zero balance.
+  // Cached toolbar stats or paginated ledger history can be stale/incomplete.
+  const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: userId });
+  if (error) throw error;
+  const amount = Number(data);
+  if (!Number.isFinite(amount)) throw new Error('Your current Denarii balance is unavailable. Please refresh the Market.');
+  return amount;
 }
 
 export type { UserLiveStats } from './liveStats';
