@@ -341,11 +341,11 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
   };
 }
 
-export async function decideJourneyShield(original: JourneyRuntime, actorId: string, decision: 'use' | 'expire',
+export async function decideJourneyShield(original: JourneyRuntime, actorId: string, decision: 'use' | 'expire' | 'reflect',
   lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   const next = structuredClone(original);
   next.game = resolveJourneyShield(next.game, actorId, decision, shieldOwners);
-  if (decision === 'use') delete next.undo;
+  if (decision === 'use' || decision === 'reflect') delete next.undo;
   next.lastVerdict = null;
   await openNextQuestion(next, lookup, random);
   return next;
