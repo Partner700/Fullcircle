@@ -41,7 +41,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
   const burst = (targetId = '') => {
     const index = players.findIndex(p => p.user_id === targetId);
     const origin = index < 0 ? 22 : 78 + (index * 44);
-    const ids: FlyingHeart[] = Array.from({ length: 3 + ((++counter.current) % 2) }, (_, i) => ({
+    const ids: FlyingHeart[] = Array.from({ length: 3 + Math.floor(Math.random() * 2) }, (_, i) => ({
       id: ++counter.current,
       size: [13, 22, 17, 27][i],
       drift: [-19, 14, -8, 24][i],
@@ -105,7 +105,7 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
 
   const sendHeart = async (targetId = '') => {
     // Only witnesses may send: participants see the floating hearts, not controls.
-    if (!canSend || pending.current || Date.now() - lastSent.current < 850) return;
+    if (!canSend || pending.current || Date.now() - lastSent.current < (guestKey ? 8200 : 850)) return;
     if (!guestKey && !userId) return;
     pending.current = true;
     lastSent.current = Date.now();
