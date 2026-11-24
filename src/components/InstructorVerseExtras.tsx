@@ -98,21 +98,24 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
   if (!context && !quest) return null;
   return <>
     <div className="my-3 space-y-2 rounded-xl border border-amber-400/40 bg-surface/95 p-3">
-      {context && <>
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brass">
-          <BookOpenText size={15} /> Instructor Insights
-        </div>
-        <p className="text-xs leading-relaxed text-stone">Explore the setting, spiritual message and practical meaning of this passage.</p>
+      {context && <details className="group/insights rounded-lg border border-amber-400/40 bg-surface-2">
+        <summary className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-3 text-xs font-bold uppercase tracking-widest text-brass">
+          <BookOpenText size={15} className="shrink-0" />
+          <span className="flex-1">Instructor Insights</span>
+          <ChevronDown size={16} className="shrink-0 transition-transform group-open/insights:rotate-180" />
+        </summary>
+        <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
+          <p className="text-xs leading-relaxed text-stone">Explore the setting, spiritual message and practical meaning of this passage.</p>
         {([
           ['Historical context', context.historical_context, Landmark],
           ['Spiritual context', context.spiritual_context, Lightbulb],
           ['Psychosocial / Present-day context', context.present_day_context, Sparkles],
         ] as const).map(([title, content, Icon]) => (
-          <details key={title} className="group overflow-hidden rounded-lg border border-border bg-surface-2">
+          <details key={title} className="group/context overflow-hidden rounded-lg border border-border bg-surface-2">
             <summary className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm font-semibold text-ink">
               <Icon size={16} className="shrink-0 text-brass" />
               <span className="flex-1">{title}</span>
-              <ChevronDown size={15} className="transition-transform group-open:rotate-180" />
+              <ChevronDown size={15} className="transition-transform group-open/context:rotate-180" />
             </summary>
             <div className="border-t border-border px-3 py-3">
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{content}</p>
@@ -128,7 +131,8 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
             </div>
           </details>
         ))}
-      </>}
+        </div>
+      </details>}
       {quest && <section className="rounded-lg border-2 border-yellow-500 bg-amber-100 p-3 text-slate-950">
         <div className="flex items-center gap-2 text-sm font-black"><Gift size={18} /> Hidden Scripture Discovery</div>
         <p className="mt-1 text-xs font-semibold">First correct answer wins: {quest.prize_label}.</p>
