@@ -56,6 +56,7 @@ export function interTentMatchLabel(fixture: Pick<InterTentFixture, 'sides' | 's
 
 export function interTentLegLabel(fixture: Pick<InterTentFixture, 'stage' | 'group_key' | 'leg'>): string {
   if (fixture.stage === 'final') return 'Grand final';
-  const leg = fixture.leg % 2 ? 'Home' : 'Away';
-  return fixture.stage === 'semi' ? `Semifinal · ${leg}` : `Group ${fixture.group_key} · Series ${Math.ceil(fixture.leg / 2)} · ${leg}`;
+  // HOME/AWAY is determined by the number of players representing each tent
+  // in this fixture, not by the odd/even match leg.
+  return fixture.stage === 'semi' ? `Semifinal · Leg ${fixture.leg}` : `Group ${fixture.group_key} · Series ${Math.ceil(fixture.leg / 2)} · Leg ${fixture.leg}`;
 }
