@@ -2878,10 +2878,8 @@ export function startMarketCartCheckout(
   userId: string, amount: number, method: 'mtn_momo' | 'orange_money', phone: string,
   relics: { slug: string; quantity: number; pack_size?: number }[], eventId?: string, ticketQuantity = 0,
   attendee?: { kind: 'self' | 'member' | 'guest'; id?: string },
-  hostedFallback = false,
 ) {
   return requestCampayCheckout({
-    hosted_fallback: hostedFallback,
     purchase_kind: 'cart',
     user_id: userId,
     displayed_amount_xaf: amount,
