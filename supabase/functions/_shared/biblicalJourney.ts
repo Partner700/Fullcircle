@@ -459,13 +459,14 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
     }
     // A trap, loop exit or bonus move that lands on another player follows
     // exactly the same capture rules as a successful die roll.
-    const hasMovedToMain = player.location.route === 'main'
-      && (previous.route !== 'main' || previous.space !== player.location.space);
+    const landingSpace = player.location.route === 'main' ? player.location.space : null;
+    const hasMovedToMain = landingSpace !== null
+      && (previous.route !== 'main' || previous.space !== landingSpace);
     if (hasMovedToMain && !isImprisoned(player) && player.status !== 'FINISHED') {
       const opponentsOnSquare = game.players.filter(other => other.id !== player.id
         && !journeySameSide(game, player.id, other.id)
         && other.status !== 'FINISHED' && other.location.route === 'main'
-        && !isImprisoned(other) && other.location.space === player.location.space);
+        && !isImprisoned(other) && other.location.space === landingSpace);
       queue.unshift(...opponentsOnSquare.map(other => ({
         playerId: other.id, source: 'capture:' + player.id,
         effect: { kind: 'capture' as const, attackerId: player.id },
@@ -506,10 +507,11 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       player.loopEscapes += 1;
       record(game, player, promoted ? 'surprise-card' : 'ordinary-escape', promoted ? 'promotion' : 'escape', from,
         promoted ? 'reveal' : 'forward');
+      const escapeSpace = player.location.route === 'main' ? player.location.space : null;
       const opponentsOnSquare = game.players.filter(other => other.id !== player.id
         && !journeySameSide(game, player.id, other.id) && other.location.route === 'main'
         && other.status !== 'FINISHED' && !isImprisoned(other)
-        && other.location.space === player.location.space);
+        && other.location.space === escapeSpace);
       if (opponentsOnSquare.length) resolveEffects(game, config, opponentsOnSquare.map(other => ({
         playerId: other.id, source: 'capture:' + player.id,
         effect: { kind: 'capture' as const, attackerId: player.id },
@@ -533,10 +535,11 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       game.version += 1;
       return game;
     }
+    const rollSpace = player.location.route === 'main' ? player.location.space : null;
     const collisions = game.players.filter(other => other.id !== player.id
       && other.status !== 'FINISHED' && !journeySameSide(game, player.id, other.id)
       && other.location.route === 'main' && !isImprisoned(other)
-      && other.location.space === player.location.space)
+      && other.location.space === rollSpace)
       .map(other => ({
         playerId: other.id, source: 'capture:' + player.id,
         effect: { kind: 'capture' as const, attackerId: player.id },
@@ -626,7 +629,8 @@ export function resolveJourneyShield(original: JourneyGame, actorId: string, dec
       throw new Error('You have reached the Boomerang limit in this match.');
     }
     countArenaMatchRelicUse(game, actorId, 'boomerang');
-    const attacker = game.players.find(player => player.id === penalty.effect.attackerId);
+    const attackerId = penalty.effect.attackerId;
+    const attacker = game.players.find(player => player.id === attackerId);
     if (attacker && attacker.location.route === 'main') {
       const previous = structuredClone(attacker.location);
       attacker.location = main(1);
