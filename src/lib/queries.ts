@@ -1045,12 +1045,20 @@ export async function fetchLedgerTotal(userId: string): Promise<number> {
 }
 
 export async function fetchMarketBalance(userId: string): Promise<number> {
-  // Only trust the wallet balance used by server-side purchase functions.
-  const { data, error } = await supabase.rpc('get_user_denarii_total', { p_user_id: userId });
-  if (error) throw error;
-  const amount = Number(data);
-  if (!Number.isFinite(amount)) throw new Error('The current Denarii balance is unavailable. Refresh the Market and try again.');
-  return amount;
+  // Prefer the authoritative balance used by purchases. If one RPC endpoint
+  // fails on a slow connection, retry through the authenticated self-only RPC.
+  // Never replace an unreadable balance with a guessed 0 or stale cached value.
+  const primary = await supabase.rpc('get_user_denarii_total', { p_user_id: userId })
+    .catch((error: unknown) => ({ data: null, error }));
+  if (!primary.error && primary.data !== null && Number.isFinite(Number(primary.data))) {
+    return Number(primary.data);
+  }
+  const fallback = await supabase.rpc('get_my_market_denarii_balance')
+    .catch((error: unknown) => ({ data: null, error }));
+  if (!fallback.error && fallback.data !== null && Number.isFinite(Number(fallback.data))) {
+    return Number(fallback.data);
+  }
+  throw new Error('Unable to refresh Denarii balance. Your funds are safe; retry the balance lookup or try the purchase, which verifies the balance directly.');
 }
 
 export type { UserLiveStats } from './liveStats';
