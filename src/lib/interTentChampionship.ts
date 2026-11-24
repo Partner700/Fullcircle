@@ -3,6 +3,7 @@ export type InterTentSide = { tent_id: string; tent_name: string; players: Array
 export type InterTentFixture = {
   id: string; sequence: number; stage: 'group' | 'semi' | 'final'; group_key: InterTentGroup | null;
   leg: number; planned_at: string; room_id: string | null; room_status: string | null;
+  journey_character_slug?: string | null; journey_secret?: boolean;
   sides: InterTentSide[]; result: Array<{ tent_id: string; points: number; score: number; answers: number }> | null;
 };
 export type InterTentChampionship = {
