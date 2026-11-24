@@ -42,7 +42,8 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
   children?: ReactNode;
 }) {
   const canOpen = Boolean(fixture.room_id && (fixture.room_status === 'waiting' || fixture.room_status === 'playing'));
-  const status = fixture.result ? 'Completed' : draft ? 'Qualification pending' : fixture.room_status === 'playing' ? 'Live now' : fixture.room_status === 'waiting' ? 'Scheduled' : fixture.sides.length ? 'Awaiting scheduling' : 'Awaiting qualifiers';
+  const status = fixture.result ? 'Completed' : draft ? 'Qualification pending' : fixture.room_status === 'playing' ? 'Live now' : fixture.room_status === 'waiting' ? 'Ready to enter' : fixture.sides.length ? 'Scheduled' : 'Awaiting qualifiers';
+  const journeyLabel = fixture.journey_secret ? 'Surprise Journey' : fixture.journey_character_slug ? fixture.journey_character_slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Adam Eve', 'Adam & Eve').replace('Daniel Nebuchadnezzar', 'Daniel & Nebuchadnezzar') : 'Journey Trivia';
   const live=fixture.room_status==='playing'&&!fixture.result;
   const scoreById=new Map((livePlayers||[]).map(p=>[p.user_id,arenaPlayerScore(p)]));
   const highest=scoreById.size?Math.max(...scoreById.values()):0;
@@ -52,8 +53,8 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
   return <article data-artwork-theme={arenaImage?.url ? 'night' : undefined} className={`${compact?'intertent-welcome-glass rounded-2xl':'card'} relative min-w-0 overflow-hidden p-3 sm:p-4`} aria-label={`Match ${fixture.sequence}: ${matchLabel}`}>
     <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="arena-panel-veil" />
     <div className="relative z-10 space-y-3">
-      {compact?<p className="eyebrow text-gold">Journey Trivia · David</p>:<header className="flex flex-wrap items-start justify-between gap-2">
-        <div><p className="eyebrow text-gold">Journey Trivia · David</p><h5 className="mt-1 font-display text-sm font-bold text-ink">Match {fixture.sequence} · {interTentLegLabel(fixture)}</h5></div>
+      {compact?<p className="eyebrow text-gold">Journey Trivia · {journeyLabel}</p>:<header className="flex flex-wrap items-start justify-between gap-2">
+        <div><p className="eyebrow text-gold">Journey Trivia · {journeyLabel}</p><h5 className="mt-1 font-display text-sm font-bold text-ink">Match {fixture.sequence} · {interTentLegLabel(fixture)}</h5></div>
         <span className={`badge text-[10px] ${fixture.room_status === 'playing' ? 'text-coral' : fixture.result ? 'text-sage' : 'text-stone'}`}>{status}</span>
       </header>}
       {!compact&&timing}
