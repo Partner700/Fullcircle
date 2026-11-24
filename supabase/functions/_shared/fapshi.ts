@@ -240,7 +240,7 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
 
   // Retire unused legacy hosted links only after checkout has switched to Direct Pay.
   const directMode = (Deno.env.get("FAPSHI_CHECKOUT_MODE") ?? "direct").toLowerCase() === "direct";
-  if (!callbackId && directMode && payment.purchase_kind !== "cart" && payment.payment_method === "fapshi_hosted" &&
+  if (!callbackId && directMode && payment.payment_method === "fapshi_hosted" &&
       (verified.status === "CREATED" || verified.status === "FAILED")) {
     const expiredResponse = await api("/expire-pay", { transId: id });
     if (!expiredResponse.ok) return "pending";
