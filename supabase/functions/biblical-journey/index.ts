@@ -152,7 +152,7 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
 // first participant never stare at a permanent uninitialized shell.
 // The existing database initializer enforces room, roster and question safety.
 async function ensureInterTentBoard(roomId: string, context: Awaited<ReturnType<typeof roomContext>>) {
-  if (context.room.status !== 'playing' || !/\\[intertent\\]/i.test(String(context.room.room_name))) return null;
+  if (context.room.status !== 'playing' || !/\[intertent\]/i.test(String(context.room.room_name))) return null;
   const active = (await participants(roomId)).filter(player => !player.forfeited_at);
   if (active.length < 1 || active.length > 4) return null;
   const machine = context.room.play_mode === 'machine';
@@ -232,7 +232,7 @@ Deno.serve(async (request) => {
       const existing = await gameRow(roomId);
       if (existing) return json({ state: publicJourneyRuntime(existing.state as JourneyRuntime), version: existing.version });
       const machine = context.room.play_mode === 'machine';
-      const interTent = /\\[intertent\\]/i.test(String(context.room.room_name));
+      const interTent = /\[intertent\]/i.test(String(context.room.room_name));
       if (machine ? activePlayers.length !== 1
         : activePlayers.length < (interTent ? 1 : 2) || activePlayers.length > 4) {
         return json({ error: 'This Journey room has the wrong number of players.' }, 409);
