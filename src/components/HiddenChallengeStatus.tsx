@@ -1,4 +1,5 @@
-import { useDraggableShortcut } from '../hooks/useDraggableShortcut';
+import { createPortal } from 'react-dom';
+import { isMarketOpen, subscribeMarketVisibility } from '../lib/marketVisibility';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Bomb, CheckCircle2, Gift, Loader2, MapPin, PackageSearch, TimerReset, X, XCircle } from 'lucide-react';
 import { gameRelicShortcutIsActive, subscribeToGameRelicShortcut } from '../lib/gameRelicShortcut';
@@ -55,6 +56,7 @@ function rewardLabel(item: HiddenChallengeCreatorStatus) {
 export function HiddenChallengeStatus() {
   const { profile } = useAuth();
   const gameRelicsActive = useSyncExternalStore(subscribeToGameRelicShortcut, gameRelicShortcutIsActive);
+  const marketOpen = useSyncExternalStore(subscribeMarketVisibility, isMarketOpen);
   const [items, setItems] = useState<HiddenChallengeCreatorStatus[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -101,24 +103,21 @@ export function HiddenChallengeStatus() {
     requestAppNavigation('store', { composeHiddenItem: itemType });
   };
 
-  const shortcut = useDraggableShortcut(`full-circle-hidden-item-position:${profile?.id || ''}`, () => {
-    setOpen(true);
-    void load(true);
-  });
+  const openStatus = () => { setOpen(true); void load(true); };
 
   useEffect(() => {
-    if (gameRelicsActive) setOpen(false);
-  }, [gameRelicsActive]);
+    if (gameRelicsActive || marketOpen) setOpen(false);
+  }, [gameRelicsActive, marketOpen]);
 
-  if (!profile?.id || gameRelicsActive) return null;
+  if (!profile?.id || gameRelicsActive || marketOpen || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal((
     <>
       <button
         type="button"
-        {...shortcut}
-        className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl cursor-grab active:cursor-grabbing md:bottom-6 md:right-6"
-        title="Treasures and Mines (drag to move)"
+        onClick={openStatus}
+        className="fixed bottom-20 right-3 z-[65] flex h-11 w-11 select-none items-center justify-center rounded-full border border-gold/45 bg-navy-2 text-gold shadow-xl active:scale-95 md:bottom-6 md:right-6"
+        title="Open Treasures and Mines"
         aria-label="Open hidden item status"
       >
         <PackageSearch size={20} />
@@ -190,5 +189,5 @@ export function HiddenChallengeStatus() {
         </div>
       )}
     </>
-  );
+  ), document.body);
 }
