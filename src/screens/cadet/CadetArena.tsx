@@ -809,7 +809,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   };
 
   const preludeRoom=rooms.find(room=>room.id===activeRoomId && parseArenaGameType(room.room_name || '')==='prelude');
-  if(preludeOpen || preludeRoom) return <PreludeTrivia arenaImage={arenaImage} requestedRoomId={preludeRoom?.id} onBack={()=>{setPreludeOpen(false);if(preludeRoom)clearActiveRoom(false);void onBalanceChanged?.();}} onBalanceChanged={()=>void onBalanceChanged?.()}/>;
+  if(preludeOpen || preludeRoom) return <PreludeTrivia arenaImage={arenaImage} initialRoomId={preludeRoom?.id} onBack={()=>{setPreludeOpen(false);if(preludeRoom)clearActiveRoom(false);void onBalanceChanged?.();}} onBalanceChanged={()=>void onBalanceChanged?.()}/>;
   if (puzzleOpen) return <PuzzleTrivia arenaImage={arenaImage} onBack={() => {setPuzzleOpen(false);void onBalanceChanged?.();}} />;
 
   if (loading && phase === 'lobby') return (
