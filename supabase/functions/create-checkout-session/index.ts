@@ -482,7 +482,7 @@ async function startFcxCheckout(
   if (useFapshiDirect && !phone) {
     return Response.json({ error: "Enter a valid Cameroon mobile money number." }, { status: 400, headers: corsHeaders });
   }
-  const mobileMoney = phone ? { phone: phone.slice(3) } : undefined;
+  const mobileMoney = phone ? { phone: phone.slice(3), method: isDirectPaymentMethod(method) ? method : undefined } : undefined;
   assertFapshiConfigured();
   const reservation = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_fcx_fapshi_checkout`, {
     method: "POST",
@@ -591,7 +591,7 @@ async function startCartCheckout(
   }
   const payment = await reservation.json() as { id: string; amount: number };
   const result = await startFapshiPayment({
-    amount: payment.amount, reference, name: "Market cart", mobileMoney: { phone: phone.slice(3) },
+    amount: payment.amount, reference, name: "Market cart", mobileMoney: { phone: phone.slice(3), method },
   });
   if (result.declined) {
     await rejectPayment(payment.id, result.transId ?? null, result.reason ?? "Fapshi could not start this payment.", {});
@@ -723,7 +723,7 @@ Deno.serve(async (req: Request) => {
         });
       }
       assertFapshiConfigured();
-      const mobileMoney = phone ? { phone: phone.slice(3) } : undefined;
+      const mobileMoney = phone ? { phone: phone.slice(3), method: isDirectPaymentMethod(method) ? method : undefined } : undefined;
       const reference = `fp_${crypto.randomUUID()}`;
       const paymentResponse = (
         id: string, ref: string, amount: number, checkoutUrl: string | null | undefined,
