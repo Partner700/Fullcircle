@@ -1240,7 +1240,7 @@ export function CadetNarrative({
                     >
                       <p className="text-[15px] leading-8 text-ink"><span className="mr-1.5 font-bold text-brass">{verseNumber}.</span><span data-no-translate lang={editionContent?.translations.has(verse.reference) ? selectedEdition?.language : undefined}>{editionContent?.translations.get(verse.reference) || verse.text}</span></p>
                       <span className="mt-2 block text-[10px] font-bold uppercase tracking-widest text-brass">
-                        {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
+                        {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{instructorExtras.facts[bibleReference || verse.reference] ? ' · Did You Know? fact' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
                       </span>
                     </button>
                     {hasInsight && expanded && (
