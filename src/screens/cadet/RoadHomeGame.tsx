@@ -520,7 +520,6 @@ export function RoadHomeGame({
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 animate-fade-in">
-      <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} spectator={spectator} players={state.players.map(player => ({ user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl || null }))} />
       <ArenaMatchup players={state.players.map((player) => ({
         ...(matchupPlayers.find((match) => match.user_id === player.id) ?? {
           user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl || null,
@@ -692,6 +691,7 @@ export function RoadHomeGame({
           onOpenChat={() => setChatOpen(true)}
         />
       )}
+      <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} spectator={spectator} players={state.players.map(player => ({ user_id: player.id, display_name: player.name, avatar_url: player.avatarUrl || null }))} />
     </div>
   );
 }
