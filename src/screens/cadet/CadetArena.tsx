@@ -764,7 +764,10 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
       const selectedRoom = rooms.find((room) => room.id === roomId) || await refreshRoom(roomId);
       if (selectedRoom?.scheduled) await joinInstructorArenaMatch(roomId);
       else await joinArenaRoom(roomId, profile.id);
-      activateRoom(roomId, selectedRoom?.status === 'playing' ? 'playing' : 'waiting');
+      // Scheduled inter-tent games auto-start when the first player enters after
+      // the countdown. Do not strand that participant on the waiting-room slide.
+      const joinedRoom = await refreshRoom(roomId);
+      activateRoom(roomId, joinedRoom?.status === 'playing' ? 'playing' : 'waiting');
       await load();
       await onBalanceChanged?.();
     } catch (e: any) { setError(e.message || 'Failed to join room'); }
@@ -1158,8 +1161,8 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           const fresh=await refreshRoom(id);
           if(fresh?.arena_participants?.some((p:any)=>p.user_id===profile.id&&!p.forfeited_at)){activateRoom(id,status);return;}
           await joinInstructorArenaMatch(id);
-          activateRoom(id,status === 'playing' ? 'playing' : 'waiting');
-          await refreshRoom(id);
+          const joinedRoom = await refreshRoom(id);
+          activateRoom(id,joinedRoom?.status === 'playing' ? 'playing' : 'waiting');
         } catch(e){setError(e instanceof Error?e.message:'The tournament match could not be opened.');}
       }} />}
 
@@ -1313,7 +1316,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <h4 className="flex items-center gap-2 font-display text-sm font-semibold text-ink"><Radio size={15} className="animate-pulse text-coral" /> Live Now</h4>
-            <span className="text-[10px] font-semibold uppercase text-stone">Witness without joining the match</span>
+            <span className="text-[10px] font-semibold uppercase text-stone">Selected residents play · others witness</span>
           </div>
           {rooms.filter((room) => isLiveArenaRoom(room)).map((room) => {
             const participants = room.arena_participants || [];
