@@ -13,6 +13,7 @@ import { SectionHeader } from '../../components/AppShell';
 import { PanelImageBackdrop } from '../../components/PanelImageBackdrop';
 import { AppSelect } from '../../components/AppSelect';
 import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
+import { setMarketVisibility } from '../../lib/marketVisibility';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
 import { fetchLedgerTotal, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, startMarketCartCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
@@ -78,6 +79,7 @@ interface CadetStoreProps {
 
 export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = [] }: CadetStoreProps) {
   const { profile } = useAuth();
+  useEffect(() => { setMarketVisibility(true); return () => setMarketVisibility(false); }, []);
   const [relics, setRelics] = useState<RelicType[]>([]);
   const [relicView, setRelicView] = useState<'all' | 'owned' | 'unowned'>('all');
   const [inventory, setInventory] = useState<Record<string, number>>({});
