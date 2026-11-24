@@ -199,8 +199,19 @@ Deno.serve(async (request) => {
     const context = await roomContext(roomId);
     if (action === 'GET') {
       if (!['playing', 'completed'].includes(context.room.status)) return json({ error: 'That match is no longer live.' }, 410);
-      const versionRow = await gameRow(roomId, 'version');
-      if (!versionRow) {
+      const knownVersion = Number(body.knownVersion);
+      const hasKnownVersion = body.knownVersion != null
+        && Number.isSafeInteger(knownVersion) && knownVersion >= 0;
+      // A version-aware read replaces two sequential database requests.
+      // When the board hasn't changed, PostgREST returns no state at all.
+      const gameRows = await rest(
+        `arena_journey_games?room_id=eq.${roomId}&select=version,state${hasKnownVersion ? `&version=neq.${knownVersion}` : ''}&limit=1`,
+      );
+      const snapshot = gameRows?.[0];
+      if (!snapshot && hasKnownVersion) {
+        return json({ unchanged: true, version: knownVersion });
+      }
+      if (!snapshot) {
         if (context.room.status !== 'playing') return json({ error: 'That match is no longer live.' }, 410);
         const initialized = await ensureInterTentBoard(roomId, context);
         if (initialized) return json(initialized);
@@ -211,10 +222,6 @@ Deno.serve(async (request) => {
           joinedPlayers: joined,
         });
       }
-      if (body.knownVersion != null && Number(body.knownVersion) === Number(versionRow.version)) {
-        return json({ unchanged: true, version: versionRow.version });
-      }
-      const snapshot = await gameRow(roomId);
       if (context.room.status === 'completed' && snapshot.state?.game?.status !== 'finished') {
         return json({ error: 'That match is no longer live.' }, 410);
       }
