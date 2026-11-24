@@ -94,13 +94,18 @@ export async function startFapshiPayment(input: {
   amount: number;
   reference: string;
   name: string;
-  mobileMoney?: { phone: string };
+  mobileMoney?: { phone: string; method?: 'mtn_momo' | 'orange_money' };
 }): Promise<{ transId?: string; checkoutUrl?: string; declined?: true; reason?: string }> {
   try {
     const response = await api(input.mobileMoney ? "/direct-pay" : "/initiate-pay", {
       amount: input.amount,
       // Let Fapshi detect the carrier from the number.
       phone: input.mobileMoney?.phone,
+      // Explicit carrier routing avoids relying on Fapshi's phone prefix
+      // inference, which can be ambiguous for ported Cameroon numbers.
+      ...(input.mobileMoney?.method ? {
+        medium: input.mobileMoney.method === 'orange_money' ? 'orange money' : 'mobile money',
+      } : {}),
       // An order-scoped lookup ID recovers a lost response without sharing the
       // member's internal user ID or creating a second checkout.
       userId: input.reference,
@@ -274,7 +279,7 @@ export async function verifyFapshiPayment(payment: FapshiPayment, callbackId?: s
   if (verified.status === "EXPIRED" || (verified.status === "FAILED" && direct)) {
     const reason = verified.status === "EXPIRED"
       ? (direct ? "Payment approval expired." : "The checkout link expired.")
-      : directPaymentFailure(verified) ?? "Fapshi payment was not completed.";
+      : directPaymentFailure(verified) ?? "Fapshi rejected the mobile money request without specifying why. Check the chosen MTN or Orange Money network and request a new approval prompt.";
     const rejected = await database("rpc/reject_campay_payment", {
       method: "POST",
       body: JSON.stringify({ ...common, p_reason: reason }),
