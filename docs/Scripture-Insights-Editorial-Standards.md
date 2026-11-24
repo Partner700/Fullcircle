@@ -35,6 +35,23 @@ Research starting points:
 
 These are theological perspectives adopted for the app's editorial voice. They are not asserted as neutral scholarly consensus.
 
+## Plain-language and scholarly-literacy discovery types
+
+Every Did You Know? should answer a clear question arising from the **exact verse**, using simple language for curious younger readers without talking down to them. The field `scripture_did_you_know.category` labels the type:
+
+- `plain_language` — translate an unfamiliar expression into a modern equivalent; e.g., *middle watch* in Judges 7:19 was the middle night guard shift, approximately 10 PM–2 AM under a three-watch system, **not an exact universal clock time**.
+- `ancient_culture` — explain what watches, city gates, threshing floors, inheritance, covenants, lamps, shekels, sandals, guest rooms and other ordinary details meant to the people who used them.
+- `scholarly_agreement` — describe broad agreement with accurate scope; e.g., Pilate's office is independently attested, while evidence for a ruler does not prove all reported conversations.
+- `scholarly_debate` — name the real issue and significant views without pretending every suggestion is equally supported; e.g., authorship, composition, original-language nuances, manuscript variants, disputed archaeological identification.
+- `earliest_evidence` — carefully distinguish the **first book in the Bible's order**, the **first book composed**, the **oldest surviving fragment**, the **earliest discovered fragment**, the **earliest substantially complete scroll**, and the **oldest complete manuscript**. A find's *date of discovery* is different from its *date of copying*.
+- `original_language` — a checked Hebrew, Aramaic, Greek, or historically relevant Latin word, with transliteration and one useful contextual meaning.
+- `textual_connection` — surprising internal Bible cross-reference, with the relevant references.
+- `scripture_detail` — a precise unusual detail readers can check directly in the passage.
+
+When the earliest author or book cannot be established, say that scholars disagree rather than declaring Job, Genesis, or another book the uncontested first-written work. Present the strongest evidence for a debated wording/chronology and cite the work in the small source note.
+
+For technical terms, spell out what the event or object would look like *today*, then note how the ancient system differs. This is the model for bringing every translation into understandable language without rewriting the Bible itself.
+
 ## Did You Know? is different from Instructor Insights
 
 - Each chapter in the **66-book, 1,189-chapter canon** must ultimately have at least **two different verified facts**, placed on different verses wherever the chapter has enough verses.
