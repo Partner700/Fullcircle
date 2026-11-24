@@ -12,6 +12,7 @@ import { fetchEditionChapter, readScriptureEdition, saveScriptureEdition, SCRIPT
 import { useReadingPosition } from '../../lib/useReadingPosition';
 import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, toggleVerseInsightReaction } from '../../lib/queries';
 import { supabase } from '../../lib/supabase';
+import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import type { PanelImageSetting } from '../../lib/types';
 
 const books = BIBLE_BOOKS.map((book, index) => ({
@@ -53,6 +54,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const verseMark = useScriptureVerseMarks(profile?.id, text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
+  const instructorExtras = useInstructorVerseExtras(text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
 
   useReadingPosition(reader,profile?.id,`bible-${book.slug}-${chapter}`,Boolean(text),Boolean(pendingTarget),true);
   useEffect(()=>{saveBibleReadingLocation(profile?.id,{bookIndex,chapter});},[profile?.id,bookIndex,chapter]);
@@ -242,6 +244,8 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
               : personalHighlight === 'insight' ? 'verse-highlight-mine' : '';
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
+            <InstructorVerseExtras context={instructorExtras.contexts[reference]}
+              quest={instructorExtras.quests[reference]} onClaimed={instructorExtras.refresh} />
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-ghost text-xs" aria-expanded={openVerse === verse.number} onClick={() => {
                 setOpenVerse(openVerse === verse.number ? null : verse.number);
