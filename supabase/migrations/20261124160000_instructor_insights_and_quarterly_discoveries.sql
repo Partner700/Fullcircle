@@ -217,7 +217,7 @@ begin
       and (select count(*) from public.fcx_registrations where event_id=v_event.id)<v_event.capacity
    then
      insert into public.fcx_registrations(event_id,user_id,payment_source,added_by)
-     values(v_event.id,v_user,'scripture_reward',v_user);
+     values(v_event.id,v_user,'app',v_user);
      v_registered:=true;
      insert into public.quarterly_verse_fcx_awards(quest_id,user_id,event_id,status)
      values(p_quest_id,v_user,v_event.id,'registered');
@@ -235,3 +235,8 @@ begin
 end $function$;
 revoke all on function public.answer_quarterly_verse_quest(uuid,text) from public,anon;
 grant execute on function public.answer_quarterly_verse_quest(uuid,text) to authenticated,service_role;
+
+-- Allow Scripture first-finder Denarii awards as a distinct audited ledger source.
+alter table public.denarii_ledger_entries drop constraint if exists denarii_ledger_entries_source_type_check;
+alter table public.denarii_ledger_entries add constraint denarii_ledger_entries_source_type_check
+ check(source_type=any(array['game_level'::text,'game_blitz'::text,'quiz_reward'::text,'fortune_quiz_reward'::text,'relic_purchase'::text,'relic_reward'::text,'admin_adjustment'::text,'hint_purchase'::text,'answer_reveal'::text,'freezer_daily'::text,'freezer_weekly'::text,'attendance'::text,'arena_stake'::text,'arena_fee'::text,'arena_reward'::text,'mobile_money'::text,'campay_payment'::text,'notification_opt_in'::text,'challenge_submission'::text,'dove_question_cost'::text,'dove_question_reward'::text,'hidden_item_purchase'::text,'treasure_escrow'::text,'treasure_reward'::text,'treasure_refund'::text,'mine_penalty'::text,'mine_reward'::text,'player_number_purchase'::text,'fcx_ticket'::text,'verse_quest'::text]));
