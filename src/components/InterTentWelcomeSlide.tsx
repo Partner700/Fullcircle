@@ -12,5 +12,11 @@ export function useInterTentWelcomeSlide(viewerId: string|undefined, openArena:(
   const ids=[...new Set(fixture?.sides.flatMap(s=>s.players.map(p=>p.id))||[])].sort().join(',');
   useEffect(()=>{if(!ids)return;let active=true;void supabase.from('profiles').select('id,avatar_url').in('id',ids.split(',')).then(({data,error})=>{if(active&&!error)setAvatars(Object.fromEntries((data||[]).map(p=>[p.id,p.avatar_url])));});return()=>{active=false;};},[ids]);
   if(!current||!fixture)return null;
-  return <div className="space-y-2"><div className="flex flex-wrap items-center justify-between gap-2"><p className="eyebrow text-gold">{fixture.room_status==='playing'?'Live championship':'Next championship match'}</p><button type="button" onClick={openArena} className="btn-ghost text-[11px] font-semibold text-ink">View Arena fixtures</button></div><InterTentMatchCard compact fixture={fixture} avatars={avatars} participant={fixture.sides.some(s=>s.players.some(p=>p.id===viewerId))} draft={current.event.status==='draft'} livePlayers={fixture.room_id?scores.get(fixture.room_id):undefined} onOpen={openArena}/></div>;
+  const openCurrentMatch = () => {
+    if (fixture.room_id && ['waiting', 'playing'].includes(fixture.room_status || '')) {
+      try { window.sessionStorage.setItem('full-circle-welcome-match-room', fixture.room_id); } catch { /* Browser may deny storage. */ }
+    }
+    openArena();
+  };
+  return <div className="space-y-2"><div className="flex flex-wrap items-center justify-between gap-2"><p className="eyebrow text-gold">{fixture.room_status==='playing'?'Live championship':'Next championship match'}</p><button type="button" onClick={openArena} className="btn-ghost text-[11px] font-semibold text-ink">View Arena fixtures</button></div><InterTentMatchCard compact fixture={fixture} avatars={avatars} participant={fixture.sides.some(s=>s.players.some(p=>p.id===viewerId))} draft={current.event.status==='draft'} livePlayers={fixture.room_id?scores.get(fixture.room_id):undefined} onOpen={openCurrentMatch}/></div>;
 }
