@@ -5,94 +5,125 @@ import { playSoundEffect } from '../lib/soundscape';
 import { supabase } from '../lib/supabase';
 
 const HEART_MESSAGE = '❤️';
-
+type ReactionPlayer = { user_id: string; display_name: string; avatar_url?: string | null };
 type HeartProps = {
   roomId: string;
   userId: string;
   guestKey?: string;
+  spectator?: boolean;
+  players?: ReactionPlayer[];
 };
+type FlyingHeart = { id: number; size: number; drift: number; delay: number; left: number };
 
-export function ArenaHeartReaction({ roomId, userId, guestKey }: HeartProps) {
-  const [hearts, setHearts] = useState<number[]>([]);
+export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false, players = [] }: HeartProps) {
+  const [hearts, setHearts] = useState<FlyingHeart[]>([]);
+  const [glowing, setGlowing] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const nextHeart = useRef(0);
+  const counter = useRef(0);
   const lastSent = useRef(0);
   const pending = useRef(false);
   const timers = useRef<number[]>([]);
+  const glowTimer = useRef<number | null>(null);
 
   useEffect(() => {
+    setHearts([]);
+    setGlowing(null);
     return () => {
-      timers.current.forEach((timer) => window.clearTimeout(timer));
+      timers.current.forEach(id => window.clearTimeout(id));
       timers.current = [];
+      if (glowTimer.current !== null) window.clearTimeout(glowTimer.current);
     };
   }, [roomId]);
 
-  const burst = () => {
-    const ids = Array.from({ length: 5 }, () => ++nextHeart.current);
-    setHearts((previous) => [...previous.slice(-20), ...ids]);
+  const burst = (targetId = '') => {
+    const index = players.findIndex(p => p.user_id === targetId);
+    const origin = index < 0 ? 22 : 78 + (index * 44);
+    const ids: FlyingHeart[] = Array.from({ length: 3 + ((++counter.current) % 2) }, (_, i) => ({
+      id: ++counter.current,
+      size: [13, 22, 17, 27][i],
+      drift: [-19, 14, -8, 24][i],
+      delay: i * 65,
+      left: origin,
+    }));
+    setHearts(previous => [...previous.slice(-32), ...ids]);
     const timeout = window.setTimeout(() => {
-      setHearts((previous) => previous.filter((id) => !ids.includes(id)));
-    }, 2000);
+      setHearts(previous => previous.filter(heart => !ids.some(item => item.id === heart.id)));
+    }, 1600);
     timers.current.push(timeout);
+    if (spectator) {
+      setGlowing(targetId || 'heart');
+      if (glowTimer.current !== null) window.clearTimeout(glowTimer.current);
+      glowTimer.current = window.setTimeout(() => setGlowing(null), 1050);
+    }
   };
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`arena-heart-reactions-${roomId}`)
+    const channel = supabase.channel(`arena-heart-reactions-${roomId}`)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'arena_room_messages', filter: `room_id=eq.${roomId}`,
-      }, (payload) => {
+      }, payload => {
         const message = payload.new as { body?: string; sender_id?: string | null };
         if (message.body !== HEART_MESSAGE) return;
-        // The sender has already seen an instant optimistic reaction.
         if (message.sender_id === userId && Date.now() - lastSent.current < 4000) return;
         burst();
-      })
-      .subscribe();
+      }).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [roomId, userId]);
 
-  const sendHeart = async () => {
-    if (pending.current || Date.now() - lastSent.current < 850) return;
+  const sendHeart = async (targetId = '') => {
+    // Only witnesses may send: participants see the floating hearts, not controls.
+    if (!spectator || pending.current || Date.now() - lastSent.current < 850) return;
     if (!guestKey && !userId) return;
     pending.current = true;
     lastSent.current = Date.now();
     setError('');
-    burst();
+    burst(targetId);
     try {
       if (guestKey) await postPublicArenaComment(roomId, guestKey, HEART_MESSAGE);
       else await sendArenaRoomMessage(roomId, userId, HEART_MESSAGE);
     } catch {
-      setError('Could not send your heart. Try again.');
+      setError('The reaction could not be sent.');
     } finally {
       pending.current = false;
     }
   };
 
-  return (
-    <>
-      <div className="fixed left-4 z-[2147483011]" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
-        <button
-          type="button"
-          className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-rose-300 bg-rose-900 text-rose-100 shadow-xl transition-transform active:scale-90"
-          onClick={() => void sendHeart()}
-          aria-label="Send a heart reaction to the match"
-          title="Send love to the players"
-        >
-          <Heart size={26} fill="currentColor" aria-hidden="true" />
-        </button>
-        {error && <span className="absolute bottom-14 left-0 w-48 rounded-md border border-coral bg-bg px-2 py-1.5 text-xs text-coral shadow-lg" role="alert">{error}</span>}
-      </div>
-      <div aria-hidden="true" className="pointer-events-none fixed bottom-16 left-4 z-[2147483012] h-64 w-24 overflow-visible">
-        {hearts.map((id, index) => (
-          <span key={id} className="fc-arena-heart-float absolute bottom-0 left-3 text-2xl"
-            style={{ '--heart-drift': `${(id % 5 - 2) * 14}px`, animationDelay: `${index % 5 * 0.06}s` } as React.CSSProperties}>
-            {HEART_MESSAGE}
-          </span>
+  return (<>
+    <style>{`
+      @keyframes fc-yellow-hearts-rise {
+        0% { transform: translate3d(0,0,0) scale(1.14); opacity: 0.97; filter: drop-shadow(0 0 8px #facc15); }
+        55% { opacity: .84; }
+        100% { transform: translate3d(var(--fc-drift),-125px,0) scale(.08); opacity: 0; filter: drop-shadow(0 0 0 transparent); }
+      }
+      .fc-yellow-heart-float { animation: fc-yellow-hearts-rise 1.35s ease-out forwards; }
+      @media (prefers-reduced-motion: reduce) {
+        .fc-yellow-heart-float { animation-duration: .25s; }
+      }
+    `}</style>
+    {spectator && <div className="fixed left-3 z-[2147483011] flex max-w-[min(92vw,390px)] items-end gap-2 rounded-xl border border-white/15 bg-[#0b1730]/90 p-2 shadow-2xl"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }} aria-label="Witness reactions">
+      <button type="button" onClick={() => void sendHeart()} aria-label="Send yellow hearts to the match"
+        title="Cheer for the match" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 transition-all active:scale-90 ${glowing === 'heart' ? 'border-yellow-300 bg-yellow-300/20 text-yellow-300 shadow-[0_0_22px_6px_rgba(250,204,21,.8)]' : 'border-white/70 bg-white/10 text-white'}`}>
+        <Heart size={25} fill="currentColor" aria-hidden="true"/>
+      </button>
+      <div className="flex min-w-0 gap-2 overflow-x-auto" aria-label="Cheer for a specific player">
+        {players.filter(p => p.user_id !== '00000000-0000-0000-0000-000000000000' && p.user_id !== 'arena-machine').map(player => (
+          <button type="button" key={player.user_id} onClick={() => void sendHeart(player.user_id)} title={`Cheer for ${player.display_name}`}
+            aria-label={`Send hearts for ${player.display_name}`}
+            className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-full border-2 bg-[#142849] text-white transition-all active:scale-90 ${glowing === player.user_id ? 'border-yellow-300 shadow-[0_0_22px_5px_rgba(250,204,21,.75)]' : 'border-white/50'}`}>
+            {player.avatar_url ? <img src={player.avatar_url} alt="" className="h-full w-full object-cover"/> : <span className="flex h-full w-full items-center justify-center text-sm font-black">{player.display_name.slice(0,1).toUpperCase()}</span>}
+          </button>
         ))}
       </div>
-    </>
-  );
+      {error && <span role="alert" className="absolute bottom-full left-0 mb-2 rounded-md bg-[#401b1b] p-2 text-xs text-white">{error}</span>}
+    </div>}
+    <div aria-hidden="true" className="pointer-events-none fixed bottom-16 left-3 z-[2147483012] h-52 w-[min(92vw,390px)] overflow-visible">
+      {hearts.map(heart => <Heart key={heart.id} fill="#facc15" stroke="#fde047" className="fc-yellow-heart-float absolute bottom-0"
+        style={{ left: heart.left, width: heart.size, height: heart.size,
+          '--fc-drift': `${heart.drift}px`, animationDelay: `${heart.delay}ms`,
+        } as React.CSSProperties}/>)}
+    </div>
+  </>);
 }
 
 type TurnProps = {
