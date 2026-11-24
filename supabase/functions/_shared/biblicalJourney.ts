@@ -530,7 +530,15 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
     if (won) {
       player.status = 'FINISHED';
       game.status = 'finished';
-      game.winnerId = player.id;
+      // The finish ends the contest, but the winner is the highest-scoring
+      // competitor. Reaching the course end only breaks an exact points tie.
+      // This also applies against The Scribe: a low-scoring machine must not
+      // be announced as winner over a higher-scoring human without a forfeit.
+      const ranked = [...game.players].sort((a, b) =>
+        journeyScore(b) - journeyScore(a)
+        || Number(b.completedLaps || 0) - Number(a.completedLaps || 0)
+        || (a.id === player.id ? -1 : b.id === player.id ? 1 : a.id.localeCompare(b.id)));
+      game.winnerId = ranked[0].id;
       record(game, player, 'qualifying-finish', 'victory', player.location, 'reveal');
       game.version += 1;
       return game;
