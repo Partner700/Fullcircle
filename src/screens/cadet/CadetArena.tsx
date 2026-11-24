@@ -1726,7 +1726,6 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 animate-fade-in">
-      <ArenaHeartReaction roomId={room.id} userId={userId} guestKey={guestKey} spectator players={participants.map((p: any) => ({ user_id: p.user_id, display_name: p.profiles?.display_name || 'Arena player', avatar_url: p.profiles?.avatar_url || null }))} />
       <div className="flex items-center justify-between gap-3 px-1">
         <button type="button" onClick={onExit} className="btn-ghost text-sm"><ArrowLeft size={14} /> Arena</button>
         <span className="badge badge-gold"><Eye size={12} /> Witnessing Live</span>
@@ -1768,6 +1767,7 @@ export function ArenaStandardSpectator({ room, userId, onExit, allowChallenges, 
         onGameCallCreated={allowChallenges ? onGameCallCreated : undefined}
         onGameCallAction={allowChallenges ? onGameCallAction : undefined}
       />
+      <ArenaHeartReaction roomId={room.id} userId={userId} guestKey={guestKey} spectator players={participants.map((p: any) => ({ user_id: p.user_id, display_name: p.profiles?.display_name || 'Arena player', avatar_url: p.profiles?.avatar_url || null }))} />
       {showWitnessQuestion && activeWitnessQuestion && (
         <ArenaWitnessQuestionOverlay
           state={activeWitnessQuestion}
