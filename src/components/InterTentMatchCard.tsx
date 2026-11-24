@@ -42,7 +42,7 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
   children?: ReactNode;
 }) {
   const canOpen = Boolean(fixture.room_id && (fixture.room_status === 'waiting' || fixture.room_status === 'playing'));
-  const status = fixture.result ? 'Completed' : draft ? 'Qualification pending' : fixture.room_status === 'playing' ? 'Live now' : fixture.room_status === 'waiting' ? 'Ready to enter' : fixture.sides.length ? 'Scheduled' : 'Awaiting qualifiers';
+  const status = fixture.result ? 'Completed' : draft ? 'Qualification pending' : fixture.room_status === 'playing' ? 'Live now' : fixture.room_status === 'waiting' ? 'Scheduled' : fixture.sides.length ? 'Scheduled' : 'Awaiting qualifiers';
   const journeyLabel = fixture.journey_secret ? 'Surprise Journey' : fixture.journey_character_slug ? fixture.journey_character_slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Adam Eve', 'Adam & Eve').replace('Daniel Nebuchadnezzar', 'Daniel & Nebuchadnezzar') : 'Journey Trivia';
   const live=fixture.room_status==='playing'&&!fixture.result;
   const scoreById=new Map((livePlayers||[]).map(p=>[p.user_id,arenaPlayerScore(p)]));
