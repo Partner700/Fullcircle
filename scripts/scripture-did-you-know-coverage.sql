@@ -19,7 +19,7 @@ with canonical(book,chapter_count) as (values
   ('Nehemiah',13),
   ('Esther',10),
   ('Job',42),
-  ('Psalm',150),
+  ('Psalms',150),
   ('Proverbs',31),
   ('Ecclesiastes',12),
   ('Song of Solomon',8),
