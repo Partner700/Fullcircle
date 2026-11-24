@@ -339,7 +339,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
   return <div className="space-y-4">
-    <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} />
+    <ArenaHeartReaction roomId={roomId} userId={userId} guestKey={guestKey} spectator={spectator} players={players} />
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
