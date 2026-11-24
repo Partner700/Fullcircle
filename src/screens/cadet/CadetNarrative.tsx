@@ -1250,8 +1250,10 @@ export function CadetNarrative({
                       </div>
                     )}
                     {(instructorExtras.contexts[bibleReference || verse.reference]
+                      || instructorExtras.facts[bibleReference || verse.reference]
                       || instructorExtras.quests[bibleReference || verse.reference]) && (
                       <InstructorVerseExtras context={instructorExtras.contexts[bibleReference || verse.reference]}
+                        fact={instructorExtras.facts[bibleReference || verse.reference]}
                         quest={instructorExtras.quests[bibleReference || verse.reference]}
                         onClaimed={instructorExtras.refresh} />
                     )}
