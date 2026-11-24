@@ -55,8 +55,20 @@ export function useInstructorVerseExtras(references: string[]) {
       ]);
       if (!active) return;
       if (contextResult.status === 'fulfilled' && !contextResult.value.error) {
-        setContexts(Object.fromEntries(((contextResult.value.data || []) as InstructorVerseContext[])
-          .map(item => [item.reference, item])));
+        // A passage should not repeat the same generic commentary at every
+        // verse. Keep the first matching verse in reading order for each insight.
+        const byReference = new Map(((contextResult.value.data || []) as InstructorVerseContext[]).map(item => [item.reference, item]));
+        const seen = new Set<string>();
+        const selected: InstructorVerseContext[] = [];
+        for (const reference of verseRefs) {
+          const item = byReference.get(reference);
+          if (!item) continue;
+          const signature = [item.historical_context, item.spiritual_context, item.present_day_context].join('|');
+          if (seen.has(signature)) continue;
+          seen.add(signature);
+          selected.push(item);
+        }
+        setContexts(Object.fromEntries(selected.map(item => [item.reference, item])));
       } else {
         setError('Instructor insights are temporarily unavailable.');
       }
@@ -108,6 +120,16 @@ export function InstructorVerseExtras({ context, fact, quest, onClaimed }: {
     }
   };
 
+  const historicalIsSupported = Boolean(context?.evidence_note || context?.lexical_note);
+  const allThreeAreUseful = historicalIsSupported && (context?.source_titles?.length || 0) >= 2
+    && Boolean(context?.present_day_context?.trim());
+  const insightSections = context ? ([
+    ...(historicalIsSupported ? [['Historical context', context.historical_context, Landmark] as const] : []),
+    ...(context.spiritual_context?.trim() ? [['Spiritual context', context.spiritual_context, Lightbulb] as const] : []),
+    ...((!historicalIsSupported || allThreeAreUseful) && context.present_day_context?.trim()
+      ? [['Psychosocial / Present-day context', context.present_day_context, Sparkles] as const] : []),
+  ]) : [];
+
   if (!context && !fact && !quest) return null;
   return <>
     <div className="my-3 space-y-2 rounded-xl border border-amber-400/40 bg-surface/95 p-3">
@@ -118,12 +140,8 @@ export function InstructorVerseExtras({ context, fact, quest, onClaimed }: {
           <ChevronDown size={16} className="shrink-0 transition-transform group-open/insights:rotate-180" />
         </summary>
         <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
-          <p className="text-xs leading-relaxed text-stone">Explore the setting, spiritual message and practical meaning of this passage.</p>
-        {([
-          ['Historical context', context.historical_context, Landmark],
-          ['Spiritual context', context.spiritual_context, Lightbulb],
-          ['Psychosocial / Present-day context', context.present_day_context, Sparkles],
-        ] as const).map(([title, content, Icon]) => (
+          <p className="text-xs leading-relaxed text-stone">Only the most useful context for this verse is shown. Other sections appear when they add something distinct.</p>
+        {insightSections.map(([title, content, Icon]) => (
           <details key={title} className="group/context overflow-hidden rounded-lg border border-border bg-surface-2">
             <summary className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm font-semibold text-ink">
               <Icon size={16} className="shrink-0 text-brass" />
