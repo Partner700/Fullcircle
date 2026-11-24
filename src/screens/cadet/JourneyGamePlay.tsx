@@ -142,7 +142,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     // The Journey state endpoint accepts a version cursor and returns
     // unchanged when no move occurred. Witnesses do not need the same
     // five-second cadence as players actively issuing commands.
-    const interval = window.setInterval(() => void load(), spectator ? 12_000 : 5_000);
+    const interval = window.setInterval(() => void load(), spectator ? 24_000 : 12_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
