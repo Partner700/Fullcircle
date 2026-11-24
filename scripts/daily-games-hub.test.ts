@@ -66,7 +66,8 @@ assert.match(sentryPremiumTabs, /'arena'/);
 assert.doesNotMatch(sentryPremiumTabs, /'(?:games|game)'/, 'Sentry Daily Games stay available without a subscription.');
 assert.doesNotMatch(sentryApp, /tab === '(?:games|game)' && \(isExpired/, 'Daily Games must render for expired sentries.');
 const sharedDestination = read('src/screens/MemberShareDestination.tsx');
-assert.match(sharedDestination, /const protectedTarget = target.kind === 'quiz' \|\| target.kind === 'arena';/);
+assert.match(sharedDestination, /const protectedTarget = target.kind === 'arena';/);
+assert.match(sharedDestination, /\(protectedTarget \|\| target.kind === "quiz"\) && loading/);
 
 for (const requiredActivityBoundary of [
   'get_game_activity_players',
