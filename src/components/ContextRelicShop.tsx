@@ -5,7 +5,7 @@ import { ShoppingCart, X } from 'lucide-react';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { registerGameRelicShortcut } from '../lib/gameRelicShortcut';
 import { useDraggableShortcut } from '../hooks/useDraggableShortcut';
-import { fetchRelicInventory, fetchPanelImageSetting, purchaseRelic, useRelic } from '../lib/queries';
+import { fetchMarketBalance, fetchRelicInventory, fetchPanelImageSetting, purchaseRelic, useRelic } from '../lib/queries';
 import { relicCashBundles, relicMoneyPriceXaf } from '../lib/relicPricing';
 import { supabase } from '../lib/supabase';
 import { userFacingError } from '../lib/connectionErrors';
@@ -52,7 +52,7 @@ export function ContextRelicShop({ userId, slugs, onChanged, timed, activateOwne
     const [{ data, error: catalogError }, wallet, inventory] = await Promise.all([
       supabase.from('relic_types').select('id,slug,name,denarii_cost,money_price_xaf,money_price_usd,cash_bundles')
         .eq('is_active', true).in('slug', slugKey.split(',')).order('name'),
-      supabase.rpc('get_user_denarii_total', { p_user_id: userId }),
+      fetchMarketBalance(userId).then(data => ({ data, error: null })).catch(error => ({ data: null, error })),
       showOwned ? fetchRelicInventory(userId).catch(() => null) : Promise.resolve([]),
     ]);
     if (version !== request.current) return;
