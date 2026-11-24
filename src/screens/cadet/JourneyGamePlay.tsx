@@ -115,7 +115,11 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
         try { applyResponse(await initializeJourney(roomId)); }
         finally { initializationRef.current = false; }
       } else if (response.needsInitialization) {
-        setError('The Journey board is opening. It will appear here shortly.');
+        setError(response.waitingForPlayers
+          ? 'The room has started, but no selected player has entered the Journey yet. The board will appear when a player enters.'
+          : spectator
+            ? 'The Arena is preparing the Journey board. If it does not open, ask a selected player to enter the match.'
+            : 'The Journey is preparing the first round. Tap Try again if the board does not open.');
       } else {
         applyResponse(response);
       }
