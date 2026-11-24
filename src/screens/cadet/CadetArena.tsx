@@ -250,15 +250,21 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         await leaveArenaRoomView(roomId).catch(() => undefined);
         throw new Error('This Arena match has ended and cannot be witnessed.');
       }
-      setIsSpectating(true);
-      setActiveRoomId(roomId);
-      setPhase((freshRoom?.status || roomStatus) === 'waiting' ? 'waiting' : 'playing');
+      // Database may auto-enroll a selected inter-tent competitor on entry.
+      const joined = freshRoom?.arena_participants?.some((player: any) =>
+        player.user_id === profile.id && !player.forfeited_at);
+      if (joined) activateRoom(roomId, freshRoom?.status === 'waiting' ? 'waiting' : 'playing');
+      else {
+        setIsSpectating(true);
+        setActiveRoomId(roomId);
+        setPhase((freshRoom?.status || roomStatus) === 'waiting' ? 'waiting' : 'playing');
+      }
       return true;
     } catch (watchError: any) {
       setError(watchError?.message || 'This live Arena match could not be witnessed.');
       return false;
     }
-  }, [profile, refreshRoom]);
+  }, [activateRoom, profile, refreshRoom]);
 
   const openedShareRef = useRef<string | null>(null);
   useEffect(() => {
@@ -270,6 +276,14 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         setIsSpectating(true); setActiveRoomId(requestedRoomId); setPhase('finished');
       } else if (room?.arena_participants?.some((person: { user_id: string; forfeited_at?: string | null }) => person.user_id === profile.id && !person.forfeited_at)) {
         activateRoom(requestedRoomId, room.status === 'completed' ? 'finished' : room.status === 'waiting' ? 'waiting' : 'playing');
+      } else if (room?.scheduled && room.scheduled_player_ids?.includes(profile.id)) {
+        try {
+          await joinInstructorArenaMatch(requestedRoomId);
+          await refreshRoom(requestedRoomId);
+          activateRoom(requestedRoomId, room.status === 'waiting' ? 'waiting' : 'playing');
+        } catch (joinError) {
+          setError(joinError instanceof Error ? joinError.message : 'The match could not be entered.');
+        }
       } else {
         await watchRoom(requestedRoomId);
       }
@@ -743,7 +757,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
   const joinRoom = async (roomId: string) => {
     if (!profile) return;
     try {
-      const selectedRoom = rooms.find((room) => room.id === roomId);
+      const selectedRoom = rooms.find((room) => room.id === roomId) || await refreshRoom(roomId);
       if (selectedRoom?.scheduled) await joinInstructorArenaMatch(roomId);
       else await joinArenaRoom(roomId, profile.id);
       activateRoom(roomId, selectedRoom?.status === 'playing' ? 'playing' : 'waiting');
@@ -1130,8 +1144,9 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         try {
           const fresh=await refreshRoom(id);
           if(fresh?.arena_participants?.some((p:any)=>p.user_id===profile.id&&!p.forfeited_at)){activateRoom(id,status);return;}
-          if(status==='playing'){await watchRoom(id,status);return;}
-          await joinInstructorArenaMatch(id);activateRoom(id,'waiting');await refreshRoom(id);
+          await joinInstructorArenaMatch(id);
+          activateRoom(id,status === 'playing' ? 'playing' : 'waiting');
+          await refreshRoom(id);
         } catch(e){setError(e instanceof Error?e.message:'The tournament match could not be opened.');}
       }} />}
 
@@ -1291,11 +1306,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
             const participants = room.arena_participants || [];
             const witnesses = (room.arena_viewers || []) as ArenaViewer[];
             const isParticipant = participants.some((participant: any) => participant.user_id === profile?.id && !participant.forfeited_at);
-            const canJoinLate = !witnessOnly && room.scheduled
-              && room.room_name.includes('[intertent]')
-              && room.scheduled_player_ids?.includes(profile?.id)
-              && !isParticipant
-              && room.started_at && Date.now() < Date.parse(room.started_at) + 5 * 60 * 1000;
+            const isSelectedPlayer = Boolean(room.scheduled && room.scheduled_player_ids?.includes(profile?.id));
             return (
               <div data-artwork-theme={arenaImage?.url ? 'night' : undefined} key={room.id} className="card relative overflow-hidden p-4">
                 <PanelImageBackdrop image={arenaImage} opacityFallback={20} veilClassName="arena-panel-veil" />
@@ -1315,19 +1326,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
                   <div className="flex items-center justify-between gap-3 sm:justify-end">
                     <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(room.arena_guest_witness_count) || 0} compact />
                     <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena match" aria-label="Share Arena match" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
-                    {canJoinLate && (
-                      <button type="button" className="btn-secondary text-xs"
-                        onClick={() => void joinRoom(room.id)}>
-                        <Play size={14} /> Join live match
-                      </button>
-                    )}
                     <button
                       type="button"
-                      onClick={() => !witnessOnly && isParticipant ? activateRoom(room.id, 'playing') : void watchRoom(room.id)}
+                      onClick={() => (isParticipant
+                        ? activateRoom(room.id, 'playing')
+                        : isSelectedPlayer ? void joinRoom(room.id) : void watchRoom(room.id))}
                       className="btn-primary min-w-[6.5rem] text-xs"
                     >
-                      {!witnessOnly && isParticipant ? <Play size={14} /> : <Eye size={14} />}
-                      {!witnessOnly && isParticipant ? 'Enter Game' : 'Witness'}
+                      {isParticipant || isSelectedPlayer ? <Play size={14} /> : <Eye size={14} />}
+                      {isParticipant || isSelectedPlayer ? 'Enter Game' : 'Witness'}
                     </button>
                   </div>
                 </div>
