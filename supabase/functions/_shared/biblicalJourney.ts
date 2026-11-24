@@ -239,7 +239,10 @@ function record(game: JourneyGame, player: JourneyPlayer, source: string, effect
 function nextTurn(game: JourneyGame) {
   if (game.status !== 'playing') return;
   const current = game.players[game.turnIndex];
-  const bonus = game.bonusTurnPlayerId === current.id;
+  // Inter-tent championship play uses strict round-robin turns so that
+  // every joined competitor rolls once before the rotation repeats.
+  // Standard/machine Journey still keeps the usual six-roll bonus.
+  const bonus = !game.tentSides && game.bonusTurnPlayerId === current.id;
   game.bonusTurnPlayerId = null;
   if (bonus && !isImprisoned(current)) {
     record(game, current, 'six-bonus', 'extra-turn', structuredClone(current.location), 'reveal');
