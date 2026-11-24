@@ -78,6 +78,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   const [publicPlayers, setPublicPlayers] = useState<ArenaMatchupPlayer[] | null>(null);
   const versionRef = useRef<number | null>(null);
   const fetchingRef = useRef(false);
+  const failedReadsRef = useRef(0);
+  const nextReadAfterRef = useRef(0);
   const initializationRef = useRef(false);
   const commandRef = useRef<{ signature: string; id: string } | null>(null);
   const completedRef = useRef(false);
@@ -105,8 +107,9 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     }
   }, []);
 
-  const load = useCallback(async () => {
-    if (fetchingRef.current || document.visibilityState === 'hidden') return;
+  const load = useCallback(async (force = false) => {
+    if (fetchingRef.current || document.visibilityState === 'hidden'
+      || (!force && Date.now() < nextReadAfterRef.current)) return;
     fetchingRef.current = true;
     try {
       const response = await fetchJourneyState(roomId, versionRef.current ?? undefined);
@@ -123,8 +126,15 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
       } else {
         applyResponse(response);
       }
+      failedReadsRef.current = 0;
+      nextReadAfterRef.current = 0;
     } catch (loadError) {
       if (versionRef.current === null) setError(message(loadError));
+      // An overloaded server should not receive repeat requests from every
+      // connected phone at the normal cadence. Keep the last known board.
+      failedReadsRef.current = Math.min(failedReadsRef.current + 1, 5);
+      nextReadAfterRef.current = Date.now()
+        + Math.min(60_000, 6_000 * 2 ** (failedReadsRef.current - 1));
     } finally {
       fetchingRef.current = false;
       setLoading(false);
@@ -133,6 +143,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
 
   useEffect(() => {
     versionRef.current = null;
+    failedReadsRef.current = 0;
+    nextReadAfterRef.current = 0;
     eventsCursor.current = null;
     setSquareNotices([]);
     completedRef.current = false;
@@ -143,7 +155,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     // unchanged when no move occurred. Witnesses do not need the same
     // five-second cadence as players actively issuing commands.
     const interval = window.setInterval(() => void load(), spectator ? 24_000 : 12_000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(true); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, [load]);
@@ -335,7 +347,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   if (loading && !state) return <div className="flex min-h-[20rem] items-center justify-center gap-2 text-sm text-stone"><Loader2 size={18} className="animate-spin text-brass" /> Opening the Journey...</div>;
   if (!state) return <div className="flex min-h-[20rem] flex-col items-center justify-center gap-3 text-center text-sm text-stone">
     <p>{error || 'The Journey has not started yet.'}</p>
-    <button type="button" className="btn-secondary text-xs" onClick={() => void load()}><RotateCw size={15} /> Try again</button>
+    <button type="button" className="btn-secondary text-xs" onClick={() => void load(true)}><RotateCw size={15} /> Try again</button>
     <button type="button" className="btn-ghost text-xs" onClick={onExit}>Back to Arena</button>
   </div>;
   if (state.game.status === 'finished') return <ArenaFinalScorecard roomId={roomId} onExit={onExit} arenaImage={arenaImage} />;
