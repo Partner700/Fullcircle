@@ -281,7 +281,8 @@ async function run() {
     await (await cache.open(`full-circle-target-v${currentRelease}-shell`)).put(scope + 'index.html', appResponse('offline shell', '225'));
     const w = worker(async () => { throw new Error('offline'); }, cache);
     const delivered = await w.networkFirstNavigation({ url: scope, mode: 'navigate' }, w.event);
-    assert.match(await delivered.text(), /offline shell/, 'A safe cached copy remains usable when all online copies are unavailable.');
+    assert.equal(delivered.status, 503, 'A mismatched offline shell must not load under the current worker.');
+    assert.match(await delivered.text(), /Full Circle is reconnecting/, 'The app must provide a recovery route without rendering old release assets.');
   }
   {
     const cache = memoryCaches();
