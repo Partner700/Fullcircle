@@ -1357,7 +1357,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         {rooms.filter((room) => room.scheduled && room.status === 'waiting').map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{regionalDateTime(room.scheduled_start_at, profile)} · {(room.scheduled_player_ids || []).length} selected players</p></div>
           <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
-          <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>
+          {!room.scheduled_player_ids?.includes(profile?.id) && <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>}
           {room.scheduled_player_ids?.includes(profile?.id) && !(room.arena_participants || []).some((participant: any) => participant.user_id === profile?.id) && (room.arena_participants || []).length < room.max_players && <button type="button" className="btn-primary text-xs" onClick={() => void joinRoom(room.id)}><Play size={14} /> Enter Match</button>}
           {(room.arena_participants || []).some((participant: any) => participant.user_id === profile?.id) && <button type="button" className="btn-primary text-xs" onClick={() => activateRoom(room.id, 'waiting')}><Play size={14} /> Enter Room</button>}
           {(instructorSchedule || (sentrySchedule && room.is_sentry_match && room.scheduled_by === profile?.id)) && <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>}
@@ -1416,7 +1416,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
                       </div>
                     ) : room.scheduled ? (
                       <div className="flex flex-wrap items-center gap-2">
-                        <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>
+                        {!room.scheduled_player_ids?.includes(profile?.id) && <button onClick={() => void watchRoom(room.id, 'waiting')} className="btn-secondary text-xs"><Eye size={14} /> Witness</button>}
                         {sentrySchedule && room.is_sentry_match && room.scheduled_by === profile?.id && (
                           <button type="button" className="btn-ghost text-xs text-coral" onClick={() => void cancelScheduledRoom(room.id)}>Cancel</button>
                         )}
