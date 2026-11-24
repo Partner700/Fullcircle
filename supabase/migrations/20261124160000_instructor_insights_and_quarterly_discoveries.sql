@@ -284,3 +284,22 @@ drop trigger if exists apply_scripture_fcx_vouchers_on_event on public.fcx_event
 create trigger apply_scripture_fcx_vouchers_on_event
 after insert or update of is_active,event_date,capacity on public.fcx_events
 for each row execute function public.assign_quarterly_scripture_fcx_tickets();
+
+-- Use relevant original Josephus volumes and Munroe's archived official teaching platform.
+
+update public.instructor_verse_contexts t set source_links=(
+ select jsonb_agg(
+  case
+   when value='https://secure.cbn.com/700club/guests/bios/myles_munroe_043012.aspx' then 'https://www.munroeglobalmedia.com/about-us'
+   when value='https://adfonteslibrary.org/work-st-josephus-antiquities-1' and reference like 'Exodus %' then 'https://penelope.uchicago.edu/josephus/ant-2.html'
+   when value='https://adfonteslibrary.org/work-st-josephus-antiquities-1' and reference like 'Ruth %' then 'https://penelope.uchicago.edu/josephus/ant-5.html'
+   when value='https://adfonteslibrary.org/work-st-josephus-antiquities-1' and reference like '1 Samuel %' then 'https://penelope.uchicago.edu/josephus/ant-6.html'
+   when value='https://adfonteslibrary.org/work-st-josephus-antiquities-1' and reference like '2 Samuel %' then 'https://penelope.uchicago.edu/josephus/ant-7.html'
+   when value='https://adfonteslibrary.org/work-st-josephus-antiquities-1' then 'https://penelope.uchicago.edu/josephus/ant-1.html'
+   else value end
+ ) from jsonb_array_elements_text(t.source_links) as src(value)
+) where source_links::text like '%https://secure.cbn.com/700club/guests/bios/myles_munroe_043012.aspx%' or source_links::text like '%https://adfonteslibrary.org/work-st-josephus-antiquities-1%';
+update public.instructor_verse_contexts
+set source_links=source_links||'["https://penelope.uchicago.edu/josephus/ant-5.html"]'::jsonb
+where reference like 'Judges %'
+ and source_links::text not like '%penelope.uchicago.edu%';
