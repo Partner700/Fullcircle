@@ -723,7 +723,7 @@ Deno.serve(async (req: Request) => {
         });
       }
       assertFapshiConfigured();
-      const mobileMoney = phone ? { phone: phone.slice(3), method: isDirectPaymentMethod(method) ? method : undefined } : undefined;
+      const mobileMoney = phone ? { phone: phone.slice(3), method: isDirectPaymentMethod(payment_method) ? payment_method : undefined } : undefined;
       const reference = `fp_${crypto.randomUUID()}`;
       const paymentResponse = (
         id: string, ref: string, amount: number, checkoutUrl: string | null | undefined,
