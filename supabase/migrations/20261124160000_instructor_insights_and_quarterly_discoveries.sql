@@ -303,3 +303,43 @@ update public.instructor_verse_contexts
 set source_links=source_links||'["https://penelope.uchicago.edu/josephus/ant-5.html"]'::jsonb
 where reference like 'Judges %'
  and source_links::text not like '%penelope.uchicago.edu%';
+
+-- Protect the audited first-finder Denarii award from ordinary subscription restrictions.
+CREATE OR REPLACE FUNCTION public.enforce_owned_subscription_write()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  owner_id uuid := nullif(coalesce(to_jsonb(NEW)->>'user_id',to_jsonb(NEW)->>'sender_id'),'')::uuid;
+BEGIN
+  IF auth.uid() IS NULL OR auth.role()='service_role' OR owner_id IS DISTINCT FROM auth.uid()
+     OR public.has_current_subscription_access(owner_id) THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='quiz_attempts' AND EXISTS (
+    SELECT 1 FROM public.quiz_sessions WHERE id=(to_jsonb(NEW)->>'quiz_session_id')::uuid AND quiz_type='saturday'
+  ) THEN RETURN NEW; END IF;
+  -- Reward is free to every first-finder, even without a subscription.
+  -- Validate an actual won discovery, not just a client-supplied source label.
+  IF TG_TABLE_NAME='denarii_ledger_entries'
+     AND to_jsonb(NEW)->>'source_type'='verse_quest'
+     AND EXISTS (
+       SELECT 1 FROM public.quarterly_verse_quests quest
+       WHERE quest.id::text=to_jsonb(NEW)->>'source_reference'
+         AND quest.winner_user_id=owner_id
+         AND quest.prize_type='denarii'
+         AND quest.claimed_at IS NOT NULL
+         AND quest.prize_quantity=(to_jsonb(NEW)->>'amount')::integer
+     ) THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME='denarii_ledger_entries' AND (
+    to_jsonb(NEW)->>'source_type' IN ('game_level','game_blitz')
+    OR (to_jsonb(NEW)->>'source_type'='quiz_reward' AND EXISTS (
+      SELECT 1 FROM public.quiz_attempts a JOIN public.quiz_sessions s ON s.id=a.quiz_session_id
+      WHERE a.id::text=to_jsonb(NEW)->>'source_reference' AND a.user_id=owner_id AND s.quiz_type='saturday'
+    ))
+  ) THEN RETURN NEW; END IF;
+  RAISE EXCEPTION 'SUBSCRIPTION_REQUIRED: Your subscription or free trial has expired.';
+END;
+$function$
+;
+CREATE UNIQUE INDEX IF NOT EXISTS verse_quest_unique_wallet_award ON public.denarii_ledger_entries(source_reference) WHERE source_type='verse_quest';
