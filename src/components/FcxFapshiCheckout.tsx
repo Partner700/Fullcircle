@@ -224,7 +224,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
     }
   }
 
-  async function prepare(retry = false, hostedFallback = false) {
+  async function prepare(retry = false) {
     const order = retry ? purchasedLines.current : lines;
     const orderAmount = retry ? displayedAmount : amount;
     if (!userId || !attendeeReady || guestPaymentId || (attendeeEventId && activePayment.current) || orderAmount < 100 || (!retry && !withinCapacity) || submitting.current ||
@@ -242,7 +242,7 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
       const result = provider === 'fapshi' && ticket?.eventId
         ? await startFcxFapshiCheckout(ticket.eventId, userId, orderAmount, 'fapshi_hosted')
         : await startMarketCartCheckout(userId, orderAmount, method, phone, relics, ticket?.eventId, ticket?.quantity,
-          attendeeKind ? { kind: attendeeKind, id: attendeeId || undefined } : undefined, hostedFallback);
+          attendeeKind ? { kind: attendeeKind, id: attendeeId || undefined } : undefined);
       purchasedLines.current = order;
       setConfirmed(false);
       pendingAttempts.current.set(result.reference, { payment: result, lines: order });
@@ -363,20 +363,9 @@ export function MarketCartCheckout({ lines, className, children, onConfirmed, qu
                   </fieldset>
                 )}
                 {!attendeeReady ? null : provider === 'fapshi_direct' ? (
-                  <div className="space-y-3">
-                    <DirectMobileMoneyFields userId={userId} countryCode="CM" method={method} phone={phone}
-                      busy={busy} disabled={amount < 100 || !withinCapacity || !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
-                      onMethod={setMethod} onPhone={setPhone} onSubmit={() => void prepare()} />
-                    <div className="border-t border-border pt-3">
-                      <p className="text-xs text-stone">No USSD prompt? Try Fapshi's secure checkout as an alternative. You choose whether to use it.</p>
-                      <button type="button" className="btn-secondary mt-2 w-full justify-center text-xs"
-                        disabled={busy || !withinCapacity || !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
-                        onClick={() => void prepare(false, true)}>
-                        {busy ? 'Preparing checkout…' : 'Use secure Fapshi checkout instead'}
-                      </button>
-                      <p className="mt-1 text-[10px] text-stone">Opens Fapshi's payment page. The item is granted only after payment is verified.</p>
-                    </div>
-                  </div>
+                  <DirectMobileMoneyFields userId={userId} countryCode="CM" method={method} phone={phone}
+                    busy={busy} disabled={amount < 100 || !withinCapacity || !/^(?:00)?(?:237)?0?6\d{8}$/.test(phone.replace(/\D/g, ''))}
+                    onMethod={setMethod} onPhone={setPhone} onSubmit={() => void prepare()} />
                 ) : provider === 'fapshi' && onQuantity && lines[0]?.quantity === 1 ? (
                   <button type="button" className="btn-primary w-full" disabled={busy || !withinCapacity} onClick={() => void prepare()}>
                     {busy ? 'Preparing checkout…' : 'Continue to payment'}
