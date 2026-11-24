@@ -350,6 +350,10 @@ async function testRecovery() {
   const redirects = [];
   const window = {
     location: { href: scope, replace(url) { this.href = url; redirects.push(url); }, reload() { throw new Error('Unexpected reload'); } },
+    // Model an elapsed watchdog deadline: a hung service-worker registration must
+    // never block stale-bundle recovery, even if storage access is denied.
+    setTimeout(callback) { queueMicrotask(callback); return 1; },
+    clearTimeout() {},
     get sessionStorage() { throw new Error('Storage denied'); },
   };
   const globals = { window, document: { querySelector: () => ({ content: currentRelease }) }, navigator: { serviceWorker: { getRegistration: () => new Promise(() => {}) } } };
