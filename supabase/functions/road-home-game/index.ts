@@ -187,13 +187,14 @@ async function createGame(roomId: string, state: RoadHomeState) {
   return publicState;
 }
 
-async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null, useShield = false, market?: { spend?: string; award?: string }) {
+async function saveGame(roomId: string, previous: RoadHomeState, next: RoadHomeState, commandId: string, actorId: string, relicSlug: string | null = null, useShield = false, useBoomerang = false, market?: { spend?: string; award?: string }) {
   const result = await rest(useShield ? 'rpc/commit_arena_shield_turn'
+    : useBoomerang ? 'rpc/commit_arena_boomerang_turn'
     : market ? 'rpc/commit_arena_board_market_turn' : 'rpc/commit_arena_ludo_turn', {
     method: 'POST', body: JSON.stringify({ p_room_id: roomId, p_expected_version: previous.version,
       p_next_state: next, p_public_state: publicRoadHomeState(next), p_command_id: commandId,
       p_actor_id: actorId, ...(market ? { p_spend_slug: market.spend ?? null, p_award_slug: market.award ?? null }
-        : useShield ? {} : { p_relic_slug: relicSlug }) }),
+        : (useShield || useBoomerang) ? {} : { p_relic_slug: relicSlug }) }),
   });
   return result.state;
 }
@@ -327,6 +328,7 @@ Deno.serve(async (request) => {
     }
     const questionPool = commandState.questionPool?.length ? commandState.questionPool : await questionDeck(roomId);
     const useShield = command.action === 'SHIELD' && command.decision === 'use' && !previous.shieldLanding?.usesMatchRelic;
+    const useBoomerang = command.action === 'SHIELD' && command.decision === 'reflect';
     const shieldOwners = body.shieldDecisionV1 === true ? await arenaShieldOwners(rest,
       context.participantIds.filter((id) => !context.forfeitedIds.includes(id)), useShield ? actorId : undefined) : undefined;
     const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
@@ -334,7 +336,7 @@ Deno.serve(async (request) => {
     let next = applyRoadHomeCommand(commandState, actorId, command, questionPool, secureRandom, shieldOwners);
     next = runRoadHomeBots(next, questionPool, secureRandom, machineDifficulty(String(context.room.room_name || '')), shieldOwners);
     const publicState = await saveGame(roomId, previous, next, commandId, actorId,
-      command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield, spend || award ? { spend, award } : undefined);
+      command.action === 'USE_MARKET_RELIC' ? command.slug : null, useShield, useBoomerang, spend || award ? { spend, award } : undefined);
     await finishArenaRoom(context.room, next);
     return json({ state: publicState, version: next.version });
   } catch (error) {
