@@ -49,7 +49,12 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
   const scoreById=new Map((livePlayers||[]).map(p=>[p.user_id,arenaPlayerScore(p)]));
   const highest=scoreById.size?Math.max(...scoreById.values()):0;
   const placeholders = fixture.stage === 'semi' ? ['Laurel #1', 'Spades #1', 'Square #1'] : ['Semifinal #1', 'Semifinal #2'];
-  const matchLabel = fixture.sides.length ? fixture.sides.map(side=>side.players.map(p=>formatPlayerNumber(p.player_number)).join(' & ')).join(' vs ') : interTentMatchLabel(fixture);
+  // A paired tent is HOME and a solo tent is AWAY. In three-tent fixtures
+  // the paired side occupies the middle position to balance the slide.
+  const pairedSide = fixture.sides.length === 3 ? fixture.sides.find(side => side.players.length === 2) : undefined;
+  const otherSides = fixture.sides.filter(side => side !== pairedSide);
+  const displayedSides = pairedSide ? [otherSides[0], pairedSide, ...otherSides.slice(1)] : fixture.sides;
+  const matchLabel = displayedSides.length ? displayedSides.map(side=>side.players.map(p=>formatPlayerNumber(p.player_number)).join(' & ')).join(' vs ') : interTentMatchLabel(fixture);
   const timing=<><div className={`flex flex-wrap items-center justify-center gap-1.5 text-center font-semibold text-ink ${compact?'text-[11px]':'text-xs'}`}><CalendarClock size={compact?12:15} className="text-gold" /><time dateTime={fixture.planned_at}>{dateLabel(fixture.planned_at)}</time><span className="text-[10px] text-stone">Cameroon time</span></div><FixtureCountdown plannedAt={fixture.planned_at} draft={draft} live={live} completed={Boolean(fixture.result)||['expired','cancelled','completed'].includes(fixture.room_status||'')} compact={compact}/></>;
   return <article data-artwork-theme={arenaImage?.url ? 'night' : undefined} className={`${compact?'intertent-welcome-glass rounded-2xl':'card'} relative min-w-0 overflow-hidden p-3 sm:p-4`} aria-label={`Match ${fixture.sequence}: ${matchLabel}`}>
     <PanelImageBackdrop image={arenaImage} opacityFallback={22} veilClassName="arena-panel-veil" />
@@ -60,13 +65,13 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
       </header>}
       {!compact&&timing}
       <div className="flex min-w-0 items-stretch justify-center gap-1 sm:gap-3">
-        {fixture.sides.length ? fixture.sides.map((side, index) => {
+        {displayedSides.length ? displayedSides.map((side, index) => {
           const symbol = houseId(side.tent_name);
           const result = fixture.result?.find(row => row.tent_id === side.tent_id);
           return <div key={side.tent_id} className="contents">
             {index > 0 && <span className="flex shrink-0 items-center self-center text-gold" aria-label="versus"><Swords size={16} /></span>}
             <div className={`flex min-w-0 flex-1 flex-col items-center gap-2 rounded-lg p-2 text-center ${compact?'intertent-welcome-side':'border border-border bg-surface/55'}`}>
-              <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">{symbol && <TentHouseSymbol houseId={symbol} size={23}/>}<span className="break-words text-[10px] font-bold text-stone">{side.tent_name}</span></div>
+              <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">{symbol && <TentHouseSymbol houseId={symbol} size={23}/>}<span className="break-words text-[10px] font-bold text-stone">{side.tent_name}</span><span className="rounded-full border border-gold/25 px-1.5 py-0.5 text-[9px] font-bold text-gold">{side.players.length >= 2 ? 'HOME' : 'AWAY'}</span></div>
               <div className="flex flex-wrap justify-center gap-1.5">{side.players.map(player => <div key={player.id} className="flex min-w-0 flex-col items-center gap-1" title={player.name}><UserAvatar userId={player.id} name={player.name} avatarUrl={avatars[player.id]} className={`${compact?'h-8 w-8':'h-10 w-10 sm:h-12 sm:w-12'} shrink-0 border border-gold/35`} /><span className="font-display text-sm font-bold tabular-nums text-ink">{formatPlayerNumber(player.player_number)}</span>{live&&<span className={`font-display text-lg font-black tabular-nums ${scoreById.has(player.id)&&scoreById.get(player.id)===highest&&highest>0?'text-gold':'text-ink'}`} aria-label={`Live score ${scoreById.has(player.id)?scoreById.get(player.id):'loading'}`}>{scoreById.get(player.id)??'—'}</span>}</div>)}</div>
               {result && <p className="font-display text-base font-bold text-gold tabular-nums">{result.points} pts</p>}
             </div>
