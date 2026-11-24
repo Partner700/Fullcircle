@@ -165,6 +165,26 @@ export function HiddenChallengeOverlay() {
   const settlingRef = useRef(false);
   const abandonedRef = useRef(false);
   const dialogRef = useRef<HTMLElement | null>(null);
+  const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 });
+  const dragStartRef = useRef<{ pointerId: number; x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+  const keepModalVisible = useCallback((x: number, y: number) => ({
+    x: Math.max(-window.innerWidth * 0.65, Math.min(x, window.innerWidth * 0.65)),
+    y: Math.max(-window.innerHeight * 0.55, Math.min(y, window.innerHeight * 0.55)),
+  }), []);
+  const startModalDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button,input,a')) return;
+    dragStartRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, offsetX: modalOffset.x, offsetY: modalOffset.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveModalDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = dragStartRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setModalOffset(keepModalVisible(drag.offsetX + event.clientX - drag.x, drag.offsetY + event.clientY - drag.y));
+  };
+  const endModalDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (dragStartRef.current?.pointerId === event.pointerId) dragStartRef.current = null;
+  };
+
 
   useEffect(() => { challengeRef.current = challenge; }, [challenge]);
   useEffect(() => { resultRef.current = result; }, [result]);
@@ -452,6 +472,7 @@ export function HiddenChallengeOverlay() {
 
   const finish = () => {
     setChallenge(null);
+    setModalOffset({ x: 0, y: 0 });
     setParticipants([]);
     setRelics([]);
     setAnswer('');
@@ -477,10 +498,18 @@ export function HiddenChallengeOverlay() {
     >
       <section
         ref={dialogRef}
-        className="relative my-auto w-full max-w-lg overflow-hidden rounded-lg border border-peri/35 bg-surface/95 shadow-2xl backdrop-blur-xl animate-scale-in"
+        style={{ transform: `translate3d(${modalOffset.x}px, ${modalOffset.y}px, 0)` }}
+        className="relative my-auto w-full max-w-lg overflow-hidden rounded-lg border border-peri/35 bg-surface/95 shadow-2xl backdrop-blur-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="relative border-b border-border bg-surface-2/88 px-5 pb-4 pt-3">
+        <header className="relative cursor-grab select-none border-b border-border bg-surface-2/88 px-5 pb-4 pt-3 active:cursor-grabbing"
+          style={{ touchAction: 'none' }}
+          title="Drag this header to move the box"
+          onPointerDown={startModalDrag}
+          onPointerMove={moveModalDrag}
+          onPointerUp={endModalDrag}
+          onPointerCancel={endModalDrag}
+          onLostPointerCapture={endModalDrag}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <div className="relative flex h-16 w-16 flex-shrink-0 items-center justify-center">
