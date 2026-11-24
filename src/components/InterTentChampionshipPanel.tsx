@@ -83,7 +83,7 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
   if(!events.length && !instructor) return null;
   return <section className="card p-4 space-y-4">
     <div className="flex items-center justify-between gap-2">
-      <div><p className="eyebrow text-brass">Journey Trivia · David</p><h3 className="mt-1 font-display font-bold text-ink text-lg">Inter-Tent Championship</h3></div>
+      <div><p className="eyebrow text-brass">Journey Trivia</p><h3 className="mt-1 font-display font-bold text-ink text-lg">Inter-Tent Championship</h3></div>
       <button type="button" onClick={()=>void refresh()} className="btn-ghost" aria-label="Refresh championship"><RotateCw size={16}/></button>
     </div>
     <p className="text-xs text-stone">Four weeks · 16 group fixtures · Same-tent sides · Highest average points per tent qualifies · Two-leg semifinal · One-leg final.</p>
