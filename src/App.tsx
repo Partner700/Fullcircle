@@ -183,7 +183,7 @@ export default function App() {
 
   if (shareTarget && loading) return <ScreenLoader label="Opening shared Full Circle page" />;
 
-  if (publicArenaRoomId && !configError && shareMode === 'visitor' && !shareDismissed) {
+  if (publicArenaRoomId && !session && !loading && !configError && shareMode === 'visitor' && !shareDismissed) {
     return <>{overlays}{visitorAppLink}<Suspense fallback={<ScreenLoader label="Opening Arena witness room" />}><PublicArenaScreen roomId={publicArenaRoomId} /></Suspense></>;
   }
 
