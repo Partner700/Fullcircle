@@ -132,11 +132,14 @@ export function InstructorVerseExtras({ context, quest, onClaimed }: {
                   <p className="text-[11px] font-bold uppercase tracking-wider text-brass">What the evidence establishes</p>
                   <p className="mt-1 text-xs leading-relaxed text-stone">{context.evidence_note}</p>
                 </section>}
-                <p className="mt-3 text-xs leading-relaxed text-stone">{context.research_note}</p>
+                {/* Evidence notes and the original-language gloss replace the generic, repetitive source disclaimer. */}
                 {Array.isArray(context.source_links) && context.source_links.length > 0 && (
                   <p className="mt-2 text-xs text-stone">Further background: {context.source_links.slice(0, 3).map((link, index) => (
                     <a key={link} href={link} target="_blank" rel="noopener noreferrer"
-                      className="mr-2 underline underline-offset-2">Source {index + 1}</a>
+                      className="mr-2 underline underline-offset-2">{(() => {
+                        try { return new URL(link).hostname.replace(/^www\./, ''); }
+                        catch { return `Source ${index + 1}`; }
+                      })()}</a>
                   ))}</p>
                 )}
               </>}
