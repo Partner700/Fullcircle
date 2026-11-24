@@ -62,5 +62,16 @@ joinedThird.tentSides = { ...joinedThird.tentSides, third: 'squares' };
 assert.equal(resolveJourneyMiss(joinedThird, 'second').players[2].id, 'third');
 assert.equal(resolveJourneyMiss(joinedThird, 'second').players[resolveJourneyMiss(joinedThird, 'second').turnIndex].id, 'third');
 assert.equal(resolveJourneyMiss(resolveJourneyMiss(joinedThird,'second'),'third').players[0].id, 'first');
+const noSixBonus = createJourneyGame(['first', 'second', 'third'], {
+  first: 'laurels', second: 'spades', third: 'squares',
+});
+const afterSixMiss = resolveJourneyMiss(noSixBonus, 'first', 6);
+assert.equal(afterSixMiss.players[afterSixMiss.turnIndex].id, 'second',
+  'Inter-tent dice six must not take another player\'s scheduled turn');
+const afterSecond = resolveJourneyMiss(afterSixMiss, 'second');
+assert.equal(afterSecond.players[afterSecond.turnIndex].id, 'third');
+const afterThird = resolveJourneyMiss(afterSecond, 'third');
+assert.equal(afterThird.players[afterThird.turnIndex].id, 'first');
+
 
 console.log('Inter-tent fixtures and Journey side checks passed.');
