@@ -235,14 +235,23 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     } catch (refreshError) { console.error('Arena room refresh failed:', refreshError); }
   }, []);
 
+  const roomRefreshFlights = useRef(new Map<string, ReturnType<typeof fetchArenaRoom>>());
   const refreshRoom = useCallback(async (roomId: string, compact = false) => {
+    const key = `${roomId}:${compact}`;
+    let flight = roomRefreshFlights.current.get(key);
+    if (!flight) {
+      flight = fetchArenaRoom(roomId, false, compact);
+      roomRefreshFlights.current.set(key, flight);
+    }
     try {
-      const freshRoom = await fetchArenaRoom(roomId, false, compact);
+      const freshRoom = await flight;
       if (!freshRoom) return null;
       setRooms((current) => upsertArenaRoom(current, freshRoom));
       return freshRoom;
     } catch {
       return null;
+    } finally {
+      if (roomRefreshFlights.current.get(key) === flight) roomRefreshFlights.current.delete(key);
     }
   }, []);
 
