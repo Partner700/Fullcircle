@@ -74,7 +74,9 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
     } catch (error) {
       void diagnostics?.record(input, method, null, Date.now() - startedAt).catch(() => undefined);
       lastError = error;
-      // A timed-out request may still be executing on PostgreSQL. Retrying it\n      // immediately is unsafe during an incident and doubles connection load.\n      if (!canRetry || controller.signal.aborted || attempt === attempts - 1 || upstreamSignal?.aborted) {
+      // A timed-out request may still be executing on PostgreSQL. Retrying it
+      // immediately is unsafe during an incident and doubles connection load.
+      if (!canRetry || controller.signal.aborted || attempt === attempts - 1 || upstreamSignal?.aborted) {
         throw connectionError(error, { timedOut: controller.signal.aborted && !upstreamSignal?.aborted });
       }
       await pause(350);
