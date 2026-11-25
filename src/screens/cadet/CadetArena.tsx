@@ -542,10 +542,21 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
             setError(null);
             return;
           }
-          const participant = freshRoom?.arena_participants?.find((item: any) => item.user_id === profile.id);
-          setError(participant?.forfeit_reason === 'manual'
+          // Never confuse a connection outage or stale heartbeat with forfeiture.
+          // Preserve the saved Arena room; the player can reconnect without another charge.
+          if (!freshRoom) {
+            setError('Arena is reconnecting. Your match and place are preserved.');
+            return;
+          }
+          const participant = freshRoom.arena_participants?.find((item: any) => item.user_id === profile.id);
+          if (!participant?.forfeited_at) {
+            setRooms((prev) => upsertArenaRoom(prev, freshRoom));
+            setError('Arena is reconnecting. Your match and place are preserved.');
+            return;
+          }
+          setError(participant.forfeit_reason === 'manual'
             ? 'You forfeited this Arena match.'
-            : 'You were away from this Arena match for three minutes and forfeited your place.');
+            : 'Your match place was marked as forfeited.');
           clearActiveRoom(true);
         }
       } catch { /* Realtime room state handles matches that have just completed. */ }
@@ -560,12 +571,15 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     const interval = window.setInterval(() => { void heartbeat(); }, isIntertentJourney ? 45_000 : 20_000);
     const onVisibility = () => { if (document.visibilityState === 'visible') void heartbeat(); };
     document.addEventListener('visibilitychange', onVisibility);
+    const onReconnect = () => { void refreshRoom(activeRoomId).then(() => heartbeat()); };
+    window.addEventListener('online', onReconnect);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onReconnect);
     };
-  }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile]);
+  }, [activeRoomId, clearActiveRoom, isSpectating, phase, profile, refreshRoom]);
 
   useEffect(() => {
     if (!profile || !activeRoomId || !['waiting', 'playing'].includes(phase) || !isSpectating) return;
