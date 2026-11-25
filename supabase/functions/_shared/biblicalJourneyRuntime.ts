@@ -55,7 +55,7 @@ export type JourneyRuntime = {
   undo?: { playerId: string; before: JourneyGame };
 };
 
-export const JOURNEY_QUESTION_SECONDS = 30;
+export const JOURNEY_QUESTION_SECONDS = 45;
 export const JOURNEY_VERDICT_MS = 3200;
 export const JOURNEY_ROLL_REVEAL_MS = 1800;
 
@@ -122,10 +122,8 @@ async function openNextQuestion(runtime: JourneyRuntime, lookup: JourneyQuestion
     runtime.currentQuestion = { ...question, stage };
     runtime.currentQuestionPlayerId = player.id;
     runtime.awaitingRoll = !pending;
-    if (pending) {
-      runtime.questionOpensAt = new Date(Date.now() + handoffMs).toISOString();
-      runtime.questionDeadline = new Date(Date.now() + handoffMs + JOURNEY_QUESTION_SECONDS * 1000).toISOString();
-    }
+    runtime.questionOpensAt = new Date(Date.now() + handoffMs).toISOString();
+    runtime.questionDeadline = new Date(Date.parse(runtime.questionOpensAt) + JOURNEY_QUESTION_SECONDS * 1000).toISOString();
     runtime.usedQuestionIds.push(id);
     return;
   }
@@ -164,6 +162,7 @@ export function rollJourneyDie(original: JourneyRuntime, actorId: string, random
     || original.game.players[original.game.turnIndex].prisonTurnsRemaining > 0) {
     throw new Error('It is not your turn to roll.');
   }
+  if (actorId !== JOURNEY_MACHINE_ID && original.questionDeadline && Date.now() >= Date.parse(original.questionDeadline)) throw new Error('This turn has timed out.');
   const next = structuredClone(original);
   next.pendingDie = randomIndex(6, random) + 1;
   next.awaitingRoll = false;
@@ -202,7 +201,7 @@ export async function answerJourneyQuestion(original: JourneyRuntime, actorId: s
     die = original.pendingDie || randomIndex(6, random) + 1;
     next.game = resolveJourneyRoll(next.game, actorId, die, undefined, shieldOwners);
   } else {
-    next.game = resolveJourneyMiss(next.game, actorId, original.pendingDie);
+    next.game = resolveJourneyMiss(next.game, actorId, expired ? null : original.pendingDie);
   }
   const player = next.game.players.find(p => p.id === actorId);
   const previousPlayer = original.game.players.find(p => p.id === actorId);
@@ -258,6 +257,14 @@ export async function expireJourneyQuestion(original: JourneyRuntime,
   if (!original.currentQuestionPlayerId || !original.questionDeadline
     || Date.now() < Date.parse(original.questionDeadline)) {
     throw new Error('This question has not timed out.');
+  }
+  if (original.awaitingRoll) {
+    const next = structuredClone(original);
+    next.game = resolveJourneyMiss(next.game, original.currentQuestionPlayerId, null);
+    next.lastVerdict = null;
+    delete next.undo;
+    await openNextQuestion(next, lookup, random);
+    return next;
   }
   return answerJourneyQuestion(original, original.currentQuestionPlayerId, '', lookup, random, shieldOwners);
 }

@@ -26,7 +26,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '211',
+  'X-Full-Circle-Journey-Release': '213',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -176,6 +176,32 @@ async function pendingViewerChallenge(roomId: string, playerId: string) {
   return Boolean(rows?.length);
 }
 
+// Server-owned clock: GET polling can advance an expired turn even if its owner disconnects.
+async function advanceExpiredTurn(roomId: string, snapshot: { version: number; state: JourneyRuntime; updated_at: string }) {
+  const original = snapshot.state;
+  if (original.game.status !== 'playing' || original.game.shieldOffer || !original.currentQuestionPlayerId
+    || Date.now() < Date.parse(original.pausedUntil || '')) return snapshot;
+  const deadline = original.questionDeadline || (original.awaitingRoll
+    ? new Date(Date.parse(snapshot.updated_at) + 45000).toISOString() : null);
+  if (!deadline || Date.now() < Date.parse(deadline)) return snapshot;
+  const active = (await participants(roomId)).filter(player => !player.forfeited_at);
+  if (!active.some(player => player.user_id === original.currentQuestionPlayerId)) return snapshot;
+  const shieldOwners = await arenaShieldOwners(rest, active.map(player => player.user_id));
+  const next = await expireJourneyQuestion({ ...original, questionDeadline: deadline }, approvedQuestion, secureRandom, shieldOwners);
+  try {
+    const result = await rest('rpc/commit_arena_journey_turn', {
+      method: 'POST', body: JSON.stringify({
+        p_room_id: roomId, p_expected_version: snapshot.version, p_next_state: next,
+        p_command_id: crypto.randomUUID(), p_actor_id: original.currentQuestionPlayerId, p_relic_slug: null,
+      }),
+    }) as { state: JourneyRuntime };
+    return { state: result.state, version: result.state.game.version, updated_at: new Date().toISOString() };
+  } catch (error) {
+    if (!/match advanced/i.test(String(error))) throw error;
+    return await gameRow(roomId, 'version,state,updated_at') || snapshot;
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
@@ -204,10 +230,11 @@ Deno.serve(async (request) => {
         && Number.isSafeInteger(knownVersion) && knownVersion >= 0;
       // A version-aware read replaces two sequential database requests.
       // When the board hasn't changed, PostgREST returns no state at all.
+      const cutoff = new Date(Date.now() - 30000).toISOString();
       const gameRows = await rest(
-        `arena_journey_games?room_id=eq.${roomId}&select=version,state${hasKnownVersion ? `&version=neq.${knownVersion}` : ''}&limit=1`,
+        `arena_journey_games?room_id=eq.${roomId}&select=version,state,updated_at${hasKnownVersion ? `&or=(version.neq.${knownVersion},updated_at.lte.${cutoff})` : ''}&limit=1`,
       );
-      const snapshot = gameRows?.[0];
+      let snapshot = gameRows?.[0];
       if (!snapshot && hasKnownVersion) {
         return json({ unchanged: true, version: knownVersion });
       }
@@ -225,6 +252,10 @@ Deno.serve(async (request) => {
       if (context.room.status === 'completed' && snapshot.state?.game?.status !== 'finished') {
         return json({ error: 'That match is no longer live.' }, 410);
       }
+      if (context.room.status === 'playing') {
+        snapshot = await advanceExpiredTurn(roomId, snapshot);
+      }
+      if (hasKnownVersion && snapshot.version === knownVersion) return json({ unchanged: true, version: knownVersion });
       return json({ state: publicJourneyRuntime(snapshot.state as JourneyRuntime), version: snapshot.version });
     }
 
@@ -261,13 +292,14 @@ Deno.serve(async (request) => {
 
     const commandId = String(body.commandId || '');
     if (!uuidPattern.test(commandId)) return json({ error: 'A command ID is required for reliable retry.' }, 400);
-    const current = await gameRow(roomId);
+    let current = await gameRow(roomId, 'version,state,updated_at');
     if (!current) return json({ error: 'This Journey match has not started.' }, 409);
     const repeated = await rest(`arena_journey_commands?room_id=eq.${roomId}&command_id=eq.${commandId}&select=command_id&limit=1`);
     if (repeated?.length) {
       return json({ state: publicJourneyRuntime(current.state as JourneyRuntime), version: current.version, duplicate: true });
     }
     if (context.room.status !== 'playing') return json({ error: 'That match is no longer live.' }, 410);
+    current = await advanceExpiredTurn(roomId, current);
     if (Number(body.expectedVersion) !== Number(current.version)) {
       return json({ error: 'The board changed on another device.',
         state: publicJourneyRuntime(current.state as JourneyRuntime), version: current.version }, 409);
