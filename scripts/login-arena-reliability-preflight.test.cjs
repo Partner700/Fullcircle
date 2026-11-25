@@ -1,0 +1,34 @@
+// Static reliability guardrails; no live game traffic or credentials.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const read = (path) => fs.readFileSync(path, 'utf8');
+const arena = read('src/screens/cadet/CadetArena.tsx');
+const network = read('src/lib/supabase.ts');
+const auth = read('src/context/AuthContext.tsx');
+const championships = read('src/hooks/useInterTentChampionships.ts');
+const heartbeat = read('supabase/migrations/20261125070000_arena_room_scoped_heartbeat_expiry.sql');
+const witnesses = read('supabase/migrations/20261125071000_arena_witness_join_without_room_lock.sql');
+const penalties = read('supabase/migrations/20261125063000_intertent_skip_settled_rooms_before_locks.sql');
+const refunds = read('supabase/migrations/20261125064000_refund_intertent_late_penalties_on_match_cancellation.sql');
+
+assert.match(network, /RETRYABLE_RESPONSE_STATUSES = new Set\(\[408, 425, 502\]\)/);
+assert.match(network, /const canRetry = method === 'GET' \|\| method === 'HEAD'/);
+assert.match(network, /controller\.signal\.aborted/);
+assert.match(auth, /signInWithPassword/);
+assert.match(auth, /readCachedIdentity/);
+assert.match(championships, /pollJitterMs/);
+assert.match(championships, /scoreCooldownUntil\.current/);
+assert.match(championships, /document\.visibilityState==='hidden'/);
+assert.match(arena, /pulse\.active_player_ids\.length >= \(\/\\\[intertent\\\]\/i\.test\(knownRoom\.room_name \|\| ''\) \? 1 : 2\)/);
+assert.match(arena, /heartbeatInFlight/);
+assert.match(arena, /Arena is reconnecting\. Your match and place are preserved/);
+assert.match(heartbeat, /room\.id=p_room_id/);
+assert.doesNotMatch(heartbeat, /PERFORM public\.expire_inactive_arena_participants\(\)/);
+assert.match(heartbeat, /room\.room_name NOT ILIKE '%\[intertent\]%'/);
+assert.match(witnesses, /RETURN public\.join_instructor_arena_match\(p_room_id\)/);
+assert.doesNotMatch(witnesses, /FOR UPDATE/);
+assert.match(penalties, /15 minutes/);
+assert.match(penalties, /AND EXISTS \(/);
+assert.match(refunds, /intertent_cancel_refund_once_per_player/);
+assert.match(refunds, /ON CONFLICT DO NOTHING/);
+console.log('Full Circle login / Arena preflight: 19 guardrail checks passed. Actual capacity requires staging tests.');
