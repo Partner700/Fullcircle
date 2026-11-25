@@ -250,6 +250,19 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     if (!profile) return false;
     setError(null);
     try {
+      // A scheduled competitor must enter as a player, even if they opened a
+      // Witness link. Joining as a witness hides their turn and can leave them
+      // unable to play despite already being selected for the match.
+      const selectedRoom = await refreshRoom(roomId);
+      if (selectedRoom?.scheduled && selectedRoom.scheduled_player_ids?.includes(profile.id)
+        && ['waiting', 'playing'].includes(selectedRoom.status)) {
+        const alreadyJoined = selectedRoom.arena_participants?.some((player: any) =>
+          player.user_id === profile.id && !player.forfeited_at);
+        if (!alreadyJoined) await joinInstructorArenaMatch(roomId);
+        const currentRoom = alreadyJoined ? selectedRoom : await refreshRoom(roomId);
+        activateRoom(roomId, currentRoom?.status === 'waiting' ? 'waiting' : 'playing');
+        return true;
+      }
       if (!await watchArenaRoom(roomId)) throw new Error('This Arena match has ended and cannot be witnessed.');
       const freshRoom = await refreshRoom(roomId);
       if (freshRoom && !isWitnessableArenaRoom(freshRoom)) {
