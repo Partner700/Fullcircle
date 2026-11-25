@@ -1,4 +1,4 @@
-import { Lightbulb } from 'lucide-react';
+import { ChevronDown, Lightbulb } from 'lucide-react';
 import type { ScriptureDidYouKnow } from './InstructorVerseExtras';
 
 const CATEGORY_LABELS: Record<string,string> = {
@@ -16,11 +16,13 @@ export function ChapterDiscoveryPanel({ facts, title = 'Did You Know?' }: {
   facts: ScriptureDidYouKnow[]; title?: string;
 }) {
   if (!facts.length) return null;
-  return <section aria-label="Did You Know verse discoveries"
-    className="my-2 space-y-3 rounded-2xl border border-sky-500/40 bg-surface/90 px-4 py-4">
-    <h3 className="flex items-center gap-2 font-display text-base font-bold text-ink">
-      <Lightbulb className="text-brass" size={19}/> {title}
-    </h3>
+  return <details key={facts.map(fact => fact.reference).join("|")} aria-label="Did You Know verse discoveries"
+    className="group my-2 rounded-xl border border-sky-500/40 bg-surface/90">
+    <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-display text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+      <Lightbulb className="text-brass" size={17}/> {title}
+      <ChevronDown aria-hidden="true" size={16} className="ml-auto shrink-0 text-brass transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="space-y-3 px-3 pb-3">
     {facts.map((fact, index) => <div key={`${fact.reference}-${index}`}
       className="rounded-xl border border-border bg-surface-2 px-3 py-3">
       <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-brass">
@@ -28,5 +30,6 @@ export function ChapterDiscoveryPanel({ facts, title = 'Did You Know?' }: {
       </p>
       <p className="text-sm leading-relaxed text-ink">{fact.fact}</p>
     </div>)}
-  </section>;
+    </div>
+  </details>;
 }
