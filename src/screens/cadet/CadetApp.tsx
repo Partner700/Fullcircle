@@ -1,3 +1,4 @@
+import type { ReadingOrigin } from '../../components/ScriptureBookmark';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { hasCompleteTopbarStats, mergeConfirmedTopbarStats } from '../../lib/liveStats';
 import { useAuth } from '../../context/AuthContext';
@@ -254,7 +255,9 @@ export function CadetApp() {
   const toolbarUserId = session?.user.id || profile?.id || '';
   const [tab, setTab] = useState<Tab>(() => getInitialCadetTab(toolbarUserId));
   const [bibleTarget,setBibleTarget]=useState<{userId:string;location:BibleReadingLocation}|null>(null);
-  useEffect(()=>{if(tab!=='bible')setBibleTarget(null);},[tab]);
+  const [readingOrigin,setReadingOrigin]=useState<(ReadingOrigin & {userId:string})|null>(null);
+  const [readingReturn,setReadingReturn]=useState<(ReadingOrigin & {userId:string})|null>(null);
+  useEffect(()=>{if(tab!=='bible'){setBibleTarget(null);setReadingOrigin(null);} if(tab!=='narrative')setReadingReturn(null);},[tab]);
   const [tentInfo, setTentInfo] = useState<{ tent: Tent & { tent_houses?: any } | null; members: (TentMember & { profiles: Profile })[] }>({ tent: null, members: [] });
   const [denariiTotal, setDenariiTotal] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
@@ -1210,8 +1213,8 @@ export function CadetApp() {
       }}
     >
       {tab === 'dashboard' && <CadetDashboard denariiTotal={denariiTotal} currentStreak={streakCount} tentInfo={tentInfo} onNavigate={handleNavigate} onRefreshDenarii={refreshCadetState} refreshKey={cadetRefreshKey} notificationBadges={notificationBadges} />}
-        {tab === 'bible' && <BibleReader key={toolbarUserId} initialLocation={bibleTarget?.userId===toolbarUserId?bibleTarget.location:null} />}
-        {tab === 'narrative' && <CadetNarrative onOpenBible={(location) => {setBibleTarget(location?{userId:toolbarUserId,location}:null);handleNavigate('bible');}} onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
+        {tab === 'bible' && <BibleReader key={toolbarUserId} initialLocation={bibleTarget?.userId===toolbarUserId?bibleTarget.location:null} readingOrigin={readingOrigin&&readingOrigin.userId===toolbarUserId?readingOrigin:null} onReturnToReading={()=>{if(readingOrigin&&readingOrigin.userId===toolbarUserId){setReadingReturn(readingOrigin);handleNavigate('narrative');}}} />}
+        {tab === 'narrative' && <CadetNarrative onOpenBible={(location,origin) => {setReadingOrigin(origin?{...origin,userId:toolbarUserId}:null);setBibleTarget(location?{userId:toolbarUserId,location}:null);handleNavigate('bible');}} initialDate={readingReturn?.userId===toolbarUserId?readingReturn?.date:undefined} initialReturnReference={readingReturn?.userId===toolbarUserId?readingReturn?.reference:undefined} onMeditationSaved={refreshAfterMeditation} onOpenWeeklyQuiz={() => handleNavigate('quiz')} streakCount={streakCount} />}
         {tab === 'streak' && <CadetStreak refreshKey={cadetRefreshKey} />}
         {tab === 'games' && (
           <DailyGamesHub
