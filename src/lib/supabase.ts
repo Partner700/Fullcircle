@@ -15,7 +15,7 @@ export const supabaseUrl = 'https://ovusyeqbmtvfcrlflrbf.supabase.co';
 export const supabaseAnonKey = 'sb_publishable_HeGFIazo0kNZ53gf1eKuRA_bpfKORje';
 export const supabaseConfigError: string | null = null;
 
-const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
+// Don't multiply load on an overloaded Supabase API: 429/503/504 are\n// explicit backpressure or upstream/database errors, not safe retry signals.\nconst RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 502]);
 
 function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
   if (init?.method) return init.method.toUpperCase();
@@ -74,7 +74,7 @@ async function resilientFetch(input: RequestInfo | URL, init?: RequestInit): Pro
     } catch (error) {
       void diagnostics?.record(input, method, null, Date.now() - startedAt).catch(() => undefined);
       lastError = error;
-      if (!canRetry || attempt === attempts - 1 || upstreamSignal?.aborted) {
+      // A timed-out request may still be executing on PostgreSQL. Retrying it\n      // immediately is unsafe during an incident and doubles connection load.\n      if (!canRetry || controller.signal.aborted || attempt === attempts - 1 || upstreamSignal?.aborted) {
         throw connectionError(error, { timedOut: controller.signal.aborted && !upstreamSignal?.aborted });
       }
       await pause(350);
