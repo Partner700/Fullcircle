@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Coins, Dices, Eye, Loader2, MessageCircle, Play, Plus, Send, Swords, Users, X } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { UserAvatar } from './UserAvatar';
@@ -165,21 +165,33 @@ export function ArenaRoomChat({
   const [error, setError] = useState<string | null>(null);
   const useGameCalls = allowGameCalls || Boolean(onGameCallAction);
 
+  const messageFlight = useRef<{ room: string; promise: Promise<void> } | null>(null);
+  const callFlight = useRef<{ room: string; promise: Promise<void> } | null>(null);
   const loadMessages = useCallback(async () => {
+    if (messageFlight.current?.room === roomId) return messageFlight.current.promise;
+    const promise = (async () => {
     try {
       setMessages(await fetchArenaRoomMessages(roomId) as ArenaMessage[]);
     } catch (loadError) {
       console.error('Arena chat load failed', loadError);
     }
+    })();
+    messageFlight.current = { room: roomId, promise };
+    try { await promise; } finally { if (messageFlight.current?.promise === promise) messageFlight.current = null; }
   }, [roomId]);
 
   const loadCalls = useCallback(async () => {
     if (!useGameCalls) return;
+    if (callFlight.current?.room === roomId) return callFlight.current.promise;
+    const promise = (async () => {
     try {
       setGameCalls(await fetchArenaChatGameCalls(roomId));
     } catch (loadError) {
       console.error('Arena game calls load failed', loadError);
     }
+    })();
+    callFlight.current = { room: roomId, promise };
+    try { await promise; } finally { if (callFlight.current?.promise === promise) callFlight.current = null; }
   }, [roomId, useGameCalls]);
 
   useEffect(() => {
@@ -198,7 +210,7 @@ export function ArenaRoomChat({
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadMessages();
       if (useGameCalls && document.visibilityState === 'visible') void loadCalls();
-    }, guestKey ? 12_000 : 30_000);
+    }, guestKey ? 30_000 : 60_000);
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       window.clearInterval(interval);
