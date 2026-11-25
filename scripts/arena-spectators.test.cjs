@@ -74,7 +74,7 @@ assert.match(queries, /export function fetchArenaRoom\(roomId: string, includeQu
 assert.match(arena, /preserveDetailedArenaRooms\(current, latest, activeRoomIdRef\.current\)/);
 assert.match(arena, /fetchArenaRoom\(roomId, true\)/);
 assert.match(arena, /table: 'arena_trivia_responses', filter: `room_id=eq\.\$\{roomId\}`/);
-assert.match(roadHome, /\}, 15_000\)/);
+assert.match(roadHome, /spectator \? 25_000 : 15_000\)/);
 assert.match(roadHomeFunction, /async function publicGame\(roomId: string\)/);
 assert.match(roadHomeFunction, /const snapshot = await publicGame\(roomId\)/);
 assert.match(roadHomeFunction, /const setup = await gameSetup\(context\)/);
