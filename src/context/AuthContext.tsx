@@ -431,8 +431,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         35_000,
         'Sign-in',
       );
-      if (error) return { error: /email not confirmed|confirm your email/i.test(error.message)
-        ? 'Your email is not confirmed yet. Open the newest confirmation link or request a new one below.'
+      if (error) return { error: error.status === 429 || /too many requests|rate.?limit/i.test(error.message)
+        ? 'Too many sign-in attempts are coming from this network. Please wait about a minute before trying again. Do not repeatedly tap Sign In.'
+        : /email not confirmed|confirm your email/i.test(error.message)
+          ? 'Your email is not confirmed yet. Open the newest confirmation link or request a new one below.'
         : /connection is taking too long|timed out|service.*slow/i.test(error.message)
           ? 'The Full Circle sign-in service is responding too slowly. Please try again shortly.'
           : error.message };
