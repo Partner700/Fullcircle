@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award, BookMarked, Bookmark, Cake, CheckCircle2, ChevronLeft, ChevronRight, Flame, Lightbulb, Loader2, Lock, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
+import { Award, BookMarked, Bookmark, Cake, CheckCircle2, ChevronLeft, ChevronRight, Flame, Heart, Lightbulb, Loader2, Lock, Quote, ScrollText, Send, Sun, UserPlus, X } from 'lucide-react';
 import { ScrollEdge } from '../components/AncientMotifs';
 import { Dove } from '../components/Dove';
 import { PanelImageBackdrop } from '../components/PanelImageBackdrop';
 import { AwardBadgeGlyph } from '../components/VallumAvatarBadge';
 import { QuoteReleaseTime } from '../components/QuoteReleaseTime';
 import { TentHouseSymbol } from '../components/TentHouseSymbol';
+import { RelativeTime } from '../components/RelativeTime';
 import { UserAvatar } from '../components/UserAvatar';
 import {
   completeSharedQuiz,
@@ -17,6 +18,9 @@ import {
   fetchPublicRestDayAwards,
   type PublicRestDayAward,
   type SharedReading,
+  type SharedReadingInsight,
+  type VerseInsightReactionType,
+  toggleSharedInsightReaction,
 } from '../lib/queries';
 import { cn } from '../lib/utils';
 import type { DailyQuoteFeedItem, PanelImageSetting } from '../lib/types';
@@ -169,14 +173,48 @@ function PublicQuoteCarousel({ quotes, signupHref, image }: { quotes: DailyQuote
   );
 }
 
+function PublicInsight({ insight, guestKey, signupHref }: { insight: SharedReadingInsight; guestKey: string; signupHref: string }) {
+  const [reactions,setReactions]=useState(insight.reactions);
+  const [pendingReaction,setPendingReaction]=useState<string|null>(null);
+  const [error,setError]=useState('');
+  useEffect(()=>{setReactions(insight.reactions);},[insight.reactions]);
+  const toggle=async(kind:VerseInsightReactionType)=>{
+    if(pendingReaction || !guestKey || !reactions?.[kind])return;
+    const key=kind;
+    const previous=reactions[kind];
+    const optimisticReacted=!previous.reacted;
+    const applyReaction=(reacted:boolean)=>setReactions(current=>({...current,[kind]:{...previous,reacted,count:Math.max(0,previous.count+Number(reacted)-Number(previous.reacted)),actors:previous.actors.filter(actor=>!actor.is_current_guest)}}));
+    setError('');
+    setPendingReaction(key);
+    applyReaction(optimisticReacted);
+    try {
+      const reacted = await toggleSharedInsightReaction(insight.id,guestKey,kind);
+      applyReaction(reacted);
+    } catch {
+      setReactions(current=>({...current,[kind]:previous}));setError('Reaction could not be saved. Please retry.');
+    } finally {setPendingReaction(null);}
+  };
+  return <div className="mt-3 rounded-lg border border-border bg-surface/80 p-3">
+    <div className="flex items-center gap-2"><UserAvatar userId={insight.user_id} name={insight.profiles?.display_name} avatarUrl={insight.profiles?.avatar_url} className="h-8 w-8"/><div><p className="text-xs font-bold text-ink">{insight.profiles?.display_name || 'Member'}</p><RelativeTime value={insight.created_at}/></div></div>
+    <p className="mt-2 whitespace-pre-wrap text-sm text-ink">{insight.body}</p>
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {(['heart','lightbulb'] as const).map(kind=>{const state=reactions?.[kind];const Icon=kind==='heart'?Heart:Lightbulb;return <div key={kind} className="flex items-center gap-1"><button type="button" disabled={!!pendingReaction||!state} aria-pressed={!!state?.reacted} aria-label={kind==='heart'?'Like insight':'Thinking about it'} onClick={()=>void toggle(kind)} className="btn-secondary text-xs"><Icon size={14} fill={state?.reacted?'currentColor':'none'}/>{state?.count||0}</button>{state?.actors?.slice(0,4).map(actor=><span key={actor.user_id} className="relative inline-flex h-4 w-4" title={actor.display_name}><UserAvatar userId={actor.is_guest?undefined:actor.user_id} name={actor.display_name} avatarUrl={actor.is_guest ? null : actor.avatar_url} className="h-full w-full"/></span>)}</div>;})}
+    </div>
+    {error&&<p role="alert" className="text-xs text-coral">{error}</p>}
+    <div className="mt-2 space-y-2">{insight.comments.map(comment=><div key={comment.id} className="rounded border border-border p-2"><div className="flex gap-2 items-center"><UserAvatar userId={comment.user_id} name={comment.profile?.display_name} avatarUrl={comment.profile?.avatar_url} className="h-6 w-6"/><span className="text-xs font-bold">{comment.profile?.display_name||'Member'}</span><RelativeTime value={comment.created_at}/></div><p className="mt-1 whitespace-pre-wrap text-xs">{comment.body}</p></div>)}</div>
+    <a href={signupHref} className="mt-2 inline-flex items-center gap-1 text-xs text-brass"><Send size={12}/> Reply</a>
+  </div>;
+}
 function SharedReadingView({
   reading,
   quotes,
   signupHref,
+  guestKey,
 }: {
   reading: SharedReading;
   quotes: DailyQuoteFeedItem[];
   signupHref: string;
+  guestKey: string;
 }) {
   const panels = readingPanels(reading);
   const isSundayReading = new Date(`${reading.narrative_date}T12:00:00`).getDay() === 0;
@@ -226,6 +264,8 @@ function SharedReadingView({
                     <p className="mt-2 text-[10px] font-bold uppercase text-brass">
                       {verse.reference}{verse.meditation?.trim() ? ' · Instructor annotation available' : ''}
                     </p>
+                    {(reading.insights||[]).filter(insight=>insight.narrative_id===verse.narrativeId && insight.verse_reference===verse.reference).map(insight=><PublicInsight key={insight.id} insight={insight} guestKey={guestKey} signupHref={signupHref}/>)}
+                    <a href={signupHref} className="mt-2 inline-flex items-center gap-1 text-xs text-brass"><Lightbulb size={12}/> Add insight</a>
                     {verse.meditation?.trim() && (
                       <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3">
                         <p className="text-[10px] font-bold uppercase text-brass">Instructor insight</p>
@@ -390,6 +430,7 @@ export function PublicShareScreen({ kind, value, date }: { kind: ShareKind; valu
           <SharedReadingView
             reading={reading}
             quotes={publicQuotes}
+            guestKey={readingGuestKey}
             signupHref={signupHref}
           />
         )}
