@@ -810,11 +810,11 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               {buyingFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy with Denarii
             </button>
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-gold">300 FCFA</span>
+              <span className="text-xs font-bold text-gold">200 FCFA</span>
               <button type="button" className="btn-secondary text-xs" disabled={giftRecipientId !== 'self'}
                 onClick={() => addToCart({
                   key: 'streak-freezer-daily', name: 'Daily Freezer',
-                  relicSlug: 'streak-freezer-daily', unitPrice: 300, quantity: 1,
+                  relicSlug: 'streak-freezer-daily', unitPrice: 200, quantity: 1,
                 })}>Add to cart</button>
             </div>
             {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-1">Cash Freezers are currently for your own account.</p>}
