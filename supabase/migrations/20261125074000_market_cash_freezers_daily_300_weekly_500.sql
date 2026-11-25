@@ -159,10 +159,10 @@ BEGIN
   -- all item delivery is transactional. Repeated webhook events cannot
   -- deliver the same Freezers twice.
   INSERT INTO public.streak_freezers(user_id,freezer_type,source)
-  SELECT payment.user_id,'daily','cash'
+  SELECT payment.user_id,'daily','payment'
   FROM generate_series(1,coalesce((payment.purchase_metadata->>'freezer_daily_quantity')::integer,0));
   INSERT INTO public.streak_freezers(user_id,freezer_type,source)
-  SELECT payment.user_id,'weekly','cash'
+  SELECT payment.user_id,'weekly','payment'
   FROM generate_series(1,coalesce((payment.purchase_metadata->>'freezer_weekly_quantity')::integer,0));
 
   IF cart_event IS NOT NULL AND payment.purchase_metadata ? 'attendee_kind' THEN
