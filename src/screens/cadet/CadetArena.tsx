@@ -946,14 +946,14 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     if (parseArenaGameType(activeRoomName) === 'journey') {
       return <div className="space-y-4">
         <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
-        <JourneyGamePlay witnessStrip={<ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />} key={activeRoomId} roomId={activeRoomId} roomName={activeRoomName}
+        <JourneyGamePlay witnessStrip={<>{!isSpectating && <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />}<ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} /></>} key={activeRoomId} roomId={activeRoomId} roomName={activeRoomName}
           arenaImage={arenaImage}
           userId={profile!.id} players={arenaMatchupPlayers(activeRoom)} spectator={isSpectating}
           machine={activeRoom?.play_mode === 'machine'}
           onExit={() => clearActiveRoom(!isSpectating)}
           onStateChanged={async () => { await load(); await onBalanceChanged?.(); }} />
         
-        {!isSpectating && <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />}
+
       </div>;
     }
     if (parseArenaGameType(activeRoomName) === 'ludo') {
@@ -988,6 +988,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
           {!isSpectating && (
             <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
           )}
+          <GamePoints game="ludo" players={arenaMatchupPlayers(activeRoom)} />
         </div>
       );
     }
@@ -1010,7 +1011,6 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
     return (
       <div className="space-y-4">
         <div className="flex justify-end"><button type="button" className="btn-secondary text-xs" onClick={() => void shareRoom(activeRoomId)}><Share2 size={14} /> Share match</button></div>
-        <GamePoints game="standard" players={arenaMatchupPlayers(activeRoom)} />
         <ArenaGamePlay
           roomName={activeRoom?.room_name || roomName}
           roomId={activeRoomId}
@@ -1038,6 +1038,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         />
         <ArenaWitnessStrip witnesses={witnesses} guestCount={Number(activeRoom?.arena_guest_witness_count) || 0} />
         <ArenaChallengeGate roomId={activeRoomId} userId={profile!.id} onAccepted={handleAcceptedChallenge} />
+        <GamePoints game="standard" players={arenaMatchupPlayers(activeRoom)} />
       </div>
     );
   }

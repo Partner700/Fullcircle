@@ -3,7 +3,7 @@ import { arenaMatchRelicIsMuted } from '../../../supabase/functions/_shared/aren
 import { ArenaShieldDecision } from '../../components/ArenaShieldDecision';
 import { GamePoints } from '../../components/GamePoints';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronDown, Clock3, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
@@ -355,13 +355,12 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
+  const forfeitControl = (!spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined) && <div className="flex items-center justify-between gap-2"><span className="text-sm">Your skipped turns: {state.skips?.[userId] || 0} / 3</span><button type="button" disabled={sending} className="journey-forfeit" onClick={() => { if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT'); }}>Forfeit match</button></div>);
   return <div className="space-y-4">
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
-    {state.questionDeadline && pauseRemaining === 0 && <p role="timer" className="text-center font-display text-lg font-bold tabular-nums text-brass">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}’s turn · {Math.min(secondsLeft, Math.ceil((Date.parse(state.questionDeadline) - Date.parse(state.questionOpensAt || state.questionDeadline)) / 1000) || secondsLeft)}s</p>}
-    {state.game.pointsRemaining !== undefined && <p className="text-center text-sm font-semibold text-brass">{state.game.pointsRemaining} / 100 match points remaining · Closes {new Date(state.game.matchDeadline!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
-    {!spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined) && <div className="flex items-center justify-between gap-2"><span className="text-sm">Your skipped turns: {state.skips?.[userId] || 0} / 3</span><button type="button" disabled={sending} className="rounded-md bg-red-700 px-4 py-2 font-bold text-white" onClick={() => { if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT'); }}>Forfeit match</button></div>}
+    {state.game.pointsRemaining !== undefined && <p className="text-center text-sm font-semibold text-brass">{state.game.pointsRemaining} / {state.game.pointPoolSize ?? 100} match points remaining · Closes {new Date(state.game.matchDeadline!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
     <ArenaMatchup players={visiblePlayers} playing pinned arenaImage={arenaImage} />
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
       && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
@@ -405,9 +404,10 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
             .map(player => profiles[player.id]?.name || 'Player').join(' & ')).join(' vs ')}</p>
         <p className="mt-1">Your tent teammates share tournament points. Competitive swaps and transferred penalties exclude teammates.</p>
       </div>}
-      <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
+      <JourneyBoard turnSeconds={state.questionDeadline && pauseRemaining === 0 ? secondsLeft : undefined} game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
+      {forfeitControl}
       <div className="min-w-0 space-y-3">
         {pauseRemaining === 0 && !state.game.shieldOffer && verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
           <div className="flex items-center gap-2">
@@ -425,9 +425,8 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
 
         {pauseRemaining === 0 && openQuestion && asking && !chatOpen && state.game.status === 'playing' && <JourneyDialog label="Biblical Journey question" onClose={!waitingForMyAnswer ? () => setQuestionHidden(true) : undefined}><section className="min-w-0" aria-label="Biblical Journey question">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0"><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s turn</h3></div>
+            <div className="min-w-0"><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s turn</h3><span role="timer" className="font-bold tabular-nums text-brass">{secondsLeft}s</span></div>
             <div className="flex shrink-0 items-center gap-1">
-              <span className={`flex items-center gap-1 font-display text-sm font-bold tabular-nums ${secondsLeft <= 5 ? 'text-coral' : 'text-brass'}`} aria-live="off"><Clock3 size={15} /> {secondsLeft}s</span>
               {!waitingForMyAnswer && <button type="button" title="Hide question" aria-label="Hide question" className="icon-btn h-8 w-8" onClick={() => setQuestionHidden(true)}><X size={17} /></button>}
             </div>
           </div>
@@ -454,6 +453,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
           </div>}
           {error && <p className="mt-2 text-xs text-coral" role="alert">{error}</p>}
           {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
+          {forfeitControl}
           <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>
         </section></JourneyDialog>}
         {openQuestion && questionHidden && !verdictVisible && <div className="flex gap-2"><button type="button" className="btn-secondary flex-1 justify-center text-xs" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Show question</button><button type="button" className="btn-secondary justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Chat</button></div>}
@@ -479,7 +479,9 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
     <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher
       onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}
       challengeTargets={spectator && !guestKey ? players.filter((player) => player.user_id !== JOURNEY_MACHINE_ID).map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
-    {witnessStrip}
-    <GamePoints game="journey" players={roster} />
+    <footer className="space-y-3" aria-label="Witnesses and lifetime leaderboard">
+      {witnessStrip}
+      <GamePoints game="journey" players={roster} />
+    </footer>
   </div>;
 }

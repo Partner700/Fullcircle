@@ -28,7 +28,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '214',
+  'X-Full-Circle-Journey-Release': '215',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -147,7 +147,13 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
     tentSides = sides;
   }
   const runtime = await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom, tentSides);
-  runtime.game.pointsRemaining = 100;
+  let seats = playerIds.length;
+  if (tentSides) {
+    const schedule = await rest(`arena_scheduled_matches?room_id=eq.${roomId}&select=player_ids&limit=1`);
+    seats = Math.max(seats, new Set(schedule?.[0]?.player_ids || []).size);
+  }
+  runtime.game.pointPoolSize = seats * 30;
+  runtime.game.pointsRemaining = runtime.game.pointPoolSize;
   runtime.game.matchDeadline = new Date(Date.parse(startedAt) + 45 * 60_000).toISOString();
   return runtime;
 }

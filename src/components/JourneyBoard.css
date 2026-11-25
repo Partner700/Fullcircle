@@ -46,3 +46,6 @@
   .journey-turn-name { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .journey-square, .journey-die, .journey-piece { transition: none; animation: none; } }
+
+.journey-turn-countdown { display: block; font-size: 1.15em; line-height: 1.15; font-variant-numeric: tabular-nums; color: #ffdb77; }
+.journey-forfeit { min-height: 44px; padding: .5rem 1rem; border: 1px solid #ffb0b0; border-radius: .45rem; background: #b91c1c; color: white; font-weight: 700; }

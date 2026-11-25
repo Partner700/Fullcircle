@@ -22,6 +22,7 @@ type Props = {
   characterName?: string;
   arenaImage?: PanelImageSetting | null;
   config?: JourneyConfig;
+  turnSeconds?: number;
   dieValue?: number;
   rolling?: boolean;
   revealing?: boolean;
@@ -35,7 +36,7 @@ const visibleLocation = (player: JourneyGame['players'][number]): JourneyLocatio
 const locationsFor = (game: JourneyGame) => Object.fromEntries(game.players.map((player) => [player.id, visibleLocation(player)]));
 
 export function JourneyBoard({ game, profiles, viewerId, characterName, arenaImage, config = journeyConfigForGame(game),
-  dieValue = 0, rolling = false, revealing = false, onRoll, onMovementFinished }: Props) {
+  turnSeconds, dieValue = 0, rolling = false, revealing = false, onRoll, onMovementFinished }: Props) {
   const [selected, setSelected] = useState<JourneySquare | null>(null);
   const [displayLocations, setDisplayLocations] = useState<Record<string, JourneyLocation>>(() => locationsFor(game));
   const displayRef = useRef(displayLocations);
@@ -133,17 +134,19 @@ export function JourneyBoard({ game, profiles, viewerId, characterName, arenaIma
           <UserAvatar userId={player.id} name={profiles[player.id]?.name || 'Player'} avatarUrl={profiles[player.id]?.avatarUrl} showAwardBadge={false} loading="eager" className="!absolute inset-0" />
         </span>;
       })}
-      <div className="journey-board-title"><span>FULL CIRCLE ARENA</span><strong>{title}</strong><span>{config.winningLaps} LAPS TO VICTORY</span></div>
+      <div className="journey-board-title"><span>FULL CIRCLE ARENA</span><strong>{title}</strong><span>{game.pointsRemaining === undefined ? `${config.winningLaps} LAPS TO VICTORY` : `${game.pointsRemaining} / ${game.pointPoolSize ?? 100} POINTS REMAINING`}</span></div>
       <span className="journey-trials-title">THE TRIALS</span>
       <div className="journey-die-holder">
         <ArenaDieButton value={dieValue} rolling={rolling} revealing={revealing} disabled={!onRoll} onRoll={() => onRoll?.()} className="journey-die" />
       </div>
-      <div className="journey-turn-name" aria-live="polite">{profiles[active?.id]?.name || 'Player'}{active?.id === viewerId ? ' · Your turn' : "'s turn"}</div>
+      <div className="journey-turn-name" aria-live="polite">{profiles[active?.id]?.name || 'Player'}{active?.id === viewerId ? ' · Your turn' : "'s turn"}
+        {turnSeconds !== undefined && <span role="timer" aria-label="Turn time remaining" className="journey-turn-countdown">{turnSeconds}s</span>}
+      </div>
     </section>
     {selected && <aside className="journey-square-detail" aria-label={selected.title} role="status">
       <JourneySquareIcon square={selected} /><div className="min-w-0 flex-1"><h3>{selected.title}</h3><p>{selected.description}</p></div>
       <button type="button" className="icon-btn shrink-0" aria-label="Close square details" onClick={() => setSelected(null)}><X size={18} /></button>
     </aside>}
-    <div className="journey-player-positions">{game.players.map((player) => <span key={player.id}><strong>{profiles[player.id]?.name || 'Player'}</strong> · {player.completedLaps || 0}/{config.winningLaps} laps · {journeySquare(visibleLocation(player), config).title}{player.prisonTurnsRemaining > 0 ? ` · misses ${player.prisonTurnsRemaining} turns` : ''}{player.location.route === 'loop' ? ` · ${player.completedLoopCircuits} Trials circuits` : ''}</span>)}</div>
+    <div className="journey-player-positions">{game.players.map((player) => <span key={player.id}><strong>{profiles[player.id]?.name || 'Player'}</strong> · {game.pointsRemaining === undefined ? `${player.completedLaps || 0}/${config.winningLaps} laps · ` : ''}{journeySquare(visibleLocation(player), config).title}{player.prisonTurnsRemaining > 0 ? ` · misses ${player.prisonTurnsRemaining} turns` : ''}{player.location.route === 'loop' ? ` · ${player.completedLoopCircuits} Trials circuits` : ''}</span>)}</div>
   </div>;
 }
