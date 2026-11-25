@@ -23,6 +23,7 @@ import { machineJourneyMayAct, type JourneyPublicState } from '../../../supabase
 import { DEFAULT_JOURNEY_CONFIG, journeyConfigForGame, journeyScore, JOURNEY_MACHINE_ID } from '../../../supabase/functions/_shared/biblicalJourney';
 
 type Props = {
+  witnessStrip?: import('react').ReactNode;
   roomId: string;
   roomName: string;
   userId: string;
@@ -48,7 +49,7 @@ function answerFromOrder(question: NonNullable<JourneyPublicState['currentQuesti
   }).join(' ');
 }
 
-export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, machine = false, guestKey, arenaImage: suppliedArenaImage, onExit, onStateChanged }: Props) {
+export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, players, spectator, machine = false, guestKey, arenaImage: suppliedArenaImage, onExit, onStateChanged }: Props) {
   const [fetchedArenaImage, setFetchedArenaImage] = useState<PanelImageSetting | null>(null);
   const arenaImage = suppliedArenaImage === undefined ? fetchedArenaImage : suppliedArenaImage;
   useEffect(() => {
@@ -171,7 +172,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
   }, [answer, state?.questionAid?.hiddenOptions]);
 
   useEffect(() => {
-    if (!state?.questionDeadline || !state.currentQuestion) { setSecondsLeft(0); return; }
+    if (!state?.questionDeadline) { setSecondsLeft(0); return; }
     const tick = () => setSecondsLeft(Math.max(0, Math.ceil((Date.parse(state.questionDeadline!) - Date.now()) / 1000)));
     tick();
     const timer = window.setInterval(tick, 250);
@@ -358,10 +359,11 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
+    {state.questionDeadline && pauseRemaining === 0 && <p role="timer" className="text-center font-display text-lg font-bold tabular-nums text-brass">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}’s turn · {Math.min(secondsLeft, Math.ceil((Date.parse(state.questionDeadline) - Date.parse(state.questionOpensAt || state.questionDeadline)) / 1000) || secondsLeft)}s</p>}
     <ArenaMatchup players={visiblePlayers} playing pinned arenaImage={arenaImage} />
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
       && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
-    {pauseRemaining > 0 && <JourneyDialog label="Standstill">
+    {pauseRemaining > 0 && <JourneyDialog label="Standstill" fullScreen>
       <h2 className="font-display text-lg font-bold text-ink">Standstill</h2>
       <p className="mt-2 text-sm text-stone">The match will resume automatically.</p>
       <p className="mt-3 font-display text-3xl tabular-nums text-gold">{Math.floor(pauseRemaining / 60)}:{String(pauseRemaining % 60).padStart(2, '0')}</p>
@@ -401,7 +403,6 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
             .map(player => profiles[player.id]?.name || 'Player').join(' & ')).join(' vs ')}</p>
         <p className="mt-1">Your tent teammates share tournament points. Competitive swaps and transferred penalties exclude teammates.</p>
       </div>}
-      <GamePoints game="journey" players={roster} />
       <JourneyBoard game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
@@ -429,8 +430,8 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
             </div>
           </div>
           {state.game.pendingAction?.kind === 'trial' && <p className="mt-3 border-l-2 border-gold pl-3 text-xs leading-relaxed text-brass">{journeyEffectDescription({ kind: 'trial', success: state.game.pendingAction.choices[0], failure: state.game.pendingAction.choices[1] })}</p>}
-          <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={secondsLeft} aria-valuemin={0} aria-valuemax={state.questionAid?.used.includes('freeze-timer') ? 90 : 30} aria-label="Question time remaining">
-            <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / (state.questionAid?.used.includes('freeze-timer') ? 90 : 30) * 100)}%` }} />
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={secondsLeft} aria-valuemin={0} aria-valuemax={state.questionAid?.used.includes('freeze-timer') ? 105 : 45} aria-label="Question time remaining">
+            <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / (state.questionAid?.used.includes('freeze-timer') ? 105 : 45) * 100)}%` }} />
           </div>
           <p className="mt-4 whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">{openQuestion.question}</p>
           {waitingForMyAnswer && <div className="mt-4 max-h-[48dvh] space-y-2 overflow-y-auto pr-1">
@@ -476,5 +477,7 @@ export function JourneyGamePlay({ roomId, roomName, userId, players, spectator, 
     <ArenaWitnessChatDrawer roomId={roomId} userId={userId} guestKey={guestKey} open={chatOpen} showLauncher
       onOpenChange={setChatOpen} allowGameCalls={spectator && !guestKey}
       challengeTargets={spectator && !guestKey ? players.filter((player) => player.user_id !== JOURNEY_MACHINE_ID).map((player) => ({ userId: player.user_id, name: player.display_name, avatarUrl: player.avatar_url || null })) : []} />
+    {witnessStrip}
+    <GamePoints game="journey" players={roster} />
   </div>;
 }
