@@ -807,8 +807,17 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             <p className="text-xs text-stone mb-3">Protects one missed day.</p>
             <button onClick={buyFreezer} disabled={denarii < FREEZER_DAILY_COST || buyingFreezer}
               className="btn-primary text-xs w-full disabled:opacity-50">
-              {buyingFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy
+              {buyingFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy with Denarii
             </button>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-gold">300 FCFA</span>
+              <button type="button" className="btn-secondary text-xs" disabled={giftRecipientId !== 'self'}
+                onClick={() => addToCart({
+                  key: 'streak-freezer-daily', name: 'Daily Freezer',
+                  relicSlug: 'streak-freezer-daily', unitPrice: 300, quantity: 1,
+                })}>Add to cart</button>
+            </div>
+            {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-1">Cash Freezers are currently for your own account.</p>
           </div>
 
           <div className="p-4 rounded-lg border border-border bg-surface/65 backdrop-blur-md">
@@ -819,8 +828,16 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
             <p className="text-xs text-stone mb-3">Protects seven consecutive days and activates only when no daily freezer is ready.</p>
             <button onClick={buyWeeklyFreezer} disabled={giftRecipientId !== 'self' || denarii < FREEZER_WEEKLY_COST || buyingWeeklyFreezer}
               className="btn-primary text-xs w-full disabled:opacity-50">
-              {buyingWeeklyFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy
+              {buyingWeeklyFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy with Denarii
             </button>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-gold">500 FCFA</span>
+              <button type="button" className="btn-secondary text-xs" disabled={giftRecipientId !== 'self'}
+                onClick={() => addToCart({
+                  key: 'streak-freezer-weekly', name: 'Weekly Freezer',
+                  relicSlug: 'streak-freezer-weekly', unitPrice: 500, quantity: 1,
+                })}>Add to cart</button>
+            </div>
             {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-2">Weekly freezers are currently purchased for your own account.</p>}
           </div>
         </div>
