@@ -144,7 +144,7 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
     if (!sides || typeof sides !== 'object' || Array.isArray(sides) || playerIds.some(id => !sides[id])) {
       throw new Error('The inter-tent lineup is not ready.');
     }
-    tentSides = sides;
+    tentSides = Object.fromEntries(playerIds.map(id => [id, sides[id]]));
   }
   const runtime = await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom, tentSides);
   let seats = playerIds.length;
