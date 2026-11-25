@@ -1,3 +1,4 @@
+import { ScriptureBookmark, type ReadingOrigin } from '../../components/ScriptureBookmark';
 import { useEffect, useLayoutEffect, useRef, useState, type TouchEvent } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Heart, Lightbulb, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -29,7 +30,7 @@ const reactions = [
   { key: 'lightbulb', Icon: Lightbulb, label: 'Thinking about it' },
 ] as const;
 
-export function BibleReader({ initialLocation }: { initialLocation?: BibleReadingLocation | null } = {}) {
+export function BibleReader({ initialLocation, readingOrigin, onReturnToReading }: { initialLocation?: BibleReadingLocation | null; readingOrigin?: ReadingOrigin | null; onReturnToReading?: () => void } = {}) {
   const { profile } = useAuth();
   const { hasPremiumAccess, requirePremiumAccess } = useSubscriptionAccess();
   const [location, setLocation] = useState(() => validBibleReadingLocation(initialLocation) || readBibleReadingLocation(profile?.id));
@@ -60,9 +61,21 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   const instructorExtras = useInstructorVerseExtras(text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
 
   const threadLinks = useScriptureThreads(text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
-  const navigateConnection = (next: BibleReadingLocation) => {
-    if (next.bookIndex === bookIndex && next.chapter === chapter) { setPendingTarget(next); return; }
+  const [trail,setTrail]=useState<BibleReadingLocation[]>([]);
+  const jumpTo = (next: BibleReadingLocation) => {
+    if (next.bookIndex === bookIndex && next.chapter === chapter) { setLocation(next); setPendingTarget(next); return; }
     setLocation(next); setPendingTarget(next); setText(null); setInsights([]); setOpenVerse(null); setInsightError('');
+  };
+  const navigateConnection = (next: BibleReadingLocation, source?: number) => {
+    const anchor = {bookIndex,chapter,verse:source ?? location.verse};
+    if(next.bookIndex===anchor.bookIndex && next.chapter===anchor.chapter && next.verse===anchor.verse) return;
+    setTrail(previous=>[...previous,anchor]);
+    jumpTo(next);
+  };
+  const goBack = () => {
+    const previous=trail[trail.length-1];
+    if(previous){setTrail(current=>current.slice(0,-1));jumpTo(previous);}
+    else if(readingOrigin) onReturnToReading?.();
   };
   useReadingPosition(reader,profile?.id,`bible-${book.slug}-${chapter}`,Boolean(text),Boolean(pendingTarget),true);
   useEffect(()=>{saveBibleReadingLocation(profile?.id,{bookIndex,chapter});},[profile?.id,bookIndex,chapter]);
@@ -184,6 +197,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   };
 
   return <div ref={reader} className="today-reading-screen mx-auto max-w-3xl space-y-4">
+    <ScriptureBookmark count={trail.length+(readingOrigin?1:0)} onBack={goBack} />
     <section className="card reading-glass-panel relative isolate overflow-hidden border-border p-5"
       data-artwork-theme={artwork?.url ? 'night' : undefined}>
       <PanelImageBackdrop image={artwork} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} />
@@ -256,7 +270,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
             <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === reference)} />
-            <VerseThreads key={reference} reference={reference} links={threadLinks(reference)} onNavigate={navigateConnection} />
+            <VerseThreads key={reference} reference={reference} links={threadLinks(reference)} onNavigate={next=>navigateConnection(next,verse.number)} />
             {instructorExtras.facts[reference] && <p className="inline-flex items-center rounded-full border border-sky-500/45 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-brass">Did You Know? · Open the fact below</p>}
             {(instructorExtras.contexts[reference] || instructorExtras.facts[reference] || instructorExtras.quests[reference]) && (
               <InstructorVerseExtras context={instructorExtras.contexts[reference]}
