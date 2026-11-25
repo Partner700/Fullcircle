@@ -235,10 +235,11 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
       onTouchCancel={() => { swipeStart.current = null; }}>
       <div className="relative z-10">
         <h2 className="mb-3 font-display text-xl font-bold text-peri">{book.name} {chapter}</h2>
-        {text?.verses.length ? <ChapterDiscoveryPanel facts={chapterDiscoveryFacts(book.name, chapter, text.verses, instructorExtras.facts)} /> : null}
         {!text && !textError && <p role="status">Loading chapter…</p>}
         {textError && <div role="alert"><p>This chapter could not load.</p><button className="btn-secondary mt-2" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
-        {text?.verses.map(verse => {
+        {text?.verses.length ? (() => {
+          const discoveries = chapterDiscoveryFacts(book.name, chapter, text.verses, instructorExtras.facts);
+          return text.verses.map(verse => {
           const reference = `${book.name} ${chapter}:${verse.number}`;
           const rows = insights.filter(item => item.verse_reference === reference);
           const personalHighlight = verseMark(reference);
@@ -247,6 +248,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
               : personalHighlight === 'insight' ? 'verse-highlight-mine' : '';
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
+            <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === reference)} />
             {instructorExtras.facts[reference] && <p className="inline-flex items-center rounded-full border border-sky-500/45 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-brass">Did You Know? · Open the fact below</p>}
             {(instructorExtras.contexts[reference] || instructorExtras.facts[reference] || instructorExtras.quests[reference]) && (
               <InstructorVerseExtras context={instructorExtras.contexts[reference]}
@@ -294,7 +296,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
               {error && <p role="alert" className="text-sm text-coral">{error}</p>}
             </div>}
           </article>;
-        })}
+        }); })() : null}
         {text?.credit && <p className="mt-4 whitespace-pre-line text-xs text-stone">{text.credit}</p>}
       </div>
     </section>

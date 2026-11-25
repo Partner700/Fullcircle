@@ -12,20 +12,19 @@ const CATEGORY_LABELS: Record<string,string> = {
   textual_connection: "A connection worth seeing",
 };
 
-export function ChapterDiscoveryPanel({ facts, title = 'Did You Know? — Chapter discoveries' }: {
+export function ChapterDiscoveryPanel({ facts, title = 'Did You Know?' }: {
   facts: ScriptureDidYouKnow[]; title?: string;
 }) {
   if (!facts.length) return null;
-  return <section aria-label="Did You Know chapter discoveries"
-    className="mb-5 space-y-3 rounded-2xl border border-sky-500/40 bg-surface/90 px-4 py-4">
+  return <section aria-label="Did You Know verse discoveries"
+    className="my-2 space-y-3 rounded-2xl border border-sky-500/40 bg-surface/90 px-4 py-4">
     <h3 className="flex items-center gap-2 font-display text-base font-bold text-ink">
       <Lightbulb className="text-brass" size={19}/> {title}
     </h3>
-    <p className="text-xs text-stone">These discoveries come straight from the wording of this chapter in your selected Bible edition. Researched historical and scholarly facts are shown separately beside their verses.</p>
     {facts.map((fact, index) => <div key={`${fact.reference}-${index}`}
       className="rounded-xl border border-border bg-surface-2 px-3 py-3">
       <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-brass">
-        {CATEGORY_LABELS[fact.category || 'scripture_detail'] || 'Chapter discovery'} · {fact.reference}
+        {CATEGORY_LABELS[fact.category || 'scripture_detail'] || 'Verse discovery'} · {fact.reference}
       </p>
       <p className="text-sm leading-relaxed text-ink">{fact.fact}</p>
     </div>)}

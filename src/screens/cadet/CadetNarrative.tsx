@@ -1199,15 +1199,13 @@ export function CadetNarrative({
               {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
             </div>}
             <ScrollEdge position="top" className="text-brass mb-4" />
-            {panelVerses.length > 0 && <ChapterDiscoveryPanel
-              title="Did You Know? — Reading discoveries"
-              facts={passageDiscoveryFacts(panelVerses.map(({ verse }) => {
-                const reference = canonicalBibleVerseReference(verse.reference) || verse.reference;
-                return { reference, text: editionContent?.translations.get(verse.reference) || verse.text };
-              }), instructorExtras.facts)}
-            />}
             <div className="space-y-4 sm:space-y-5">
-              {panelVerses.length ? panelVerses.map(({ verse, index }) => {
+              {panelVerses.length ? (() => {
+                const discoveries = passageDiscoveryFacts(panelVerses.map(({ verse }) => ({
+                  reference: canonicalBibleVerseReference(verse.reference) || verse.reference,
+                  text: editionContent?.translations.get(verse.reference) || verse.text,
+                })), instructorExtras.facts);
+                return panelVerses.map(({ verse, index }) => {
                 const sourceNarrativeId = verse.sourceNarrativeId || narrative.id;
                 const bibleReference = canonicalBibleVerseReference(verse.reference);
                 const userInsights = (hasPremiumAccess ? verseInsights : []).filter((item) => (
@@ -1252,6 +1250,7 @@ export function CadetNarrative({
                         {verse.reference}{hiddenVerseMarker ? ' · Tagged for you' : ''}{hasInsight ? ' · Instructor annotation available' : ''}{instructorExtras.facts[bibleReference || verse.reference] ? ' · Did You Know? fact' : ''}{userInsights.length ? ` · ${userInsights.length} reader insight${userInsights.length === 1 ? '' : 's'}` : ''}
                       </span>
                     </button>
+                    <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === (bibleReference || verse.reference))} />
                     {hasInsight && expanded && (
                       <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
@@ -1482,7 +1481,7 @@ export function CadetNarrative({
                     </div>
                   </article>
                 );
-              }) : splitScriptureVerses(passage.main_text || '').map((verse, index) => (
+              }); })() : splitScriptureVerses(passage.main_text || '').map((verse, index) => (
                 <article key={`${verse.number}-${index}`} className="border-b border-border pb-4 last:border-b-0 last:pb-0">
                   <p className="text-[15px] leading-8 text-ink whitespace-pre-wrap"><span className="mr-1.5 font-bold text-brass">{verse.number}.</span><span data-no-translate>{verse.text}</span></p>
                 </article>
