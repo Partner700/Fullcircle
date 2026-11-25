@@ -817,7 +817,7 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
                   relicSlug: 'streak-freezer-daily', unitPrice: 300, quantity: 1,
                 })}>Add to cart</button>
             </div>
-            {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-1">Cash Freezers are currently for your own account.</p>
+            {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-1">Cash Freezers are currently for your own account.</p>}
           </div>
 
           <div className="p-4 rounded-lg border border-border bg-surface/65 backdrop-blur-md">
