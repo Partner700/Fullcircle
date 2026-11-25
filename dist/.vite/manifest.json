@@ -1,123 +1,123 @@
 {
-  "_AncientMotifs-OvB3_zgG.js": {
-    "file": "assets/AncientMotifs-OvB3_zgG.js",
+  "_AncientMotifs-HfeI59Zq.js": {
+    "file": "assets/AncientMotifs-HfeI59Zq.js",
     "name": "AncientMotifs",
     "imports": [
       "index.html",
       "_app-runtime-BAWKHZq9.js"
     ]
   },
-  "_CadetArena-CO7dHXT_.js": {
-    "file": "assets/CadetArena-CO7dHXT_.js",
+  "_CadetArena-Dq3oah7e.js": {
+    "file": "assets/CadetArena-Dq3oah7e.js",
     "name": "CadetArena",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_ContextRelicShop-DK_rrB0X.js",
+      "_ContextRelicShop-DswldJrY.js",
       "index.html",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_user-plus-DfOzPsLb.js"
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_user-plus-CcHV0duO.js"
     ]
   },
-  "_CadetQuiz-YrKPM57R.js": {
-    "file": "assets/CadetQuiz-YrKPM57R.js",
+  "_CadetQuiz-C6L-Xahk.js": {
+    "file": "assets/CadetQuiz-C6L-Xahk.js",
     "name": "CadetQuiz",
     "imports": [
       "_app-runtime-BAWKHZq9.js",
       "index.html",
-      "_birthdays-DuHG0dSx.js",
-      "_gameEngines-C0l9Evhm.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_ScriptureQuestion-Bt3HjOfZ.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_user-plus-DfOzPsLb.js",
-      "_ContextRelicShop-DK_rrB0X.js"
+      "_birthdays-TwYXZm5b.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_ScriptureQuestion-C63iXiSA.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_user-plus-CcHV0duO.js",
+      "_ContextRelicShop-DswldJrY.js"
     ]
   },
-  "_CadetStore-BN141xPA.js": {
-    "file": "assets/CadetStore-BN141xPA.js",
+  "_CadetStore-B9IWZZNV.js": {
+    "file": "assets/CadetStore-B9IWZZNV.js",
     "name": "CadetStore",
     "imports": [
       "index.html",
       "_app-runtime-BAWKHZq9.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_gameEngines-C0l9Evhm.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_flame-CKngLzgq.js",
-      "_user-plus-DfOzPsLb.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_appNavigation-7Kt62hwC.js",
-      "_hiddenChallenges-CLSBqJ6h.js"
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_flame-CNib-xZG.js",
+      "_user-plus-CcHV0duO.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_appNavigation-CMzYr7xG.js",
+      "_hiddenChallenges-1jQp9cyz.js"
     ]
   },
-  "_CadetStreak-Bhx0yIKG.js": {
-    "file": "assets/CadetStreak-Bhx0yIKG.js",
+  "_CadetStreak-BggXNUqO.js": {
+    "file": "assets/CadetStreak-BggXNUqO.js",
     "name": "CadetStreak",
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_appNavigation-7Kt62hwC.js",
-      "_flame-CKngLzgq.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_appNavigation-CMzYr7xG.js",
+      "_flame-CNib-xZG.js",
       "index.html",
-      "_CadetArena-CO7dHXT_.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_gameEngines-C0l9Evhm.js",
-      "_CadetQuiz-YrKPM57R.js",
-      "_CadetStore-BN141xPA.js",
-      "_birthdays-DuHG0dSx.js",
-      "_QuoteReleaseTime-7kQUb50N.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_quote-B02xOXA2.js"
+      "_CadetArena-Dq3oah7e.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_CadetQuiz-C6L-Xahk.js",
+      "_CadetStore-B9IWZZNV.js",
+      "_birthdays-TwYXZm5b.js",
+      "_QuoteReleaseTime-CtPF56UD.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_quote-CdqBl_98.js"
     ],
     "dynamicImports": [
-      "_CadetArena-CO7dHXT_.js"
+      "_CadetArena-Dq3oah7e.js"
     ]
   },
-  "_ContextRelicShop-DK_rrB0X.js": {
-    "file": "assets/ContextRelicShop-DK_rrB0X.js",
+  "_ContextRelicShop-DswldJrY.js": {
+    "file": "assets/ContextRelicShop-DswldJrY.js",
     "name": "ContextRelicShop",
     "imports": [
       "index.html",
       "_app-runtime-BAWKHZq9.js",
-      "_TentHouseSymbol-BjUuq589.js"
+      "_TentHouseSymbol-uw92t3lZ.js"
     ]
   },
-  "_MeditationHistoryPanel-CDOMORe_.js": {
-    "file": "assets/MeditationHistoryPanel-CDOMORe_.js",
+  "_MeditationHistoryPanel-Dw40vfa7.js": {
+    "file": "assets/MeditationHistoryPanel-Dw40vfa7.js",
     "name": "MeditationHistoryPanel",
     "imports": [
       "index.html",
       "_app-runtime-BAWKHZq9.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_gameEngines-C0l9Evhm.js",
-      "_CadetStore-BN141xPA.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_CadetArena-CO7dHXT_.js"
+      "_ContextRelicShop-DswldJrY.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_CadetStore-B9IWZZNV.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_CadetArena-Dq3oah7e.js"
     ]
   },
-  "_QuoteReleaseTime-7kQUb50N.js": {
-    "file": "assets/QuoteReleaseTime-7kQUb50N.js",
+  "_QuoteReleaseTime-CtPF56UD.js": {
+    "file": "assets/QuoteReleaseTime-CtPF56UD.js",
     "name": "QuoteReleaseTime",
     "imports": [
       "_app-runtime-BAWKHZq9.js",
       "index.html"
     ]
   },
-  "_ScriptureQuestion-Bt3HjOfZ.js": {
-    "file": "assets/ScriptureQuestion-Bt3HjOfZ.js",
+  "_ScriptureQuestion-C63iXiSA.js": {
+    "file": "assets/ScriptureQuestion-C63iXiSA.js",
     "name": "ScriptureQuestion",
     "imports": [
       "_app-runtime-BAWKHZq9.js",
       "index.html",
-      "_hiddenChallenges-CLSBqJ6h.js"
+      "_hiddenChallenges-1jQp9cyz.js"
     ]
   },
-  "_TentHouseSymbol-BjUuq589.js": {
-    "file": "assets/TentHouseSymbol-BjUuq589.js",
+  "_TentHouseSymbol-uw92t3lZ.js": {
+    "file": "assets/TentHouseSymbol-uw92t3lZ.js",
     "name": "TentHouseSymbol",
     "imports": [
       "index.html",
@@ -135,17 +135,17 @@
     "file": "assets/app-runtime-BAWKHZq9.js",
     "name": "app-runtime"
   },
-  "_appNavigation-7Kt62hwC.js": {
-    "file": "assets/appNavigation-7Kt62hwC.js",
+  "_appNavigation-CMzYr7xG.js": {
+    "file": "assets/appNavigation-CMzYr7xG.js",
     "name": "appNavigation",
     "imports": [
       "index.html",
       "_app-runtime-BAWKHZq9.js",
-      "_ContextRelicShop-DK_rrB0X.js"
+      "_ContextRelicShop-DswldJrY.js"
     ]
   },
-  "_birthdays-DuHG0dSx.js": {
-    "file": "assets/birthdays-DuHG0dSx.js",
+  "_birthdays-TwYXZm5b.js": {
+    "file": "assets/birthdays-TwYXZm5b.js",
     "name": "birthdays",
     "imports": [
       "index.html"
@@ -155,74 +155,74 @@
     "file": "assets/denariiAnimation-5uQR2H4u.js",
     "name": "denariiAnimation"
   },
-  "_doveQuestions-E9-1BjVv.js": {
-    "file": "assets/doveQuestions-E9-1BjVv.js",
+  "_doveQuestions-B4N8mwDE.js": {
+    "file": "assets/doveQuestions-B4N8mwDE.js",
     "name": "doveQuestions",
     "imports": [
       "index.html"
     ]
   },
-  "_flame-CKngLzgq.js": {
-    "file": "assets/flame-CKngLzgq.js",
+  "_flame-CNib-xZG.js": {
+    "file": "assets/flame-CNib-xZG.js",
     "name": "flame",
     "imports": [
       "index.html"
     ]
   },
-  "_gameEngines-C0l9Evhm.js": {
-    "file": "assets/gameEngines-C0l9Evhm.js",
+  "_gameEngines-CBDNfY-N.js": {
+    "file": "assets/gameEngines-CBDNfY-N.js",
     "name": "gameEngines",
     "imports": [
       "index.html",
       "_app-runtime-BAWKHZq9.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_flame-CKngLzgq.js"
+      "_ContextRelicShop-DswldJrY.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_flame-CNib-xZG.js"
     ],
     "dynamicImports": [
       "src/components/PlayerNumberPicker.tsx"
     ]
   },
-  "_hash-Btwv6HPd.js": {
-    "file": "assets/hash-Btwv6HPd.js",
+  "_hash-BOFlJ82k.js": {
+    "file": "assets/hash-BOFlJ82k.js",
     "name": "hash",
     "imports": [
       "index.html"
     ]
   },
-  "_hiddenChallenges-CLSBqJ6h.js": {
-    "file": "assets/hiddenChallenges-CLSBqJ6h.js",
+  "_hiddenChallenges-1jQp9cyz.js": {
+    "file": "assets/hiddenChallenges-1jQp9cyz.js",
     "name": "hiddenChallenges",
     "imports": [
       "index.html"
     ]
   },
-  "_home-Cs3vrzXJ.js": {
-    "file": "assets/home-Cs3vrzXJ.js",
+  "_home-DT1ujvu-.js": {
+    "file": "assets/home-DT1ujvu-.js",
     "name": "home",
     "imports": [
       "index.html"
     ]
   },
-  "_quote-B02xOXA2.js": {
-    "file": "assets/quote-B02xOXA2.js",
+  "_quote-CdqBl_98.js": {
+    "file": "assets/quote-CdqBl_98.js",
     "name": "quote",
     "imports": [
       "index.html"
     ]
   },
-  "_user-plus-DfOzPsLb.js": {
-    "file": "assets/user-plus-DfOzPsLb.js",
+  "_user-plus-CcHV0duO.js": {
+    "file": "assets/user-plus-CcHV0duO.js",
     "name": "user-plus",
     "imports": [
       "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/index-D2BcVN95.js",
+    "file": "assets/index-DyIpy-OL.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -278,94 +278,94 @@
     "src": "src/assets/fonts/nunito-latin-wght-normal.woff2"
   },
   "src/components/AuthenticatedOverlays.tsx": {
-    "file": "assets/AuthenticatedOverlays-BbBd-XXL.js",
+    "file": "assets/AuthenticatedOverlays-iBCqrb0G.js",
     "name": "AuthenticatedOverlays",
     "src": "src/components/AuthenticatedOverlays.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_ScriptureQuestion-Bt3HjOfZ.js",
+      "_ScriptureQuestion-C63iXiSA.js",
       "index.html",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_appNavigation-7Kt62hwC.js",
-      "_TentHouseSymbol-BjUuq589.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_appNavigation-CMzYr7xG.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
       "_denariiAnimation-5uQR2H4u.js",
-      "_doveQuestions-E9-1BjVv.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_flame-CKngLzgq.js",
-      "_hash-Btwv6HPd.js"
+      "_doveQuestions-B4N8mwDE.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_flame-CNib-xZG.js",
+      "_hash-BOFlJ82k.js"
     ]
   },
   "src/components/PlayerNumberPicker.tsx": {
-    "file": "assets/PlayerNumberPicker-BJz1uaZ_.js",
+    "file": "assets/PlayerNumberPicker-CfEpux71.js",
     "name": "PlayerNumberPicker",
     "src": "src/components/PlayerNumberPicker.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
       "index.html",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_hash-Btwv6HPd.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_user-plus-DfOzPsLb.js"
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_hash-BOFlJ82k.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_user-plus-CcHV0duO.js"
     ]
   },
   "src/screens/MemberShareDestination.tsx": {
-    "file": "assets/MemberShareDestination-w-iYvS2E.js",
+    "file": "assets/MemberShareDestination-B9jfxwzH.js",
     "name": "MemberShareDestination",
     "src": "src/screens/MemberShareDestination.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_CadetQuiz-YrKPM57R.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_CadetQuiz-C6L-Xahk.js",
       "index.html",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_gameEngines-C0l9Evhm.js",
-      "_birthdays-DuHG0dSx.js",
-      "_home-Cs3vrzXJ.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_user-plus-DfOzPsLb.js",
-      "_ScriptureQuestion-Bt3HjOfZ.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_flame-CKngLzgq.js"
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_birthdays-TwYXZm5b.js",
+      "_home-DT1ujvu-.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_user-plus-CcHV0duO.js",
+      "_ScriptureQuestion-C63iXiSA.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_flame-CNib-xZG.js"
     ]
   },
   "src/screens/PublicArenaScreen.tsx": {
-    "file": "assets/PublicArenaScreen-DMCfS439.js",
+    "file": "assets/PublicArenaScreen-CIdBnDk7.js",
     "name": "PublicArenaScreen",
     "src": "src/screens/PublicArenaScreen.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_CadetArena-CO7dHXT_.js",
+      "_CadetArena-Dq3oah7e.js",
       "index.html",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_user-plus-DfOzPsLb.js"
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_user-plus-CcHV0duO.js"
     ]
   },
   "src/screens/PublicShareScreen.tsx": {
-    "file": "assets/PublicShareScreen--vt2gDVA.js",
+    "file": "assets/PublicShareScreen-C8IYf8SG.js",
     "name": "PublicShareScreen",
     "src": "src/screens/PublicShareScreen.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_AncientMotifs-OvB3_zgG.js",
+      "_AncientMotifs-HfeI59Zq.js",
       "index.html",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_QuoteReleaseTime-7kQUb50N.js",
-      "_birthdays-DuHG0dSx.js",
-      "_user-plus-DfOzPsLb.js",
-      "_quote-B02xOXA2.js",
-      "_flame-CKngLzgq.js"
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_QuoteReleaseTime-CtPF56UD.js",
+      "_birthdays-TwYXZm5b.js",
+      "_user-plus-CcHV0duO.js",
+      "_quote-CdqBl_98.js",
+      "_flame-CNib-xZG.js"
     ]
   },
   "src/screens/admin/CampWorkspace.tsx": {
-    "file": "assets/CampWorkspace-B8Mgez5D.js",
+    "file": "assets/CampWorkspace-X8Zx4KyO.js",
     "name": "CampWorkspace",
     "src": "src/screens/admin/CampWorkspace.tsx",
     "isDynamicEntry": true,
@@ -375,83 +375,83 @@
     ]
   },
   "src/screens/cadet/CadetApp.tsx": {
-    "file": "assets/CadetApp-CUqSM1FX.js",
+    "file": "assets/CadetApp-n7zgOyDC.js",
     "name": "CadetApp",
     "src": "src/screens/cadet/CadetApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
       "index.html",
-      "_gameEngines-C0l9Evhm.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_CadetStreak-Bhx0yIKG.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_CadetStore-BN141xPA.js",
-      "_CadetQuiz-YrKPM57R.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_user-plus-DfOzPsLb.js",
-      "_flame-CKngLzgq.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_CadetStreak-BggXNUqO.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_CadetStore-B9IWZZNV.js",
+      "_CadetQuiz-C6L-Xahk.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_user-plus-CcHV0duO.js",
+      "_flame-CNib-xZG.js",
+      "_hiddenChallenges-1jQp9cyz.js",
       "_denariiAnimation-5uQR2H4u.js",
-      "_appNavigation-7Kt62hwC.js",
-      "_home-Cs3vrzXJ.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_birthdays-DuHG0dSx.js",
-      "_QuoteReleaseTime-7kQUb50N.js",
-      "_quote-B02xOXA2.js",
-      "_ScriptureQuestion-Bt3HjOfZ.js"
+      "_appNavigation-CMzYr7xG.js",
+      "_home-DT1ujvu-.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_birthdays-TwYXZm5b.js",
+      "_QuoteReleaseTime-CtPF56UD.js",
+      "_quote-CdqBl_98.js",
+      "_ScriptureQuestion-C63iXiSA.js"
     ]
   },
   "src/screens/instructor/InstructorApp.tsx": {
-    "file": "assets/InstructorApp-C-a3V8Sn.js",
+    "file": "assets/InstructorApp-BOO9YOls.js",
     "name": "InstructorApp",
     "src": "src/screens/instructor/InstructorApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
       "index.html",
-      "_CadetArena-CO7dHXT_.js",
-      "_MeditationHistoryPanel-CDOMORe_.js",
-      "_CadetStore-BN141xPA.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_gameEngines-C0l9Evhm.js",
-      "_QuoteReleaseTime-7kQUb50N.js",
-      "_doveQuestions-E9-1BjVv.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_appNavigation-7Kt62hwC.js",
-      "_flame-CKngLzgq.js",
-      "_user-plus-DfOzPsLb.js",
-      "_home-Cs3vrzXJ.js",
-      "_AncientMotifs-OvB3_zgG.js"
+      "_CadetArena-Dq3oah7e.js",
+      "_MeditationHistoryPanel-Dw40vfa7.js",
+      "_CadetStore-B9IWZZNV.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_QuoteReleaseTime-CtPF56UD.js",
+      "_doveQuestions-B4N8mwDE.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_appNavigation-CMzYr7xG.js",
+      "_flame-CNib-xZG.js",
+      "_user-plus-CcHV0duO.js",
+      "_home-DT1ujvu-.js",
+      "_AncientMotifs-HfeI59Zq.js"
     ]
   },
   "src/screens/sentry/SentryApp.tsx": {
-    "file": "assets/SentryApp-DB0ERCa_.js",
+    "file": "assets/SentryApp-CgWsQHzo.js",
     "name": "SentryApp",
     "src": "src/screens/sentry/SentryApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_app-runtime-BAWKHZq9.js",
-      "_CadetStreak-Bhx0yIKG.js",
+      "_CadetStreak-BggXNUqO.js",
       "index.html",
-      "_gameEngines-C0l9Evhm.js",
-      "_CadetArena-CO7dHXT_.js",
-      "_TentHouseSymbol-BjUuq589.js",
-      "_CadetStore-BN141xPA.js",
-      "_ContextRelicShop-DK_rrB0X.js",
-      "_AncientMotifs-OvB3_zgG.js",
-      "_MeditationHistoryPanel-CDOMORe_.js",
+      "_gameEngines-CBDNfY-N.js",
+      "_CadetArena-Dq3oah7e.js",
+      "_TentHouseSymbol-uw92t3lZ.js",
+      "_CadetStore-B9IWZZNV.js",
+      "_ContextRelicShop-DswldJrY.js",
+      "_AncientMotifs-HfeI59Zq.js",
+      "_MeditationHistoryPanel-Dw40vfa7.js",
       "_denariiAnimation-5uQR2H4u.js",
-      "_appNavigation-7Kt62hwC.js",
-      "_CadetQuiz-YrKPM57R.js",
-      "_hiddenChallenges-CLSBqJ6h.js",
-      "_flame-CKngLzgq.js",
-      "_birthdays-DuHG0dSx.js",
-      "_QuoteReleaseTime-7kQUb50N.js",
-      "_quote-B02xOXA2.js",
-      "_user-plus-DfOzPsLb.js",
-      "_ScriptureQuestion-Bt3HjOfZ.js"
+      "_appNavigation-CMzYr7xG.js",
+      "_CadetQuiz-C6L-Xahk.js",
+      "_hiddenChallenges-1jQp9cyz.js",
+      "_flame-CNib-xZG.js",
+      "_birthdays-TwYXZm5b.js",
+      "_QuoteReleaseTime-CtPF56UD.js",
+      "_quote-CdqBl_98.js",
+      "_user-plus-CcHV0duO.js",
+      "_ScriptureQuestion-C63iXiSA.js"
     ]
   },
   "style.css": {
