@@ -42,13 +42,58 @@ export function useScriptureThreads(references: string[]) {
     return state.data[chapterKey(reference)]?.[String(target.verse)] ?? (state.data[chapterKey(reference)] ? [] : undefined);
   };
 }
+export const THREAD_TYPES = {
+ prophecy: ['Prophecy','#A855F7'], fulfillment: ['Prophetic fulfilment','#22C55E'],
+ history: ['Historical continuity','#3B82F6'], kingdom: ['Kingdom principle','#EAB308'],
+ strategy: ['Conflict and strategy','#EF4444'], symbol: ['Types and symbols','#F97316'],
+ parallel: ['Parallel accounts','#14B8A6'], covenant: ['Covenant and promise','#EC4899'],
+ law: ['Law and instruction','#6366F1'], quotation: ['Quotation','#06B6D4'],
+ related: ['Related passage','#9CA3AF'],
+} as const;
+type ThreadType=keyof typeof THREAD_TYPES;
+const reviewedConnections: Array<[string,string,ThreadType,ThreadType]> = [
+ ['Isaiah 7:14','Matthew 1:23','fulfillment','prophecy'],
+ ['Micah 5:2','Matthew 2:6','fulfillment','prophecy'],
+ ['Isaiah 40:3','Matthew 3:3','fulfillment','prophecy'],
+ ['Zechariah 9:9','Matthew 21:5','fulfillment','prophecy'],
+ ['Joel 2:28','Acts 2:17','fulfillment','prophecy'],
+ ['Isaiah 53:7','Acts 8:32','quotation','quotation'],
+ ['Deuteronomy 8:3','Matthew 4:4','quotation','quotation'],
+ ['Genesis 2:24','Matthew 19:5','quotation','quotation'],
+ ['Judges 7:24','Judges 8:1','history','history'],
+ ['Judges 7:25','Judges 8:3','history','history'],
+ ['Judges 8:1','Judges 12:1','strategy','strategy'],
+ ['Judges 8:3','Proverbs 15:1','kingdom','kingdom'],
+ ['Judges 8:23','1 Samuel 8:7','kingdom','kingdom'],
+ ['Judges 8:27','Exodus 28:6','symbol','symbol'],
+ ['Genesis 12:3','Genesis 22:18','covenant','covenant'],
+ ['Genesis 22:18','Galatians 3:16','covenant','covenant'],
+ ['Exodus 20:12','Ephesians 6:2','law','law'],
+ ['Matthew 14:19','Mark 6:41','parallel','parallel'],
+ ['Matthew 14:19','John 6:11','parallel','parallel'],
+ ['Numbers 21:9','John 3:14','symbol','symbol'],
+ ['Genesis 1:1','John 1:1','kingdom','kingdom'],
+ ['Genesis 2:9','Revelation 22:2','symbol','symbol'],
+ ['Luke 24:49','Acts 1:4','history','history'],
+ ['Acts 1:8','Acts 2:4','fulfillment','prophecy'],
+ ['Romans 12:4','1 Corinthians 12:12','kingdom','kingdom'],
+ ['Matthew 25:21','Luke 16:10','kingdom','kingdom'],
+];
+function threadType(from:string,to:string):ThreadType {
+ for(const [a,b,forward,reverse] of reviewedConnections){
+  if(from===a&&to===b)return forward;
+  if(from===b&&to===a)return reverse;
+ }
+ return 'related';
+}
+
 type Navigate = (location: BibleReadingLocation) => void;
-function PassageLink({ reference, end, onNavigate }: { reference: string; end?: string; onNavigate?: Navigate }) {
+function PassageLink({ reference, end, onNavigate, kind }: { reference: string; end?: string; onNavigate?: Navigate; kind?: ThreadType }) {
   const location = parseBibleReadingReference(reference);
   if (!location) return null;
   const text = end ? reference + ' – ' + end : reference;
   return <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.(location)} className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5 text-left text-sm font-semibold text-ink hover:border-brass/60">
-    <span>{text}</span><ArrowUpRight size={14} className="shrink-0 text-brass"/>
+    <span className="min-w-0">{kind&&<span className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide" style={{color:THREAD_TYPES[kind][1]}}><span className="h-2 w-2 rounded-full" style={{backgroundColor:THREAD_TYPES[kind][1]}}/>{THREAD_TYPES[kind][0]}</span>}{text}</span><ArrowUpRight size={14} className="shrink-0 text-brass"/>
   </button>;
 }
 type Exploration = { question: string; answer?: string; references: string[]; source?: string };
@@ -78,6 +123,7 @@ function ExplorationCards({reference,onNavigate}:{reference:string;onNavigate?:N
 
 export function VerseThreads({reference, links, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
   const [limit,setLimit]=useState(20);
+  const [filter,setFilter]=useState<ThreadType|'all'>('all');
   const [open,setOpen]=useState(false);
   const [retry,setRetry]=useState(0);
   const [local,setLocal]=useState<{ref:string; rows:LinkRow[]}|null>(null);
@@ -89,7 +135,10 @@ export function VerseThreads({reference, links, onNavigate}: {reference:string; 
     void loadChapter(chapterKey(reference)).then(data=>{if(active)setLocal({ref:reference,rows:data[String(verse)]||[]});}).catch(()=>{if(active)setFailed(true);});
     return()=>{active=false;};
   },[open,links,reference,retry]);
-  const rows=links ?? (local?.ref===reference?local.rows:undefined);
+  const imported=links ?? (local?.ref===reference?local.rows:undefined);
+  const reviewed:LinkRow[]=reviewedConnections.flatMap(([a,b])=>a===reference?[[b,'',0] as LinkRow]:b===reference?[[a,'',0] as LinkRow]:[]);
+  const rows=imported===undefined?undefined:[...reviewed,...imported.filter(([ref,end])=>!reviewed.some(([r,e])=>r===ref&&e===end))];
+  const visibleRows=rows?.filter(([ref])=>filter==='all'||threadType(reference,ref)===filter);
   return <details onToggle={event=>setOpen(event.currentTarget.open)} className="group my-1 rounded-xl border border-border bg-surface/80">
     <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-bold text-brass [&::-webkit-details-marker]:hidden"><GitBranch size={16}/> Threads
       {rows!==undefined && <span className="rounded-full bg-brass/10 px-2 py-0.5 tabular-nums">{rows.length}</span>}
@@ -99,8 +148,9 @@ export function VerseThreads({reference, links, onNavigate}: {reference:string; 
       <ExplorationCards reference={reference} onNavigate={onNavigate}/>
       <p className="text-xs text-stone">Passages connected to {reference}. Connections may reflect quotations, parallel accounts, prophecy or shared themes.</p>
       {rows===undefined ? <p className="text-xs text-stone" role="status">{failed?'Threads could not load.':'Loading threads…'} {failed&&<button className="underline" onClick={()=>setRetry(n=>n+1)}>Retry</button>}</p> : rows.length===0 ? <p className="text-xs text-stone">No indexed connections for this verse.</p> : <>
-        <div className="grid max-h-80 gap-1.5 overflow-y-auto">{rows.slice(0,limit).map(([ref,end])=><PassageLink key={ref+'|'+end} reference={ref} end={end} onNavigate={onNavigate}/>)}</div>
-        {limit<rows.length&&<button type="button" className="btn-ghost w-full text-xs" onClick={()=>setLimit(n=>n+30)}>Show more · {rows.length-limit} remaining</button>}
+        <div className="flex flex-wrap gap-1.5">{(['all',...Object.keys(THREAD_TYPES)] as Array<ThreadType|'all'>).filter(kind=>kind==='all'||rows.some(([ref])=>threadType(reference,ref)===kind)).map(kind=><button key={kind} type="button" aria-pressed={filter===kind} onClick={()=>{setFilter(kind);setLimit(20);}} className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${filter===kind?'bg-surface-2 border-brass':'border-border'}`} style={kind==='all'?undefined:{color:THREAD_TYPES[kind][1]}}>{kind==='all'?'All':THREAD_TYPES[kind][0]}</button>)}</div>
+        <div className="grid max-h-80 gap-1.5 overflow-y-auto">{visibleRows?.slice(0,limit).map(([ref,end])=><PassageLink key={ref+'|'+end} reference={ref} end={end} kind={threadType(reference,ref)} onNavigate={onNavigate}/>)}</div>
+        {visibleRows&&limit<visibleRows.length&&<button type="button" className="btn-ghost w-full text-xs" onClick={()=>setLimit(n=>n+30)}>Show more · {visibleRows.length-limit} remaining</button>}
       </>}
       <p className="text-[10px] text-stone">Cross-reference data: <a className="underline" href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noreferrer">OpenBible.info</a> · CC BY 4.0 · links are study aids, not claims that every connection is a direct prophecy.</p>
     </div>
@@ -165,9 +215,9 @@ const summaries:Record<string,SummaryEntry>={
   {heading:'The pursuit completed',body:'Gideon and his weary men continue after Zebah and Zalmunna. Succoth and Penuel refuse assistance; Gideon captures the kings and returns.',reference:'Judges 8:4'},
   {heading:'A kingdom refused, an ephod made',body:'Gideon refuses hereditary rule, saying the Lord shall rule over Israel. He then makes a golden ephod that becomes a snare to him and his household.',reference:'Judges 8:22'},
   {heading:'Rest and renewed unfaithfulness',body:'The land rests forty years. After Gideon dies, Israel returns to the Baals and forgets the Lord and Gideon’s kindness.',reference:'Judges 8:28'}
- ],takeaway:'God’s deliverance does not remove the need for continued faithfulness. Gideon’s story contrasts humility in conflict with the dangers that can follow victory.'},
- 'Judges 7':{sections:[{heading:'God reduces the army',body:'God chooses 300 men so Israel cannot boast that its own strength saved it.',reference:'Judges 7:2'},{heading:'Reassurance and victory',body:'Gideon hears a dream in the enemy camp and worships. God turns the Midianites against one another.',reference:'Judges 7:9'},{heading:'Ephraim joins the pursuit',body:'Gideon calls Ephraim to intercept the fleeing enemy; they capture Oreb and Zeeb.',reference:'Judges 7:24'}],takeaway:'The deliverance belongs to God, not the size of Gideon’s army.'},
- 'Judges 6':{sections:[{heading:'Israel cries out',body:'Midian oppresses Israel; God sends a prophet reminding Israel of His deliverance and their disobedience.',reference:'Judges 6:1'},{heading:'Gideon is called',body:'The Lord commissions Gideon to deliver Israel and reassures him of His presence.',reference:'Judges 6:11'},{heading:'Obedience and assurance',body:'Gideon destroys Baal’s altar and later seeks reassurance through the fleece.',reference:'Judges 6:25'}],takeaway:'God calls Gideon in weakness and assures him of His presence.'}
+ ],takeaway:'Leadership competence: distinguish operational success from institutional durability. Gideon resolves a dispute by publicly recognizing another group’s contribution (8:1–3), rejects hereditary office (8:22–23), yet creates an object that becomes a snare (8:27). The organization fails to preserve allegiance after his death (8:33–35). Audit recognition, stewardship of symbols, accountability and succession separately; success in one does not guarantee success in another.'},
+ 'Judges 7':{sections:[{heading:'God reduces the army',body:'God chooses 300 men so Israel cannot boast that its own strength saved it.',reference:'Judges 7:2'},{heading:'Reassurance and victory',body:'Gideon hears a dream in the enemy camp and worships. God turns the Midianites against one another.',reference:'Judges 7:9'},{heading:'Ephraim joins the pursuit',body:'Gideon calls Ephraim to intercept the fleeing enemy; they capture Oreb and Zeeb.',reference:'Judges 7:24'}],takeaway:'Leadership competence: distinguish the source of authority from numerical strength. The text explicitly gives the reason for reducing the army in 7:2: Israel must not claim credit for deliverance. Compare the allocation of responsibility in 7:24 with the recognition dispute in 8:1–3. Assess whether your organization measures faithful execution rather than headcount or personal prestige.'},
+ 'Judges 6':{sections:[{heading:'Israel cries out',body:'Midian oppresses Israel; God sends a prophet reminding Israel of His deliverance and their disobedience.',reference:'Judges 6:1'},{heading:'Gideon is called',body:'The Lord commissions Gideon to deliver Israel and reassures him of His presence.',reference:'Judges 6:11'},{heading:'Obedience and assurance',body:'Gideon destroys Baal’s altar and later seeks reassurance through the fleece.',reference:'Judges 6:25'}],takeaway:'Leadership competence: diagnose the underlying failure before assuming responsibility. The prophetic message in 6:8–10 precedes Gideon’s commission. Gideon must address his own household’s allegiance before leading others (6:25–32). Distinguish appointment, personal credibility and demonstrated obedience.'}
 };
 export function ChapterSummary({reference,onNavigate}:{reference:string;onNavigate?:Navigate}){
  const target=parseBibleReadingReference(reference);
