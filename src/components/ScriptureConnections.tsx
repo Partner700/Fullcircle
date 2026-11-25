@@ -51,6 +51,31 @@ function PassageLink({ reference, end, onNavigate }: { reference: string; end?: 
     <span>{text}</span><ArrowUpRight size={14} className="shrink-0 text-brass"/>
   </button>;
 }
+type Exploration = { question: string; answer?: string; references: string[]; source?: string };
+const explorations: Record<string, Exploration[]> = {
+  'Judges 8:1': [{
+    question: 'Why did Ephraim complain that Gideon did not call them, when Judges 7:24 says he sent messengers to them?',
+    answer: 'The sequence explains the complaint. God reduced Gideon’s army to 300 before the initial attack (7:2–7). The Midianites were already fleeing when Gideon summoned Ephraim to intercept them (7:22–25). Ephraim therefore participated in the pursuit, but not the opening battle. Gideon acknowledged their capture of Oreb and Zeeb, and their anger subsided (8:2–3). The text does not explicitly state every motive behind their anger. A similar complaint later arises against Jephthah.',
+    references: ['Judges 7:2','Judges 7:7','Judges 7:22','Judges 7:24','Judges 7:25','Judges 8:2','Judges 8:3','Judges 12:1'],
+    source: 'https://enduringword.com/bible-commentary/judges-8/',
+  }],
+  'Judges 8:2': [{question:'Why does Gideon compare Ephraim’s gleaning to Abiezer’s grape harvest?',answer:'Gleaning refers to the fruit left after the main harvest. Gideon uses that comparison to acknowledge that Ephraim’s later contribution exceeded the achievement of his own clan; the next verse identifies the capture of Oreb and Zeeb as the reason.',references:['Judges 7:25','Judges 8:3','Judges 6:34']}],
+  'Judges 8:27': [{question:'Why did Gideon make an ephod after refusing Israel’s offer of kingship?',references:['Judges 8:22','Judges 8:23','Judges 8:24','Judges 8:27','Exodus 28:6']}],
+  'Judges 8:35': [{question:'What caused Israel to forget the kindness shown through Gideon so soon after his death?',references:['Judges 8:28','Judges 8:33','Judges 8:34','Judges 2:19']}],
+};
+function ExplorationCards({reference,onNavigate}:{reference:string;onNavigate?:Navigate}) {
+  const items=explorations[reference]||[];
+  return <>{items.map(item=><details key={item.question} className="rounded-xl border border-brass/35 bg-surface">
+    <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-ink">{item.question}</summary>
+    <div className="space-y-2 border-t border-border p-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-brass">{item.answer?'Researched explanation':'Question to explore'}</p>
+      <p className="text-sm leading-relaxed text-ink">{item.answer||'Explore the connected passages. Scripture does not explicitly settle every part of this question; no definitive explanation is asserted here.'}</p>
+      <div className="grid gap-1">{item.references.map(ref=><PassageLink key={ref} reference={ref} onNavigate={onNavigate}/>)}</div>
+      {item.source&&<a href={item.source} target="_blank" rel="noreferrer" className="text-xs text-brass underline">Read supporting commentary</a>}
+    </div>
+  </details>)}</>;
+}
+
 export function VerseThreads({reference, links, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
   const [limit,setLimit]=useState(20);
   const [open,setOpen]=useState(false);
@@ -71,6 +96,7 @@ export function VerseThreads({reference, links, onNavigate}: {reference:string; 
       <ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180"/>
     </summary>
     <div className="space-y-2 border-t border-border p-3">
+      <ExplorationCards reference={reference} onNavigate={onNavigate}/>
       <p className="text-xs text-stone">Passages connected to {reference}. Connections may reflect quotations, parallel accounts, prophecy or shared themes.</p>
       {rows===undefined ? <p className="text-xs text-stone" role="status">{failed?'Threads could not load.':'Loading threads…'} {failed&&<button className="underline" onClick={()=>setRetry(n=>n+1)}>Retry</button>}</p> : rows.length===0 ? <p className="text-xs text-stone">No indexed connections for this verse.</p> : <>
         <div className="grid max-h-80 gap-1.5 overflow-y-auto">{rows.slice(0,limit).map(([ref,end])=><PassageLink key={ref+'|'+end} reference={ref} end={end} onNavigate={onNavigate}/>)}</div>
@@ -82,7 +108,7 @@ export function VerseThreads({reference, links, onNavigate}: {reference:string; 
 }
 type ContextEntry={summary:string; links:string[]};
 const curated:Record<string,ContextEntry>={
-  'Judges 8':{summary:'God called Gideon to deliver Israel from Midian. He reduced the army to 300 men, then gave Israel victory. During the pursuit Gideon summoned Ephraim to seize the waters and the Ephraimites captured Oreb and Zeeb. Chapter 8 opens with their complaint that Gideon had not summoned them at the outset of battle.',links:['Judges 6:14','Judges 7:7','Judges 7:22','Judges 7:24','Judges 7:25']},
+  'Judges 8':{summary:'God called Gideon to deliver Israel from Midian. He reduced the army to 300 men, then gave Israel victory. During the pursuit Gideon summoned Ephraim to seize the waters and the Ephraimites captured Oreb and Zeeb. Chapter 8 opens with their complaint about not being summoned at the beginning, even though they had joined the later pursuit. See Judges 8:1 Threads for the explanation.',links:['Judges 6:14','Judges 7:7','Judges 7:22','Judges 7:24','Judges 7:25']},
   'Judges 7':{summary:'Midian had oppressed Israel. God called Gideon while he was threshing wheat, instructed him to tear down Baal’s altar and reassured him with the signs involving the fleece. Gideon now gathers the people for the battle.',links:['Judges 6:11','Judges 6:14','Judges 6:25','Judges 6:36']},
   'Judges 6':{summary:'After Deborah and Barak’s victory, the land had rest for forty years. Israel again did evil, and the Lord delivered them into Midian’s hand for seven years. Gideon’s calling answers Israel’s cry.',links:['Judges 4:14','Judges 5:31']},
   'Genesis 3':{summary:'God created humanity in His image, placed Adam in Eden and commanded him not to eat from the tree of the knowledge of good and evil. God also formed Eve. Chapter 3 introduces the serpent’s temptation against that command.',links:['Genesis 1:27','Genesis 2:16','Genesis 2:22']},
@@ -130,4 +156,28 @@ export function ReadingContext({reference,edition,onNavigate}:{reference:string;
       </>}
     </div>
   </details>;
+}
+
+type SummaryEntry={sections:Array<{heading:string; body:string; reference:string}>; takeaway:string};
+const summaries:Record<string,SummaryEntry>={
+ 'Judges 8':{sections:[
+  {heading:'A dispute resolved',body:'Ephraim challenges Gideon over its late summons. He honors their contribution and their anger subsides.',reference:'Judges 8:1'},
+  {heading:'The pursuit completed',body:'Gideon and his weary men continue after Zebah and Zalmunna. Succoth and Penuel refuse assistance; Gideon captures the kings and returns.',reference:'Judges 8:4'},
+  {heading:'A kingdom refused, an ephod made',body:'Gideon refuses hereditary rule, saying the Lord shall rule over Israel. He then makes a golden ephod that becomes a snare to him and his household.',reference:'Judges 8:22'},
+  {heading:'Rest and renewed unfaithfulness',body:'The land rests forty years. After Gideon dies, Israel returns to the Baals and forgets the Lord and Gideon’s kindness.',reference:'Judges 8:28'}
+ ],takeaway:'God’s deliverance does not remove the need for continued faithfulness. Gideon’s story contrasts humility in conflict with the dangers that can follow victory.'},
+ 'Judges 7':{sections:[{heading:'God reduces the army',body:'God chooses 300 men so Israel cannot boast that its own strength saved it.',reference:'Judges 7:2'},{heading:'Reassurance and victory',body:'Gideon hears a dream in the enemy camp and worships. God turns the Midianites against one another.',reference:'Judges 7:9'},{heading:'Ephraim joins the pursuit',body:'Gideon calls Ephraim to intercept the fleeing enemy; they capture Oreb and Zeeb.',reference:'Judges 7:24'}],takeaway:'The deliverance belongs to God, not the size of Gideon’s army.'},
+ 'Judges 6':{sections:[{heading:'Israel cries out',body:'Midian oppresses Israel; God sends a prophet reminding Israel of His deliverance and their disobedience.',reference:'Judges 6:1'},{heading:'Gideon is called',body:'The Lord commissions Gideon to deliver Israel and reassures him of His presence.',reference:'Judges 6:11'},{heading:'Obedience and assurance',body:'Gideon destroys Baal’s altar and later seeks reassurance through the fleece.',reference:'Judges 6:25'}],takeaway:'God calls Gideon in weakness and assures him of His presence.'}
+};
+export function ChapterSummary({reference,onNavigate}:{reference:string;onNavigate?:Navigate}){
+ const target=parseBibleReadingReference(reference);
+ if(!target)return null;
+ const name=BIBLE_BOOKS[target.bookIndex].name+' '+target.chapter;
+ const entry=summaries[name];
+ return <details key={name} className="group mt-5 rounded-2xl border border-brass/40 bg-surface/90">
+  <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-bold text-ink [&::-webkit-details-marker]:hidden"><BookOpen size={18} className="text-brass"/> Chapter Summary <ChevronDown size={16} className="ml-auto text-brass transition-transform group-open:rotate-180"/></summary>
+  <div className="space-y-3 border-t border-border p-4">
+   {entry?<>{entry.sections.map(section=><div key={section.reference} className="border-l-2 border-brass/40 pl-3 space-y-1"><p className="font-semibold text-sm text-ink">{section.heading}</p><p className="text-sm leading-relaxed text-ink">{section.body}</p><PassageLink reference={section.reference} onNavigate={onNavigate}/></div>)}<div className="rounded-xl bg-brass/10 p-3"><p className="text-xs font-bold text-brass">Key takeaway</p><p className="mt-1 text-sm text-ink">{entry.takeaway}</p></div></>:<p className="text-sm text-stone">A reviewed written summary for {name} has not yet been added.</p>}
+  </div>
+ </details>;
 }

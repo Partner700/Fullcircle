@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import { ChapterDiscoveryPanel } from '../../components/ChapterDiscoveryPanel';
-import { ReadingContext, VerseThreads, useScriptureThreads } from '../../components/ScriptureConnections';
+import { ChapterSummary, ReadingContext, VerseThreads, useScriptureThreads } from '../../components/ScriptureConnections';
 import { passageDiscoveryFacts } from '../../lib/chapterDiscoveryFacts';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
@@ -1491,6 +1491,7 @@ export function CadetNarrative({
                 </article>
               ))}
             </div>
+            {[...new Set(panelVerses.map(({verse}) => (canonicalBibleVerseReference(verse.reference)||verse.reference).replace(/:\d+$/, "")))].map(ref=><ChapterSummary key={ref} reference={ref} onNavigate={onOpenBible}/>)}
             <ScrollEdge position="bottom" className="text-brass mt-4" />
             </div>
           </section>

@@ -14,7 +14,7 @@ import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, tog
 import { supabase } from '../../lib/supabase';
 import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import { ChapterDiscoveryPanel } from '../../components/ChapterDiscoveryPanel';
-import { ReadingContext, VerseThreads, useScriptureThreads } from '../../components/ScriptureConnections';
+import { ChapterSummary, ReadingContext, VerseThreads, useScriptureThreads } from '../../components/ScriptureConnections';
 import { chapterDiscoveryFacts } from '../../lib/chapterDiscoveryFacts';
 import type { PanelImageSetting } from '../../lib/types';
 
@@ -305,6 +305,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
             </div>}
           </article>;
         }); })() : null}
+        {text?.verses.length ? <ChapterSummary reference={`${book.name} ${chapter}`} onNavigate={navigateConnection} /> : null}
         {text?.credit && <p className="mt-4 whitespace-pre-line text-xs text-stone">{text.credit}</p>}
       </div>
     </section>
