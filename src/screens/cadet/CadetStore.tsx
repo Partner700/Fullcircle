@@ -16,7 +16,7 @@ import { HiddenItemsMarket } from '../../components/HiddenItemsMarket';
 import { setMarketVisibility } from '../../lib/marketVisibility';
 import { CountryPhoneInput } from '../../components/CountryPhoneInput';
 import { supabase } from '../../lib/supabase';
-import { fetchMarketBalance, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, startMarketCartCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
+import { fetchMarketBalance, purchaseRelic, useRelic as deployRelic, fetchStreakFreezers, purchaseDailyFreezer, purchaseWeeklyFreezer, fetchCheckoutProvider, startCampayCheckout, startMarketCartCheckout, fetchUserMobileMoneyPayments, purchaseRelicForCadet, purchaseDailyFreezerForCadet, purchaseWeeklyFreezerForCadet, verifyCampayPayment, fetchPanelImageSetting, fetchActiveFcxExperience, purchaseFcxTicket } from '../../lib/queries';
 import { FREEZER_DAILY_COST, FREEZER_WEEKLY_COST, RELIC_SLUGS } from '../../lib/constants';
 import { cn, formatDenarii, formatFullDenarii, formatXaf, visibleStreakFreezersForCurrentWeek } from '../../lib/utils';
 import { playSoundEffect } from '../../lib/soundscape';
@@ -566,10 +566,14 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
   };
 
   const buyWeeklyFreezer = async () => {
-    if (!profile || giftRecipientId !== 'self') return;
+    if (!profile) return;
     setBuyingWeeklyFreezer(true);
     try {
-      await purchaseWeeklyFreezer(profile.id);
+      if (giftRecipientId !== 'self') {
+        await purchaseWeeklyFreezerForCadet(profile.id, giftRecipientId);
+      } else {
+        await purchaseWeeklyFreezer(profile.id);
+      }
       await refreshPurchaseState();
     } catch (e: any) { alert(e.message || 'Failed to purchase weekly freezer'); }
     setBuyingWeeklyFreezer(false);
@@ -826,19 +830,19 @@ export function CadetStore({ onBalanceChanged, refreshKey = 0, giftRecipients = 
               <span className="font-display font-bold text-gold">{formatDenarii(FREEZER_WEEKLY_COST)} Ð</span>
             </div>
             <p className="text-xs text-stone mb-3">Protects seven consecutive days and activates only when no daily freezer is ready.</p>
-            <button onClick={buyWeeklyFreezer} disabled={giftRecipientId !== 'self' || denarii < FREEZER_WEEKLY_COST || buyingWeeklyFreezer}
+            <button onClick={buyWeeklyFreezer} disabled={denarii < FREEZER_WEEKLY_COST || buyingWeeklyFreezer}
               className="btn-primary text-xs w-full disabled:opacity-50">
               {buyingWeeklyFreezer ? <Loader2 size={12} className="animate-spin" /> : <Snowflake size={12} />} Buy with Denarii
             </button>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-xs font-bold text-gold">500 FCFA</span>
-              <button type="button" className="btn-secondary text-xs" disabled={giftRecipientId !== 'self'}
+              <button type="button" className="btn-secondary text-xs"
                 onClick={() => addToCart({
                   key: 'streak-freezer-weekly', name: 'Weekly Freezer',
                   relicSlug: 'streak-freezer-weekly', unitPrice: 500, quantity: 1,
                 })}>Add to cart</button>
             </div>
-            {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-2">Weekly freezers are currently purchased for your own account.</p>}
+            {giftRecipientId !== 'self' && <p className="text-[10px] text-stone mt-2">Sentries can gift Weekly Freezers to active cadets in their own tent.</p>}
           </div>
         </div>
 
