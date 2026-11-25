@@ -76,6 +76,7 @@ export type JourneyPendingAction = {
 } | null;
 
 export type JourneyGame = {
+  closedByClock?: boolean;
   pointsRemaining?: number;
   matchDeadline?: string;
   /** Server-assigned tent sides only for inter-tent events. */

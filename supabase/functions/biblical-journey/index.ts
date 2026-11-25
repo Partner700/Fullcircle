@@ -197,6 +197,7 @@ async function advanceExpiredTurn(roomId: string, snapshot: { version: number; s
   if (closed) {
     next = structuredClone(original);
     next.game.version++;
+    next.game.closedByClock = true;
     finishJourney(next);
   } else {
     const owners = await arenaShieldOwners(rest, active.map(p => p.user_id));
