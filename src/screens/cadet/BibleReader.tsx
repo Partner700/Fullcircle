@@ -14,6 +14,7 @@ import { addVerseInsightComment, fetchPanelImageSetting, fetchVerseInsights, tog
 import { supabase } from '../../lib/supabase';
 import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import { ChapterDiscoveryPanel } from '../../components/ChapterDiscoveryPanel';
+import { ReadingContext, VerseThreads, useScriptureThreads } from '../../components/ScriptureConnections';
 import { chapterDiscoveryFacts } from '../../lib/chapterDiscoveryFacts';
 import type { PanelImageSetting } from '../../lib/types';
 
@@ -58,6 +59,11 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
   const verseMark = useScriptureVerseMarks(profile?.id, text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
   const instructorExtras = useInstructorVerseExtras(text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
 
+  const threadLinks = useScriptureThreads(text?.verses.map(verse => `${book.name} ${chapter}:${verse.number}`) || []);
+  const navigateConnection = (next: BibleReadingLocation) => {
+    if (next.bookIndex === bookIndex && next.chapter === chapter) { setPendingTarget(next); return; }
+    setLocation(next); setPendingTarget(next); setText(null); setInsights([]); setOpenVerse(null); setInsightError('');
+  };
   useReadingPosition(reader,profile?.id,`bible-${book.slug}-${chapter}`,Boolean(text),Boolean(pendingTarget),true);
   useEffect(()=>{saveBibleReadingLocation(profile?.id,{bookIndex,chapter});},[profile?.id,bookIndex,chapter]);
   useLayoutEffect(()=>{
@@ -235,6 +241,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
       onTouchCancel={() => { swipeStart.current = null; }}>
       <div className="relative z-10">
         <h2 className="mb-3 font-display text-xl font-bold text-peri">{book.name} {chapter}</h2>
+        <ReadingContext key={`${book.name} ${chapter}`} reference={`${book.name} ${chapter}`} edition={edition} onNavigate={navigateConnection} />
         {!text && !textError && <p role="status">Loading chapter…</p>}
         {textError && <div role="alert"><p>This chapter could not load.</p><button className="btn-secondary mt-2" onClick={() => setRetry(value => value + 1)}>Try again</button></div>}
         {text?.verses.length ? (() => {
@@ -249,6 +256,7 @@ export function BibleReader({ initialLocation }: { initialLocation?: BibleReadin
           return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
             <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === reference)} />
+            <VerseThreads key={reference} reference={reference} links={threadLinks(reference)} onNavigate={navigateConnection} />
             {instructorExtras.facts[reference] && <p className="inline-flex items-center rounded-full border border-sky-500/45 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-brass">Did You Know? · Open the fact below</p>}
             {(instructorExtras.contexts[reference] || instructorExtras.facts[reference] || instructorExtras.quests[reference]) && (
               <InstructorVerseExtras context={instructorExtras.contexts[reference]}

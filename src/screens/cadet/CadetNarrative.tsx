@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { InstructorVerseExtras, useInstructorVerseExtras } from '../../components/InstructorVerseExtras';
 import { ChapterDiscoveryPanel } from '../../components/ChapterDiscoveryPanel';
+import { ReadingContext, VerseThreads, useScriptureThreads } from '../../components/ScriptureConnections';
 import { passageDiscoveryFacts } from '../../lib/chapterDiscoveryFacts';
 import { useSubscriptionAccess } from '../../context/SubscriptionAccessContext';
 import { ScrollEdge, SealBullet } from '../../components/AncientMotifs';
@@ -342,6 +343,7 @@ export function CadetNarrative({
   const [meditationImage, setMeditationImage] = useState<PanelImageSetting | null>(null);
   const [openVerse, setOpenVerse] = useState<number | null>(null);
   const [readerVerses, setReaderVerses] = useState<ScriptureVerse[]>([]);
+  const threadLinks = useScriptureThreads(readerVerses.map(verse => canonicalBibleVerseReference(verse.reference) || verse.reference));
   const storedEdition = useMemo(() => readScriptureEdition(profile?.id, profile?.language_code), [profile?.id, profile?.language_code]);
   const [editionSelection, setEditionSelection] = useState<{ userId?: string; value: string } | null>(null);
   const edition = editionSelection && editionSelection.userId === profile?.id
@@ -1199,6 +1201,7 @@ export function CadetNarrative({
               {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
             </div>}
             <ScrollEdge position="top" className="text-brass mb-4" />
+            {panelVerses[0] && <ReadingContext key={panelVerses[0].verse.reference} reference={panelVerses[0].verse.reference} edition={edition} onNavigate={onOpenBible} />}
             <div className="space-y-4 sm:space-y-5">
               {panelVerses.length ? (() => {
                 const discoveries = passageDiscoveryFacts(panelVerses.map(({ verse }) => ({
@@ -1251,6 +1254,7 @@ export function CadetNarrative({
                       </span>
                     </button>
                     <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === (bibleReference || verse.reference))} />
+                    {bibleReference && <VerseThreads key={bibleReference} reference={bibleReference} links={threadLinks(bibleReference)} onNavigate={onOpenBible} />}
                     {hasInsight && expanded && (
                       <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
