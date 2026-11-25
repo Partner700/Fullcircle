@@ -15,7 +15,9 @@ export const supabaseUrl = 'https://ovusyeqbmtvfcrlflrbf.supabase.co';
 export const supabaseAnonKey = 'sb_publishable_HeGFIazo0kNZ53gf1eKuRA_bpfKORje';
 export const supabaseConfigError: string | null = null;
 
-// Don't multiply load on an overloaded Supabase API: 429/503/504 are\n// explicit backpressure or upstream/database errors, not safe retry signals.\nconst RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 502]);
+// Don't multiply load on an overloaded Supabase API: 429/503/504 are
+// explicit backpressure or upstream/database errors, not safe retry signals.
+const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 502]);
 
 function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
   if (init?.method) return init.method.toUpperCase();
