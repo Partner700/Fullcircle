@@ -62,3 +62,15 @@ Last confirmed incident: 24 November 2026. Support ticket `SU-567772`.
 6. Confirm the deployment SHA and all targeted tests. A static-host deployment success is **not** a real login test. Obtain Supabase's root-cause report before deciding whether Free compute is sufficient for peak sessions.
 
 The existing `scripts/full-circle-staging-load-test.mjs` probes Auth health/REST endpoints only; it does **not** substitute for authenticated or live-game concurrency testing. Keep its production-URL refusal enabled.
+
+## Login and Arena staging preflight — 25 November 2026
+
+Isolated free staging project: `ejqaintiabperygbqaud`. This is NOT a production replica: no Full Circle tables, live match fixtures or signed-in test residents were copied. Do not point the live browser build or payment systems at staging.
+
+- Staging Auth-health/REST probe: 30 requests, 0 unexpected errors, p95 ~973 ms (first run).
+- Staging password-token requests with **nonexistent accounts** from the **same** runner: first 10 received expected auth rejection; in a subsequent batch of 25, 5 returned HTTP 429. This is consistent with per-IP Supabase Auth token rate limits, not evidence of database HTTP 500/504.
+- Distributed test using 5 separate GitHub runners each making 10 concurrent password-token requests: 50 of 50 requests returned expected rejection, no 429/5xx; individual runner p95 measurements were 488–693 ms.
+- Important: invalid-password attempts exercise the GoTrue password endpoint, but **do not validate successful sessions, profile bootstrap or game operations**. Separate tests with 50 synthetic, confirmed staging users and a genuine seeded game are still required before a capacity claim.
+- Preserve GoTrue security throttles. Avoid auto-retrying HTTP 429 in a tight loop. Shareable networks (one NAT/public IP) can produce simultaneous-login throttling even if Supabase itself is healthy.
+- Stage-only scripts: `scripts/full-circle-staging-load-test.mjs`, `scripts/full-circle-staging-auth-token-pressure.mjs`, `scripts/full-circle-staging-login-concurrency.mjs`, `scripts/full-circle-staging-arena-witness-concurrency.mjs`.
+- GitHub workflow: `TNSorganization/Full-Circle/.github/workflows/staging-connectivity-check.yml`. Staging-only URL guard and no real user secrets.
