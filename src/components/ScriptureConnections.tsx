@@ -52,6 +52,16 @@ export const THREAD_TYPES = {
 } as const;
 type ThreadType=keyof typeof THREAD_TYPES;
 const reviewedConnections: Array<[string,string,ThreadType,ThreadType]> = [
+ ["Joel 1:3","Psalm 78:4","parallel","parallel"],
+ ["Joel 1:4","Exodus 10:15","related","related"],
+ ["Joel 1:14","Joel 2:15","parallel","parallel"],
+ ["Joel 2:13","Exodus 34:6","parallel","parallel"],
+ ["Joel 2:28","Acts 2:17","fulfillment","prophecy"],
+ ["Joel 2:29","Acts 2:18","fulfillment","prophecy"],
+ ["Joel 2:32","Romans 10:13","quotation","quotation"],
+ ["Joel 3:3","Amos 2:6","parallel","parallel"],
+ ["Joel 3:10","Isaiah 2:4","related","related"],
+ ["Joel 3:18","Ezekiel 47:1","symbol","symbol"],
  ["Hosea 1:1","2 Kings 14:23","history","history"],
  ["Hosea 1:10","Romans 9:26","quotation","quotation"],
  ["Hosea 2:23","Romans 9:25","quotation","quotation"],
@@ -537,6 +547,9 @@ function PassageLink({ reference, end, onNavigate, kind }: { reference: string; 
 }
 type Exploration = { question: string; answer?: string; references: string[]; source?: string };
 const explorations: Record<string, Exploration[]> = {
+ "Joel 1:9":[{question:"How does the interruption of grain and drink offerings reveal the wider institutional consequences of agricultural failure?",references:["Hosea 14:7","Joel 1:14","Joel 1:9"]}],
+ "Joel 2:28":[{question:"How does Peter's use of Joel at Pentecost connect the outpouring of the Spirit with the breadth of prophetic participation promised in verses 28–29?",references:["Joel 1:15","Joel 2:28"]}],
+ "Joel 3:3":[{question:"How do the accusations in verses 2–8 establish the moral grounds for the judgment portrayed later in the chapter?",references:["Joel 2:32","Joel 3:17","Joel 3:3"]}],
  "Hosea 1:10":[{question:"How does the promise at the end of the chapter reverse the meaning of the children's names?",references:["2 Kings 14:23","Hosea 1:10"]}],
  "Hosea 2:19":[{question:"What qualities characterize the renewed relationship in verses 19–20?",references:["Hosea 1:11","Hosea 2:19"]}],
  "Hosea 3:5":[{question:"How does the period described in verse 4 prepare for the renewed allegiance in verse 5?",references:["Hosea 2:23","Hosea 3:5"]}],
@@ -1472,6 +1485,9 @@ export function VerseThreads({reference, links, onNavigate}: {reference:string; 
 }
 type ContextEntry={summary:string; links:string[]};
 const curated:Record<string,ContextEntry>={
+  'Joel 1':{summary:"Joel introduces himself as the son of Pethuel and addresses a devastating agricultural crisis. The book does not name a reigning king, so its precise historical date remains debated.",links:["Hosea 14:7"]},
+  'Joel 2':{summary:"The agricultural lament develops into a solemn warning concerning the Day of the Lord, followed by an invitation to return and a promise of restoration.",links:["Joel 1:15"]},
+  'Joel 3':{summary:"The concluding oracle develops the Day of the Lord through judgment upon nations and a vision of Judah's restoration. This is chapter 4 in Hebrew editions.",links:["Joel 2:32"]},
   'Hosea 1':{summary:"Hosea's opening places his ministry in the eighth-century BCE kingdoms of Israel and Judah, naming Jeroboam II and four Judean kings.",links:["2 Kings 14:23"]},
   'Hosea 2':{summary:"The family imagery introduced in chapter 1 develops into an address concerning Israel's unfaithfulness and restoration.",links:["Hosea 1:11"]},
   'Hosea 3':{summary:"Following the promise of renewed covenant relationship, Hosea receives another instruction involving love and an extended period of separation.",links:["Hosea 2:23"]},
@@ -2392,6 +2408,9 @@ export function ReadingContext({reference,edition,onNavigate}:{reference:string;
 
 type SummaryEntry={sections:Array<{heading:string; body:string; reference:string}>; takeaway:string};
 const summaries:Record<string,SummaryEntry>={
+ 'Joel 1':{sections:[{heading:"National crisis, economic interdependence and collective lament",body:"1–4 calls successive generations to remember the disaster; 5–12 describes losses affecting crops, households and worship; 13–14 summons priests and elders to fasting and assembly; 15–20 connects the crisis with the Day of the Lord and expresses lament.",reference:"Joel 1:14"}],takeaway:"The destruction of grain, wine and oil affects both livelihoods and the offerings of the sanctuary, revealing the interdependence of economic production and communal religious life. The Hebrew locust terms in verse 4 have been interpreted as different varieties or stages, but precise biological identification is uncertain. The summons to tell future generations establishes a responsibility to preserve the memory of catastrophe. The collective response combines public recognition of loss, lament and prayer; it does not establish that every modern environmental disaster is a judgment for identifiable personal sins."},
+ 'Joel 2':{sections:[{heading:"Corporate repentance, restoration and the outpouring of the Spirit",body:"1–11 describes the approaching day through overwhelming army imagery; 12–17 calls for heartfelt repentance and a communal assembly; 18–27 promises renewed provision and restoration; 28–32 announces the outpouring of the Spirit and deliverance.",reference:"Joel 2:28"}],takeaway:"The command to rend hearts rather than garments distinguishes genuine transformation from outward signs of penitence. The assembly includes elders, children and newly married people, portraying shared communal responsibility. Verse 25 promises restoration within the specific context of devastation, not a universal timetable for recovering every loss. The promise of the Spirit extends prophetic participation across age, sex and social status. Peter explicitly quotes verses 28–32 in Acts 2:16–21 to interpret Pentecost; the relationship between that event and the full eschatological imagery remains a subject of Christian interpretation. In Hebrew editions the final five verses form a separate chapter, Joel 3."},
+ 'Joel 3':{sections:[{heading:"Divine judgment, human dignity and enduring restoration",body:"1–8 announces judgment concerning displacement, dispossession and trafficking; 9–16 portrays the gathering of nations and divine judgment; 17–21 describes restored Zion, abundant provision and God's dwelling among his people.",reference:"Joel 3:17"}],takeaway:"The accusations concerning the sale and displacement of people make exploitation a central issue in the oracle of judgment. The Valley of Jehoshaphat evokes the Hebrew sense of the Lord judges; its exact geographical identification is uncertain. The reversal of agricultural implements in verse 10 contrasts with the peace vision of Isaiah 2:4 and Micah 4:3, reflecting distinct prophetic settings. Joel's summons belongs to a visionary judgment scene, not authorization for contemporary religious mobilization against other peoples. The final image of a fountain flowing from the Lord's house connects restoration with divine presence, while the chapter's historical and future horizons require careful distinction."},
  'Hosea 1':{sections:[{heading:"Prophetic signs and covenant identity",body:"1 establishes the setting; 2–9 introduces Hosea's household and the prophetic names Jezreel, Lo-ruhamah and Lo-ammi; 10–11 anticipates renewed belonging and unity.",reference:"Hosea 1:10"}],takeaway:"The children's names communicate the prophetic indictment: Lo-ruhamah signifies absence of compassion and Lo-ammi means not my people. Their reversal in the closing promise establishes that judgment is not the entire horizon of the book. The narrative of Hosea's marriage is a particular prophetic sign, not a command for believers to enter or remain in harmful relationships. Romans 9:25–26 draws on Hosea's language of renewed belonging."},
  'Hosea 2':{sections:[{heading:"Covenant faithfulness, provision and renewed allegiance",body:"1–13 presents the covenant accusation and misplaced attribution of provision; 14–20 portrays renewed relationship and covenant peace; 21–23 reverses the earlier judgments.",reference:"Hosea 2:19"}],takeaway:"Israel attributes grain, wine and oil to its lovers rather than recognizing the source of its provision. This exposes the danger of confusing economic benefit with the legitimacy of the allegiance through which it appears to come. The Hebrew hesed in verse 19 conveys steadfast love or covenant loyalty alongside justice and righteousness. The marriage metaphor concerns the covenant people and must not be used to justify coercion, deprivation or abuse in personal relationships."},
  'Hosea 3':{sections:[{heading:"Redemption, waiting and Davidic hope",body:"1–3 describes the prophetic action and its conditions; 4–5 interprets it in relation to Israel's loss of institutions and eventual return to God and David their king.",reference:"Hosea 3:5"}],takeaway:"The prophetic action illustrates costly commitment and a period of waiting rather than immediate restoration of all former arrangements. Verse 5 associates future restoration with seeking the Lord and Davidic leadership. The precise identity of the woman in this chapter is not stated, though she is commonly identified with Gomer. The payment and restrictions belong to an ancient sign-act and do not establish ownership of another person or permission to control a spouse."},
