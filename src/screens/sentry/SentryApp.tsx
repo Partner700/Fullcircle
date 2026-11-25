@@ -1,3 +1,4 @@
+import type { ReadingOrigin } from '../../components/ScriptureBookmark';
 import { TentPositionBadges, TentPositionControls } from '../../components/TentPositions';
 import { useTentPositions } from '../../lib/tentPositions';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -134,7 +135,9 @@ export function SentryApp() {
   const { profile, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>(() => getInitialSentryTab(profile?.id || ''));
   const [bibleTarget,setBibleTarget]=useState<{userId:string;location:BibleReadingLocation}|null>(null);
-  useEffect(()=>{if(tab!=='bible')setBibleTarget(null);},[tab]);
+  const [readingOrigin,setReadingOrigin]=useState<(ReadingOrigin & {userId:string})|null>(null);
+  const [readingReturn,setReadingReturn]=useState<(ReadingOrigin & {userId:string})|null>(null);
+  useEffect(()=>{if(tab!=='bible'){setBibleTarget(null);setReadingOrigin(null);} if(tab!=='reading')setReadingReturn(null);},[tab]);
   const [tent, setTent] = useState<(Tent & { tent_houses?: any }) | null>(null);
   const [members, setMembers] = useState<(TentMember & { profiles: Profile })[]>([]);
   const [allRecords, setAllRecords] = useState<Record<string, DailyRecord[]>>({});
@@ -660,8 +663,8 @@ export function SentryApp() {
       {tent && tab === 'attendance' && <SentryAttendance members={members} allRecords={allRecords} strictStreaks={strictStreaks} today={today} dayType={dayType} onMark={markAttendance} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'cadets' && <SentryCadets onChanged={load} cadetLimit={Math.max(tent.max_cadets ?? 10, 10)} members={members} allRecords={allRecords} strictStreaks={strictStreaks} currentUserId={profile!.id} tentId={tent.id} />}
       {tent && tab === 'challenges' && <SentryChallengeReview sentryId={profile!.id} onRefresh={load} />}
-      {tab === 'bible' && <BibleReader key={profile?.id} initialLocation={bibleTarget&&bibleTarget.userId===profile?.id?bibleTarget.location:null} />}
-      {tab === 'reading' && <CadetNarrative onOpenBible={(location) => {setBibleTarget(location&&profile?.id?{userId:profile.id,location}:null);handleNavigate('bible');}} onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
+      {tab === 'bible' && <BibleReader key={profile?.id} initialLocation={bibleTarget&&bibleTarget.userId===profile?.id?bibleTarget.location:null} readingOrigin={readingOrigin&&readingOrigin.userId===profile?.id?readingOrigin:null} onReturnToReading={()=>{if(readingOrigin&&readingOrigin.userId===profile?.id){setReadingReturn(readingOrigin);handleNavigate('reading');}}} />}
+      {tab === 'reading' && <CadetNarrative onOpenBible={(location,origin) => {setReadingOrigin(origin&&profile?.id?{...origin,userId:profile.id}:null);setBibleTarget(location&&profile?.id?{userId:profile.id,location}:null);handleNavigate('bible');}} initialDate={readingReturn?.userId===profile?.id?readingReturn?.date:undefined} initialReturnReference={readingReturn?.userId===profile?.id?readingReturn?.reference:undefined} onMeditationSaved={load} onOpenWeeklyQuiz={() => handleNavigate('quiz')} />}
       {tab === 'games' && (
         <DailyGamesHub
           onProgress={load}
