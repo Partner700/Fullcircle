@@ -22,7 +22,7 @@ export function useInterTentChampionships(viewerId?: string) {
   useEffect(()=>{
     if(!viewerId)return;
     const check=()=>{if(document.visibilityState==='hidden'||pending.current)return;const work=refresh().catch(()=>setFailed(true)).finally(()=>{if(pending.current===work)pending.current=null;});pending.current=work;};
-    check();const timer=window.setInterval(check,liveIds?5000:15000);
+    check();const timer=window.setInterval(check,liveIds?15000:45000);
     document.addEventListener('visibilitychange',check);
     return()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',check);};
   },[viewerId,refresh,liveIds]);
@@ -30,7 +30,7 @@ export function useInterTentChampionships(viewerId?: string) {
     if(!viewerId||!liveIds)return;
     let active=true,busy=false;
     const load=async()=>{if(busy||document.visibilityState==='hidden')return;busy=true;try{const rooms=await fetchArenaMatchups(liveIds.split(',')) as Map<string,ArenaMatchupPlayer[]>;if(active)setScores({viewerId,rooms});}catch{/* Retain the last real score until refresh succeeds. */}finally{busy=false;}};
-    void load();const timer=window.setInterval(()=>void load(),5000);
+    void load();const timer=window.setInterval(()=>void load(),15000);
     document.addEventListener('visibilitychange',load);
     return()=>{active=false;window.clearInterval(timer);document.removeEventListener('visibilitychange',load);};
   },[viewerId,liveIds]);
