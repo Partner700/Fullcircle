@@ -89,7 +89,7 @@ assert.match(queries, /fetchRoadHomeSpectatorState[\s\S]*?\.from\('arena_ludo_pu
 assert.match(queries, /\.select\('room_id,user_id,joined_at,last_seen_at'\)/);
 
 assert.match(arena, /> Live Now</);
-assert.match(arena, /!witnessOnly && isParticipant \? 'Enter Game' : 'Witness'/);
+assert.match(arena, /isParticipant \|\| isSelectedPlayer \? 'Enter Game' : 'Witness'/);
 assert.match(arena, /<ArenaWitnessStrip witnesses=\{witnesses\} guestCount=\{[^}]+\} compact/);
 assert.match(arena, /<ArenaWitnessStrip witnesses=\{witnesses\} guestCount=\{[^}]+\} \/>/);
 assert.match(arena, /function ArenaElapsedTimer/);
