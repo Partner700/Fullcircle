@@ -2314,6 +2314,15 @@ export async function purchaseRelicForCadet(sentryId: string, cadetId: string, s
   return data;
 }
 
+export async function purchaseWeeklyFreezerForCadet(sentryId: string, cadetId: string) {
+  const { data, error } = await supabase.rpc('purchase_weekly_freezer_for_cadet', {
+    p_sentry_id: sentryId,
+    p_cadet_id: cadetId,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function purchaseDailyFreezerForCadet(sentryId: string, cadetId: string) {
   const { data, error } = await supabase.rpc('purchase_daily_freezer_for_cadet', {
     p_sentry_id: sentryId,
