@@ -52,6 +52,21 @@ export const THREAD_TYPES = {
 } as const;
 type ThreadType=keyof typeof THREAD_TYPES;
 const reviewedConnections: Array<[string,string,ThreadType,ThreadType]> = [
+ ["2 Peter 1:5","Galatians 5:22","parallel","parallel"],
+ ["2 Peter 1:14","John 21:18","related","related"],
+ ["2 Peter 1:16","Matthew 17:1","history","history"],
+ ["2 Peter 1:17","Matthew 17:5","parallel","parallel"],
+ ["2 Peter 1:21","2 Timothy 3:16","related","related"],
+ ["2 Peter 2:5","Genesis 6:9","history","history"],
+ ["2 Peter 2:7","Genesis 19:16","history","history"],
+ ["2 Peter 2:15","Numbers 22:7","history","history"],
+ ["2 Peter 2:15","Numbers 31:16","related","related"],
+ ["2 Peter 2:22","Proverbs 26:11","quotation","quotation"],
+ ["2 Peter 3:8","Psalm 90:4","related","related"],
+ ["2 Peter 3:9","1 Timothy 2:4","parallel","parallel"],
+ ["2 Peter 3:10","Matthew 24:43","parallel","parallel"],
+ ["2 Peter 3:13","Isaiah 65:17","related","related"],
+ ["2 Peter 3:17","Ephesians 4:14","kingdom","kingdom"],
  ["1 Peter 1:16","Leviticus 19:2","quotation","quotation"],
  ["1 Peter 1:24","Isaiah 40:6","quotation","quotation"],
  ["1 Peter 1:25","Isaiah 40:8","quotation","quotation"],
@@ -1271,6 +1286,9 @@ function PassageLink({ reference, end, onNavigate, kind }: { reference: string; 
 }
 type Exploration = { question: string; answer?: string; references: string[]; source?: string };
 const explorations: Record<string, Exploration[]> = {
+ "2 Peter 1:5":[{"question":"How can a leader translate the progression of virtues and repeated reminders into a formation and succession system?","references":["2 Peter 1:5","2 Peter 1:12","2 Peter 1:16","Matthew 17:1","Galatians 5:22"]}],
+ "2 Peter 2:3":[{"question":"Which observable indicators distinguish exploitative leadership from legitimate teaching, and how should an institution respond?","references":["2 Peter 2:3","2 Peter 2:15","Numbers 22:7","Numbers 31:16","Proverbs 26:11"]}],
+ "2 Peter 3:11":[{"question":"How does divine patience reshape the priorities of a community awaiting the King's return?","references":["2 Peter 3:9","2 Peter 3:11","2 Peter 3:16","Psalm 90:4","Isaiah 65:17","Matthew 24:36"]}],
  "1 Peter 1:13":[{"question":"How does the promised inheritance change the priorities and readiness of a representative of Christ?","references":["1 Peter 1:3","1 Peter 1:13","Leviticus 19:2","Isaiah 40:8"]}],
  "1 Peter 2:9":[{"question":"How do living stones and royal priesthood distinguish individual status from collective responsibility?","references":["1 Peter 2:5","1 Peter 2:9","Exodus 19:6","Isaiah 28:16","Psalm 118:22"]}],
  "1 Peter 3:15":[{"question":"What distinguishes a faithful defense of hope from an attempt to dominate a disagreement?","references":["1 Peter 3:7","1 Peter 3:15","Psalm 34:12","Romans 12:18"]}],
@@ -2490,6 +2508,9 @@ export function VerseThreads({reference, links, onNavigate}: {reference:string; 
 }
 type ContextEntry={summary:string; links:string[]};
 const curated:Record<string,ContextEntry>={
+ "2 Peter 1":{"summary":"1–11 connects divine provision with deliberate growth in virtue; 12–21 establishes remembrance, eyewitness testimony and prophetic reliability.","links":["Matthew 17:1","Galatians 5:22"]},
+ "2 Peter 2":{"summary":"1–10 warns against destructive teaching and recalls examples of judgment and rescue; 11–22 examines arrogance, exploitation and enslavement to corruption.","links":["Numbers 22:7","Numbers 31:16","Proverbs 26:11"]},
+ "2 Peter 3":{"summary":"1–7 responds to scoffing about the promised coming; 8–13 explains divine patience and anticipated judgment and renewal; 14–18 calls for stability and growth.","links":["Psalm 90:4","Isaiah 65:17","Matthew 24:36"]},
  "1 Peter 1":{"summary":"1–12 establishes living hope, inheritance and tested faith; 13–25 calls believers to disciplined hope, holiness and sincere love.","links":["Leviticus 19:2","Isaiah 40:8"]},
  "1 Peter 2":{"summary":"1–10 describes growth, living stones and royal priesthood; 11–25 addresses public conduct, civil authority and Christ's example under suffering.","links":["Exodus 19:6","Isaiah 28:16","Psalm 118:22"]},
  "1 Peter 3":{"summary":"1–7 addresses household conduct; 8–17 teaches unity, restraint and reasoned testimony; 18–22 relates Christ's suffering, resurrection and baptism.","links":["Psalm 34:12","Romans 12:18"]},
@@ -3686,6 +3707,9 @@ export function ReadingContext({reference,edition,onNavigate}:{reference:string;
 
 type SummaryEntry={sections:Array<{heading:string; body:string; reference:string}>; takeaway:string};
 const summaries:Record<string,SummaryEntry>={
+ "2 Peter 1":{"sections":[{"heading":"Competence development, succession and intelligence validation","body":"1–11 connects divine provision with deliberate growth in virtue; 12–21 establishes remembrance, eyewitness testimony and prophetic reliability.","reference":"2 Peter 1:5"}],"takeaway":"Epignosis denotes knowledge or recognition; the sequence in verses 5–7 joins faith to excellence (arete), knowledge, self-control, endurance, godliness, mutual affection and love. The author identifies himself as Simon Peter and anticipates his death, making repeated instruction a succession measure. The eyewitness appeal to the transfiguration is distinct from the appeal to prophetic Scripture. Christian readers should distinguish direct testimony, transmitted instruction and interpretation. Kingdom formation requires measurable growth in character, durable institutional memory and careful evaluation of claims without confusing human expertise with divine authority."},
+ "2 Peter 2":{"sections":[{"heading":"Doctrinal safeguards, financial integrity and detection of exploitation","body":"1–10 warns against destructive teaching and recalls examples of judgment and rescue; 11–22 examines arrogance, exploitation and enslavement to corruption.","reference":"2 Peter 2:3"}],"takeaway":"Pseudodidaskalos means false teacher; pleonexia denotes greed or covetousness. Verse 3 connects fabricated words with exploitation, identifying a financial incentive behind manipulation. Balaam's example recalls Numbers 22–24 and his association with wrongdoing in Numbers 31:16. The examples of Noah and Lot distinguish divine judgment from divine rescue. The proverb concerning the dog returns to Proverbs 26:11. Kingdom institutions should assess teachers by doctrine, conduct and financial accountability, maintain safe reporting channels and correct wrongdoing through fair processes rather than treating disagreement alone as corruption."},
+ "2 Peter 3":{"sections":[{"heading":"Strategic patience, eschatological readiness and interpretive discipline","body":"1–7 responds to scoffing about the promised coming; 8–13 explains divine patience and anticipated judgment and renewal; 14–18 calls for stability and growth.","reference":"2 Peter 3:11"}],"takeaway":"Parousia denotes presence or arrival and here concerns the promised coming of Christ. The comparison of a day and a thousand years recalls Psalm 90:4 and challenges human assumptions about divine timing; it is not a formula for calculating dates. The text describes divine patience in relation to repentance and anticipates new heavens and a new earth, recalling Isaiah 65:17. Peter refers to Paul's letters and warns against distorting difficult passages, a significant internal witness to the circulation and reception of apostolic correspondence. Kingdom readiness means holiness, peaceful conduct, sustained growth and faithful service rather than speculative timetables or coercive action."},
  "1 Peter 1":{"sections":[{"heading":"Citizenship, inheritance and readiness","body":"1–12 establishes living hope, inheritance and tested faith; 13–25 calls believers to disciplined hope, holiness and sincere love.","reference":"1 Peter 1:13"}],"takeaway":"Parepidemos in 1:1 denotes a temporary resident or sojourner; the named regions belong to Roman Asia Minor. Anagennao denotes being born anew, grounding identity in divine initiative rather than institutional rank. The inheritance is described as imperishable, unlike ordinary property subject to loss. The image of refining gold distinguishes tested faith from mere profession. The instruction to gird up the loins of the mind draws on preparing loose garments for movement, applied here to mental readiness. Kingdom formation should develop disciplined judgment, enduring hope and sincere love rather than treating hardship as a qualification to impose on others."},
  "1 Peter 2":{"sections":[{"heading":"Royal priesthood, institutional formation and public credibility","body":"1–10 describes growth, living stones and royal priesthood; 11–25 addresses public conduct, civil authority and Christ's example under suffering.","reference":"1 Peter 2:9"}],"takeaway":"Lithos zon means living stone; the building metaphor joins individual formation to collective purpose. The royal priesthood language recalls Exodus 19:6, while the cornerstone imagery draws on Isaiah 28:16 and Psalm 118:22. The text applies corporate identity to proclaiming God's excellencies. The instruction to honor the emperor while fearing God distinguishes civil respect from ultimate allegiance. The passage addresses household servants within ancient social structures; its instruction does not legitimize slavery or require victims to remain in abuse. Kingdom institutions should build shared purpose, honorable public conduct and accountable service."},
  "1 Peter 3":{"sections":[{"heading":"Diplomacy, testimony and relational responsibility","body":"1–7 addresses household conduct; 8–17 teaches unity, restraint and reasoned testimony; 18–22 relates Christ's suffering, resurrection and baptism.","reference":"1 Peter 3:15"}],"takeaway":"Apologia means a defense or reasoned answer, not an apology in the modern sense. The defense of hope is qualified by gentleness and respect. The quotation in verses 10–12 draws on Psalm 34 and connects speech, peace and righteous conduct. The instruction to husbands to honor wives as fellow heirs establishes shared standing before God; the household instructions must not be used to excuse coercion or abuse. Interpretations of the spirits in prison differ among Christian traditions. Kingdom representatives should communicate convictions accurately, respect interlocutors and pursue peace without compromising integrity."},
