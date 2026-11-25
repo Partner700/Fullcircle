@@ -740,7 +740,7 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         const knownRoom = roomsRef.current.find((room) => room.id === activeRoomId);
         if (pulse.status === 'waiting' && knownRoom?.scheduled && !isSpectating && profile
           && Date.now() >= Date.parse(knownRoom.scheduled_start_at || '')
-          && pulse.active_player_ids.length >= 2
+          && pulse.active_player_ids.length >= (/\[intertent\]/i.test(knownRoom.room_name || '') ? 1 : 2)
           && pulse.active_player_ids.includes(profile.id)
           && Date.now() - lastScheduledStartAttempt.current > 8000) {
           lastScheduledStartAttempt.current = Date.now();
