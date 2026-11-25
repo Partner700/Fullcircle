@@ -44,3 +44,21 @@ Last confirmed incident: 24 November 2026. Support ticket `SU-567772`.
 ## Rollback
 - Deploy the last verified application release using the mirror workflow; confirm the immutable source SHA in the `gh-pages` build marker.
 - For SQL changes, use a reviewed forward migration or targeted rollback after checking dependent functions and constraints. Never wipe production data to repair login.
+
+## 25 November 2026 pre-test reliability fixes
+- Inter-Tent leaderboard/championship polling now staggers viewers by a stable per-user offset and backs off on repeated API failures (15–120 seconds). The last verified scoreboard remains visible instead of hammering a failing endpoint.
+- `public.heartbeat_arena_participant` now expires/settles inactive players only within the heartbeat's own room. The original three-minute standard-game rule and Inter-Tent/Prelude exemptions are unchanged. Avoid global expiration scans from individual player heartbeats.
+- `public.watch_arena_room` no longer locks `arena_rooms` for spectator entry; a reserved player is handed to `join_instructor_arena_match`, where player admission remains serialized. Witnesses still need an authenticated account and an open match.
+- `private.process_intertent_late_penalties` skips already-settled fixtures before acquiring locks. The 15-minute grace, gameplay-progress guard, one-charge ledger key and server-side cancellation protections remain in effect.
+- `private.refund_cancelled_intertent_late_penalties` automatically refunds a charged player when an Inter-Tent match transitions to canceled; credits have a unique key. Three previous unrefunded canceled-match penalties (15,000D total) were restored with auditable entries. Do not overwrite the source debits.
+- No Supabase plan upgrade, new project, bulk data migration or real-person load test is authorized by this preparatory release. Supabase support incident ticket: SU-567772; RCA remains pending.
+
+## Load-test acceptance checklist (staging only)
+1. Confirm a **separate** staging Supabase project and dedicated staging accounts; never send traffic spikes to project `ovusyeqbmtvfcrlflrbf`. Copy only sanitized fixture data, not private user records or payment credentials.
+2. Measure real password sign-ins (not just `/auth/v1/health`) at 10, 25 and then 50 concurrent users. Verify success/failure rate, p95 latency, server 5xx, CPU/RAM, database pool and storage/network errors. Stop the test if failures persist; do not escalate blindly.
+3. Create staging Journey games with one, then four eligible players; join viewers in groups of 10, 25 and 50 while moves occur. Verify order of turns, exactly-once commands, score integrity, witness access and no room-lock backlog.
+4. Interrupt and restore a player's network after a recorded move. Verify the player returns to the same match, no duplicate payment, and no incorrect inactive forfeiture for Inter-Tent players.
+5. Verify on staging that joining at 14 minutes incurs no late debit; joining after 15 minutes remains possible with exactly one 5,000D deduction; canceling a fixture reverses that deduction exactly once. Use staging-only ledger records.
+6. Confirm the deployment SHA and all targeted tests. A static-host deployment success is **not** a real login test. Obtain Supabase's root-cause report before deciding whether Free compute is sufficient for peak sessions.
+
+The existing `scripts/full-circle-staging-load-test.mjs` probes Auth health/REST endpoints only; it does **not** substitute for authenticated or live-game concurrency testing. Keep its production-URL refusal enabled.
