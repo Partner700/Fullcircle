@@ -216,7 +216,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = useCallback(async (action: 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL', payload: Record<string, unknown> = {}) => {
+  const send = useCallback(async (action: 'FORFEIT' | 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL', payload: Record<string, unknown> = {}) => {
     if (!state || spectator || sending) return false;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
@@ -360,6 +360,8 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
     {state.questionDeadline && pauseRemaining === 0 && <p role="timer" className="text-center font-display text-lg font-bold tabular-nums text-brass">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}’s turn · {Math.min(secondsLeft, Math.ceil((Date.parse(state.questionDeadline) - Date.parse(state.questionOpensAt || state.questionDeadline)) / 1000) || secondsLeft)}s</p>}
+    {state.game.pointsRemaining !== undefined && <p className="text-center text-sm font-semibold text-brass">{state.game.pointsRemaining} / 100 match points remaining · Closes {new Date(state.game.matchDeadline!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
+    {!spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined) && <div className="flex items-center justify-between gap-2"><span className="text-sm">Your skipped turns: {state.skips?.[userId] || 0} / 3</span><button type="button" disabled={sending} className="rounded-md bg-red-700 px-4 py-2 font-bold text-white" onClick={() => { if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT'); }}>Forfeit match</button></div>}
     <ArenaMatchup players={visiblePlayers} playing pinned arenaImage={arenaImage} />
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
       && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}

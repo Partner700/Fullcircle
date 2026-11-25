@@ -304,3 +304,26 @@ console.log('45-space board, legacy compatibility, Trials scoring and outcome co
   assert.deepEqual(reflected.players[1].location, { route: 'main', space: 5 });
   assert.equal(reflected.matchRelicUses?.beta?.boomerang, 1);
 }
+
+{
+  const { createJourneyRuntime, expireJourneyQuestion, finishJourney, forfeitJourney } = await import('../supabase/functions/_shared/biblicalJourneyRuntime.ts');
+  const pool = Array.from({length:200}, (_,i)=>({id:String(i),stage:1+i%5,type:'multiple_choice' as const,question:'Q',options:['A'],correctAnswer:'A',acceptedAnswers:[],reference:null,explanation:null}));
+  const lookup=async (id:string)=>pool.find(q=>q.id===id) ?? null;
+  const start=await createJourneyRuntime('joshua',['a','b','c'],pool,lookup,()=>0);
+  start.game.players[0].score=7;
+  start.game.players[1].score=3;
+  start.skips={a:2};
+  start.questionDeadline=new Date(0).toISOString();
+  const skipped=await expireJourneyQuestion(start,lookup,()=>0);
+  assert.equal(skipped.game.players[0].score,0);
+  assert.equal(skipped.game.players[0].forfeitedPoints,7);
+  assert.equal(skipped.game.players[1].score,3);
+  assert.equal(skipped.game.status,'playing');
+  assert.equal(skipped.currentQuestionPlayerId,'b');
+  const last=await forfeitJourney(skipped,'c',lookup,()=>0);
+  assert.equal(last.game.winnerId,'b');
+  finishJourney(last);
+  assert.equal(last.game.players[1].score,10);
+  console.log('Third skip forfeits; points transfer only at settlement.');
+  
+}

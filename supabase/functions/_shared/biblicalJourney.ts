@@ -40,6 +40,7 @@ export type JourneyConfig = {
 };
 
 export type JourneyPlayer = {
+  forfeitedPoints?: number;
   id: string;
   location: JourneyLocation;
   status: 'ACTIVE' | 'TRAPPED_IN_LOOP' | 'IN_HOLDING_PRISON' | 'IN_DEEP_PRISON' | 'FINISHED';
@@ -75,6 +76,8 @@ export type JourneyPendingAction = {
 } | null;
 
 export type JourneyGame = {
+  pointsRemaining?: number;
+  matchDeadline?: string;
   /** Server-assigned tent sides only for inter-tent events. */
   tentSides?: Record<string, string>;
   boardSpaces?: 45 | 51;
@@ -236,7 +239,7 @@ function record(game: JourneyGame, player: JourneyPlayer, source: string, effect
   if (game.events.length > 100) game.events.splice(0, game.events.length - 100);
 }
 
-function nextTurn(game: JourneyGame) {
+export function nextTurn(game: JourneyGame) {
   if (game.status !== 'playing') return;
   const current = game.players[game.turnIndex];
   // Inter-tent championship play uses strict round-robin turns so that
@@ -244,13 +247,14 @@ function nextTurn(game: JourneyGame) {
   // Standard/machine Journey still keeps the usual six-roll bonus.
   const bonus = !game.tentSides && game.bonusTurnPlayerId === current.id;
   game.bonusTurnPlayerId = null;
-  if (bonus && !isImprisoned(current)) {
+  if (bonus && current.forfeitedPoints === undefined && !isImprisoned(current)) {
     record(game, current, 'six-bonus', 'extra-turn', structuredClone(current.location), 'reveal');
     return;
   }
   for (let skipped = 0; skipped <= game.players.length * 6; skipped += 1) {
     game.turnIndex = (game.turnIndex + 1) % game.players.length;
     const player = game.players[game.turnIndex];
+    if (player.forfeitedPoints !== undefined) continue;
     if (!isImprisoned(player)) return;
     servePrisonTurn(game, player);
   }
@@ -278,7 +282,11 @@ export function journeyScore(player: JourneyPlayer): number {
   return Math.max(0, player.score ?? player.correctAnswers);
 }
 
-function awardAnswer(player: JourneyPlayer) {
+function awardAnswer(game: JourneyGame, player: JourneyPlayer) {
+  if (game.pointsRemaining !== undefined) {
+    if (game.pointsRemaining <= 0) return;
+    game.pointsRemaining -= 1;
+  }
   player.score = journeyScore(player) + 1;
   player.correctAnswers += 1;
 }
@@ -347,7 +355,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
     const moveTarget = effect.kind === 'move' && previous.route === 'main'
       ? Math.max(1, Math.min(routeEnd, effect.to ?? previous.space + (effect.by || 0))) : null;
     const opponents = effect.kind === 'swap' && onMain ? game.players.filter((other) =>
-      other.id !== player.id && !journeySameSide(game, player.id, other.id) && other.location.route === 'main' && other.status !== 'FINISHED' && !isImprisoned(other)) : [];
+      other.id !== player.id && !journeySameSide(game, player.id, other.id) && other.location.route === 'main' && other.forfeitedPoints === undefined && other.status !== 'FINISHED' && !isImprisoned(other)) : [];
     opponents.sort((a, b) => ((a.completedLaps || 0) - (b.completedLaps || 0)) * config.finishSpace
       + (a.location as { space: number }).space - (b.location as { space: number }).space);
     const opponent = effect.kind === 'swap' ? (effect.opponent === 'last' ? opponents[0] : opponents[opponents.length - 1]) : undefined;
@@ -414,7 +422,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
       case 'all_move':
         if (effect.by < 0 && shieldOwners) {
           queue.unshift(...game.players.filter((other) => !journeySameSide(game, player.id, other.id) && other.location.route === 'main'
-            && other.status !== 'FINISHED' && !isImprisoned(other)).map((other): QueuedEffect => ({
+            && other.forfeitedPoints === undefined && other.status !== 'FINISHED' && !isImprisoned(other)).map((other): QueuedEffect => ({
             ...item, playerId: other.id, key: `${item.key}:${other.id}`,
             effect: { kind: 'move', by: effect.by, activateLanding: false },
           })));
@@ -435,7 +443,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
         player.pendingEffects.push(effect.effect);
         break;
       case 'transfer_delayed': {
-        const other = game.players.find((candidate) => candidate.id !== player.id && !journeySameSide(game, player.id, candidate.id) && candidate.status !== 'FINISHED');
+        const other = game.players.find((candidate) => candidate.id !== player.id && !journeySameSide(game, player.id, candidate.id) && candidate.forfeitedPoints === undefined && candidate.status !== 'FINISHED');
         if (other && player.pendingEffects.length) other.pendingEffects.push(player.pendingEffects.shift()!);
         break;
       }
@@ -468,7 +476,7 @@ function resolveEffects(game: JourneyGame, config: JourneyConfig, initial: Queue
     if (hasMovedToMain && !isImprisoned(player) && player.status !== 'FINISHED') {
       const opponentsOnSquare = game.players.filter(other => other.id !== player.id
         && !journeySameSide(game, player.id, other.id)
-        && other.status !== 'FINISHED' && other.location.route === 'main'
+        && other.forfeitedPoints === undefined && other.status !== 'FINISHED' && other.location.route === 'main'
         && !isImprisoned(other) && other.location.space === landingSpace);
       queue.unshift(...opponentsOnSquare.map(other => ({
         playerId: other.id, source: 'capture:' + player.id,
@@ -490,7 +498,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
   const previous = structuredClone(player.location);
   if (player.location.route === 'prison' || isImprisoned(player)) throw new Error('A prisoner must miss this turn, not roll a die.');
   game.bonusTurnPlayerId = die === 6 ? playerId : null;
-  if (player.location.route === 'main') awardAnswer(player);
+  if (player.location.route === 'main') awardAnswer(game, player);
   const dueEffects = player.pendingEffects.splice(0);
   if (player.location.route === 'loop') {
     const startIndex = player.location.space - 1;
@@ -513,7 +521,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       const escapeSpace = player.location.route === 'main' ? player.location.space : null;
       const opponentsOnSquare = game.players.filter(other => other.id !== player.id
         && !journeySameSide(game, player.id, other.id) && other.location.route === 'main'
-        && other.status !== 'FINISHED' && !isImprisoned(other)
+        && other.forfeitedPoints === undefined && other.status !== 'FINISHED' && !isImprisoned(other)
         && other.location.space === escapeSpace);
       if (opponentsOnSquare.length) resolveEffects(game, config, opponentsOnSquare.map(other => ({
         playerId: other.id, source: 'capture:' + player.id,
@@ -525,7 +533,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
     const progress = player.location.space - 1 + die;
     const crossedStart = Math.floor(progress / config.finishSpace);
     player.completedLaps = (player.completedLaps || 0) + crossedStart;
-    const won = player.completedLaps >= config.winningLaps;
+    const won = game.pointsRemaining === undefined && player.completedLaps >= config.winningLaps;
     player.location = main(won ? 1 : progress % config.finishSpace + 1);
     record(game, player, 'die', 'main-move', previous, 'forward');
     if (crossedStart) record(game, player, 'lap-complete', 'lap', previous, 'reveal');
@@ -537,7 +545,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
       // competitor. Reaching the course end only breaks an exact points tie.
       // This also applies against The Scribe: a low-scoring machine must not
       // be announced as winner over a higher-scoring human without a forfeit.
-      const ranked = [...game.players].sort((a, b) =>
+      const ranked = game.players.filter(candidate => candidate.forfeitedPoints === undefined).sort((a, b) =>
         journeyScore(b) - journeyScore(a)
         || Number(b.completedLaps || 0) - Number(a.completedLaps || 0)
         || (a.id === player.id ? -1 : b.id === player.id ? 1 : a.id.localeCompare(b.id)));
@@ -548,7 +556,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
     }
     const rollSpace = player.location.route === 'main' ? player.location.space : null;
     const collisions = game.players.filter(other => other.id !== player.id
-      && other.status !== 'FINISHED' && !journeySameSide(game, player.id, other.id)
+      && other.forfeitedPoints === undefined && other.status !== 'FINISHED' && !journeySameSide(game, player.id, other.id)
       && other.location.route === 'main' && !isImprisoned(other)
       && other.location.space === rollSpace)
       .map(other => ({
@@ -614,7 +622,7 @@ export function resolveJourneyAction(original: JourneyGame, actorId: string, cho
   game.pendingAction = null;
   if (pending.kind === 'trial' && choice === 0) {
     const player = game.players.find((candidate) => candidate.id === pending.playerId);
-    if (player?.location.route === 'main') awardAnswer(player);
+    if (player?.location.route === 'main') awardAnswer(game, player);
   }
   resolveEffects(game, config, [{ playerId: pending.playerId, source: pending.source, effect: pending.choices[choice], key: `${pending.kind}:${choice}` }], shieldOwners);
   if (!game.pendingAction && !game.shieldOffer) nextTurn(game);

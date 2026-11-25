@@ -2,6 +2,8 @@ import { ARENA_STANDSTILL_MS } from './arenaBoardMarket.ts';
 import { arenaMatchRelicIsMuted, countArenaMatchRelicUse } from './arenaMatchRelicLimits.ts';
 import {
   createJourneyGame,
+  journeyScore,
+  nextTurn,
   journeyConfigForGame,
   JOURNEY_MACHINE_ID,
   journeyQuestionStage,
@@ -39,6 +41,7 @@ export type JourneyVerdict = {
 };
 
 export type JourneyRuntime = {
+  skips?: Record<string, number>;
   characterSlug: string;
   game: JourneyGame;
   questionIdsByStage: Record<number, string[]>;
@@ -252,21 +255,65 @@ export async function applyJourneyRelic(original: JourneyRuntime, actorId: strin
   return next;
 }
 
+export function finishJourney(runtime: JourneyRuntime) {
+  const game = runtime.game;
+  const ranked = game.players.filter(player => player.forfeitedPoints === undefined)
+    .sort((a, b) => journeyScore(b) - journeyScore(a));
+  const winner = ranked.find(player => player.id === game.winnerId) ?? ranked[0];
+  game.status = 'finished';
+  game.winnerId = winner?.id ?? null;
+  if (winner) winner.score = journeyScore(winner) + game.players.reduce((sum, p) => sum + (p.forfeitedPoints ?? 0), 0);
+  runtime.currentQuestion = null;
+  runtime.currentQuestionPlayerId = null;
+  runtime.questionDeadline = null;
+  runtime.awaitingRoll = false;
+  delete runtime.undo;
+}
+
+export async function forfeitJourney(original: JourneyRuntime, actor: string, lookup: JourneyQuestionLookup, random: () => number) {
+  const next = structuredClone(original);
+  const game = next.game;
+  const player = game.players.find(p => p.id === actor);
+  if (!player || player.forfeitedPoints !== undefined || game.status !== 'playing') throw new Error('This player has already forfeited.');
+  player.forfeitedPoints = journeyScore(player);
+  player.score = 0;
+  delete next.undo;
+  game.version++;
+  const remaining = game.players.filter(p => p.forfeitedPoints === undefined);
+  if (remaining.length <= 1) {
+    game.status = 'finished';
+    game.winnerId = remaining[0]?.id ?? null;
+  } else if (game.players[game.turnIndex].id === actor || next.currentQuestionPlayerId === actor) {
+    game.pendingAction = null;
+    game.bonusTurnPlayerId = null;
+    delete game.shieldOffer;
+    delete game.shieldContinuation;
+    nextTurn(game);
+    next.lastVerdict = null;
+    await openNextQuestion(next, lookup, random);
+  }
+  return next;
+}
+
 export async function expireJourneyQuestion(original: JourneyRuntime,
   lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
   if (!original.currentQuestionPlayerId || !original.questionDeadline
     || Date.now() < Date.parse(original.questionDeadline)) {
     throw new Error('This question has not timed out.');
   }
+  const actor = original.currentQuestionPlayerId;
+  const skips = { ...original.skips, [actor]: (original.skips?.[actor] || 0) + 1 };
+  original = { ...original, skips };
+  if (skips[actor] >= 3) return forfeitJourney(original, actor, lookup, random);
   if (original.awaitingRoll) {
     const next = structuredClone(original);
-    next.game = resolveJourneyMiss(next.game, original.currentQuestionPlayerId, null);
+    next.game = resolveJourneyMiss(next.game, actor, null);
     next.lastVerdict = null;
     delete next.undo;
     await openNextQuestion(next, lookup, random);
     return next;
   }
-  return answerJourneyQuestion(original, original.currentQuestionPlayerId, '', lookup, random, shieldOwners);
+  return answerJourneyQuestion(original, actor, '', lookup, random, shieldOwners);
 }
 
 export async function chooseJourneyPenalty(original: JourneyRuntime, actorId: string, choice: 0 | 1,
@@ -329,6 +376,7 @@ export function publicJourneyRuntime(runtime: JourneyRuntime): JourneyPublicStat
   }
   const { currentQuestion } = runtime;
   return {
+    skips: runtime.skips,
     characterSlug: runtime.characterSlug,
     game,
     pausedUntil: runtime.pausedUntil,
@@ -370,6 +418,7 @@ export async function undoJourneyMove(original: JourneyRuntime, actorId: string,
   }
   const next = structuredClone(original);
   next.game = structuredClone(undo.before);
+  next.game.pointsRemaining = game.pointsRemaining;
   next.game.version = game.version + 1;
   next.game.events = structuredClone(game.events);
   next.game.matchRelicUses = structuredClone(game.matchRelicUses);

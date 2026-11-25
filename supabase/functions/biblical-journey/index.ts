@@ -7,6 +7,8 @@ import {
   chooseJourneyPenalty,
   createJourneyRuntime,
   expireJourneyQuestion,
+  forfeitJourney,
+  finishJourney,
   publicJourneyRuntime,
   serveJourneySentence,
   machineJourneyMayAct,
@@ -26,7 +28,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '213',
+  'X-Full-Circle-Journey-Release': '214',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -84,7 +86,7 @@ function machineAccuracy(roomName: string): number {
 }
 
 async function roomContext(roomId: string) {
-  const rooms = await rest(`arena_rooms?id=eq.${roomId}&select=id,room_name,status,play_mode,creator_id`);
+  const rooms = await rest(`arena_rooms?id=eq.${roomId}&select=id,room_name,status,play_mode,creator_id,started_at`);
   const room = rooms?.[0];
   if (!room || !/\[arena:journey\]/i.test(String(room.room_name || ''))) {
     throw new Error('Biblical Journey room not found.');
@@ -125,7 +127,7 @@ function secureRandom() {
   return value[0] / 4294967296;
 }
 
-async function initialRuntime(roomId: string, characterSlug: string, playerIds: string[], roomName: string) {
+async function initialRuntime(roomId: string, characterSlug: string, playerIds: string[], roomName: string, startedAt: string) {
   const characters = await rest(`arena_journey_characters?slug=eq.${characterSlug}&ready=eq.true&select=slug`);
   if (!characters?.length) throw new Error('That Biblical Journey character is not ready to play.');
   const rows = await rest('rpc/get_arena_journey_active_question_pool', {
@@ -144,7 +146,10 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
     }
     tentSides = sides;
   }
-  return await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom, tentSides);
+  const runtime = await createJourneyRuntime(characterSlug, playerIds, questions, approvedQuestion, secureRandom, tentSides);
+  runtime.game.pointsRemaining = 100;
+  runtime.game.matchDeadline = new Date(Date.parse(startedAt) + 45 * 60_000).toISOString();
+  return runtime;
 }
 
 // A scheduled inter-tent room is allowed to switch to "playing" with one
@@ -158,7 +163,7 @@ async function ensureInterTentBoard(roomId: string, context: Awaited<ReturnType<
   const machine = context.room.play_mode === 'machine';
   if (machine) return null;
   const prepared = await initialRuntime(roomId, context.characterSlug,
-    active.map(player => player.user_id), String(context.room.room_name));
+    active.map(player => player.user_id), String(context.room.room_name), context.room.started_at);
   // The current release has a 45-square board; do not fall back to the
   // retired 51-square topology when a witness initializes a scheduled match.
   const stored = await rest('rpc/initialize_arena_journey_game', {
@@ -179,20 +184,30 @@ async function pendingViewerChallenge(roomId: string, playerId: string) {
 // Server-owned clock: GET polling can advance an expired turn even if its owner disconnects.
 async function advanceExpiredTurn(roomId: string, snapshot: { version: number; state: JourneyRuntime; updated_at: string }) {
   const original = snapshot.state;
-  if (original.game.status !== 'playing' || original.game.shieldOffer || !original.currentQuestionPlayerId
-    || Date.now() < Date.parse(original.pausedUntil || '')) return snapshot;
+  if (original.game.status !== 'playing') return snapshot;
+  const closed = Date.now() >= Date.parse(original.game.matchDeadline || '');
   const deadline = original.questionDeadline || (original.awaitingRoll
     ? new Date(Date.parse(snapshot.updated_at) + 45000).toISOString() : null);
-  if (!deadline || Date.now() < Date.parse(deadline)) return snapshot;
+  if (!closed && (original.game.shieldOffer || !original.currentQuestionPlayerId || !deadline
+    || Date.now() < Date.parse(deadline) || Date.now() < Date.parse(original.pausedUntil || ''))) return snapshot;
   const active = (await participants(roomId)).filter(player => !player.forfeited_at);
-  if (!active.some(player => player.user_id === original.currentQuestionPlayerId)) return snapshot;
-  const shieldOwners = await arenaShieldOwners(rest, active.map(player => player.user_id));
-  const next = await expireJourneyQuestion({ ...original, questionDeadline: deadline }, approvedQuestion, secureRandom, shieldOwners);
+  const actor = closed ? active[0]?.user_id : original.currentQuestionPlayerId;
+  if (!actor || !active.some(p => p.user_id === actor)) return snapshot;
+  let next: JourneyRuntime;
+  if (closed) {
+    next = structuredClone(original);
+    next.game.version++;
+    finishJourney(next);
+  } else {
+    const owners = await arenaShieldOwners(rest, active.map(p => p.user_id));
+    next = await expireJourneyQuestion({ ...original, questionDeadline: deadline }, approvedQuestion, secureRandom, owners);
+    if (next.game.status === 'finished' || next.game.pointsRemaining === 0) finishJourney(next);
+  }
   try {
     const result = await rest('rpc/commit_arena_journey_turn', {
       method: 'POST', body: JSON.stringify({
         p_room_id: roomId, p_expected_version: snapshot.version, p_next_state: next,
-        p_command_id: crypto.randomUUID(), p_actor_id: original.currentQuestionPlayerId, p_relic_slug: null,
+        p_command_id: crypto.randomUUID(), p_actor_id: actor, p_relic_slug: null,
       }),
     }) as { state: JourneyRuntime };
     return { state: result.state, version: result.state.game.version, updated_at: new Date().toISOString() };
@@ -219,7 +234,7 @@ Deno.serve(async (request) => {
       })) });
     }
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD', 'UNDO', 'STANDSTILL'].includes(action)) {
+    if (!['FORFEIT', 'GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD', 'UNDO', 'STANDSTILL'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
     const context = await roomContext(roomId);
@@ -276,7 +291,7 @@ Deno.serve(async (request) => {
         return json({ error: 'This Journey room has the wrong number of players.' }, 409);
       }
       const prepared = await initialRuntime(roomId, context.characterSlug,
-        [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])], String(context.room.room_name));
+        [...activePlayers.map((player) => player.user_id), ...(machine ? [JOURNEY_MACHINE_ID] : [])], String(context.room.room_name), context.room.started_at);
       // Older cached clients still draw 51 squares until they receive the new app.
       if (body.boardSpaces !== 45) {
         prepared.game.boardSpaces = 51;
@@ -304,12 +319,13 @@ Deno.serve(async (request) => {
       return json({ error: 'The board changed on another device.',
         state: publicJourneyRuntime(current.state as JourneyRuntime), version: current.version }, 409);
     }
-    if (action !== 'BOT' && action !== 'EXPIRE' && action !== 'SHIELD' && await pendingViewerChallenge(roomId, actorId)) {
+    if (action !== 'FORFEIT' && action !== 'BOT' && action !== 'EXPIRE' && action !== 'SHIELD' && await pendingViewerChallenge(roomId, actorId)) {
       return json({ error: 'Respond to the Arena challenge before playing your next move.' }, 409);
     }
 
     const original = current.state as JourneyRuntime;
-    if (Date.now() < Date.parse(original.pausedUntil || '')) return json({ error: 'The match is paused by Standstill.' }, 409);
+    if (original.game.players.find(p => p.id === actorId)?.forfeitedPoints !== undefined) return json({ error: 'You have forfeited this match.' }, 403);
+    if (action !== 'FORFEIT' && Date.now() < Date.parse(original.pausedUntil || '')) return json({ error: 'The match is paused by Standstill.' }, 409);
     const previous = { ...original };
     delete previous.pausedUntil;
     const resolvingMachineChoice = context.room.play_mode === 'machine' && action === 'CHOOSE'
@@ -317,14 +333,16 @@ Deno.serve(async (request) => {
     if (!['UNDO', 'SHIELD', 'STANDSTILL', 'BOT'].includes(action) && !resolvingMachineChoice) delete previous.undo;
     const decision = body.decision;
     if (action === 'SHIELD' && decision !== 'use' && decision !== 'expire' && decision !== 'reflect') return json({ error: 'Choose a valid Shield of Faith action.' }, 400);
-    if (previous.game.shieldOffer && action !== 'SHIELD') return json({ error: 'Wait for the Shield of Faith decision.' }, 409);
+    if (previous.game.shieldOffer && action !== 'SHIELD' && action !== 'FORFEIT') return json({ error: 'Wait for the Shield of Faith decision.' }, 409);
     const useShield = action === 'SHIELD' && decision === 'use';
     const useBoomerang = action === 'SHIELD' && decision === 'reflect';
     const shieldOwners = body.shieldDecisionV1 === true && ['ANSWER', 'EXPIRE', 'CHOOSE', 'BOT', 'RELIC', 'SHIELD'].includes(action)
       ? await arenaShieldOwners(rest, activePlayers.map((player) => player.user_id), useShield ? actorId : undefined) : undefined;
     const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
     let next: JourneyRuntime;
-    if (action === 'UNDO') {
+    if (action === 'FORFEIT') {
+      next = await forfeitJourney(original, actorId, approvedQuestion, secureRandom);
+    } else if (action === 'UNDO') {
       next = await undoJourneyMove(previous, actorId, approvedQuestion, secureRandom);
     } else if (action === 'STANDSTILL') {
       next = pauseJourneyMatch(previous, actorId);
@@ -342,7 +360,9 @@ Deno.serve(async (request) => {
       next = rollJourneyDie(previous, actorId, secureRandom);
     } else if (action === 'ANSWER') {
       const answer = String(body.answer || '').slice(0, 2000);
-      next = await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners);
+      next = previous.currentQuestionPlayerId === actorId && Date.now() >= Date.parse(previous.questionDeadline || '')
+        ? await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners)
+        : await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'EXPIRE') {
       next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'CHOOSE') {
@@ -350,6 +370,11 @@ Deno.serve(async (request) => {
       next = await chooseJourneyPenalty(previous, actorId, body.choice, approvedQuestion, secureRandom, shieldOwners);
     } else {
       next = await serveJourneySentence(previous, actorId, approvedQuestion, secureRandom);
+    }
+    if (next.game.status === 'finished' || next.game.pointsRemaining === 0) finishJourney(next);
+    if (Date.now() >= Date.parse(original.game.matchDeadline || '')) {
+      const settled = await advanceExpiredTurn(roomId, current);
+      return json({ state: publicJourneyRuntime(settled.state), version: settled.version });
     }
     const result = await rest(spend ? 'rpc/commit_arena_board_market_turn'
       : useShield ? 'rpc/commit_arena_shield_turn' : useBoomerang ? 'rpc/commit_arena_boomerang_turn' : 'rpc/commit_arena_journey_turn', {
