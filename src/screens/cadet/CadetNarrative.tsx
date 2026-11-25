@@ -1,3 +1,4 @@
+import { ScriptureBookmark, type ReadingOrigin } from '../../components/ScriptureBookmark';
 import { canonicalBibleVerseReference, parseBibleReadingReference, type BibleReadingLocation } from '../../lib/bibleBooks';
 import { useScriptureVerseMarks, SCRIPTURE_QUESTION_RESOLVED_EVENT } from '../../lib/useScriptureVerseMarks';
 import { ScriptureQuestionComposer, type ScriptureQuestionTarget } from '../../components/ScriptureQuestion';
@@ -311,12 +312,14 @@ export function CadetNarrative({
   onOpenBible,
   streakCount = 0,
   initialDate,
+  initialReturnReference,
 }: {
   onMeditationSaved?: () => Promise<void> | void;
   onOpenWeeklyQuiz?: () => void;
-  onOpenBible?: (location: BibleReadingLocation | null) => void;
+  onOpenBible?: (location: BibleReadingLocation | null, origin?: ReadingOrigin) => void;
   streakCount?: number;
   initialDate?: string;
+  initialReturnReference?: string;
 }) {
   const { profile } = useAuth();
   const [scriptureQuestion, setScriptureQuestion] = useState<ScriptureQuestionTarget | null>(null);
@@ -401,6 +404,18 @@ export function CadetNarrative({
     readingRootRef, profileId, activeDate, !loading && narrative?.narrative_date === activeDate, Boolean(navigationTarget),
   );
 
+  const restoredBookmark = useRef(false);
+  useEffect(()=>{
+    if(restoredBookmark.current || !initialReturnReference || loading || !readerVerses.length) return;
+    const canonical=canonicalBibleVerseReference(initialReturnReference);
+    const match=readerVerses.find(v=>v.reference===initialReturnReference || (canonical && canonicalBibleVerseReference(v.reference)===canonical));
+    if(!match)return;
+    const target=verseRefs.current[match.reference];
+    if(!target)return;
+    cancelReadingRestore.current?.();
+    const frame=window.requestAnimationFrame(()=>{restoredBookmark.current=true;target.scrollIntoView({block:'center',behavior:'instant'});});
+    return ()=>window.cancelAnimationFrame(frame);
+  },[initialReturnReference,loading,readerVerses,cancelReadingRestore]);
   useEffect(() => {
     if (!profile || !narrative || isHistoricalReading) return;
     revealHiddenChallenge({ placement: 'todays_reading', referenceKey: narrative.id });
@@ -1004,11 +1019,13 @@ export function CadetNarrative({
   if (loading) {
     return (
       <div className="text-center py-12 text-stone animate-fade-in">
+        <ScriptureBookmark count={0} />
         Loading today's reading…
       </div>
     );
   }
 
+  const followReadingThread = (next:BibleReadingLocation,reference:string) => onOpenBible?.(next,{date:activeDate,reference});
   const bibleLink = onOpenBible && <button type="button" className="btn-secondary w-full justify-center" onClick={()=>onOpenBible(parseBibleReadingReference(narrative?.scripture_passages?.[0]?.reference || narrative?.scripture_reference) || parseBibleReadingReference(readerVerses[0]?.reference))}>
     <BookOpen size={17} /> Open the Bible <ChevronRight size={16} />
   </button>;
@@ -1019,6 +1036,7 @@ export function CadetNarrative({
 
     return (
       <div className="space-y-5 max-w-3xl mx-auto">
+        <ScriptureBookmark count={0} />
         <section data-artwork-theme={readingImage?.url ? 'night' : undefined} className="card relative isolate overflow-hidden p-8 text-center">
           <PanelImageBackdrop image={readingImage} opacityOverride={58} veilClassName="welcome-slide-veil" modeFilter={false} textGradient={false} />
           <div className="relative z-10">
@@ -1088,6 +1106,7 @@ export function CadetNarrative({
       onScrollCapture={recordSundayEngagement}
       onKeyDownCapture={recordSundayEngagement}
     >
+      <ScriptureBookmark count={0} />
       {isHistoricalReading && (
         <div className="card flex items-center justify-between gap-3 border-brass/30 bg-brass-soft px-4 py-3">
           <div className="min-w-0">
@@ -1201,7 +1220,7 @@ export function CadetNarrative({
               {editionContent?.credit && <p className="mt-1 whitespace-pre-line text-xs text-stone" data-no-translate>{editionContent.credit}</p>}
             </div>}
             <ScrollEdge position="top" className="text-brass mb-4" />
-            {panelVerses[0] && <ReadingContext key={panelVerses[0].verse.reference} reference={panelVerses[0].verse.reference} edition={edition} onNavigate={onOpenBible} />}
+            {panelVerses[0] && <ReadingContext key={panelVerses[0].verse.reference} reference={panelVerses[0].verse.reference} edition={edition} onNavigate={onOpenBible ? next=>followReadingThread(next,panelVerses[0].verse.reference) : undefined} />}
             <div className="space-y-4 sm:space-y-5">
               {panelVerses.length ? (() => {
                 const discoveries = passageDiscoveryFacts(panelVerses.map(({ verse }) => ({
@@ -1254,7 +1273,7 @@ export function CadetNarrative({
                       </span>
                     </button>
                     <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === (bibleReference || verse.reference))} />
-                    {bibleReference && <VerseThreads key={bibleReference} reference={bibleReference} links={threadLinks(bibleReference)} onNavigate={onOpenBible} />}
+                    {bibleReference && <VerseThreads key={bibleReference} reference={bibleReference} links={threadLinks(bibleReference)} onNavigate={onOpenBible ? next=>followReadingThread(next,verse.reference) : undefined} />}
                     {hasInsight && expanded && (
                       <div className="mt-3 border-l-2 border-brass/50 bg-brass-soft px-4 py-3 animate-slide-up">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Instructor insight</p>
@@ -1491,7 +1510,7 @@ export function CadetNarrative({
                 </article>
               ))}
             </div>
-            {[...new Set(panelVerses.map(({verse}) => (canonicalBibleVerseReference(verse.reference)||verse.reference).replace(/:\d+$/, "")))].map(ref=><ChapterSummary key={ref} reference={ref} onNavigate={onOpenBible}/>)}
+            {[...new Set(panelVerses.map(({verse}) => (canonicalBibleVerseReference(verse.reference)||verse.reference).replace(/:\d+$/, "")))].map(ref=><ChapterSummary key={ref} reference={ref} onNavigate={onOpenBible ? next=>followReadingThread(next,panelVerses.find(({verse})=>(canonicalBibleVerseReference(verse.reference)||verse.reference).replace(/:\d+$/, '')===ref)?.verse.reference||ref) : undefined}/>)}
             <ScrollEdge position="bottom" className="text-brass mt-4" />
             </div>
           </section>
