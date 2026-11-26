@@ -93,13 +93,14 @@ export function ArenaHeartReaction({ roomId, userId, guestKey, spectator = false
       } catch { /* Realtime is the primary path. */ }
       finally { inFlight = false; }
     };
-    void sync();
-    const timer = window.setInterval(() => void sync(), 16_000);
+    // Realtime delivers reactions; only witnesses need a low-frequency recovery poll.
+    if (!spectator) return () => { active = false; };
+    const timer = window.setInterval(() => void sync(), 60_000 + Math.floor(Math.random() * 15_000));
     return () => { active = false; window.clearInterval(timer); };
-  }, [roomId, userId]);
+  }, [roomId, userId, spectator]);
 
   const sendHeart = async () => {
-    if (!canSend || pending.current || Date.now() - lastSent.current < (guestKey ? 8200 : 850)) return;
+    if (!canSend || pending.current || Date.now() - lastSent.current < (guestKey ? 8200 : 3000)) return;
     if (!guestKey && !userId) return;
     pending.current = true;
     lastSent.current = Date.now();
