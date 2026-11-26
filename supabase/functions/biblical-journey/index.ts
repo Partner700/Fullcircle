@@ -87,7 +87,10 @@ function machineAccuracy(roomName: string): number {
 
 async function roomContext(roomId: string) {
   const rooms = await rest(`arena_rooms?id=eq.${roomId}&select=id,room_name,status,play_mode,creator_id,started_at`);
-  const room = rooms?.[0];
+  return journeyRoomContext(rooms?.[0]);
+}
+
+function journeyRoomContext(room: { id: string; room_name: string; status: string; play_mode: string; creator_id: string; started_at: string } | null) {
   if (!room || !/\[arena:journey\]/i.test(String(room.room_name || ''))) {
     throw new Error('Biblical Journey room not found.');
   }
@@ -250,14 +253,12 @@ Deno.serve(async (request) => {
       const knownVersion = Number(body.knownVersion);
       const hasKnownVersion = body.knownVersion != null
         && Number.isSafeInteger(knownVersion) && knownVersion >= 0;
-      // A version-aware read replaces two sequential database requests.
-      // When the board hasn't changed, PostgREST returns no state at all.
-      const cutoff = new Date(Date.now() - 30000).toISOString();
-      const [context, gameRows] = await Promise.all([roomContext(roomId), rest(
-        `arena_journey_games?room_id=eq.${roomId}&select=version,state,updated_at${hasKnownVersion ? `&or=(version.neq.${knownVersion},updated_at.lte.${cutoff})` : ''}&limit=1`,
-      )]);
+      const poll = await rest('rpc/read_journey_poll', {
+        method: 'POST', body: JSON.stringify({ p_room_id: roomId, p_known_version: hasKnownVersion ? knownVersion : null }),
+      });
+      const context = journeyRoomContext(poll?.room);
       if (!['playing', 'completed'].includes(context.room.status)) return json({ error: 'That match is no longer live.' }, 410);
-      let snapshot = gameRows?.[0];
+      let snapshot = poll.snapshot;
       if (!snapshot && hasKnownVersion) {
         return json({ unchanged: true, version: knownVersion });
       }

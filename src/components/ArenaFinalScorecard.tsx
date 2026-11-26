@@ -62,7 +62,7 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
       {result ? <div className={`mt-6 grid ${columns} items-start gap-x-2 gap-y-6 sm:gap-x-5`}>
         {players.map((player) => {
           const isWinner = compact && result.winner_id === player.user_id;
-          const reason = result.forfeited_ids?.includes(player.user_id) ? 'forfeiture' : result.finish_reason;
+          const originalScore = result.original_scores?.[player.user_id];
           const score = isJourney ? Math.max(0, arenaPlayerScore(player)) : arenaPlayerScore(player);
           return <div key={player.user_id} className="min-w-0 text-center" title={player.display_name}>
           <div className="flex h-10 items-center justify-center" aria-label={player.tent_name || 'Independent'}>
@@ -73,10 +73,10 @@ export function ArenaFinalScorecard({ roomId, onExit, arenaImage: suppliedArenaI
           <p className={`mt-1 font-display font-black tabular-nums text-white ${compact ? (isWinner ? 'text-4xl sm:text-5xl' : 'text-3xl sm:text-4xl') : 'text-5xl sm:text-6xl'}`} aria-label={`${score} ${player.score !== undefined ? 'points' : 'correct answers'}`}>
             {score}
           </p>
+          {originalScore != null && <p className="text-xs font-semibold tabular-nums text-yellow-300" aria-label={`Original score: ${originalScore}`} title="Original score before forfeited points were transferred">{'{'}{originalScore}{'}'}</p>}
           <p className={`mt-1 min-w-0 break-words font-bold leading-tight text-white/90 ${compact ? (isWinner ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs') : 'text-xs sm:text-sm'}`}>
             {shortestArenaName(player.display_name)}
           </p>
-          {reason && result.winner_id && <p className="mt-1 text-xs text-white/80">{result.winner_id === player.user_id ? 'Won' : 'Lost'} by {reason}</p>}
         </div>})}
       </div> : <div className="flex min-h-32 flex-col items-center justify-center gap-3 text-center text-sm text-white/75">
         {error ? <><p>{error}</p><button type="button" className="btn-secondary text-xs" onClick={() => { setError(null); setRetryKey((value) => value + 1); }}><RotateCw size={14} /> Try again</button></>

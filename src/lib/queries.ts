@@ -3492,6 +3492,7 @@ export async function fetchPublicArenaSuccessor(roomId: string): Promise<string 
 }
 
 export type ArenaFinalScorecard = {
+  original_scores?: Record<string, number | null> | null;
   finish_reason?: string | null;
   forfeited_ids?: string[];
   id: string;
