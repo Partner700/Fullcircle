@@ -535,7 +535,7 @@ export function resolveJourneyRoll(original: JourneyGame, playerId: string, die:
     const progress = player.location.space - 1 + die;
     const crossedStart = Math.floor(progress / config.finishSpace);
     player.completedLaps = (player.completedLaps || 0) + crossedStart;
-    const won = game.pointsRemaining === undefined && player.completedLaps >= config.winningLaps;
+    const won = player.completedLaps >= (game.pointsRemaining === undefined ? config.winningLaps : 2);
     player.location = main(won ? 1 : progress % config.finishSpace + 1);
     record(game, player, 'die', 'main-move', previous, 'forward');
     if (crossedStart) record(game, player, 'lap-complete', 'lap', previous, 'reveal');

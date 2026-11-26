@@ -239,6 +239,8 @@ const lap45 = resolveJourneyRoll(smaller({ route: 'main', space: 45 }), 'alpha',
 assert.equal(lap45.players[0].completedLaps, 1);
 assert.deepEqual(space(lap45), { route: 'main', space: 1 });
 const secondLap45 = smaller({ route: 'main', space: 45 });
+secondLap45.pointsRemaining = 50;
+secondLap45.matchDeadline = new Date(Date.now() + 2_700_000).toISOString();
 secondLap45.players[0].completedLaps = 1;
 assert.equal(resolveJourneyRoll(secondLap45, 'alpha', 4).winnerId, 'alpha');
 assert.equal(createJourneyGame(['alpha']).winningLaps, 2);
