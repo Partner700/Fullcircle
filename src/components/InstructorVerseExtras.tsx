@@ -99,12 +99,31 @@ export function useInstructorVerseExtras(references: string[]) {
   return { contexts, facts, quests, refresh, error };
 }
 
+// Individually verified artifact photographs. Load only on explicit opening.
+const VERIFIED_DISCOVERY_IMAGES: Record<string, {file:string; alt:string; credit:string; license:string; licenseUrl:string}> = {
+  '2 Chronicles 36:23': {file:'Cyrus_Cylinder_BM_ME90920.jpg', alt:'Cuneiform inscription on the Cyrus Cylinder, British Museum', credit:'Marie-Lan Nguyen (Jastrow)', license:'CC BY 2.5', licenseUrl:'https://creativecommons.org/licenses/by/2.5/'},
+  'Acts 21:28': {file:'Temple_Warning_Inscription_from_Jerusalem_Istanbul_Archaeology_Museums.jpg', alt:'Greek warning inscription from the Jerusalem Temple, Istanbul Archaeology Museums', credit:'Yong Woo Park (Ywpark2003)', license:'CC0 1.0', licenseUrl:'https://creativecommons.org/publicdomain/zero/1.0/'},
+};
+function VerifiedDiscoveryImage({reference}:{reference:string}) {
+  const entry = VERIFIED_DISCOVERY_IMAGES[reference];
+  const [failed, setFailed] = useState(false);
+  if (!entry) return null;
+  const filePage = 'https://commons.wikimedia.org/wiki/File:' + encodeURIComponent(entry.file);
+  return <figure className="my-3 overflow-hidden rounded-lg border border-border">
+    {!failed && <a href={filePage} target="_blank" rel="noopener noreferrer">
+      <img src={'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(entry.file) + '?width=640'} alt={entry.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="max-h-64 w-full object-contain" />
+    </a>}
+    <figcaption className="p-2 text-xs leading-relaxed text-stone"><a href={filePage} target="_blank" rel="noopener noreferrer" className="underline">{entry.alt}</a> · {entry.credit} · <a href={entry.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{entry.license}</a></figcaption>
+  </figure>;
+}
+
 export function InstructorVerseExtras({ context, fact, quest, onClaimed }: {
   context?: InstructorVerseContext;
   fact?: ScriptureDidYouKnow;
   quest?: QuarterlyVerseQuest;
   onClaimed?: () => void;
 }) {
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [showQuestion, setShowQuestion] = useState(false);
   const [selected, setSelected] = useState('');
   const [sending, setSending] = useState(false);
@@ -198,13 +217,14 @@ export function InstructorVerseExtras({ context, fact, quest, onClaimed }: {
         ))}
         </div>
       </details>}
-      {fact && <details className="rounded-lg border border-sky-500/40 bg-surface-2">
+      {fact && <details onToggle={event => setDiscoveryOpen(event.currentTarget.open)} className="rounded-lg border border-sky-500/40 bg-surface-2">
         <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-bold text-ink">
           <Lightbulb size={16} className="text-brass" /> Did You Know? <ChevronDown size={15} className="ml-auto" />
         </summary>
         <div className="border-t border-border px-3 py-3">
           <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-brass">{FACT_LABELS[fact.category || 'scripture_detail']}</p>
           <p className="text-sm leading-relaxed text-ink">{fact.fact}</p>
+          {discoveryOpen && <VerifiedDiscoveryImage key={fact.reference} reference={fact.reference} />}
           <p className="mt-2 text-xs text-stone">{fact.source_note}</p>
         </div>
       </details>}
