@@ -1,8 +1,8 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v305';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v305';
+const CACHE_VERSION = 'full-circle-target-v306';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v306';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
 const RECOVERY_MARKER = CACHE_VERSION.split('-v').pop();
@@ -460,7 +460,7 @@ async function cachedAppShell() {
       const cache = await caches.open(name);
       const response = (await cache.match(scopedUrl('index.html'), { ignoreVary: true }))
         || (await cache.match(scopedUrl(''), { ignoreVary: true }));
-      if (!response || !await validReleaseResponse(response, scopedUrl('index.html'), name === SHELL_CACHE ? MINIMUM_SAFE_RELEASE : Number(RECOVERY_MARKER))) continue;
+      if (!response || !await validReleaseResponse(response, scopedUrl('index.html'), Number(RECOVERY_MARKER))) continue;
       return localReleaseResponse(response, scopedUrl('index.html'));
     }
     return null;
@@ -473,7 +473,7 @@ async function networkFirstNavigation(request, event) {
   const releaseRequest = scopedUrl('index.html');
   const forceNetwork = isRecoveryNavigation(request.url);
   const networkRequest = fetchReleaseWithFallback(releaseRequest, {
-    cache: forceNetwork ? 'reload' : 'default',
+    cache: forceNetwork ? 'reload' : 'no-cache',
     minimumDocumentRelease: Number(RECOVERY_MARKER),
     hedgeDelay: NAVIGATION_MIRROR_DELAY_MS,
   }).then((response) => {

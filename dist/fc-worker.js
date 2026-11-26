@@ -1,8 +1,8 @@
 // This cache namespace belongs only to the restored Supabase project. Never
 // reuse a pre-cutover shell: those bundles still address the restricted
 // project and can make an online phone appear permanently offline.
-const CACHE_VERSION = 'full-circle-target-v305';
-const CACHE_STORAGE_VERSION = 'full-circle-target-v305';
+const CACHE_VERSION = 'full-circle-target-v306';
+const CACHE_STORAGE_VERSION = 'full-circle-target-v306';
 const SHELL_CACHE = `${CACHE_STORAGE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_STORAGE_VERSION}-assets`;
 const RECOVERY_MARKER = CACHE_VERSION.split('-v').pop();
@@ -481,7 +481,7 @@ async function networkFirstNavigation(request, event) {
   const releaseRequest = scopedUrl('index.html');
   const forceNetwork = isRecoveryNavigation(request.url);
   const networkRequest = fetchReleaseWithFallback(releaseRequest, {
-    cache: forceNetwork ? 'reload' : 'default',
+    cache: forceNetwork ? 'reload' : 'no-cache',
     minimumDocumentRelease: Number(RECOVERY_MARKER),
     hedgeDelay: NAVIGATION_MIRROR_DELAY_MS,
   }).then((response) => {
