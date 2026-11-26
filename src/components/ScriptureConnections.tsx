@@ -2632,40 +2632,37 @@ function ExplorationCards({reference,onNavigate}:{reference:string;onNavigate?:N
   </details>)}</>;
 }
 
-export function VerseThreads({reference, links, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
-  const [limit,setLimit]=useState(20);
-  const [filter,setFilter]=useState<ThreadType|'all'>('all');
-  const [open,setOpen]=useState(false);
-  const [retry,setRetry]=useState(0);
-  const [local,setLocal]=useState<{ref:string; rows:LinkRow[]}|null>(null);
-  const [failed,setFailed]=useState(false);
-  useEffect(()=>{
-    if (!open || links !== undefined) return;
-    let active=true; setFailed(false);
-    const verse=parseBibleReadingReference(reference)?.verse;
-    void loadChapter(chapterKey(reference)).then(data=>{if(active)setLocal({ref:reference,rows:data[String(verse)]||[]});}).catch(()=>{if(active)setFailed(true);});
-    return()=>{active=false;};
-  },[open,links,reference,retry]);
-  const imported=links ?? (local?.ref===reference?local.rows:undefined);
-  const reviewed:LinkRow[]=reviewedPassageIndex.get(reference) ?? [];
-  const rows=imported===undefined?undefined:[...reviewed,...imported.filter(([ref,end])=>!reviewed.some(([r,e])=>r===ref&&e===end))];
-  const visibleRows=rows?.filter(([ref])=>filter==='all'||threadType(reference,ref)===filter);
-  return <details onToggle={event=>setOpen(event.currentTarget.open)} className="group my-1 rounded-xl border border-border bg-surface/80">
-    <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-bold text-brass [&::-webkit-details-marker]:hidden"><GitBranch size={16}/> Threads
-      {rows!==undefined && <span className="rounded-full bg-brass/10 px-2 py-0.5 tabular-nums">{rows.length}</span>}
-      <ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180"/>
-    </summary>
-    <div className="space-y-2 border-t border-border p-3">
-      <ExplorationCards reference={reference} onNavigate={onNavigate}/>
-      <p className="text-xs text-stone">Passages connected to {reference}. Colored categories describe reviewed relationships; gray links may be general or imported connections awaiting classification.</p>
-      {rows===undefined ? <p className="text-xs text-stone" role="status">{failed?'Threads could not load.':'Loading threads…'} {failed&&<button className="underline" onClick={()=>setRetry(n=>n+1)}>Retry</button>}</p> : rows.length===0 ? <p className="text-xs text-stone">No indexed connections for this verse.</p> : <>
-        <div className="flex flex-wrap gap-1.5">{(['all',...Object.keys(THREAD_TYPES)] as Array<ThreadType|'all'>).filter(kind=>kind==='all'||rows.some(([ref])=>threadType(reference,ref)===kind)).map(kind=><button key={kind} type="button" aria-pressed={filter===kind} onClick={()=>{setFilter(kind);setLimit(20);}} className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${filter===kind?'bg-surface-2 border-brass':'border-border'}`} style={kind==='all'?undefined:{color:THREAD_TYPES[kind][1]}}>{kind==='all'?'All':THREAD_TYPES[kind][0]}</button>)}</div>
-        <div className="grid max-h-80 gap-1.5 overflow-y-auto">{visibleRows?.slice(0,limit).map(([ref,end])=><PassageLink key={ref+'|'+end} reference={ref} end={end} kind={threadType(reference,ref)} onNavigate={onNavigate}/>)}</div>
-        {visibleRows&&limit<visibleRows.length&&<button type="button" className="btn-ghost w-full text-xs" onClick={()=>setLimit(n=>n+30)}>Show more · {visibleRows.length-limit} remaining</button>}
-      </>}
-      <p className="text-[10px] text-stone">Cross-reference data: <a className="underline" href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noreferrer">OpenBible.info</a> · CC BY 4.0 · links are study aids, not claims that every connection is a direct prophecy.</p>
-    </div>
-  </details>;
+// Only explicitly explained, pair-specific connections are published.
+const definedThreads: Array<[string,string,string,ThreadType]> = [
+ ['Genesis 1:1','John 1:1','John deliberately echoes the opening of Genesis and identifies the Word as present in the beginning.','parallel'],
+ ['Genesis 2:24','Matthew 19:5','Jesus quotes the creation account when explaining marriage.','quotation'],
+ ['Genesis 15:6','Romans 4:3','Paul quotes Abraham being counted righteous through faith.','quotation'],
+ ['Genesis 22:18','Galatians 3:16','Paul discusses the promise to Abraham and his offspring in relation to Christ.','covenant'],
+ ['Exodus 12:46','John 19:36','John connects the unbroken bones of Jesus with the scriptural requirement that no bone be broken.','fulfillment'],
+ ['Numbers 21:9','John 3:14','Jesus explicitly compares the lifting up of the bronze serpent with the lifting up of the Son of Man.','symbol'],
+ ['Judges 7:24','Judges 8:1','Ephraim was summoned during the pursuit; its subsequent complaint concerns not being called at the outset.','history'],
+ ['Judges 8:1','Judges 12:1','Ephraim raises a similar complaint against Gideon and Jephthah, whose responses differ.','parallel'],
+ ['Isaiah 22:22','Revelation 3:7','The key of David and authority to open and shut recur in Christ’s message to Philadelphia.','symbol'],
+ ['Psalm 2:9','Revelation 2:27','Revelation echoes the royal authority and iron rod of Psalm 2.','quotation'],
+ ['Isaiah 7:14','Matthew 1:23','Matthew explicitly cites Isaiah in explaining Jesus’ birth.','fulfillment'],
+ ['Joel 2:28','Acts 2:17','Peter quotes Joel to explain the outpouring of the Holy Spirit at Pentecost.','fulfillment'],
+ ['Habakkuk 2:4','Romans 1:17','Paul quotes the statement that the righteous shall live by faith.','quotation'],
+ ['Deuteronomy 6:5','Matthew 22:37','Jesus cites the command to love God with the whole heart, soul and mind.','quotation'],
+ ['Leviticus 19:18','Matthew 22:39','Jesus cites the command to love one’s neighbor as oneself.','quotation'],
+ ['Psalm 110:1','Matthew 22:44','Jesus quotes David’s psalm in discussing the identity of the Messiah.','quotation'],
+ ['Micah 5:2','Matthew 2:6','The chief priests and scribes cite the prophecy identifying Bethlehem.','fulfillment'],
+ ['Zechariah 9:9','Matthew 21:5','Matthew cites the prophecy of the king arriving humbly on a donkey.','fulfillment'],
+ ['Isaiah 40:3','Matthew 3:3','Matthew identifies John the Baptist with the voice preparing the Lord’s way.','fulfillment'],
+ ['Genesis 50:25','Exodus 13:19','Moses carries Joseph’s bones in fulfillment of Joseph’s earlier oath.','history'],
+ ['Exodus 13:19','Joshua 24:32','Joseph’s bones carried out of Egypt are eventually buried at Shechem.','history'],
+];
+export function VerseThreads({reference, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
+ const rows=definedThreads.filter(([a,b])=>a===reference||b===reference);
+ if(!rows.length)return null;
+ return <details className="group my-1 rounded-xl border border-border bg-surface/80">
+ <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-bold text-brass [&::-webkit-details-marker]:hidden"><GitBranch size={16}/> Threads <span>{rows.length}</span><ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180"/></summary>
+ <div className="space-y-3 border-t border-border p-3">{rows.map(([a,b,context,kind])=>{const ref=a===reference?b:a;return <div key={ref} className="space-y-1"><p className="text-sm leading-relaxed text-ink">{context}</p><PassageLink reference={ref} kind={kind} onNavigate={onNavigate}/></div>;})}</div>
+ </details>;
 }
 type ContextEntry={summary:string; links:string[]};
 const curated:Record<string,ContextEntry>={
@@ -3885,7 +3882,7 @@ export function ReadingContext({reference,edition,onNavigate}:{reference:string;
   return <details key={reference} onToggle={event=>setOpen(event.currentTarget.open)} className="group mb-4 rounded-2xl border border-brass/40 bg-surface/90">
     <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-bold text-ink [&::-webkit-details-marker]:hidden"><BookOpen size={18} className="text-brass"/> Context<ChevronDown size={16} className="ml-auto text-brass transition-transform group-open:rotate-180"/></summary>
     <div className="space-y-3 border-t border-border px-4 py-3">
-      {entry?<><p className="text-[10px] font-bold uppercase tracking-widest text-brass">Previously in Scripture</p><p className="text-sm leading-relaxed text-ink">{entry.summary}</p><div className="grid gap-1.5">{entry.links.map(ref=><PassageLink key={ref} reference={ref} onNavigate={onNavigate}/>)}</div></>:<>
+      {entry?<><p className="text-[10px] font-bold uppercase tracking-widest text-brass">Previously in Scripture</p><p className="text-sm leading-relaxed text-ink">{entry.summary}</p></>:<>
         <p className="text-[10px] font-bold uppercase tracking-widest text-brass">Read the lead-in · {priorRef}</p>
         <p className="text-xs text-stone">The preceding Scripture is shown here to restore the immediate reading context. A written story summary has not yet been prepared for this passage.</p>
         {previous?.key===priorKey?previous.text.map(v=><p key={v.number} className="text-sm leading-relaxed text-ink"><span className="mr-2 font-semibold text-brass">{v.number}.</span>{v.text}</p>):<p className="text-xs text-stone">{failed?'Previous passage unavailable. Open it directly below.':'Loading previous passage…'}</p>}
