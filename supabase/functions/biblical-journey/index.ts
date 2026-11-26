@@ -152,7 +152,7 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
     const schedule = await rest(`arena_scheduled_matches?room_id=eq.${roomId}&select=player_ids&limit=1`);
     seats = Math.max(seats, new Set(schedule?.[0]?.player_ids || []).size);
   }
-  runtime.game.pointPoolSize = seats * 30;
+  runtime.game.pointPoolSize = seats * 15;
   runtime.game.pointsRemaining = runtime.game.pointPoolSize;
   runtime.game.matchDeadline = new Date(Date.parse(startedAt) + 45 * 60_000).toISOString();
   return runtime;
