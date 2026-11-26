@@ -355,8 +355,9 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
-  const forfeitControl = (!spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined) && <div className="flex items-center justify-between gap-2"><span className="text-sm">Your skipped turns: {state.skips?.[userId] || 0} / 3</span><button type="button" disabled={sending} className="journey-forfeit" onClick={() => { if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT'); }}>Forfeit match</button></div>);
+  const forfeitControl = (!spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined) && <div className="flex items-center justify-between gap-2"><button type="button" disabled={sending} className="journey-forfeit" onClick={() => { if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT'); }}>Forfeit match</button><span className="text-sm">Your skipped turns: {state.skips?.[userId] || 0} / 3</span></div>);
   return <div className="space-y-4">
+    {forfeitControl}
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
       activePlayerName={profiles[state.currentQuestionPlayerId || activePlayer?.id || '']?.name}
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
@@ -407,7 +408,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
       <JourneyBoard turnSeconds={state.questionDeadline && pauseRemaining === 0 ? secondsLeft : undefined} game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
-      {forfeitControl}
+
       <div className="min-w-0 space-y-3">
         {pauseRemaining === 0 && !state.game.shieldOffer && verdictVisible && state.lastVerdict && !chatOpen ? <JourneyDialog label="Answer result" onClose={() => setVerdictVisible(false)}><div className={`rounded-md border p-4 ${state.lastVerdict.correct ? 'border-sage/50 bg-sage/10' : 'border-coral/50 bg-coral-soft'}`} aria-live="assertive" role="status">
           <div className="flex items-center gap-2">
@@ -424,6 +425,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
         </div></JourneyDialog> : null}
 
         {pauseRemaining === 0 && openQuestion && asking && !chatOpen && state.game.status === 'playing' && <JourneyDialog label="Biblical Journey question" onClose={!waitingForMyAnswer ? () => setQuestionHidden(true) : undefined}><section className="min-w-0" aria-label="Biblical Journey question">
+          {forfeitControl}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0"><p className="eyebrow text-brass">Stage {openQuestion.stage}</p><h3 className="mt-1 font-display text-base font-semibold text-ink">{profiles[state.currentQuestionPlayerId || '']?.name || 'Player'}'s turn</h3><span role="timer" className="font-bold tabular-nums text-brass">{secondsLeft}s</span></div>
             <div className="flex shrink-0 items-center gap-1">
@@ -453,7 +455,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
           </div>}
           {error && <p className="mt-2 text-xs text-coral" role="alert">{error}</p>}
           {!waitingForMyAnswer && <p className="mt-3 text-xs text-stone">Waiting for the answer.</p>}
-          {forfeitControl}
+
           <button type="button" className="btn-ghost mt-3 w-full justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Open chat</button>
         </section></JourneyDialog>}
         {openQuestion && questionHidden && !verdictVisible && <div className="flex gap-2"><button type="button" className="btn-secondary flex-1 justify-center text-xs" onClick={() => setQuestionHidden(false)}><ChevronDown size={14} /> Show question</button><button type="button" className="btn-secondary justify-center text-xs" onClick={() => setChatOpen(true)}><MessageCircle size={14} /> Chat</button></div>}
