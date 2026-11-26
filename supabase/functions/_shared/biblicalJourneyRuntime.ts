@@ -296,15 +296,17 @@ export async function forfeitJourney(original: JourneyRuntime, actor: string, lo
 }
 
 export async function expireJourneyQuestion(original: JourneyRuntime,
-  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[]): Promise<JourneyRuntime> {
+  lookup: JourneyQuestionLookup, random: () => number, shieldOwners?: readonly string[], countSkip = false): Promise<JourneyRuntime> {
   if (!original.currentQuestionPlayerId || !original.questionDeadline
     || Date.now() < Date.parse(original.questionDeadline)) {
     throw new Error('This question has not timed out.');
   }
   const actor = original.currentQuestionPlayerId;
-  const skips = { ...original.skips, [actor]: (original.skips?.[actor] || 0) + 1 };
-  original = { ...original, skips };
-  if (skips[actor] >= 3) return forfeitJourney(original, actor, lookup, random);
+  if (countSkip) {
+    const skips = { ...original.skips, [actor]: (original.skips?.[actor] || 0) + 1 };
+    original = { ...original, skips };
+    if (skips[actor] >= 3) return forfeitJourney(original, actor, lookup, random);
+  }
   if (original.awaitingRoll) {
     const next = structuredClone(original);
     next.game = resolveJourneyMiss(next.game, actor, null);

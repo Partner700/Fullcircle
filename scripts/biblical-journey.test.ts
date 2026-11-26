@@ -316,7 +316,7 @@ console.log('45-space board, legacy compatibility, Trials scoring and outcome co
   start.game.players[1].score=3;
   start.skips={a:2};
   start.questionDeadline=new Date(0).toISOString();
-  const skipped=await expireJourneyQuestion(start,lookup,()=>0);
+  const skipped=await expireJourneyQuestion(start,lookup,()=>0,undefined,true);
   assert.equal(skipped.game.players[0].score,0);
   assert.equal(skipped.game.players[0].forfeitedPoints,7);
   assert.equal(skipped.game.players[1].score,3);

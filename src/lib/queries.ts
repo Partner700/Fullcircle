@@ -3492,6 +3492,8 @@ export async function fetchPublicArenaSuccessor(roomId: string): Promise<string 
 }
 
 export type ArenaFinalScorecard = {
+  finish_reason?: string | null;
+  forfeited_ids?: string[];
   id: string;
   room_name: string;
   game_type: 'standard' | 'ludo' | 'journey' | 'prelude';

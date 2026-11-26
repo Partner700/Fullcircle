@@ -175,7 +175,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
     if (!state?.questionDeadline) { setSecondsLeft(0); return; }
     const tick = () => setSecondsLeft(Math.max(0, Math.ceil((Date.parse(state.questionDeadline!) - Date.now()) / 1000)));
     tick();
-    const timer = window.setInterval(tick, 250);
+    const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
   }, [state?.questionDeadline, state?.currentQuestion]);
 
@@ -252,18 +252,20 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
   }, [applyResponse, roomId, sending, spectator, state]);
 
   const [relicNow, setRelicNow] = useState(Date.now);
+  const matchEnd = Date.parse(state?.game.matchDeadline || '');
+  const matchSeconds = Math.max(0, Math.ceil((matchEnd - relicNow) / 1000));
   const pauseUntil = Date.parse(state?.pausedUntil || '');
   const pauseRemaining = Math.max(0, Math.ceil((pauseUntil - relicNow) / 1000) || 0);
   const undoMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_UNDO, machine);
   const standstillMuted = arenaMatchRelicIsMuted(state?.game.matchRelicUses, userId, ARENA_STANDSTILL, machine);
   const undoAvailable = !spectator && !undoMuted && state?.undoOffer?.playerId === userId;
   useEffect(() => {
-    if (!Number.isFinite(pauseUntil)) return;
+    if (!Number.isFinite(pauseUntil) && !Number.isFinite(matchEnd)) return;
     const tick = () => setRelicNow(Date.now());
     tick();
-    const timer = window.setInterval(tick, 250);
+    const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [pauseUntil]);
+  }, [pauseUntil, matchEnd]);
   const botMayAct = pauseRemaining === 0 && machine && !spectator && !movementPending && !verdictVisible && !revealingRoll && state ? machineJourneyMayAct(state) : false;
   useEffect(() => {
     if (!botMayAct || sending) return;
@@ -345,6 +347,27 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
   const movementFinished = useCallback(() => setMovementPending(false), []);
   const squareNotice = squareNotices[0];
 
+  // A timeout can count toward forfeiture only after a device has actually
+  // displayed a playable turn and confirmed connectivity near its deadline.
+  const playable = myTurn && !sending && !error && (rollReady || asking && !questionHidden) && !pauseRemaining;
+  useEffect(() => {
+    if (!playable || !state?.questionDeadline) return;
+    const remaining = Date.parse(state.questionDeadline) - Date.now();
+    if (remaining < 25_000 || document.visibilityState !== 'visible') return;
+    const timer = window.setTimeout(() => {
+      if (navigator.onLine && !failedReadsRef.current && document.visibilityState === 'visible')
+        void Promise.resolve(supabase.rpc('confirm_visible_journey_turn', { p_room_id: roomId, p_version: state.game.version })).catch(() => {});
+    }, remaining - 6000);
+    const cancel = () => window.clearTimeout(timer);
+    document.addEventListener('visibilitychange', cancel);
+    window.addEventListener('offline', cancel);
+    return () => {
+      cancel();
+      document.removeEventListener('visibilitychange', cancel);
+      window.removeEventListener('offline', cancel);
+    };
+  }, [playable, roomId, state?.game.version, state?.questionDeadline]);
+
   if (loading && !state) return <div className="flex min-h-[20rem] items-center justify-center gap-2 text-sm text-stone"><Loader2 size={18} className="animate-spin text-brass" /> Opening the Journey...</div>;
   if (!state) return <div className="flex min-h-[20rem] flex-col items-center justify-center gap-3 text-center text-sm text-stone">
     <p>{error || 'The Journey has not started yet.'}</p>
@@ -355,7 +378,17 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
 
   const standstillAvailable = !spectator && !standstillMuted && pauseRemaining === 0 && !state.game.shieldOffer
     && state.game.pendingAction?.kind !== 'choice' && activePlayer?.id === userId;
-  const forfeitControl = (!spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined) && <div className="flex items-center justify-between gap-2"><button type="button" disabled={sending} className="journey-forfeit" onClick={() => { if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT'); }}>Forfeit match</button><span className="text-sm">Your skipped turns: {state.skips?.[userId] || 0} / 3</span></div>);
+  const canForfeit = !spectator && state.game.players.some(p => p.id === userId && p.forfeitedPoints === undefined);
+  const forfeitControl = <div className="grid grid-cols-3 items-center gap-1">
+    <div>{canForfeit && <button type="button" disabled={sending} className="journey-forfeit" onClick={() => {
+      if (window.confirm('Forfeit this match? Your match points will go to the winner when the match ends.')) void send('FORFEIT');
+    }}>Forfeit match</button>}</div>
+    {Number.isFinite(matchSeconds) && <div className="col-start-2 text-center font-bold text-brass">
+      <span className="block text-xs">Match time left</span>
+      <span role="timer" className="text-xl tabular-nums">{Math.floor(matchSeconds / 60)}:{String(matchSeconds % 60).padStart(2, '0')}</span>
+    </div>}
+    {canForfeit && <span className="col-start-3 text-right text-xs">Your skipped turns: {state.skips?.[userId] || 0} / 3</span>}
+  </div>;
   return <div className="space-y-4">
     {forfeitControl}
     <ArenaTurnAlert roomId={roomId} userId={userId} activePlayerId={state.game.status === 'playing' ? (state.currentQuestionPlayerId || activePlayer?.id) : undefined}
@@ -405,7 +438,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
             .map(player => profiles[player.id]?.name || 'Player').join(' & ')).join(' vs ')}</p>
         <p className="mt-1">Your tent teammates share tournament points. Competitive swaps and transferred penalties exclude teammates.</p>
       </div>}
-      <JourneyBoard turnSeconds={state.questionDeadline && pauseRemaining === 0 ? secondsLeft : undefined} game={state.game} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
+      <JourneyBoard game={state.game} turnSeconds={state.questionDeadline && pauseRemaining === 0 ? secondsLeft : undefined} profiles={profiles} viewerId={userId} characterName={character?.displayName || state.characterSlug.replace(/(^|-)([a-z])/g, (_, _separator, letter: string) => ` ${letter.toUpperCase()}`).trim()} config={boardConfig} arenaImage={arenaImage}
         dieValue={state.pendingDie || state.lastVerdict?.die || 0} rolling={rolling} revealing={revealingRoll}
         onRoll={rollReady ? () => void send('ROLL') : undefined} onMovementFinished={movementFinished} />
 

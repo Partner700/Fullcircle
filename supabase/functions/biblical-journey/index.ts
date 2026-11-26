@@ -97,8 +97,8 @@ async function roomContext(roomId: string) {
 }
 
 async function participants(roomId: string) {
-  return await rest(`arena_participants?room_id=eq.${roomId}&select=user_id,forfeited_at,joined_at&order=joined_at.asc`) as
-    Array<{ user_id: string; forfeited_at: string | null; joined_at: string }>;
+  return await rest(`arena_participants?room_id=eq.${roomId}&select=user_id,forfeited_at,joined_at,journey_seen_version&order=joined_at.asc`) as
+    Array<{ user_id: string; forfeited_at: string | null; joined_at: string; journey_seen_version: number | null }>;
 }
 
 async function gameRow(roomId: string, select = 'version,state') {
@@ -154,7 +154,7 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
   }
   runtime.game.pointPoolSize = seats * 15;
   runtime.game.pointsRemaining = runtime.game.pointPoolSize;
-  runtime.game.matchDeadline = new Date(Date.parse(startedAt) + 45 * 60_000).toISOString();
+  runtime.game.matchDeadline = new Date(Date.parse(startedAt) + 30 * 60_000).toISOString();
   return runtime;
 }
 
@@ -207,7 +207,8 @@ async function advanceExpiredTurn(roomId: string, snapshot: { version: number; s
     finishJourney(next);
   } else {
     const owners = await arenaShieldOwners(rest, active.map(p => p.user_id));
-    next = await expireJourneyQuestion({ ...original, questionDeadline: deadline }, approvedQuestion, secureRandom, owners);
+    next = await expireJourneyQuestion({ ...original, questionDeadline: deadline }, approvedQuestion, secureRandom, owners,
+      active.some(player => player.user_id === actor && player.journey_seen_version === snapshot.version));
     if (next.game.status === 'finished' || next.game.pointsRemaining === 0) finishJourney(next);
   }
   try {
@@ -244,18 +245,18 @@ Deno.serve(async (request) => {
     if (!['FORFEIT', 'GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD', 'UNDO', 'STANDSTILL'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
-    const context = await roomContext(roomId);
+
     if (action === 'GET') {
-      if (!['playing', 'completed'].includes(context.room.status)) return json({ error: 'That match is no longer live.' }, 410);
       const knownVersion = Number(body.knownVersion);
       const hasKnownVersion = body.knownVersion != null
         && Number.isSafeInteger(knownVersion) && knownVersion >= 0;
       // A version-aware read replaces two sequential database requests.
       // When the board hasn't changed, PostgREST returns no state at all.
       const cutoff = new Date(Date.now() - 30000).toISOString();
-      const gameRows = await rest(
+      const [context, gameRows] = await Promise.all([roomContext(roomId), rest(
         `arena_journey_games?room_id=eq.${roomId}&select=version,state,updated_at${hasKnownVersion ? `&or=(version.neq.${knownVersion},updated_at.lte.${cutoff})` : ''}&limit=1`,
-      );
+      )]);
+      if (!['playing', 'completed'].includes(context.room.status)) return json({ error: 'That match is no longer live.' }, 410);
       let snapshot = gameRows?.[0];
       if (!snapshot && hasKnownVersion) {
         return json({ unchanged: true, version: knownVersion });
@@ -282,7 +283,7 @@ Deno.serve(async (request) => {
     }
 
     const actorId = await authenticatedUserId(request);
-    const playerRows = await participants(roomId);
+    const [context, playerRows] = await Promise.all([roomContext(roomId), participants(roomId)]);
     const activePlayers = playerRows.filter((player) => !player.forfeited_at);
     if (!activePlayers.some((player) => player.user_id === actorId)) {
       return json({ error: 'Only an active player may advance this match.' }, 403);
@@ -371,7 +372,8 @@ Deno.serve(async (request) => {
         ? await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners)
         : await answerJourneyQuestion(previous, actorId, answer, approvedQuestion, secureRandom, shieldOwners);
     } else if (action === 'EXPIRE') {
-      next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners);
+      next = await expireJourneyQuestion(previous, approvedQuestion, secureRandom, shieldOwners,
+        activePlayers.some(player => player.user_id === previous.currentQuestionPlayerId && player.journey_seen_version === current.version));
     } else if (action === 'CHOOSE') {
       if (body.choice !== 0 && body.choice !== 1) return json({ error: 'Choose a valid outcome.' }, 400);
       next = await chooseJourneyPenalty(previous, actorId, body.choice, approvedQuestion, secureRandom, shieldOwners);
