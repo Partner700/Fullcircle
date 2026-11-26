@@ -36,6 +36,8 @@ export function BibleReader({ initialLocation, readingOrigin, onReturnToReading 
   const [location, setLocation] = useState(() => validBibleReadingLocation(initialLocation) || readBibleReadingLocation(profile?.id));
   const {bookIndex,chapter}=location;
   const [pendingTarget,setPendingTarget]=useState<BibleReadingLocation|null>(()=>validBibleReadingLocation(initialLocation));
+  const [threadHighlight,setThreadHighlight]=useState<BibleReadingLocation|null>(null);
+  useEffect(()=>{if(!threadHighlight)return;const timer=window.setTimeout(()=>setThreadHighlight(null),5000);return()=>window.clearTimeout(timer);},[threadHighlight]);
   const reader = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{ identifier: number; x: number; y: number } | null>(null);
   const [edition, setEdition] = useState(() => {
@@ -82,7 +84,7 @@ export function BibleReader({ initialLocation, readingOrigin, onReturnToReading 
   useLayoutEffect(()=>{
     if(!text||!pendingTarget||pendingTarget.bookIndex!==bookIndex||pendingTarget.chapter!==chapter)return;
     const target=pendingTarget.verse===undefined?null:reader.current?.querySelector<HTMLElement>(`[data-bible-verse="${pendingTarget.verse}"]`);
-    if(target)target.scrollIntoView({block:'start',behavior:'instant'});
+    if(target){target.scrollIntoView({block:'start',behavior:'instant'});setThreadHighlight({...pendingTarget});}
     else window.scrollTo({top:0,behavior:'instant'});
     setPendingTarget(null);
   },[text,pendingTarget,bookIndex,chapter]);
@@ -267,7 +269,7 @@ export function BibleReader({ initialLocation, readingOrigin, onReturnToReading 
           const verseHighlightClass = personalHighlight === 'question-pending' ? 'verse-highlight-tagged'
             : personalHighlight === 'question-answered' ? 'verse-highlight-answered'
               : personalHighlight === 'insight' ? 'verse-highlight-mine' : '';
-          return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)'}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
+          return <article key={verse.number} data-bible-verse={verse.number} data-verse-reference={reference} style={{scrollMarginTop:'calc(var(--app-header-height, 64px) + 12px)', ...(threadHighlight?.bookIndex===bookIndex && threadHighlight?.chapter===chapter && threadHighlight?.verse===verse.number ? {backgroundColor:'rgba(59,130,246,0.22)',boxShadow:'inset 0 0 0 2px #3b82f6'} : {})}} className={`space-y-2 rounded-xl border px-2 py-3 transition-colors duration-300 ${verseHighlightClass || 'border-transparent'}`}>
             <p className="text-[15px] leading-8 text-ink"><span className="mr-2 font-bold text-brass">{verse.number}.</span>{verse.text}</p>
             <ChapterDiscoveryPanel facts={discoveries.filter(fact => fact.reference === reference)} />
             <VerseThreads key={reference} reference={reference} links={threadLinks(reference)} onNavigate={next=>navigateConnection(next,verse.number)} />
